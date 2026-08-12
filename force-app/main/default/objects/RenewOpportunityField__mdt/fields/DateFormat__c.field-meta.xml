@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DateFormat__c</fullName>
+    <description>許可書式（白リスト）: yyyyMM / yyyy-MM-dd / yyyy/MM/dd / yyyy/MM / yy/MM。Template でトークンに :書式 が無い日付のデフォルト、または Field で Target が Text 系のときの日付→文字列化に使う。Target が Date/DateTime への Field コピーでは未使用（型のままコピー）。未設定かつトークンにも書式が無い日付は yyyy-MM-dd。</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>日付書式</label>
+    <length>40</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

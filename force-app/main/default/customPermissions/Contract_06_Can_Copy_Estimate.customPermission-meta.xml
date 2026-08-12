@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>06 「コピー」を実行できる。コード接続は別途。</description>
+    <isLicensed>false</isLicensed>
+    <label>06 契約 見積コピー</label>
+</CustomPermission>

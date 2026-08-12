@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CompactLayout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContractService_Compact</fullName>
+    <fields>Name</fields>
+    <fields>Account__c</fields>
+    <fields>Status__c</fields>
+    <fields>LatestARR__c</fields>
+    <fields>BiilingAcccount__c</fields>
+    <fields>ServiceStartDate__c</fields>
+    <fields>ServiceEndDate__c</fields>
+    <label>契約サービス コンパクト</label>
+</CompactLayout>

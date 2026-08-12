@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Required__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>ウィザード上での必須。オブジェクト定義の必須とは独立</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>ウィザード必須</label>
+    <type>Checkbox</type>
+</CustomField>

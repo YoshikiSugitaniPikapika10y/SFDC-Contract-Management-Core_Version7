@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ApplicationDate__c</fullName>
+    <description>契約履歴の申込日。見積ウィザードでは EstimateWizardField__mdt により New/Change/Renew/Cancel すべてで表示・必須。Ordered 時の VR 必須は ContractValidationEnforce__c.Enforce__c で制御。</description>
+    <label>申込日</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Date</type>
+</CustomField>

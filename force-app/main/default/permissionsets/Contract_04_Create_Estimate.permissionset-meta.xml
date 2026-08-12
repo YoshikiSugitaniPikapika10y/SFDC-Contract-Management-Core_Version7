@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>04 操作。カスタム権限 Contract_04_Can_Create_Estimate のみ。通常は 01 と併用。コード接続は別途。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>04 契約 見積作成</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Contract_04_Can_Create_Estimate</name>
+    </customPermissions>
+</PermissionSet>

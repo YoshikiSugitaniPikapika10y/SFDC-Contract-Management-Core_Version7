@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RenewEstimateAutoCreateCheck__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description
+  >OFF から ON に更新したときだけ Renew 見積を自動作成する。商談の新規作成時（最初から ON）では作成しない。</description>
+    <inlineHelpText
+  >OFF→ON に更新したときだけ Renew 見積を自動作成します。商談を新規作成するときに最初からオンにしても、この時点では見積は作られません。作成後にいったんオフにして再度オンにするか、オフの状態からオンへ更新してください。</inlineHelpText>
+    <label>更新見積自動作成</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

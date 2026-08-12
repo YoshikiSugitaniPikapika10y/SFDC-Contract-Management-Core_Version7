@@ -1,0 +1,1493 @@
+:host {
+  display: block;
+  width: 100%;
+  --est-accent: #2563eb;
+  --est-accent-dark: #1d4ed8;
+  --est-accent-soft: #eff6ff;
+  --est-accent-border: #bfdbfe;
+  --est-border: #cbd5e1;
+  --est-border-strong: #94a3b8;
+  --est-muted: #64748b;
+  --est-text: #0f172a;
+  --est-surface: #ffffff;
+  --est-surface-muted: #f1f5f9;
+  --est-chip-bg: #e9eef5;
+  --est-radius: 8px;
+  --est-focus-ring: rgba(37, 99, 235, 0.12);
+  --est-input-radius: 6px;
+  /* 親ウィザードの --est-density（モーダル時 0.75）を尊重 */
+  --est-font-title: calc(1rem * var(--est-density, 1));
+  --est-font-desc: calc(0.8125rem * var(--est-density, 1));
+  --est-font-label: calc(0.875rem * var(--est-density, 1));
+  --est-font-control: calc(1.125rem * var(--est-density, 1));
+  --est-font-meta: calc(0.875rem * var(--est-density, 1));
+  --est-input-height: calc(2.75rem * var(--est-density, 1));
+  --lwc-heightInput: calc(2.75rem * var(--est-density, 1));
+  --lwc-fontSize2: calc(0.875rem * var(--est-density, 1));
+  --lwc-fontSize3: calc(1.125rem * var(--est-density, 1));
+  --slds-c-input-text-font-size: calc(1.125rem * var(--est-density, 1));
+  --slds-c-button-font-size: calc(1rem * var(--est-density, 1));
+}
+
+.est-step3 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.est-step3-busy {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--est-radius);
+  border: 1px solid var(--est-accent-border);
+  background: var(--est-accent-soft);
+  color: var(--est-text);
+  font-size: var(--est-font-desc);
+  line-height: 1.4;
+}
+
+.est-step3-busy lightning-spinner {
+  flex-shrink: 0;
+}
+
+.est-step3-busy-text {
+  flex: 1;
+}
+
+/* Panels — 見出しは Step1「契約の特定」と同じ青縦線＋グラデ */
+.est-panel,
+.est-card {
+  background: var(--est-surface);
+  border: 1px solid var(--est-border);
+  border-radius: var(--est-radius);
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.est-panel-header,
+.est-card-header {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-bottom: 1px solid var(--est-border);
+  border-left: 3px solid var(--est-accent);
+}
+
+.est-panel-header_row,
+.est-card-header_row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.est-panel-header-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.est-panel-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.est-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: none;
+  background: transparent;
+  padding: 0.125rem 0.25rem 0.125rem 0;
+  margin: 0;
+  cursor: pointer;
+  color: var(--est-text);
+  text-align: left;
+}
+
+.est-panel-toggle:hover .est-panel-title {
+  color: var(--est-accent);
+}
+
+.est-panel-toggle_active .est-panel-title {
+  color: var(--est-text);
+}
+
+.est-panel-toggle .est-panel-title {
+  margin: 0;
+}
+
+.est-panel-title,
+.est-card-title {
+  margin: 0;
+  font-size: var(--est-font-title);
+  font-weight: 600;
+  color: var(--est-text);
+  letter-spacing: -0.01em;
+}
+
+.est-panel-desc,
+.est-card-desc {
+  margin: 0.25rem 0 0;
+  font-size: var(--est-font-desc);
+  color: var(--est-muted);
+}
+
+.est-panel-body,
+.est-card-body {
+  padding: 1rem;
+  background: var(--est-surface);
+}
+
+/*
+ * テーブル外パネルは Step1（modal2）のフォント／高さに合わせる。
+ * .est-table 内の密度トークンは触らない。
+ */
+.est-panel_period,
+.est-panel_custom,
+.est-panel_remarks {
+  --est-font-label: calc(0.75rem * var(--est-density, 1));
+  --est-font-control: calc(0.875rem * var(--est-density, 1));
+  --est-font-meta: calc(0.8125rem * var(--est-density, 1));
+  --est-font-desc: calc(0.8125rem * var(--est-density, 1));
+  --est-input-height: calc(2.25rem * var(--est-density, 1));
+  --lwc-heightInput: calc(2.25rem * var(--est-density, 1));
+  --slds-c-input-text-font-size: calc(0.875rem * var(--est-density, 1));
+}
+
+.est-panel_period .est-panel-body,
+.est-panel_custom .est-panel-body,
+.est-panel_remarks .est-panel-body {
+  padding: 0.875rem 1rem 1rem;
+}
+
+.est-panel_period .est-label {
+  letter-spacing: 0.04em;
+}
+
+.est-panel_period .est-value {
+  padding: 0.4375rem 0.625rem;
+  min-height: var(--est-input-height);
+  font-size: var(--est-font-control);
+  line-height: 1.4;
+}
+
+.est-panel_period .est-field-grid_period {
+  gap: 0.625rem;
+}
+
+.est-panel_table {
+  overflow: visible;
+}
+
+.est-change-group-header-row td {
+  padding: 0;
+  border-top: none;
+}
+
+/* Original-Remake セット見出し（パネル「商品明細」と色を分ける） */
+.est-change-group-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  background: linear-gradient(180deg, #eff6ff 0%, #e8f1fe 100%);
+  border: 1px solid var(--est-accent-border);
+  border-left: 3px solid var(--est-accent);
+  border-radius: 6px 6px 0 0;
+  box-shadow: none;
+}
+
+.est-change-group-card__header-text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.est-change-group-card__title {
+  font-size: var(--est-font-title);
+  font-weight: 700;
+  color: var(--est-accent-dark, #1d4ed8);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.est-change-group-card__subtitle {
+  font-size: var(--est-font-meta);
+  font-weight: 500;
+  color: #3b82f6;
+}
+
+.est-change-group-boundary_start td,
+.est-change-group-boundary_middle td,
+.est-change-group-boundary_end td {
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+}
+
+/* Original: くすんだ帯 / Remake: 白 */
+.est-change-group-boundary_start td {
+  background: #f1f5f9;
+  border-top: none;
+}
+
+.est-change-group-boundary_middle td,
+.est-change-group-boundary_end td {
+  background: #ffffff;
+  border-top: 1px solid var(--est-row-rule, #b6c2d1);
+}
+
+.est-change-group-boundary_end td {
+  border-bottom: none !important;
+  border-radius: 0 0 6px 6px;
+}
+
+.est-change-group-header-row + .est-change-group-boundary_start td,
+.est-change-group-header-row + .est-change-group-boundary_end td {
+  padding-top: 0.5rem;
+}
+
+/* セット間は余白で区切る */
+.est-change-group-header-row:not(:first-child) td {
+  padding-top: 1.25rem;
+}
+
+.est-change-group-card__header_new {
+  background: linear-gradient(180deg, #ecfdf5 0%, #e6f9ef 100%);
+  border: 1px solid #a7f3d0;
+  border-left: 3px solid #10b981;
+  box-shadow: none;
+}
+
+.est-change-group-card__header_new .est-change-group-card__title {
+  color: #047857;
+}
+
+.est-change-group-card__header_new .est-change-group-card__subtitle {
+  color: #059669;
+}
+
+.est-change-group-boundary_start_new td,
+.est-change-group-boundary_middle_new td,
+.est-change-group-boundary_end_new td {
+  border-left: none !important;
+  border-right: none !important;
+  background: #ffffff;
+  border-top: 1px solid #d8eee3;
+  box-shadow: none !important;
+}
+
+.est-change-group-boundary_end_new td {
+  border-bottom: none !important;
+  border-radius: 0 0 6px 6px;
+}
+
+.est-change-group-boundary_middle_new td {
+  border-top: 1px solid #d8eee3;
+}
+
+.est-change-group-header-row_new + .est-change-group-boundary_start_new td,
+.est-change-group-header-row_new + .est-change-group-boundary_end_new td {
+  padding-top: 0.5rem;
+}
+
+.est-detail-row.est-change-group-boundary_start td,
+.est-detail-row.est-change-group-boundary_middle td,
+.est-detail-row.est-change-group-boundary_end td,
+.est-detail-row.est-change-group-boundary_start_new td,
+.est-detail-row.est-change-group-boundary_middle_new td,
+.est-detail-row.est-change-group-boundary_end_new td {
+  padding: 0.3125rem 0.625rem;
+  background: #f8fafc;
+  box-shadow: none !important;
+}
+
+.est-detail-row.est-change-group-boundary_start td {
+  background: #eef2f7;
+}
+
+.est-detail-row .est-detail-panel {
+  margin: 0;
+  border: none;
+  background: transparent;
+}
+
+.est-change-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.5rem;
+  background: var(--est-surface-muted);
+  border-top: 2px solid var(--est-border-strong);
+}
+
+.est-change-section-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.est-change-section-title {
+  font-size: var(--est-font-control);
+  font-weight: 600;
+  color: var(--est-text);
+}
+
+.est-change-section-desc {
+  font-size: var(--est-font-meta);
+  color: var(--est-muted);
+}
+
+.est-btn-add_section {
+  flex-shrink: 0;
+}
+
+.est-section-header-row td {
+  padding: 0;
+  border-top: none;
+}
+
+/* Field grid */
+.est-field-grid {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.est-field-grid_period {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.est-panel_custom .est-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.est-contract-custom {
+  padding: 0.75rem;
+  background: var(--est-surface-muted);
+  border: 1px solid var(--est-border);
+  border-radius: 6px;
+}
+
+.est-contract-custom-title {
+  margin: 0 0 0.5rem;
+  font-size: var(--est-font-label);
+  font-weight: 600;
+  color: var(--est-muted);
+}
+
+.est-panel-body .est-date-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  --slds-c-input-sizing-min-height: var(--est-input-height);
+  --slds-c-input-text-font-size: var(--est-font-control);
+}
+
+.est-panel-body .est-date-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.375rem;
+}
+
+.est-panel-body .est-date-chip {
+  border: 1px solid var(--est-border-strong);
+  background: var(--est-chip-bg);
+  border-radius: var(--est-input-radius);
+  padding: 0.1875rem 0.4375rem;
+  font-size: var(--est-font-label);
+  line-height: 1.5;
+  color: var(--est-muted);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.est-panel-body .est-date-chip:hover {
+  background: var(--est-accent-soft);
+  border-color: var(--est-accent);
+  color: var(--est-accent);
+}
+
+@media (max-width: 1100px) {
+  .est-field-grid_period {
+    grid-template-columns: 1fr;
+  }
+
+  .est-period-dates {
+    grid-template-columns: 1fr;
+  }
+}
+
+.est-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  min-width: 0;
+}
+
+.est-label {
+  font-size: var(--est-font-label);
+  font-weight: 600;
+  color: var(--est-muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.est-label_required::after {
+  content: " *";
+  color: #dc2626;
+}
+
+.est-value {
+  padding: 0.5rem 0.625rem;
+  background: var(--est-surface-muted);
+  border: 1px solid var(--est-border);
+  border-radius: 6px;
+  font-size: var(--est-font-control);
+  color: #18181b;
+  min-height: var(--est-input-height);
+  display: flex;
+  align-items: center;
+  word-break: break-word;
+}
+
+.est-req {
+  color: #dc2626;
+}
+
+/* Loading & alerts */
+.est-loading {
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.est-loading_inline {
+  padding: 0.5rem;
+}
+
+.est-alert {
+  padding: 0.625rem 0.75rem;
+  border-radius: 6px;
+  font-size: var(--est-font-desc);
+}
+
+.est-alert_error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.est-alert_info {
+  background: var(--est-accent-soft);
+  border: 1px solid var(--est-accent-border);
+  color: #1e3a8a;
+}
+
+.est-alert_warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  margin-bottom: 0.75rem;
+}
+
+.est-alert_compact {
+  margin-top: 0.625rem;
+}
+
+.est-table-wrap {
+  width: 100%;
+  /* 縦は親 .est-body に任せ、テーブル上でもウィザード全体がスクロールできるようにする */
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.est-table-wrap_disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Product table — ~0.8× row density (custom-field grid is separate shadow DOM) */
+.est-table {
+  --est-cell-main-h: calc(2rem * var(--est-density, 1));
+  --est-cell-sub-h: calc(1.5rem * var(--est-density, 1));
+  --est-cell-gap: calc(0.2rem * var(--est-density, 1));
+  --est-font-control: calc(0.9rem * var(--est-density, 1));
+  --est-font-label: calc(0.7rem * var(--est-density, 1));
+  --est-font-meta: calc(0.7rem * var(--est-density, 1));
+  --est-font-desc: calc(0.8rem * var(--est-density, 1));
+  /* 横罫線: --est-border よりわずかに濃く（極端にしない） */
+  --est-row-rule: #b6c2d1;
+  width: 100%;
+  min-width: 58rem;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--est-font-control);
+  line-height: 1.25;
+  color: var(--est-text);
+  background: var(--est-surface);
+}
+
+.est-col-no {
+  width: 3%;
+}
+.est-col-type {
+  width: 6%;
+}
+.est-col-product {
+  width: 18%;
+}
+.est-col-price {
+  width: 9%;
+}
+.est-col-qty {
+  width: 5%;
+}
+.est-col-date {
+  width: 12%;
+}
+.est-col-cycle {
+  width: 6%;
+}
+.est-col-amount {
+  width: 9%;
+}
+.est-col-invoice {
+  width: 10%;
+}
+.est-col-actions {
+  width: 5%;
+}
+
+.est-table thead th,
+.est-table tbody td {
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.est-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.35rem 0.3rem;
+  background: var(--est-surface-muted);
+  border-bottom: 1px solid var(--est-row-rule);
+  font-size: var(--est-font-meta);
+  font-weight: 700;
+  color: var(--est-text);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.est-th-left,
+.est-td-left {
+  text-align: left;
+}
+
+.est-th-center,
+.est-td-center {
+  text-align: center;
+}
+
+.est-th-right,
+.est-td-right {
+  text-align: right;
+}
+
+.est-th-actions {
+  width: 2.5rem;
+}
+
+.est-table tbody td {
+  padding: 0.35rem 0.3rem;
+  border-bottom: 1px solid var(--est-row-rule);
+  vertical-align: top;
+  background: var(--est-surface);
+}
+
+/* 商品カスタム項目の直上の横罫線は出さない */
+.est-table-row:has(+ .est-detail-row) > td {
+  border-bottom: none !important;
+}
+
+/* Two-row cell layout: main (inputs) + sub (meta/buttons) */
+.est-cell-stack {
+  display: grid;
+  grid-template-rows: var(--est-cell-main-h) var(--est-cell-sub-h);
+  gap: var(--est-cell-gap);
+  width: 100%;
+}
+
+.est-cell-stack__main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--est-cell-main-h);
+  overflow: hidden;
+}
+
+.est-cell-stack__main_center {
+  justify-content: center;
+}
+
+.est-cell-stack__main_left {
+  justify-content: flex-start;
+}
+
+.est-cell-stack__main_right {
+  justify-content: flex-end;
+}
+
+.est-cell-stack__main .est-cell-field,
+.est-cell-stack__main .est-cell-field_link {
+  width: 100%;
+}
+
+.est-cell-stack__main .est-cell-static,
+.est-cell-stack__main .est-cell-amount {
+  padding: 0;
+}
+
+.est-cell-stack__sub {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--est-cell-sub-h);
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+.est-cell-stack__sub_left {
+  justify-content: flex-start;
+}
+
+.est-cell-stack__sub_center {
+  justify-content: center;
+}
+
+.est-cell-stack__sub_right {
+  justify-content: flex-end;
+}
+
+.est-billing-type-readonly {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+
+.est-billing-type-hint {
+  font-size: var(--est-font-label);
+  line-height: 1.2;
+  color: var(--est-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.est-billing-type-flip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.0625rem;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--est-accent);
+  cursor: pointer;
+  line-height: 1;
+  --slds-c-icon-color-foreground-default: var(--est-accent);
+}
+
+.est-billing-type-flip:hover {
+  background: var(--est-accent-soft);
+  color: #1d4ed8;
+  --slds-c-icon-color-foreground-default: #1d4ed8;
+}
+
+.est-billing-type-flip:focus-visible {
+  outline: 2px solid var(--est-accent);
+  outline-offset: 1px;
+}
+
+.est-cell-stack_full {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(
+    var(--est-cell-main-h) + var(--est-cell-gap) + var(--est-cell-sub-h)
+  );
+}
+
+.est-td-no,
+.est-td-type,
+.est-td-qty,
+.est-td-amount,
+.est-td-actions {
+  white-space: nowrap;
+}
+
+.est-td-no {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.est-type-label {
+  font-size: var(--est-font-label);
+}
+
+.est-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.6rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 999px;
+  font-size: var(--est-font-label);
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.est-type-badge_original {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.est-type-badge_remake {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.est-type-badge_new {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.est-type-badge_renew {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.est-table-row.est-row-readonly td {
+  color: var(--est-muted);
+}
+
+.est-table-row.est-row-readonly .est-cell-static {
+  color: var(--est-muted);
+}
+
+/* 金額は ReadOnly（Original 含む）でも他種別と同じ青 */
+.est-table-row.est-row-readonly .est-cell-amount,
+.est-change-group-boundary_start .est-cell-amount,
+.est-change-group-boundary_middle .est-cell-amount,
+.est-change-group-boundary_end .est-cell-amount,
+.est-change-group-boundary_start_new .est-cell-amount,
+.est-change-group-boundary_middle_new .est-cell-amount,
+.est-change-group-boundary_end_new .est-cell-amount {
+  color: var(--est-accent);
+}
+
+.est-td-type .est-cell-static {
+  white-space: nowrap;
+}
+
+.est-td-product,
+.est-td-invoice {
+  min-width: 0;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.est-td-product_picking {
+  overflow: visible;
+  max-width: none;
+  position: relative;
+  z-index: 6;
+  white-space: normal;
+}
+
+.est-table-wrap_product-picking {
+  overflow: visible;
+}
+
+.est-product-inline-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.375rem;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 7;
+  min-width: 18rem;
+  width: max(100%, 18rem);
+  max-width: min(28rem, 70vw);
+  padding: 0.5rem;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid var(--est-border-strong, #94a3b8);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  text-align: left;
+}
+
+.est-product-inline-picker lightning-record-picker {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.est-product-inline-cancel {
+  align-self: flex-end;
+  margin: 0;
+  padding: 0.125rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--est-muted, #64748b);
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.est-product-inline-cancel:hover {
+  color: var(--est-text, #0f172a);
+}
+
+.est-td-invoice .est-cell-field {
+  min-width: 0;
+}
+
+.est-td-date {
+  padding-left: 0.3125rem;
+  padding-right: 0.3125rem;
+}
+
+.est-td-date_end {
+  white-space: nowrap;
+}
+
+.est-td-qty {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.est-td-price {
+  white-space: nowrap;
+}
+
+/* Read-only: plain text */
+.est-cell-static {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--est-text);
+  padding: 0.125rem 0;
+}
+
+.est-td-readonly-hint .est-cell-static {
+  color: var(--est-muted);
+}
+
+/* Editable: bordered field */
+.est-cell-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.1rem 0.2rem;
+  background: var(--est-surface);
+  border: 1px solid var(--est-border-strong);
+  border-radius: var(--est-input-radius);
+  min-height: calc(var(--est-cell-main-h) - 0.25rem);
+  max-height: var(--est-cell-main-h);
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.est-cell-field:focus-within {
+  border-color: var(--est-accent);
+  box-shadow: 0 0 0 1px var(--est-focus-ring);
+}
+
+.est-cell-field_link {
+  padding: 0.15rem 0.3rem;
+}
+
+.est-cell-field_link .est-cell-link {
+  padding: 0;
+}
+
+.est-cell-static_num {
+  font-variant-numeric: tabular-nums;
+}
+
+.est-cell-amount {
+  display: block;
+  font-weight: 700;
+  color: var(--est-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.est-td-right .est-cell-static,
+.est-td-right .est-cell-amount,
+.est-td-right .est-cell-input_num,
+.est-td-center .est-cell-static,
+.est-td-center .est-cell-amount,
+.est-td-center .est-cell-input_num,
+.est-td-center .est-cell-input,
+.est-td-center .est-cell-link {
+  text-align: center;
+}
+
+.est-cell-static_locked {
+  color: var(--est-muted);
+}
+
+.est-cell-static_nan {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+/* .est-cell-input より後・高特異性で青ボールドを維持（金額入力モード） */
+.est-cell-input.est-cell-input_amount {
+  font-weight: 700;
+  color: var(--est-accent);
+}
+
+.est-price-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  margin-top: 0;
+  font-size: var(--est-font-label);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.est-price-meta-static {
+  color: var(--est-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.est-amount-entry-diff .est-price-meta-static {
+  color: #8a6d3b;
+  white-space: normal;
+  text-align: center;
+}
+
+.est-invoice-anchor-meta {
+  max-width: 100%;
+  gap: 0.25rem;
+}
+
+.est-invoice-anchor-label {
+  flex-shrink: 0;
+  color: var(--est-muted);
+  font-size: var(--est-font-label);
+  line-height: 1.3;
+}
+
+.est-meta-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--est-accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.est-meta-link:hover {
+  text-decoration: underline;
+  color: #1d4ed8;
+}
+
+.est-meta-link_muted {
+  color: var(--est-muted);
+}
+
+.est-meta-sep {
+  color: var(--est-muted);
+  margin: 0 0.0625rem;
+}
+
+.est-meta-select,
+.est-meta-input {
+  max-width: 4.5rem;
+  padding: 0.0625rem 0.125rem;
+  border: 1px solid var(--est-accent);
+  border-radius: var(--est-input-radius);
+  font-size: var(--est-font-label);
+  background: var(--est-surface);
+  color: var(--est-text);
+}
+
+.est-meta-input {
+  max-width: 3.5rem;
+}
+
+.est-cell-suffix {
+  flex-shrink: 0;
+  margin-left: 0.125rem;
+  font-size: var(--est-font-meta);
+  color: var(--est-muted);
+  white-space: nowrap;
+}
+
+/* Product link */
+.est-cell-link {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--est-accent);
+  font: inherit;
+  text-align: center;
+  text-decoration: underline;
+  color: #1d4ed8;
+}
+
+/* 商品名: 長い商品時のサイズに統一 → 溢れは ellipsis */
+.est-product-name {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 0.5625rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+/* Inline edit inputs inside field box */
+.est-cell-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  line-height: 1.25;
+  color: var(--est-text);
+  box-sizing: border-box;
+}
+
+/* 明細日付: 単価・数量と同じ cell-field 枠に収める（切れ防止） */
+.est-cell-date {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 1.35rem;
+  max-height: 100%;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color-scheme: light;
+}
+
+.est-cell-date::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+.est-cell-input_num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-cell-input:focus,
+.est-cell-select:focus {
+  outline: none;
+}
+
+.est-cell-select {
+  cursor: pointer;
+  appearance: auto;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--est-font-control);
+  line-height: 1.3;
+}
+
+.est-td-invoice .est-cell-static {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.est-td-amount .est-cell-amount,
+.est-td-amount .est-cell-static {
+  white-space: nowrap;
+}
+
+.est-cell-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.est-cell-edit .est-cell-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Date shortcuts — single row, no wrap */
+.est-date-shortcuts {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  margin-top: 0;
+}
+
+.est-date-shortcuts_nowrap {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 1px 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.est-date-shortcuts_nowrap::-webkit-scrollbar {
+  display: none;
+}
+
+.est-date-chip {
+  flex-shrink: 0;
+  border: 1px solid var(--est-border-strong);
+  background: var(--est-chip-bg);
+  border-radius: var(--est-input-radius);
+  padding: 0.1rem 0.25rem;
+  font-size: var(--est-font-meta);
+  line-height: 1.35;
+  font-weight: 500;
+  color: var(--est-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.est-date-chip:hover {
+  background: var(--est-accent-soft);
+  border-color: var(--est-accent);
+  color: var(--est-accent);
+}
+
+.est-date-chip_muted {
+  color: var(--est-muted);
+}
+
+/* Row actions — vertical stack（商品行のみ縮小。カスタム行には無い） */
+.est-row-actions {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 0.1rem;
+  white-space: nowrap;
+}
+
+.est-table-row .est-row-actions lightning-button-icon {
+  transform: scale(0.85);
+  transform-origin: center center;
+}
+
+.est-td-actions {
+  padding-left: 0.125rem;
+  padding-right: 0.125rem;
+}
+
+.est-td-actions .est-row-actions {
+  flex-shrink: 0;
+}
+
+.est-detail-row td {
+  padding: 0.3125rem 0.625rem;
+  background: var(--est-surface-muted);
+  border-top: none;
+  border-bottom: 1px solid var(--est-row-rule);
+  vertical-align: top;
+}
+
+.est-detail-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #52525b;
+  background: #fff;
+  border: 1px solid var(--est-border);
+  border-radius: 999px;
+  padding: 0.0625rem 0.375rem;
+}
+
+.est-line-custom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.625rem 0.75rem;
+}
+
+.est-line-custom-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.est-line-custom-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--est-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.est-btn-add,
+.est-btn-custom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3125rem;
+  box-sizing: border-box;
+  min-height: 2rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--est-border-strong);
+  border-radius: 6px;
+  background: #fff;
+  color: #18181b;
+  font-size: var(--est-font-desc);
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.est-btn-add:hover,
+.est-btn-custom:hover {
+  background: var(--est-surface-muted);
+}
+
+.est-btn-custom_active {
+  border-color: var(--est-accent);
+  background: var(--est-accent-soft);
+  color: var(--est-accent);
+}
+
+.est-btn-custom_active:hover {
+  background: var(--est-accent-soft);
+}
+
+.est-custom-chevron {
+  transition: transform 0.15s ease;
+  --slds-c-icon-color-foreground-default: var(--est-muted);
+}
+
+.est-btn-custom_active .est-custom-chevron {
+  --slds-c-icon-color-foreground-default: var(--est-accent);
+}
+
+.est-custom-chevron_open {
+  transform: rotate(90deg);
+}
+
+.est-custom-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #52525b;
+  background: #fff;
+  border: 1px solid var(--est-border);
+  border-radius: 999px;
+  padding: 0.125rem 0.375rem;
+}
+
+.est-amount-invalid {
+  color: #c23934;
+  font-weight: 600;
+  cursor: help;
+}
+
+.est-value_compact {
+  min-height: 2rem;
+  padding: 0.3125rem 0.5rem;
+  font-size: var(--est-font-desc);
+}
+
+/* Detail panel inputs (expanded custom fields row) */
+.est-detail-panel {
+  position: relative;
+  display: block;
+  min-width: 0;
+  /* #列ぶんインデントし、種別列頭付近から開始 */
+  padding-left: 2.25rem;
+}
+
+.est-detail-row .est-select,
+.est-detail-row .est-number-input,
+.est-detail-row .est-text-input {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--est-border-strong);
+  border-radius: var(--est-input-radius);
+  background: var(--est-surface);
+  font-size: var(--est-font-desc);
+  box-sizing: border-box;
+}
+
+.est-detail-row .est-date-input {
+  display: block;
+  width: 100%;
+  --slds-c-input-sizing-min-height: 2rem;
+  --slds-c-input-text-font-size: var(--est-font-desc);
+}
+
+.est-detail-row .est-number-input {
+  text-align: right;
+}
+
+.est-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  min-height: 2rem;
+  font-size: var(--est-font-desc);
+}
+
+/* Remarks & total */
+.est-remarks-body {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) minmax(12rem, 1fr);
+  gap: 0.875rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .est-remarks-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.est-field_remark-master,
+.est-field_remarks {
+  min-width: 0;
+}
+
+.est-field_remark-master lightning-record-picker,
+.est-field_remarks lightning-textarea {
+  display: block;
+  width: 100%;
+}
+
+.est-remarks-body lightning-textarea {
+  --sds-c-textarea-sizing-min-height: 5rem;
+  max-width: 48rem;
+}
+
+.est-panel-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 0.5rem 1.25rem;
+  /* 金額列付近に寄せる（請求設定・操作列ぶん） */
+  padding: 0.625rem 5.5rem 0.625rem 1rem;
+  overflow: hidden;
+  background: var(--est-accent-soft);
+  border-top: 1px solid var(--est-accent-border);
+}
+
+.est-summary-money {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.75rem 1.35rem;
+  min-width: 0;
+}
+
+.est-money-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.est-money-label {
+  color: #475569;
+  /* 「商品明細」パネルタイトルと同サイズ */
+  font-size: var(--est-font-title);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.est-money-value {
+  /* 税抜＝金額列と同じアクセント青 */
+  color: var(--est-accent);
+  font-size: var(--est-font-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-money-value_secondary {
+  color: var(--est-text);
+  font-size: var(--est-font-title);
+  font-weight: 600;
+}
+
+.est-summary-meta {
+  margin-right: auto;
+  color: var(--est-muted);
+  font-size: var(--est-font-title);
+  font-weight: 500;
+  white-space: nowrap;
+  align-self: center;
+}

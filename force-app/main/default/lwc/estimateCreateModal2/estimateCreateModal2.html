@@ -1,0 +1,425 @@
+<template>
+  <section class={cardClass}>
+    <div class="est-card-header">
+      <h2 class="est-card-title">{cardTitle}</h2>
+    </div>
+
+    <div class="est-card-body">
+      <template if:true={isNewType}>
+        <div class="est-field-grid est-field-grid_new">
+          <div class="est-field">
+            <span class="est-label est-label_required">契約サービス名</span>
+            <template if:true={isStandardFieldsReadonly}>
+              <div class="est-value">{contractServiceName}</div>
+            </template>
+            <template if:false={isStandardFieldsReadonly}>
+              <div class="est-control">
+                <input
+                  type="text"
+                  class="est-text-input"
+                  value={contractServiceName}
+                  aria-label="契約サービス名"
+                  onchange={handleServiceNameChange}
+                  required
+                />
+              </div>
+            </template>
+          </div>
+          <div class="est-field">
+            <span class="est-label est-label_required">契約履歴名</span>
+            <template if:true={isStandardFieldsReadonly}>
+              <div class="est-value">{contractHistoryName}</div>
+            </template>
+            <template if:false={isStandardFieldsReadonly}>
+              <div class="est-control">
+                <input
+                  type="text"
+                  class="est-text-input"
+                  value={contractHistoryName}
+                  aria-label="契約履歴名"
+                  onchange={handleHistoryNameChange}
+                  required
+                />
+              </div>
+            </template>
+          </div>
+          <div class="est-field est-field_version">
+            <span class="est-label">作成 Version</span>
+            <div class="est-value">{displayNewHistoryVersion}</div>
+          </div>
+          <div class="est-field">
+            <span class="est-label">請求アカウント</span>
+            <template if:true={showBillingAccountReadonly}>
+              <div class="est-value">{billingAccountDisplayValue}</div>
+              <template if:false={isStandardFieldsReadonly}>
+                <button
+                  type="button"
+                  class="est-billing-reselect"
+                  onclick={handleReselectBillingAccount}
+                >
+                  選び直す
+                </button>
+              </template>
+            </template>
+            <template if:false={showBillingAccountReadonly}>
+              <template if:true={showRelatedBillingCombobox}>
+                <div class="est-control">
+                  <select
+                    class="est-select"
+                    aria-label="請求アカウント"
+                    disabled={isBillingAccountComboboxDisabled}
+                    onchange={handleBillingAccountComboboxChange}
+                  >
+                    <template
+                      for:each={billingAccountComboboxOptions}
+                      for:item="option"
+                    >
+                      <option
+                        key={option.key}
+                        value={option.value}
+                        selected={option.selected}
+                      >
+                        {option.label}
+                      </option>
+                    </template>
+                  </select>
+                </div>
+                <template if:true={showBillingAccountsLoadError}>
+                  <p class="est-billing-hint est-billing-hint_error">
+                    {billingAccountsLoadError}
+                  </p>
+                </template>
+                <template if:true={showRelatedBillingEmptyMessage}>
+                  <p class="est-billing-hint">{relatedBillingEmptyMessage}</p>
+                </template>
+              </template>
+              <template if:true={showOtherBillingPicker}>
+                <lightning-record-picker
+                  label="請求アカウント"
+                  object-api-name="BillingAccount__c"
+                  value={billingAccountId}
+                  variant="label-hidden"
+                  placeholder="請求アカウントを検索..."
+                  matching-info={billingAccountMatchingInfo}
+                  onchange={handleBillingAccountChange}
+                >
+                </lightning-record-picker>
+              </template>
+              <lightning-input
+                class="est-billing-other-toggle"
+                type="checkbox"
+                label="他の取引先の請求アカウントも検索する"
+                checked={allowOtherAccountBilling}
+                onchange={handleAllowOtherAccountBillingChange}
+              >
+              </lightning-input>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <template if:false={isNewType}>
+        <div class="est-field-grid est-field-grid_lookup est-field-grid_lookup_solo">
+          <div class="est-field est-field_service">
+            <span class="est-label est-label_required">契約サービス</span>
+            <div class="est-control">
+              <div
+                class={servicePickerClass}
+                onfocusout={handleServicePickerFocusOut}
+              >
+                <template if:true={hasSelectedServiceCard}>
+                  <button
+                    type="button"
+                    class={selectedServiceCardClass}
+                    aria-label="契約サービス"
+                    aria-haspopup="listbox"
+                    aria-expanded={servicePickerExpandedAria}
+                    disabled={isContractServiceComboboxDisabled}
+                    onclick={handleServicePickerToggle}
+                  >
+                    <span class="est-service-picker-name"
+                      >{selectedServiceCard.nameLabel}</span
+                    >
+                    <span class="est-service-picker-meta">
+                      <template if:true={selectedServiceCard.versionLabel}>
+                        <span class="est-service-picker-chip"
+                          >{selectedServiceCard.versionLabel}</span
+                        >
+                      </template>
+                      <template if:true={selectedServiceCard.lifecycleLabel}>
+                        <span class="est-service-picker-chip est-service-picker-chip_muted"
+                          >{selectedServiceCard.lifecycleLabel}</span
+                        >
+                      </template>
+                      <template if:true={selectedServiceCard.termLabel}>
+                        <span class="est-service-picker-term"
+                          >{selectedServiceCard.termLabel}</span
+                        >
+                      </template>
+                      <template if:true={selectedServiceCard.currentProductsLabel}>
+                        <span class="est-service-picker-products"
+                          >{selectedServiceCard.currentProductsLabel}</span
+                        >
+                      </template>
+                      <template if:true={selectedServiceCard.billingLabel}>
+                        <span class="est-service-picker-billing"
+                          >{selectedServiceCard.billingLabel}</span
+                        >
+                      </template>
+                    </span>
+                  </button>
+                </template>
+                <template if:false={hasSelectedServiceCard}>
+                  <button
+                    type="button"
+                    class={servicePickerTriggerClass}
+                    aria-label="契約サービス"
+                    aria-haspopup="listbox"
+                    aria-expanded={servicePickerExpandedAria}
+                    disabled={isContractServiceComboboxDisabled}
+                    onclick={handleServicePickerToggle}
+                  >
+                    <span class="est-service-picker-trigger-text"
+                      >選択してください</span
+                    >
+                    <lightning-icon
+                      icon-name="utility:down"
+                      size="xx-small"
+                      alternative-text=""
+                    ></lightning-icon>
+                  </button>
+                </template>
+                <template if:true={servicePickerOpen}>
+                  <div
+                    class="est-service-picker-panel"
+                    role="listbox"
+                    aria-label="契約サービス候補"
+                  >
+                    <template
+                      for:each={servicePickerOptions}
+                      for:item="option"
+                    >
+                      <button
+                        key={option.key}
+                        type="button"
+                        class={option.itemClass}
+                        role="option"
+                        aria-selected={option.selectedAria}
+                        data-id={option.id}
+                        onclick={handleServicePickerSelect}
+                      >
+                        <span class="est-service-picker-name"
+                          >{option.nameLabel}</span
+                        >
+                        <span class="est-service-picker-meta">
+                          <template if:true={option.versionLabel}>
+                            <span class="est-service-picker-chip"
+                              >{option.versionLabel}</span
+                            >
+                          </template>
+                          <template if:true={option.lifecycleLabel}>
+                            <span class="est-service-picker-chip est-service-picker-chip_muted"
+                              >{option.lifecycleLabel}</span
+                            >
+                          </template>
+                          <template if:true={option.termLabel}>
+                            <span class="est-service-picker-term"
+                              >{option.termLabel}</span
+                            >
+                          </template>
+                          <template if:true={option.currentProductsLabel}>
+                            <span class="est-service-picker-products"
+                              >{option.currentProductsLabel}</span
+                            >
+                          </template>
+                          <template if:true={option.billingLabel}>
+                            <span class="est-service-picker-billing"
+                              >{option.billingLabel}</span
+                            >
+                          </template>
+                        </span>
+                      </button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <template if:true={showContinuationAfterService}>
+          <div class="est-field-grid est-field-grid_continuation">
+            <div class="est-field">
+              <span class="est-label est-label_required">契約サービス名</span>
+              <template if:true={isStandardFieldsReadonly}>
+                <div class="est-value">{contractServiceName}</div>
+              </template>
+              <template if:false={isStandardFieldsReadonly}>
+                <div class="est-control">
+                  <input
+                    type="text"
+                    class="est-text-input"
+                    value={contractServiceName}
+                    aria-label="契約サービス名"
+                    onchange={handleServiceNameChange}
+                    required
+                  />
+                </div>
+              </template>
+            </div>
+            <div class="est-field">
+              <span class="est-label est-label_required">契約履歴名</span>
+              <template if:true={isStandardFieldsReadonly}>
+                <div class="est-value">{contractHistoryName}</div>
+              </template>
+              <template if:false={isStandardFieldsReadonly}>
+                <div class="est-control">
+                  <input
+                    type="text"
+                    class="est-text-input"
+                    value={contractHistoryName}
+                    aria-label="契約履歴名"
+                    onchange={handleHistoryNameChange}
+                    required
+                  />
+                </div>
+              </template>
+            </div>
+            <div class="est-field est-field_billing">
+              <span class="est-label">請求アカウント</span>
+              <template if:true={showBillingAccountReadonly}>
+                <div class="est-value">{billingAccountDisplayValue}</div>
+                <template if:false={isStandardFieldsReadonly}>
+                  <button
+                    type="button"
+                    class="est-billing-reselect"
+                    onclick={handleReselectBillingAccount}
+                  >
+                    選び直す
+                  </button>
+                </template>
+              </template>
+              <template if:false={showBillingAccountReadonly}>
+                <template if:true={showRelatedBillingCombobox}>
+                  <div class="est-control">
+                    <select
+                      class="est-select"
+                      aria-label="請求アカウント"
+                      disabled={isBillingAccountComboboxDisabled}
+                      onchange={handleBillingAccountComboboxChange}
+                    >
+                      <template
+                        for:each={billingAccountComboboxOptions}
+                        for:item="option"
+                      >
+                        <option
+                          key={option.key}
+                          value={option.value}
+                          selected={option.selected}
+                        >
+                          {option.label}
+                        </option>
+                      </template>
+                    </select>
+                  </div>
+                  <template if:true={showBillingAccountsLoadError}>
+                    <p class="est-billing-hint est-billing-hint_error">
+                      {billingAccountsLoadError}
+                    </p>
+                  </template>
+                  <template if:true={showRelatedBillingEmptyMessage}>
+                    <p class="est-billing-hint">{relatedBillingEmptyMessage}</p>
+                  </template>
+                </template>
+                <template if:true={showOtherBillingPicker}>
+                  <lightning-record-picker
+                    label="請求アカウント"
+                    object-api-name="BillingAccount__c"
+                    value={billingAccountId}
+                    variant="label-hidden"
+                    placeholder="請求アカウントを検索..."
+                    matching-info={billingAccountMatchingInfo}
+                    onchange={handleBillingAccountChange}
+                  >
+                  </lightning-record-picker>
+                </template>
+                <lightning-input
+                  class="est-billing-other-toggle"
+                  type="checkbox"
+                  label="他の取引先の請求アカウントも検索する"
+                  checked={allowOtherAccountBilling}
+                  onchange={handleAllowOtherAccountBillingChange}
+                >
+                </lightning-input>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <template if:true={showContractServicesLoading}>
+          <p class="est-billing-hint">契約サービスを読み込み中…</p>
+        </template>
+        <template if:true={showContractHistoryLoading}>
+          <p class="est-billing-hint">契約履歴を読み込み中…</p>
+        </template>
+        <template if:true={showContractServicesLoadError}>
+          <p class="est-billing-hint est-billing-hint_error">
+            {contractServicesLoadError}
+          </p>
+        </template>
+        <template if:true={showActiveContractServiceEmptyMessage}>
+          <p class="est-billing-hint">{activeContractServiceEmptyMessage}</p>
+        </template>
+
+        <template if:true={showContinuationAfterService}>
+          <template if:true={showOperationTypes}>
+            <div class="est-ops">
+              <span class="est-label est-label_required">操作</span>
+              <div class={opsGridClass} role="group" aria-label="見積操作">
+                <template for:each={typeOptions} for:item="option">
+                  <button
+                    key={option.value}
+                    type="button"
+                    class={option.buttonClass}
+                    data-type={option.value}
+                    aria-pressed={option.pressed}
+                    disabled={option.disabled}
+                    onclick={handleTypeSelect}
+                  >
+                    <span class="est-ops-icon" aria-hidden="true">
+                      <lightning-icon
+                        icon-name={option.iconName}
+                        size="small"
+                        alternative-text=""
+                      ></lightning-icon>
+                    </span>
+                    <span class="est-ops-copy">
+                      <span class="est-ops-title">{option.label}</span>
+                      <span class="est-ops-help">
+                        <template
+                          for:each={option.helpLines}
+                          for:item="line"
+                        >
+                          <span key={line.key} class="est-ops-help-line">
+                            <template
+                              for:each={line.segments}
+                              for:item="seg"
+                            >
+                              <span key={seg.key} class={seg.className}
+                                >{seg.text}</span
+                              >
+                            </template>
+                          </span>
+                        </template>
+                      </span>
+                    </span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </template>
+      </template>
+    </div>
+  </section>
+</template>

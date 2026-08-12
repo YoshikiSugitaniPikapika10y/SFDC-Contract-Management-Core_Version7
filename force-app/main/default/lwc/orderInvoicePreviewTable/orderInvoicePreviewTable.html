@@ -1,0 +1,895 @@
+<template>
+  <template if:true={showVersionFilter}>
+    <div class="version-filter-row">
+      <div class="version-filter">
+        <lightning-combobox
+          name="versionFilter"
+          label="Version"
+          value={selectedVersion}
+          options={versionOptions}
+          onchange={handleVersionChange}
+          dropdown-alignment="left"
+          variant="label-hidden"
+        >
+        </lightning-combobox>
+      </div>
+      <template if:true={showResetPostOrderButton}>
+        <button
+          type="button"
+          class="ghost-btn reset-post-order-btn"
+          onclick={handleResetPostOrderClick}
+          disabled={resetPostOrderDisabled}
+          title={resetPostOrderTitle}
+        >
+          受注直後の請求に戻す
+        </button>
+      </template>
+    </div>
+  </template>
+
+  <template if:true={showAmountCompare}>
+    <div class={amountCompareClass}>
+      <div class="amount-compare-main">
+        <span class="amount-compare-status">{amountCompareStatusLabel}</span>
+        <span class="amount-compare-part">
+          <span class="amount-compare-k">見積額</span>
+          <lightning-formatted-number
+            value={estimatePreviewTotal}
+            format-style="currency"
+            currency-code="JPY"
+            maximum-fraction-digits="0"
+          ></lightning-formatted-number>
+        </span>
+        <span class="amount-compare-op" aria-hidden="true"
+          >{amountCompareOperator}</span
+        >
+        <span class="amount-compare-part">
+          <span class="amount-compare-k">調整後請求額</span>
+          <lightning-formatted-number
+            value={invoicePreviewTotal}
+            format-style="currency"
+            currency-code="JPY"
+            maximum-fraction-digits="0"
+          ></lightning-formatted-number>
+        </span>
+        <span class="amount-compare-part amount-compare-part_diff">
+          <span class="amount-compare-k">ずれ</span>
+          <lightning-formatted-number
+            value={amountDifference}
+            format-style="currency"
+            currency-code="JPY"
+            maximum-fraction-digits="0"
+          ></lightning-formatted-number>
+        </span>
+      </div>
+      <template if:true={showAmountDraftActions}>
+        <div class="amount-compare-actions">
+          <button
+            type="button"
+            class="ghost-btn"
+            onclick={handleDiscardAmountDrafts}
+            disabled={amountDraftActionsDisabled}
+          >
+            元に戻す
+          </button>
+          <button
+            type="button"
+            class="solid-btn"
+            onclick={handleSaveAmountDrafts}
+            disabled={amountDraftActionsDisabled}
+          >
+            調整を保存
+          </button>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <template if:true={editBlockedMessage}>
+    <p class="edit-note">{editBlockedMessage}</p>
+  </template>
+
+  <template if:true={hasInvoices}>
+    <div class="preview-scroll">
+      <template for:each={invoiceCards} for:item="invoice">
+        <section key={invoice.key} class="invoice-card">
+          <header class="invoice-header">
+            <div class="invoice-header-bar">
+              <div class="invoice-header-main">
+                <h2 class="invoice-title">
+                  <template if:true={invoice.recordUrl}>
+                    <a
+                      class="invoice-index invoice-index_link"
+                      href={invoice.recordUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={invoice.invoiceName}
+                      >{invoice.invoiceName}</a
+                    >
+                  </template>
+                  <template if:false={invoice.recordUrl}>
+                    <span class="invoice-index" title={invoice.invoiceName}
+                      >{invoice.invoiceName}</span
+                    >
+                  </template>
+                </h2>
+                <p class="invoice-addressee" title={invoice.billingAddressee}>
+                  {invoice.billingAddressee}
+                </p>
+                <div class="invoice-dates" aria-label="請求日程">
+                  <span class="invoice-date-item">
+                    <span class="invoice-meta-k">請求日</span>
+                    <span class="invoice-meta-v">{invoice.invoiceDate}</span>
+                  </span>
+                  <span class="invoice-date-sep" aria-hidden="true"></span>
+                  <span class="invoice-date-item">
+                    <span class="invoice-meta-k">入金予定</span>
+                    <span class="invoice-meta-v"
+                      >{invoice.paymentScheduledDate}</span
+                    >
+                  </span>
+                </div>
+              </div>
+              <template if:true={invoice.canEditInvoice}>
+                <div class="header-actions">
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleOpenInvoiceSplit}
+                    disabled={invoice.otherActionsDisabled}
+                    title={invoice.otherActionsTitle}
+                  >
+                    請求を分ける
+                  </button>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleOpenInvoiceMove}
+                    disabled={invoice.moveLinesDisabled}
+                    title={invoice.moveLinesTitle}
+                  >
+                    明細を移す
+                  </button>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleOpenBillingEdit}
+                    disabled={invoice.billingEditDisabled}
+                    title={invoice.billingEditTitle}
+                  >
+                    請求情報編集
+                  </button>
+                </div>
+              </template>
+            </div>
+            <template if:true={invoice.lockNote}>
+              <p class="edit-note" role="status">{invoice.lockNote}</p>
+            </template>
+          </header>
+
+          <template if:true={invoice.isBillingEditOpen}>
+            <div class="edit-panel">
+              <p class="edit-note" role="note">
+                宛名・メール・税率はこの請求だけに保存されます。請求アカウントマスタには反映されません。
+              </p>
+              <div class="billing-edit-grid">
+                <lightning-input
+                  type="date"
+                  label="請求日"
+                  value={invoice.draftInvoiceDate}
+                  data-field="invoiceDate"
+                  onchange={handleBillingFieldChange}
+                  required
+                ></lightning-input>
+                <lightning-input
+                  type="date"
+                  label="入金予定日"
+                  value={invoice.draftPaymentScheduledDate}
+                  data-field="paymentScheduledDate"
+                  onchange={handleBillingFieldChange}
+                ></lightning-input>
+                <lightning-input
+                  type="number"
+                  label="税率 (%)"
+                  value={invoice.draftTaxPercent}
+                  data-field="taxPercent"
+                  onchange={handleBillingFieldChange}
+                  min="0"
+                  max="100"
+                  step="0.01"
+                ></lightning-input>
+                <lightning-input
+                  label="宛名"
+                  value={invoice.draftBillingAddressee}
+                  data-field="billingAddressee"
+                  onchange={handleBillingFieldChange}
+                ></lightning-input>
+                <lightning-input
+                  label="To"
+                  value={invoice.draftBillingEmailTo}
+                  data-field="billingEmailTo"
+                  onchange={handleBillingFieldChange}
+                ></lightning-input>
+                <lightning-input
+                  label="Cc"
+                  value={invoice.draftBillingEmailCc}
+                  data-field="billingEmailCc"
+                  onchange={handleBillingFieldChange}
+                ></lightning-input>
+                <lightning-input
+                  label="Bcc"
+                  value={invoice.draftBillingEmailBcc}
+                  data-field="billingEmailBcc"
+                  onchange={handleBillingFieldChange}
+                ></lightning-input>
+              </div>
+              <div class="panel-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  onclick={handleCloseBillingEdit}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  onclick={handleSaveBillingHeader}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template if:true={invoice.isInvoiceMoveOpen}>
+            <div class="split-panel">
+              <p class="edit-note" role="note">
+                下の明細にチェックを付けて、同じ Version の既存請求へ全額移します。請求日・請求アカウント・税率は移動先に従います。同じ商品でも合算せず別行のまま載せます。
+              </p>
+              <template if:true={invoice.invoiceMoveWillEmptySource}>
+                <p class="edit-note" role="status">
+                  すべての明細を移すため、保存時に元の請求書は削除されます。
+                </p>
+              </template>
+              <div class="split-panes" data-ok={invoice.invoiceMoveEquationOk}>
+                <div class="split-pane split-pane_keep">
+                  <div class="split-pane-kicker">移動元の請求書</div>
+                  <div class="split-pane-amount">
+                    <lightning-formatted-number
+                      value={invoice.invoiceMoveRemainTotal}
+                      format-style="currency"
+                      currency-code="JPY"
+                      maximum-fraction-digits="0"
+                    ></lightning-formatted-number>
+                  </div>
+                  <div class="split-fields">
+                    <div class="split-field split-field_full">
+                      <span class="split-field-label">請求アカウント</span>
+                      <div class="split-field-control">
+                        <div class="split-field-value">
+                          {invoice.billingAccountName}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="split-field-row">
+                      <div class="split-field">
+                        <span class="split-field-label">請求日</span>
+                        <div class="split-field-control">
+                          <div class="split-field-value">{invoice.invoiceDate}</div>
+                        </div>
+                      </div>
+                      <div class="split-field">
+                        <span class="split-field-label">入金予定日</span>
+                        <div class="split-field-control">
+                          <div class="split-field-value">
+                            {invoice.paymentScheduledDate}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="split-pane-arrow" aria-hidden="true">→</div>
+
+                <div class="split-pane split-pane_new">
+                  <div class="split-pane-kicker">移動先の請求書</div>
+                  <div class="split-pane-amount">
+                    <lightning-formatted-number
+                      value={invoice.invoiceMoveMoveTotal}
+                      format-style="currency"
+                      currency-code="JPY"
+                      maximum-fraction-digits="0"
+                    ></lightning-formatted-number>
+                  </div>
+                  <div class="split-fields">
+                    <div class="split-field split-field_full">
+                      <span class="split-field-label">移動先</span>
+                      <div class="split-field-control">
+                        <lightning-combobox
+                          name="moveTargetInvoice"
+                          label="移動先"
+                          variant="label-hidden"
+                          value={invoice.invoiceMoveTargetInvoiceId}
+                          options={invoice.invoiceMoveTargetOptions}
+                          onchange={handleInvoiceMoveTargetChange}
+                          required
+                        ></lightning-combobox>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  onclick={handleCloseInvoiceMove}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  disabled={invoice.invoiceMoveConfirmDisabled}
+                  onclick={handleConfirmInvoiceMove}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template if:true={invoice.isInvoiceSplitOpen}>
+            <div class="split-panel">
+              <p class="edit-note" role="note">
+                下の明細にチェックを付けて、分割先の請求書へ振り分けます。分割先の請求先は請求アカウントマスタの内容で設定されます。
+              </p>
+              <div class="split-panes" data-ok={invoice.invoiceSplitEquationOk}>
+                <div class="split-pane split-pane_keep">
+                  <div class="split-pane-kicker">分割元の請求書</div>
+                  <div class="split-pane-amount">
+                    <lightning-formatted-number
+                      value={invoice.invoiceSplitRemainTotal}
+                      format-style="currency"
+                      currency-code="JPY"
+                      maximum-fraction-digits="0"
+                    ></lightning-formatted-number>
+                  </div>
+                  <div class="split-fields">
+                    <div class="split-field split-field_full">
+                      <span class="split-field-label">請求アカウント</span>
+                      <div class="split-field-control">
+                        <div class="split-field-value">
+                          {invoice.billingAccountName}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="split-field-row">
+                      <div class="split-field">
+                        <span class="split-field-label">請求日</span>
+                        <div class="split-field-control">
+                          <div class="split-field-value">{invoice.invoiceDate}</div>
+                        </div>
+                      </div>
+                      <div class="split-field">
+                        <span class="split-field-label">入金予定日</span>
+                        <div class="split-field-control">
+                          <div class="split-field-value">
+                            {invoice.paymentScheduledDate}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="split-field-extra" aria-hidden="true"></div>
+                  </div>
+                </div>
+
+                <div class="split-pane-arrow" aria-hidden="true">→</div>
+
+                <div class="split-pane split-pane_new">
+                  <div class="split-pane-kicker">分割先の請求書</div>
+                  <div class="split-pane-amount">
+                    <lightning-formatted-number
+                      value={invoice.invoiceSplitMoveTotal}
+                      format-style="currency"
+                      currency-code="JPY"
+                      maximum-fraction-digits="0"
+                    ></lightning-formatted-number>
+                  </div>
+                  <div class="split-fields">
+                    <div class="split-field split-field_full">
+                      <span class="split-field-label">請求アカウント</span>
+                      <div class="split-field-control">
+                        <template if:true={showInvoiceSplitRelatedBillingCombobox}>
+                          <lightning-combobox
+                            name="newBillingAccount"
+                            label="請求アカウント"
+                            variant="label-hidden"
+                            value={invoice.invoiceSplitNewBillingAccountId}
+                            options={invoiceSplitBillingAccountComboboxOptions}
+                            onchange={handleInvoiceSplitBillingAccountChange}
+                            required
+                          ></lightning-combobox>
+                        </template>
+                        <template if:true={showInvoiceSplitOtherBillingPicker}>
+                          <lightning-record-picker
+                            label="請求アカウント"
+                            variant="label-hidden"
+                            object-api-name="BillingAccount__c"
+                            value={invoice.invoiceSplitNewBillingAccountId}
+                            placeholder="請求アカウントを検索..."
+                            matching-info={billingAccountMatchingInfo}
+                            onchange={handleInvoiceSplitBillingAccountPickerChange}
+                          >
+                          </lightning-record-picker>
+                        </template>
+                      </div>
+                    </div>
+                    <div class="split-field-row">
+                      <div class="split-field">
+                        <span class="split-field-label">請求日</span>
+                        <div class="split-field-control">
+                          <lightning-input
+                            type="date"
+                            label="請求日"
+                            variant="label-hidden"
+                            value={invoice.invoiceSplitNewInvoiceDate}
+                            onchange={handleInvoiceSplitDateChange}
+                            required
+                          ></lightning-input>
+                        </div>
+                      </div>
+                      <div class="split-field">
+                        <span class="split-field-label">入金予定日</span>
+                        <div class="split-field-control">
+                          <lightning-input
+                            type="date"
+                            label="入金予定日"
+                            variant="label-hidden"
+                            value={invoice.invoiceSplitNewPaymentDate}
+                            onchange={handleInvoiceSplitPaymentChange}
+                          ></lightning-input>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="split-field-extra">
+                      <lightning-input
+                        type="checkbox"
+                        label="他の取引先の請求アカウントも検索する"
+                        checked={invoice.invoiceSplitAllowOtherAccountBilling}
+                        onchange={handleInvoiceSplitAllowOtherAccountBillingChange}
+                      >
+                      </lightning-input>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  onclick={handleCloseInvoiceSplit}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  disabled={invoice.invoiceSplitConfirmDisabled}
+                  onclick={handleConfirmInvoiceSplit}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template if:true={invoice.isLineSplitOpen}>
+            <template if:true={invoice.lineSplitLoading}>
+              <p class="edit-note line-split-status">分割候補を読み込み中…</p>
+            </template>
+            <template if:true={invoice.lineSplitError}>
+              <p class="edit-note line-split-status">{invoice.lineSplitError}</p>
+            </template>
+          </template>
+
+          <div class="table-wrap">
+            <table class="preview-table">
+              <colgroup>
+                <template if:true={invoice.showSplitSelectCol}>
+                  <col class="col-split-select" />
+                </template>
+                <col class="col-version" />
+                <col class="col-product" />
+                <col class="col-price" />
+                <col class="col-unit" />
+                <col class="col-qty" />
+                <col class="col-period" />
+                <col class="col-cycle" />
+                <col class="col-amount" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <template if:true={invoice.showSplitSelectCol}>
+                    <th class="split-select-col" scope="col">選択</th>
+                  </template>
+                  <th class="version-col" scope="col">V</th>
+                  <th class="product-col" scope="col">商品名</th>
+                  <th class="num-col price-col" scope="col">単価</th>
+                  <th class="unit-col" scope="col">単位</th>
+                  <th class="num-col qty-col" scope="col">数量</th>
+                  <th class="period-col" scope="col">期間</th>
+                  <th class="cycle-col" scope="col">サイクル数</th>
+                  <th class="num-col amount-col" scope="col">
+                    <div class="amount-with-adjust amount-with-adjust_head">
+                      <span class="amount-yen-slot">金額</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <template for:each={invoice.lines} for:item="row">
+                <tbody key={row.key}>
+                  <tr>
+                    <template if:true={invoice.showSplitSelectCol}>
+                      <td class="split-select-col">
+                        <lightning-input
+                          type="checkbox"
+                          variant="label-hidden"
+                          label="選択"
+                          checked={row.invoiceMoveSelected}
+                          data-line-id={row.lineId}
+                          onchange={handleInvoiceSplitToggle}
+                        ></lightning-input>
+                      </td>
+                    </template>
+                    <td class="version-col">
+                      <span class="version-pill">{row.versionLabel}</span>
+                    </td>
+                    <td class="product-col">
+                      <span class="product-name" title={row.productName}
+                        >{row.productName}</span
+                      >
+                    </td>
+                    <td class="num-col price-col">
+                      <lightning-formatted-number
+                        value={row.unitPrice}
+                        format-style="currency"
+                        currency-code="JPY"
+                        maximum-fraction-digits="2"
+                      >
+                      </lightning-formatted-number>
+                    </td>
+                    <td class="unit-col muted">{row.unit}</td>
+                    <td class="num-col qty-col">
+                      <lightning-formatted-number
+                        value={row.quantity}
+                        maximum-fraction-digits="2"
+                      >
+                      </lightning-formatted-number>
+                    </td>
+                    <td class="period-col muted">{row.periodLabel}</td>
+                    <td class="cycle-col muted">{row.cycleCountLabel}</td>
+                    <td class="num-col amount-cell amount-col">
+                      <div class="amount-with-adjust">
+                        <span class="amount-yen-slot">
+                          <lightning-formatted-number
+                            value={row.amount}
+                            format-style="currency"
+                            currency-code="JPY"
+                            maximum-fraction-digits="0"
+                          >
+                          </lightning-formatted-number>
+                        </span>
+                        <!-- 幅固定スロット。タグ有無で ± ボタン位置がずれない -->
+                        <span class="amount-meta-slot">
+                          <template if:true={row.isManuallyAdjusted}>
+                            <span class="adjusted-pill">調整</span>
+                          </template>
+                          <template if:true={row.hasSourceAmount}>
+                            <span
+                              class={row.amountDriftClass}
+                              title={row.amountDriftLabel}
+                              >{row.amountDriftLabel}</span
+                            >
+                          </template>
+                        </span>
+                        <div class="amount-shortcuts" aria-label="行操作">
+                          <template if:true={invoice.canAdjustAmount}>
+                            <button
+                              type="button"
+                              class="amount-chip"
+                              title="1円増やす"
+                              data-line-id={row.lineId}
+                              data-delta="1"
+                              onclick={handleAdjustAmount}
+                            >
+                              +1
+                            </button>
+                            <button
+                              type="button"
+                              class="amount-chip"
+                              title="1円減らす"
+                              data-line-id={row.lineId}
+                              data-delta="-1"
+                              onclick={handleAdjustAmount}
+                            >
+                              -1
+                            </button>
+                            <button
+                              type="button"
+                              class="amount-chip"
+                              title="10円増やす"
+                              data-line-id={row.lineId}
+                              data-delta="10"
+                              onclick={handleAdjustAmount}
+                            >
+                              +10
+                            </button>
+                            <button
+                              type="button"
+                              class="amount-chip"
+                              title="10円減らす"
+                              data-line-id={row.lineId}
+                              data-delta="-10"
+                              onclick={handleAdjustAmount}
+                            >
+                              -10
+                            </button>
+                          </template>
+                          <template if:true={row.showRowSplitAction}>
+                            <button
+                              type="button"
+                              class={row.rowSplitActionClass}
+                              data-invoice-id={invoice.invoiceId}
+                              data-line-id={row.lineId}
+                              onclick={handleRowSplitClick}
+                              disabled={row.rowSplitDisabled}
+                              title={row.rowSplitTitle}
+                            >
+                              分割
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                  <template if:true={row.splitSelected}>
+                    <tr class="split-controls-row">
+                      <td
+                        class="split-controls-cell"
+                        colspan={invoice.splitControlsColspan}
+                      >
+                        <div class="split-editor">
+                          <div class="split-editor-top">
+                            <div
+                              class="split-kind-seg"
+                              role="group"
+                              aria-label="分割の種類"
+                            >
+                              <template
+                                for:each={row.splitKindOptions}
+                                for:item="opt"
+                              >
+                                <button
+                                  key={opt.key}
+                                  type="button"
+                                  class={opt.buttonClass}
+                                  data-line-id={row.lineId}
+                                  data-kind={opt.value}
+                                  onclick={handleLineSplitKindClick}
+                                >
+                                  {opt.label}
+                                </button>
+                              </template>
+                            </div>
+                          </div>
+                          <template if:true={row.splitShowPeriod}>
+                            <div class="split-editor-body">
+                              <div class="split-date-field">
+                                <span class="split-factor-k">しきい日</span>
+                                <div class="split-factor-slot">
+                                  <lightning-combobox
+                                    name="splitThreshold"
+                                    label="しきい日"
+                                    variant="label-hidden"
+                                    value={row.splitThresholdDate}
+                                    options={row.splitThresholdOptions}
+                                    data-line-id={row.lineId}
+                                    onchange={handleLineSplitThresholdChange}
+                                    dropdown-alignment="left"
+                                  ></lightning-combobox>
+                                </div>
+                              </div>
+                            </div>
+                          </template>
+
+                          <template if:true={row.splitShowUnitPrice}>
+                            <div class="split-editor-body">
+                              <div class="split-factor-meta">
+                                <span class="split-factor-k">元の単価</span>
+                                <span class="split-factor-v"
+                                  >{row.splitOriginalUnitPriceLabel}</span
+                                >
+                              </div>
+                              <div class="split-factor-grid">
+                                <div class="split-factor-cell">
+                                  <span class="split-factor-k">分割元</span>
+                                  <div
+                                    class="split-factor-slot split-factor-slot_readonly"
+                                  >
+                                    {row.splitRemainUnitPriceLabel}
+                                  </div>
+                                </div>
+                                <div class="split-factor-cell">
+                                  <span class="split-factor-k">分割先</span>
+                                  <div class="split-factor-slot">
+                                    <lightning-input
+                                      type="number"
+                                      label="分割先"
+                                      variant="label-hidden"
+                                      value={row.splitMoveUnitPrice}
+                                      data-line-id={row.lineId}
+                                      onchange={handleLineSplitMoveUnitPriceChange}
+                                      step="0.01"
+                                    ></lightning-input>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </template>
+
+                          <template if:true={row.splitShowQuantity}>
+                            <div class="split-editor-body">
+                              <div class="split-factor-meta">
+                                <span class="split-factor-k">元の数量</span>
+                                <span class="split-factor-v"
+                                  >{row.splitOriginalQuantityLabel}</span
+                                >
+                              </div>
+                              <div class="split-factor-grid">
+                                <div class="split-factor-cell">
+                                  <span class="split-factor-k">分割元</span>
+                                  <div
+                                    class="split-factor-slot split-factor-slot_readonly"
+                                  >
+                                    {row.splitRemainQuantityLabel}
+                                  </div>
+                                </div>
+                                <div class="split-factor-cell">
+                                  <span class="split-factor-k">分割先</span>
+                                  <div class="split-factor-slot">
+                                    <lightning-input
+                                      type="number"
+                                      label="分割先"
+                                      variant="label-hidden"
+                                      value={row.splitMoveQuantity}
+                                      data-line-id={row.lineId}
+                                      onchange={handleLineSplitMoveQuantityChange}
+                                      step="0.01"
+                                    ></lightning-input>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </template>
+
+                          <div class="split-row-actions">
+                            <button
+                              type="button"
+                              class="ghost-btn"
+                              data-line-id={row.lineId}
+                              onclick={handleCancelLineSplitRow}
+                            >
+                              キャンセル
+                            </button>
+                            <button
+                              type="button"
+                              class="solid-btn"
+                              data-line-id={row.lineId}
+                              disabled={row.splitConfirmDisabled}
+                              onclick={handleConfirmLineSplit}
+                            >
+                              保存
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </template>
+            </table>
+          </div>
+
+          <footer class="invoice-footer" aria-label="請求金額">
+            <div class="summary-row summary-row_totals">
+              <div class="money-item">
+                <span class="money-label">税抜</span>
+                <span class="money-value money-value_exTax">
+                  <lightning-formatted-number
+                    value={invoice.amountTotal}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
+              <div class="money-item">
+                <span class="money-label">税</span>
+                <span class="money-value money-value_secondary">
+                  <lightning-formatted-number
+                    value={invoice.taxTotal}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
+              <div class="money-item">
+                <span class="money-label">税込</span>
+                <span class="money-value money-value_secondary">
+                  <lightning-formatted-number
+                    value={invoice.taxInclusiveTotal}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
+            </div>
+            <div class="summary-row summary-row_status">
+              <div class="money-item">
+                <span class="money-label">請求前</span>
+                <span class="money-value money-value_secondary">
+                  <lightning-formatted-number
+                    value={invoice.openAmountIncl}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
+              <div class="money-item">
+                <span class="money-label">請求済</span>
+                <span class="money-value money-value_secondary">
+                  <lightning-formatted-number
+                    value={invoice.integratedAmountIncl}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
+              <div class="money-item">
+                <span class="money-label">入金消込</span>
+                <span class="money-value money-value_secondary">
+                  <lightning-formatted-number
+                    value={invoice.clearedAmountIncl}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
+            </div>
+          </footer>
+        </section>
+      </template>
+    </div>
+  </template>
+
+  <template if:false={hasInvoices}>
+    <p class="empty-text">請求がありません。</p>
+  </template>
+</template>

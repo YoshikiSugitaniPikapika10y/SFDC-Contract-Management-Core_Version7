@@ -1,0 +1,17 @@
+<apex:page controller="EstimateDocumentPdfController"
+    action="{!issuePdf}"
+    showHeader="false"
+    sidebar="false"
+    standardStylesheets="false"
+    docType="html-5.0">
+    <html>
+        <head>
+            <meta charset="UTF-8" />
+            <title>見積書発行</title>
+        </head>
+        <body>
+            <p>見積書を生成しています...</p>
+            <apex:pageMessages />
+        </body>
+    </html>
+</apex:page>

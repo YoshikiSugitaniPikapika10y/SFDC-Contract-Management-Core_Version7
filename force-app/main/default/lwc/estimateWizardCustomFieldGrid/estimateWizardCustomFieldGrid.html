@@ -1,0 +1,98 @@
+<template>
+  <div class={gridClass}>
+    <template for:each={fields} for:item="field">
+      <div key={field.key} class="est-custom-field">
+        <div class="est-custom-label-row">
+          <span class="est-custom-label">
+            {field.label}
+            <template if:true={field.required}>
+              <span class="est-req">*</span>
+            </template>
+          </span>
+          <template if:true={field.hasHelpText}>
+            <lightning-helptext content={field.helpText}></lightning-helptext>
+          </template>
+        </div>
+        <template if:true={field.isReadonly}>
+          <div class="est-value est-value_compact">{field.displayValue}</div>
+        </template>
+        <template if:false={field.isReadonly}>
+          <template if:true={field.isCheckbox}>
+            <label class="est-checkbox-label">
+              <input
+                type="checkbox"
+                class="est-checkbox-input"
+                checked={field.checked}
+                data-field={field.apiName}
+                onchange={handleFieldChange}
+              />
+              <span>有効</span>
+            </label>
+          </template>
+          <template if:true={field.isPicklist}>
+            <select
+              class="est-select"
+              data-field={field.apiName}
+              onchange={handleFieldChange}
+              required={field.required}
+              value={field.value}
+            >
+              <option value="">選択...</option>
+              <template for:each={field.picklistOptions} for:item="option">
+                <option
+                  key={option.key}
+                  value={option.value}
+                  selected={option.selected}
+                >
+                  {option.label}
+                </option>
+              </template>
+            </select>
+          </template>
+          <template if:true={field.isNumber}>
+            <input
+              type="number"
+              class="est-number-input"
+              value={field.value}
+              data-field={field.apiName}
+              onchange={handleFieldChange}
+              required={field.required}
+            />
+          </template>
+          <template if:true={field.isDate}>
+            <lightning-input
+              type="date"
+              class="est-date-input"
+              variant="label-hidden"
+              label={field.label}
+              value={field.value}
+              data-field={field.apiName}
+              onchange={handleFieldChange}
+              required={field.required}
+            ></lightning-input>
+          </template>
+          <template if:true={field.isTextarea}>
+            <textarea
+              class="est-textarea-input"
+              rows={textareaRows}
+              data-field={field.apiName}
+              onchange={handleFieldChange}
+              required={field.required}
+            >
+{field.value}</textarea>
+          </template>
+          <template if:true={field.isText}>
+            <input
+              type="text"
+              class="est-text-input"
+              value={field.value}
+              data-field={field.apiName}
+              onchange={handleFieldChange}
+              required={field.required}
+            />
+          </template>
+        </template>
+      </div>
+    </template>
+  </div>
+</template>

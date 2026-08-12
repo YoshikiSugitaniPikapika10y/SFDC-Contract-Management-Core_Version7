@@ -1,0 +1,51 @@
+<template>
+  <div class={pageClass}>
+    <header class="preview-header">
+      <div>
+        <h1 class="preview-title">請求プレビュー</h1>
+      </div>
+      <button
+        type="button"
+        class="btn btn_secondary"
+        onclick={handleClose}
+        disabled={isLoading}
+      >
+        閉じる
+      </button>
+    </header>
+
+    <template if:true={errorMessage}>
+      <div class="alert alert_error">{errorMessage}</div>
+    </template>
+
+    <main class="preview-body">
+      <template if:true={showBootstrapLoading}>
+        <div class="loading loading_full">
+          <lightning-spinner
+            alternative-text="読み込み中"
+            size="medium"
+          ></lightning-spinner>
+        </div>
+      </template>
+
+      <template if:false={showBootstrapLoading}>
+        <template if:true={hasPreview}>
+          <div class="preview-table-area">
+            <c-order-invoice-preview-table
+              preview={invoicePreview}
+              billing-account-options={billingAccountOptions}
+              is-saving={isSaving}
+              onsavelineamounts={handleSaveLineAmounts}
+              onsavebillingheader={handleSaveBillingHeader}
+              onsplitinvoice={handleSplitInvoice}
+              onmovelines={handleMoveLines}
+              onsplitlinesinplace={handleSplitLinesInPlace}
+              onresetpostorder={handleResetPostOrder}
+            >
+            </c-order-invoice-preview-table>
+          </div>
+        </template>
+      </template>
+    </main>
+  </div>
+</template>

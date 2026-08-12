@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Ordered_Requires_ApplicationDate</fullName>
+    <active>true</active>
+    <description>顧客独自: Enforce ON かつ Ordered のとき申込日必須。他の顧客ルールも同じ Enforce フラグを参照する。</description>
+    <errorConditionFormula>AND(
+  ISPICKVAL(historystatus__c, &quot;Ordered&quot;),
+  $Setup.ContractValidationEnforce__c.Enforce__c,
+  ISBLANK(ApplicationDate__c)
+)</errorConditionFormula>
+    <errorDisplayField>ApplicationDate__c</errorDisplayField>
+    <errorMessage>Ordered にする場合は申込日を入力してください。</errorMessage>
+</ValidationRule>

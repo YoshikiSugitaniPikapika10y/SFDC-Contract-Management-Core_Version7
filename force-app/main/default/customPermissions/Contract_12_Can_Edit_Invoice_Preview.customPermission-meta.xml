@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>12 請求プレビューの例外編集（端数・請求日・分割）。コード接続は別途。現行 Contract_Can_Edit_Invoice_Preview の番号付き後継。</description>
+    <isLicensed>false</isLicensed>
+    <label>12 契約 請求プレビュー編集</label>
+</CustomPermission>

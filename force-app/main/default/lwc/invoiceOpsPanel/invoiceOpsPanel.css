@@ -1,0 +1,16 @@
+.toolbar {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.8125rem;
+}

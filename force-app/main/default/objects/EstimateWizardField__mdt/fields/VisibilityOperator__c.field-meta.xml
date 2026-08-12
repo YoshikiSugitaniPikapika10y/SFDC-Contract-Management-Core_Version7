@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>VisibilityOperator__c</fullName>
+    <description>見積商品の動的表示用オペレータ。項目API名が空のときは無視。</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>表示条件 オペレータ</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>IN</fullName>
+                <default>true</default>
+                <label>IN（いずれかに一致）</label>
+            </value>
+            <value>
+                <fullName>NOT_IN</fullName>
+                <default>false</default>
+                <label>NOT_IN（いずれにも不一致）</label>
+            </value>
+            <value>
+                <fullName>EQUALS</fullName>
+                <default>false</default>
+                <label>EQUALS（一致）</label>
+            </value>
+            <value>
+                <fullName>NOT_EQUALS</fullName>
+                <default>false</default>
+                <label>NOT_EQUALS（不一致）</label>
+            </value>
+            <value>
+                <fullName>IS_BLANK</fullName>
+                <default>false</default>
+                <label>IS_BLANK（空）</label>
+            </value>
+            <value>
+                <fullName>IS_NOT_BLANK</fullName>
+                <default>false</default>
+                <label>IS_NOT_BLANK（空でない）</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

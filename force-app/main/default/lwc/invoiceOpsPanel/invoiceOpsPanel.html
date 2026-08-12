@@ -1,0 +1,117 @@
+<template>
+  <lightning-card title="請求連携・消込" icon-name="standard:orders">
+    <div class="slds-p-around_small">
+      <template if:false={hasPermission}>
+        <div class="slds-text-color_error">
+          請求の連携・消込操作を実行する権限がありません。
+        </div>
+      </template>
+
+      <template if:true={hasPermission}>
+        <template if:true={errorMessage}>
+          <div class="slds-text-color_error slds-m-bottom_small">
+            {errorMessage}
+          </div>
+        </template>
+
+        <div class="toolbar slds-m-bottom_small">
+          <lightning-input
+            type="date"
+            label="操作日"
+            value={operationDate}
+            onchange={handleDateChange}
+          ></lightning-input>
+          <div class="actions">
+            <lightning-button
+              label="連携済にする"
+              variant="brand"
+              disabled={disableActions}
+              onclick={handleMarkInvoiced}
+            ></lightning-button>
+            <lightning-button
+              label="消込済にする"
+              disabled={disableActions}
+              onclick={handleMarkExported}
+            ></lightning-button>
+            <lightning-button
+              label="消込日クリア"
+              disabled={disableActions}
+              onclick={handleClearExport}
+            ></lightning-button>
+            <lightning-button
+              label="再読込"
+              onclick={loadRows}
+              disabled={isLoading}
+            ></lightning-button>
+          </div>
+          <p class="hint">{selectedCountLabel}</p>
+        </div>
+
+        <template if:true={isLoading}>
+          <lightning-spinner
+            alternative-text="読込中"
+            size="small"
+          ></lightning-spinner>
+        </template>
+
+        <template if:true={hasRows}>
+          <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+            <thead>
+              <tr>
+                <th>
+                  <lightning-input
+                    type="checkbox"
+                    variant="label-hidden"
+                    label="全選択"
+                    onchange={handleSelectAll}
+                  ></lightning-input>
+                </th>
+                <th>請求</th>
+                <th>請求日</th>
+                <th>請求アカウント</th>
+                <th>金額</th>
+                <th>状態</th>
+                <th>明細数</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={rows} for:item="row">
+                <tr key={row.id}>
+                  <td>
+                    <lightning-input
+                      type="checkbox"
+                      variant="label-hidden"
+                      label="選択"
+                      checked={row.selected}
+                      data-id={row.id}
+                      onchange={handleToggle}
+                    ></lightning-input>
+                  </td>
+                  <td>{row.name}</td>
+                  <td>{row.invoiceDate}</td>
+                  <td>{row.billingAccountName}</td>
+                  <td>
+                    <lightning-formatted-number
+                      value={row.amountDisplay}
+                      format-style="currency"
+                      currency-code="JPY"
+                      maximum-fraction-digits="0"
+                    ></lightning-formatted-number>
+                  </td>
+                  <td>{row.statusLabel}</td>
+                  <td>{row.lineCount}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+
+        <template if:false={hasRows}>
+          <template if:false={isLoading}>
+            <p class="slds-text-color_weak">請求がありません。</p>
+          </template>
+        </template>
+      </template>
+    </div>
+  </lightning-card>
+</template>

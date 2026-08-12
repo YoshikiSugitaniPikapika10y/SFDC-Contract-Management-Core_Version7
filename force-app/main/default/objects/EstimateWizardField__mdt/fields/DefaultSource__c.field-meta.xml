@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DefaultSource__c</fullName>
+    <description
+  >空欄=静的（DefaultValue__c を固定値として使う）。Opportunity=商談項目。Account=取引先項目（商談の Account から取得）。Product2=商品項目（見積商品のみ）。</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>デフォルト参照元</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Opportunity</fullName>
+                <default>false</default>
+                <label>Opportunity（商談）</label>
+            </value>
+            <value>
+                <fullName>Account</fullName>
+                <default>false</default>
+                <label>Account（取引先）</label>
+            </value>
+            <value>
+                <fullName>Product2</fullName>
+                <default>false</default>
+                <label>Product2（商品）</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

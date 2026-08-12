@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>11 操作。カスタム権限 Contract_11_Can_View_Invoice_Preview のみ。通常は 01 と併用。コード接続は別途。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>11 契約 請求プレビュー</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Contract_11_Can_View_Invoice_Preview</name>
+    </customPermissions>
+</PermissionSet>

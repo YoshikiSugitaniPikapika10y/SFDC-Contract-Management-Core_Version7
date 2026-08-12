@@ -1,0 +1,659 @@
+:host {
+  display: block;
+  margin-top: 0.25rem;
+  --est-accent: #2563eb;
+  --est-accent-soft: #eff6ff;
+  --est-accent-border: #bfdbfe;
+  --est-border: #cbd5e1;
+  --est-border-strong: #94a3b8;
+  --est-muted: #64748b;
+  --est-text: #0f172a;
+  --est-surface: #ffffff;
+  --est-surface-muted: #f8fafc;
+  --est-radius: 8px;
+  --est-focus-ring: rgba(37, 99, 235, 0.14);
+  --est-input-radius: 6px;
+  /* 親ウィザードの --est-density（モーダル時 0.75）を尊重 */
+  --est-font-title: calc(1rem * var(--est-density, 1));
+  --est-font-desc: calc(0.8125rem * var(--est-density, 1));
+  --est-font-label: calc(0.75rem * var(--est-density, 1));
+  --est-font-control: calc(0.875rem * var(--est-density, 1));
+  --est-font-meta: calc(0.8125rem * var(--est-density, 1));
+  --est-input-height: calc(1.875rem * var(--est-density, 1));
+  --lwc-heightInput: calc(1.875rem * var(--est-density, 1));
+  --lwc-fontSize2: calc(0.8125rem * var(--est-density, 1));
+  --lwc-fontSize3: calc(0.875rem * var(--est-density, 1));
+  --slds-c-input-text-font-size: calc(0.875rem * var(--est-density, 1));
+  --slds-c-button-font-size: calc(0.875rem * var(--est-density, 1));
+}
+
+.est-card {
+  background: var(--est-surface);
+  border: 1px solid var(--est-border);
+  border-radius: var(--est-radius);
+  overflow: visible;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+/* 既存契約: 縦をさらに詰めてスクロールを減らす（横レイアウトは維持） */
+.est-card_continuation .est-card-header {
+  padding: 0.35rem 0.75rem;
+}
+
+.est-card_continuation .est-card-body {
+  padding: 0.4rem 0.75rem 0.5rem;
+}
+
+.est-card_continuation .est-field {
+  gap: 0.15rem;
+}
+
+.est-card_continuation .est-service-picker-name {
+  font-size: var(--est-font-control);
+  line-height: 1.25;
+}
+
+.est-card_continuation .est-service-picker-meta {
+  gap: 0.2rem 0.4rem;
+  font-size: var(--est-font-meta);
+  line-height: 1.25;
+}
+
+.est-card-header {
+  padding: 0.4rem 0.85rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-bottom: 1px solid var(--est-border);
+  border-left: 3px solid var(--est-accent);
+}
+
+.est-card-title {
+  margin: 0;
+  font-size: var(--est-font-title);
+  font-weight: 600;
+  color: var(--est-text);
+  letter-spacing: -0.01em;
+}
+
+.est-card-desc {
+  margin: 0.25rem 0 0;
+  font-size: var(--est-font-desc);
+  color: var(--est-muted);
+  line-height: 1.45;
+}
+
+.est-card-body {
+  padding: 0.5rem 0.85rem 0.6rem;
+  background: var(--est-surface);
+  overflow: visible;
+}
+
+.est-field-grid {
+  display: grid;
+  gap: 0.4rem;
+  align-items: start;
+}
+
+/* New: サービス名 / 履歴名 / Version / 請求アカウント を1行 */
+.est-field-grid_new {
+  grid-template-columns:
+    minmax(0, 1.35fr)
+    minmax(0, 1.35fr)
+    minmax(5.5rem, 0.55fr)
+    minmax(0, 1.4fr);
+}
+
+/* 契約サービス選択（カードは2行分の高さ） */
+.est-field-grid_lookup_solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* 選択後: 契約サービス名 / 契約履歴名 / 請求アカウント */
+.est-field-grid_continuation {
+  grid-template-columns:
+    minmax(0, 1.1fr)
+    minmax(0, 1.1fr)
+    minmax(0, 1.25fr);
+  margin-top: 0.4rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .est-field-grid_continuation {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .est-field-grid_new,
+  .est-field-grid_lookup {
+    grid-template-columns: 1fr;
+  }
+}
+
+.est-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.est-label {
+  font-size: var(--est-font-label);
+  font-weight: 600;
+  color: var(--est-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.est-label_required::after {
+  content: " *";
+  color: #dc2626;
+}
+
+.est-value {
+  padding: 0.4375rem 0.625rem;
+  background: var(--est-surface-muted);
+  border: 1px solid var(--est-border);
+  border-radius: var(--est-input-radius);
+  font-size: var(--est-font-control);
+  color: var(--est-text);
+  min-height: var(--est-input-height);
+  display: flex;
+  align-items: center;
+  word-break: break-word;
+  box-sizing: border-box;
+  line-height: 1.4;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.est-control {
+  min-height: var(--est-input-height);
+}
+
+.est-field_service {
+  position: relative;
+  /* 操作カードより前面。absolute パネルは親 overflow で切れるためパネル自体はフロー配置 */
+  z-index: 4;
+}
+
+.est-service-picker {
+  position: relative;
+  width: 100%;
+}
+
+.est-service-picker_open {
+  z-index: 6;
+}
+
+.est-service-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--est-input-height);
+  margin: 0;
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid var(--est-border-strong);
+  border-radius: var(--est-input-radius);
+  background: var(--est-surface);
+  color: var(--est-text);
+  font-size: var(--est-font-control);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.est-service-picker-trigger:hover,
+.est-service-picker-trigger_open {
+  border-color: var(--est-accent);
+}
+
+.est-service-picker-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--est-focus-ring);
+  border-color: var(--est-accent);
+}
+
+.est-service-picker-trigger-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.est-service-picker-panel {
+  /* ウィザード本文の overflow で切れないよう、重ねず下方向に展開する */
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: none;
+  max-height: 16rem;
+  margin-top: 0.35rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--est-border-strong);
+  border-radius: 8px;
+  background: var(--est-surface);
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.12),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
+}
+
+.est-service-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--est-text);
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.est-service-picker-item:hover {
+  background: var(--est-accent-soft);
+  border-color: var(--est-accent-border);
+}
+
+.est-service-picker-item_selected {
+  background: var(--est-accent-soft);
+  border-color: var(--est-accent);
+}
+
+.est-service-picker-selected-card {
+  width: 100%;
+  min-height: 0;
+  border-color: var(--est-accent);
+  background: var(--est-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--est-accent-border);
+}
+
+.est-field_billing .est-value {
+  min-height: var(--est-input-height);
+}
+
+.est-service-picker-selected-card_open {
+  border-color: var(--est-accent);
+}
+
+.est-service-picker-selected-card_locked {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.est-service-picker-name {
+  font-size: var(--est-font-control);
+  font-weight: 600;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.est-service-picker-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--est-muted);
+}
+
+.est-service-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--est-accent-soft);
+  border: 1px solid var(--est-accent-border);
+  color: #1e40af;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.est-service-picker-chip_muted {
+  background: var(--est-surface-muted);
+  border-color: var(--est-border);
+  color: var(--est-muted);
+  font-weight: 600;
+}
+
+.est-service-picker-term,
+.est-service-picker-billing,
+.est-service-picker-products {
+  font-variant-numeric: tabular-nums;
+}
+
+.est-service-picker-products {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.est-select,
+.est-text-input {
+  width: 100%;
+  min-height: var(--est-input-height);
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid var(--est-border-strong);
+  border-radius: var(--est-input-radius);
+  background: var(--est-surface);
+  font-size: var(--est-font-control);
+  color: var(--est-text);
+  box-sizing: border-box;
+  line-height: 1.4;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.est-select {
+  cursor: pointer;
+  text-align: center;
+  text-align-last: center;
+}
+
+.est-select:hover:not(:disabled),
+.est-text-input:hover:not(:disabled) {
+  border-color: #64748b;
+}
+
+.est-select:focus,
+.est-text-input:focus {
+  outline: none;
+  border-color: var(--est-accent);
+  box-shadow:
+    0 0 0 3px var(--est-focus-ring),
+    0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.est-select:disabled,
+.est-text-input:disabled {
+  background: var(--est-surface-muted);
+  color: var(--est-muted);
+  cursor: not-allowed;
+}
+
+lightning-record-picker {
+  --lwc-fontSize3: var(--est-font-control);
+  --slds-c-input-text-font-size: var(--est-font-control);
+  --lwc-heightInput: var(--est-input-height);
+}
+
+lightning-input.est-billing-other-toggle {
+  /* 他ラベル（.est-label）と同じ。固定 rem だと密度無視で大きく見える */
+  --lwc-fontSize2: var(--est-font-label);
+  --lwc-fontSize3: var(--est-font-label);
+  --slds-c-checkbox-label-font-size: var(--est-font-label);
+  font-size: var(--est-font-label);
+}
+
+.est-billing-other-toggle {
+  margin-top: 0.375rem;
+  font-size: var(--est-font-label);
+}
+
+.est-contract-custom-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--est-border);
+}
+
+.est-contract-custom {
+  margin-top: 0.625rem;
+  padding: 0.75rem;
+  background: var(--est-surface-muted);
+  border: 1px solid var(--est-border);
+  border-radius: 6px;
+}
+
+.est-contract-custom-title {
+  margin: 0 0 0.5rem;
+  font-size: var(--est-font-label);
+  font-weight: 600;
+  color: var(--est-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.est-contract-custom-title:not(:first-child) {
+  margin-top: 0.75rem;
+}
+
+.est-btn-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  border: 1px solid var(--est-border);
+  background: var(--est-surface);
+  border-radius: 6px;
+  padding: 0.375rem 0.75rem;
+  min-height: 2rem;
+  font-size: var(--est-font-meta);
+  font-weight: 500;
+  color: var(--est-text);
+  cursor: pointer;
+}
+
+.est-btn-custom:hover {
+  background: var(--est-surface-muted);
+}
+
+.est-custom-chevron {
+  transition: transform 0.15s ease;
+  --slds-c-icon-color-foreground-default: var(--est-muted);
+}
+
+.est-custom-chevron_open {
+  transform: rotate(90deg);
+}
+
+.est-custom-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--est-muted);
+  background: var(--est-surface);
+  border: 1px solid var(--est-border);
+  border-radius: 999px;
+  padding: 0.0625rem 0.375rem;
+}
+
+.est-billing-hint {
+  margin: 0.25rem 0 0;
+  font-size: var(--est-font-meta);
+  color: var(--est-muted);
+  line-height: 1.4;
+}
+
+.est-billing-hint_error {
+  color: #dc2626;
+}
+
+.est-billing-reselect {
+  margin-top: 0.375rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--est-font-meta);
+  color: var(--est-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.est-billing-reselect:hover {
+  color: #1d4ed8;
+}
+
+.est-service-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  margin-top: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--est-border);
+  border-radius: 8px;
+  background: var(--est-surface-muted);
+}
+
+.est-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #1d4ed8;
+  background: var(--est-accent-soft);
+  border: 1px solid var(--est-accent-border);
+}
+
+.est-badge_muted {
+  color: var(--est-muted);
+  background: #ffffff;
+  border-color: var(--est-border);
+}
+
+.est-meta-text {
+  font-size: 0.75rem;
+  color: var(--est-text);
+  line-height: 1.4;
+}
+
+.est-meta-text_secondary {
+  color: var(--est-muted);
+}
+
+.est-ops {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.est-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.est-ops-grid_single {
+  grid-template-columns: minmax(0, 20rem);
+}
+
+@media (max-width: 720px) {
+  .est-ops-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .est-ops-grid_single {
+    grid-template-columns: 1fr;
+  }
+}
+
+.est-ops-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  border: 1px solid var(--est-border-strong);
+  border-radius: 6px;
+  background: var(--est-surface-muted);
+  color: var(--est-text);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.est-ops-card:hover:not(:disabled) {
+  border-color: var(--est-accent);
+  background: var(--est-accent-soft);
+}
+
+.est-ops-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--est-focus-ring);
+  border-color: var(--est-accent);
+}
+
+.est-ops-card_active {
+  border-color: var(--est-accent);
+  background: var(--est-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--est-accent-border);
+}
+
+.est-ops-card_locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.est-ops-card:disabled {
+  cursor: not-allowed;
+}
+
+.est-ops-icon {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid var(--est-border);
+}
+
+.est-ops-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.est-ops-title {
+  font-size: var(--est-font-control);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.est-ops-help {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  font-size: var(--est-font-meta);
+  line-height: 1.3;
+  color: var(--est-muted);
+}
+
+.est-ops-help-line {
+  display: block;
+}
+
+.est-ops-help-text {
+  color: inherit;
+}
+
+.est-ops-help-date {
+  color: #1d4ed8;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+

@@ -1,0 +1,160 @@
+<template>
+  <template if:true={isCancelConfirm}>
+    <div class={cancelPageClass}>
+      <header class="confirm-header">
+        <div class="confirm-heading">
+          <span class="confirm-icon" aria-hidden="true">
+            <lightning-icon
+              icon-name="utility:check"
+              size="small"
+              alternative-text="受注"
+            ></lightning-icon>
+          </span>
+          <div class="confirm-heading-text">
+            <h1 class="confirm-title">受注</h1>
+            <p class="confirm-subtitle">Cancel を Ordered にします</p>
+          </div>
+        </div>
+      </header>
+
+      <main class="confirm-body">
+        <template if:true={errorMessage}>
+          <div class="alert alert_error" role="alert">{errorMessage}</div>
+        </template>
+
+        <template if:true={showBootstrapLoading}>
+          <div class="loading">
+            <lightning-spinner
+              alternative-text="読み込み中"
+              size="small"
+            ></lightning-spinner>
+          </div>
+        </template>
+
+        <template if:false={showBootstrapLoading}>
+          <template if:true={hasContext}>
+            <section class="confirm-card">
+              <p class="confirm-lead">
+                この Cancel 見積を受注します。よろしいですか？
+              </p>
+              <ul class="confirm-list">
+                <li>契約ステータスが解約（Churn）として確定します</li>
+                <li>請求・契約期間明細は作成されません</li>
+                <li>更新商談は作成されません</li>
+              </ul>
+            </section>
+          </template>
+
+          <template if:true={isSaving}>
+            <div class="loading">
+              <lightning-spinner
+                alternative-text="受注処理中"
+                size="small"
+              ></lightning-spinner>
+            </div>
+          </template>
+        </template>
+      </main>
+
+      <footer class="confirm-footer">
+        <button
+          type="button"
+          class="btn btn_secondary"
+          onclick={handleClose}
+          disabled={isBusy}
+        >
+          キャンセル
+        </button>
+        <button
+          type="button"
+          class="btn btn_primary"
+          onclick={handleConfirmOrder}
+          disabled={isOrderDisabled}
+        >
+          受注する
+        </button>
+      </footer>
+    </div>
+  </template>
+
+  <template if:false={isCancelConfirm}>
+    <div class={pageClass}>
+      <template if:true={showMissingRecordError}>
+        <div class="ord-alert ord-alert_error">契約履歴IDが取得できません。</div>
+      </template>
+
+      <template if:false={showMissingRecordError}>
+        <header class="ord-header">
+          <div class="ord-header-top">
+            <div>
+              <h1 class="ord-title">受注</h1>
+              <p class="ord-subtitle">請求設定の確認と受注</p>
+            </div>
+            <div class="ord-header-actions">
+              <button
+                type="button"
+                class="ord-btn ord-btn_secondary"
+                onclick={handleClose}
+                disabled={isBusy}
+              >
+                閉じる
+              </button>
+              <button
+                type="button"
+                class="ord-btn ord-btn_primary ord-btn_confirm"
+                onclick={handleConfirmOrder}
+                disabled={isBusy}
+              >
+                受注する
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <template if:true={errorMessage}>
+          <div class="ord-alert ord-alert_error ord-alert_banner">
+            {errorMessage}
+          </div>
+        </template>
+
+        <main class="ord-body">
+          <template if:true={showBootstrapLoading}>
+            <div class="ord-loading ord-loading_full">
+              <lightning-spinner
+                alternative-text="読み込み中"
+                size="medium"
+              ></lightning-spinner>
+            </div>
+          </template>
+
+          <template if:false={showBootstrapLoading}>
+            <template if:true={showBillingStep}>
+              <c-order-create-step-billing
+                context={context}
+                billing-custom-fields={billingCustomFields}
+              >
+              </c-order-create-step-billing>
+
+              <template if:true={showCreateRenewOpportunity}>
+                <section class="ord-option-panel">
+                  <label class="ord-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={createRenewOpportunity}
+                      onchange={handleCreateRenewOpportunityChange}
+                      disabled={isBusy}
+                    />
+                    <span>更新商談を作成する</span>
+                  </label>
+                  <p class="ord-option-help">
+                    受注後、期間終了に向けた更新商談を自動作成します。
+                  </p>
+                </section>
+              </template>
+            </template>
+          </template>
+        </main>
+      </template>
+    </div>
+  </template>
+</template>

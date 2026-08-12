@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>99 例外専用。カスタム権限 Contract_99_Can_Bypass_Integrity_Guards のみ。ロック行DML・再生成拒否・差し戻し順序・CS削除禁止・BA共有更新確認などを緊急時にバイパス。通常は付与しない。旧 Contract_14_Bypass_Integrity_Guards の後継。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>99 契約 整合性ガード解除</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Contract_99_Can_Bypass_Integrity_Guards</name>
+    </customPermissions>
+</PermissionSet>

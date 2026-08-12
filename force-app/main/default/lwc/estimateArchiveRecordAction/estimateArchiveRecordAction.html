@@ -1,0 +1,71 @@
+<template>
+  <div class="confirm-page">
+    <header class="confirm-header">
+      <div class="confirm-heading">
+        <span class="confirm-icon" aria-hidden="true">
+          <lightning-icon
+            icon-name="utility:archive"
+            size="small"
+            alternative-text="アーカイブ"
+          ></lightning-icon>
+        </span>
+        <div class="confirm-heading-text">
+          <h1 class="confirm-title">アーカイブ</h1>
+          <p class="confirm-subtitle">見積を破棄して編集不可にします</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="confirm-body">
+      <template if:false={hasPermission}>
+        <div class="alert alert_error" role="alert">
+          見積アーカイブを実行する権限がありません。
+        </div>
+      </template>
+
+      <template if:true={errorMessage}>
+        <div class="alert alert_error" role="alert">{errorMessage}</div>
+      </template>
+
+      <template if:true={hasPermission}>
+      <section class="confirm-card">
+        <p class="confirm-lead">
+          この見積（Estimate）をアーカイブします。よろしいですか？
+        </p>
+        <ul class="confirm-list">
+          <li>編集・受注・コピーができなくなります</li>
+          <li>見積書発行・差し戻しも利用できません</li>
+        </ul>
+      </section>
+      </template>
+
+      <template if:true={isWorking}>
+        <div class="loading">
+          <lightning-spinner
+            alternative-text="アーカイブ処理中"
+            size="small"
+          ></lightning-spinner>
+        </div>
+      </template>
+    </main>
+
+    <footer class="confirm-footer">
+      <button
+        type="button"
+        class="btn btn_secondary"
+        onclick={handleCancel}
+        disabled={isBusy}
+      >
+        キャンセル
+      </button>
+      <button
+        type="button"
+        class="btn btn_danger"
+        onclick={handleArchive}
+        disabled={isArchiveDisabled}
+      >
+        アーカイブする
+      </button>
+    </footer>
+  </div>
+</template>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>07 「アーカイブ」を実行できる。コード接続は別途。</description>
+    <isLicensed>false</isLicensed>
+    <label>07 契約 見積アーカイブ</label>
+</CustomPermission>

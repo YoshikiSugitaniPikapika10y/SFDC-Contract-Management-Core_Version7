@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>13 請求Ops（連携済・消込済の付与、消込日クリア、請求Ops一覧）。今後の消込・連携運用もここに寄せる。コード接続は InvoiceOpsController / invoiceOpsPanel。</description>
+    <isLicensed>false</isLicensed>
+    <label>13 契約 請求Ops（連携・消込）</label>
+</CustomPermission>

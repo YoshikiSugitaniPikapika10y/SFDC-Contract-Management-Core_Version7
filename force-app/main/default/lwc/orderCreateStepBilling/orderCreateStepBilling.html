@@ -1,0 +1,50 @@
+<template>
+  <section class="est-card">
+    <div class="est-card-header">
+      <h2 class="est-card-title">請求アカウント設定</h2>
+      <p class="est-card-desc">
+        請求アカウントはこの画面では参照のみです。内容を直す場合は、一度この画面を閉じてください。
+      </p>
+    </div>
+
+    <div class="est-card-body">
+      <template if:true={hasBillingAccount}>
+        <div class="est-field-grid est-field-grid_other">
+          <div class="est-field">
+            <span class="est-label">取引先</span>
+            <div class="est-value">{billingCustomerAccountName}</div>
+          </div>
+          <div class="est-field">
+            <span class="est-label">請求アカウント</span>
+            <div class="est-value">{billingAccountName}</div>
+          </div>
+          <template for:each={otherFieldInputs} for:item="field">
+            <div key={field.key} class="est-field">
+              <span class={field.labelClass}>
+                {field.label}
+              </span>
+              <div class="est-value">{field.displayValue}</div>
+            </div>
+          </template>
+        </div>
+
+        <div class="est-field-grid est-field-grid_address">
+          <template for:each={addressFieldInputs} for:item="field">
+            <div key={field.key} class="est-field">
+              <span class={field.labelClass}>
+                {field.label}
+              </span>
+              <div class="est-value">{field.displayValue}</div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template if:false={hasBillingAccount}>
+        <div class="est-alert est-alert_error" role="alert">
+          請求アカウントが未設定です。見積作成画面で請求アカウントを設定してから受注してください。
+        </div>
+      </template>
+    </div>
+  </section>
+</template>

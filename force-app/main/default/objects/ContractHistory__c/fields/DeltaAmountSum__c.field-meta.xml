@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DeltaAmountSum__c</fullName>
+    <label>発生金額</label>
+    <summarizedField>ContractProduct__c.Amount__c</summarizedField>
+    <summaryForeignKey>ContractProduct__c.ContractHistory__c</summaryForeignKey>
+    <summaryOperation>sum</summaryOperation>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Summary</type>
+</CustomField>

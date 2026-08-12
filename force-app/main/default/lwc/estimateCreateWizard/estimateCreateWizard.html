@@ -1,0 +1,230 @@
+<template>
+  <template if:true={showWizard}>
+    <div class={pageClass}>
+      <template if:true={isLoadingCopy}>
+        <div
+          class="est-alert est-alert_info slds-m-around_medium"
+          role="status"
+        >
+          <lightning-spinner
+            alternative-text="読み込み中"
+            size="small"
+          ></lightning-spinner>
+          <span>見積内容を読み込んでいます...</span>
+        </div>
+      </template>
+
+      <template if:true={copyLoadError}>
+        <div class="est-alert est-alert_error slds-m-around_medium">
+          <div>{copyLoadError}</div>
+          <div class="slds-m-top_small">
+            <button
+              type="button"
+              class="est-btn est-btn_header-secondary"
+              onclick={handlePresetRetry}
+            >
+              再読み込み
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <template if:true={wizardFieldConfigError}>
+        <div
+          class="est-alert est-alert_error slds-m-around_medium"
+          role="alert"
+        >
+          {wizardFieldConfigError}
+        </div>
+      </template>
+
+      <template if:true={showMissingRecordError}>
+        <div class="est-alert est-alert_error">
+          商談IDが指定されていません。商談画面から見積作成を開いてください。
+        </div>
+      </template>
+
+      <template if:true={showContractHistoryLoadingBanner}>
+        <div class="est-alert est-alert_info" role="status">
+          <lightning-spinner
+            alternative-text="読み込み中"
+            size="small"
+          ></lightning-spinner>
+          <span
+            >契約履歴を読み込んでいます。完了するまで次のステップへ進めません。</span
+          >
+        </div>
+      </template>
+
+      <template if:true={showStep3SyncBanner}>
+        <div class="est-alert est-alert_info" role="status">
+          <lightning-spinner
+            alternative-text="読み込み中"
+            size="small"
+          ></lightning-spinner>
+          <span>{step3SyncBannerMessage}</span>
+        </div>
+      </template>
+
+      <header class="est-header">
+        <div class="est-header-bar">
+          <div class="est-header-lead">
+            <h1 class="est-header-title">{headerTitle}</h1>
+            <span class="est-type-chip">{typeLabel}</span>
+          </div>
+
+          <nav class="est-stepper" aria-label={headerTitle}>
+            <template for:each={stepItems} for:item="step">
+              <div key={step.key} class="est-stepper-item">
+                <template if:true={step.isClickable}>
+                  <button
+                    type="button"
+                    class={step.itemClass}
+                    data-step={step.num}
+                    onclick={handleStepClick}
+                    aria-current={step.ariaCurrent}
+                    title={step.label}
+                  >
+                    <span class="est-step-num">{step.num}</span>
+                    <span class="est-step-label">{step.label}</span>
+                  </button>
+                </template>
+                <template if:false={step.isClickable}>
+                  <div class={step.itemClass} aria-current={step.ariaCurrent}>
+                    <span class="est-step-num">{step.num}</span>
+                    <span class="est-step-label">{step.label}</span>
+                  </div>
+                </template>
+                <template if:true={step.showConnector}>
+                  <div class={step.connectorClass}></div>
+                </template>
+              </div>
+            </template>
+          </nav>
+
+          <div class="est-header-actions">
+            <nav class="est-header-nav" aria-label="ウィザード操作">
+              <template if:false={isStep1}>
+                <button
+                  type="button"
+                  class="est-btn est-btn_header-secondary"
+                  onclick={handlePrev}
+                  disabled={isPrevDisabled}
+                >
+                  前へ
+                </button>
+              </template>
+              <template if:true={isStep1}>
+                <button
+                  type="button"
+                  class="est-btn est-btn_header-primary"
+                  onclick={handleNext}
+                  disabled={isNextDisabled}
+                >
+                  次へ
+                </button>
+              </template>
+              <template if:true={isStep2}>
+                <button
+                  type="button"
+                  class="est-btn est-btn_header-primary"
+                  onclick={handleSaveClick}
+                  disabled={isNextDisabled}
+                >
+                  保存
+                </button>
+              </template>
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      <template if:true={hasValidationAlert}>
+        <div data-id="wizard-validation-alert">
+          <c-estimate-validation-alert
+            title={validationAlert.title}
+            messages={validationAlert.messages}
+            variant={validationAlertVariant}
+            show-actions={validationAlertShowActions}
+            onproceed={handleConfirmationProceed}
+            oncancel={handleConfirmationCancel}
+          >
+          </c-estimate-validation-alert>
+        </div>
+      </template>
+
+      <main class="est-body">
+        <!--
+                  Step1=入口カード（modal1）→ 契約特定+操作（modal2）、
+                  Step2=詳細情報（modal3）。
+                  各パネルは初回到達後にマウントし、以後は CSS で隠す。
+                -->
+        <div class={step1PanelClass} aria-hidden={isStep1PanelAriaHidden}>
+          <c-estimate-create-modal1
+            record-id={effectiveRecordId}
+            selected-type={wizardData.selectedType}
+            entry-mode={wizardData.entryMode}
+            service-lifecycle={wizardData.serviceLifecycle}
+            opportunity-name={wizardData.opportunityName}
+            account-name={wizardData.accountName}
+            read-only={isEditMode}
+            onentrychange={handleStep1EntryChange}
+            ontypechange={handleStep1TypeChange}
+            onopportunityloaded={handleOpportunityLoaded}
+          >
+          </c-estimate-create-modal1>
+        </div>
+
+        <template if:true={isStep2Mounted}>
+          <template if:true={showContractIdentifyPanel}>
+            <!-- session key で開くたび／種別変更時に作り直し、候補 wire を最新化する -->
+            <template
+              for:each={contractPanelSessionItems}
+              for:item="panelSessionKey"
+            >
+              <div
+                key={panelSessionKey}
+                class={step2PanelClass}
+                aria-hidden={isStep2PanelAriaHidden}
+              >
+                <c-estimate-create-modal2
+                  record-id={effectiveRecordId}
+                  wizard-data={wizardData}
+                  selected-type={wizardData.selectedType}
+                  edit-mode={isEditMode}
+                  ordered-custom-fields-only={isOrderedCustomFieldsOnlyEdit}
+                  loading-contract-history={loadingContractHistory}
+                  onchangefield={handleStep2Change}
+                  onserviceselect={handleContractServiceSelect}
+                  ontypechange={handleStep1TypeChange}
+                >
+                </c-estimate-create-modal2>
+              </div>
+            </template>
+          </template>
+        </template>
+
+        <template if:true={isStep3Mounted}>
+          <div class={step3PanelClass} aria-hidden={isStep3PanelAriaHidden}>
+            <c-estimate-create-modal3
+              data-id="estimate-create-modal3"
+              record-id={effectiveRecordId}
+              wizard-data={wizardData}
+              selected-type={wizardData.selectedType}
+              ordered-custom-fields-only={isOrderedCustomFieldsOnlyEdit}
+              loading-contract-history={loadingContractHistory}
+              opportunity-default-context={opportunityDefaultContext}
+              service-field-definitions={serviceFieldDefinitions}
+              history-field-definitions={historyFieldDefinitions}
+              product-field-definitions={productFieldDefinitions}
+              onchangefield={handleStep3Change}
+              onloadingchange={handleStep3Loading}
+              onconfirmrequest={handleConfirmRequest}
+            >
+            </c-estimate-create-modal3>
+          </div>
+        </template>
+      </main>
+    </div>
+  </template>
+</template>

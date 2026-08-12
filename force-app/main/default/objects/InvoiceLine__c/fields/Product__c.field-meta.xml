@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Product__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>見積商品の商品マスタ。生成時にコード直書きでセット。</description>
+    <label>商品</label>
+    <referenceTo>Product2</referenceTo>
+    <relationshipLabel>請求明細</relationshipLabel>
+    <relationshipName>InvoiceLines</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

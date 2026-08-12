@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>LineBucketKey__c</fullName>
+    <description>請求明細単位のマージキー（Text）。InvoiceMergeKeyPart__mdt（InvoiceLine）に従い生成時に保存。旧 ExportLineMergeKey 数式の代替。</description>
+    <externalId>false</externalId>
+    <label>請求明細単位のマージキー</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

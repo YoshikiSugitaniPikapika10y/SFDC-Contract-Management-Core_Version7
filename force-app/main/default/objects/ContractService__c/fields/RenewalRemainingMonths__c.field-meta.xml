@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RenewalRemainingMonths__c</fullName>
+    <description>InTerm は終了までの残り月（プラス）。OutOfTerm は終了日からの超過月（マイナス）。Cancelled / SPOT / 未受注は空白。</description>
+    <externalId>false</externalId>
+    <formula>IF(
+  OR(
+    ISBLANK(LatestOrderedHistory__c),
+    TEXT(Lifecycle__c) = &quot;Spot&quot;,
+    TEXT(LatestOrderedHistory__r.Type__c) = &quot;Cancel&quot;,
+    ISBLANK(ServiceEndDate__c)
+  ),
+  NULL,
+  IF(
+    TODAY() &gt; ServiceEndDate__c,
+    -((YEAR(TODAY()) - YEAR(ServiceEndDate__c)) * 12 + (MONTH(TODAY()) - MONTH(ServiceEndDate__c))),
+    (YEAR(ServiceEndDate__c) - YEAR(TODAY())) * 12 + (MONTH(ServiceEndDate__c) - MONTH(TODAY()))
+  )
+)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <inlineHelpText>期間内は残り月（プラス）、超過はマイナス。解約済み・都度契約・未受注は空白。</inlineHelpText>
+    <label>更新残月</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

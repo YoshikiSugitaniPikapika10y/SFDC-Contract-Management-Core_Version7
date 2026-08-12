@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>請求まわり生成（Insert）時の項目コピー定義。コピー先は契約期間明細 / 請求 / 請求明細。コア項目はコード直書きのためここに置かない。</description>
+    <label>請求項目コピー</label>
+    <pluralLabel>請求項目コピー</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

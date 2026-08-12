@@ -1,0 +1,40 @@
+# List files or directories below to ignore them when running force:source:push, force:source:pull, and force:source:status
+# More information: https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_exclude_source.htm
+#
+
+package.xml
+
+# LWC configuration files
+**/jsconfig.json
+**/.eslintrc.json
+
+# LWC Jest
+**/__tests__/**
+
+node_modules/
+
+# Admin profile must never ship with this package (customer impact / liability)
+**/profiles/Admin.profile-meta.xml
+force-app/main/default/profiles/Admin.profile-meta.xml
+
+# --- U-ZERO production deploy exclusions ---
+
+# Org-specific legacy (not part of contract package)
+**/classes/TCTD_*
+**/classes/ContactOppRelate*
+**/classes/SyncFromZuora*
+**/classes/TestOpportunityContactRoleHandler*
+**/flexipages/TCTD_OppPage.flexipage-meta.xml
+**/flexipages/FlexiPage3.flexipage-meta.xml
+
+# Sample CMDT (Zeroboard test data — must not deploy to U-ZERO prod)
+**/customMetadata/EstimateWizardField.Sample_*
+
+# Opportunity trigger: prod already has equivalent handler; skip overwrite
+**/triggers/OpportunityTrigger.trigger
+**/triggers/OpportunityTrigger.trigger-meta.xml
+**/classes/OpportunityTriggerHandler.cls
+**/classes/OpportunityTriggerHandler.cls-meta.xml
+
+# Optional draft flow — activate separately after tenant review
+**/flows/SetEstimateRelateFields.flow-meta.xml

@@ -1,0 +1,1250 @@
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  /* 見積 Step 系トークンに揃え、accent だけ請求緑 */
+  --preview-accent: #059669;
+  --preview-accent-dark: #047857;
+  --preview-accent-soft: #ecfdf5;
+  --preview-accent-border: #a7f3d0;
+  --preview-surface: #ffffff;
+  --preview-surface-muted: #f8fafc;
+  --preview-border: #cbd5e1;
+  --preview-border-strong: #94a3b8;
+  --preview-text: #0f172a;
+  --preview-muted: #64748b;
+  --preview-radius: 8px;
+  --preview-input-radius: 6px;
+  --preview-focus-ring: rgba(5, 150, 105, 0.14);
+  --preview-warn: #b45309;
+  --preview-warn-soft: #fffbeb;
+  --preview-row-rule: #e2e8f0;
+  --preview-font-table: 0.875rem;
+  --preview-font-table-head: 0.8125rem;
+  --preview-font-meta: 0.6875rem;
+}
+
+.version-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.625rem;
+}
+
+.version-filter {
+  max-width: 11rem;
+  margin-bottom: 0;
+}
+
+.reset-post-order-btn {
+  flex: 0 0 auto;
+}
+
+.amount-compare {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.875rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-surface-muted);
+  color: var(--preview-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.amount-compare-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  background: #dcfce7;
+  color: #047857;
+}
+
+.amount-compare_drift .amount-compare-status {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.amount-compare_ok {
+  border-color: #a7f3d0;
+  background: #f0fdf4;
+}
+
+.amount-compare-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.625rem;
+  min-width: 0;
+}
+
+.amount-compare-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.amount-compare-part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.amount-compare-k {
+  color: var(--preview-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.amount-compare-op {
+  color: var(--preview-text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 0.875rem;
+  text-align: center;
+}
+
+.amount-compare_drift {
+  border-color: #fcd34d;
+  background: var(--preview-warn-soft);
+}
+
+.amount-compare_drift .amount-compare-part_diff {
+  color: var(--preview-warn);
+}
+
+.amount-compare_draft {
+  border-color: #fbbf24;
+}
+
+.edit-note {
+  margin: 0 0 0.75rem;
+  color: var(--preview-muted);
+  font-size: 0.75rem;
+}
+
+.period-split-warn {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #fcd34d;
+  border-radius: var(--preview-input-radius);
+  background: var(--preview-warn-soft);
+  color: var(--preview-warn);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.preview-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.invoice-card {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--preview-surface);
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  /* overflow:hidden はスクロールコンテナになり、マウス位置でホイールを奪うことがある */
+  overflow: visible;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.invoice-header {
+  padding: 0.625rem 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+  border-bottom: 1px solid var(--preview-border);
+  border-left: 3px solid var(--preview-accent);
+  border-radius: var(--preview-radius) var(--preview-radius) 0 0;
+}
+
+.invoice-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  min-width: 0;
+}
+
+.invoice-header-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.875rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.invoice-title {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.invoice-index {
+  color: var(--preview-text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.invoice-index_link {
+  color: var(--preview-accent-dark, #1d4ed8);
+  text-decoration: none;
+}
+
+.invoice-index_link:hover,
+.invoice-index_link:focus {
+  text-decoration: underline;
+}
+
+.invoice-addressee {
+  margin: 0;
+  min-width: 0;
+  max-width: 22rem;
+  color: var(--preview-accent-dark);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invoice-dates {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.625rem;
+  min-width: 0;
+}
+
+.invoice-date-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.invoice-date-sep {
+  width: 1px;
+  height: 0.75rem;
+  background: var(--preview-border);
+  align-self: center;
+}
+
+.invoice-meta-k {
+  color: var(--preview-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.invoice-meta-v {
+  color: var(--preview-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-footer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 0;
+  padding: 0.625rem 1rem;
+  border-top: 1px solid var(--preview-border);
+  background: var(--preview-surface-muted);
+  border-radius: 0 0 var(--preview-radius) var(--preview-radius);
+}
+
+.invoice-footer .summary-row {
+  justify-content: flex-end;
+}
+
+/* 税抜 / 税 / 税込 を1行 */
+.invoice-footer .summary-row_totals {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.invoice-footer .summary-row_totals .money-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.invoice-footer .summary-row_totals .money-label {
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.invoice-footer .summary-row_totals .money-value {
+  font-size: 0.875rem;
+}
+
+.header-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.ghost-btn,
+.solid-btn {
+  margin: 0;
+  padding: 0.25rem 0.625rem;
+  min-height: 1.75rem;
+  border-radius: var(--preview-input-radius);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.ghost-btn {
+  border: 1px solid var(--preview-border);
+  background: var(--preview-surface);
+  color: var(--preview-text);
+}
+
+.ghost-btn:hover:not(:disabled) {
+  background: var(--preview-surface-muted);
+  border-color: var(--preview-border-strong);
+}
+
+.solid-btn {
+  border: 1px solid var(--preview-accent);
+  background: var(--preview-accent);
+  color: #ffffff;
+}
+
+.solid-btn:hover:not(:disabled) {
+  background: var(--preview-accent-dark);
+  border-color: var(--preview-accent-dark);
+}
+
+.ghost-btn:disabled,
+.solid-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.billing-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--preview-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.billing-sep {
+  color: var(--preview-border-strong);
+}
+
+.adjusted-pill {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--preview-accent-border);
+  border-radius: 999px;
+  background: var(--preview-accent-soft);
+  color: var(--preview-accent-dark);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.invoice-line-count {
+  color: var(--preview-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.edit-panel,
+.split-panel {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--preview-border);
+  background: var(--preview-surface-muted);
+}
+
+.split-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.split-panel > .edit-note {
+  margin-bottom: 0;
+}
+
+.period-check-col {
+  width: 3.25rem;
+  text-align: center;
+}
+
+.billing-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin-bottom: 0.625rem;
+}
+
+.split-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.split-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.45rem 0.65rem 0.5rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-input-radius);
+  background: var(--preview-surface);
+}
+
+.split-pane_keep {
+  border-left: 3px solid var(--preview-border-strong);
+  background: #f8fafc;
+}
+
+.split-pane_new {
+  border-left: 3px solid var(--preview-accent);
+  background: linear-gradient(180deg, #ffffff 0%, var(--preview-accent-soft) 100%);
+}
+
+.split-pane-kicker {
+  margin: 0 0 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--preview-muted);
+}
+
+.split-pane_new .split-pane-kicker {
+  color: var(--preview-accent-dark);
+}
+
+.split-pane-amount {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--preview-text);
+  line-height: 1.15;
+}
+
+.split-panes[data-ok="true"] .split-pane_new .split-pane-amount {
+  color: var(--preview-accent-dark);
+}
+
+.split-pane-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--preview-border-strong);
+  font-size: 1rem;
+  font-weight: 600;
+  align-self: center;
+}
+
+.split-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.split-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.split-field_full {
+  width: 100%;
+}
+
+.split-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  align-items: start;
+}
+
+/* 左右で同じスロット構成（BA → 請求日/入金予定 → 追加行） */
+.split-field-control {
+  box-sizing: border-box;
+  min-height: 1.85rem;
+  display: flex;
+  align-items: center;
+}
+
+.split-field-control lightning-combobox,
+.split-field-control lightning-record-picker,
+.split-field-control lightning-input {
+  width: 100%;
+  --slds-c-input-spacing-block-start: 0;
+  --slds-c-input-spacing-block-end: 0;
+}
+
+.split-field-extra {
+  min-height: 1.35rem;
+  display: flex;
+  align-items: center;
+}
+
+.split-field-label {
+  color: var(--preview-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.split-field-value {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 1.85rem;
+  display: flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-input-radius);
+  background: #eef2f7;
+  color: var(--preview-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.split-table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.split-table-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.split-table-caption-main {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--preview-text);
+}
+
+.split-table-caption-hint {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--preview-accent-dark);
+}
+
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.split-table-wrap {
+  /* overflow-x:auto は overflow-y も auto 扱いとなりホイールを握る。横も親スクローラへ任せる */
+  overflow: visible;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-input-radius);
+  background: var(--preview-surface);
+}
+
+.split-table,
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--preview-font-table);
+}
+
+.split-table th,
+.split-table td,
+.preview-table th,
+.preview-table td {
+  padding: 0.28rem 0.45rem;
+  border-bottom: 1px solid var(--preview-row-rule);
+  text-align: left;
+  vertical-align: middle;
+  box-sizing: border-box;
+  line-height: 1.25;
+}
+
+.split-table th,
+.preview-table th {
+  font-size: var(--preview-font-table-head);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--preview-muted);
+  background: var(--preview-surface-muted);
+  white-space: nowrap;
+}
+
+.split-table th.split-move-col {
+  color: var(--preview-accent-dark);
+  background: var(--preview-accent-soft);
+}
+
+.split-table td.muted {
+  color: var(--preview-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.split-readonly {
+  color: var(--preview-muted);
+  font-weight: 500;
+}
+
+.split-move-cell {
+  min-width: 7.5rem;
+  background: var(--preview-accent-soft);
+}
+
+.split-move-cell lightning-input {
+  max-width: 8.5rem;
+  margin-left: auto;
+}
+
+.split-move-cell_invalid {
+  background: #fef2f2;
+}
+
+.preview-table thead th {
+  /* sticky は最寄りの overflow をスクロールポート化し、ホイール阻害の原因になる */
+  position: static;
+  background: var(--preview-surface-muted);
+  border-bottom-color: var(--preview-border);
+}
+
+.split-table tbody tr:last-child td,
+.preview-table tbody:last-child tr:last-child td {
+  border-bottom: none;
+}
+
+.table-wrap {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  /* ネスト overflow 禁止（x:auto でも y が auto 化しホイールを奪う） */
+  overflow: visible;
+  max-height: none;
+}
+
+/* % 配分（合計100%）。金額列はチップ縦置き前提で抑えめ */
+.preview-table col.col-split-select {
+  width: 3.5%;
+}
+
+.preview-table col.col-version {
+  width: 4%;
+}
+
+.split-select-col {
+  width: 2.75rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.invoice-split-ba-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.line-split-status {
+  margin: 0;
+  padding: 0.5rem 1rem 0;
+}
+
+.split-row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  align-self: flex-end;
+}
+
+.split-controls-row td {
+  background: #f8fffc;
+  border-bottom-color: var(--preview-accent-border);
+}
+
+.split-controls-cell {
+  padding: 0.65rem 0.85rem !important;
+}
+
+.split-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.split-editor-top {
+  display: flex;
+  align-items: center;
+}
+
+.split-editor-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.1rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--preview-accent-border);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.split-kind-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  border: 1px solid var(--preview-border);
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.split-kind-btn {
+  margin: 0;
+  padding: 0.28rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--preview-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.split-kind-btn_active {
+  background: var(--preview-accent);
+  color: #ffffff;
+}
+
+.split-kind-btn:hover:not(.split-kind-btn_active) {
+  color: var(--preview-accent-dark);
+  background: var(--preview-accent-soft);
+}
+
+.split-factor-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.2rem;
+  min-width: 5.5rem;
+  min-height: 3.35rem;
+}
+
+.split-factor-k {
+  color: var(--preview-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.split-factor-v {
+  color: var(--preview-text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+}
+
+.split-factor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(7.5rem, 9.5rem));
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.split-factor-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.split-factor-slot {
+  box-sizing: border-box;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+}
+
+.split-factor-slot_readonly {
+  padding: 0 0.65rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-input-radius, 0.25rem);
+  background: #f8fafc;
+  color: var(--preview-text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.split-factor-slot lightning-input,
+.split-factor-slot lightning-combobox {
+  width: 100%;
+  --slds-c-input-spacing-block-start: 0;
+}
+
+.split-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 9rem;
+  max-width: 12rem;
+}
+
+.preview-table col.col-product {
+  width: 20%;
+}
+
+.preview-table col.col-price {
+  width: 7.5%;
+}
+
+.preview-table col.col-unit {
+  width: 4%;
+}
+
+.preview-table col.col-qty {
+  width: 4%;
+}
+
+.preview-table col.col-period {
+  width: 17%;
+}
+
+/* 「12 month」「サイクル数」が切れない幅 */
+.preview-table col.col-cycle {
+  width: 5.75rem;
+}
+
+/* 残りを金額列へ。中身は右端へ寄せて分割右の空洞を消す */
+.preview-table col.col-amount {
+  width: auto;
+}
+
+/* 金額以外: ヘッダ・値とも小さく・詰め気味にして左へ寄せる */
+.preview-table th:not(.amount-col),
+.preview-table td:not(.amount-col) {
+  font-size: 0.6875rem;
+  padding-left: 0.28rem;
+  padding-right: 0.28rem;
+}
+
+.preview-table th:not(.amount-col) {
+  font-size: 0.625rem;
+  letter-spacing: 0.01em;
+}
+
+.preview-table th.version-col,
+.preview-table td.version-col {
+  text-align: center;
+  white-space: nowrap;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+}
+
+.preview-table th.product-col,
+.preview-table td.product-col {
+  text-align: left;
+  min-width: 0;
+}
+
+.preview-table th.period-col,
+.preview-table td.period-col {
+  text-align: left;
+  min-width: 6.5rem;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  line-height: 1.3;
+  word-break: keep-all;
+}
+
+.preview-table th.unit-col,
+.preview-table td.unit-col,
+.preview-table th.cycle-col,
+.preview-table td.cycle-col,
+.preview-table th.price-col,
+.preview-table td.price-col,
+.preview-table th.qty-col,
+.preview-table td.qty-col {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.preview-table th.num-col,
+.preview-table td.num-col,
+.split-table th.num-col,
+.split-table td.num-col,
+.num-col {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* プレビュー表の数値列は中央寄せを優先（分割表の右寄せは維持） */
+.preview-table th.num-col,
+.preview-table td.num-col {
+  text-align: center;
+}
+
+.preview-table th.amount-col,
+.preview-table td.amount-col {
+  text-align: left;
+  white-space: nowrap;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  overflow: hidden;
+}
+
+.preview-table th.num-col.amount-col {
+  text-align: left;
+}
+
+.preview-table th.cycle-col,
+.preview-table td.cycle-col {
+  box-sizing: border-box;
+  min-width: 5.75rem;
+  max-width: 5.75rem;
+  padding-left: 0.2rem;
+  padding-right: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
+  background: var(--preview-surface, #ffffff);
+}
+
+.product-name {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.version-pill {
+  color: var(--preview-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
+.amount-cell {
+  font-size: var(--preview-font-table);
+  font-weight: 600;
+  color: var(--preview-accent-dark);
+}
+
+.amount-yen-slot lightning-formatted-number {
+  color: var(--preview-accent-dark);
+}
+
+/*
+ * [伸縮スペーサ][金額スロット][メタ][±/分割]
+ * - スペーサで分割を列右端へ（右の空洞を消す）
+ * - 金額スロット幅をヘッダ・値で共通化し、「金」と「￥」の左端を揃える
+ */
+.amount-with-adjust {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.75rem max-content max-content;
+  align-items: center;
+  column-gap: 0.22rem;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.amount-with-adjust_head {
+  grid-template-columns: minmax(0, 1fr) 5.75rem;
+}
+
+.amount-with-adjust_head .amount-yen-slot {
+  font-weight: 700;
+  color: inherit;
+}
+
+.amount-yen-slot {
+  box-sizing: border-box;
+  grid-column: 2;
+  width: 5.75rem;
+  min-width: 5.75rem;
+  max-width: 5.75rem;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.amount-yen-slot lightning-formatted-number {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.amount-meta-slot {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.12rem;
+  grid-column: 3;
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: visible;
+}
+
+.adjusted-pill {
+  flex: 0 0 auto;
+  padding: 0.02rem 0.2rem;
+  font-size: 0.5625rem;
+}
+
+.line-drift {
+  flex: 0 0 auto;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.line-drift_ok {
+  color: #047857;
+}
+
+.line-drift_warn {
+  color: #b45309;
+}
+
+.amount-shortcuts {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.2rem;
+  grid-column: 4;
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.amount-shortcuts:empty {
+  display: none;
+}
+
+.preview-table tbody tr:hover .amount-shortcuts,
+.preview-table tbody tr:focus-within .amount-shortcuts {
+  opacity: 1;
+}
+
+.amount-chip {
+  flex: 0 0 1.55rem;
+  width: 1.55rem;
+  min-width: 1.55rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #94a3b8;
+  border-radius: 3px;
+  background: #e9eef5;
+  color: #64748b;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.amount-chip_split {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 2.1rem;
+  padding: 0 0.22rem;
+  border-color: #818cf8;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.amount-chip_split-active,
+.amount-chip_split:hover:not(:disabled) {
+  background: #e0e7ff;
+  border-color: #4f46e5;
+  color: #3730a3;
+}
+
+.amount-chip:hover:not(.amount-chip_split) {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.amount-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.muted {
+  color: var(--preview-muted);
+}
+
+.summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.summary-row_status .money-value_secondary {
+  color: var(--preview-text);
+}
+
+.money-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.money-label {
+  color: var(--preview-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.money-value {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--preview-text);
+}
+
+/* 積み上げの税抜（行金額・フッタ税抜）だけ緑 */
+.money-value_exTax {
+  color: var(--preview-accent-dark);
+}
+
+.money-value_secondary {
+  color: var(--preview-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.empty-text {
+  margin: 0;
+  color: var(--preview-muted);
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 48rem) {
+  .billing-edit-grid,
+  .split-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .split-panes {
+    grid-template-columns: 1fr;
+  }
+
+  .split-pane-arrow {
+    transform: rotate(90deg);
+    justify-self: center;
+  }
+
+  .invoice-footer .summary-row {
+    justify-content: flex-start;
+  }
+
+  .invoice-header-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invoice-addressee {
+    max-width: 100%;
+  }
+
+  .invoice-date-sep {
+    display: none;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
+}

@@ -1,0 +1,16 @@
+:host {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-width: 100%;
+    box-sizing: border-box;
+    background: #ffffff;
+}
+
+.action-frame {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    background: #ffffff;
+    box-sizing: border-box;
+}

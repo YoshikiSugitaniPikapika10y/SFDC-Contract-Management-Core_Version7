@@ -1,0 +1,22 @@
+/* Estimate / Order Quick Action modal size: 85% of viewport */
+.slds-modal__container {
+    width: 85vw !important;
+    max-width: 85vw !important;
+    min-width: 85vw !important;
+    height: 85vh !important;
+    max-height: 85vh !important;
+    min-height: 85vh !important;
+    margin: auto !important;
+}
+
+.slds-modal__content {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+}
+
+.slds-modal.slds-fade-in-open {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}

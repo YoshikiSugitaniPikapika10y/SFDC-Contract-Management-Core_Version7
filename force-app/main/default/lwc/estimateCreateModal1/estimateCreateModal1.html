@@ -1,0 +1,47 @@
+<template>
+  <section class="est-card">
+    <div class="est-card-header">
+      <h2 class="est-card-title">見積作成の方法</h2>
+      <template if:true={stepDescription}>
+        <p class="est-card-desc">{stepDescription}</p>
+      </template>
+      <div class="est-meta-row" aria-label="商談情報">
+        <div class="est-meta-item">
+          <span class="est-meta-label">取引先</span>
+          <span class="est-meta-value">{accountNameDisplay}</span>
+        </div>
+        <div class="est-meta-item">
+          <span class="est-meta-label">商談</span>
+          <span class="est-meta-value">{opportunityNameDisplay}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="est-card-body">
+      <div class="est-entry-grid" role="group" aria-label="見積の入口">
+        <template for:each={entryOptions} for:item="option">
+          <button
+            key={option.value}
+            type="button"
+            class={option.buttonClass}
+            data-entry={option.value}
+            aria-pressed={option.pressed}
+            disabled={option.disabled}
+            onclick={handleEntrySelect}
+          >
+            <span class="est-entry-icon" aria-hidden="true">
+              <lightning-icon
+                icon-name={option.iconName}
+                size="small"
+                alternative-text=""
+              ></lightning-icon>
+            </span>
+            <span class="est-entry-copy">
+              <span class="est-entry-title">{option.label}</span>
+            </span>
+          </button>
+        </template>
+      </div>
+    </div>
+  </section>
+</template>

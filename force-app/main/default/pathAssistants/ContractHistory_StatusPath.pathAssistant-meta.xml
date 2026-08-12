@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathAssistant xmlns="http://soap.sforce.com/2006/04/metadata">
+    <active>true</active>
+    <entityName>ContractHistory__c</entityName>
+    <fieldName>StatusPath__c</fieldName>
+    <masterLabel>契約履歴ステータスパス</masterLabel>
+    <recordTypeName>Default</recordTypeName>
+    <pathAssistantSteps>
+        <info>いまは見積の段階です。内容を整えたら「受注」してください。使わない見積は「アーカイブ」してください。</info>
+        <picklistValueName>Estimate</picklistValueName>
+    </pathAssistantSteps>
+    <pathAssistantSteps>
+        <info>受注が完了しています。次は「請求プレビュー」で請求内容を確認してください。</info>
+        <picklistValueName>Ordered</picklistValueName>
+    </pathAssistantSteps>
+    <pathAssistantSteps>
+        <info>請求はありますが、まだ全部は請求済になっていません。対応が終わった請求から請求済にしてください。</info>
+        <picklistValueName>Invoicing</picklistValueName>
+    </pathAssistantSteps>
+    <pathAssistantSteps>
+        <info>すべての請求が請求済です。入金を確認できたら、各請求に消込完了日を入れてください。</info>
+        <picklistValueName>Invoiced</picklistValueName>
+    </pathAssistantSteps>
+    <pathAssistantSteps>
+        <info>この契約履歴の請求と入金はすべて完了しています。追加の操作は不要です。</info>
+        <picklistValueName>Paid</picklistValueName>
+    </pathAssistantSteps>
+</PathAssistant>

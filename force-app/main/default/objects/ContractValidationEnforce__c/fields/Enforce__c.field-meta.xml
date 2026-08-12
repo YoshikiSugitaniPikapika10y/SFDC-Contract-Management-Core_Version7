@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Enforce__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>true のとき顧客独自入力規則を適用する。未設定/false ではスキップ（Apex テストで設定が見えない場合もスキップ）。</description>
+    <externalId>false</externalId>
+    <label>顧客バリデーションを強制</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

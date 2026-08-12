@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>BillingAccount__c</members>
+        <members>EstimateNoteMaster__c</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Product2.UnitName__c</members>
+        <members>Product2.invoicetype__c</members>
+        <members>Product2.BillingType__c</members>
+        <members>Product2.UnitPrice__c</members>
+        <name>CustomField</name>
+    </types>
+    <version>66.0</version>
+</Package>

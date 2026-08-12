@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ShowOnCancel__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>見積ウィザード Type=Cancel のときに表示する</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Cancelで表示</label>
+    <type>Checkbox</type>
+</CustomField>

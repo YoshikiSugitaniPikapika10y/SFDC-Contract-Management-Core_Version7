@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CompactLayout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContractHistory_Compact</fullName>
+    <fields>Name</fields>
+    <fields>historystatus__c</fields>
+    <fields>Type__c</fields>
+    <fields>Version__c</fields>
+    <fields>ContractService__c</fields>
+    <fields>CurrentTermStartDate__c</fields>
+    <fields>CurrentTermEndDate__c</fields>
+    <fields>ARR__c</fields>
+    <fields>Opportunity__c</fields>
+    <label>契約履歴 コンパクト</label>
+</CompactLayout>
