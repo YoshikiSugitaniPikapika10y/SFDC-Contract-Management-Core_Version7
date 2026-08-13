@@ -1165,6 +1165,314 @@ export function parseAmountYenInput(raw) {
   return Number.isFinite(rounded) ? rounded : Number.NaN;
 }
 
+const AMOUNT_FORMULA_ERROR = "数式が不正です（四則と括弧のみ）";
+const AMOUNT_FORMULA_DIVZERO = "0で割れません";
+const AMOUNT_FORMULA_EMPTY = "数式を入力してください";
+const AMOUNT_FORMULA_NEED_INT = "整数円に調整してください";
+const AMOUNT_FORMULA_RANGE = "計算結果を金額にできません";
+const AMOUNT_ABS_MAX = 1e13;
+
+/**
+ * 金額欄の四則式を評価する（eval 禁止）。
+ * expression は先頭 `=` を含まない本体。空白・カンマは無視。
+ * @returns {{ ok: true, value: number } | { ok: false, message: string }}
+ */
+export function evaluateAmountFormula(expression) {
+  if (expression === null || expression === undefined) {
+    return { ok: false, message: AMOUNT_FORMULA_EMPTY };
+  }
+  const src = String(expression).trim();
+  if (src === "") {
+    return { ok: false, message: AMOUNT_FORMULA_EMPTY };
+  }
+  // 許可文字以外は拒否（コード実行・未知演算子を防ぐ）
+  if (!/^[0-9+\-*/().,\s]+$/.test(src)) {
+    return { ok: false, message: AMOUNT_FORMULA_ERROR };
+  }
+
+  let i = 0;
+  const peek = () => src[i];
+  const skipWs = () => {
+    while (i < src.length && /\s/.test(src[i])) {
+      i += 1;
+    }
+  };
+  const fail = (message) => {
+    throw new Error(message || AMOUNT_FORMULA_ERROR);
+  };
+
+  const parseNumber = () => {
+    skipWs();
+    const start = i;
+    let sawDigit = false;
+    let sawDot = false;
+    while (i < src.length) {
+      const ch = src[i];
+      if (ch === ",") {
+        i += 1;
+        continue;
+      }
+      if (ch >= "0" && ch <= "9") {
+        sawDigit = true;
+        i += 1;
+        continue;
+      }
+      if (ch === "." && !sawDot) {
+        sawDot = true;
+        i += 1;
+        continue;
+      }
+      break;
+    }
+    if (!sawDigit) {
+      fail(AMOUNT_FORMULA_ERROR);
+    }
+    const token = src.slice(start, i).replace(/,/g, "");
+    if (token === "." || token.endsWith(".")) {
+      fail(AMOUNT_FORMULA_ERROR);
+    }
+    const n = Number(token);
+    if (!Number.isFinite(n)) {
+      fail(AMOUNT_FORMULA_ERROR);
+    }
+    return n;
+  };
+
+  const parseFactor = () => {
+    skipWs();
+    const ch = peek();
+    if (ch === "+" || ch === "-") {
+      i += 1;
+      const v = parseFactor();
+      return ch === "-" ? -v : v;
+    }
+    if (ch === "(") {
+      i += 1;
+      const v = parseExpr();
+      skipWs();
+      if (peek() !== ")") {
+        fail(AMOUNT_FORMULA_ERROR);
+      }
+      i += 1;
+      return v;
+    }
+    return parseNumber();
+  };
+
+  const parseTerm = () => {
+    let v = parseFactor();
+    for (;;) {
+      skipWs();
+      const op = peek();
+      if (op !== "*" && op !== "/") {
+        break;
+      }
+      i += 1;
+      const rhs = parseFactor();
+      if (op === "*") {
+        v *= rhs;
+      } else {
+        if (rhs === 0) {
+          fail(AMOUNT_FORMULA_DIVZERO);
+        }
+        v /= rhs;
+      }
+    }
+    return v;
+  };
+
+  const parseExpr = () => {
+    let v = parseTerm();
+    for (;;) {
+      skipWs();
+      const op = peek();
+      if (op !== "+" && op !== "-") {
+        break;
+      }
+      i += 1;
+      const rhs = parseTerm();
+      v = op === "+" ? v + rhs : v - rhs;
+    }
+    return v;
+  };
+
+  try {
+    const value = parseExpr();
+    skipWs();
+    if (i !== src.length) {
+      return { ok: false, message: AMOUNT_FORMULA_ERROR };
+    }
+    if (!Number.isFinite(value)) {
+      return { ok: false, message: AMOUNT_FORMULA_RANGE };
+    }
+    if (Math.abs(value) > AMOUNT_ABS_MAX) {
+      return { ok: false, message: AMOUNT_FORMULA_RANGE };
+    }
+    return { ok: true, value };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e && e.message ? e.message : AMOUNT_FORMULA_ERROR
+    };
+  }
+}
+
+/** 小数第2位までの金額下書き表示（式の非整数結果用）。 */
+export function formatAmountDraft(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  const n =
+    typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  if (!Number.isFinite(n)) {
+    return "";
+  }
+  const rounded = roundHalfUp(n, 2);
+  if (!Number.isFinite(rounded)) {
+    return "";
+  }
+  return rounded.toLocaleString("ja-JP", {
+    minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+}
+
+/**
+ * 金額ポップアップの入力を解決する。
+ * - 先頭 `=` → 四則式。整数なら commit、非整数なら draft（小数第2位・手動で整数化）
+ * - それ以外 → 既定は整数円四捨五入で commit
+ * - options.requireInteger=true（式で非整数を出したあと）のときは四捨五入せず、
+ *   整数円以外は draft のままブロックする
+ * @returns {{ ok: true, kind: 'commit'|'draft', value: number, display: string, message?: string }
+ *   | { ok: false, message: string }}
+ */
+export function resolveAmountInputDraft(raw, options = {}) {
+  const requireInteger = options && options.requireInteger === true;
+  if (raw === null || raw === undefined) {
+    return { ok: false, message: "金額を入力してください" };
+  }
+  const text = String(raw).trim();
+  if (text === "") {
+    return { ok: false, message: "金額を入力してください" };
+  }
+  if (text.startsWith("=")) {
+    const expr = text.slice(1).trim();
+    const evaluated = evaluateAmountFormula(expr);
+    if (!evaluated.ok) {
+      return evaluated;
+    }
+    const asMoney2 = roundHalfUp(evaluated.value, 2);
+    if (!Number.isFinite(asMoney2)) {
+      return { ok: false, message: AMOUNT_FORMULA_RANGE };
+    }
+    const asYen = roundHalfUp(asMoney2, 0);
+    if (asMoney2 === asYen) {
+      return {
+        ok: true,
+        kind: "commit",
+        value: asYen,
+        display: formatAmountYen(asYen)
+      };
+    }
+    return {
+      ok: true,
+      kind: "draft",
+      value: asMoney2,
+      display: formatAmountDraft(asMoney2),
+      message: AMOUNT_FORMULA_NEED_INT
+    };
+  }
+  if (requireInteger) {
+    const cleaned = text.replace(/,/g, "").trim();
+    if (cleaned === "" || !/^[+-]?\d+(\.\d+)?$/.test(cleaned)) {
+      return { ok: false, message: AMOUNT_FORMULA_ERROR };
+    }
+    const asMoney2 = roundHalfUp(cleaned, 2);
+    if (!Number.isFinite(asMoney2)) {
+      return { ok: false, message: AMOUNT_FORMULA_RANGE };
+    }
+    const asYen = roundHalfUp(asMoney2, 0);
+    if (asMoney2 !== asYen) {
+      return {
+        ok: true,
+        kind: "draft",
+        value: asMoney2,
+        display: formatAmountDraft(asMoney2),
+        message: AMOUNT_FORMULA_NEED_INT
+      };
+    }
+    return {
+      ok: true,
+      kind: "commit",
+      value: asYen,
+      display: formatAmountYen(asYen)
+    };
+  }
+  const yen = parseAmountYenInput(text);
+  if (yen === null) {
+    return { ok: false, message: "金額を入力してください" };
+  }
+  if (!Number.isFinite(yen)) {
+    return { ok: false, message: AMOUNT_FORMULA_ERROR };
+  }
+  return {
+    ok: true,
+    kind: "commit",
+    value: yen,
+    display: formatAmountYen(yen)
+  };
+}
+
+/**
+ * 単価など小数 scale 桁の入力。先頭 `=` なら四則式、否则は数値。
+ * 結果は常に scale 桁 HALF_UP で commit（金額円の「非整数は手修正」ルールは使わない）。
+ * @returns {{ ok: true, value: number, display: string } | { ok: false, message: string }}
+ */
+export function resolveScaledNumericInput(raw, scale = 2) {
+  if (typeof scale !== "number" || !Number.isInteger(scale) || scale < 0) {
+    return { ok: false, message: AMOUNT_FORMULA_ERROR };
+  }
+  if (raw === null || raw === undefined) {
+    return { ok: false, message: "数値を入力してください" };
+  }
+  const text = String(raw).trim();
+  if (text === "") {
+    return { ok: false, message: "数値を入力してください" };
+  }
+  let numeric;
+  if (text.startsWith("=")) {
+    const evaluated = evaluateAmountFormula(text.slice(1).trim());
+    if (!evaluated.ok) {
+      return evaluated;
+    }
+    numeric = evaluated.value;
+  } else {
+    if (!/^[0-9+\-.,\s]+$/.test(text)) {
+      return { ok: false, message: AMOUNT_FORMULA_ERROR };
+    }
+    const cleaned = text.replace(/,/g, "").trim();
+    numeric = Number(cleaned);
+    if (!Number.isFinite(numeric)) {
+      return { ok: false, message: AMOUNT_FORMULA_ERROR };
+    }
+  }
+  if (!Number.isFinite(numeric) || Math.abs(numeric) > AMOUNT_ABS_MAX) {
+    return { ok: false, message: AMOUNT_FORMULA_RANGE };
+  }
+  const rounded = roundHalfUp(numeric, scale);
+  if (!Number.isFinite(rounded)) {
+    return { ok: false, message: AMOUNT_FORMULA_RANGE };
+  }
+  return {
+    ok: true,
+    value: rounded,
+    display: rounded.toLocaleString("ja-JP", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: scale
+    })
+  };
+}
+
 /**
  * Divisor for amount ↔ unitPrice: quantity, or quantity × cycles for recurring.
  * Returns null when cycles cannot be resolved.

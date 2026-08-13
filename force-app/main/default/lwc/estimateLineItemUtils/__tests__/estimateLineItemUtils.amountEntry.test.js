@@ -10,6 +10,10 @@ import {
   parseUnitPriceInput,
   parseQuantityInput,
   parseAmountYenInput,
+  evaluateAmountFormula,
+  resolveAmountInputDraft,
+  resolveScaledNumericInput,
+  formatAmountDraft,
   roundUnitPrice,
   roundQuantity,
   roundAmountYen,
@@ -377,5 +381,81 @@ describe("resolveInvoicePreviewRoundingDiff", () => {
       billingTotal: 396,
       delta: -4
     });
+  });
+});
+
+describe("amount formula (= prefix)", () => {
+  it("evaluates four operations and parentheses", () => {
+    expect(evaluateAmountFormula("1+2*3")).toEqual({ ok: true, value: 7 });
+    expect(evaluateAmountFormula("(1+2)*3")).toEqual({ ok: true, value: 9 });
+    expect(evaluateAmountFormula("1,200,000/12")).toEqual({
+      ok: true,
+      value: 100000
+    });
+    expect(evaluateAmountFormula(" ( 10 - 3 ) * 2 ")).toEqual({
+      ok: true,
+      value: 14
+    });
+    expect(evaluateAmountFormula("-1000*12")).toEqual({
+      ok: true,
+      value: -12000
+    });
+  });
+
+  it("rejects unknown tokens and divide by zero", () => {
+    expect(evaluateAmountFormula("sqrt(4)").ok).toBe(false);
+    expect(evaluateAmountFormula("2^3").ok).toBe(false);
+    expect(evaluateAmountFormula("10/0").message).toContain("0");
+    expect(evaluateAmountFormula("(1+2").ok).toBe(false);
+    expect(evaluateAmountFormula("1+").ok).toBe(false);
+  });
+
+  it("commits integer formula results and drafts non-integers at 2dp", () => {
+    expect(resolveAmountInputDraft("=1200000/12")).toEqual({
+      ok: true,
+      kind: "commit",
+      value: 100000,
+      display: "100,000"
+    });
+    const draft = resolveAmountInputDraft("=10/3");
+    expect(draft.ok).toBe(true);
+    expect(draft.kind).toBe("draft");
+    expect(draft.value).toBe(3.33);
+    expect(draft.display).toBe(formatAmountDraft(3.33));
+    expect(draft.message).toContain("整数円");
+  });
+
+  it("blocks silent yen HALF_UP after formula draft (requireInteger)", () => {
+    const blocked = resolveAmountInputDraft("3.33", { requireInteger: true });
+    expect(blocked.ok).toBe(true);
+    expect(blocked.kind).toBe("draft");
+    expect(blocked.value).toBe(3.33);
+    expect(resolveAmountInputDraft("3", { requireInteger: true })).toEqual({
+      ok: true,
+      kind: "commit",
+      value: 3,
+      display: "3"
+    });
+  });
+
+  it("keeps non-formula path as integer-yen HALF_UP", () => {
+    expect(resolveAmountInputDraft("100.4")).toEqual({
+      ok: true,
+      kind: "commit",
+      value: 100,
+      display: "100"
+    });
+    expect(resolveAmountInputDraft("1200000/12").ok).toBe(false);
+  });
+
+  it("resolves scaled numeric input for unit-price split (2dp commit)", () => {
+    expect(resolveScaledNumericInput("=100/3", 2)).toEqual({
+      ok: true,
+      value: 33.33,
+      display: expect.any(String)
+    });
+    expect(resolveScaledNumericInput("=1,200/12", 2).value).toBe(100);
+    expect(resolveScaledNumericInput("50.555", 2).value).toBe(50.56);
+    expect(resolveScaledNumericInput("=10/0", 2).ok).toBe(false);
   });
 });

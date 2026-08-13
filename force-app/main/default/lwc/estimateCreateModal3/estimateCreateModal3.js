@@ -53,7 +53,7 @@ import {
   formatAmountYen,
   parseUnitPriceInput,
   parseQuantityInput,
-  parseAmountYenInput,
+  resolveAmountInputDraft,
   roundUnitPrice,
   roundQuantity,
   roundAmountYen,
@@ -237,6 +237,14 @@ export default class EstimateCreateModal3 extends LightningElement {
   defaultInvoiceType = "";
   @track productModalRowId = null;
   @track productModalProductId = "";
+  @track amountModalRowId = null;
+  @track amountModalDraft = "";
+  @track amountModalError = "";
+  @track amountModalHint = "";
+  /** 式で非整数を出したあと: 四捨五入確定を禁止し整数円入力を要求 */
+  @track amountModalRequireInteger = false;
+  _amountModalFocused = false;
+  _amountModalReturnFocusEl = null;
   _wiredInvoiceSettingOptions;
   _wiredDefaultInvoiceSettingLabel;
 
@@ -682,17 +690,24 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
     const withDetails = this.withCustomDetailRows(rows);
     const openId = this.productModalRowId;
+    const amountOpenId = this.amountModalRowId;
     return withDetails.map((row) => {
       if (!row || row.isGroupHeader || row.isCustomDetailRow) {
         return row;
       }
       const isProductPickerOpen = openId != null && row.id === openId;
+      const isAmountPickerOpen =
+        amountOpenId != null && row.id === amountOpenId;
       return {
         ...row,
         isProductPickerOpen,
+        isAmountPickerOpen,
         productTdClass: isProductPickerOpen
           ? "est-td est-td-center est-td-product est-td-product_picking"
-          : "est-td est-td-center est-td-product"
+          : "est-td est-td-center est-td-product",
+        amountTdClass: isAmountPickerOpen
+          ? "est-td est-td-center est-td-amount est-td-amount_picking"
+          : "est-td est-td-center est-td-amount"
       };
     });
   }
@@ -1149,7 +1164,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (!this.canEditProducts && this.orderedCustomFieldsOnly !== true) {
       scrollClass += " est-table-wrap_disabled";
     }
-    if (this.isProductModalOpen) {
+    if (this.isProductModalOpen || this.isAmountModalOpen) {
       scrollClass += " est-table-wrap_product-picking";
     }
     return scrollClass;
@@ -1157,6 +1172,10 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   get isProductModalOpen() {
     return this.productModalRowId != null;
+  }
+
+  get isAmountModalOpen() {
+    return this.amountModalRowId != null;
   }
 
   get showRemarksSection() {
@@ -1933,6 +1952,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       this._resizeObserver = null;
     }
     this.teardownProductModalA11y();
+    this.teardownAmountModalA11y();
     this.rejectAllPendingConfirms();
     // アンマウント時は親の loadingStep3 を必ず解除（種別変更で DOM 破棄されても次へ／保存が死なないようにする）
     this._lastNotifiedStepReady = null;
@@ -2976,6 +2996,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     ) {
       return;
     }
+    this.closeAmountModal(false);
     this._productModalReturnFocusEl = event.currentTarget;
     this.productModalRowId = rowId;
     this.productModalProductId = row.productId || "";
@@ -3016,6 +3037,24 @@ export default class EstimateCreateModal3 extends LightningElement {
       window.addEventListener("keydown", this._boundProductModalKeydown);
     } else if (!this.isProductModalOpen && this._productModalFocused) {
       this.teardownProductModalA11y(true);
+    }
+    if (this.isAmountModalOpen && !this._amountModalFocused) {
+      this._amountModalFocused = true;
+      Promise.resolve().then(() => {
+        const input = this.template.querySelector(
+          '[data-id="amount-inline-input"]'
+        );
+        if (input) {
+          input.focus();
+          if (typeof input.select === "function") {
+            input.select();
+          }
+        }
+      });
+      this._boundAmountModalKeydown = this.handleAmountModalKeydown.bind(this);
+      window.addEventListener("keydown", this._boundAmountModalKeydown);
+    } else if (!this.isAmountModalOpen && this._amountModalFocused) {
+      this.teardownAmountModalA11y(true);
     }
     if (!this._resizeObserver && typeof ResizeObserver !== "undefined") {
       this._resizeObserver = new ResizeObserver(() => {
@@ -3220,13 +3259,141 @@ export default class EstimateCreateModal3 extends LightningElement {
     });
   }
 
+  handleOpenAmountModal(event) {
+    const rowId = event.currentTarget.dataset.id;
+    const row = this.itemList.find((item) => item.id === rowId);
+    if (!row || row.isReadonly || !row.amountEntryMode) {
+      return;
+    }
+    this.handleCloseProductModal();
+    this._amountModalReturnFocusEl = event.currentTarget;
+    const seed =
+      row.manualAmount != null && Number.isFinite(Number(row.manualAmount))
+        ? Number(row.manualAmount)
+        : row.amount != null && Number.isFinite(Number(row.amount))
+          ? Number(row.amount)
+          : null;
+    const switchingRow =
+      this.amountModalRowId != null && this.amountModalRowId !== rowId;
+    this.amountModalRowId = rowId;
+    this.amountModalDraft = seed == null ? "" : formatAmountYen(seed);
+    this.amountModalError = "";
+    this.amountModalHint =
+      "金額、または = で四則計算（例: =1,200,000/12）";
+    this.amountModalRequireInteger = false;
+    // 別行へ切り替えたときは再フォーカスさせる
+    if (switchingRow) {
+      this._amountModalFocused = false;
+    }
+  }
+
+  closeAmountModal(restoreFocus = false) {
+    this.amountModalRowId = null;
+    this.amountModalDraft = "";
+    this.amountModalError = "";
+    this.amountModalHint = "";
+    this.amountModalRequireInteger = false;
+    this.teardownAmountModalA11y(restoreFocus);
+  }
+
+  handleCloseAmountModal() {
+    this.closeAmountModal(true);
+  }
+
+  handleAmountModalDraftChange(event) {
+    this.amountModalDraft = event.target.value;
+    this.amountModalError = "";
+  }
+
+  handleAmountModalKeydown(event) {
+    if (!this.isAmountModalOpen) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.handleCloseAmountModal();
+    }
+  }
+
+  handleAmountModalInputKeydown(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      this.applyAmountModalDraft();
+    }
+  }
+
+  handleApplyAmountModal() {
+    this.applyAmountModalDraft();
+  }
+
+  applyAmountModalDraft() {
+    const rowId = this.amountModalRowId;
+    const row = this.itemList.find((item) => item.id === rowId);
+    if (!row || row.isReadonly) {
+      this.closeAmountModal(false);
+      return;
+    }
+    const resolved = resolveAmountInputDraft(this.amountModalDraft, {
+      requireInteger: this.amountModalRequireInteger
+    });
+    if (!resolved.ok) {
+      this.amountModalError = resolved.message;
+      this.amountModalHint = "";
+      return;
+    }
+    if (resolved.kind === "draft") {
+      this.amountModalRequireInteger = true;
+      this.amountModalDraft = resolved.display;
+      this.amountModalError = resolved.message || "整数円に調整してください";
+      this.amountModalHint = "端数を確認し、整数円にして適用してください";
+      return;
+    }
+    const manualAmount = resolved.value;
+    const unitPrice = deriveUnitPriceFromAmount(row, manualAmount);
+    this.updateRow(rowId, {
+      unitPrice,
+      amountEntryMode: true,
+      manualAmount
+    });
+    this.closeAmountModal(true);
+  }
+
+  teardownAmountModalA11y(restoreFocus = false) {
+    this._amountModalFocused = false;
+    if (this._boundAmountModalKeydown) {
+      window.removeEventListener("keydown", this._boundAmountModalKeydown);
+      this._boundAmountModalKeydown = null;
+    }
+    if (!restoreFocus) {
+      this._amountModalReturnFocusEl = null;
+      return;
+    }
+    const el = this._amountModalReturnFocusEl;
+    this._amountModalReturnFocusEl = null;
+    if (el && typeof el.focus === "function") {
+      try {
+        el.focus();
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   handleAmountChange(event) {
+    // 互換: 直入力経路が残っていても同じ解決ルールを使う
     const rowId = event.currentTarget.dataset.id;
     const row = this.itemList.find((item) => item.id === rowId);
     if (!row || row.isReadonly) {
       return;
     }
-    const manualAmount = parseAmountYenInput(event.target.value);
+    const resolved = resolveAmountInputDraft(event.target.value);
+    if (!resolved.ok || resolved.kind !== "commit") {
+      if (resolved && resolved.message) {
+        this.showToast("金額を確定できません", resolved.message, "error");
+      }
+      return;
+    }
+    const manualAmount = resolved.value;
     const unitPrice = deriveUnitPriceFromAmount(row, manualAmount);
     this.updateRow(rowId, {
       unitPrice,

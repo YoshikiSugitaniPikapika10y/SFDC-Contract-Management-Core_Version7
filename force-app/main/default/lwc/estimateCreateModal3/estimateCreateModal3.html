@@ -701,7 +701,7 @@
                           <div class="est-cell-stack__sub"></div>
                         </div>
                       </td>
-                      <td class="est-td est-td-center est-td-amount">
+                      <td class={item.amountTdClass}>
                         <div class="est-cell-stack">
                           <div
                             class="est-cell-stack__main est-cell-stack__main_center"
@@ -715,17 +715,68 @@
                             </template>
                             <template if:false={item.amountInvalid}>
                               <template if:true={item.canEditAmount}>
-                                <div class="est-cell-field">
-                                  <input
-                                    type="text"
-                                    inputmode="decimal"
-                                    class="est-cell-input est-cell-input_num est-cell-input_amount"
-                                    aria-label="金額"
-                                    value={item.displayAmount}
-                                    data-id={item.id}
-                                    onchange={handleAmountChange}
-                                  />
-                                </div>
+                                <template if:true={item.isAmountPickerOpen}>
+                                  <div
+                                    class="est-amount-inline-picker"
+                                    data-id="amount-inline-picker"
+                                  >
+                                    <label class="est-amount-inline-label"
+                                      >金額（= で四則可）</label
+                                    >
+                                    <input
+                                      type="text"
+                                      inputmode="decimal"
+                                      class="est-cell-input est-cell-input_num est-amount-inline-input"
+                                      data-id="amount-inline-input"
+                                      aria-label="金額"
+                                      value={amountModalDraft}
+                                      oninput={handleAmountModalDraftChange}
+                                      onkeydown={handleAmountModalInputKeydown}
+                                    />
+                                    <template if:true={amountModalError}>
+                                      <div
+                                        class="est-amount-inline-error"
+                                        role="alert"
+                                      >
+                                        {amountModalError}
+                                      </div>
+                                    </template>
+                                    <template if:true={amountModalHint}>
+                                      <div class="est-amount-inline-hint">
+                                        {amountModalHint}
+                                      </div>
+                                    </template>
+                                    <div class="est-amount-inline-actions">
+                                      <button
+                                        type="button"
+                                        class="est-amount-inline-apply"
+                                        onclick={handleApplyAmountModal}
+                                      >
+                                        適用
+                                      </button>
+                                      <button
+                                        type="button"
+                                        class="est-product-inline-cancel"
+                                        onclick={handleCloseAmountModal}
+                                      >
+                                        キャンセル
+                                      </button>
+                                    </div>
+                                  </div>
+                                </template>
+                                <template if:false={item.isAmountPickerOpen}>
+                                  <div class="est-cell-field est-cell-field_link">
+                                    <button
+                                      type="button"
+                                      class="est-cell-link est-cell-link_amount"
+                                      data-id={item.id}
+                                      title="金額を編集（= で四則計算可）"
+                                      onclick={handleOpenAmountModal}
+                                    >
+                                      {item.displayAmount}
+                                    </button>
+                                  </div>
+                                </template>
                               </template>
                               <template if:false={item.canEditAmount}>
                                 <span class="est-cell-amount"

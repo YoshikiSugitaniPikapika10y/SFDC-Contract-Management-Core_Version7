@@ -197,6 +197,7 @@ private class InvoiceCanonicalServiceTest {
           InvoiceDate__c,
           PaymentScheduledDate__c,
           IsManuallyAdjusted__c,
+          IsSplitMoved__c,
           MergeKey__c,
           TaxAmount__c,
           TaxPercent__c,
@@ -207,6 +208,11 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(newInvoiceDate, updated.InvoiceDate__c);
       System.assertEquals(newPaymentDate, updated.PaymentScheduledDate__c);
       System.assertEquals(true, updated.IsManuallyAdjusted__c);
+      System.assertEquals(
+        false,
+        updated.IsSplitMoved__c,
+        '請求情報編集は分割ではないので IsSplitMoved を立てない'
+      );
       System.assertEquals(null, updated.MergeKey__c, '日付変更で統合キーを外す');
       System.assertEquals(invoice.Amount__c, updated.Amount__c);
       System.assertEquals(invoice.TaxAmount__c, updated.TaxAmount__c);
@@ -341,7 +347,11 @@ private class InvoiceCanonicalServiceTest {
       );
 
       Invoice__c remain = [
-        SELECT Amount__c, PeriodLineAmountTotal__c, BillingAddresseeSnapShot__c
+        SELECT
+          Amount__c,
+          PeriodLineAmountTotal__c,
+          BillingAddresseeSnapShot__c,
+          MergeKey__c
         FROM Invoice__c
         WHERE Id = :source.Id
       ];
@@ -354,6 +364,11 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         originalAddressee,
         remain.BillingAddresseeSnapShot__c
+      );
+      System.assertEquals(
+        null,
+        remain.MergeKey__c,
+        '分割元（残存）の MergeKey も破棄する（突合は Id ベース）'
       );
     }
   }
@@ -482,6 +497,7 @@ private class InvoiceCanonicalServiceTest {
       ];
       InvoiceLine__c lineB = lineA.clone(false, true, false, false);
       lineB.Amount__c = 30000;
+      lineB.IsAmountAdjusted__c = true;
       lineB.IsManuallyAdjusted__c = true;
       insert lineB;
 
@@ -582,6 +598,7 @@ private class InvoiceCanonicalServiceTest {
       // 同一請求に相手明細を足し、端数でヘッダ税抜を 0 にする
       InvoiceLine__c lineB = lineA.clone(false, true, false, false);
       lineB.Amount__c = 30000;
+      lineB.IsAmountAdjusted__c = true;
       lineB.IsManuallyAdjusted__c = true;
       insert lineB;
 
@@ -965,13 +982,25 @@ private class InvoiceCanonicalServiceTest {
       Test.stopTest();
 
       InvoiceLine__c moved = [
-        SELECT Amount__c, UnitPrice__c, Quantity__c, IsManuallyAdjusted__c
+        SELECT
+          Amount__c,
+          UnitPrice__c,
+          Quantity__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :createdId
         LIMIT 1
       ];
       InvoiceLine__c remain = [
-        SELECT Amount__c, UnitPrice__c, Quantity__c, IsManuallyAdjusted__c
+        SELECT
+          Amount__c,
+          UnitPrice__c,
+          Quantity__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM InvoiceLine__c
         WHERE Id = :line.Id
       ];
@@ -981,8 +1010,12 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(1, remain.Quantity__c);
       System.assertEquals(18000, moved.Amount__c);
       System.assertEquals(12000, remain.Amount__c);
-      System.assertEquals(false, moved.IsManuallyAdjusted__c);
-      System.assertEquals(false, remain.IsManuallyAdjusted__c);
+      System.assertEquals(false, moved.IsAmountAdjusted__c);
+      System.assertEquals(false, remain.IsAmountAdjusted__c);
+      System.assertEquals(true, moved.IsSplitMoved__c);
+      System.assertEquals(true, remain.IsSplitMoved__c);
+      System.assertEquals(true, moved.IsManuallyAdjusted__c);
+      System.assertEquals(true, remain.IsManuallyAdjusted__c);
     }
   }
 
@@ -1088,12 +1121,18 @@ private class InvoiceCanonicalServiceTest {
       Test.stopTest();
 
       Invoice__c created = [
-        SELECT Amount__c, IsManuallyAdjusted__c
+        SELECT
+          Amount__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM Invoice__c
         WHERE Id = :createdId
       ];
       System.assertEquals(10000, created.Amount__c);
-      System.assertEquals(false, created.IsManuallyAdjusted__c);
+      System.assertEquals(false, created.IsAmountAdjusted__c);
+      System.assertEquals(true, created.IsSplitMoved__c);
+      System.assertEquals(true, created.IsManuallyAdjusted__c);
       Invoice__c remain = [
         SELECT Amount__c
         FROM Invoice__c
@@ -1280,7 +1319,13 @@ private class InvoiceCanonicalServiceTest {
         '同一請求内分割では新請求を作らない'
       );
       List<InvoiceLine__c> lines = [
-        SELECT Amount__c, UnitPrice__c, Quantity__c, IsManuallyAdjusted__c
+        SELECT
+          Amount__c,
+          UnitPrice__c,
+          Quantity__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :invoiceId
         ORDER BY UnitPrice__c ASC
@@ -1290,17 +1335,97 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(6000, lines[1].UnitPrice__c);
       System.assertEquals(12000, lines[0].Amount__c);
       System.assertEquals(18000, lines[1].Amount__c);
-      System.assertEquals(false, lines[0].IsManuallyAdjusted__c);
-      System.assertEquals(false, lines[1].IsManuallyAdjusted__c);
+      System.assertEquals(false, lines[0].IsAmountAdjusted__c);
+      System.assertEquals(false, lines[1].IsAmountAdjusted__c);
+      System.assertEquals(true, lines[0].IsSplitMoved__c);
+      System.assertEquals(true, lines[1].IsSplitMoved__c);
+      System.assertEquals(true, lines[0].IsManuallyAdjusted__c);
+      System.assertEquals(true, lines[1].IsManuallyAdjusted__c);
 
       Invoice__c invoice = [
-        SELECT Amount__c, PeriodLineAmountTotal__c, IsManuallyAdjusted__c
+        SELECT
+          Amount__c,
+          PeriodLineAmountTotal__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM Invoice__c
         WHERE Id = :invoiceId
       ];
       System.assertEquals(30000, invoice.Amount__c);
       System.assertEquals(30000, invoice.PeriodLineAmountTotal__c);
-      System.assertEquals(false, invoice.IsManuallyAdjusted__c);
+      System.assertEquals(false, invoice.IsAmountAdjusted__c);
+      System.assertEquals(true, invoice.IsSplitMoved__c);
+      System.assertEquals(true, invoice.IsManuallyAdjusted__c);
+    }
+  }
+
+  /** 端数調整した明細を因子分割すると、由来期間合計へ戻してから分ける。 */
+  @IsTest
+  static void splitLinesInPlace_resetsManualAdjustmentBeforeUnitPriceSplit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      Id invoiceId = line.Invoice__c;
+      Decimal baseline = line.Amount__c;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.updateLineAmount(line.Id, baseline + 10);
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = 4000;
+      split.moveUnitPrice = 6000;
+
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        invoiceId,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      Invoice__c invoice = [
+        SELECT
+          Amount__c,
+          PeriodLineAmountTotal__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+      ];
+      System.assertEquals(
+        baseline,
+        invoice.Amount__c,
+        '端数 +10 は分割前にリセットされ請求合計に残らない'
+      );
+      System.assertEquals(baseline, invoice.PeriodLineAmountTotal__c);
+      System.assertEquals(false, invoice.IsAmountAdjusted__c);
+      System.assertEquals(true, invoice.IsSplitMoved__c);
+      System.assertEquals(true, invoice.IsManuallyAdjusted__c);
+
+      List<InvoiceLine__c> lines = [
+        SELECT Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoiceId
+      ];
+      Decimal lineSum = 0;
+      for (InvoiceLine__c row : lines) {
+        lineSum += row.Amount__c == null ? 0 : row.Amount__c;
+        System.assertEquals(false, row.IsAmountAdjusted__c);
+        System.assertEquals(true, row.IsSplitMoved__c);
+        System.assertEquals(true, row.IsManuallyAdjusted__c);
+      }
+      System.assertEquals(baseline, lineSum);
     }
   }
 
@@ -1565,7 +1690,9 @@ private class InvoiceCanonicalServiceTest {
           Amount__c,
           SourcePeriodLineIds__c,
           PeriodLabel__c,
-          IsManuallyAdjusted__c
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :source.Id
         ORDER BY Amount__c ASC
@@ -1573,8 +1700,12 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(2, lines.size());
       System.assertEquals(10000, lines[0].Amount__c);
       System.assertEquals(20000, lines[1].Amount__c);
-      System.assertEquals(false, lines[0].IsManuallyAdjusted__c);
-      System.assertEquals(false, lines[1].IsManuallyAdjusted__c);
+      System.assertEquals(false, lines[0].IsAmountAdjusted__c);
+      System.assertEquals(false, lines[1].IsAmountAdjusted__c);
+      System.assertEquals(true, lines[0].IsSplitMoved__c);
+      System.assertEquals(true, lines[1].IsSplitMoved__c);
+      System.assertEquals(true, lines[0].IsManuallyAdjusted__c);
+      System.assertEquals(true, lines[1].IsManuallyAdjusted__c);
 
       Date juneStart = Date.newInstance(2026, 6, 1);
       InvoiceProduct__c june = [
@@ -1608,13 +1739,20 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(true, sawMoved);
 
       Invoice__c invoice = [
-        SELECT Amount__c, PeriodLineAmountTotal__c, IsManuallyAdjusted__c
+        SELECT
+          Amount__c,
+          PeriodLineAmountTotal__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM Invoice__c
         WHERE Id = :source.Id
       ];
       System.assertEquals(30000, invoice.Amount__c);
       System.assertEquals(30000, invoice.PeriodLineAmountTotal__c);
-      System.assertEquals(false, invoice.IsManuallyAdjusted__c);
+      System.assertEquals(false, invoice.IsAmountAdjusted__c);
+      System.assertEquals(true, invoice.IsSplitMoved__c);
+      System.assertEquals(true, invoice.IsManuallyAdjusted__c);
     }
   }
 
@@ -1863,7 +2001,9 @@ private class InvoiceCanonicalServiceTest {
           Amount__c,
           PeriodLineAmountTotal__c,
           InvoiceDate__c,
-          IsManuallyAdjusted__c
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM Invoice__c
         WHERE Id = :createdId
       ];
@@ -1876,22 +2016,27 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(Date.newInstance(2026, 7, 1), created.InvoiceDate__c);
       System.assertEquals(
         false,
-        created.IsManuallyAdjusted__c,
-        '利用期間分割後の新請求は手動調整クリア'
+        created.IsAmountAdjusted__c,
+        '利用期間分割後の新請求は端数クリア'
       );
+      System.assertEquals(true, created.IsSplitMoved__c);
+      System.assertEquals(true, created.IsManuallyAdjusted__c);
 
       InvoiceLine__c movedLine = [
         SELECT
           Amount__c,
           SourcePeriodLineIds__c,
           PeriodLabel__c,
-          IsManuallyAdjusted__c
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :createdId
         LIMIT 1
       ];
       System.assertEquals(10000, movedLine.Amount__c);
-      System.assertEquals(false, movedLine.IsManuallyAdjusted__c);
+      System.assertEquals(false, movedLine.IsAmountAdjusted__c);
+      System.assertEquals(true, movedLine.IsSplitMoved__c);
       System.assertEquals(
         String.valueOf(movePeriod.Id),
         movedLine.SourcePeriodLineIds__c
@@ -1902,7 +2047,12 @@ private class InvoiceCanonicalServiceTest {
       );
 
       Invoice__c remainInvoice = [
-        SELECT Amount__c, PeriodLineAmountTotal__c, IsManuallyAdjusted__c
+        SELECT
+          Amount__c,
+          PeriodLineAmountTotal__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM Invoice__c
         WHERE Id = :source.Id
       ];
@@ -1914,22 +2064,27 @@ private class InvoiceCanonicalServiceTest {
       );
       System.assertEquals(
         false,
-        remainInvoice.IsManuallyAdjusted__c,
-        '利用期間分割後の残請求も手動調整クリア'
+        remainInvoice.IsAmountAdjusted__c,
+        '利用期間分割後の残請求も端数クリア'
       );
+      System.assertEquals(true, remainInvoice.IsSplitMoved__c);
+      System.assertEquals(true, remainInvoice.IsManuallyAdjusted__c);
 
       InvoiceLine__c remainLine = [
         SELECT
           Amount__c,
           SourcePeriodLineIds__c,
           PeriodLabel__c,
-          IsManuallyAdjusted__c
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :source.Id
         LIMIT 1
       ];
       System.assertEquals(20000, remainLine.Amount__c);
-      System.assertEquals(false, remainLine.IsManuallyAdjusted__c);
+      System.assertEquals(false, remainLine.IsAmountAdjusted__c);
+      System.assertEquals(true, remainLine.IsSplitMoved__c);
       System.assert(
         !remainLine.SourcePeriodLineIds__c.contains(
           String.valueOf(movePeriod.Id)
@@ -2119,7 +2274,8 @@ private class InvoiceCanonicalServiceTest {
           TaxPercent__c,
           TaxAmount__c,
           Amount__c,
-          IsManuallyAdjusted__c
+          IsManuallyAdjusted__c,
+          IsSplitMoved__c
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
@@ -2147,6 +2303,11 @@ private class InvoiceCanonicalServiceTest {
         '税率変更時は税額を再計算する'
       );
       System.assertEquals(true, updated.IsManuallyAdjusted__c);
+      System.assertEquals(
+        false,
+        updated.IsSplitMoved__c,
+        '請求情報編集は分割ではないので IsSplitMoved を立てない'
+      );
     }
   }
 
@@ -2193,7 +2354,8 @@ private class InvoiceCanonicalServiceTest {
           TaxPercent__c,
           TaxAmount__c,
           Amount__c,
-          IsManuallyAdjusted__c
+          IsManuallyAdjusted__c,
+          IsSplitMoved__c
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
@@ -2221,6 +2383,11 @@ private class InvoiceCanonicalServiceTest {
         updated.TaxAmount__c
       );
       System.assertEquals(true, updated.IsManuallyAdjusted__c);
+      System.assertEquals(
+        false,
+        updated.IsSplitMoved__c,
+        '請求情報編集は分割ではないので IsSplitMoved を立てない'
+      );
     }
   }
 

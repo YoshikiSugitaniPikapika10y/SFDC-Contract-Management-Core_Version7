@@ -307,6 +307,14 @@ public without sharing class OrderCreateController {
     @AuraEnabled
     public Boolean isManuallyAdjusted;
 
+    /** 端数調整（±円）あり */
+    @AuraEnabled
+    public Boolean isAmountAdjusted;
+
+    /** 分割・移動（請求を分ける／明細を移す／行分割）あり */
+    @AuraEnabled
+    public Boolean isSplitMoved;
+
     @AuraEnabled
     public Decimal historyVersion;
 
@@ -367,6 +375,12 @@ public without sharing class OrderCreateController {
 
     @AuraEnabled
     public Boolean isManuallyAdjusted;
+
+    @AuraEnabled
+    public Boolean isAmountAdjusted;
+
+    @AuraEnabled
+    public Boolean isSplitMoved;
 
     @AuraEnabled
     public List<Id> sourceInvoiceProductIds;
@@ -1888,6 +1902,8 @@ public without sharing class OrderCreateController {
         PaymentClearingCompletedDate__c,
         PaymentClearedAmount__c,
         IsManuallyAdjusted__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c,
         PeriodLineAmountTotal__c,
         ContractHistory__r.Version__c,
         ContractService__r.Name,
@@ -1910,6 +1926,8 @@ public without sharing class OrderCreateController {
             PeriodLabel__c,
             Amount__c,
             IsManuallyAdjusted__c,
+            IsAmountAdjusted__c,
+            IsSplitMoved__c,
             SourcePeriodLineIds__c,
             ContractProduct__c,
             ContractProduct__r.Amount__c,
@@ -1964,6 +1982,8 @@ public without sharing class OrderCreateController {
       invoice.taxTotal = taxTotal;
       invoice.taxPercent = taxPercent;
       invoice.isManuallyAdjusted = invoiceRecord.IsManuallyAdjusted__c == true;
+      invoice.isAmountAdjusted = invoiceRecord.IsAmountAdjusted__c == true;
+      invoice.isSplitMoved = invoiceRecord.IsSplitMoved__c == true;
       invoice.historyVersion = invoiceRecord.ContractHistory__r == null
         ? null
         : invoiceRecord.ContractHistory__r.Version__c;
@@ -2016,6 +2036,8 @@ public without sharing class OrderCreateController {
           line.clearedAmount = lineStatus.clearedAmount;
           line.openAmount = lineStatus.openAmount;
           line.isManuallyAdjusted = lineRecord.IsManuallyAdjusted__c == true;
+          line.isAmountAdjusted = lineRecord.IsAmountAdjusted__c == true;
+          line.isSplitMoved = lineRecord.IsSplitMoved__c == true;
           line.contractProductId = lineRecord.ContractProduct__c;
           line.sourceInvoiceProductIds = parseIdList(
             lineRecord.SourcePeriodLineIds__c

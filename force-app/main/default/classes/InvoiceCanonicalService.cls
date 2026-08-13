@@ -315,7 +315,7 @@ public without sharing class InvoiceCanonicalService {
       );
       invoice.TaxAmount__c = mi.taxTotal;
       invoice.PeriodLineAmountTotal__c = mi.amountTotal;
-      invoice.IsManuallyAdjusted__c = false;
+      clearInvoiceManualFlags(invoice);
       invoice.SourcePeriodLineIds__c = joinIds(collectSourceIds(mi.sourceProducts));
       // 連携日／消込日は Ops が請求書に付与する。期間明細からはコピーしない。
       invoice.SystemIntegrationDate__c = null;
@@ -358,7 +358,7 @@ public without sharing class InvoiceCanonicalService {
         line.Amount__c = ml.amount;
         line.PeriodLabel__c = ml.periodLabel;
         line.HistoryVersionLabel__c = ml.historyVersionLabel;
-        line.IsManuallyAdjusted__c = false;
+        clearLineManualFlags(line);
         line.SourcePeriodLineIds__c = joinIds(ml.sourceInvoiceProductIds);
         ContractProduct__c sourceContractProduct = null;
         if (ml.sourceProducts != null && !ml.sourceProducts.isEmpty()) {
@@ -455,11 +455,11 @@ public without sharing class InvoiceCanonicalService {
 
     for (InvoiceLine__c line : lines) {
       line.Amount__c = amountByLineId.get(line.Id);
-      line.IsManuallyAdjusted__c = true;
+      markLineAmountAdjusted(line);
     }
     SystemContextAccess.updateRecords(lines);
     for (Id invoiceId : invoiceIds) {
-      markInvoiceAdjustedAndRecalc(invoiceId);
+      markInvoiceAmountAdjustedAndRecalc(invoiceId);
     }
   }
 
@@ -496,7 +496,8 @@ public without sharing class InvoiceCanonicalService {
     if (paymentScheduledDate != null) {
       invoice.PaymentScheduledDate__c = paymentScheduledDate;
     }
-    invoice.IsManuallyAdjusted__c = true;
+    // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
+    markInvoiceHeaderTouched(invoice);
     invoice.MergeKey__c = null;
     SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
@@ -565,7 +566,8 @@ public without sharing class InvoiceCanonicalService {
         displayPercent
       );
     }
-    invoice.IsManuallyAdjusted__c = true;
+    // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
+    markInvoiceHeaderTouched(invoice);
     invoice.MergeKey__c = null;
     SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
@@ -642,7 +644,8 @@ public without sharing class InvoiceCanonicalService {
         displayPercent
       );
     }
-    invoice.IsManuallyAdjusted__c = true;
+    // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
+    markInvoiceHeaderTouched(invoice);
     invoice.MergeKey__c = null;
     SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
@@ -651,6 +654,9 @@ public without sharing class InvoiceCanonicalService {
    * 統一分割: 明細ごと（whole）／単価／個数／月 を混在して新請求へ振り分ける。
    * ②（unitPrice / quantity / period）が1行でも含まれると端数・手動調整をクリアする。
    * ①のみのときは従来の請求日分割と同様、調整前を金額比で引き継ぐ。
+   *
+   * 現行 LWC（請求プレビュー）からは呼ばない。廃止候補の Apex API。
+   * 残置はテスト互換と将来削除までの内部利用のみ。
    */
   public static Id splitInvoiceUnified(
     Id sourceInvoiceId,
@@ -812,6 +818,9 @@ public without sharing class InvoiceCanonicalService {
           LineMergeKey__c,
           HistoryVersionLabel__c,
           SourcePeriodLineIds__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
           ContractProduct__c,
           ContractProduct__r.Product__c,
           ContractProduct__r.Unit__c,
@@ -824,6 +833,15 @@ public without sharing class InvoiceCanonicalService {
     if (sourceLineById.isEmpty()) {
       throw new InvoiceEditException('分割対象の明細が見つかりません。');
     }
+
+    Set<Id> targetLineIds = new Set<Id>();
+    for (SplitLineInput raw : splitLines) {
+      if (raw != null && raw.lineId != null) {
+        targetLineIds.add(raw.lineId);
+      }
+    }
+    // 単価／数量／期間分割の前に、対象明細の端数調整を由来期間合計へ戻す
+    resetFactorSplitLineAmountsToSource(invoiceId, targetLineIds, sourceLineById);
 
     Set<Id> periodMoveIds = new Set<Id>();
     Set<Id> periodRestrictLineIds = new Set<Id>();
@@ -949,7 +967,8 @@ public without sharing class InvoiceCanonicalService {
       } else {
         createdLine.Unit__c = sourceLine.Unit__c;
       }
-      createdLine.IsManuallyAdjusted__c = false;
+      // 同一請求内分割: 端数はリセット済み。分割・移動済を立てる
+      markLineSplitMoved(createdLine, false);
       newLines.add(createdLine);
 
       Decimal remain = resolveConservingRemainAmount(
@@ -968,7 +987,7 @@ public without sharing class InvoiceCanonicalService {
         if (input.remainQuantity != null) {
           sourceLine.Quantity__c = input.remainQuantity;
         }
-        sourceLine.IsManuallyAdjusted__c = false;
+        markLineSplitMoved(sourceLine, false);
         if (input.remainSourcePeriodLineIds != null) {
           sourceLine.SourcePeriodLineIds__c = input.remainSourcePeriodLineIds;
         }
@@ -990,19 +1009,17 @@ public without sharing class InvoiceCanonicalService {
       SystemContextAccess.deleteRecords(sourceDeletes);
     }
 
-    // 因子／月分割: 分割対象行の端数はクリア済み。
-    // 兄弟明細に手動調整が残るなら親フラグと調整前合計を維持する
-    // （無条件 false / 調整前上書きだと Invoice 詳細と差し戻し警告が壊れる）。
-    // 残調整が無いときだけ、仕様どおり調整前＝税抜合計に揃える。
-    recalcInvoiceTotals(invoiceId, false);
+    // 因子／月分割: 対象行は分割・移動済。兄弟に端数が残るなら調整前合計を維持。
+    // 端数が無いときだけ調整前＝税抜合計に揃える（分割・移動済フラグは残す）。
+    deriveInvoiceManualFlagsAndRecalc(invoiceId);
     Invoice__c refreshed = [
-      SELECT Id, Amount__c, IsManuallyAdjusted__c
+      SELECT Id, Amount__c, IsAmountAdjusted__c, IsSplitMoved__c, IsManuallyAdjusted__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    if (refreshed.IsManuallyAdjusted__c == true) {
+    if (refreshed.IsAmountAdjusted__c == true) {
       return;
     }
     Decimal amountTotal = refreshed.Amount__c == null ? 0 : refreshed.Amount__c;
@@ -1010,8 +1027,7 @@ public without sharing class InvoiceCanonicalService {
       new List<Invoice__c>{
         new Invoice__c(
           Id = invoiceId,
-          PeriodLineAmountTotal__c = amountTotal,
-          IsManuallyAdjusted__c = false
+          PeriodLineAmountTotal__c = amountTotal
         )
       }
     );
@@ -1033,6 +1049,7 @@ public without sharing class InvoiceCanonicalService {
       SELECT
         Id,
         Amount__c,
+        IsAmountAdjusted__c,
         SourcePeriodLineIds__c,
         ContractProduct__r.BillingType__c
       FROM InvoiceLine__c
@@ -1046,6 +1063,7 @@ public without sharing class InvoiceCanonicalService {
     Set<Id> allPeriodIds = new Set<Id>();
     Map<Id, List<Id>> periodIdsByLineId = new Map<Id, List<Id>>();
     Map<Id, Decimal> lineAmountById = new Map<Id, Decimal>();
+    Map<Id, Boolean> lineAmountAdjustedById = new Map<Id, Boolean>();
     for (InvoiceLine__c line : lines) {
       if (
         !ContractMetadataService.isRecurringBillingType(
@@ -1062,6 +1080,7 @@ public without sharing class InvoiceCanonicalService {
       }
       periodIdsByLineId.put(line.Id, periodIds);
       lineAmountById.put(line.Id, line.Amount__c == null ? 0 : line.Amount__c);
+      lineAmountAdjustedById.put(line.Id, line.IsAmountAdjusted__c == true);
       allPeriodIds.addAll(periodIds);
     }
     if (allPeriodIds.isEmpty()) {
@@ -1106,10 +1125,14 @@ public without sharing class InvoiceCanonicalService {
       if (periodByStart.isEmpty()) {
         continue;
       }
+      // 分割実行時は端数をリセットするため、プレビューも調整前（由来期間合計）で出す
+      Decimal allPeriodSum = sumPeriodAmounts(periods);
       Decimal lineAmount = lineAmountById.containsKey(lineId)
         ? lineAmountById.get(lineId)
         : 0;
-      Decimal allPeriodSum = sumPeriodAmounts(periods);
+      if (lineAmountAdjustedById.get(lineId) == true) {
+        lineAmount = allPeriodSum;
+      }
       List<Date> starts = new List<Date>(periodByStart.keySet());
       starts.sort();
       List<SplitThresholdDateOption> options = new List<SplitThresholdDateOption>();
@@ -1245,7 +1268,9 @@ public without sharing class InvoiceCanonicalService {
         ContractProduct__c,
         ContractProduct__r.Product__c,
         ContractProduct__r.Unit__c,
-        IsManuallyAdjusted__c
+        IsManuallyAdjusted__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :sourceInvoiceId AND Id IN :lineIdSet
       WITH SYSTEM_MODE
@@ -1286,7 +1311,9 @@ public without sharing class InvoiceCanonicalService {
       } else {
         created.Unit__c = sourceLine.Unit__c;
       }
-      created.IsManuallyAdjusted__c = true;
+      // 明細移動: 端数フラグは引き継ぎ、分割・移動済を立てる
+      created.IsAmountAdjusted__c = sourceLine.IsAmountAdjusted__c == true;
+      markLineSplitMoved(created, true);
       createdLines.add(created);
     }
 
@@ -1324,7 +1351,7 @@ public without sharing class InvoiceCanonicalService {
       remainPeriodTotal = sourcePeriodTotal - movedPeriodTotal;
     }
 
-    markInvoiceAdjustedAndRecalc(targetInvoiceId);
+    markInvoiceSplitMovedAndRecalc(targetInvoiceId);
     Invoice__c targetUpdate = new Invoice__c(
       Id = targetInvoiceId,
       PeriodLineAmountTotal__c = targetPeriodTotalBefore + movedPeriodTotal,
@@ -1342,7 +1369,7 @@ public without sharing class InvoiceCanonicalService {
     if (remainLines.isEmpty()) {
       SystemContextAccess.deleteRecords(new List<Invoice__c>{ source });
     } else {
-      markInvoiceAdjustedAndRecalc(sourceInvoiceId);
+      markInvoiceSplitMovedAndRecalc(sourceInvoiceId);
       Invoice__c sourceUpdate = new Invoice__c(
         Id = sourceInvoiceId,
         PeriodLineAmountTotal__c = remainPeriodTotal,
@@ -1407,6 +1434,8 @@ public without sharing class InvoiceCanonicalService {
    * 請求日／BA 金額分割後も同一 SourcePeriodLineIds が残っていて満額合算すると水増しになるため、
    * 期間明細金額をそのまま書き戻さない。
    * newBillingAccountId 指定時は新請求の SnapShot をその BA からコピーする。
+   * 現行 LWC（請求プレビュー）からは呼ばない。廃止候補の Apex API。
+   * 残存元請求がある場合は IsSplitMoved を立てる。
    */
   public static Id splitInvoiceByPeriod(
     Id sourceInvoiceId,
@@ -1573,7 +1602,10 @@ public without sharing class InvoiceCanonicalService {
         SourcePeriodLineIds__c,
         ContractProduct__c,
         ContractProduct__r.Product__c,
-        ContractProduct__r.Unit__c
+        ContractProduct__r.Unit__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c,
+        IsManuallyAdjusted__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :sourceInvoiceId AND Id IN :inputByLineId.keySet()
       WITH SYSTEM_MODE
@@ -1594,7 +1626,9 @@ public without sharing class InvoiceCanonicalService {
     created.TaxPercent__c = source.TaxPercent__c;
     // 調整前請求額は分割後に移す／残すへ再配分する（丸コピーすると偽の端数ギャップになる）
     created.PeriodLineAmountTotal__c = 0;
-    created.IsManuallyAdjusted__c = clearManualAdjustment != true;
+    created.IsAmountAdjusted__c = false;
+    created.IsSplitMoved__c = true;
+    syncInvoiceManualUmbrella(created);
     created.Amount__c = 0;
     created.TaxAmount__c = 0;
     // 分割で生まれる新請求は集約キーを付けない（手動調整後と同様。突合は Id ベース）
@@ -1659,7 +1693,12 @@ public without sharing class InvoiceCanonicalService {
       } else {
         createdLine.Unit__c = sourceLine.Unit__c;
       }
-      createdLine.IsManuallyAdjusted__c = clearManualAdjustment != true;
+      if (clearManualAdjustment == true) {
+        markLineSplitMoved(createdLine, false);
+      } else {
+        createdLine.IsAmountAdjusted__c = sourceLine.IsAmountAdjusted__c == true;
+        markLineSplitMoved(createdLine, true);
+      }
       newLines.add(createdLine);
       newInvoiceAmount += move;
 
@@ -1684,7 +1723,11 @@ public without sharing class InvoiceCanonicalService {
         if (input.remainQuantity != null) {
           sourceLine.Quantity__c = input.remainQuantity;
         }
-        sourceLine.IsManuallyAdjusted__c = clearManualAdjustment != true;
+        if (clearManualAdjustment == true) {
+          markLineSplitMoved(sourceLine, false);
+        } else {
+          markLineSplitMoved(sourceLine, true);
+        }
         if (input.remainSourcePeriodLineIds != null) {
           sourceLine.SourcePeriodLineIds__c = input.remainSourcePeriodLineIds;
         }
@@ -1747,16 +1790,20 @@ public without sharing class InvoiceCanonicalService {
       newInvoiceAmount,
       TaxCalculationUtil.fromPercentFieldStorage(created.TaxPercent__c)
     );
-    if (clearManualAdjustment == true) {
-      created.IsManuallyAdjusted__c = false;
+    Boolean createdHasAmountAdjusted = false;
+    if (clearManualAdjustment != true) {
+      for (InvoiceLine__c newLine : newLines) {
+        if (newLine.IsAmountAdjusted__c == true) {
+          createdHasAmountAdjusted = true;
+          break;
+        }
+      }
     }
+    created.IsAmountAdjusted__c = createdHasAmountAdjusted;
+    created.IsSplitMoved__c = true;
+    syncInvoiceManualUmbrella(created);
     SystemContextAccess.updateRecords(new List<Invoice__c>{ created });
-    if (clearManualAdjustment == true) {
-      recalcInvoiceTotals(sourceInvoiceId, false);
-    } else {
-      markInvoiceAdjustedAndRecalc(sourceInvoiceId);
-    }
-
+    // 元請求が残る場合は常に分割・移動済（clearManual でも derive だけに落とさない）
     List<InvoiceLine__c> remainLines = [
       SELECT Id
       FROM InvoiceLine__c
@@ -1767,50 +1814,145 @@ public without sharing class InvoiceCanonicalService {
     if (remainLines.isEmpty()) {
       SystemContextAccess.deleteRecords(new List<Invoice__c>{ source });
     } else {
+      markInvoiceSplitMovedAndRecalc(sourceInvoiceId);
+      // 仕様: 請求を分ける後は元・先とも MergeKey を破棄（突合の正は Id）
       Invoice__c remainInvoice = new Invoice__c(
         Id = sourceInvoiceId,
-        PeriodLineAmountTotal__c = remainPeriodTotal
+        PeriodLineAmountTotal__c = remainPeriodTotal,
+        MergeKey__c = null
       );
       SystemContextAccess.updateRecords(new List<Invoice__c>{ remainInvoice });
     }
     return created.Id;
   }
 
-  private static void markInvoiceAdjustedAndRecalc(Id invoiceId) {
-    recalcInvoiceTotals(invoiceId, true);
+  private static void markInvoiceAmountAdjustedAndRecalc(Id invoiceId) {
+    recalcInvoiceTotals(invoiceId, true, null);
+  }
+
+  private static void markInvoiceSplitMovedAndRecalc(Id invoiceId) {
+    recalcInvoiceTotals(invoiceId, null, true);
+  }
+
+  private static void deriveInvoiceManualFlagsAndRecalc(Id invoiceId) {
+    recalcInvoiceTotals(invoiceId, null, null);
+  }
+
+  private static void clearInvoiceManualFlags(Invoice__c invoice) {
+    if (invoice == null) {
+      return;
+    }
+    invoice.IsAmountAdjusted__c = false;
+    invoice.IsSplitMoved__c = false;
+    invoice.IsManuallyAdjusted__c = false;
+  }
+
+  private static void clearLineManualFlags(InvoiceLine__c line) {
+    if (line == null) {
+      return;
+    }
+    line.IsAmountAdjusted__c = false;
+    line.IsSplitMoved__c = false;
+    line.IsManuallyAdjusted__c = false;
+  }
+
+  private static void markLineAmountAdjusted(InvoiceLine__c line) {
+    if (line == null) {
+      return;
+    }
+    line.IsAmountAdjusted__c = true;
+    syncLineManualUmbrella(line);
   }
 
   /**
-   * 請求合計を明細から再計算する。
-   * markAdjusted=true: 手動調整済にする（端数調整・請求日分割など）。
-   * markAdjusted=false: 明細のいずれかに調整があれば親も true、なければ false。
+   * 分割・移動済を立てる。keepAmountAdjusted=false のとき端数フラグも落とす。
    */
-  private static void recalcInvoiceTotals(Id invoiceId, Boolean markAdjusted) {
+  private static void markLineSplitMoved(
+    InvoiceLine__c line,
+    Boolean keepAmountAdjusted
+  ) {
+    if (line == null) {
+      return;
+    }
+    if (keepAmountAdjusted != true) {
+      line.IsAmountAdjusted__c = false;
+    }
+    line.IsSplitMoved__c = true;
+    syncLineManualUmbrella(line);
+  }
+
+  private static void markInvoiceSplitMoved(Invoice__c invoice) {
+    if (invoice == null) {
+      return;
+    }
+    invoice.IsSplitMoved__c = true;
+    // ヘッダ編集パスでは IsAmountAdjusted を SOQL していないことがあるため触らない
+    invoice.IsManuallyAdjusted__c = true;
+  }
+
+  /** 請求情報編集（日付・宛名等）。分割していないので IsSplitMoved は立てない。 */
+  private static void markInvoiceHeaderTouched(Invoice__c invoice) {
+    if (invoice == null) {
+      return;
+    }
+    invoice.IsManuallyAdjusted__c = true;
+  }
+
+  private static void syncLineManualUmbrella(InvoiceLine__c line) {
+    if (line == null) {
+      return;
+    }
+    line.IsManuallyAdjusted__c =
+      line.IsAmountAdjusted__c == true || line.IsSplitMoved__c == true;
+  }
+
+  private static void syncInvoiceManualUmbrella(Invoice__c invoice) {
+    if (invoice == null) {
+      return;
+    }
+    // ヘッダ手直し（詳細フラグなし）の傘は維持。再生成の clear で消える。
+    invoice.IsManuallyAdjusted__c =
+      invoice.IsAmountAdjusted__c == true ||
+      invoice.IsSplitMoved__c == true ||
+      invoice.IsManuallyAdjusted__c == true;
+  }
+
+  /**
+   * 請求合計を明細から再計算し、手動調整フラグを同期する。
+   * forceAmount / forceSplit: true=強制オン、null=明細から導出。
+   */
+  private static void recalcInvoiceTotals(
+    Id invoiceId,
+    Boolean forceAmountAdjusted,
+    Boolean forceSplitMoved
+  ) {
     if (invoiceId == null) {
       return;
     }
-    AggregateResult[] sums = [
-      SELECT SUM(Amount__c) amt
+    Decimal amountTotal = 0;
+    Integer amountAdjustedCount = 0;
+    Integer splitMovedCount = 0;
+    for (InvoiceLine__c line : [
+      SELECT Amount__c, IsAmountAdjusted__c, IsSplitMoved__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :invoiceId
       WITH SYSTEM_MODE
-    ];
-    Decimal amountTotal = 0;
-    if (!sums.isEmpty() && sums[0].get('amt') != null) {
-      amountTotal = (Decimal) sums[0].get('amt');
-    }
-    Boolean anyLineAdjusted = false;
-    if (markAdjusted != true) {
-      Integer adjustedCount = [
-        SELECT COUNT()
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :invoiceId AND IsManuallyAdjusted__c = TRUE
-        WITH SYSTEM_MODE
-      ];
-      anyLineAdjusted = adjustedCount > 0;
+    ]) {
+      amountTotal += line.Amount__c == null ? 0 : line.Amount__c;
+      if (line.IsAmountAdjusted__c == true) {
+        amountAdjustedCount++;
+      }
+      if (line.IsSplitMoved__c == true) {
+        splitMovedCount++;
+      }
     }
     Invoice__c invoice = [
-      SELECT Id, TaxPercent__c
+      SELECT
+        Id,
+        TaxPercent__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c,
+        IsManuallyAdjusted__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
@@ -1821,9 +1963,18 @@ public without sharing class InvoiceCanonicalService {
       amountTotal,
       TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
     );
-    invoice.IsManuallyAdjusted__c = markAdjusted == true
-      ? true
-      : anyLineAdjusted;
+    // 端数: 強制オン、または明細に残存
+    Boolean amountFlag =
+      forceAmountAdjusted == true || amountAdjustedCount > 0;
+    // 分割・移動: 強制オン、または明細に残存（請求情報編集では立てない）
+    Boolean splitFlag = forceSplitMoved == true || splitMovedCount > 0;
+
+    invoice.IsAmountAdjusted__c = amountFlag;
+    invoice.IsSplitMoved__c = splitFlag;
+    // ヘッダ手直しの傘を消さない（再生成 clear まで）
+    Boolean keepHeaderTouch = invoice.IsManuallyAdjusted__c == true;
+    invoice.IsManuallyAdjusted__c =
+      amountFlag || splitFlag || keepHeaderTouch;
     SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
 
@@ -1961,6 +2112,93 @@ public without sharing class InvoiceCanonicalService {
     input.moveQuantity = raw.moveQuantity;
     input.remainQuantity = raw.remainQuantity;
     return input;
+  }
+
+  /**
+   * 同一請求内の単価／数量／期間分割の直前に、対象明細の端数調整を由来期間合計へ戻す。
+   * sourceLineById はメモリ上も更新する（このあとの按分がリセット後金額を使うため）。
+   */
+  private static void resetFactorSplitLineAmountsToSource(
+    Id invoiceId,
+    Set<Id> lineIds,
+    Map<Id, InvoiceLine__c> sourceLineById
+  ) {
+    if (
+      invoiceId == null ||
+      lineIds == null ||
+      lineIds.isEmpty() ||
+      sourceLineById == null ||
+      sourceLineById.isEmpty()
+    ) {
+      return;
+    }
+
+    Set<Id> allPeriodIds = new Set<Id>();
+    for (Id lineId : lineIds) {
+      InvoiceLine__c line = sourceLineById.get(lineId);
+      if (line == null || line.IsAmountAdjusted__c != true) {
+        continue;
+      }
+      allPeriodIds.addAll(parseIdList(line.SourcePeriodLineIds__c));
+    }
+    if (allPeriodIds.isEmpty()) {
+      // 由来期間が無い端数明細は金額を推測できないので端数フラグだけ落とす
+      List<InvoiceLine__c> flagOnly = new List<InvoiceLine__c>();
+      for (Id lineId : lineIds) {
+        InvoiceLine__c line = sourceLineById.get(lineId);
+        if (line == null || line.IsAmountAdjusted__c != true) {
+          continue;
+        }
+        line.IsAmountAdjusted__c = false;
+        syncLineManualUmbrella(line);
+        flagOnly.add(line);
+      }
+      if (!flagOnly.isEmpty()) {
+        SystemContextAccess.updateRecords(flagOnly);
+        deriveInvoiceManualFlagsAndRecalc(invoiceId);
+      }
+      return;
+    }
+
+    Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>(
+      [
+        SELECT Id, Amount__c
+        FROM InvoiceProduct__c
+        WHERE Id IN :allPeriodIds
+        WITH SYSTEM_MODE
+      ]
+    );
+
+    List<InvoiceLine__c> toUpdate = new List<InvoiceLine__c>();
+    for (Id lineId : lineIds) {
+      InvoiceLine__c line = sourceLineById.get(lineId);
+      if (line == null || line.IsAmountAdjusted__c != true) {
+        continue;
+      }
+      List<InvoiceProduct__c> periods = new List<InvoiceProduct__c>();
+      for (Id periodId : parseIdList(line.SourcePeriodLineIds__c)) {
+        InvoiceProduct__c period = periodById.get(periodId);
+        if (period != null) {
+          periods.add(period);
+        }
+      }
+      if (periods.isEmpty()) {
+        line.IsAmountAdjusted__c = false;
+        syncLineManualUmbrella(line);
+        toUpdate.add(line);
+        continue;
+      }
+      Decimal baseline = sumPeriodAmounts(periods);
+      line.Amount__c = baseline;
+      line.IsAmountAdjusted__c = false;
+      syncLineManualUmbrella(line);
+      toUpdate.add(line);
+    }
+    if (toUpdate.isEmpty()) {
+      return;
+    }
+    SystemContextAccess.updateRecords(toUpdate);
+    deriveInvoiceManualFlagsAndRecalc(invoiceId);
   }
 
   /**

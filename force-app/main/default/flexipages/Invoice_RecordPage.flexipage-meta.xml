@@ -81,19 +81,19 @@
                             <value>UnitPrice__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>Unit__c</value>
-                        </valueListItems>
-                        <valueListItems>
                             <value>Amount__c</value>
                         </valueListItems>
                         <valueListItems>
                             <value>PeriodLabel__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>HistoryVersionLabel__c</value>
+                            <value>IsManuallyAdjusted__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>IsManuallyAdjusted__c</value>
+                            <value>IsAmountAdjusted__c</value>
+                        </valueListItems>
+                        <valueListItems>
+                            <value>IsSplitMoved__c</value>
                         </valueListItems>
                     </valueList>
                 </componentInstanceProperties>

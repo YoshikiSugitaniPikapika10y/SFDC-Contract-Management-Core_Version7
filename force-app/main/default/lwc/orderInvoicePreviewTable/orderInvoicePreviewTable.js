@@ -1,6 +1,11 @@
 import { LightningElement, api, track } from "lwc";
 import LightningConfirm from "lightning/confirm";
+import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import getSplitThresholdDateOptions from "@salesforce/apex/OrderCreateController.getSplitThresholdDateOptions";
+import {
+  resolveScaledNumericInput,
+  roundUnitPrice
+} from "c/estimateLineItemUtils";
 
 const ALL_VERSIONS = "ALL";
 const KIND_PERIOD = "period";
@@ -26,6 +31,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   @track lineSplitState = null;
   @track billingEditState = null;
   @track amountDrafts = {};
+  /** 単価分割の数式ポップアップ（見積金額入力と同じ UI） */
+  @track unitPriceFormulaLineId = null;
+  @track unitPriceFormulaDraft = "";
+  @track unitPriceFormulaError = "";
+  @track unitPriceFormulaHint = "";
 
   _preview;
   /** オープン時の Version フィルタ初期値を一度だけ適用したか（保存後の再取得では維持）。 */
@@ -52,6 +62,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     this.invoiceSplitState = null;
     this.invoiceMoveState = null;
     this.lineSplitState = null;
+    this.handleCloseUnitPriceFormula();
     this.applyDefaultVersionFilter();
   }
 
@@ -138,6 +149,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   disconnectedCallback() {
+    this.handleCloseUnitPriceFormula();
     if (this._fitProductNamesRaf != null) {
       cancelAnimationFrame(this._fitProductNamesRaf);
       this._fitProductNamesRaf = null;
@@ -546,9 +558,27 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               isRecurring,
               amount,
               isAmountDrafted: this.isLineDrafted(lineId),
+              isAmountAdjusted:
+                line.isAmountAdjusted === true || this.isLineDrafted(lineId),
+              isSplitMoved: line.isSplitMoved === true,
+              // ピルは1つ。端数 > 分割
+              showManualTag:
+                line.isAmountAdjusted === true ||
+                this.isLineDrafted(lineId) ||
+                line.isSplitMoved === true,
+              manualTagLabel:
+                line.isAmountAdjusted === true || this.isLineDrafted(lineId)
+                  ? "端数"
+                  : "分割",
+              manualTagClass:
+                line.isAmountAdjusted === true || this.isLineDrafted(lineId)
+                  ? "adjusted-pill adjusted-pill_amount"
+                  : "adjusted-pill adjusted-pill_split",
               isManuallyAdjusted:
                 line.isManuallyAdjusted === true || this.isLineDrafted(lineId),
               showAmountMeta:
+                line.isAmountAdjusted === true ||
+                line.isSplitMoved === true ||
                 line.isManuallyAdjusted === true ||
                 this.isLineDrafted(lineId) ||
                 hasSourceAmount,
@@ -602,6 +632,16 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               splitThresholdDate,
               splitMoveUnitPrice:
                 moveUnitPriceRaw == null ? "" : moveUnitPriceRaw,
+              splitMoveUnitPriceLabel:
+                moveUnitPriceRaw == null || moveUnitPriceRaw === ""
+                  ? "単価を入力..."
+                  : this.formatPlainNumber(
+                      this.parseOptionalNumber(moveUnitPriceRaw) ??
+                        moveUnitPriceRaw
+                    ),
+              isUnitPriceFormulaOpen:
+                this.unitPriceFormulaLineId != null &&
+                this.unitPriceFormulaLineId === lineId,
               splitMoveQuantity:
                 moveQuantityRaw == null ? "" : moveQuantityRaw,
               splitRemainAmountLabel:
@@ -633,6 +673,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               splitConfirmDisabled:
                 this.isSaving ||
                 this.lineSplitState?.loadingThresholds === true ||
+                this.unitPriceFormulaLineId === lineId ||
                 !this.isSplitRowValid({
                   selected: splitSelected,
                   kind: splitKind,
@@ -1013,12 +1054,14 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (raw === "" || raw == null) {
       return null;
     }
-    const n = Number(raw);
+    const n = Number(String(raw).replace(/,/g, "").trim());
     return Number.isFinite(n) ? n : null;
   }
 
   roundMoney2(value) {
-    return Math.round((Number(value) || 0) * 100) / 100;
+    // 見積・式評価と同じ HALF_UP 小数第2位（Math.round は使わない）
+    const rounded = roundUnitPrice(value);
+    return Number.isFinite(rounded) ? rounded : 0;
   }
 
   /** しきい日候補は期間表示ではなく日付（例: 2026/6/1）。 */
@@ -1586,6 +1629,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   handleCloseLineSplit() {
+    this.handleCloseUnitPriceFormula();
     this.lineSplitState = null;
   }
 
@@ -1593,6 +1637,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     const lineId = event.currentTarget.dataset.lineId;
     if (!this.lineSplitState || !lineId) {
       return;
+    }
+    if (this.unitPriceFormulaLineId === lineId) {
+      this.handleCloseUnitPriceFormula();
     }
     const remaining = Object.keys(this.lineSplitState.rows || {}).some(
       (id) =>
@@ -1602,6 +1649,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       this.updateLineSplitRow(lineId, { selected: false });
       return;
     }
+    this.handleCloseUnitPriceFormula();
     this.lineSplitState = null;
   }
 
@@ -1634,6 +1682,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (!lineId || !kind) {
       return;
     }
+    this.handleCloseUnitPriceFormula();
     const line = this.findLine(lineId);
     this.updateLineSplitRow(lineId, {
       kind,
@@ -1648,10 +1697,106 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     });
   }
 
-  handleLineSplitMoveUnitPriceChange(event) {
-    const lineId = event.target.dataset.lineId;
+  handleOpenUnitPriceFormula(event) {
+    const lineId = event.currentTarget.dataset.lineId;
+    if (!lineId || !this.lineSplitState?.rows?.[lineId]) {
+      return;
+    }
+    const current = this.lineSplitState.rows[lineId].moveUnitPrice;
+    const num = this.parseOptionalNumber(current);
+    this.unitPriceFormulaLineId = lineId;
+    this.unitPriceFormulaDraft =
+      num == null ? String(current || "") : this.formatPlainNumber(num);
+    this.unitPriceFormulaError = "";
+    this.unitPriceFormulaHint =
+      "単価、または = で四則計算（例: =1,200/12）";
+    if (!this._boundUnitPriceFormulaEscape) {
+      this._boundUnitPriceFormulaEscape = (e) => {
+        if (e.key === "Escape" && this.unitPriceFormulaLineId != null) {
+          e.preventDefault();
+          this.handleCloseUnitPriceFormula();
+        }
+      };
+      window.addEventListener("keydown", this._boundUnitPriceFormulaEscape);
+    }
+    // eslint-disable-next-line @lwc/lwc/no-async-operation
+    Promise.resolve().then(() => {
+      const input = this.template.querySelector(
+        '[data-id="unit-price-formula-input"]'
+      );
+      if (input) {
+        input.focus();
+        if (typeof input.select === "function") {
+          input.select();
+        }
+      }
+    });
+  }
+
+  handleCloseUnitPriceFormula() {
+    this.unitPriceFormulaLineId = null;
+    this.unitPriceFormulaDraft = "";
+    this.unitPriceFormulaError = "";
+    this.unitPriceFormulaHint = "";
+    if (this._boundUnitPriceFormulaEscape) {
+      window.removeEventListener("keydown", this._boundUnitPriceFormulaEscape);
+      this._boundUnitPriceFormulaEscape = null;
+    }
+  }
+
+  handleUnitPriceFormulaDraftChange(event) {
+    this.unitPriceFormulaDraft = event.target.value;
+    this.unitPriceFormulaError = "";
+  }
+
+  handleUnitPriceFormulaKeydown(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      this.applyUnitPriceFormulaDraft();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      this.handleCloseUnitPriceFormula();
+    }
+  }
+
+  handleApplyUnitPriceFormula() {
+    this.applyUnitPriceFormulaDraft();
+  }
+
+  applyUnitPriceFormulaDraft() {
+    const lineId = this.unitPriceFormulaLineId;
+    if (!lineId) {
+      return;
+    }
+    const resolved = resolveScaledNumericInput(this.unitPriceFormulaDraft, 2);
+    if (!resolved.ok) {
+      this.unitPriceFormulaError = resolved.message;
+      this.unitPriceFormulaHint = "";
+      return;
+    }
     this.updateLineSplitRow(lineId, {
-      moveUnitPrice: event.detail.value
+      moveUnitPrice: String(resolved.value)
+    });
+    this.handleCloseUnitPriceFormula();
+  }
+
+  handleLineSplitMoveUnitPriceChange(event) {
+    // 互換（旧直入力経路）。ポップアップ適用を正とする
+    const lineId = event.target.dataset.lineId;
+    const resolved = resolveScaledNumericInput(event.detail.value, 2);
+    if (!resolved.ok) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "単価を確定できません",
+          message: resolved.message,
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
+      return;
+    }
+    this.updateLineSplitRow(lineId, {
+      moveUnitPrice: String(resolved.value)
     });
   }
 
@@ -1736,7 +1881,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     return payload;
   }
 
-  handleConfirmLineSplit() {
+  async handleConfirmLineSplit() {
     if (!this.lineSplitState?.invoiceId || this.isSaving) {
       return;
     }
@@ -1746,6 +1891,26 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     const splitLines = this.buildSplitLinesPayload();
     if (splitLines.length === 0) {
       return;
+    }
+    const invoice = this.findInvoice(this.lineSplitState.invoiceId);
+    const selectedAmountAdjusted = (invoice?.lines || []).some((line) => {
+      if (!line?.lineId) {
+        return false;
+      }
+      const row = this.lineSplitState.rows?.[line.lineId];
+      return row?.selected === true && line.isAmountAdjusted === true;
+    });
+    if (selectedAmountAdjusted) {
+      const confirmed = await LightningConfirm.open({
+        label: "明細を分割",
+        message:
+          "選択した明細の端数調整はリセットしてから分割します。よろしいですか？",
+        theme: "warning",
+        variant: "header"
+      });
+      if (!confirmed) {
+        return;
+      }
     }
     this.dispatchEvent(
       new CustomEvent("splitlinesinplace", {

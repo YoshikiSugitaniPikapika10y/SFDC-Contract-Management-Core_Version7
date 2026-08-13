@@ -28,10 +28,6 @@
                 <behavior>Edit</behavior>
                 <field>PaymentScheduledDate__c</field>
             </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>OwnerId</field>
-            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>
@@ -72,8 +68,16 @@
                 <behavior>Edit</behavior>
                 <field>IsManuallyAdjusted__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>IsAmountAdjusted__c</field>
+            </layoutItems>
         </layoutColumns>
         <layoutColumns>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>IsSplitMoved__c</field>
+            </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
                 <field>AdjustmentReason__c</field>

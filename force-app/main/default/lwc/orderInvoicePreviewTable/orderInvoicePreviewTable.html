@@ -590,8 +590,10 @@
                         </span>
                         <!-- 幅固定スロット。タグ有無で ± ボタン位置がずれない -->
                         <span class="amount-meta-slot">
-                          <template if:true={row.isManuallyAdjusted}>
-                            <span class="adjusted-pill">調整</span>
+                          <template if:true={row.showManualTag}>
+                            <span class={row.manualTagClass}
+                              >{row.manualTagLabel}</span
+                            >
                           </template>
                           <template if:true={row.hasSourceAmount}>
                             <span
@@ -742,16 +744,69 @@
                                 </div>
                                 <div class="split-factor-cell">
                                   <span class="split-factor-k">分割先</span>
-                                  <div class="split-factor-slot">
-                                    <lightning-input
-                                      type="number"
-                                      label="分割先"
-                                      variant="label-hidden"
-                                      value={row.splitMoveUnitPrice}
-                                      data-line-id={row.lineId}
-                                      onchange={handleLineSplitMoveUnitPriceChange}
-                                      step="0.01"
-                                    ></lightning-input>
+                                  <div
+                                    class="split-factor-slot split-factor-slot_formula"
+                                  >
+                                    <template if:true={row.isUnitPriceFormulaOpen}>
+                                      <div
+                                        class="split-formula-picker"
+                                        data-id="unit-price-formula-picker"
+                                      >
+                                        <label class="split-formula-label"
+                                          >分割先単価（= で四則可）</label
+                                        >
+                                        <input
+                                          type="text"
+                                          inputmode="decimal"
+                                          class="split-formula-input"
+                                          data-id="unit-price-formula-input"
+                                          aria-label="分割先単価"
+                                          value={unitPriceFormulaDraft}
+                                          oninput={handleUnitPriceFormulaDraftChange}
+                                          onkeydown={handleUnitPriceFormulaKeydown}
+                                        />
+                                        <template if:true={unitPriceFormulaError}>
+                                          <div
+                                            class="split-formula-error"
+                                            role="alert"
+                                          >
+                                            {unitPriceFormulaError}
+                                          </div>
+                                        </template>
+                                        <template if:true={unitPriceFormulaHint}>
+                                          <div class="split-formula-hint">
+                                            {unitPriceFormulaHint}
+                                          </div>
+                                        </template>
+                                        <div class="split-formula-actions">
+                                          <button
+                                            type="button"
+                                            class="split-formula-apply"
+                                            onclick={handleApplyUnitPriceFormula}
+                                          >
+                                            適用
+                                          </button>
+                                          <button
+                                            type="button"
+                                            class="split-formula-cancel"
+                                            onclick={handleCloseUnitPriceFormula}
+                                          >
+                                            キャンセル
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </template>
+                                    <template if:false={row.isUnitPriceFormulaOpen}>
+                                      <button
+                                        type="button"
+                                        class="split-formula-trigger"
+                                        data-line-id={row.lineId}
+                                        title="単価を編集（= で四則計算可）"
+                                        onclick={handleOpenUnitPriceFormula}
+                                      >
+                                        {row.splitMoveUnitPriceLabel}
+                                      </button>
+                                    </template>
                                   </div>
                                 </div>
                               </div>

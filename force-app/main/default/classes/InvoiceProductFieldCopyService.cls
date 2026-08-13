@@ -78,6 +78,8 @@ public without sharing class InvoiceProductFieldCopyService {
             'MergeKey__c',
             'SourcePeriodLineIds__c',
             'IsManuallyAdjusted__c',
+            'IsAmountAdjusted__c',
+            'IsSplitMoved__c',
             'SystemIntegrationDate__c',
             'PaymentClearingCompletedDate__c',
             'AdjustmentReason__c'
@@ -95,7 +97,9 @@ public without sharing class InvoiceProductFieldCopyService {
             'LineMergeKey__c',
             'HistoryVersionLabel__c',
             'SourcePeriodLineIds__c',
-            'IsManuallyAdjusted__c'
+            'IsManuallyAdjusted__c',
+            'IsAmountAdjusted__c',
+            'IsSplitMoved__c'
         }
     };
 
