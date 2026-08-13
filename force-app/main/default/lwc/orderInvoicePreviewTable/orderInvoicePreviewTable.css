@@ -862,28 +862,28 @@
 }
 
 .preview-table col.col-product {
-  width: 20%;
+  width: 21%;
 }
 
 .preview-table col.col-price {
-  width: 7.5%;
+  width: 8%;
 }
 
 .preview-table col.col-unit {
-  width: 4%;
+  width: 4.5%;
 }
 
 .preview-table col.col-qty {
-  width: 4%;
+  width: 4.5%;
 }
 
 .preview-table col.col-period {
-  width: 17%;
+  width: 17.5%;
 }
 
-/* 「12 month」「サイクル数」が切れない幅 */
+/* 「12 month」が入る最小。ヘッダ「サイクル数」は少し詰めてもラベルは変えない */
 .preview-table col.col-cycle {
-  width: 5.75rem;
+  width: 4.5rem;
 }
 
 /* 残りを金額列へ。中身は右端へ寄せて分割右の空洞を消す */
@@ -973,10 +973,10 @@
 .preview-table th.cycle-col,
 .preview-table td.cycle-col {
   box-sizing: border-box;
-  min-width: 5.75rem;
-  max-width: 5.75rem;
-  padding-left: 0.2rem;
-  padding-right: 0.25rem;
+  min-width: 4.5rem;
+  max-width: 4.5rem;
+  padding-left: 0.15rem;
+  padding-right: 0.15rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1015,23 +1015,18 @@
 }
 
 /*
- * [伸縮スペーサ][金額スロット][メタ][±/分割]
- * - スペーサで分割を列右端へ（右の空洞を消す）
- * - 金額スロット幅をヘッダ・値で共通化し、「金」と「￥」の左端を揃える
+ * ヘッダ・行とも同じ4列: [余白][金額][メタ][±/分割]
+ * 列幅固定なので「金」と「￥」の左端が一致し、分割は列右端に付く
  */
 .amount-with-adjust {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 5.75rem max-content max-content;
+  grid-template-columns: minmax(0, 1fr) 6.5rem 5.5rem 9.1rem;
   align-items: center;
   column-gap: 0.22rem;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   white-space: nowrap;
-}
-
-.amount-with-adjust_head {
-  grid-template-columns: minmax(0, 1fr) 5.75rem;
 }
 
 .amount-with-adjust_head .amount-yen-slot {
@@ -1042,9 +1037,9 @@
 .amount-yen-slot {
   box-sizing: border-box;
   grid-column: 2;
-  width: 5.75rem;
-  min-width: 5.75rem;
-  max-width: 5.75rem;
+  width: 6.5rem;
+  min-width: 6.5rem;
+  max-width: 6.5rem;
   text-align: left;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1064,9 +1059,11 @@
   justify-content: flex-start;
   gap: 0.12rem;
   grid-column: 3;
-  flex: 0 0 auto;
-  min-width: 0;
-  overflow: visible;
+  box-sizing: border-box;
+  width: 5.5rem;
+  min-width: 5.5rem;
+  max-width: 5.5rem;
+  overflow: hidden;
 }
 
 .adjusted-pill {
@@ -1095,16 +1092,21 @@
 .amount-shortcuts {
   display: inline-flex;
   flex-wrap: nowrap;
-  justify-content: flex-start;
+  justify-content: flex-end;
   align-items: center;
   gap: 0.2rem;
   grid-column: 4;
-  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 9.1rem;
+  min-width: 9.1rem;
+  max-width: 9.1rem;
   opacity: 0.7;
 }
 
-.amount-shortcuts:empty {
-  display: none;
+/* ヘッダの空枠は幅を維持（:empty で消すと金/￥がずれる） */
+.amount-with-adjust_head .amount-shortcuts {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .preview-table tbody tr:hover .amount-shortcuts,

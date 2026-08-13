@@ -76,6 +76,12 @@ public without sharing class InvoiceCanonicalService {
     /** yyyy-MM-dd */
     @AuraEnabled
     public String value { get; set; }
+    /** 明細金額（金額列）ベースの分割元側（しきい日未満の期間按分）。 */
+    @AuraEnabled
+    public Decimal remainAmount { get; set; }
+    /** 明細金額（金額列）ベースの分割先側（しきい日以降の期間按分）。 */
+    @AuraEnabled
+    public Decimal moveAmount { get; set; }
   }
 
   public class SplitThresholdLineOptions {
@@ -1026,6 +1032,7 @@ public without sharing class InvoiceCanonicalService {
     List<InvoiceLine__c> lines = [
       SELECT
         Id,
+        Amount__c,
         SourcePeriodLineIds__c,
         ContractProduct__r.BillingType__c
       FROM InvoiceLine__c
@@ -1038,6 +1045,7 @@ public without sharing class InvoiceCanonicalService {
 
     Set<Id> allPeriodIds = new Set<Id>();
     Map<Id, List<Id>> periodIdsByLineId = new Map<Id, List<Id>>();
+    Map<Id, Decimal> lineAmountById = new Map<Id, Decimal>();
     for (InvoiceLine__c line : lines) {
       if (
         !ContractMetadataService.isRecurringBillingType(
@@ -1053,6 +1061,7 @@ public without sharing class InvoiceCanonicalService {
         continue;
       }
       periodIdsByLineId.put(line.Id, periodIds);
+      lineAmountById.put(line.Id, line.Amount__c == null ? 0 : line.Amount__c);
       allPeriodIds.addAll(periodIds);
     }
     if (allPeriodIds.isEmpty()) {
@@ -1061,7 +1070,7 @@ public without sharing class InvoiceCanonicalService {
 
     Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>(
       [
-        SELECT Id, StartDate__c, Enddate__c
+        SELECT Id, Amount__c, StartDate__c, Enddate__c
         FROM InvoiceProduct__c
         WHERE Id IN :allPeriodIds
         WITH SYSTEM_MODE
@@ -1097,10 +1106,25 @@ public without sharing class InvoiceCanonicalService {
       if (periodByStart.isEmpty()) {
         continue;
       }
+      Decimal lineAmount = lineAmountById.containsKey(lineId)
+        ? lineAmountById.get(lineId)
+        : 0;
+      Decimal allPeriodSum = sumPeriodAmounts(periods);
       List<Date> starts = new List<Date>(periodByStart.keySet());
       starts.sort();
       List<SplitThresholdDateOption> options = new List<SplitThresholdDateOption>();
       for (Date startDate : starts) {
+        List<InvoiceProduct__c> movePeriods = new List<InvoiceProduct__c>();
+        for (InvoiceProduct__c period : periods) {
+          if (period.StartDate__c >= startDate) {
+            movePeriods.add(period);
+          }
+        }
+        Decimal moveAmount = scaleAmountByPeriodShare(
+          lineAmount,
+          sumPeriodAmounts(movePeriods),
+          allPeriodSum
+        );
         SplitThresholdDateOption option = new SplitThresholdDateOption();
         option.value = String.valueOf(startDate);
         // UI は期間ではなくしきい日（開始日）を選ぶ
@@ -1110,6 +1134,8 @@ public without sharing class InvoiceCanonicalService {
           String.valueOf(startDate.month()) +
           '/' +
           String.valueOf(startDate.day());
+        option.moveAmount = moveAmount;
+        option.remainAmount = lineAmount - moveAmount;
         options.add(option);
       }
       SplitThresholdLineOptions row = new SplitThresholdLineOptions();

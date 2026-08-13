@@ -500,6 +500,21 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               splitRow?.kind,
               kindOptions
             );
+            const splitThresholdDate = splitRow?.thresholdDate || "";
+            const selectedThreshold =
+              splitKind === KIND_PERIOD && splitThresholdDate
+                ? thresholdOptions.find(
+                    (option) => option?.value === splitThresholdDate
+                  ) || null
+                : null;
+            const periodRemainAmount =
+              selectedThreshold?.remainAmount == null
+                ? null
+                : Number(selectedThreshold.remainAmount);
+            const periodMoveAmount =
+              selectedThreshold?.moveAmount == null
+                ? null
+                : Number(selectedThreshold.moveAmount);
             const moveUnitPriceRaw = splitRow?.moveUnitPrice;
             const moveQuantityRaw = splitRow?.moveQuantity;
             const moveUnitPriceNum = this.parseOptionalNumber(moveUnitPriceRaw);
@@ -584,13 +599,19 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               splitShowUnitPrice: splitKind === KIND_UNIT_PRICE,
               splitShowQuantity: splitKind === KIND_QUANTITY,
               splitThresholdOptions: thresholdOptions,
-              splitThresholdDate: splitRow?.thresholdDate || "",
+              splitThresholdDate,
               splitMoveUnitPrice:
                 moveUnitPriceRaw == null ? "" : moveUnitPriceRaw,
               splitMoveQuantity:
                 moveQuantityRaw == null ? "" : moveQuantityRaw,
-              splitOriginalUnitPriceLabel: this.formatPlainNumber(unitPrice),
-              splitOriginalQuantityLabel: this.formatPlainNumber(quantity),
+              splitRemainAmountLabel:
+                periodRemainAmount == null
+                  ? "—"
+                  : this.formatYen(periodRemainAmount),
+              splitMoveAmountLabel:
+                periodMoveAmount == null
+                  ? "—"
+                  : this.formatYen(periodMoveAmount),
               splitRemainUnitPriceLabel:
                 remainUnitPrice == null
                   ? "—"
@@ -602,7 +623,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               splitRowValid: this.isSplitRowValid({
                 selected: splitSelected,
                 kind: splitKind,
-                thresholdDate: splitRow?.thresholdDate || "",
+                thresholdDate: splitThresholdDate,
                 moveUnitPrice: moveUnitPriceRaw,
                 moveQuantity: moveQuantityRaw,
                 unitPrice,
@@ -615,7 +636,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
                 !this.isSplitRowValid({
                   selected: splitSelected,
                   kind: splitKind,
-                  thresholdDate: splitRow?.thresholdDate || "",
+                  thresholdDate: splitThresholdDate,
                   moveUnitPrice: moveUnitPriceRaw,
                   moveQuantity: moveQuantityRaw,
                   unitPrice,
@@ -1488,7 +1509,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         thresholdsByLineId[row.invoiceLineId] = (row.options || []).map(
           (option) => ({
             label: this.formatThresholdDateLabel(option.value),
-            value: option.value
+            value: option.value,
+            remainAmount:
+              option.remainAmount == null ? null : Number(option.remainAmount),
+            moveAmount:
+              option.moveAmount == null ? null : Number(option.moveAmount)
           })
         );
       });

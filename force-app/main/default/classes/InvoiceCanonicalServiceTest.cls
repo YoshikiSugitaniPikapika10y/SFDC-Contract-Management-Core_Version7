@@ -1650,6 +1650,11 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals('2026-07-01', rows[0].options[0].value);
       System.assertEquals('2026-08-01', rows[0].options[1].value);
       System.assert(String.isNotBlank(rows[0].options[0].label));
+      // 金額列ベース: 6月残 / 7–8月移し（fixture は月1万×3）
+      System.assertEquals(10000, rows[0].options[0].remainAmount);
+      System.assertEquals(20000, rows[0].options[0].moveAmount);
+      System.assertEquals(20000, rows[0].options[1].remainAmount);
+      System.assertEquals(10000, rows[0].options[1].moveAmount);
     }
   }
 

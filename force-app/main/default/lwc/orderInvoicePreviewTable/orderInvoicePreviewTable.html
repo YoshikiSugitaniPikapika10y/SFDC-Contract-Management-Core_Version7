@@ -526,8 +526,11 @@
                   <th class="period-col" scope="col">期間</th>
                   <th class="cycle-col" scope="col">サイクル数</th>
                   <th class="num-col amount-col" scope="col">
+                    <!-- 行と同じ4列グリッド。メタ/チップ枠を空けて「金」と「￥」の左端を揃える -->
                     <div class="amount-with-adjust amount-with-adjust_head">
                       <span class="amount-yen-slot">金額</span>
+                      <span class="amount-meta-slot" aria-hidden="true"></span>
+                      <span class="amount-shortcuts" aria-hidden="true"></span>
                     </div>
                   </th>
                 </tr>
@@ -705,17 +708,29 @@
                                   ></lightning-combobox>
                                 </div>
                               </div>
+                              <div class="split-factor-grid">
+                                <div class="split-factor-cell">
+                                  <span class="split-factor-k">分割元</span>
+                                  <div
+                                    class="split-factor-slot split-factor-slot_readonly"
+                                  >
+                                    {row.splitRemainAmountLabel}
+                                  </div>
+                                </div>
+                                <div class="split-factor-cell">
+                                  <span class="split-factor-k">分割先</span>
+                                  <div
+                                    class="split-factor-slot split-factor-slot_readonly"
+                                  >
+                                    {row.splitMoveAmountLabel}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </template>
 
                           <template if:true={row.splitShowUnitPrice}>
                             <div class="split-editor-body">
-                              <div class="split-factor-meta">
-                                <span class="split-factor-k">元の単価</span>
-                                <span class="split-factor-v"
-                                  >{row.splitOriginalUnitPriceLabel}</span
-                                >
-                              </div>
                               <div class="split-factor-grid">
                                 <div class="split-factor-cell">
                                   <span class="split-factor-k">分割元</span>
@@ -745,12 +760,6 @@
 
                           <template if:true={row.splitShowQuantity}>
                             <div class="split-editor-body">
-                              <div class="split-factor-meta">
-                                <span class="split-factor-k">元の数量</span>
-                                <span class="split-factor-v"
-                                  >{row.splitOriginalQuantityLabel}</span
-                                >
-                              </div>
                               <div class="split-factor-grid">
                                 <div class="split-factor-cell">
                                   <span class="split-factor-k">分割元</span>
