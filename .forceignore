@@ -27,7 +27,7 @@ force-app/main/default/profiles/Admin.profile-meta.xml
 **/flexipages/TCTD_OppPage.flexipage-meta.xml
 **/flexipages/FlexiPage3.flexipage-meta.xml
 
-# Sample CMDT (Zeroboard test data — must not deploy to U-ZERO prod)
+# Sample CMDT (example tenant data — do not deploy as package defaults)
 **/customMetadata/EstimateWizardField.Sample_*
 
 # Opportunity trigger: prod already has equivalent handler; skip overwrite
