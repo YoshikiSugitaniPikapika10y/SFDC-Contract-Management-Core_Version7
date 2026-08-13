@@ -5,8 +5,8 @@ Salesforce DX project for contract management (billing accounts, contract servic
 ## Init
 
 ```bash
-git clone https://github.com/YoshikiSugitaniPikapika10y/SFDC-Contract-Management-Core.git
-cd SFDC-Contract-Management-Core
+git clone https://github.com/YoshikiSugitaniPikapika10y/SFDC-Contract-Management-Core_Version7.git
+cd SFDC-Contract-Management-Core_Version7
 npm install
 sf org login web -a vscodeOrg
 ```
