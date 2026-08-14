@@ -159,7 +159,9 @@ describe("resolveInvoiceAnchorFields", () => {
   });
 
   it("exports anchor display title", () => {
-    expect(INVOICE_ANCHOR_DISPLAY_TITLE).toContain("請求書の請求日ではありません");
+    expect(INVOICE_ANCHOR_DISPLAY_TITLE).toContain(
+      "請求書の請求日ではありません"
+    );
     expect(INVOICE_ANCHOR_DISPLAY_TITLE).toContain("請求日ルール");
   });
 });

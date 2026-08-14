@@ -20,10 +20,19 @@ private class EstimateCreateControllerTest {
       );
 
       System.assertNotEquals(null, result);
-      System.assertEquals(ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT, result.unitName);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
+        result.unitName
+      );
       System.assertEquals(12000, result.unitPrice);
-      System.assertEquals(ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID, result.invoiceType);
-      System.assertEquals(ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT, result.displayUnit);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        result.invoiceType
+      );
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
+        result.displayUnit
+      );
     }
   }
 
@@ -185,8 +194,14 @@ private class EstimateCreateControllerTest {
         contractProduct.ContractHistory__c
       );
       System.assertEquals('New', contractProduct.Type__c);
-      System.assertEquals(ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT, contractProduct.Unit__c);
-      System.assertEquals(ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING, contractProduct.BillingType__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
+        contractProduct.Unit__c
+      );
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        contractProduct.BillingType__c
+      );
       System.assertEquals(
         20000,
         contractProduct.Amount__c,
@@ -498,10 +513,16 @@ private class EstimateCreateControllerTest {
       System.assertEquals(1, results.size());
       System.assertEquals(recurringProduct.Id, results[0].productId);
       System.assertEquals('Recurring Product', results[0].productName);
-      System.assertEquals(ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT, results[0].unitName);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
+        results[0].unitName
+      );
       System.assertEquals(2, results[0].quantity);
       System.assertEquals(5000, results[0].unitPrice);
-      System.assertEquals(ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID, results[0].invoiceType);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        results[0].invoiceType
+      );
     }
   }
 
@@ -1891,7 +1912,10 @@ private class EstimateCreateControllerTest {
       ];
       System.assertEquals(2, savedProducts.size());
       System.assertEquals('Renew', savedProducts[0].Type__c);
-      System.assertEquals(ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING, savedProducts[0].BillingType__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        savedProducts[0].BillingType__c
+      );
       System.assertEquals(1, savedProducts[0].Quantity__c);
       System.assertEquals('New', savedProducts[1].Type__c);
       System.assertEquals(2, savedProducts[1].Quantity__c);
@@ -4767,10 +4791,7 @@ private class EstimateCreateControllerTest {
     );
 
     System.assertEquals(true, EstimateValidationService.decimalsEqual(1, 1));
-    System.assertEquals(
-      false,
-      EstimateValidationService.decimalsEqual(1, 2)
-    );
+    System.assertEquals(false, EstimateValidationService.decimalsEqual(1, 2));
     try {
       throw EstimateValidationService.estSaveException('001', 'coverage');
     } catch (AuraHandledException ex) {
@@ -4818,7 +4839,8 @@ private class EstimateCreateControllerTest {
       insert billingAccount;
 
       System.assert(
-        EstimateCreateController.getBillingAccountsByAccount(account.Id).size() >= 1
+        EstimateCreateController.getBillingAccountsByAccount(account.Id)
+          .size() >= 1
       );
 
       ContractService__c service = ContractTestDataFactory.insertContractService(
@@ -4901,7 +4923,9 @@ private class EstimateCreateControllerTest {
       Test.stopTest();
 
       Set<Id> ids = new Set<Id>();
-      for (EstimateCreateController.ContractServiceOptionDto option : services) {
+      for (
+        EstimateCreateController.ContractServiceOptionDto option : services
+      ) {
         ids.add(option.id);
       }
       System.assertEquals(
@@ -4969,7 +4993,9 @@ private class EstimateCreateControllerTest {
       Test.stopTest();
 
       String currentProducts = null;
-      for (EstimateCreateController.ContractServiceOptionDto option : services) {
+      for (
+        EstimateCreateController.ContractServiceOptionDto option : services
+      ) {
         if (option.id == termService.Id) {
           currentProducts = option.currentProductNames;
         }

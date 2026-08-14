@@ -607,8 +607,7 @@ public without sharing class OrderCreateController {
         new List<ContractHistory__c>{ history }
       );
       if (
-        createRenewOpportunity == true &&
-        !shouldSkipRenewOpportunity(history)
+        createRenewOpportunity == true && !shouldSkipRenewOpportunity(history)
       ) {
         renewOpportunityId = RenewOpportunityCreateService.createFromOrderedHistory(
           history.Id
@@ -665,14 +664,18 @@ public without sharing class OrderCreateController {
       return emptyPreview();
     }
 
-    ContractHistory__c sourceHistory = resolveHistoryForPreview(contractHistoryId);
+    ContractHistory__c sourceHistory = resolveHistoryForPreview(
+      contractHistoryId
+    );
     if (sourceHistory == null || sourceHistory.ContractService__c == null) {
       return emptyPreview();
     }
     Id contractServiceId = sourceHistory.ContractService__c;
 
     // 既存受注分で請求正本が無い場合は契約期間明細からバックフィル
-    InvoiceCanonicalService.backfillMissingForContractService(contractServiceId);
+    InvoiceCanonicalService.backfillMissingForContractService(
+      contractServiceId
+    );
 
     InvoicePreviewDto preview = buildInvoicePreviewFromCanonical(
       contractServiceId
@@ -697,12 +700,7 @@ public without sharing class OrderCreateController {
     Id lineId,
     Decimal amount
   ) {
-    return updateInvoiceLineAmount(
-      contractHistoryId,
-      lineId,
-      amount,
-      null
-    );
+    return updateInvoiceLineAmount(contractHistoryId, lineId, amount, null);
   }
 
   @AuraEnabled
@@ -1243,11 +1241,7 @@ public without sharing class OrderCreateController {
     }
 
     List<InvoiceLine__c> lines = [
-      SELECT
-        Id,
-        Amount__c,
-        ProductName__c,
-        SourcePeriodLineIds__c
+      SELECT Id, Amount__c, ProductName__c, SourcePeriodLineIds__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :invoiceId
       WITH SYSTEM_MODE
@@ -1329,13 +1323,16 @@ public without sharing class OrderCreateController {
       Decimal lineAmount = lineId != null && lineAmountById.containsKey(lineId)
         ? lineAmountById.get(lineId)
         : 0;
-      Decimal periodSum = lineId != null && periodSumByLineId.containsKey(lineId)
+      Decimal periodSum = lineId != null &&
+        periodSumByLineId.containsKey(lineId)
         ? periodSumByLineId.get(lineId)
         : 0;
       if (periodSum == 0) {
         row.amount = 0;
       } else {
-        row.amount = (lineAmount * periodAmount / periodSum)
+        row.amount = (lineAmount *
+          periodAmount /
+          periodSum)
           .setScale(0, RoundingMode.HALF_UP);
       }
       rows.add(row);
@@ -1602,9 +1599,7 @@ public without sharing class OrderCreateController {
     }
     ContractHistory__c history = histories[0];
     if (history.historystatus__c != HISTORY_STATUS_ESTIMATE) {
-      throw toAuraHandled(
-        '見積（Estimate）状態の契約履歴のみ編集できます。'
-      );
+      throw toAuraHandled('見積（Estimate）状態の契約履歴のみ編集できます。');
     }
     return history;
   }
@@ -1633,7 +1628,9 @@ public without sharing class OrderCreateController {
     return history == null ? null : history.ContractService__c;
   }
 
-  private static ContractHistory__c resolveHistoryForPreview(Id contractHistoryId) {
+  private static ContractHistory__c resolveHistoryForPreview(
+    Id contractHistoryId
+  ) {
     if (contractHistoryId == null) {
       return null;
     }
@@ -1742,7 +1739,9 @@ public without sharing class OrderCreateController {
    * Cancel / Add、Lifecycle=Spot、または Lifecycle 未確定かつ継続課金なし。
    */
   @TestVisible
-  private static Boolean shouldSkipRenewOpportunity(ContractHistory__c history) {
+  private static Boolean shouldSkipRenewOpportunity(
+    ContractHistory__c history
+  ) {
     if (history == null) {
       return true;
     }
@@ -2163,7 +2162,9 @@ public without sharing class OrderCreateController {
         if (versionValue == null || !optionByValue.containsKey(versionValue)) {
           continue;
         }
-        Decimal versionLineAmount = lineAmountByVersion.containsKey(versionValue)
+        Decimal versionLineAmount = lineAmountByVersion.containsKey(
+            versionValue
+          )
           ? lineAmountByVersion.get(versionValue)
           : 0;
         lineAmountByVersion.put(versionValue, versionLineAmount + lineAmount);
@@ -2183,7 +2184,10 @@ public without sharing class OrderCreateController {
       }
       option.manualAdjustmentAmount =
         lineAmountByVersion.get(versionValue) -
-        sumSourceAmounts(sourceIdsByVersion.get(versionValue), sourceAmountById);
+        sumSourceAmounts(
+          sourceIdsByVersion.get(versionValue),
+          sourceAmountById
+        );
     }
   }
 
@@ -2471,7 +2475,9 @@ public without sharing class OrderCreateController {
       if (i == cpLines.size() - 1) {
         lineEstimate = remainingEstimate;
       } else {
-        lineEstimate = (scopedEstimate * lineWeight / totalWeight)
+        lineEstimate = (scopedEstimate *
+          lineWeight /
+          totalWeight)
           .setScale(0, System.RoundingMode.HALF_UP);
         remainingEstimate -= lineEstimate;
       }
@@ -2512,7 +2518,9 @@ public without sharing class OrderCreateController {
       if (i == cpLines.size() - 1) {
         lineEstimate = remainingEstimate;
       } else {
-        lineEstimate = (scopedEstimate * lineAmount / invoiceTotal)
+        lineEstimate = (scopedEstimate *
+          lineAmount /
+          invoiceTotal)
           .setScale(0, System.RoundingMode.HALF_UP);
         remainingEstimate -= lineEstimate;
       }
@@ -2579,7 +2587,9 @@ public without sharing class OrderCreateController {
         ? invoicedMonthsByCp.get(product.Id)
         : 0;
       Decimal scoped;
-      if (ContractMetadataService.isRecurringBillingType(product.BillingType__c)) {
+      if (
+        ContractMetadataService.isRecurringBillingType(product.BillingType__c)
+      ) {
         scoped = prorateEstimateByMonths(
           amount,
           invoicedMonths,
@@ -2633,7 +2643,9 @@ public without sharing class OrderCreateController {
     if (monthCount < 1) {
       return 0;
     }
-    return (estimate * monthCount / cycles)
+    return (estimate *
+      monthCount /
+      cycles)
       .setScale(0, System.RoundingMode.HALF_UP);
   }
 

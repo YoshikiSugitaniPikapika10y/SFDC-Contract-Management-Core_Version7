@@ -2115,9 +2115,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       System.assert(
         message != null &&
-          message.startsWith(
-            'Change の打消し行を Original に紐づけられませんでした。'
-          ),
+        message.startsWith(
+          'Change の打消し行を Original に紐づけられませんでした。'
+        ),
         'Fail closed メッセージ: ' + message
       );
       System.assertEquals(

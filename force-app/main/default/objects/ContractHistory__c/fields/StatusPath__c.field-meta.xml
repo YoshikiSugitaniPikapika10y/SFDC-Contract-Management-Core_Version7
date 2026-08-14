@@ -1,7 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>StatusPath__c</fullName>
-    <description>表示用パス。historystatus と請求積み上げから自動設定。画面からの変更は不可。</description>
+    <description
+  >表示用パス。historystatus と請求積み上げから自動設定。画面からの変更は不可。</description>
     <label>ステータスパス</label>
     <required>false</required>
     <trackHistory>false</trackHistory>

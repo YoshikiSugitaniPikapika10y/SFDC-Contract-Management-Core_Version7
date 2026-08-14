@@ -62,10 +62,7 @@ private class ContractPermissionUtilTest {
 
     Boolean editBlocked = false;
     try {
-      ContractPermissionUtil.assertEstimateSave(
-        UserInfo.getUserId(),
-        null
-      );
+      ContractPermissionUtil.assertEstimateSave(UserInfo.getUserId(), null);
     } catch (AuraHandledException ex) {
       editBlocked = true;
     }
@@ -73,10 +70,7 @@ private class ContractPermissionUtilTest {
 
     Boolean copyBlocked = false;
     try {
-      ContractPermissionUtil.assertEstimateSave(
-        null,
-        UserInfo.getUserId()
-      );
+      ContractPermissionUtil.assertEstimateSave(null, UserInfo.getUserId());
     } catch (AuraHandledException ex) {
       copyBlocked = true;
     }

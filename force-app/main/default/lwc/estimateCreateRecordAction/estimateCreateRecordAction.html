@@ -1,17 +1,18 @@
 <template>
-    <div class="action-frame">
-        <template if:true={hasPermission}>
-            <c-estimate-create-wizard
-                record-id={recordId}
-                modal-mode
-                onrequestclose={handleRequestClose}
-                onestimatesaved={handleEstimateSaved}>
-            </c-estimate-create-wizard>
-        </template>
-        <template if:false={hasPermission}>
-            <div class="slds-p-around_medium slds-text-color_error" role="alert">
-                見積作成を実行する権限がありません。
-            </div>
-        </template>
-    </div>
+  <div class="action-frame">
+    <template if:true={hasPermission}>
+      <c-estimate-create-wizard
+        record-id={recordId}
+        modal-mode
+        onrequestclose={handleRequestClose}
+        onestimatesaved={handleEstimateSaved}
+      >
+      </c-estimate-create-wizard>
+    </template>
+    <template if:false={hasPermission}>
+      <div class="slds-p-around_medium slds-text-color_error" role="alert">
+        見積作成を実行する権限がありません。
+      </div>
+    </template>
+  </div>
 </template>

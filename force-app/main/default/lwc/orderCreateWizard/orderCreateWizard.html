@@ -80,7 +80,9 @@
   <template if:false={isCancelConfirm}>
     <div class={pageClass}>
       <template if:true={showMissingRecordError}>
-        <div class="ord-alert ord-alert_error">契約履歴IDが取得できません。</div>
+        <div class="ord-alert ord-alert_error">
+          契約履歴IDが取得できません。
+        </div>
       </template>
 
       <template if:false={showMissingRecordError}>

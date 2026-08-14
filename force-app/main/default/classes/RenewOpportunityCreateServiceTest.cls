@@ -31,14 +31,8 @@ private class RenewOpportunityCreateServiceTest {
         WHERE Id = :renewOppId
       ];
       System.assertEquals(data.account.Id, created.AccountId);
-      System.assertEquals(
-        data.opportunity.Id,
-        created.PreviousOpportunity__c
-      );
-      System.assertEquals(
-        data.history.Id,
-        created.SourceContractHistory__c
-      );
+      System.assertEquals(data.opportunity.Id, created.PreviousOpportunity__c);
+      System.assertEquals(data.history.Id, created.SourceContractHistory__c);
       System.assertEquals(data.account.Name + ' 更新', created.Name);
       System.assertEquals(
         data.history.CurrentTermEndDate__c,
@@ -171,10 +165,7 @@ private class RenewOpportunityCreateServiceTest {
         '旧商談の紐づけは外す（削除はしない）'
       );
       System.assertEquals(data.history.Id, second.SourceContractHistory__c);
-      System.assertEquals(
-        data.opportunity.Id,
-        second.PreviousOpportunity__c
-      );
+      System.assertEquals(data.opportunity.Id, second.PreviousOpportunity__c);
       System.assertEquals(
         secondId,
         RenewOpportunityCreateService.findBySourceHistory(data.history.Id)
@@ -218,10 +209,7 @@ private class RenewOpportunityCreateServiceTest {
         RenewOpportunityCreateService.createFromOrderedHistory(data.history.Id);
       } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('Spot'),
-          ex.getMessage()
-        );
+        System.assert(ex.getMessage().contains('Spot'), ex.getMessage());
       }
       System.assertEquals(true, thrown);
     }
@@ -325,10 +313,7 @@ private class RenewOpportunityCreateServiceTest {
         FROM Opportunity
         WHERE Id = :renewOppId
       ];
-      System.assertEquals(
-        data.account.Name + '_202605 更新',
-        created.Name
-      );
+      System.assertEquals(data.account.Name + '_202605 更新', created.Name);
     }
   }
 
@@ -525,7 +510,9 @@ private class RenewOpportunityCreateServiceTest {
 
   private static TestData createOrderedHistoryData(String lifecycle) {
     TestData data = new TestData();
-    data.account = ContractTestDataFactory.insertAccount('更新商談テスト取引先');
+    data.account = ContractTestDataFactory.insertAccount(
+      '更新商談テスト取引先'
+    );
     data.opportunity = ContractTestDataFactory.insertOpportunity(
       data.account.Id,
       'Source Opportunity'

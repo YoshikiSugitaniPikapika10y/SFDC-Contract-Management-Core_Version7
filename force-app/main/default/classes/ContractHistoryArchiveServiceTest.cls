@@ -8,7 +8,9 @@ private class ContractHistoryArchiveServiceTest {
   @IsTest
   static void archiveSupersededEstimates_archivesSameOrLowerVersionEstimates() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Archive Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Account'
+      );
       ContractService__c service = insertServiceWithBillingAccount(
         account,
         'Archive Service'

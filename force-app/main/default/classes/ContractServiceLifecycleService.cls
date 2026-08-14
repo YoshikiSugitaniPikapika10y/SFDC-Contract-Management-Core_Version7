@@ -59,9 +59,8 @@ public without sharing class ContractServiceLifecycleService {
       if (!historiesWithProducts.contains(service.FirstOrderedHistory__c)) {
         continue;
       }
-      Boolean hasRecurring = hasRecurringByHistoryId.get(
-          service.FirstOrderedHistory__c
-        ) == true;
+      Boolean hasRecurring =
+        hasRecurringByHistoryId.get(service.FirstOrderedHistory__c) == true;
       toUpdate.add(
         new ContractService__c(
           Id = service.Id,
@@ -89,7 +88,8 @@ public without sharing class ContractServiceLifecycleService {
     if (blankServices.isEmpty()) {
       return 0;
     }
-    Set<Id> serviceIds = new Map<Id, ContractService__c>(blankServices).keySet();
+    Set<Id> serviceIds = new Map<Id, ContractService__c>(blankServices)
+      .keySet();
     ensureLifecycleForServices(serviceIds);
     return blankServices.size();
   }
@@ -109,9 +109,7 @@ public without sharing class ContractServiceLifecycleService {
         Quantity__c,
         Product__r.BillingType__c
       FROM ContractProduct__c
-      WHERE
-        ContractHistory__c IN :historyIds
-        AND Quantity__c > 0
+      WHERE ContractHistory__c IN :historyIds AND Quantity__c > 0
       WITH SYSTEM_MODE
     ]) {
       String billingType = String.isNotBlank(product.BillingType__c)

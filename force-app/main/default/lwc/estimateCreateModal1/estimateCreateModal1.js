@@ -59,8 +59,7 @@ export default class EstimateCreateModal1 extends LightningElement {
         label: "新規契約を作成する",
         iconName: "utility:new",
         selected: this.isEntryNew && !this.isEntryContinuation,
-        pressed:
-          this.isEntryNew && !this.isEntryContinuation ? "true" : "false"
+        pressed: this.isEntryNew && !this.isEntryContinuation ? "true" : "false"
       },
       {
         value: ENTRY_CONTINUATION,

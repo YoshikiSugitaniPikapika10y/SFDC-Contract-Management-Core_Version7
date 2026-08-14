@@ -39,7 +39,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;p&gt;請求の明細正本です。手動調整する場合は親の請求と合わせて整合を取ってください。&lt;/p&gt;</value>
+                    <value
+          >&lt;p&gt;請求の明細正本です。手動調整する場合は親の請求と合わせて整合を取ってください。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_hint</identifier>

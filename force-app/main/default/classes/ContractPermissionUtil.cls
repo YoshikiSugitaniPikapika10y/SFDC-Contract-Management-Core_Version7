@@ -58,7 +58,10 @@ public without sharing class ContractPermissionUtil {
     throw ex;
   }
 
-  public static void assertEstimateSave(Id editHistoryId, Id copyFromHistoryId) {
+  public static void assertEstimateSave(
+    Id editHistoryId,
+    Id copyFromHistoryId
+  ) {
     if (editHistoryId != null) {
       assertHas(EDIT_ESTIMATE, '見積編集を実行する権限がありません。');
     } else if (copyFromHistoryId != null) {
@@ -81,7 +84,10 @@ public without sharing class ContractPermissionUtil {
   }
 
   public static void assertViewInvoicePreview() {
-    assertHas(VIEW_INVOICE_PREVIEW, '請求プレビューを表示する権限がありません。');
+    assertHas(
+      VIEW_INVOICE_PREVIEW,
+      '請求プレビューを表示する権限がありません。'
+    );
   }
 
   public static void assertManageInvoiceOps() {

@@ -1,6 +1,8 @@
 @IsTest
 private class ContractHistoryStatusPathServiceTest {
-  private static ContractService__c insertServiceWithBillingAccount(Account account) {
+  private static ContractService__c insertServiceWithBillingAccount(
+    Account account
+  ) {
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
@@ -51,7 +53,9 @@ private class ContractHistoryStatusPathServiceTest {
   @IsTest
   static void insertEstimate_setsStatusPathEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Path Estimate Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Path Estimate Account'
+      );
       ContractService__c service = insertServiceWithBillingAccount(account);
 
       ContractHistory__c history = new ContractHistory__c(
@@ -75,7 +79,9 @@ private class ContractHistoryStatusPathServiceTest {
   @IsTest
   static void invoiceLifecycle_advancesStatusPath() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Path Invoice Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Path Invoice Account'
+      );
       ContractService__c service = insertServiceWithBillingAccount(account);
 
       ContractHistory__c history = new ContractHistory__c(
@@ -169,7 +175,9 @@ private class ContractHistoryStatusPathServiceTest {
   @IsTest
   static void archiveHistory_clearsStatusPathToNull() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Path Archive Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Path Archive Account'
+      );
       ContractService__c service = insertServiceWithBillingAccount(account);
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Path Archive',
@@ -249,7 +257,9 @@ private class ContractHistoryStatusPathServiceTest {
   @IsTest
   static void manualStatusPathChange_isBlocked() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Path Block Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Path Block Account'
+      );
       ContractService__c service = insertServiceWithBillingAccount(account);
 
       ContractHistory__c history = new ContractHistory__c(

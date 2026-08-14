@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>13 請求Ops（連携済・消込済の付与、消込日クリア、請求Ops一覧）。今後の消込・連携運用もここに寄せる。コード接続は InvoiceOpsController / invoiceOpsPanel。</description>
+    <description
+  >13 請求Ops（確定／未確定、入金、差額仕訳、送付）。消込日は入金から自動。契約履歴に請求連携・消込パネルは置かない。</description>
     <isLicensed>false</isLicensed>
-    <label>13 契約 請求Ops（連携・消込）</label>
+    <label>13 契約 請求Ops（確定・入金）</label>
 </CustomPermission>

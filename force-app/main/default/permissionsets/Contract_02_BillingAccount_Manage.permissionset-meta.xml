@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>02 土台。BillingAccount__c の標準レイアウト作成・編集（Delete なし）。通常は 01 と併用。</description>
+    <description
+  >02 土台。BillingAccount__c の標準レイアウト作成・編集（Delete なし）。通常は 01 と併用。</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>02 契約 請求アカウント管理</label>
     <fieldPermissions>

@@ -1,0 +1,106 @@
+<template>
+  <div class="board">
+    <header class="board__header">
+      <div>
+        <h1 class="board__title">見積一覧</h1>
+        <p class="board__lead">
+          Estimate を横断して選び、まとめて受注します。1件失敗しても他は続けます。
+        </p>
+      </div>
+      <lightning-button
+        variant="brand"
+        label={orderButtonLabel}
+        disabled={orderDisabled}
+        onclick={handleOrder}
+      ></lightning-button>
+    </header>
+
+    <section class="board__filters">
+      <lightning-combobox
+        label="種別"
+        value={historyType}
+        options={typeOptions}
+        onchange={handleTypeChange}
+      ></lightning-combobox>
+      <lightning-input
+        type="date"
+        label="開始日（From）"
+        value={termStartFrom}
+        onchange={handleTermStartFromChange}
+      ></lightning-input>
+      <lightning-input
+        type="date"
+        label="開始日（To）"
+        value={termStartTo}
+        onchange={handleTermStartToChange}
+      ></lightning-input>
+      <lightning-input
+        type="search"
+        label="検索（見積名・サービス・取引先）"
+        value={searchText}
+        onchange={handleSearchChange}
+        oncommit={handleSearch}
+      ></lightning-input>
+      <div class="board__filter-actions">
+        <lightning-button
+          label="絞り込む"
+          onclick={handleSearch}
+          disabled={isLoading}
+        ></lightning-button>
+      </div>
+    </section>
+
+    <template if:true={errorMessage}>
+      <div class="board__error" role="alert">{errorMessage}</div>
+    </template>
+
+    <template if:true={pendingSelectAll}>
+      <div class="board__confirm" role="dialog">
+        <p>
+          条件に合う見積が {pendingSelectAllCount} 件あります。すべて選択しますか。このあと「受注する」を押すと、選んだ
+          {pendingSelectAllCount} 件が対象になります。
+        </p>
+        <div class="board__confirm-actions">
+          <lightning-button
+            label="キャンセル"
+            onclick={handleCancelSelectAll}
+          ></lightning-button>
+          <lightning-button
+            variant="brand"
+            label="すべて選択"
+            onclick={handleConfirmSelectAll}
+          ></lightning-button>
+        </div>
+      </div>
+    </template>
+
+    <template if:true={isOrdering}>
+      <p class="board__progress">{orderProgressLabel}</p>
+    </template>
+
+    <template if:true={hasFailedResults}>
+      <section class="board__failures">
+        <h2>受注できなかった見積</h2>
+        <ul>
+          <template for:each={failedResults} for:item="item">
+            <li key={item.contractHistoryId}>
+              {item.historyName}：{item.message}
+            </li>
+          </template>
+        </ul>
+      </section>
+    </template>
+
+    <lightning-datatable
+      key-field="contractHistoryId"
+      data={rows}
+      columns={columns}
+      selected-rows={selectedIds}
+      onrowselection={handleRowSelection}
+    ></lightning-datatable>
+
+    <template if:false={hasRows}>
+      <p class="board__empty">条件に合う Estimate はありません。</p>
+    </template>
+  </div>
+</template>

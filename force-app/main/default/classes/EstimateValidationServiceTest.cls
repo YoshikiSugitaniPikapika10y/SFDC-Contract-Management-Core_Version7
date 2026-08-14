@@ -177,8 +177,7 @@ private class EstimateValidationServiceTest {
       } catch (AuraHandledException ex) {
         stalePrevious = true;
         System.assert(
-          ex.getMessage() != null &&
-            ex.getMessage().contains('最新の受注'),
+          ex.getMessage() != null && ex.getMessage().contains('最新の受注'),
           ex.getMessage()
         );
       }
@@ -635,10 +634,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected(
-      '期間開始日は期間終了日以前の日付を入力してください',
-      ex
-    );
+    assertRejected('期間開始日は期間終了日以前の日付を入力してください', ex);
 
     request.contractEndDate = '2027-05-31';
     request.effectiveDate = '2026-06-15';
@@ -648,10 +644,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected(
-      '切替日は期間開始日と一致している必要があります',
-      ex
-    );
+    assertRejected('切替日は期間開始日と一致している必要があります', ex);
 
     request.effectiveDate = '2026-06-01';
 
@@ -688,10 +681,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected(
-      '開始日は期間開始日以降の日付を入力してください',
-      ex
-    );
+    assertRejected('開始日は期間開始日以降の日付を入力してください', ex);
 
     recurring.startDate = '2026-06-01';
     recurring.endDate = '2027-04-30';
@@ -897,10 +887,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected(
-      '開始日は期間開始日以降の日付を入力してください',
-      ex
-    );
+    assertRejected('開始日は期間開始日以降の日付を入力してください', ex);
 
     blankDates.startDate = '2026-06-01';
     blankDates.endDate = '2027-06-30';
@@ -915,10 +902,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected(
-      '終了日は期間終了日以前の日付を入力してください',
-      ex
-    );
+    assertRejected('終了日は期間終了日以前の日付を入力してください', ex);
   }
 
   @IsTest

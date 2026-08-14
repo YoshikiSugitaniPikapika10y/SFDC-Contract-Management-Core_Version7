@@ -107,7 +107,9 @@
   white-space: nowrap;
   background: #ffffff;
   color: #181818;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .btn:disabled {

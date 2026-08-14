@@ -359,10 +359,7 @@ public without sharing class EstimateValidationService {
     Boolean hasRecurring = hasActiveRecurringProductLine(request.products);
     if (hasRecurring) {
       if (String.isBlank(request.contractStartDate)) {
-        throw estS3NewException(
-          '001',
-          '期間開始日を入力してください。'
-        );
+        throw estS3NewException('001', '期間開始日を入力してください。');
       }
       Date serviceStartDate = EstimateCreateSupport.tryParseDate(
         request.contractStartDate
@@ -374,10 +371,7 @@ public without sharing class EstimateValidationService {
         );
       }
       if (String.isBlank(request.contractEndDate)) {
-        throw estS3NewException(
-          '003',
-          '期間終了日を入力してください。'
-        );
+        throw estS3NewException('003', '期間終了日を入力してください。');
       }
       Date serviceEndDate = EstimateCreateSupport.tryParseDate(
         request.contractEndDate
@@ -395,10 +389,7 @@ public without sharing class EstimateValidationService {
         );
       }
       if (String.isBlank(request.effectiveDate)) {
-        throw estS3NewException(
-          '006',
-          '切替日を入力してください。'
-        );
+        throw estS3NewException('006', '切替日を入力してください。');
       }
       Date effectiveDate = EstimateCreateSupport.tryParseDate(
         request.effectiveDate
@@ -598,9 +589,7 @@ public without sharing class EstimateValidationService {
       previousHistoryId
     );
     if (previousHistory.Type__c == HISTORY_TYPE_CANCEL) {
-      throw wrapAura(
-        'Churn（解約）済みの契約履歴からChangeは作成できません。'
-      );
+      throw wrapAura('Churn（解約）済みの契約履歴からChangeは作成できません。');
     }
     // Renew / Cancel と同じ: 期間終了日まで届く継続課金が必須
     if (!EstimateQueryService.isRenewEligibleHistory(previousHistory)) {
@@ -645,13 +634,9 @@ public without sharing class EstimateValidationService {
       FROM ContractProduct__c
       WHERE
         ContractHistory__c = :contractHistoryId
-        AND (
-          BillingType__c = :BILLING_TYPE_RECURRING
-          OR (
-            BillingType__c = NULL
-            AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING
-          )
-        )
+        AND (BillingType__c = :BILLING_TYPE_RECURRING
+        OR (BillingType__c = NULL
+        AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))
         AND Quantity__c > 0
         AND (Type__c = NULL
         OR Type__c IN (
@@ -1118,7 +1103,11 @@ public without sharing class EstimateValidationService {
     for (
       ChangeBillingEventEntry entry : collectChangeBillingEventEntries(products)
     ) {
-      if (entry != null && entry.eventDate != null && entry.isOneTimeOnly != true) {
+      if (
+        entry != null &&
+        entry.eventDate != null &&
+        entry.isOneTimeOnly != true
+      ) {
         dates.add(entry.eventDate);
       }
     }
@@ -1538,9 +1527,7 @@ public without sharing class EstimateValidationService {
           'Churn（解約）済みの契約履歴からRenewは作成できません。'
         );
       }
-      throw wrapAura(
-        'Churn（解約）済みの契約履歴からCancelは作成できません。'
-      );
+      throw wrapAura('Churn（解約）済みの契約履歴からCancelは作成できません。');
     }
     if (
       history.CurrentTermEndDate__c == null ||
@@ -1573,9 +1560,7 @@ public without sharing class EstimateValidationService {
       LIMIT 1
     ];
     if (histories.isEmpty() || histories[0].CurrentTermEndDate__c == null) {
-      throw wrapAura(
-        '前回契約履歴の期間終了日が取得できません。'
-      );
+      throw wrapAura('前回契約履歴の期間終了日が取得できません。');
     }
 
     Date expectedStartDate = histories[0].CurrentTermEndDate__c.addDays(1);
@@ -1681,9 +1666,7 @@ public without sharing class EstimateValidationService {
       }
       if (isRecurringProductLine(line)) {
         throw wrapAura(
-          '商品明細' +
-            (i + 1) +
-            '行目: Add では一回課金商品のみ指定できます。'
+          '商品明細' + (i + 1) + '行目: Add では一回課金商品のみ指定できます。'
         );
       }
     }
@@ -1737,9 +1720,7 @@ public without sharing class EstimateValidationService {
       );
     }
     throw wrapAura(
-      '都度契約では ' +
-        operationLabel +
-        ' は使えません。Add を選んでください。'
+      '都度契約では ' + operationLabel + ' は使えません。Add を選んでください。'
     );
   }
 
@@ -1787,9 +1768,7 @@ public without sharing class EstimateValidationService {
       LIMIT 1
     ];
     if (histories.isEmpty() || histories[0].CurrentTermEndDate__c == null) {
-      throw wrapAura(
-        '前回契約履歴の期間終了日が取得できません。'
-      );
+      throw wrapAura('前回契約履歴の期間終了日が取得できません。');
     }
 
     Date expectedCancelDate = histories[0].CurrentTermEndDate__c.addDays(1);
@@ -1908,9 +1887,7 @@ public without sharing class EstimateValidationService {
       throw wrapAura('前回契約履歴が見つかりません。');
     }
     if (histories[0].ContractService__c != request.contractServiceId) {
-      throw wrapAura(
-        '前回契約履歴が契約サービスと一致しません。'
-      );
+      throw wrapAura('前回契約履歴が契約サービスと一致しません。');
     }
 
     // 正: サービスの最新 Ordered（New/Change/Renew。Cancel は除外）
@@ -1918,9 +1895,7 @@ public without sharing class EstimateValidationService {
       request.contractServiceId
     );
     if (latest == null) {
-      throw wrapAura(
-        '前回契約履歴（最新の受注）が見つかりません。'
-      );
+      throw wrapAura('前回契約履歴（最新の受注）が見つかりません。');
     }
     if (latest.Id != request.previousHistoryId) {
       throw wrapAura(
@@ -1946,9 +1921,7 @@ public without sharing class EstimateValidationService {
       String.isBlank(request.contractStartDate) ||
       String.isBlank(request.contractEndDate)
     ) {
-      throw wrapAura(
-        '期間開始日と期間終了日を入力してください。'
-      );
+      throw wrapAura('期間開始日と期間終了日を入力してください。');
     }
 
     Date serviceStartDate = EstimateCreateSupport.parseDate(
@@ -1962,9 +1935,7 @@ public without sharing class EstimateValidationService {
       serviceEndDate != null &&
       serviceStartDate > serviceEndDate
     ) {
-      throw wrapAura(
-        '期間開始日は期間終了日以前の日付を入力してください。'
-      );
+      throw wrapAura('期間開始日は期間終了日以前の日付を入力してください。');
     }
 
     validateHistoryMetaDates(request, serviceStartDate, serviceEndDate);
@@ -2009,9 +1980,7 @@ public without sharing class EstimateValidationService {
     }
     Date effectiveDate = EstimateCreateSupport.parseDate(request.effectiveDate);
     if (effectiveDate == null) {
-      throw wrapAura(
-        '切替日の形式が正しくありません。'
-      );
+      throw wrapAura('切替日の形式が正しくありません。');
     }
 
     if (request.selectedType == 'Change') {
@@ -2078,9 +2047,7 @@ public without sharing class EstimateValidationService {
         previousHistories.isEmpty() ||
         previousHistories[0].CurrentTermEndDate__c == null
       ) {
-        throw wrapAura(
-          '前回契約履歴の期間終了日が取得できません。'
-        );
+        throw wrapAura('前回契約履歴の期間終了日が取得できません。');
       }
       Date expectedEffective = previousHistories[0]
         .CurrentTermEndDate__c.addDays(1);

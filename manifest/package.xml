@@ -136,7 +136,7 @@
         <members>InvoiceProduct__c.Unit__c</members>
         <members>InvoiceProduct__c.invoicetype__c</members>
         <members>Opportunity.PreviousOpportunity__c</members>
-        <members>Opportunity.RenewEstimateAutoCreateCheck__c</members>
+        <members>ContractService__c.RenewEstimateAutoCreateCheck__c</members>
         <members>Product2.BillingType__c</members>
         <members>Product2.UnitName__c</members>
         <members>Product2.UnitPrice__c</members>

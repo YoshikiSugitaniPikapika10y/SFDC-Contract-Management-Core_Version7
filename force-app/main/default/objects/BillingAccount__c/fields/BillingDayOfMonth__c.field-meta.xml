@@ -1,7 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>BillingDayOfMonth__c</fullName>
-    <description>請求基準日から請求日を決めるルール（月初・5日・即日など）。即日は請求基準日をそのまま請求日にします。</description>
+    <description
+  >請求基準日から請求日を決めるルール（月初・5日・即日など）。即日は請求基準日をそのまま請求日にします。</description>
     <label>請求日ルール</label>
     <required>true</required>
     <trackHistory>false</trackHistory>

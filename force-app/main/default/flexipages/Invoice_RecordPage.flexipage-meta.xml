@@ -169,7 +169,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;p&gt;請求の正本です。明細の確認・例外編集は契約履歴の「請求プレビュー」から行うのが基本です。請求処理日／入金消込完了日が入るとロックされ、直接更新・削除は制限されます。&lt;/p&gt;</value>
+                    <value
+          >&lt;p&gt;請求の正本です。明細の確認・例外編集は契約履歴の「請求プレビュー」から行うのが基本です。請求処理日／入金消込完了日が入るとロックされ、直接更新・削除は制限されます。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_hint</identifier>

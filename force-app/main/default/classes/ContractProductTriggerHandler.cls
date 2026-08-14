@@ -28,12 +28,14 @@ public without sharing class ContractProductTriggerHandler {
       return;
     }
 
-    Map<Id, ContractHistory__c> historyById = new Map<Id, ContractHistory__c>([
-      SELECT Id, Type__c, EffectiveDate__c
-      FROM ContractHistory__c
-      WHERE Id IN :historyIds
-      WITH SYSTEM_MODE
-    ]);
+    Map<Id, ContractHistory__c> historyById = new Map<Id, ContractHistory__c>(
+      [
+        SELECT Id, Type__c, EffectiveDate__c
+        FROM ContractHistory__c
+        WHERE Id IN :historyIds
+        WITH SYSTEM_MODE
+      ]
+    );
 
     for (ContractProduct__c product : products) {
       ContractHistory__c history = historyById.get(product.ContractHistory__c);

@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>更新商談（Opportunity）作成時の項目セット定義。コード固定のリレーションは AccountId / PreviousOpportunity__c / SourceContractHistory__c のみ。OwnerId を含むそれ以外は本 CMDT（例: 契約履歴の数式項目が返すユーザIDを Field 参照で OwnerId へ）。ValueType に応じて Value__c を定数 / 参照パス（Object.Field）/ 穴埋めテンプレートとして解釈する。</description>
+    <description
+  >更新商談（Opportunity）作成時の項目セット定義。コード固定のリレーションは AccountId / PreviousOpportunity__c / SourceContractHistory__c のみ。OwnerId を含むそれ以外は本 CMDT（例: 契約履歴の数式項目が返すユーザIDを Field 参照で OwnerId へ）。ValueType に応じて Value__c を定数 / 参照パス（Object.Field）/ 穴埋めテンプレートとして解釈する。</description>
     <label>更新商談項目</label>
     <pluralLabel>更新商談項目</pluralLabel>
     <visibility>Public</visibility>

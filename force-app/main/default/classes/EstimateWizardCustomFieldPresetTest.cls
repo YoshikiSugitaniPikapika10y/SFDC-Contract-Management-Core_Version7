@@ -992,7 +992,9 @@ private class EstimateWizardCustomFieldPresetTest {
         .contains('CustomerMemo__c')
     );
 
-    Product2 product = ContractTestDataFactory.buildProduct('Wizard Helper Product');
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Wizard Helper Product'
+    );
     product.Family = ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY;
     ContractTestDataFactory.insertProduct(product);
 

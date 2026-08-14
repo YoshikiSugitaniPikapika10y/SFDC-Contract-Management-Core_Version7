@@ -85,7 +85,10 @@ private class InvoiceCanonicalServiceTest {
         WHERE Id = :line.Invoice__c
       ];
       System.assertEquals(beforeInvoice.Amount__c, afterInvoice.Amount__c);
-      System.assertEquals(beforeInvoice.TaxAmount__c, afterInvoice.TaxAmount__c);
+      System.assertEquals(
+        beforeInvoice.TaxAmount__c,
+        afterInvoice.TaxAmount__c
+      );
       System.assertEquals(
         false,
         afterInvoice.IsManuallyAdjusted__c,
@@ -213,7 +216,11 @@ private class InvoiceCanonicalServiceTest {
         updated.IsSplitMoved__c,
         '請求情報編集は分割ではないので IsSplitMoved を立てない'
       );
-      System.assertEquals(null, updated.MergeKey__c, '日付変更で統合キーを外す');
+      System.assertEquals(
+        null,
+        updated.MergeKey__c,
+        '日付変更で統合キーを外す'
+      );
       System.assertEquals(invoice.Amount__c, updated.Amount__c);
       System.assertEquals(invoice.TaxAmount__c, updated.TaxAmount__c);
       System.assertEquals(invoice.TaxPercent__c, updated.TaxPercent__c);
@@ -374,6 +381,176 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void splitInvoiceByDate_requiresPaymentScheduledDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = 10000;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Boolean threw = false;
+      try {
+        InvoiceCanonicalService.splitInvoiceByDate(
+          source.Id,
+          Date.newInstance(2026, 7, 1),
+          null,
+          new List<InvoiceCanonicalService.SplitLineInput>{ split }
+        );
+      } catch (InvoiceCanonicalService.InvoiceEditException e) {
+        threw = true;
+        System.assert(
+          e.getMessage().contains('入金予定日'),
+          e.getMessage()
+        );
+      }
+      System.assertEquals(true, threw, '入金予定日 null は拒否すること');
+    }
+  }
+
+  @IsTest
+  static void splitInvoiceByDate_gapWithoutLineFlag_marksAmountAdjustedAndKeepsPeriod() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id, Amount__c, PeriodLineAmountTotal__c, TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c lineA = [
+        SELECT
+          Id,
+          Invoice__c,
+          Amount__c,
+          ProductName__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          PeriodLabel__c,
+          LineMergeKey__c,
+          HistoryVersionLabel__c,
+          SourcePeriodLineIds__c,
+          ContractProduct__c,
+          Product__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      // 端数なしの弟明細を追加（合計 40000）。単価×数量と金額を一致させておく
+      InvoiceLine__c lineB = lineA.clone(false, true, false, false);
+      lineB.Amount__c = 10000;
+      lineB.UnitPrice__c = 10000;
+      lineB.Quantity__c = 1;
+      lineB.IsAmountAdjusted__c = false;
+      lineB.IsSplitMoved__c = false;
+      lineB.IsManuallyAdjusted__c = false;
+      insert lineB;
+      update new Invoice__c(
+        Id = source.Id,
+        Amount__c = 40000,
+        PeriodLineAmountTotal__c = 40000,
+        TaxAmount__c = TaxCalculationUtil.calculateTaxAmount(40000, 10)
+      );
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      // A だけ +3（端数）。B は端数なしのまま
+      InvoiceCanonicalService.updateLineAmount(lineA.Id, 30003);
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = lineB.Id;
+      split.moveAmount = 10000;
+
+      Test.startTest();
+      Id createdId = InvoiceCanonicalService.splitInvoiceByDate(
+        source.Id,
+        Date.newInstance(2026, 7, 1),
+        Date.newInstance(2026, 7, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+
+      Invoice__c created = [
+        SELECT
+          Amount__c,
+          PeriodLineAmountTotal__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
+        FROM Invoice__c
+        WHERE Id = :createdId
+      ];
+      System.assertEquals(10000, created.Amount__c);
+      System.assertNotEquals(
+        created.Amount__c,
+        created.PeriodLineAmountTotal__c,
+        '比率按分でギャップが先に乗ること'
+      );
+      System.assertEquals(
+        true,
+        created.IsAmountAdjusted__c,
+        'ギャップ付きの先請求は端数フラグを立てること'
+      );
+      System.assertEquals(true, created.IsSplitMoved__c);
+
+      Decimal periodBeforeInPlace = created.PeriodLineAmountTotal__c;
+      InvoiceLine__c movedLine = [
+        SELECT Id, UnitPrice__c, Quantity__c, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :createdId
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput inPlace = new InvoiceCanonicalService.SplitLineInput();
+      inPlace.lineId = movedLine.Id;
+      inPlace.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      inPlace.remainUnitPrice = 4000;
+      inPlace.moveUnitPrice = 6000;
+
+      InvoiceCanonicalService.splitLinesInPlace(
+        createdId,
+        new List<InvoiceCanonicalService.SplitLineInput>{ inPlace }
+      );
+      Test.stopTest();
+
+      Invoice__c afterInPlace = [
+        SELECT Amount__c, PeriodLineAmountTotal__c, IsAmountAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :createdId
+      ];
+      System.assertEquals(
+        true,
+        afterInPlace.IsAmountAdjusted__c,
+        '同一請求内分割後もギャップ由来の端数フラグを維持'
+      );
+      System.assertEquals(
+        periodBeforeInPlace,
+        afterInPlace.PeriodLineAmountTotal__c,
+        '実ギャップがあるのに調整前を税抜へ潰さないこと'
+      );
+      System.assertNotEquals(
+        afterInPlace.Amount__c,
+        afterInPlace.PeriodLineAmountTotal__c
+      );
+    }
+  }
+
+  @IsTest
   static void splitInvoiceByDate_reallocatesPeriodLineAmountTotalAfterAdjustment() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();
@@ -471,7 +648,11 @@ private class InvoiceCanonicalServiceTest {
         new Set<Id>{ fixture.history.Id }
       );
       Invoice__c source = [
-        SELECT Id, PeriodLineAmountTotal__c, ContractService__c, ContractHistory__c
+        SELECT
+          Id,
+          PeriodLineAmountTotal__c,
+          ContractService__c,
+          ContractHistory__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
@@ -1360,7 +1541,170 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
-  /** 端数調整した明細を因子分割すると、由来期間合計へ戻してから分ける。 */
+  /**
+   * 請求日で金額分割したあと端数→同一請求内分割しても、
+   * 共有 SourcePeriodLineIds の満額合算で税抜が水増しされないこと。
+   */
+  @IsTest
+  static void splitLinesInPlace_afterDateSplitDoesNotInflateOnAmountReset() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c, UnitPrice__c, Quantity__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      Id sourceInvoiceId = line.Invoice__c;
+      Decimal original = line.Amount__c;
+      Decimal moveAmount = (original / 2).setScale(0, RoundingMode.HALF_UP);
+      Decimal remainShare = original - moveAmount;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.SplitLineInput dateSplit = new InvoiceCanonicalService.SplitLineInput();
+      dateSplit.lineId = line.Id;
+      dateSplit.moveAmount = moveAmount;
+      InvoiceCanonicalService.splitInvoiceByDate(
+        sourceInvoiceId,
+        Date.newInstance(2026, 7, 1),
+        Date.newInstance(2026, 7, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ dateSplit }
+      );
+
+      InvoiceLine__c remainLine = [
+        SELECT Id, Invoice__c, Amount__c, UnitPrice__c, Quantity__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :sourceInvoiceId
+        LIMIT 1
+      ];
+      System.assertEquals(remainShare, remainLine.Amount__c);
+
+      InvoiceCanonicalService.updateLineAmount(remainLine.Id, remainShare + 10);
+
+      // 端数リセット後の単価分割: 残シェアを 40%/60% に分ける
+      Decimal remainUnit = remainLine.UnitPrice__c == null
+        ? 0
+        : remainLine.UnitPrice__c;
+      InvoiceCanonicalService.SplitLineInput unitSplit = new InvoiceCanonicalService.SplitLineInput();
+      unitSplit.lineId = remainLine.Id;
+      unitSplit.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      unitSplit.remainUnitPrice = (remainUnit * 0.4)
+        .setScale(2, RoundingMode.HALF_UP);
+      unitSplit.moveUnitPrice = (remainUnit * 0.6)
+        .setScale(2, RoundingMode.HALF_UP);
+
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        sourceInvoiceId,
+        new List<InvoiceCanonicalService.SplitLineInput>{ unitSplit }
+      );
+      Test.stopTest();
+
+      Invoice__c remainInvoice = [
+        SELECT Amount__c, PeriodLineAmountTotal__c
+        FROM Invoice__c
+        WHERE Id = :sourceInvoiceId
+      ];
+      System.assertEquals(
+        remainShare,
+        remainInvoice.Amount__c,
+        '端数リセットは残シェアへ戻し、由来期間満額へ水増ししない'
+      );
+      System.assertEquals(remainShare, remainInvoice.PeriodLineAmountTotal__c);
+
+      Decimal lineSum = 0;
+      for (InvoiceLine__c row : [
+        SELECT Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :sourceInvoiceId
+      ]) {
+        lineSum += row.Amount__c == null ? 0 : row.Amount__c;
+      }
+      System.assertEquals(remainShare, lineSum);
+
+      AggregateResult serviceTotal = [
+        SELECT SUM(Amount__c) total
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+      ];
+      System.assertEquals(
+        original,
+        (Decimal) serviceTotal.get('total'),
+        'サービス税抜合計は請求日分割前と一致'
+      );
+    }
+  }
+
+  /**
+   * 同一請求内の単価分割後に端数→再分割しても、共有期間ID満額へ戻さないこと。
+   */
+  @IsTest
+  static void splitLinesInPlace_afterUnitSplitDoesNotInflateOnAmountReset() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c, UnitPrice__c, Quantity__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      Id invoiceId = line.Invoice__c;
+      Decimal original = line.Amount__c;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.SplitLineInput first = new InvoiceCanonicalService.SplitLineInput();
+      first.lineId = line.Id;
+      first.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      first.remainUnitPrice = 4000;
+      first.moveUnitPrice = 6000;
+      InvoiceCanonicalService.splitLinesInPlace(
+        invoiceId,
+        new List<InvoiceCanonicalService.SplitLineInput>{ first }
+      );
+
+      InvoiceLine__c remain4000 = [
+        SELECT Id, Amount__c, UnitPrice__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoiceId AND UnitPrice__c = 4000
+        LIMIT 1
+      ];
+      System.assertEquals(12000, remain4000.Amount__c);
+      InvoiceCanonicalService.updateLineAmount(remain4000.Id, 12010);
+
+      InvoiceCanonicalService.SplitLineInput second = new InvoiceCanonicalService.SplitLineInput();
+      second.lineId = remain4000.Id;
+      second.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      second.remainUnitPrice = 1600;
+      second.moveUnitPrice = 2400;
+
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        invoiceId,
+        new List<InvoiceCanonicalService.SplitLineInput>{ second }
+      );
+      Test.stopTest();
+
+      Invoice__c invoice = [
+        SELECT Amount__c, PeriodLineAmountTotal__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+      ];
+      System.assertEquals(
+        original,
+        invoice.Amount__c,
+        '単価分割→端数→再分割で請求合計が水増しされない'
+      );
+      System.assertEquals(original, invoice.PeriodLineAmountTotal__c);
+    }
+  }
+
+  /** 端数調整した明細を因子分割すると、調整前金額へ戻してから分ける。 */
   @IsTest
   static void splitLinesInPlace_resetsManualAdjustmentBeforeUnitPriceSplit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -1414,7 +1758,11 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(true, invoice.IsManuallyAdjusted__c);
 
       List<InvoiceLine__c> lines = [
-        SELECT Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c
+        SELECT
+          Amount__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :invoiceId
       ];
@@ -1928,7 +2276,8 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         blocked = true;
         System.assertEquals(
-          InvoiceCanonicalService.SPLIT_AMOUNT_CONSERVE_MESSAGE + ': Test Product',
+          InvoiceCanonicalService.SPLIT_AMOUNT_CONSERVE_MESSAGE +
+          ': Test Product',
           ex.getMessage()
         );
       }
@@ -2596,7 +2945,7 @@ private class InvoiceCanonicalServiceTest {
         source.Id,
         otherBa.Id,
         null,
-        null,
+        Date.newInstance(2026, 7, 31),
         new List<InvoiceCanonicalService.SplitLineInput>{ split }
       );
       Test.stopTest();
@@ -2807,9 +3156,7 @@ private class InvoiceCanonicalServiceTest {
         [
           SELECT COUNT()
           FROM Invoice__c
-          WHERE
-            Id = :invoice.Id
-            AND SystemIntegrationDate__c != NULL
+          WHERE Id = :invoice.Id AND SystemIntegrationDate__c != NULL
         ],
         '連携済請求は残る'
       );

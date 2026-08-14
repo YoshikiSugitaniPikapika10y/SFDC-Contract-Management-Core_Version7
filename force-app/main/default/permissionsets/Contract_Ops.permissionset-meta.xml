@@ -4,6 +4,14 @@
   >運用向け。パッケージ参照/編集・マスタメンテ・請求パネル。標準画面からのトランザクション作成は不可。受注・差戻しは別PS。</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>契約 運用</label>
+    <applicationVisibilities>
+        <application>Contract_Estimate</application>
+        <visible>true</visible>
+    </applicationVisibilities>
+    <tabSettings>
+        <tab>Estimate_Order_Board</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
     <classAccesses>
         <apexClass>EstimateCreateController</apexClass>
         <enabled>true</enabled>
@@ -26,6 +34,10 @@
     </classAccesses>
     <classAccesses>
         <apexClass>OrderCreateController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>EstimateOrderBoardController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
@@ -263,6 +275,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>ContractService__c.RenewEstimateAutoCreateCheck__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>ContractService__c.TaxPercent__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -354,11 +371,6 @@
     <fieldPermissions>
         <editable>false</editable>
         <field>Opportunity.ContractService__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <editable>false</editable>
-        <field>Opportunity.RenewEstimateAutoCreateCheck__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <objectPermissions>

@@ -68,6 +68,8 @@
     </values>
     <values>
         <field>VisibilityValues__c</field>
-        <value xsi:type="xsd:string">SaaS（コンスト）,SaaS（エンゲージメントサーベイ）,SaaS（コンプラ）,SaaS（チームシナジー）,SaaS（パルス）,SaaS（フィードバックモニタリング）,SaaS（マルチアングル）,SaaS（その他）,SaaS（MVV）,3rd party</value>
+        <value
+      xsi:type="xsd:string"
+    >SaaS（コンスト）,SaaS（エンゲージメントサーベイ）,SaaS（コンプラ）,SaaS（チームシナジー）,SaaS（パルス）,SaaS（フィードバックモニタリング）,SaaS（マルチアングル）,SaaS（その他）,SaaS（MVV）,3rd party</value>
     </values>
 </CustomMetadata>

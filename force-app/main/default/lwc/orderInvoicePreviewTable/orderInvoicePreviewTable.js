@@ -40,8 +40,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   _preview;
   /** オープン時の Version フィルタ初期値を一度だけ適用したか（保存後の再取得では維持）。 */
   _defaultVersionApplied = false;
-  _wheelBound = false;
-  _onPreviewWheel = (event) => this.handlePreviewWheel(event);
   _fitProductNamesRaf = null;
   _resizeObserver = null;
 
@@ -62,6 +60,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     this.invoiceSplitState = null;
     this.invoiceMoveState = null;
     this.lineSplitState = null;
+    this.billingEditState = null;
     this.handleCloseUnitPriceFormula();
     this.applyDefaultVersionFilter();
   }
@@ -87,15 +86,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     this._defaultVersionApplied = true;
   }
 
-  connectedCallback() {
-    // capture + host でテーブル内のどこでも親スクローラへ渡す
-    this.template.host.addEventListener("wheel", this._onPreviewWheel, {
-      passive: false,
-      capture: true
-    });
-    this._wheelBound = true;
-  }
-
   renderedCallback() {
     if (!this._resizeObserver && typeof ResizeObserver !== "undefined") {
       this._resizeObserver = new ResizeObserver(() => {
@@ -110,6 +100,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (this._fitProductNamesRaf != null) {
       return;
     }
+    // eslint-disable-next-line @lwc/lwc/no-async-operation
     this._fitProductNamesRaf = requestAnimationFrame(() => {
       this._fitProductNamesRaf = null;
       this.fitProductNameFonts();
@@ -158,13 +149,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
     }
-    if (!this._wheelBound) {
-      return;
-    }
-    this.template.host.removeEventListener("wheel", this._onPreviewWheel, {
-      capture: true
-    });
-    this._wheelBound = false;
   }
 
   get relatedBillingAccountOptions() {
@@ -234,6 +218,18 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     return (this.preview?.versionOptions || []).length > 0;
   }
 
+  /** 未保存の端数下書きがある間は Version 切替不可（別 Version への黙殺保存を防ぐ）。 */
+  get versionFilterDisabled() {
+    return this.hasAmountDrafts === true || this.isSaving === true;
+  }
+
+  get versionFilterTitle() {
+    if (this.hasAmountDrafts) {
+      return "端数調整の保存または取消後に Version を切り替えられます";
+    }
+    return "";
+  }
+
   /** Ordered Version の最大値（フィルタ value と同形式）。 */
   get latestOrderedVersionValue() {
     let max = null;
@@ -285,12 +281,23 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   get resetPostOrderDisabled() {
-    return this.isSaving === true || this.hasAmountDrafts;
+    return (
+      this.isSaving === true ||
+      this.hasAmountDrafts ||
+      this.isBillingEditUiOpen ||
+      this.isSplitOrMoveUiOpen
+    );
   }
 
   get resetPostOrderTitle() {
     if (this.hasAmountDrafts) {
       return "端数調整の保存または取消後に操作できます";
+    }
+    if (this.isBillingEditUiOpen) {
+      return "請求情報編集をキャンセルまたは保存してから操作できます";
+    }
+    if (this.isSplitOrMoveUiOpen) {
+      return "分ける／移す／分割をキャンセルまたは実行してから操作できます";
     }
     return "この Version の請求を受注直後の状態に作り直します";
   }
@@ -301,7 +308,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   get canEdit() {
     return (
-      this.preview?.canEdit === true && this.preview?.versionEditBlocked !== true
+      this.preview?.canEdit === true &&
+      this.preview?.versionEditBlocked !== true
     );
   }
 
@@ -311,6 +319,38 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   get hasAmountDrafts() {
     return Object.keys(this.amountDrafts || {}).length > 0;
+  }
+
+  /** 請求情報編集パネル表示中。 */
+  get isBillingEditUiOpen() {
+    return this.billingEditState != null;
+  }
+
+  /**
+   * 分ける／移す／同一請求内分割の編集中（しきい日ロード中含む）。
+   * この間は端数ドラフト不可。閉じたあとの幽霊 lineSplitState は無視。
+   */
+  get isSplitOrMoveUiOpen() {
+    return (
+      this.invoiceSplitState != null ||
+      this.invoiceMoveState != null ||
+      this.hasActiveLineSplitSelection ||
+      this.lineSplitState?.loadingThresholds === true
+    );
+  }
+
+  /** 端数 ± を塞ぐ排他パネル（分割系＋請求情報編集）。 */
+  get isAmountAdjustBlocked() {
+    return this.isSplitOrMoveUiOpen || this.isBillingEditUiOpen;
+  }
+
+  /** 同一請求内分割で明細が選択されているときだけ true（閉じたあとの幽霊 state を無視） */
+  get hasActiveLineSplitSelection() {
+    const rows = this.lineSplitState?.rows;
+    if (!rows) {
+      return false;
+    }
+    return Object.keys(rows).some((id) => rows[id]?.selected === true);
   }
 
   get showAmountDraftActions() {
@@ -488,10 +528,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             const isRecurring = line.isRecurring === true;
             const unitPrice = Number(line.unitPrice ?? 0);
             const quantity = Number(line.quantity ?? 0);
-            const splitRow =
-              isLineSplitOpen
-                ? this.lineSplitState?.rows?.[lineId] || null
-                : null;
+            const splitRow = isLineSplitOpen
+              ? this.lineSplitState?.rows?.[lineId] || null
+              : null;
             const splitSelected = splitRow?.selected === true;
             const activeSplitLineId = isLineSplitOpen
               ? Object.keys(this.lineSplitState?.rows || {}).find(
@@ -500,10 +539,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               : null;
             const splitBusyOther =
               activeSplitLineId != null && activeSplitLineId !== lineId;
-            const thresholdOptions =
-              isLineSplitOpen
-                ? this.lineSplitState?.thresholdsByLineId?.[lineId] || []
-                : [];
+            const thresholdOptions = isLineSplitOpen
+              ? this.lineSplitState?.thresholdsByLineId?.[lineId] || []
+              : [];
             const kindOptions = this.buildSplitKindOptions(
               isRecurring,
               thresholdOptions
@@ -606,15 +644,18 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               rowSplitDisabled:
                 this.hasAmountDrafts ||
                 this.isSaving ||
+                this.isBillingEditUiOpen ||
                 invoice.locked === true ||
                 splitBusyOther,
               rowSplitTitle: splitBusyOther
                 ? "編集中の分割をキャンセルまたは実行してから操作してください"
-                : this.hasAmountDrafts
-                  ? "端数調整の保存または取消後に操作できます"
-                  : invoice.locked === true
-                    ? "この請求は連携済または消込済のため編集できません。"
-                    : "",
+                : this.isBillingEditUiOpen
+                  ? "請求情報編集をキャンセルまたは保存してから操作できます"
+                  : this.hasAmountDrafts
+                    ? "端数調整の保存または取消後に操作できます"
+                    : invoice.locked === true
+                      ? "この請求は連携済または消込済のため編集できません。"
+                      : "",
               splitSelected,
               splitKind,
               splitKindOptions: kindOptions.map((option) => ({
@@ -642,8 +683,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               isUnitPriceFormulaOpen:
                 this.unitPriceFormulaLineId != null &&
                 this.unitPriceFormulaLineId === lineId,
-              splitMoveQuantity:
-                moveQuantityRaw == null ? "" : moveQuantityRaw,
+              splitMoveQuantity: moveQuantityRaw == null ? "" : moveQuantityRaw,
               splitRemainAmountLabel:
                 periodRemainAmount == null
                   ? "—"
@@ -672,6 +712,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               }),
               splitConfirmDisabled:
                 this.isSaving ||
+                this.hasAmountDrafts ||
                 this.lineSplitState?.loadingThresholds === true ||
                 this.unitPriceFormulaLineId === lineId ||
                 !this.isSplitRowValid({
@@ -745,6 +786,15 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             taxInclusiveTotal,
             invoice.taxPercent
           );
+        const amountAdjustDisabled =
+          this.isSaving === true || this.isAmountAdjustBlocked;
+        const amountAdjustBlockedTitle = this.isBillingEditUiOpen
+          ? "請求情報編集をキャンセルまたは保存してから端数調整できます"
+          : this.isSplitOrMoveUiOpen
+            ? "分ける／移す／分割をキャンセルまたは実行してから端数調整できます"
+            : this.isSaving === true
+              ? "保存中は端数調整できません"
+              : "";
 
         return {
           key: invoiceId || invoice.mergeKey || `invoice-${index}`,
@@ -784,6 +834,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             splitLoading ||
             Boolean(splitError) ||
             !hasValidSplitSelection ||
+            this.hasAmountDrafts ||
             this.isSaving === true,
           invoiceSplitRemainTotal,
           invoiceSplitMoveTotal,
@@ -803,8 +854,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           invoiceSplitConfirmDisabled:
             !isInvoiceSplitOpen ||
             !this.invoiceSplitState?.newInvoiceDate ||
+            !this.invoiceSplitState?.newPaymentDate ||
             !this.invoiceSplitState?.newBillingAccountId ||
             !hasInvoiceMoveSelection ||
+            !invoiceSplitEquationOk ||
+            this.hasAmountDrafts ||
             this.isSaving === true,
           invoiceMoveTargetOptions: moveTargetOptions,
           invoiceMoveTargetInvoiceId: isInvoiceMoveOpen
@@ -818,41 +872,66 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             !isInvoiceMoveOpen ||
             !this.invoiceMoveState?.targetInvoiceId ||
             !hasInvoiceMoveSelection ||
+            this.hasAmountDrafts ||
             this.isSaving === true,
           canMoveLines,
           moveLinesDisabled:
             this.hasAmountDrafts ||
+            this.isBillingEditUiOpen ||
             invoice.locked === true ||
             !canMoveLines,
-          moveLinesTitle: this.hasAmountDrafts
-            ? "端数調整の保存または取消後に操作できます"
-            : invoice.locked === true
-              ? "この請求は連携済または消込済のため編集できません。"
-              : !canMoveLines
-                ? "同じ Version に移せる未ロックの請求がありません"
-                : "",
+          moveLinesTitle: this.isBillingEditUiOpen
+            ? "請求情報編集をキャンセルまたは保存してから操作できます"
+            : this.hasAmountDrafts
+              ? "端数調整の保存または取消後に操作できます"
+              : invoice.locked === true
+                ? "この請求は連携済または消込済のため編集できません。"
+                : !canMoveLines
+                  ? "同じ Version に移せる未ロックの請求がありません"
+                  : "",
           isBillingEditOpen,
           locked: invoice.locked === true,
           canEditInvoice,
           canAdjustAmount: this.canEdit && invoice.locked !== true,
+          amountAdjustDisabled,
+          amountAdjustPlus1Title: amountAdjustDisabled
+            ? amountAdjustBlockedTitle
+            : "1円増やす",
+          amountAdjustMinus1Title: amountAdjustDisabled
+            ? amountAdjustBlockedTitle
+            : "1円減らす",
+          amountAdjustPlus10Title: amountAdjustDisabled
+            ? amountAdjustBlockedTitle
+            : "10円増やす",
+          amountAdjustMinus10Title: amountAdjustDisabled
+            ? amountAdjustBlockedTitle
+            : "10円減らす",
           lockNote:
             invoice.locked === true
               ? "この請求は連携済または消込済のため編集できません。"
               : "",
           billingEditDisabled:
-            this.hasAmountDrafts || invoice.locked === true,
-          billingEditTitle: this.hasAmountDrafts
-            ? "端数調整の保存または取消後に操作できます"
-            : invoice.locked === true
-              ? "この請求は連携済または消込済のため編集できません。"
-              : "",
+            this.hasAmountDrafts ||
+            this.isSplitOrMoveUiOpen ||
+            invoice.locked === true,
+          billingEditTitle: this.isSplitOrMoveUiOpen
+            ? "分ける／移す／分割をキャンセルまたは実行してから操作できます"
+            : this.hasAmountDrafts
+              ? "端数調整の保存または取消後に操作できます"
+              : invoice.locked === true
+                ? "この請求は連携済または消込済のため編集できません。"
+                : "",
           otherActionsDisabled:
-            this.hasAmountDrafts || invoice.locked === true,
-          otherActionsTitle: this.hasAmountDrafts
-            ? "端数調整の保存または取消後に操作できます"
-            : invoice.locked === true
-              ? "この請求は連携済または消込済のため編集できません。"
-              : "",
+            this.hasAmountDrafts ||
+            this.isBillingEditUiOpen ||
+            invoice.locked === true,
+          otherActionsTitle: this.isBillingEditUiOpen
+            ? "請求情報編集をキャンセルまたは保存してから操作できます"
+            : this.hasAmountDrafts
+              ? "端数調整の保存または取消後に操作できます"
+              : invoice.locked === true
+                ? "この請求は連携済または消込済のため編集できません。"
+                : "",
           draftInvoiceDate: isBillingEditOpen
             ? this.billingEditState.invoiceDate
             : invoice.invoiceDate || "",
@@ -883,7 +962,23 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   handleVersionChange(event) {
-    this.selectedVersion = event.detail.value;
+    const next = event.detail.value;
+    if (next === this.selectedVersion) {
+      return;
+    }
+    if (this.hasAmountDrafts || this.isSaving) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "端数調整を先に確定してください",
+          message:
+            "未保存の端数調整があります。保存または取消してから Version を切り替えてください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
+      return;
+    }
+    this.selectedVersion = next;
   }
 
   async handleResetPostOrderClick() {
@@ -952,7 +1047,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   handleAdjustAmount(event) {
-    if (!this.canEdit || this.isSaving) {
+    if (!this.canEdit || this.isSaving || this.isAmountAdjustBlocked) {
       return;
     }
     const lineId = event.currentTarget.dataset.lineId;
@@ -1155,11 +1250,14 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   handleOpenInvoiceSplit(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
-    if (this.hasAmountDrafts || this.isInvoiceLocked(invoiceId)) {
+    if (
+      this.hasAmountDrafts ||
+      this.isBillingEditUiOpen ||
+      this.isInvoiceLocked(invoiceId)
+    ) {
       return;
     }
-    this.billingEditState = null;
-    this.lineSplitState = null;
+    this.handleCloseLineSplit();
     this.invoiceMoveState = null;
     const invoice = this.findInvoice(invoiceId);
     const invoiceDate =
@@ -1186,7 +1284,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   handleOpenInvoiceMove(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
-    if (this.hasAmountDrafts || this.isInvoiceLocked(invoiceId)) {
+    if (
+      this.hasAmountDrafts ||
+      this.isBillingEditUiOpen ||
+      this.isInvoiceLocked(invoiceId)
+    ) {
       return;
     }
     const invoice = this.findInvoice(invoiceId);
@@ -1194,8 +1296,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (targets.length === 0) {
       return;
     }
-    this.billingEditState = null;
-    this.lineSplitState = null;
+    this.handleCloseLineSplit();
     this.invoiceSplitState = null;
     this.invoiceMoveState = {
       invoiceId,
@@ -1228,7 +1329,10 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         : String(sourceInvoice.historyVersion);
     return (this.preview?.invoices || [])
       .filter((invoice) => {
-        if (!invoice?.invoiceId || invoice.invoiceId === sourceInvoice.invoiceId) {
+        if (
+          !invoice?.invoiceId ||
+          invoice.invoiceId === sourceInvoice.invoiceId
+        ) {
           return false;
         }
         if (invoice.locked === true) {
@@ -1363,20 +1467,50 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   async handleConfirmInvoiceSplit() {
-    if (!this.invoiceSplitState?.invoiceId || this.isSaving) {
+    if (
+      !this.invoiceSplitState?.invoiceId ||
+      this.isSaving ||
+      this.hasAmountDrafts
+    ) {
       return;
     }
     if (!this.invoiceSplitState.newInvoiceDate) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "請求日を入力してください",
+          message: "分割先の請求日は必須です。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
+      return;
+    }
+    if (!this.invoiceSplitState.newPaymentDate) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "入金予定日を入力してください",
+          message: "分割先の入金予定日は必須です。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     if (!this.invoiceSplitState.newBillingAccountId) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "請求アカウントを選択してください",
+          message: "分割先の請求アカウントは必須です。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     const invoice = this.findInvoice(this.invoiceSplitState.invoiceId);
     const selectedLines = (invoice?.lines || []).filter(
       (line) =>
-        line?.lineId &&
-        this.invoiceSplitState.selected?.[line.lineId] === true
+        line?.lineId && this.invoiceSplitState.selected?.[line.lineId] === true
     );
     const splitLines = selectedLines
       .map((line) => ({
@@ -1385,9 +1519,20 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       }))
       .filter((row) => row.moveAmount !== 0);
     if (splitLines.length === 0) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "明細を選択してください",
+          message: "分ける明細にチェックを入れてから実行してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
-    if (selectedLines.length >= (invoice?.lines || []).length) {
+    // 0円は Apex に送らないため残る。削除確認は「実際に全明細が移るとき」だけ出す。
+    const willDeleteSource =
+      splitLines.length >= (invoice?.lines || []).length;
+    if (willDeleteSource) {
       const confirmed = await LightningConfirm.open({
         label: "請求を分ける",
         message:
@@ -1410,9 +1555,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         detail: {
           mode: changedBillingAccount ? "billingAccount" : "date",
           sourceInvoiceId: this.invoiceSplitState.invoiceId,
-          newInvoiceDate: this.invoiceSplitState.newInvoiceDate || null,
-          newPaymentScheduledDate:
-            this.invoiceSplitState.newPaymentDate || null,
+          newInvoiceDate: this.invoiceSplitState.newInvoiceDate,
+          newPaymentScheduledDate: this.invoiceSplitState.newPaymentDate,
           newBillingAccountId: changedBillingAccount
             ? newBillingAccountId
             : null,
@@ -1420,26 +1564,61 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         }
       })
     );
-    this.invoiceSplitState = null;
+    // 成功時は preview 再取得で閉じる。失敗時は入力を維持する。
   }
 
   async handleConfirmInvoiceMove() {
-    if (!this.invoiceMoveState?.invoiceId || this.isSaving) {
+    if (
+      !this.invoiceMoveState?.invoiceId ||
+      this.isSaving ||
+      this.hasAmountDrafts
+    ) {
       return;
     }
     if (!this.invoiceMoveState.targetInvoiceId) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "移動先を選択してください",
+          message: "同じ Version の移動先請求を選んでから実行してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     const invoice = this.findInvoice(this.invoiceMoveState.invoiceId);
     const lineIds = (invoice?.lines || [])
       .filter(
         (line) =>
-          line?.lineId &&
-          this.invoiceMoveState.selected?.[line.lineId] === true
+          line?.lineId && this.invoiceMoveState.selected?.[line.lineId] === true
       )
       .map((line) => line.lineId);
     if (lineIds.length === 0) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "明細を選択してください",
+          message: "移す明細にチェックを入れてから実行してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
+    }
+    const targetInvoice = this.findInvoice(
+      this.invoiceMoveState.targetInvoiceId
+    );
+    const sourceTax = this.normalizeTaxPercent(invoice?.taxPercent);
+    const targetTax = this.normalizeTaxPercent(targetInvoice?.taxPercent);
+    if (sourceTax !== targetTax) {
+      const confirmedTax = await LightningConfirm.open({
+        label: "明細を移す",
+        message: `移動先の税率（${targetTax}%）が元請求（${sourceTax}%）と異なります。税抜金額はそのまま、税額・税込は移動先の税率で再計算されます。よろしいですか？`,
+        theme: "warning",
+        variant: "header"
+      });
+      if (!confirmedTax) {
+        return;
+      }
     }
     if (lineIds.length >= (invoice?.lines || []).length) {
       const confirmed = await LightningConfirm.open({
@@ -1462,7 +1641,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         }
       })
     );
-    this.invoiceMoveState = null;
+    // 成功時は preview 再取得で閉じる。失敗時は入力を維持する。
   }
 
   async handleRowSplitClick(event) {
@@ -1472,24 +1651,24 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       !invoiceId ||
       !lineId ||
       this.hasAmountDrafts ||
+      this.isBillingEditUiOpen ||
       this.isInvoiceLocked(invoiceId) ||
       this.isSaving
     ) {
       return;
     }
-    this.billingEditState = null;
     this.invoiceSplitState = null;
     this.invoiceMoveState = null;
 
     if (this.lineSplitState?.invoiceId === invoiceId) {
       const current = this.lineSplitState.rows?.[lineId];
       if (current?.selected === true) {
-        this.updateLineSplitRow(lineId, { selected: false });
+        // 選択中チップの再クリック＝分割キャンセル（幽霊 state で端数を塞がない）
+        this.handleCloseLineSplit();
         return;
       }
       const activeOther = Object.keys(this.lineSplitState.rows || {}).find(
-        (id) =>
-          id !== lineId && this.lineSplitState.rows[id]?.selected === true
+        (id) => id !== lineId && this.lineSplitState.rows[id]?.selected === true
       );
       if (activeOther) {
         return;
@@ -1499,10 +1678,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
 
     await this.ensureLineSplitState(invoiceId);
-    if (
-      !this.lineSplitState ||
-      this.lineSplitState.invoiceId !== invoiceId
-    ) {
+    if (!this.lineSplitState || this.lineSplitState.invoiceId !== invoiceId) {
       return;
     }
     this.selectLineForSplit(lineId);
@@ -1515,6 +1691,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     ) {
       return;
     }
+    // 別請求へ切り替えるとき、前請求の単価数式ポップアップを孤児にしない
+    this.handleCloseUnitPriceFormula();
     const invoice = this.findInvoice(invoiceId);
     const rows = {};
     (invoice?.lines || []).forEach((line) => {
@@ -1538,10 +1716,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     };
     try {
       const optionRows = await getSplitThresholdDateOptions({ invoiceId });
-      if (
-        !this.lineSplitState ||
-        this.lineSplitState.invoiceId !== invoiceId
-      ) {
+      if (!this.lineSplitState || this.lineSplitState.invoiceId !== invoiceId) {
         return;
       }
       const thresholdsByLineId = {};
@@ -1580,10 +1755,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         rows: nextRows
       };
     } catch (error) {
-      if (
-        !this.lineSplitState ||
-        this.lineSplitState.invoiceId !== invoiceId
-      ) {
+      if (!this.lineSplitState || this.lineSplitState.invoiceId !== invoiceId) {
         return;
       }
       const message =
@@ -1605,8 +1777,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       return;
     }
     const activeOther = Object.keys(this.lineSplitState.rows || {}).find(
-      (id) =>
-        id !== lineId && this.lineSplitState.rows[id]?.selected === true
+      (id) => id !== lineId && this.lineSplitState.rows[id]?.selected === true
     );
     if (activeOther) {
       return;
@@ -1642,8 +1813,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       this.handleCloseUnitPriceFormula();
     }
     const remaining = Object.keys(this.lineSplitState.rows || {}).some(
-      (id) =>
-        id !== lineId && this.lineSplitState.rows[id]?.selected === true
+      (id) => id !== lineId && this.lineSplitState.rows[id]?.selected === true
     );
     if (remaining) {
       this.updateLineSplitRow(lineId, { selected: false });
@@ -1708,8 +1878,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     this.unitPriceFormulaDraft =
       num == null ? String(current || "") : this.formatPlainNumber(num);
     this.unitPriceFormulaError = "";
-    this.unitPriceFormulaHint =
-      "単価、または = で四則計算（例: =1,200/12）";
+    this.unitPriceFormulaHint = "単価、または = で四則計算（例: =1,200/12）";
     if (!this._boundUnitPriceFormulaEscape) {
       this._boundUnitPriceFormulaEscape = (e) => {
         if (e.key === "Escape" && this.unitPriceFormulaLineId != null) {
@@ -1882,14 +2051,46 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   async handleConfirmLineSplit() {
-    if (!this.lineSplitState?.invoiceId || this.isSaving) {
+    if (
+      !this.lineSplitState?.invoiceId ||
+      this.isSaving ||
+      this.hasAmountDrafts
+    ) {
+      return;
+    }
+    if (this.unitPriceFormulaLineId != null) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "単価の入力を確定してください",
+          message:
+            "数式ポップアップを適用（またはキャンセル）してから分割を実行してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     if (this.lineSplitState.loadingThresholds) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "分割候補を読み込み中です",
+          message: "読み込み完了後に分割を実行してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     const splitLines = this.buildSplitLinesPayload();
     if (splitLines.length === 0) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "分割内容を入力してください",
+          message: "明細を選択し、期間／単価／数量の分割内容を確定してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     const invoice = this.findInvoice(this.lineSplitState.invoiceId);
@@ -1924,7 +2125,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   handleOpenBillingEdit(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
-    if (this.hasAmountDrafts || this.isInvoiceLocked(invoiceId)) {
+    if (
+      this.hasAmountDrafts ||
+      this.isSplitOrMoveUiOpen ||
+      this.isInvoiceLocked(invoiceId)
+    ) {
       return;
     }
     const invoice = this.findInvoice(invoiceId);
@@ -1933,7 +2138,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
     this.invoiceSplitState = null;
     this.invoiceMoveState = null;
-    this.lineSplitState = null;
+    this.handleCloseLineSplit();
     const invoiceDate =
       invoice.invoiceDate && invoice.invoiceDate !== "—"
         ? invoice.invoiceDate
@@ -1980,24 +2185,74 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (!this.billingEditState?.invoiceId) {
       return;
     }
+    if (this.isSaving) {
+      return;
+    }
+    if (this.hasAmountDrafts) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "端数調整を先に確定してください",
+          message:
+            "未保存の端数調整があります。保存または取消してから請求情報を保存してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
+      return;
+    }
     if (!this.billingEditState.invoiceDate) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "請求日を入力してください",
+          message: "請求日は必須です。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
+      return;
+    }
+    if (!this.billingEditState.paymentScheduledDate) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "入金予定日を入力してください",
+          message: "入金予定日は必須です。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     const taxPercentRaw = this.billingEditState.taxPercent;
-    const taxPercent =
-      taxPercentRaw == null || taxPercentRaw === ""
-        ? 0
-        : Number(taxPercentRaw);
+    if (taxPercentRaw == null || taxPercentRaw === "") {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "税率を入力してください",
+          message:
+            "税率は必須です。0% で運用する場合は 0 を明示的に入力してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
+      return;
+    }
+    const taxPercent = Number(taxPercentRaw);
     if (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent > 100) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "税率が不正です",
+          message: "税率は 0〜100 の数値で入力してください。",
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
       return;
     }
     this.dispatchEvent(
       new CustomEvent("savebillingheader", {
         detail: {
           invoiceId: this.billingEditState.invoiceId,
-          invoiceDate: this.billingEditState.invoiceDate || null,
-          paymentScheduledDate:
-            this.billingEditState.paymentScheduledDate || null,
+          invoiceDate: this.billingEditState.invoiceDate,
+          paymentScheduledDate: this.billingEditState.paymentScheduledDate,
           taxPercent,
           billingAddressee: this.billingEditState.billingAddressee ?? "",
           billingEmailTo: this.billingEditState.billingEmailTo ?? "",
@@ -2006,7 +2261,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         }
       })
     );
-    this.billingEditState = null;
+    // パネルは親が保存成功時に clearBillingEditState する（失敗時は維持）
   }
 
   lineMatchesVersion(line, selected) {
@@ -2021,6 +2276,35 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       .split(",")
       .map((part) => part.trim().replace(/^V/i, ""))
       .includes(String(selected));
+  }
+
+  /**
+   * Apex TaxCalculationUtil.calculateTaxAmount と同じ:
+   * 表示％で (税抜 × 税率/100) を RoundingMode.DOWN（0方向への切り捨て）= Math.trunc。
+   */
+  calculateTaxAmount(amountExclTax, taxPercent) {
+    const amount = Number(amountExclTax);
+    if (!Number.isFinite(amount) || amount === 0) {
+      return 0;
+    }
+    const resolvedPercent = this.normalizeTaxPercent(taxPercent);
+    // 整数％は amount*percent/100 で浮動小数の揺らぎを抑える（Apex Decimal に近づける）
+    return Math.trunc((amount * resolvedPercent) / 100);
+  }
+
+  normalizeTaxPercent(taxPercent) {
+    if (taxPercent == null || taxPercent === "") {
+      return 0;
+    }
+    const n = Number(taxPercent);
+    if (!Number.isFinite(n) || n < 0) {
+      return 0;
+    }
+    // Percent 項目の小数表記（0.1＝10%）を表示％へ
+    if (n > 0 && n < 1) {
+      return n * 100;
+    }
+    return n;
   }
 
   sumLineTotals(lines, taxPercent) {
@@ -2040,10 +2324,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         openAmount: 0
       }
     );
-    const resolvedPercent =
-      taxPercent == null || taxPercent === "" ? 0 : Number(taxPercent);
-    const rate = resolvedPercent > 1 ? resolvedPercent / 100 : resolvedPercent;
-    totals.taxTotal = Math.trunc(totals.amountTotal * rate);
+    totals.taxTotal = this.calculateTaxAmount(totals.amountTotal, taxPercent);
     return totals;
   }
 
@@ -2060,143 +2341,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (exclusive === (Number(amountTotal) || 0)) {
       return Number(taxInclusiveTotal) || 0;
     }
-    const resolvedPercent =
-      taxPercent == null || taxPercent === "" ? 0 : Number(taxPercent);
-    const rate = resolvedPercent > 1 ? resolvedPercent / 100 : resolvedPercent;
-    return exclusive + Math.trunc(exclusive * rate);
-  }
-
-  /**
-   * ネスト overflow（特に overflow-x:auto が y も auto 化するケース）が
-   * ホイールを握って動かない問題を避け、外側の実スクローラへ渡す。
-   */
-  handlePreviewWheel(event) {
-    if (!event || event.ctrlKey) {
-      return;
-    }
-    const deltaY = this.resolveWheelDeltaY(event);
-    if (!deltaY) {
-      return;
-    }
-    if (this.isNativeScrollField(event.target)) {
-      return;
-    }
-    const host = this.template.host;
-    // ホスト内に「今まさに縦へ動ける」要素があるときだけネイティブに任せる
-    if (this.hasScrollableRoomBetween(event.target, host, deltaY)) {
-      return;
-    }
-    const scroller = this.findScrollableAncestorOutside();
-    if (!scroller) {
-      return;
-    }
-    const before = scroller.scrollTop;
-    scroller.scrollTop = before + deltaY;
-    event.preventDefault();
-  }
-
-  resolveWheelDeltaY(event) {
-    // shift+横ホイールを縦として扱う環境向け
-    let delta =
-      event.shiftKey && event.deltaY === 0 ? event.deltaX : event.deltaY;
-    if (!delta) {
-      return 0;
-    }
-    if (event.deltaMode === 1) {
-      delta *= 16;
-    } else if (event.deltaMode === 2) {
-      delta *=
-        (document.scrollingElement || document.documentElement).clientHeight ||
-        800;
-    }
-    return delta;
-  }
-
-  isNativeScrollField(target) {
-    let node = target;
-    if (node && node.nodeType === Node.TEXT_NODE) {
-      node = node.parentElement;
-    }
-    while (node && node.nodeType === 1) {
-      const tag = node.tagName;
-      if (tag === "TEXTAREA" || tag === "SELECT") {
-        return true;
-      }
-      if (node === this.template.host) {
-        break;
-      }
-      const root = node.getRootNode && node.getRootNode();
-      node = node.parentElement || (root instanceof ShadowRoot ? root.host : null);
-    }
-    return false;
-  }
-
-  canScrollY(el) {
-    if (!el || el.nodeType !== 1) {
-      return false;
-    }
-    const style = getComputedStyle(el);
-    const oy = style.overflowY;
-    if (oy !== "auto" && oy !== "scroll" && oy !== "overlay") {
-      return false;
-    }
-    return el.scrollHeight > el.clientHeight + 1;
-  }
-
-  canScrollInDirection(el, deltaY) {
-    if (!this.canScrollY(el)) {
-      return false;
-    }
-    if (deltaY < 0) {
-      return el.scrollTop > 0;
-    }
-    return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
-  }
-
-  hasScrollableRoomBetween(start, stop, deltaY) {
-    let node = start;
-    if (node && node.nodeType === Node.TEXT_NODE) {
-      node = node.parentElement;
-    }
-    while (node && node !== stop) {
-      if (this.canScrollInDirection(node, deltaY)) {
-        return true;
-      }
-      const root = node.getRootNode && node.getRootNode();
-      if (node.parentElement) {
-        node = node.parentElement;
-      } else if (root instanceof ShadowRoot && root.host && root.host !== stop) {
-        node = root.host;
-      } else {
-        break;
-      }
-    }
-    return false;
-  }
-
-  findScrollableAncestorOutside() {
-    let el = this.template.host.parentElement;
-    if (!el) {
-      const root = this.template.host.getRootNode();
-      if (root instanceof ShadowRoot) {
-        el = root.host;
-      }
-    }
-    while (el) {
-      if (this.canScrollY(el)) {
-        return el;
-      }
-      if (el.parentElement) {
-        el = el.parentElement;
-      } else {
-        const root = el.getRootNode && el.getRootNode();
-        if (root instanceof ShadowRoot && root.host) {
-          el = root.host;
-        } else {
-          break;
-        }
-      }
-    }
-    return document.scrollingElement || document.documentElement || null;
+    return exclusive + this.calculateTaxAmount(exclusive, taxPercent);
   }
 }

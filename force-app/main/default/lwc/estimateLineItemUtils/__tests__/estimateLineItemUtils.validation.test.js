@@ -273,13 +273,7 @@ describe("validateChangeEffectiveDate one-time mid-period", () => {
       getEarliestChangeBillingThresholdDate(products, termStart)
     ).toBeNull();
     expect(
-      validateChangeEffectiveDate(
-        "",
-        termStart,
-        termEnd,
-        termStart,
-        products
-      )
+      validateChangeEffectiveDate("", termStart, termEnd, termStart, products)
     ).toBeNull();
     expect(
       validateChangeEffectiveDate(
@@ -330,9 +324,9 @@ describe("canDuplicateProductLine", () => {
   };
 
   it("allows Type=New rows in New and Renew wizards", () => {
-    expect(
-      canDuplicateProductLine(editableNewRow, { wizardType: "New" })
-    ).toBe(true);
+    expect(canDuplicateProductLine(editableNewRow, { wizardType: "New" })).toBe(
+      true
+    );
     expect(
       canDuplicateProductLine(editableNewRow, { wizardType: "Renew" })
     ).toBe(true);

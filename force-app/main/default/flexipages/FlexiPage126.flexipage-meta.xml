@@ -39,7 +39,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;p&gt;期間分解された数量・金額の事実です。請求の出力内容の正本は「請求／請求明細」側です。&lt;/p&gt;</value>
+                    <value
+          >&lt;p&gt;期間分解された数量・金額の事実です。請求の出力内容の正本は「請求／請求明細」側です。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_hint</identifier>

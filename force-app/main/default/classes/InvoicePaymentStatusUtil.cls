@@ -60,7 +60,11 @@ public without sharing class InvoicePaymentStatusUtil {
     if (invoiceAmount == 0) {
       return new StatusAmounts(0, 0, 0);
     }
-    Decimal cleared = scaleAmount(line, invoiceAmount, invoiceStatus.clearedAmount);
+    Decimal cleared = scaleAmount(
+      line,
+      invoiceAmount,
+      invoiceStatus.clearedAmount
+    );
     Decimal integrated = scaleAmount(
       line,
       invoiceAmount,
@@ -79,7 +83,9 @@ public without sharing class InvoicePaymentStatusUtil {
     if (bucketAmount == null || bucketAmount == 0 || invoiceAmount == 0) {
       return 0;
     }
-    return (lineAmount * bucketAmount / invoiceAmount)
+    return (lineAmount *
+      bucketAmount /
+      invoiceAmount)
       .setScale(0, RoundingMode.HALF_UP);
   }
 

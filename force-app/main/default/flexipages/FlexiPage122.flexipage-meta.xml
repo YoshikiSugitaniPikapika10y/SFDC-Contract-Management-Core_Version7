@@ -14,17 +14,20 @@
                             <visibilityRule>
                                 <booleanFilter>(1 OR 2) AND 3</booleanFilter>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Estimate</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Ordered</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Contract_05_Can_Edit_Estimate}</leftValue>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Contract_05_Can_Edit_Estimate}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -35,12 +38,14 @@
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Estimate</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Contract_09_Can_Order}</leftValue>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Contract_09_Can_Order}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -51,12 +56,14 @@
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Estimate</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Contract_06_Can_Copy_Estimate}</leftValue>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Contract_06_Can_Copy_Estimate}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -67,44 +74,52 @@
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Estimate</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Contract_07_Can_Archive_Estimate}</leftValue>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Contract_07_Can_Archive_Estimate}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
                             </visibilityRule>
                         </valueListItems>
                         <valueListItems>
-                            <value>CustomButton.ContractHistory__c.EstimateIssuePdf</value>
+                            <value
+              >CustomButton.ContractHistory__c.EstimateIssuePdf</value>
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Estimate</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Contract_08_Can_Issue_Estimate_Document}</leftValue>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Contract_08_Can_Issue_Estimate_Document}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
                             </visibilityRule>
                         </valueListItems>
                         <valueListItems>
-                            <value>ContractHistory__c.Order_Invoice_Preview</value>
+                            <value
+              >ContractHistory__c.Order_Invoice_Preview</value>
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Ordered</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Contract_11_Can_View_Invoice_Preview}</leftValue>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Contract_11_Can_View_Invoice_Preview}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -115,12 +130,14 @@
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue>{!Record.historystatus__c}</leftValue>
+                                    <leftValue
+                  >{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Ordered</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Contract_10_Can_Revert}</leftValue>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Contract_10_Can_Revert}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -162,7 +179,8 @@
                     <name>variant</name>
                     <value>linear</value>
                 </componentInstanceProperties>
-                <componentName>runtime_sales_pathassistant:pathAssistant</componentName>
+                <componentName
+        >runtime_sales_pathassistant:pathAssistant</componentName>
                 <identifier>runtime_sales_pathassistant_statusPath</identifier>
                 <visibilityRule>
                     <criteria>
@@ -195,7 +213,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;p&gt;この Version の見積商品です。編集は見積作成画面から行います。&lt;/p&gt;</value>
+                    <value
+          >&lt;p&gt;この Version の見積商品です。編集は見積作成画面から行います。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_product_hint</identifier>
@@ -292,7 +311,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;p&gt;受注後に生成される請求の正本です。例外編集は「請求プレビュー」から行います。&lt;/p&gt;</value>
+                    <value
+          >&lt;p&gt;受注後に生成される請求の正本です。例外編集は「請求プレビュー」から行います。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_invoice_hint</identifier>
@@ -447,7 +467,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;div style="margin:0 0 0.75rem;padding:0.85rem 1rem;border-radius:0.5rem;background:linear-gradient(135deg,#f1f5f9 0%,#f8fafc 100%);border-left:4px solid #64748b;"&gt;&lt;p style="margin:0;font-size:0.95rem;color:#334155;"&gt;&lt;b&gt;アーカイブ済み&lt;/b&gt;&lt;/p&gt;&lt;p style="margin:0.35rem 0 0;color:#64748b;font-size:0.875rem;line-height:1.45;"&gt;この見積は使わない記録として残しています。編集・受注・請求の操作はできません。&lt;/p&gt;&lt;/div&gt;</value>
+                    <value
+          >&lt;div style="margin:0 0 0.75rem;padding:0.85rem 1rem;border-radius:0.5rem;background:linear-gradient(135deg,#f1f5f9 0%,#f8fafc 100%);border-left:4px solid #64748b;"&gt;&lt;p style="margin:0;font-size:0.95rem;color:#334155;"&gt;&lt;b&gt;アーカイブ済み&lt;/b&gt;&lt;/p&gt;&lt;p style="margin:0.35rem 0 0;color:#64748b;font-size:0.875rem;line-height:1.45;"&gt;この見積は使わない記録として残しています。編集・受注・請求の操作はできません。&lt;/p&gt;&lt;/div&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_archive</identifier>

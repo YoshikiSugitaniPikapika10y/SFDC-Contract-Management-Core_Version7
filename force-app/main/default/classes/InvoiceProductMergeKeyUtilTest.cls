@@ -53,17 +53,27 @@ private class InvoiceProductMergeKeyUtilTest {
       startDate,
       endDate
     );
-    String mergeKey =
-      periodKey +
-      '_2_8000_ID/月';
-    System.assertEquals(periodKey, InvoiceProductMergeKeyUtil.extractPeriodKey(mergeKey));
-    System.assertEquals(null, InvoiceProductMergeKeyUtil.extractPeriodKey(null));
-    System.assertEquals(null, InvoiceProductMergeKeyUtil.extractPeriodKey('short'));
+    String mergeKey = periodKey + '_2_8000_ID/月';
+    System.assertEquals(
+      periodKey,
+      InvoiceProductMergeKeyUtil.extractPeriodKey(mergeKey)
+    );
+    System.assertEquals(
+      null,
+      InvoiceProductMergeKeyUtil.extractPeriodKey(null)
+    );
+    System.assertEquals(
+      null,
+      InvoiceProductMergeKeyUtil.extractPeriodKey('short')
+    );
   }
 
   @IsTest
   static void buildMergeKey_fromInvoiceProduct_usesContractProductReference() {
-    System.assertEquals(null, InvoiceProductMergeKeyUtil.buildMergeKey((InvoiceProduct__c) null));
+    System.assertEquals(
+      null,
+      InvoiceProductMergeKeyUtil.buildMergeKey((InvoiceProduct__c) null)
+    );
 
     Id serviceId = (Id) (ContractService__c.SObjectType.getDescribe()
       .getKeyPrefix() + '000000000003');
@@ -184,10 +194,20 @@ private class InvoiceProductMergeKeyUtilTest {
     );
     System.assertEquals(
       billingAccountId,
-      InvoiceProductMergeKeyUtil.parseBillingAccountIdFromExportMergeKey(mergeKey)
+      InvoiceProductMergeKeyUtil.parseBillingAccountIdFromExportMergeKey(
+        mergeKey
+      )
     );
-    System.assertEquals(null, InvoiceProductMergeKeyUtil.parseInvoiceDateFromExportMergeKey(null));
-    System.assertEquals(null, InvoiceProductMergeKeyUtil.parseBillingAccountIdFromExportMergeKey('short'));
+    System.assertEquals(
+      null,
+      InvoiceProductMergeKeyUtil.parseInvoiceDateFromExportMergeKey(null)
+    );
+    System.assertEquals(
+      null,
+      InvoiceProductMergeKeyUtil.parseBillingAccountIdFromExportMergeKey(
+        'short'
+      )
+    );
   }
 
   @IsTest

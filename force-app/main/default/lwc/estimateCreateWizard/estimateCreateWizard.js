@@ -159,7 +159,9 @@ export default class EstimateCreateWizard extends LightningElement {
   }
 
   get isSaving() {
-    return this.wizardState.async.saving === true || this._saveInFlight === true;
+    return (
+      this.wizardState.async.saving === true || this._saveInFlight === true
+    );
   }
 
   get isLoadingCopy() {
@@ -425,6 +427,18 @@ export default class EstimateCreateWizard extends LightningElement {
     return modal3.flushToParent() !== false;
   }
 
+  /** flush 失敗時の案内。金額ポップアップ未確定を優先して明示する。 */
+  getStep3FlushBlockMessage(actionLabel) {
+    const action = actionLabel || "続行";
+    const modal3 = this.template.querySelector(
+      '[data-id="estimate-create-modal3"]'
+    );
+    if (modal3 && modal3.hasOpenAmountModal === true) {
+      return `金額の入力を適用（またはキャンセル）してから${action}してください。非整数の式は整数円に直して適用が必要です。`;
+    }
+    return `商品明細を更新中です。完了してから${action}してください。`;
+  }
+
   handleSaveClick() {
     if (this._saveInFlight || this.wizardState.async.saving) {
       return;
@@ -453,9 +467,7 @@ export default class EstimateCreateWizard extends LightningElement {
     // flush の changefield が handleStep3Change でフラグを落とすため、先に退避する。
     const skipSameProductConfirm = this._skipSameProductNewConfirm;
     if (!this.flushStep3ToParent()) {
-      this.showValidationAlert(
-        "商品明細を更新中です。完了してから保存してください。"
-      );
+      this.showValidationAlert(this.getStep3FlushBlockMessage("保存"));
       return;
     }
     const productsForConfirm = this.wizardData.selectedProducts || [];
@@ -492,10 +504,7 @@ export default class EstimateCreateWizard extends LightningElement {
       );
       return;
     }
-    this.openConfirm(
-      { kind: "remarks", requestId },
-      detail.message || ""
-    );
+    this.openConfirm({ kind: "remarks", requestId }, detail.message || "");
   }
 
   handleConfirmationProceed() {
@@ -987,9 +996,7 @@ export default class EstimateCreateWizard extends LightningElement {
 
     if (targetStep < this.currentStep) {
       if (this.currentStep === 2 && !this.flushStep3ToParent()) {
-        this.showValidationAlert(
-          "商品明細を更新中です。完了してから戻ってください。"
-        );
+        this.showValidationAlert(this.getStep3FlushBlockMessage("戻る"));
         return;
       }
       this.clearValidationAlert();
@@ -1013,9 +1020,7 @@ export default class EstimateCreateWizard extends LightningElement {
     }
     if (this.currentStep === 2) {
       if (!this.flushStep3ToParent()) {
-        this.showValidationAlert(
-          "商品明細を更新中です。完了してから戻ってください。"
-        );
+        this.showValidationAlert(this.getStep3FlushBlockMessage("戻る"));
         return;
       }
     }
@@ -1476,7 +1481,8 @@ export default class EstimateCreateWizard extends LightningElement {
           // 通常は contractHistoryCustomFieldsJson.ApplicationDate__c が正。
           applicationDate: this.resolveApplicationDateForSave(),
           productsJson: JSON.stringify(this.wizardData.selectedProducts || []),
-          estimateRemarkMasterId: this.wizardData.estimateRemarkMasterId || null,
+          estimateRemarkMasterId:
+            this.wizardData.estimateRemarkMasterId || null,
           remarksText: this.wizardData.estimateRemarks || null,
           billingAccountId: this.wizardData.billingAccountId || null,
           copyFromHistoryId: this.isEditMode

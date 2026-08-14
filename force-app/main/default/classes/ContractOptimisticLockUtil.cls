@@ -3,8 +3,7 @@
  * 画面オープン時に受け取った LastModified トークンと、保存直前の実値を比較する。
  */
 public with sharing class ContractOptimisticLockUtil {
-  public static final String CONFLICT_MESSAGE =
-    '他のユーザーが先に更新しました。画面を開き直してから再度操作してください。';
+  public static final String CONFLICT_MESSAGE = '他のユーザーが先に更新しました。画面を開き直してから再度操作してください。';
 
   /**
    * Aura / LWC 向けの不変トークン（ミリ秒 epoch 文字列）。

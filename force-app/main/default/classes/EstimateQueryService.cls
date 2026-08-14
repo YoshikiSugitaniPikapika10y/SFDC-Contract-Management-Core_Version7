@@ -22,8 +22,7 @@ public without sharing class EstimateQueryService {
 
   /** 継続課金の正は明細 BillingType。空のときだけ Product2。 */
   private static String recurringLineSoqlPredicate() {
-    return
-      '(BillingType__c = :BILLING_TYPE_RECURRING OR (BillingType__c = null AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))';
+    return '(BillingType__c = :BILLING_TYPE_RECURRING OR (BillingType__c = null AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))';
   }
 
   public static List<EstimateCreateController.ContractProductLineDto> getRecurringContractProducts(
@@ -804,13 +803,9 @@ public without sharing class EstimateQueryService {
       FROM ContractProduct__c
       WHERE
         ContractHistory__c = :contractHistoryId
-        AND (
-          BillingType__c = :BILLING_TYPE_RECURRING
-          OR (
-            BillingType__c = NULL
-            AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING
-          )
-        )
+        AND (BillingType__c = :BILLING_TYPE_RECURRING
+        OR (BillingType__c = NULL
+        AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))
         AND Quantity__c > 0
         AND Enddate__c = :termEndDate
         AND (Type__c = NULL
@@ -989,7 +984,11 @@ public without sharing class EstimateQueryService {
         option.termStart = history.CurrentTermStartDate__c;
         option.termEnd = history.CurrentTermEndDate__c;
         option.renewalRemainingMonths = history.ContractService__r.RenewalRemainingMonths__c;
-        if (history.Id != null && option.termStart != null && option.termEnd != null) {
+        if (
+          history.Id != null &&
+          option.termStart != null &&
+          option.termEnd != null
+        ) {
           termOptionByHistoryId.put(history.Id, option);
           termStartByHistoryId.put(history.Id, option.termStart);
           termEndByHistoryId.put(history.Id, option.termEnd);
@@ -998,7 +997,8 @@ public without sharing class EstimateQueryService {
       option.historyName = history.Name;
       option.version = history.Version__c;
       option.billingAccountId = history.ContractService__r.BiilingAcccount__c;
-      option.billingAccountName = history.ContractService__r.BiilingAcccount__r != null
+      option.billingAccountName = history.ContractService__r.BiilingAcccount__r !=
+        null
         ? history.ContractService__r.BiilingAcccount__r.Name
         : null;
 
@@ -1042,30 +1042,20 @@ public without sharing class EstimateQueryService {
     Map<Id, Set<String>> seenByHistoryId = new Map<Id, Set<String>>();
 
     for (ContractProduct__c product : [
-      SELECT
-        ContractHistory__c,
-        Product__r.Name,
-        StartDate__c,
-        Enddate__c
+      SELECT ContractHistory__c, Product__r.Name, StartDate__c, Enddate__c
       FROM ContractProduct__c
       WHERE
         ContractHistory__c IN :historyIds
-        AND (
-          BillingType__c = :BILLING_TYPE_RECURRING
-          OR (
-            BillingType__c = NULL
-            AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING
-          )
-        )
+        AND (BillingType__c = :BILLING_TYPE_RECURRING
+        OR (BillingType__c = NULL
+        AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))
         AND Quantity__c > 0
-        AND (
-          Type__c = NULL
-          OR Type__c IN (
-            :PRODUCT_TYPE_REMAKE,
-            :PRODUCT_TYPE_NEW,
-            :PRODUCT_TYPE_RENEW
-          )
-        )
+        AND (Type__c = NULL
+        OR Type__c IN (
+          :PRODUCT_TYPE_REMAKE,
+          :PRODUCT_TYPE_NEW,
+          :PRODUCT_TYPE_RENEW
+        ))
       WITH SYSTEM_MODE
       ORDER BY Product__r.Name ASC
     ]) {
@@ -1180,7 +1170,10 @@ public without sharing class EstimateQueryService {
   }
 
   private static String toStatusLabel(String status, String lifecycle) {
-    if (lifecycle == ContractDomainConstants.LIFECYCLE_SPOT || status == 'SPOT') {
+    if (
+      lifecycle == ContractDomainConstants.LIFECYCLE_SPOT ||
+      status == 'SPOT'
+    ) {
       return '都度';
     }
     if (status == 'InTerm') {

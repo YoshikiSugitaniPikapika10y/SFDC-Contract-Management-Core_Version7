@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>01 土台。パッケージ関連オブジェクトの参照（Read + View All + View All Fields）、関連標準オブジェクト参照、共通 Apex / VF アクセス。Edit/Delete なし。操作は 04〜13 と組み合わせる。</description>
+    <description
+  >01 土台。パッケージ関連オブジェクトの参照（Read + View All + View All Fields）、関連標準オブジェクト参照、共通 Apex / VF アクセス。Edit/Delete なし。操作は 04〜13 と組み合わせる。</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>01 契約 参照</label>
     <classAccesses>
@@ -37,6 +38,10 @@
     </classAccesses>
     <classAccesses>
         <apexClass>OrderCreateController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>EstimateOrderBoardController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
@@ -178,6 +183,14 @@
         <recordType>ContractHistory__c.Default</recordType>
         <visible>true</visible>
     </recordTypeVisibilities>
+    <applicationVisibilities>
+        <application>Contract_Estimate</application>
+        <visible>true</visible>
+    </applicationVisibilities>
+    <tabSettings>
+        <tab>Estimate_Order_Board</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
     <pageAccesses>
         <apexPage>EstimateDocumentIssue</apexPage>
         <enabled>true</enabled>

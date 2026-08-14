@@ -251,6 +251,8 @@ export default class EstimateCreateModal3 extends LightningElement {
   /** 初期化中フラグ。再入防止・表示同期抑止・commitItemList の emit 抑止。 */
   _bootstrapInFlight = false;
   _bootstrapQueued = false;
+  /** 商品選択の getProductDefaults 待ち件数。0 以外は保存・flush 不可。 */
+  _productDefaultsInFlight = 0;
   /** 直近で親へ伝えた準備状態。変化したときだけ通知する。 */
   _lastNotifiedStepReady = true;
   /** 備考マスタ確認ダイアログの Promise resolve（requestId → resolve）。 */
@@ -403,7 +405,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       !this._bootstrapInFlight &&
       !this.isLoadingChangeProducts &&
       !this.isLoadingRenewProducts &&
-      !this.isLoadingDates
+      !this.isLoadingDates &&
+      this._productDefaultsInFlight === 0
     );
   }
 
@@ -418,6 +421,9 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (this.isLoadingChangeProducts || this.isLoadingRenewProducts) {
       return "商品明細を読み込んでいます。完了するまで表示内容は保存対象と一致しません。";
     }
+    if (this._productDefaultsInFlight > 0) {
+      return "選択した商品の情報を取得しています。完了するまで保存しないでください。";
+    }
     if (this._bootstrapInFlight) {
       return "商品明細を更新しています。完了するまで保存しないでください。";
     }
@@ -429,10 +435,21 @@ export default class EstimateCreateModal3 extends LightningElement {
    * 保存直前に呼び、入力中の表示と保存ペイロードのズレを防ぐ。
    * @returns {boolean} 同期できた（読込中でない）とき true
    */
+  /**
+   * 詳細情報の画面値を親へ強制同期する。
+   * 金額ポップアップが開いているときは先に適用を試み、確定できない場合は false。
+   * @returns {boolean} 同期できた（読込中でない）とき true
+   */
   @api
   flushToParent() {
     if (!this.isStepReady) {
       return false;
+    }
+    if (this.isAmountModalOpen) {
+      // 保存／ステップ移動時に未適用ドラフトを捨てない（請求プレビューの数式ガードと同趣旨）
+      if (this.applyAmountModalDraft() !== true) {
+        return false;
+      }
     }
     this.applyBusinessFields({
       contractStartDate: this.contractStartDate,
@@ -532,10 +549,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   get hasRecurringProductLines() {
     return (this.itemList || []).some(
       (row) =>
-        row &&
-        row.productId &&
-        Number(row.quantity) > 0 &&
-        isRecurringLine(row)
+        row && row.productId && Number(row.quantity) > 0 && isRecurringLine(row)
     );
   }
 
@@ -583,10 +597,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   get showProductTable() {
     const type = this.effectiveSelectedType;
     return (
-      type === "New" ||
-      type === "Change" ||
-      type === "Renew" ||
-      type === "Add"
+      type === "New" || type === "Change" || type === "Renew" || type === "Add"
     );
   }
 
@@ -1178,6 +1189,12 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.amountModalRowId != null;
   }
 
+  /** 親ウィザードが保存ブロック理由を出すための公開状態 */
+  @api
+  get hasOpenAmountModal() {
+    return this.isAmountModalOpen;
+  }
+
   get showRemarksSection() {
     return (
       this.showProductTable &&
@@ -1532,7 +1549,9 @@ export default class EstimateCreateModal3 extends LightningElement {
         ? event.target.value
         : "";
     return normalizeDateInput(
-      detailValue !== undefined && detailValue !== null ? detailValue : targetValue
+      detailValue !== undefined && detailValue !== null
+        ? detailValue
+        : targetValue
     );
   }
 
@@ -1774,11 +1793,7 @@ export default class EstimateCreateModal3 extends LightningElement {
    * Change の切替日は別ロジック（最早課金イベント）のためここでは載せない。
    */
   computeHeaderDatesFromRecurringProducts() {
-    if (
-      !this.isNewType &&
-      !this.isRenewType &&
-      !this.isChangeType
-    ) {
+    if (!this.isNewType && !this.isRenewType && !this.isChangeType) {
       return null;
     }
     let minStart = "";
@@ -2996,7 +3011,27 @@ export default class EstimateCreateModal3 extends LightningElement {
     ) {
       return;
     }
-    this.closeAmountModal(false);
+    if (this.isAmountModalOpen) {
+      // 保存時の flush と同様、未適用の金額下書きを捨てない
+      if (this.applyAmountModalDraft() !== true) {
+        this.dispatchEvent(
+          new ShowToastEvent({
+            title: "金額の入力を確定してください",
+            message:
+              "数式ポップアップを適用（またはキャンセル）してから商品を選択してください。",
+            variant: "error",
+            mode: "dismissable"
+          })
+        );
+        return;
+      }
+    }
+    // 別行へ切り替えるとき、前行の遅延 onchange / in-flight 適用を無効化
+    const previousRowId = this.productModalRowId;
+    if (previousRowId && previousRowId !== rowId) {
+      this._productSelectSeqByRowId[previousRowId] =
+        (this._productSelectSeqByRowId[previousRowId] || 0) + 1;
+    }
     this._productModalReturnFocusEl = event.currentTarget;
     this.productModalRowId = rowId;
     this.productModalProductId = row.productId || "";
@@ -3069,6 +3104,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (this._fitProductNamesRaf != null) {
       return;
     }
+    // eslint-disable-next-line @lwc/lwc/no-async-operation
     this._fitProductNamesRaf = requestAnimationFrame(() => {
       this._fitProductNamesRaf = null;
       this.fitProductNameFonts();
@@ -3116,10 +3152,17 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   async handleInlineProductChange(event) {
-    const rowId = this.productModalRowId;
+    // 開いていた行に固定する（productModalRowId は行切替で上書きされるため DOM を正とする）
+    const host = event.currentTarget;
+    const wrap =
+      host && typeof host.closest === "function"
+        ? host.closest("[data-product-pick-row]")
+        : null;
+    const rowId = wrap?.dataset?.productPickRow || null;
     const selectedProductId = event.detail.recordId || "";
     this.productModalProductId = selectedProductId;
     if (!rowId) {
+      // 行切替でピッカー破棄後の遅延イベントは無視（別行への誤適用を防ぐ）
       return;
     }
     // 選択（またはクリア）したらセル内ピッカーを閉じて即反映
@@ -3137,8 +3180,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     ) {
       return;
     }
-    const selectSeq =
-      (this._productSelectSeqByRowId[rowId] || 0) + 1;
+    const selectSeq = (this._productSelectSeqByRowId[rowId] || 0) + 1;
     this._productSelectSeqByRowId[rowId] = selectSeq;
     if (!selectedProductId) {
       this.updateRow(rowId, {
@@ -3158,6 +3200,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       return;
     }
 
+    this._productDefaultsInFlight += 1;
+    this.notifyStepReadyChange();
     try {
       const defaults = await getProductDefaults({
         productId: selectedProductId
@@ -3240,6 +3284,12 @@ export default class EstimateCreateModal3 extends LightningElement {
         this.reduceErrorMessage(error),
         "error"
       );
+    } finally {
+      this._productDefaultsInFlight = Math.max(
+        0,
+        this._productDefaultsInFlight - 1
+      );
+      this.notifyStepReadyChange();
     }
   }
 
@@ -3278,8 +3328,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     this.amountModalRowId = rowId;
     this.amountModalDraft = seed == null ? "" : formatAmountYen(seed);
     this.amountModalError = "";
-    this.amountModalHint =
-      "金額、または = で四則計算（例: =1,200,000/12）";
+    this.amountModalHint = "金額、または = で四則計算（例: =1,200,000/12）";
     this.amountModalRequireInteger = false;
     // 別行へ切り替えたときは再フォーカスさせる
     if (switchingRow) {
@@ -3331,7 +3380,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     const row = this.itemList.find((item) => item.id === rowId);
     if (!row || row.isReadonly) {
       this.closeAmountModal(false);
-      return;
+      return true;
     }
     const resolved = resolveAmountInputDraft(this.amountModalDraft, {
       requireInteger: this.amountModalRequireInteger
@@ -3339,14 +3388,14 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (!resolved.ok) {
       this.amountModalError = resolved.message;
       this.amountModalHint = "";
-      return;
+      return false;
     }
     if (resolved.kind === "draft") {
       this.amountModalRequireInteger = true;
       this.amountModalDraft = resolved.display;
       this.amountModalError = resolved.message || "整数円に調整してください";
       this.amountModalHint = "端数を確認し、整数円にして適用してください";
-      return;
+      return false;
     }
     const manualAmount = resolved.value;
     const unitPrice = deriveUnitPriceFromAmount(row, manualAmount);
@@ -3356,6 +3405,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       manualAmount
     });
     this.closeAmountModal(true);
+    return true;
   }
 
   teardownAmountModalA11y(restoreFocus = false) {
@@ -3476,10 +3526,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       );
       return;
     }
-    if (
-      value !== BILLING_TYPE_RECURRING &&
-      value !== BILLING_TYPE_ONE_TIME
-    ) {
+    if (value !== BILLING_TYPE_RECURRING && value !== BILLING_TYPE_ONE_TIME) {
       return;
     }
     if (value === row.billingType) {

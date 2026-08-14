@@ -13,13 +13,7 @@ public class ContractTenantTestConfig {
     ContractTestDataFactory.applyTenantExtraOpportunityFields(opportunity);
   }
 
-  public static void prepareRenewEstimateAutoCreate(
-    Opportunity opportunity,
-    Id contractServiceId
-  ) {
-    ContractTestDataFactory.prepareRenewEstimateAutoCreate(
-      opportunity,
-      contractServiceId
-    );
+  public static void prepareRenewEstimateAutoCreate(Id contractServiceId) {
+    ContractTestDataFactory.prepareRenewEstimateAutoCreate(contractServiceId);
   }
 }

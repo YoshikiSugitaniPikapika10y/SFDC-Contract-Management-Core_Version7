@@ -29,10 +29,19 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
-      System.assertEquals(fixture.billingAccount.Id, loaded.BillingAccountSnapShot__c);
-      System.assertEquals('トリガ宛名 御中', loaded.BillingAddresseeSnapShot__c);
+      System.assertEquals(
+        fixture.billingAccount.Id,
+        loaded.BillingAccountSnapShot__c
+      );
+      System.assertEquals(
+        'トリガ宛名 御中',
+        loaded.BillingAddresseeSnapShot__c
+      );
       System.assertEquals('trig@example.com', loaded.BillingEmailToSnapShot__c);
-      System.assertEquals(ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END, loaded.PaymentTermSnapShot__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
+        loaded.PaymentTermSnapShot__c
+      );
     }
   }
 
@@ -99,7 +108,10 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         WHERE Id = :line.Id
       ];
       System.assertEquals(fixture.product.Id, loaded.Product__c);
-      System.assertEquals(ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT, loaded.Unit__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
+        loaded.Unit__c
+      );
     }
   }
 

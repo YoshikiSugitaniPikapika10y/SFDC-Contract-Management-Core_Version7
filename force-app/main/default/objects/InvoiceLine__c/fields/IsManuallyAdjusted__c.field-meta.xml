@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>IsManuallyAdjusted__c</fullName>
     <defaultValue>false</defaultValue>
-    <description>端数調整済または分割・移動済のいずれか。内訳は IsAmountAdjusted__c / IsSplitMoved__c。</description>
-    <inlineHelpText>端数調整または分割・移動をした明細。詳細は端数調整済／分割・移動済を参照。</inlineHelpText>
+    <description
+  >端数調整済または分割・移動済のいずれか。内訳は IsAmountAdjusted__c / IsSplitMoved__c。</description>
+    <inlineHelpText
+  >端数調整または分割・移動をした明細。詳細は端数調整済／分割・移動済を参照。</inlineHelpText>
     <label>手動調整済</label>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>

@@ -92,7 +92,9 @@ public without sharing class InvoiceProductGenerationService {
     );
     Set<Id> generateHistoryIds = new Set<Id>();
     for (Id historyId : contractHistoryIds) {
-      HistoryGenerationContext historyContext = historyContextById.get(historyId);
+      HistoryGenerationContext historyContext = historyContextById.get(
+        historyId
+      );
       if (
         historyContext != null &&
         historyContext.historyType != HISTORY_TYPE_CANCEL
@@ -399,22 +401,14 @@ public without sharing class InvoiceProductGenerationService {
     if (remakeRows != null && !remakeRows.isEmpty()) {
       for (ContractProduct__c remakeRow : remakeRows) {
         draftLines.addAll(
-          buildInvoiceProductDrafts(
-            remakeRow,
-            billingContext,
-            unchangedContext
-          )
+          buildInvoiceProductDrafts(remakeRow, billingContext, unchangedContext)
         );
       }
       return draftLines;
     }
     if (originalRow != null) {
       draftLines.addAll(
-        buildInvoiceProductDrafts(
-          originalRow,
-          billingContext,
-          unchangedContext
-        )
+        buildInvoiceProductDrafts(originalRow, billingContext, unchangedContext)
       );
     }
     return draftLines;
@@ -731,8 +725,8 @@ public without sharing class InvoiceProductGenerationService {
         if (reversalContractProduct == null) {
           throw new InvoiceProductGenerationException(
             'Change の打消し行を Original に紐づけられませんでした。' +
-            '過去の数量・単価と一致する Original 行があるか確認してください: ' +
-            periodKey
+              '過去の数量・単価と一致する Original 行があるか確認してください: ' +
+              periodKey
           );
         }
         InvoiceProduct__c reversalLine = buildExplicitInvoiceProduct(
@@ -1057,9 +1051,11 @@ public without sharing class InvoiceProductGenerationService {
       return;
     }
     invoiceProduct.ContractProduct__c = contractProduct.Id;
-    invoiceProduct.ContractHistory__c = contractProduct.ContractHistory__c != null
+    invoiceProduct.ContractHistory__c = contractProduct.ContractHistory__c !=
+      null
       ? contractProduct.ContractHistory__c
-      : (billingContext == null || billingContext.contractHistory == null
+      : (billingContext == null ||
+          billingContext.contractHistory == null
           ? null
           : billingContext.contractHistory.Id);
     invoiceProduct.Quantity__c = contractProduct.Quantity__c;
@@ -1669,7 +1665,10 @@ public without sharing class InvoiceProductGenerationService {
     ContractProduct__c contractProduct,
     HistoryGenerationContext historyContext
   ) {
-    if (contractProduct == null || contractProduct.InvoiceAnchorDate__c != null) {
+    if (
+      contractProduct == null ||
+      contractProduct.InvoiceAnchorDate__c != null
+    ) {
       return;
     }
     InvoiceAnchorDateUtil.applyToContractProduct(
@@ -1766,7 +1765,10 @@ public without sharing class InvoiceProductGenerationService {
       billingContext.contractHistory == null
       ? null
       : billingContext.contractHistory.Id;
-    if (contractHistoryId == null && invoiceProduct.ContractHistory__c != null) {
+    if (
+      contractHistoryId == null &&
+      invoiceProduct.ContractHistory__c != null
+    ) {
       contractHistoryId = invoiceProduct.ContractHistory__c;
     }
     Date paymentScheduledDate = ContractMetadataService.resolvePaymentScheduledDate(
@@ -1832,7 +1834,9 @@ public without sharing class InvoiceProductGenerationService {
     InvoiceProduct__c pastSample
   ) {
     if (pastSample != null && pastSample.ContractProduct__r != null) {
-      String pastBillingType = resolveBillingType(pastSample.ContractProduct__r);
+      String pastBillingType = resolveBillingType(
+        pastSample.ContractProduct__r
+      );
       if (String.isNotBlank(pastBillingType)) {
         return isOneTimeBillingType(pastBillingType);
       }

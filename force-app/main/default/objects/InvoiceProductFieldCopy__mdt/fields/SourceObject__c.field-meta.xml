@@ -1,7 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>SourceObject__c</fullName>
-    <description>Fromオブジェクト。リレーションは固定: 契約履歴=請求商品→契約履歴 / 見積商品=請求商品→見積商品 / 商品=請求商品→見積商品→商品 / 請求アカウント=請求商品→契約履歴→契約サービス→請求アカウント / 商談=請求商品→契約履歴→商談 / 取引先=請求商品→契約履歴→契約サービス→取引先</description>
+    <description
+  >Fromオブジェクト。リレーションは固定: 契約履歴=請求商品→契約履歴 / 見積商品=請求商品→見積商品 / 商品=請求商品→見積商品→商品 / 請求アカウント=請求商品→契約履歴→契約サービス→請求アカウント / 商談=請求商品→契約履歴→商談 / 取引先=請求商品→契約履歴→契約サービス→取引先</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <label>Fromオブジェクト</label>

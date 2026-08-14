@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>09 操作。カスタム権限 Contract_09_Can_Order のみ。通常は 01 と併用。コード接続は別途。</description>
+    <description
+  >09 操作。カスタム権限 Contract_09_Can_Order のみ。通常は 01 と併用。コード接続は別途。</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>09 契約 受注</label>
     <customPermissions>

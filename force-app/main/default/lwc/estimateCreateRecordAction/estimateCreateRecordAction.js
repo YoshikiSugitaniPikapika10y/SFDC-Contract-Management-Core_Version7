@@ -1,58 +1,61 @@
-import { LightningElement, api } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation';
-import hasCreateEstimate from '@salesforce/customPermission/Contract_04_Can_Create_Estimate';
+import { LightningElement, api } from "lwc";
+import { NavigationMixin } from "lightning/navigation";
+import hasCreateEstimate from "@salesforce/customPermission/Contract_04_Can_Create_Estimate";
 import {
-    closeEstimateWizard,
-    markEstimateRecordForRefresh,
-    refreshOnEstimateRecordActionUnmount
-} from 'c/estimateWizardClose';
-import { resizeQuickActionPanel } from 'c/quickActionPanelResize';
+  closeEstimateWizard,
+  markEstimateRecordForRefresh,
+  refreshOnEstimateRecordActionUnmount
+} from "c/estimateWizardClose";
+import { resizeQuickActionPanel } from "c/quickActionPanelResize";
 
 export default class EstimateCreateRecordAction extends NavigationMixin(
-    LightningElement
+  LightningElement
 ) {
-    @api recordId;
+  @api recordId;
 
-    pendingRecordRefresh;
+  pendingRecordRefresh;
 
-    get hasPermission() {
-        return hasCreateEstimate === true;
-    }
+  get hasPermission() {
+    return hasCreateEstimate === true;
+  }
 
-    connectedCallback() {
-        resizeQuickActionPanel(this);
-    }
+  connectedCallback() {
+    resizeQuickActionPanel(this);
+  }
 
-    renderedCallback() {
-        resizeQuickActionPanel(this);
-    }
+  renderedCallback() {
+    resizeQuickActionPanel(this);
+  }
 
-    handleRequestClose(event) {
-        const detail = event.detail || {};
-        closeEstimateWizard(this, {
-            refresh: detail.refresh !== false,
-            opportunityId: detail.opportunityId || this.recordId,
-            contractHistoryId: detail.contractHistoryId
-        });
+  handleRequestClose(event) {
+    const detail = event.detail || {};
+    closeEstimateWizard(this, {
+      refresh: detail.refresh !== false,
+      opportunityId: detail.opportunityId || this.recordId,
+      contractHistoryId: detail.contractHistoryId
+    });
 
-        const navigateToId = detail.navigateToContractHistoryId;
-        if (navigateToId) {
-            this[NavigationMixin.Navigate]({
-                type: 'standard__recordPage',
-                attributes: {
-                    recordId: navigateToId,
-                    objectApiName: 'ContractHistory__c',
-                    actionName: 'view'
-                }
-            });
+    const navigateToId = detail.navigateToContractHistoryId;
+    if (navigateToId) {
+      this[NavigationMixin.Navigate]({
+        type: "standard__recordPage",
+        attributes: {
+          recordId: navigateToId,
+          objectApiName: "ContractHistory__c",
+          actionName: "view"
         }
+      });
     }
+  }
 
-    handleEstimateSaved(event) {
-        markEstimateRecordForRefresh(this, event.detail?.opportunityId || this.recordId);
-    }
+  handleEstimateSaved(event) {
+    markEstimateRecordForRefresh(
+      this,
+      event.detail?.opportunityId || this.recordId
+    );
+  }
 
-    disconnectedCallback() {
-        refreshOnEstimateRecordActionUnmount(this);
-    }
+  disconnectedCallback() {
+    refreshOnEstimateRecordActionUnmount(this);
+  }
 }

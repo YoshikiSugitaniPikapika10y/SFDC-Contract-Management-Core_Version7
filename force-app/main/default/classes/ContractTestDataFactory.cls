@@ -105,7 +105,10 @@ public class ContractTestDataFactory {
   }
 
   public static void ensureCustomerValidationEnforceOff(Id setupOwnerId) {
-    if (setupOwnerId == null || validationEnforceOffOwnerIds.contains(setupOwnerId)) {
+    if (
+      setupOwnerId == null ||
+      validationEnforceOffOwnerIds.contains(setupOwnerId)
+    ) {
       return;
     }
     List<ContractValidationEnforce__c> existing = [
@@ -468,8 +471,7 @@ public class ContractTestDataFactory {
       AccountId = accountId,
       OwnerId = currentUserId(),
       CloseDate = Date.today().addMonths(1),
-      PreviousOpportunity__c = previousOpportunityId,
-      RenewEstimateAutoCreateCheck__c = renewEstimateAutoCreate == true
+      PreviousOpportunity__c = previousOpportunityId
     );
     applyContractServiceIfPresent(opportunity, contractServiceId);
     applyOpportunityDefaults(opportunity);
@@ -539,23 +541,15 @@ public class ContractTestDataFactory {
     }
   }
 
-  /**
-   * 更新見積自動作成を ON にする前に、導入先 VR で必要な項目を埋める。
-   */
-  public static void prepareRenewEstimateAutoCreate(
-    Opportunity opportunity,
-    Id contractServiceId
-  ) {
-    if (opportunity == null) {
+  /** 契約サービスの更新見積自動作成を OFF→ON する（他項目は触らない）。 */
+  public static void prepareRenewEstimateAutoCreate(Id contractServiceId) {
+    if (contractServiceId == null) {
       return;
     }
-    opportunity.RenewEstimateAutoCreateCheck__c = true;
-    Map<String, Schema.SObjectField> fieldMap = Schema.sObjectType.Opportunity.fields.getMap();
-    if (
-      contractServiceId != null && fieldMap.containsKey('ContractService__c')
-    ) {
-      opportunity.put('ContractService__c', contractServiceId);
-    }
+    update new ContractService__c(
+      Id = contractServiceId,
+      RenewEstimateAutoCreateCheck__c = true
+    );
   }
 
   public static void applyOpportunityDefaults(List<Opportunity> opportunities) {

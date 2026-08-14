@@ -1061,14 +1061,11 @@ function toScaledInt(value, scale) {
   const sign = rounded < 0 ? -1 : 1;
   const plain = toPlainDecimalString(Math.abs(rounded));
   const dot = plain.indexOf(".");
-  const intDigits = (dot === -1 ? plain : plain.slice(0, dot)).replace(
-    /^0+(?=\d)/,
-    ""
-  ) || "0";
-  const frac = ((dot === -1 ? "" : plain.slice(dot + 1)) + "0".repeat(scale)).slice(
-    0,
-    scale
-  );
+  const intDigits =
+    (dot === -1 ? plain : plain.slice(0, dot)).replace(/^0+(?=\d)/, "") || "0";
+  const frac = (
+    (dot === -1 ? "" : plain.slice(dot + 1)) + "0".repeat(scale)
+  ).slice(0, scale);
   return sign * Number(intDigits + frac);
 }
 
@@ -1248,6 +1245,7 @@ export function evaluateAmountFormula(expression) {
     }
     if (ch === "(") {
       i += 1;
+      // eslint-disable-next-line no-use-before-define
       const v = parseExpr();
       skipWs();
       if (peek() !== ")") {
@@ -2171,10 +2169,7 @@ export function validateChangeHasBillingEventInPreviousTerm(
  * 一回課金 New 追加・一回課金系統のイベントは含めない。
  * 継続イベントがなければ null（切替日不要）。
  */
-export function getEarliestChangeBillingThresholdDate(
-  products,
-  contractStartDate
-) {
+export function getEarliestChangeBillingThresholdDate(products) {
   const dates = collectChangeBillingEventEntries(products)
     .filter((entry) => entry && entry.date && entry.isOneTimeOnly !== true)
     .map((entry) => entry.date);

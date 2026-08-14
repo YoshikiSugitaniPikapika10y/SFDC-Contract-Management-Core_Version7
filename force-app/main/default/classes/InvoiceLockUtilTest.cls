@@ -12,7 +12,9 @@ private class InvoiceLockUtilTest {
     System.assertEquals(false, InvoiceLockUtil.isInvoiced(unlocked));
     System.assertEquals(false, InvoiceLockUtil.isExported(unlocked));
 
-    Invoice__c invoiced = new Invoice__c(SystemIntegrationDate__c = Date.today());
+    Invoice__c invoiced = new Invoice__c(
+      SystemIntegrationDate__c = Date.today()
+    );
     System.assertEquals(true, InvoiceLockUtil.isInvoiced(invoiced));
     System.assertEquals(true, InvoiceLockUtil.isLocked(invoiced));
 
@@ -22,8 +24,8 @@ private class InvoiceLockUtilTest {
     System.assertEquals(true, InvoiceLockUtil.isExported(exported));
     System.assertEquals(true, InvoiceLockUtil.isLocked(exported));
 
-    Id fakeInvoiceId = Invoice__c.SObjectType.getDescribe().getKeyPrefix() +
-      '000000000002AAA';
+    Id fakeInvoiceId =
+      Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000002AAA';
     Invoice__c priorLocked = new Invoice__c(
       Id = fakeInvoiceId,
       Amount__c = 1000,
@@ -98,7 +100,9 @@ private class InvoiceLockUtilTest {
   @IsTest
   static void assertVersionEditable_blocksWhenInvoiceLocked() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Lock Util Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Lock Util Account'
+      );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
@@ -169,7 +173,11 @@ private class InvoiceLockUtilTest {
 
       InvoiceLockUtil.testCanBypassLockedDml = false;
       Invoice__c lockedUpdate = [
-        SELECT Id, Amount__c, SystemIntegrationDate__c, PaymentClearingCompletedDate__c
+        SELECT
+          Id,
+          Amount__c,
+          SystemIntegrationDate__c,
+          PaymentClearingCompletedDate__c
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
@@ -219,8 +227,8 @@ private class InvoiceLockUtilTest {
 
   @IsTest
   static void blockLockedRowDml_allowsClearingExportWhenNotIntegrated() {
-    Id fakeInvoiceId = Invoice__c.SObjectType.getDescribe().getKeyPrefix() +
-      '000000000003AAA';
+    Id fakeInvoiceId =
+      Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000003AAA';
     Invoice__c priorExportedOnly = new Invoice__c(
       Id = fakeInvoiceId,
       SystemIntegrationDate__c = null,

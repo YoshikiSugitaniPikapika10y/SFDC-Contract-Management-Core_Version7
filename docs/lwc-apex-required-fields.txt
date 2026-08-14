@@ -10,7 +10,7 @@ Name, Id
 【商談】 Opportunity（パッケージ拡張項目）
 ----------------------------------------------------------------------------------------------------
 PreviousOpportunity__c          Lookup → Opportunity
-RenewEstimateAutoCreateCheck__c  Checkbox  OFF→ON 更新時のみ Renew 見積自動作成（作成時 ON では作らない）
+ContractService__c              Lookup → ContractService__c
 
 ====================================================================================================
 【商品】 Product2（パッケージ拡張項目）
@@ -42,6 +42,7 @@ ServiceStartDate__c / ServiceEndDate__c
 Status__c
 LatestARR__c
 TaxPercent__c
+RenewEstimateAutoCreateCheck__c  Checkbox  OFF→ON 更新時のみ Renew 見積自動作成（作成時 ON では作らない）
 
 ====================================================================================================
 【契約履歴】 ContractHistory__c

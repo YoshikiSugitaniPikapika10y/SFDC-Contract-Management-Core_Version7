@@ -132,7 +132,9 @@ public with sharing class EstimateDocumentPdfController {
       view.totalAmountIncTax = sourceGroup.totalAmountIncTax;
       view.items = new List<LineItemView>();
       if (sourceGroup.items != null) {
-        for (EstimateDocumentService.GroupedLineDto sourceItem : sourceGroup.items) {
+        for (
+          EstimateDocumentService.GroupedLineDto sourceItem : sourceGroup.items
+        ) {
           LineItemView itemView = new LineItemView();
           itemView.breakdown = sourceItem.breakdown;
           itemView.unit = sourceItem.unit;

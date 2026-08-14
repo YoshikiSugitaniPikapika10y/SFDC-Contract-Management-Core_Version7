@@ -250,8 +250,7 @@ private class InvoiceOpsControllerTest {
         Date.today(),
         null
       );
-      String denied =
-        '請求の連携・消込操作を実行する権限がありません。';
+      String denied = '請求の連携・消込操作を実行する権限がありません。';
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MANAGE_INVOICE_OPS => false
       };
@@ -299,9 +298,7 @@ private class InvoiceOpsControllerTest {
         System.assertEquals(true, clearBlocked, 'clearExportDate は 13 必須');
 
         Invoice__c unchanged = [
-          SELECT
-            SystemIntegrationDate__c,
-            PaymentClearingCompletedDate__c
+          SELECT SystemIntegrationDate__c, PaymentClearingCompletedDate__c
           FROM Invoice__c
           WHERE Id = :invoice.Id
         ];

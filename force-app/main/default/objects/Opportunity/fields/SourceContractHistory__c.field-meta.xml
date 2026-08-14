@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>SourceContractHistory__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
-    <description>この更新商談を作成する契機となった受注契約履歴。差し戻し時の消す／残す判定・二重作成防止の逆引きに使う。</description>
+    <description
+  >この更新商談を作成する契機となった受注契約履歴。差し戻し時の消す／残す判定・二重作成防止の逆引きに使う。</description>
     <label>元契約履歴</label>
     <referenceTo>ContractHistory__c</referenceTo>
     <relationshipLabel>更新商談</relationshipLabel>

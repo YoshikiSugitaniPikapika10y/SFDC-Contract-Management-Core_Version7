@@ -423,7 +423,8 @@ export default class EstimateCreateModal2 extends LightningElement {
         helpLines: buildOperationHelpLines(value, termStartIso, termEndIso),
         iconName: meta.iconName,
         pressed: selected ? "true" : "false",
-        disabled: this.editMode === true || this.orderedCustomFieldsOnly === true,
+        disabled:
+          this.editMode === true || this.orderedCustomFieldsOnly === true,
         buttonClass: selected
           ? "est-ops-card est-ops-card_active"
           : this.editMode === true || this.orderedCustomFieldsOnly === true
@@ -867,8 +868,7 @@ function buildOperationHelpLines(type, termStartIso, termEndIso) {
   let lines = [];
 
   if (type === "Change") {
-    const period =
-      termStart && termEnd ? `${termStart}～${termEnd}` : "";
+    const period = termStart && termEnd ? `${termStart}～${termEnd}` : "";
     const extendFrom = termEndNext || "";
     lines = [
       period
@@ -895,12 +895,7 @@ function buildOperationHelpLines(type, termStartIso, termEndIso) {
     ];
   } else if (type === "Renew") {
     lines = termEndNext
-      ? [
-          [
-            helpSeg(termEndNext, true),
-            helpSeg("から契約を延長します", false)
-          ]
-        ]
+      ? [[helpSeg(termEndNext, true), helpSeg("から契約を延長します", false)]]
       : [[helpSeg("契約を延長します", false)]];
   } else if (type === "Cancel") {
     lines = termEnd
@@ -922,9 +917,7 @@ function buildOperationHelpLines(type, termStartIso, termEndIso) {
       text: seg.text,
       emphasis: seg.emphasis === true,
       className:
-        seg.emphasis === true
-          ? "est-ops-help-date"
-          : "est-ops-help-text"
+        seg.emphasis === true ? "est-ops-help-date" : "est-ops-help-text"
     }))
   }));
 }
@@ -932,4 +925,3 @@ function buildOperationHelpLines(type, termStartIso, termEndIso) {
 function helpSeg(text, emphasis) {
   return { text, emphasis };
 }
-

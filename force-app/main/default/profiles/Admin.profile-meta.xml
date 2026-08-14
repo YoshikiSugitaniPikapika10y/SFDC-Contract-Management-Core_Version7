@@ -145,6 +145,14 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>EstimateOrderBoardController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>EstimateOrderBoardControllerTest</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>OrderCreateController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -495,7 +503,7 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
-        <field>Opportunity.RenewEstimateAutoCreateCheck__c</field>
+        <field>ContractService__c.RenewEstimateAutoCreateCheck__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -625,6 +633,10 @@
     <tabVisibilities>
         <tab>Estimate_Create</tab>
         <visibility>Hidden</visibility>
+    </tabVisibilities>
+    <tabVisibilities>
+        <tab>Estimate_Order_Board</tab>
+        <visibility>DefaultOn</visibility>
     </tabVisibilities>
     <tabVisibilities>
         <tab>Order_Invoice_Preview</tab>

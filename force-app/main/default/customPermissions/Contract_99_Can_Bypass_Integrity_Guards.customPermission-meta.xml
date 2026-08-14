@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>99 例外専用。パッケージ整合性ガード（ロック行DML・CS削除禁止・差し戻し順序・再生成拒否等）を緊急時にバイパス。通常は付与しない。旧 Contract_14_Can_Bypass_Integrity_Guards の後継（99＝例外固定）。</description>
+    <description
+  >99 例外専用。パッケージ整合性ガード（ロック行DML・CS削除禁止・差し戻し順序・再生成拒否等）を緊急時にバイパス。通常は付与しない。旧 Contract_14_Can_Bypass_Integrity_Guards の後継（99＝例外固定）。</description>
     <isLicensed>false</isLicensed>
     <label>99 契約 整合性ガード解除</label>
 </CustomPermission>

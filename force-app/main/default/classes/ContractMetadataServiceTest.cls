@@ -194,7 +194,9 @@ private class ContractMetadataServiceTest {
     );
     System.assertEquals(
       null,
-      ContractMetadataService.parseBillingDayOfMonth(ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY)
+      ContractMetadataService.parseBillingDayOfMonth(
+        ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY
+      )
     );
     System.assertEquals(
       null,
@@ -214,7 +216,9 @@ private class ContractMetadataServiceTest {
     );
     System.assertEquals(
       ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
-      ContractMetadataService.formatBillingDayPicklistLabel(ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY)
+      ContractMetadataService.formatBillingDayPicklistLabel(
+        ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY
+      )
     );
     System.assertEquals(
       ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
@@ -275,7 +279,10 @@ private class ContractMetadataServiceTest {
 
     System.assertEquals(
       Date.newInstance(2026, 6, 30),
-      ContractMetadataService.resolvePaymentScheduledDate(ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END, invoiceDate)
+      ContractMetadataService.resolvePaymentScheduledDate(
+        ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
+        invoiceDate
+      )
     );
     System.assertEquals(
       Date.newInstance(2026, 7, 15),

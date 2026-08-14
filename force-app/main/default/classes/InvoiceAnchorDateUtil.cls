@@ -36,7 +36,8 @@ public without sharing class InvoiceAnchorDateUtil {
     );
 
     if (
-      route == ContractMetadataService.InvoiceDateRouteType.BULK_CONTRACT_END_PLUS_ONE
+      route ==
+      ContractMetadataService.InvoiceDateRouteType.BULK_CONTRACT_END_PLUS_ONE
     ) {
       if (endDate == null) {
         return result;

@@ -1,13 +1,15 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Lifecycle_Immutable</fullName>
     <active>true</active>
-    <description>Term↔Spot の直接切替は不可。空へのクリア（V1差し戻し）と空からの確定（受注）は可。</description>
+    <description
+  >Term↔Spot の直接切替は不可。空へのクリア（V1差し戻し）と空からの確定（受注）は可。</description>
     <errorConditionFormula>AND(
   NOT(ISBLANK(TEXT(PRIORVALUE(Lifecycle__c)))),
   ISCHANGED(Lifecycle__c),
   NOT(ISBLANK(TEXT(Lifecycle__c)))
 )</errorConditionFormula>
     <errorDisplayField>Lifecycle__c</errorDisplayField>
-    <errorMessage>ライフサイクルの Term / Spot を直接切り替えることはできません。</errorMessage>
+    <errorMessage
+  >ライフサイクルの Term / Spot を直接切り替えることはできません。</errorMessage>
 </ValidationRule>

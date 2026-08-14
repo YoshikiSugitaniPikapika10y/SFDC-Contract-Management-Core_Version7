@@ -94,7 +94,8 @@ private class OrderCreateControllerTest {
   @IsTest
   static void getOrderContext_missingHistory_throwsKnownMessage() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Id missingId = ContractHistory__c.SObjectType.getDescribe().getKeyPrefix() +
+      Id missingId =
+        ContractHistory__c.SObjectType.getDescribe().getKeyPrefix() +
         '000000000000AAA';
       Boolean thrown = false;
       try {
@@ -264,7 +265,11 @@ private class OrderCreateControllerTest {
       );
       Boolean thrown = false;
       try {
-        OrderCreateController.revertOrder(context.history.Id, false, staleToken);
+        OrderCreateController.revertOrder(
+          context.history.Id,
+          false,
+          staleToken
+        );
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
@@ -835,13 +840,12 @@ private class OrderCreateControllerTest {
       Date paymentDue = Date.newInstance(2026, 7, 31);
       Test.startTest();
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      OrderCreateController.InvoicePreviewDto datesPreview =
-        OrderCreateController.updateInvoiceDates(
-          context.history.Id,
-          invoice.Id,
-          invoice.InvoiceDate__c,
-          paymentDue
-        );
+      OrderCreateController.InvoicePreviewDto datesPreview = OrderCreateController.updateInvoiceDates(
+        context.history.Id,
+        invoice.Id,
+        invoice.InvoiceDate__c,
+        paymentDue
+      );
       System.assert(datesPreview.invoiceCount >= 1);
 
       Invoice__c afterDates = [
@@ -860,18 +864,17 @@ private class OrderCreateControllerTest {
         '日付編集後は手動調整フラグが立つこと'
       );
 
-      OrderCreateController.InvoicePreviewDto headerPreview =
-        OrderCreateController.updateInvoiceBillingHeader(
-          context.history.Id,
-          invoice.Id,
-          context.billingAccount.Id,
-          'プレビュー宛名 御中',
-          'preview-to@example.com',
-          null,
-          null,
-          ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-          10
-        );
+      OrderCreateController.InvoicePreviewDto headerPreview = OrderCreateController.updateInvoiceBillingHeader(
+        context.history.Id,
+        invoice.Id,
+        context.billingAccount.Id,
+        'プレビュー宛名 御中',
+        'preview-to@example.com',
+        null,
+        null,
+        ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
+        10
+      );
       System.assert(headerPreview.invoiceCount >= 1);
 
       Invoice__c afterHeader = [
@@ -892,19 +895,18 @@ private class OrderCreateControllerTest {
       );
 
       Date combinedDue = Date.newInstance(2026, 8, 31);
-      OrderCreateController.InvoicePreviewDto combinedPreview =
-        OrderCreateController.updateInvoiceHeaderAndDates(
-          context.history.Id,
-          invoice.Id,
-          invoice.InvoiceDate__c,
-          combinedDue,
-          '一体保存宛名 御中',
-          'combined-to@example.com',
-          null,
-          null,
-          8,
-          null
-        );
+      OrderCreateController.InvoicePreviewDto combinedPreview = OrderCreateController.updateInvoiceHeaderAndDates(
+        context.history.Id,
+        invoice.Id,
+        invoice.InvoiceDate__c,
+        combinedDue,
+        '一体保存宛名 御中',
+        'combined-to@example.com',
+        null,
+        null,
+        8,
+        null
+      );
       System.assert(combinedPreview.invoiceCount >= 1);
       Test.stopTest();
 
@@ -934,11 +936,13 @@ private class OrderCreateControllerTest {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
 
-      List<OrderCreateController.BillingAccountOptionDto> options =
-        OrderCreateController.getBillingAccountOptionsForPreview(
-          context.history.Id
-        );
-      System.assert(options.size() >= 1, '分割先候補の請求アカウントがあること');
+      List<OrderCreateController.BillingAccountOptionDto> options = OrderCreateController.getBillingAccountOptionsForPreview(
+        context.history.Id
+      );
+      System.assert(
+        options.size() >= 1,
+        '分割先候補の請求アカウントがあること'
+      );
 
       BillingAccount__c otherBa = new BillingAccount__c(
         Account__c = context.account.Id,
@@ -973,15 +977,14 @@ private class OrderCreateControllerTest {
       split.moveAmount = 1;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      OrderCreateController.InvoicePreviewDto preview =
-        OrderCreateController.splitInvoiceByBillingAccount(
-          context.history.Id,
-          source.Id,
-          otherBa.Id,
-          null,
-          null,
-          new List<InvoiceCanonicalService.SplitLineInput>{ split }
-        );
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByBillingAccount(
+        context.history.Id,
+        source.Id,
+        otherBa.Id,
+        null,
+        null,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
       System.assertEquals(
         invoiceCountBefore + 1,
         preview.invoiceCount,
@@ -1065,10 +1068,7 @@ private class OrderCreateControllerTest {
 
       System.assertNotEquals(null, result.renewOpportunityId);
       Opportunity renewOpp = [
-        SELECT
-          PreviousOpportunity__c,
-          SourceContractHistory__c,
-          AccountId
+        SELECT PreviousOpportunity__c, SourceContractHistory__c, AccountId
         FROM Opportunity
         WHERE Id = :result.renewOpportunityId
       ];
@@ -1390,7 +1390,11 @@ private class OrderCreateControllerTest {
         ORDER BY Amount__c DESC
         LIMIT 1
       ];
-      System.assertEquals(false, invoices.isEmpty(), '受注後に請求正本が生成されていること');
+      System.assertEquals(
+        false,
+        invoices.isEmpty(),
+        '受注後に請求正本が生成されていること'
+      );
       invoices[0].SystemIntegrationDate__c = Date.today();
       update invoices[0];
 
@@ -1473,7 +1477,8 @@ private class OrderCreateControllerTest {
         FROM ContractProduct__c
         WHERE ContractHistory__c = :context.history.Id
       ];
-      Decimal contractProductTotal = cpSum.isEmpty() || cpSum[0].get('amt') == null
+      Decimal contractProductTotal = cpSum.isEmpty() ||
+        cpSum[0].get('amt') == null
         ? 0
         : (Decimal) cpSum[0].get('amt');
       System.assertEquals(
@@ -1646,10 +1651,7 @@ private class OrderCreateControllerTest {
       );
       Test.stopTest();
 
-      System.assert(
-        rows.size() > 0,
-        '利用月候補が1件以上返ること'
-      );
+      System.assert(rows.size() > 0, '利用月候補が1件以上返ること');
       System.assertNotEquals(null, rows[0].periodLineId);
       System.assertNotEquals(null, rows[0].invoiceLineId);
       System.assertNotEquals(null, rows[0].periodLabel);
@@ -1676,7 +1678,8 @@ private class OrderCreateControllerTest {
       ];
       System.assert(line.UnitPrice__c != null && line.UnitPrice__c > 0);
 
-      Decimal remainPrice = (line.UnitPrice__c / 2).setScale(2, System.RoundingMode.HALF_UP);
+      Decimal remainPrice = (line.UnitPrice__c / 2)
+        .setScale(2, System.RoundingMode.HALF_UP);
       Decimal movePrice = line.UnitPrice__c - remainPrice;
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
       split.lineId = line.Id;
@@ -1686,25 +1689,29 @@ private class OrderCreateControllerTest {
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      List<InvoiceCanonicalService.SplitThresholdLineOptions> options =
-        OrderCreateController.getSplitThresholdDateOptions(invoice.Id);
-      OrderCreateController.InvoicePreviewDto preview =
-        OrderCreateController.splitLinesInPlace(
-          context.history.Id,
-          invoice.Id,
-          new List<InvoiceCanonicalService.SplitLineInput>{ split },
-          null
-        );
+      List<InvoiceCanonicalService.SplitThresholdLineOptions> options = OrderCreateController.getSplitThresholdDateOptions(
+        invoice.Id
+      );
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitLinesInPlace(
+        context.history.Id,
+        invoice.Id,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        null
+      );
       Test.stopTest();
 
       System.assertNotEquals(null, options);
       System.assertNotEquals(null, preview);
       Integer invoiceCount = 0;
       Integer lineCount = 0;
-      for (OrderCreateController.InvoiceGroupDto invoiceGroup : preview.invoices) {
+      for (
+        OrderCreateController.InvoiceGroupDto invoiceGroup : preview.invoices
+      ) {
         if (invoiceGroup.invoiceId == invoice.Id) {
           invoiceCount++;
-          lineCount += invoiceGroup.lines == null ? 0 : invoiceGroup.lines.size();
+          lineCount += invoiceGroup.lines == null
+            ? 0
+            : invoiceGroup.lines.size();
         }
       }
       System.assertEquals(1, invoiceCount, '同一請求のまま');
@@ -1805,11 +1812,17 @@ private class OrderCreateControllerTest {
         thrown = true;
         System.assert(
           ex.getMessage()
-            .contains(OrderCreateController.RESET_POST_ORDER_NON_LATEST_MESSAGE),
+            .contains(
+              OrderCreateController.RESET_POST_ORDER_NON_LATEST_MESSAGE
+            ),
           ex.getMessage()
         );
       }
-      System.assertEquals(true, thrown, '過去 Version は resolve で拒否すること');
+      System.assertEquals(
+        true,
+        thrown,
+        '過去 Version は resolve で拒否すること'
+      );
 
       Id latestId = OrderCreateController.resolveLatestOrderedHistoryIdForReset(
         newerHistory.Id,
@@ -1865,7 +1878,11 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(true, thrown, 'ロック請求がある Version はリセット不可');
+      System.assertEquals(
+        true,
+        thrown,
+        'ロック請求がある Version はリセット不可'
+      );
     }
   }
 
@@ -1904,7 +1921,10 @@ private class OrderCreateControllerTest {
       Test.stopTest();
 
       System.assertNotEquals(null, preview);
-      System.assert(preview.invoiceCount > 0, '分割後も請求プレビューが返ること');
+      System.assert(
+        preview.invoiceCount > 0,
+        '分割後も請求プレビューが返ること'
+      );
       Boolean foundMoved = false;
       for (OrderCreateController.InvoiceGroupDto row : preview.invoices) {
         if (
@@ -1936,10 +1956,7 @@ private class OrderCreateControllerTest {
         ORDER BY StartDate__c ASC
       ];
       System.assertEquals(12, periodLines.size(), '前提: 12ヶ月分の期間明細');
-      delete new List<InvoiceProduct__c>{
-        periodLines[10],
-        periodLines[11]
-      };
+      delete new List<InvoiceProduct__c>{ periodLines[10], periodLines[11] };
       InvoiceCanonicalService.rebuildForHistories(
         new Set<Id>{ context.history.Id }
       );
@@ -2338,7 +2355,8 @@ private class OrderCreateControllerTest {
         '前提: 期間 ID が載っていること'
       );
 
-      Decimal moveAmount = (line.Amount__c / 2).setScale(0, System.RoundingMode.DOWN);
+      Decimal moveAmount = (line.Amount__c / 2)
+        .setScale(0, System.RoundingMode.DOWN);
       Decimal remainAmount = line.Amount__c - moveAmount;
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
       split.lineId = line.Id;
@@ -2346,14 +2364,13 @@ private class OrderCreateControllerTest {
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      OrderCreateController.InvoicePreviewDto preview =
-        OrderCreateController.splitInvoiceByDate(
-          context.history.Id,
-          source.Id,
-          Date.newInstance(2026, 8, 1),
-          Date.newInstance(2026, 8, 31),
-          new List<InvoiceCanonicalService.SplitLineInput>{ split }
-        );
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByDate(
+        context.history.Id,
+        source.Id,
+        Date.newInstance(2026, 8, 1),
+        Date.newInstance(2026, 8, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
       Test.stopTest();
 
       System.assertEquals(
@@ -2372,9 +2389,7 @@ private class OrderCreateControllerTest {
         preview.manualAdjustmentAmount,
         '金額分割だけでは端数調整実績も0（由来ID重複で偽マイナスにしない）'
       );
-      if (
-        preview.versionOptions != null && !preview.versionOptions.isEmpty()
-      ) {
+      if (preview.versionOptions != null && !preview.versionOptions.isEmpty()) {
         System.assertEquals(
           0,
           preview.versionOptions[0].manualAdjustmentAmount,
@@ -2439,17 +2454,17 @@ private class OrderCreateControllerTest {
 
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
       split.lineId = line.Id;
-      split.moveAmount = (line.Amount__c / 2).setScale(0, System.RoundingMode.DOWN);
+      split.moveAmount = (line.Amount__c / 2)
+        .setScale(0, System.RoundingMode.DOWN);
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      OrderCreateController.InvoicePreviewDto afterSplit =
-        OrderCreateController.splitInvoiceByDate(
-          context.history.Id,
-          source.Id,
-          Date.newInstance(2026, 9, 1),
-          Date.newInstance(2026, 9, 30),
-          new List<InvoiceCanonicalService.SplitLineInput>{ split }
-        );
+      OrderCreateController.InvoicePreviewDto afterSplit = OrderCreateController.splitInvoiceByDate(
+        context.history.Id,
+        source.Id,
+        Date.newInstance(2026, 9, 1),
+        Date.newInstance(2026, 9, 30),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
       System.assert(
         afterSplit.invoices.size() >= 2,
         '前提: 分割で請求が2件以上あること'
@@ -2457,7 +2472,9 @@ private class OrderCreateControllerTest {
 
       Id createdId = null;
       Id createdLineId = null;
-      for (OrderCreateController.InvoiceGroupDto invoice : afterSplit.invoices) {
+      for (
+        OrderCreateController.InvoiceGroupDto invoice : afterSplit.invoices
+      ) {
         if (invoice.invoiceId == source.Id) {
           continue;
         }
@@ -2471,7 +2488,9 @@ private class OrderCreateControllerTest {
         }
       }
       if (createdId == null) {
-        for (OrderCreateController.InvoiceGroupDto invoice : afterSplit.invoices) {
+        for (
+          OrderCreateController.InvoiceGroupDto invoice : afterSplit.invoices
+        ) {
           if (invoice.invoiceId != source.Id) {
             createdId = invoice.invoiceId;
             createdLineId = invoice.lines[0].lineId;
@@ -2482,14 +2501,13 @@ private class OrderCreateControllerTest {
       System.assertNotEquals(null, createdId, '分割先請求があること');
 
       Test.startTest();
-      OrderCreateController.InvoicePreviewDto preview =
-        OrderCreateController.moveLinesToExistingInvoice(
-          context.history.Id,
-          createdId,
-          source.Id,
-          new List<Id>{ createdLineId },
-          null
-        );
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.moveLinesToExistingInvoice(
+        context.history.Id,
+        createdId,
+        source.Id,
+        new List<Id>{ createdLineId },
+        null
+      );
       Test.stopTest();
 
       Boolean sourceExists = false;
@@ -2503,7 +2521,11 @@ private class OrderCreateControllerTest {
         }
       }
       System.assertEquals(true, sourceExists, '移動先請求は残ること');
-      System.assertEquals(false, createdExists, '全明細移動後は移動元が消えること');
+      System.assertEquals(
+        false,
+        createdExists,
+        '全明細移動後は移動元が消えること'
+      );
     }
   }
 

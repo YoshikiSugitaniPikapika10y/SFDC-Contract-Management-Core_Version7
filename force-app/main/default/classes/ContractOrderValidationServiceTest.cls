@@ -595,9 +595,7 @@ private class ContractOrderValidationServiceTest {
       Integer orderedCount = [
         SELECT COUNT()
         FROM ContractHistory__c
-        WHERE
-          ContractService__c = :service.Id
-          AND historystatus__c = 'Ordered'
+        WHERE ContractService__c = :service.Id AND historystatus__c = 'Ordered'
       ];
       System.assertEquals(0, orderedCount);
     }

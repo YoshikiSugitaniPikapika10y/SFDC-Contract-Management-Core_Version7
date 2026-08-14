@@ -8,32 +8,21 @@ private class RenewEstimateAutoCreateServiceTest {
   @IsTest
   static void insertWithCheckboxOn_doesNotCreateRenewEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createSourceData();
-
-      Test.startTest();
-      // 作成時点からチェック ON でも自動作成は発火しない（OFF→ON の更新のみ）。
-      Opportunity renewOpportunity = ContractTestDataFactory.insertOpportunity(
-        data.account.Id,
-        'Renew Opportunity Insert On',
-        data.previousOpportunity.Id,
-        true,
-        data.service.Id
-      );
-      Test.stopTest();
+      TestData data = createSourceData(true, true);
 
       System.assertEquals(
         true,
-        renewOpportunity.RenewEstimateAutoCreateCheck__c,
-        '作成時チェック ON の状態であること'
+        [
+            SELECT RenewEstimateAutoCreateCheck__c
+            FROM ContractService__c
+            WHERE Id = :data.service.Id
+          ]
+          .RenewEstimateAutoCreateCheck__c
       );
       System.assertEquals(
         0,
-        [
-          SELECT COUNT()
-          FROM ContractHistory__c
-          WHERE Opportunity__c = :renewOpportunity.Id AND Type__c = 'Renew'
-        ],
-        '商談新規作成時（最初から ON）では Renew 見積を作らないこと'
+        countRenewEstimates(data.service.Id),
+        '作成時点から ON では Renew 見積を作らないこと'
       );
     }
   }
@@ -43,23 +32,9 @@ private class RenewEstimateAutoCreateServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createSourceData();
 
-      // いったん OFF で作成し、OFF→ON 更新で発火させる。
-      Opportunity renewOpportunity = ContractTestDataFactory.insertOpportunity(
-        data.account.Id,
-        'Renew Opportunity',
-        data.previousOpportunity.Id,
-        false,
-        data.service.Id
-      );
-
       Test.startTest();
-      ContractTestDataFactory.prepareRenewEstimateAutoCreate(
-        renewOpportunity,
-        data.service.Id
-      );
-      update renewOpportunity;
+      ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
 
-      // フィクスチャ＋同期の SOQL を使い切らないよう、検証クエリも startTest 内で実行する
       List<ContractHistory__c> createdHistories = [
         SELECT
           Name,
@@ -71,9 +46,10 @@ private class RenewEstimateAutoCreateServiceTest {
           CurrentTermStartDate__c,
           CurrentTermEndDate__c,
           EffectiveDate__c,
-          Version__c
+          Version__c,
+          ApplicationDate__c
         FROM ContractHistory__c
-        WHERE Opportunity__c = :renewOpportunity.Id
+        WHERE ContractService__c = :data.service.Id AND Type__c = 'Renew'
       ];
       System.assertEquals(1, createdHistories.size());
       ContractHistory__c createdHistory = createdHistories[0];
@@ -94,8 +70,6 @@ private class RenewEstimateAutoCreateServiceTest {
         WHERE ContractHistory__c = :createdHistory.Id
       ];
 
-      // 未編集のまま受注しても見積バーが 0 にならないこと
-      // （重い受注も同一 startTest 枠内で実行し、stopTest 後の残枠不足を避ける）
       OrderCreateController.confirmOrder(createdHistory.Id, null, false);
       AggregateResult periodSum = [
         SELECT SUM(Amount__c) totalAmount
@@ -104,10 +78,16 @@ private class RenewEstimateAutoCreateServiceTest {
       ];
       Test.stopTest();
 
-      System.assertEquals('Renew Opportunity', createdHistory.Name);
+      System.assertEquals(data.service.Name, createdHistory.Name);
       System.assertEquals('Renew', createdHistory.Type__c);
       System.assertEquals('Estimate', createdHistory.historystatus__c);
       System.assertEquals(data.service.Id, createdHistory.ContractService__c);
+      System.assertEquals(null, createdHistory.Opportunity__c);
+      System.assertEquals(
+        Date.today(),
+        createdHistory.ApplicationDate__c,
+        '前回申込日が空なら作成日を入れること'
+      );
       System.assertEquals(
         data.sourceHistory.Id,
         createdHistory.PreviousHistory__c
@@ -132,7 +112,10 @@ private class RenewEstimateAutoCreateServiceTest {
         createdProducts[0].PreviousContractProduct__c
       );
       System.assertEquals('Renew', createdProducts[0].Type__c);
-      System.assertEquals(ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING, createdProducts[0].BillingType__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        createdProducts[0].BillingType__c
+      );
       System.assertEquals(1, createdProducts[0].Quantity__c);
       System.assertEquals(8000, createdProducts[0].UnitPrice__c);
       System.assertEquals(
@@ -153,10 +136,7 @@ private class RenewEstimateAutoCreateServiceTest {
         createdProducts[0].InvoiceAnchorDate__c,
         'Renew 継続×一括前払の請求基準日は開始日'
       );
-      System.assertEquals(
-        null,
-        createdProducts[0].InvoiceBillingCycleCount__c
-      );
+      System.assertEquals(null, createdProducts[0].InvoiceBillingCycleCount__c);
       System.assertEquals(
         96000,
         (Decimal) periodSum.get('totalAmount'),
@@ -166,53 +146,31 @@ private class RenewEstimateAutoCreateServiceTest {
   }
 
   @IsTest
-  static void updateCheckboxToTrueWithoutPreviousOpportunity_blocksSave() {
+  static void updateCheckboxToTrueWithoutOrderedHistory_blocksSave() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount('Test Account');
-      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-        account.Id,
-        'Renew Opportunity',
-        null,
-        false
+      BillingAccount__c billingAccount = new BillingAccount__c(
+        Account__c = account.Id,
+        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+        BillingEmailTo__c = 'to@example.com',
+        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
+        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
+        AdjustInvoiceDateToBusinessDay__c = false
       );
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
+      insert billingAccount;
+      ContractService__c service = new ContractService__c(
+        Name = 'No Ordered Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      insert service;
 
       Boolean thrown = false;
       String message = null;
       try {
-        opportunity.RenewEstimateAutoCreateCheck__c = true;
-        update opportunity;
-      } catch (DmlException ex) {
-        thrown = true;
-        message = dmlMessage(ex);
-      }
-      System.assertEquals(true, thrown, '前商談未設定時は保存できないこと');
-      System.assertEquals(
-        RenewEstimateAutoCreateService.PREVIOUS_OPPORTUNITY_REQUIRED_MESSAGE,
-        message
-      );
-    }
-  }
-
-  @IsTest
-  static void updateCheckboxToTrueWithoutOrderedHistory_blocksSaveWithOrderedMessage() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Test Account');
-      Opportunity previousOpportunity = ContractTestDataFactory.insertOpportunity(
-        account.Id,
-        'Previous Opportunity'
-      );
-      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-        account.Id,
-        'Renew Opportunity',
-        previousOpportunity.Id,
-        false
-      );
-
-      Boolean thrown = false;
-      String message = null;
-      try {
-        opportunity.RenewEstimateAutoCreateCheck__c = true;
-        update opportunity;
+        ContractTestDataFactory.prepareRenewEstimateAutoCreate(service.Id);
       } catch (DmlException ex) {
         thrown = true;
         message = dmlMessage(ex);
@@ -226,65 +184,19 @@ private class RenewEstimateAutoCreateServiceTest {
   }
 
   @IsTest
-  static void updateCheckboxToTrue_createsRenewEstimate() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createSourceData();
-      Opportunity renewOpportunity = ContractTestDataFactory.insertOpportunity(
-        data.account.Id,
-        'Renew Opportunity',
-        data.previousOpportunity.Id,
-        false,
-        data.service.Id
-      );
-
-      Test.startTest();
-      ContractTestDataFactory.prepareRenewEstimateAutoCreate(
-        renewOpportunity,
-        data.service.Id
-      );
-      update renewOpportunity;
-      Test.stopTest();
-
-      System.assertEquals(
-        1,
-        [
-          SELECT COUNT()
-          FROM ContractHistory__c
-          WHERE Opportunity__c = :renewOpportunity.Id AND Type__c = 'Renew'
-        ]
-      );
-    }
-  }
-
-  @IsTest
   static void updateCheckboxOffToOn_fromChange_excludesOriginalLines() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      // Change Ordered: Original(旧条件) + Remake(新条件) が同じ期末。
-      // 自動 Renew は手動と同じく Remake だけ引き継ぎ、Original で金額が倍にならないこと。
       TestData data = createChangeSourceWithOriginalAndRemake();
       Id remakeProductId = data.sourceProduct.Id;
       Id originalProductId = data.originalProduct.Id;
 
-      // Change Ordered の請求生成で外側 SOQL を使い切るため、商談 insert 以降を startTest に入れる
       Test.startTest();
-      Opportunity renewOpportunity = ContractTestDataFactory.insertOpportunity(
-        data.account.Id,
-        'Renew From Change',
-        data.previousOpportunity.Id,
-        false,
-        data.service.Id
-      );
-      ContractTestDataFactory.prepareRenewEstimateAutoCreate(
-        renewOpportunity,
-        data.service.Id
-      );
-      update renewOpportunity;
+      ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
 
-      // Change Ordered フィクスチャが外側 SOQL を使い切るため、検証クエリも startTest 内で実行する
       ContractHistory__c renewHistory = [
         SELECT Id
         FROM ContractHistory__c
-        WHERE Opportunity__c = :renewOpportunity.Id AND Type__c = 'Renew'
+        WHERE ContractService__c = :data.service.Id AND Type__c = 'Renew'
         LIMIT 1
       ];
       List<ContractProduct__c> renewProducts = [
@@ -337,32 +249,16 @@ private class RenewEstimateAutoCreateServiceTest {
   static void updateCheckboxAlreadyTrue_doesNotDuplicate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createSourceData();
-      Opportunity renewOpportunity = ContractTestDataFactory.insertOpportunity(
-        data.account.Id,
-        'Renew Opportunity',
-        data.previousOpportunity.Id,
-        false,
-        data.service.Id
-      );
-      ContractTestDataFactory.prepareRenewEstimateAutoCreate(
-        renewOpportunity,
-        data.service.Id
-      );
-      update renewOpportunity;
+      ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
 
       Test.startTest();
-      renewOpportunity.Name = 'Renew Opportunity Updated';
-      update renewOpportunity;
+      update new ContractService__c(
+        Id = data.service.Id,
+        Name = 'Renew Source Service Updated'
+      );
       Test.stopTest();
 
-      System.assertEquals(
-        1,
-        [
-          SELECT COUNT()
-          FROM ContractHistory__c
-          WHERE Opportunity__c = :renewOpportunity.Id AND Type__c = 'Renew'
-        ]
-      );
+      System.assertEquals(1, countRenewEstimates(data.service.Id));
     }
   }
 
@@ -370,22 +266,11 @@ private class RenewEstimateAutoCreateServiceTest {
   static void updateCheckboxOffToOn_spotSource_blocksSave() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createSpotSourceData();
-      Opportunity renewOpportunity = ContractTestDataFactory.insertOpportunity(
-        data.account.Id,
-        'Spot Renew Opportunity',
-        data.previousOpportunity.Id,
-        false,
-        data.service.Id
-      );
 
       DmlException thrown;
       Test.startTest();
       try {
-        ContractTestDataFactory.prepareRenewEstimateAutoCreate(
-          renewOpportunity,
-          data.service.Id
-        );
-        update renewOpportunity;
+        ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
       } catch (DmlException ex) {
         thrown = ex;
       }
@@ -397,14 +282,7 @@ private class RenewEstimateAutoCreateServiceTest {
           .contains(RenewEstimateAutoCreateService.SPOT_NOT_ALLOWED_MESSAGE),
         dmlMessage(thrown)
       );
-      System.assertEquals(
-        0,
-        [
-          SELECT COUNT()
-          FROM ContractHistory__c
-          WHERE Opportunity__c = :renewOpportunity.Id AND Type__c = 'Renew'
-        ]
-      );
+      System.assertEquals(0, countRenewEstimates(data.service.Id));
     }
   }
 
@@ -415,22 +293,10 @@ private class RenewEstimateAutoCreateServiceTest {
       data.sourceProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       update data.sourceProduct;
 
-      Opportunity renewOpportunity = ContractTestDataFactory.insertOpportunity(
-        data.account.Id,
-        'Line One Time Renew Opportunity',
-        data.previousOpportunity.Id,
-        false,
-        data.service.Id
-      );
-
       DmlException thrown;
       Test.startTest();
       try {
-        ContractTestDataFactory.prepareRenewEstimateAutoCreate(
-          renewOpportunity,
-          data.service.Id
-        );
-        update renewOpportunity;
+        ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
       } catch (DmlException ex) {
         thrown = ex;
       }
@@ -456,14 +322,19 @@ private class RenewEstimateAutoCreateServiceTest {
     public ContractProduct__c originalProduct;
   }
 
+  private static Integer countRenewEstimates(Id serviceId) {
+    return [
+      SELECT COUNT()
+      FROM ContractHistory__c
+      WHERE ContractService__c = :serviceId AND Type__c = 'Renew'
+    ];
+  }
+
   /** Change Ordered: Original(旧) + Remake(新) が同じ期末に並ぶソース。 */
   private static TestData createChangeSourceWithOriginalAndRemake() {
-    // New を Estimate のままにし、二重の請求生成で SOQL 101 に達しないようにする。
-    TestData data = createSourceData(false);
-    // Change は商品投入後に Ordered へ（AfterInsert 時点では Original 検証が通らない）。
+    TestData data = createSourceData(false, false);
     Date termStart = data.sourceHistory.CurrentTermStartDate__c;
     Date termEnd = data.sourceHistory.CurrentTermEndDate__c;
-    // Remake が期首から数量・単価変更するため、有効日は課金イベント最早日＝期首。
 
     ContractHistory__c changeHistory = new ContractHistory__c(
       Name = 'Change Source History',
@@ -521,10 +392,13 @@ private class RenewEstimateAutoCreateServiceTest {
   }
 
   private static TestData createSourceData() {
-    return createSourceData(true);
+    return createSourceData(true, false);
   }
 
-  private static TestData createSourceData(Boolean insertAsOrdered) {
+  private static TestData createSourceData(
+    Boolean insertAsOrdered,
+    Boolean checkboxOnAtInsert
+  ) {
     TestData data = new TestData();
     data.account = ContractTestDataFactory.insertAccount('Test Account');
     data.previousOpportunity = ContractTestDataFactory.insertOpportunity(
@@ -547,7 +421,8 @@ private class RenewEstimateAutoCreateServiceTest {
       Name = 'Renew Source Service',
       Account__c = data.account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      RenewEstimateAutoCreateCheck__c = checkboxOnAtInsert == true
     );
     insert data.service;
 

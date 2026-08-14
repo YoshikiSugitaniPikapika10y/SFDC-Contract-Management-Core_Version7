@@ -10,10 +10,8 @@ public without sharing class ContractOrderValidationService {
   public static final String BILLING_ACCOUNT_MISSING_MESSAGE = '請求アカウントが未設定のため受注できません。';
   public static final String PRODUCTS_MISSING_MESSAGE = '見積商品がないため受注できません。';
   public static final String AMOUNT_MISSING_MESSAGE = '見積商品の金額が未設定のため受注できません。見積ウィザードで保存してから受注してください。';
-  public static final String DUPLICATE_ORDERED_VERSION_MESSAGE =
-    '同一契約サービスに同じ Version の受注済み履歴が既にあるため受注できません。';
-  public static final String INVOICE_SETTING_ONLY_CHANGE_MESSAGE =
-    '請求設定だけの変更では受注できません。まだ請求していない場合は、差し戻して元の見積の請求設定を編集してください。';
+  public static final String DUPLICATE_ORDERED_VERSION_MESSAGE = '同一契約サービスに同じ Version の受注済み履歴が既にあるため受注できません。';
+  public static final String INVOICE_SETTING_ONLY_CHANGE_MESSAGE = '請求設定だけの変更では受注できません。まだ請求していない場合は、差し戻して元の見積の請求設定を編集してください。';
 
   /**
    * コントローラ用。問題があれば AuraHandledException。
@@ -82,10 +80,7 @@ public without sharing class ContractOrderValidationService {
         becomingCountByVersionKey.put(versionKey, count + 1);
       }
       // 商品検証は Id 確定後のみ（before insert では未採番）
-      if (
-        history.Id != null &&
-        history.Type__c != HISTORY_TYPE_CANCEL
-      ) {
+      if (history.Id != null && history.Type__c != HISTORY_TYPE_CANCEL) {
         historyIdsForProducts.add(history.Id);
       }
     }
@@ -175,7 +170,7 @@ public without sharing class ContractOrderValidationService {
       if (
         versionKey != null &&
         (existingOrderedVersionKeys.contains(versionKey) ||
-          becomingCountByVersionKey.get(versionKey) > 1)
+        becomingCountByVersionKey.get(versionKey) > 1)
       ) {
         errors.add(DUPLICATE_ORDERED_VERSION_MESSAGE);
         continue;

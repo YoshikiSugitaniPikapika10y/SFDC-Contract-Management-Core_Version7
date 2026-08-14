@@ -107,10 +107,7 @@ public without sharing class EstimateRevertInvoiceService {
       Decimal maxOrderedVersion = maxOrderedVersionByServiceId.get(
         history.ContractService__c
       );
-      if (
-        maxOrderedVersion != null &&
-        maxOrderedVersion > history.Version__c
-      ) {
+      if (maxOrderedVersion != null && maxOrderedVersion > history.Version__c) {
         blockedHistoryIds.add(history.Id);
       }
     }

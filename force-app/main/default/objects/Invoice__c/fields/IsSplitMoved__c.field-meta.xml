@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>IsSplitMoved__c</fullName>
     <defaultValue>false</defaultValue>
-    <description>請求を分ける／明細を移す／同一請求内分割を行った請求。IsManuallyAdjusted__c の内訳。</description>
-    <inlineHelpText>分割・移動（請求を分ける／明細を移す／行の単価・数量・期間分割）を行ったときにオン。</inlineHelpText>
+    <description
+  >請求を分ける／明細を移す／同一請求内分割を行った請求。IsManuallyAdjusted__c の内訳。</description>
+    <inlineHelpText
+  >分割・移動（請求を分ける／明細を移す／行の単価・数量・期間分割）を行ったときにオン。</inlineHelpText>
     <label>分割・移動済</label>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>

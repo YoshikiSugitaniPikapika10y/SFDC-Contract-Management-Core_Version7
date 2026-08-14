@@ -158,7 +158,9 @@ private class ContractServiceLifecycleServiceTest {
   @IsTest
   static void ensureLifecycle_setsSpotFromOneTimeFirstOrdered() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Lifecycle Spot Acct');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Lifecycle Spot Acct'
+      );
       ContractService__c service = new ContractService__c(
         Name = 'Lifecycle Spot Service',
         Account__c = account.Id
@@ -175,7 +177,9 @@ private class ContractServiceLifecycleServiceTest {
       );
       insert history;
 
-      Product2 product = ContractTestDataFactory.buildProduct('Lifecycle Spot Prod');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Lifecycle Spot Prod'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       ContractTestDataFactory.insertProduct(product, false);
 

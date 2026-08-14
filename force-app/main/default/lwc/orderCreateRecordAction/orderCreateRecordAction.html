@@ -1,17 +1,18 @@
 <template>
-    <div class="action-frame">
-        <template if:true={hasPermission}>
-            <c-order-create-wizard
-                record-id={recordId}
-                onrequestclose={handleRequestClose}
-                onorderrecordstatuschanged={handleOrderRecordStatusChanged}
-                onpanelsizechange={handlePanelSizeChange}>
-            </c-order-create-wizard>
-        </template>
-        <template if:false={hasPermission}>
-            <div class="slds-p-around_medium slds-text-color_error" role="alert">
-                受注を実行する権限がありません。
-            </div>
-        </template>
-    </div>
+  <div class="action-frame">
+    <template if:true={hasPermission}>
+      <c-order-create-wizard
+        record-id={recordId}
+        onrequestclose={handleRequestClose}
+        onorderrecordstatuschanged={handleOrderRecordStatusChanged}
+        onpanelsizechange={handlePanelSizeChange}
+      >
+      </c-order-create-wizard>
+    </template>
+    <template if:false={hasPermission}>
+      <div class="slds-p-around_medium slds-text-color_error" role="alert">
+        受注を実行する権限がありません。
+      </div>
+    </template>
+  </div>
 </template>

@@ -22,7 +22,7 @@
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: clip;
   box-sizing: border-box;
 }
 
@@ -35,7 +35,7 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: clip;
 }
 
 /* タブ: 高さ制約がない overflow-y:auto はホイールを握って親へ渡せない */

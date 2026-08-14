@@ -94,9 +94,7 @@ public without sharing class RenewOpportunityCreateService {
     };
     applyDefinitions(renewOpportunity, definitions, sourcesByObject);
 
-    SystemContextAccess.insertRecords(
-      new List<SObject>{ renewOpportunity }
-    );
+    SystemContextAccess.insertRecords(new List<SObject>{ renewOpportunity });
     return renewOpportunity.Id;
   }
 
@@ -139,8 +137,7 @@ public without sharing class RenewOpportunityCreateService {
       SystemContextAccess.updateRecords(rows);
     } catch (Exception ex) {
       throw new RenewOpportunityException(
-        '既存の更新商談の紐づけ解除に失敗しました。' +
-          dmlDetailSuffix(ex)
+        '既存の更新商談の紐づけ解除に失敗しました。' + dmlDetailSuffix(ex)
       );
     }
   }
@@ -222,7 +219,12 @@ public without sharing class RenewOpportunityCreateService {
     Set<String> seenTargets = new Set<String>();
 
     for (RenewOpportunityField__mdt definition : definitions) {
-      validateDefinition(definition, opportunityFields, globalDescribe, seenTargets);
+      validateDefinition(
+        definition,
+        opportunityFields,
+        globalDescribe,
+        seenTargets
+      );
     }
   }
 
@@ -265,7 +267,9 @@ public without sharing class RenewOpportunityCreateService {
         'セット先項目「' + targetApiName + '」が Opportunity に存在しません。'
       );
     }
-    Schema.DescribeFieldResult targetDescribe = opportunityFields.get(targetApiName)
+    Schema.DescribeFieldResult targetDescribe = opportunityFields.get(
+        targetApiName
+      )
       .getDescribe();
     if (targetDescribe.isCalculated()) {
       throw buildException(
@@ -282,7 +286,9 @@ public without sharing class RenewOpportunityCreateService {
     ) {
       throw buildException(
         definition,
-        '値タイプ「' + String.valueOf(definition.ValueType__c) + '」は不正です。'
+        '値タイプ「' +
+          String.valueOf(definition.ValueType__c) +
+          '」は不正です。'
       );
     }
 
@@ -358,18 +364,14 @@ public without sharing class RenewOpportunityCreateService {
     if (!ALLOWED_SOURCE_OBJECTS.contains(path.objectApiName)) {
       throw buildException(
         definition,
-        '参照元オブジェクト「' +
-          path.objectApiName +
-          '」は許可されていません。'
+        '参照元オブジェクト「' + path.objectApiName + '」は許可されていません。'
       );
     }
     Schema.SObjectType sourceType = globalDescribe.get(path.objectApiName);
     if (sourceType == null) {
       throw buildException(
         definition,
-        '参照元オブジェクト「' +
-          path.objectApiName +
-          '」が組織に存在しません。'
+        '参照元オブジェクト「' + path.objectApiName + '」が組織に存在しません。'
       );
     }
     Map<String, Schema.SObjectField> sourceFields = sourceType.getDescribe()
@@ -416,14 +418,10 @@ public without sharing class RenewOpportunityCreateService {
       fieldsByObject.get(OBJECT_CONTRACT_HISTORY)
     );
     if (history == null) {
-      throw new RenewOpportunityException(
-        '契約履歴が見つかりません。'
-      );
+      throw new RenewOpportunityException('契約履歴が見つかりません。');
     }
     if (history.Opportunity__c == null) {
-      throw new RenewOpportunityException(
-        '契約履歴に商談が紐づいていません。'
-      );
+      throw new RenewOpportunityException('契約履歴に商談が紐づいていません。');
     }
 
     Opportunity opportunity = (Opportunity) queryRecord(
@@ -486,8 +484,8 @@ public without sharing class RenewOpportunityCreateService {
       context.history.Type__c == ContractDomainConstants.HISTORY_TYPE_ADD ||
       (context.service != null &&
       ContractServiceLifecycleService.isSpotLifecycle(
-          context.service.Lifecycle__c
-        ))
+        context.service.Lifecycle__c
+      ))
     ) {
       throw new RenewOpportunityException(
         'Spot（都度契約）の契約サービスでは更新商談を作成できません。'
@@ -561,7 +559,9 @@ public without sharing class RenewOpportunityCreateService {
 
     for (RenewOpportunityField__mdt definition : definitions) {
       String targetApiName = definition.TargetFieldApiName__c;
-      Schema.DescribeFieldResult targetDescribe = opportunityFields.get(targetApiName)
+      Schema.DescribeFieldResult targetDescribe = opportunityFields.get(
+          targetApiName
+        )
         .getDescribe();
       Object rawValue;
       try {
@@ -630,10 +630,7 @@ public without sharing class RenewOpportunityCreateService {
       }
       Object raw = source.get(path.fieldApiName);
       if (shouldFormatDateAsText(targetDescribe, raw)) {
-        return formatDateValue(
-          raw,
-          resolveDateFormat(definition, null)
-        );
+        return formatDateValue(raw, resolveDateFormat(definition, null));
       }
       return raw;
     }

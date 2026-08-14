@@ -8,7 +8,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void buildContractProduct_setsInvoiceAnchorForPrepaidNew() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Product2 product = ContractTestDataFactory.buildProduct('Save Anchor Prepaid');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Anchor Prepaid'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
@@ -41,7 +43,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void buildContractProduct_roundsUnitPriceAndAmountScale() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Product2 product = ContractTestDataFactory.buildProduct('Save Scale Round');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Scale Round'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       ContractTestDataFactory.insertProduct(product);
 
@@ -72,7 +76,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void buildContractProduct_setsInvoiceAnchorForMonthlySplit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Product2 product = ContractTestDataFactory.buildProduct('Save Anchor Monthly');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Anchor Monthly'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
       ContractTestDataFactory.insertProduct(product);
@@ -104,7 +110,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void buildContractProduct_changePrepaidRemakeUsesEffectiveDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Product2 product = ContractTestDataFactory.buildProduct('Save Anchor Change');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Anchor Change'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(product);
 
@@ -133,7 +141,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void buildContractProduct_postpaidUsesEndPlusOne() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Product2 product = ContractTestDataFactory.buildProduct('Save Anchor Postpaid');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Anchor Postpaid'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       ContractTestDataFactory.insertProduct(product);
 
@@ -156,7 +166,10 @@ private class EstimateSaveServiceTest {
         startDate
       );
 
-      System.assertEquals(endDate.addDays(1), contractProduct.InvoiceAnchorDate__c);
+      System.assertEquals(
+        endDate.addDays(1),
+        contractProduct.InvoiceAnchorDate__c
+      );
     }
   }
 
@@ -172,17 +185,25 @@ private class EstimateSaveServiceTest {
       'Original',
       EstimateSaveService.resolveProductType(originalLine, 'Change')
     );
-    System.assertEquals('New', EstimateSaveService.resolveProductType(newLine, 'New'));
+    System.assertEquals(
+      'New',
+      EstimateSaveService.resolveProductType(newLine, 'New')
+    );
     System.assertEquals(
       'Renew',
-      EstimateSaveService.resolveProductType(new EstimateCreateController.ProductLineItem(), 'Renew')
+      EstimateSaveService.resolveProductType(
+        new EstimateCreateController.ProductLineItem(),
+        'Renew'
+      )
     );
   }
 
   @IsTest
   static void loadProductBillingTypes_returnsProductMap() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Product2 product = ContractTestDataFactory.buildProduct('Load Billing Type');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Load Billing Type'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(product);
 
@@ -194,7 +215,10 @@ private class EstimateSaveServiceTest {
       );
 
       System.assertEquals(1, productById.size());
-      System.assertEquals(ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING, productById.get(product.Id).BillingType__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        productById.get(product.Id).BillingType__c
+      );
     }
   }
 
@@ -243,7 +267,11 @@ private class EstimateSaveServiceTest {
 
     history.Note__c = 'note';
     EstimateSaveService.applyRemarks(history, null);
-    System.assertEquals(null, history.Note__c, 'null 備考も Note__c をクリアする');
+    System.assertEquals(
+      null,
+      history.Note__c,
+      'null 備考も Note__c をクリアする'
+    );
 
     history.Note__c = 'note';
     EstimateSaveService.applyCancelRemarks(history);
@@ -253,7 +281,11 @@ private class EstimateSaveServiceTest {
     Integer maxLen = ContractDomainConstants.NOTE_MAX_LENGTH;
     String longText = 'あ'.repeat(maxLen + 20);
     EstimateSaveService.applyRemarks(history, longText);
-    System.assertEquals(maxLen, history.Note__c.length(), '備考は最大長で切り詰める');
+    System.assertEquals(
+      maxLen,
+      history.Note__c.length(),
+      '備考は最大長で切り詰める'
+    );
     System.assertEquals(longText.substring(0, maxLen), history.Note__c);
 
     EstimateSaveService.applyRemarks(null, 'ignored');
@@ -307,7 +339,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void updateOrderedEstimateCustomFieldsOnly_updatesServiceKeepsProducts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Ordered Edit Acc');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Ordered Edit Acc'
+      );
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Ordered Edit Opp'
@@ -336,7 +370,9 @@ private class EstimateSaveServiceTest {
       );
       insert ordered;
 
-      Product2 product = ContractTestDataFactory.buildProduct('Ordered Edit Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Ordered Edit Product'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(product);
       ContractProduct__c productRow = new ContractProduct__c(
@@ -376,7 +412,11 @@ private class EstimateSaveServiceTest {
         FROM ContractProduct__c
         WHERE Id = :productRow.Id
       ];
-      System.assertEquals(2, still.Quantity__c, '受注済み編集では商品数量を変えない');
+      System.assertEquals(
+        2,
+        still.Quantity__c,
+        '受注済み編集では商品数量を変えない'
+      );
       System.assertEquals(3000, still.UnitPrice__c);
       System.assertEquals(72000, still.Amount__c);
 
@@ -392,7 +432,8 @@ private class EstimateSaveServiceTest {
 
   @IsTest
   static void loadEditableEstimateHistory_missingId_throwsKnownMessage() {
-    Id missingId = ContractHistory__c.SObjectType.getDescribe().getKeyPrefix() +
+    Id missingId =
+      ContractHistory__c.SObjectType.getDescribe().getKeyPrefix() +
       '000000000000AAA';
     Boolean thrown = false;
     try {
@@ -423,12 +464,16 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void saveEstimate_newAndEdit_updatesContractProducts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Save Service Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Save Service Account'
+      );
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Save Service Opportunity'
       );
-      Product2 product = ContractTestDataFactory.buildProduct('Save Service Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Service Product'
+      );
       product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       product.UnitPrice__c = 10000;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
@@ -542,7 +587,8 @@ private class EstimateSaveServiceTest {
 
   @IsTest
   static void loadEditableEstimateHistory_throwsWhenMissing() {
-    String keyPrefix = ContractHistory__c.SObjectType.getDescribe().getKeyPrefix();
+    String keyPrefix = ContractHistory__c.SObjectType.getDescribe()
+      .getKeyPrefix();
     Id missingId = (Id) (keyPrefix + '0'.repeat(12) + 'AAA');
     Boolean thrown = false;
     try {
@@ -556,7 +602,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void resolveEstimateHistoryVersion_returnsNextVersion() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Version Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Version Account'
+      );
       BillingAccount__c billingAccount = insertBillingAccount(account.Id);
       ContractService__c service = new ContractService__c(
         Name = 'Version Service',
@@ -584,7 +632,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void saveEstimate_change_createsChangeHistory() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Change Save Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Change Save Account'
+      );
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Change Save Opportunity'
@@ -613,7 +663,9 @@ private class EstimateSaveServiceTest {
       );
       insert sourceHistory;
 
-      Product2 product = ContractTestDataFactory.buildProduct('Change Save Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Change Save Product'
+      );
       product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       product.UnitPrice__c = 5000;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
@@ -785,7 +837,9 @@ private class EstimateSaveServiceTest {
       );
       insert sourceHistory;
 
-      Product2 product = ContractTestDataFactory.buildProduct('Renew Save Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Renew Save Product'
+      );
       product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       product.UnitPrice__c = 8000;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
@@ -863,7 +917,13 @@ private class EstimateSaveServiceTest {
       System.assertEquals(1, renewResult.contractProductIds.size());
 
       ContractProduct__c renewProduct = [
-        SELECT Amount__c, UnitPrice__c, Quantity__c, Type__c, StartDate__c, Enddate__c
+        SELECT
+          Amount__c,
+          UnitPrice__c,
+          Quantity__c,
+          Type__c,
+          StartDate__c,
+          Enddate__c
         FROM ContractProduct__c
         WHERE Id = :renewResult.contractProductIds[0]
       ];
@@ -879,7 +939,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void saveEstimate_cancel_persistsDatesClearsRemarksAndNoProducts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Cancel Save Acc');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Cancel Save Acc'
+      );
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Cancel Save Opp'
@@ -909,7 +971,9 @@ private class EstimateSaveServiceTest {
       );
       insert sourceHistory;
 
-      Product2 product = ContractTestDataFactory.buildProduct('Cancel Save Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Cancel Save Product'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
@@ -964,7 +1028,11 @@ private class EstimateSaveServiceTest {
       System.assertEquals(cancelDate, cancelHistory.CurrentTermStartDate__c);
       System.assertEquals(cancelDate, cancelHistory.CurrentTermEndDate__c);
       System.assertEquals(cancelDate, cancelHistory.EffectiveDate__c);
-      System.assertEquals(null, cancelHistory.Note__c, '解約では備考を残さない');
+      System.assertEquals(
+        null,
+        cancelHistory.Note__c,
+        '解約では備考を残さない'
+      );
       System.assertEquals(
         0,
         [
@@ -1040,7 +1108,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void loadEditableEstimateHistory_rejectsArchiveStatus() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Archive Edit Acc');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Edit Acc'
+      );
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Archive Edit Opp'
@@ -1186,7 +1256,9 @@ private class EstimateSaveServiceTest {
       );
       insert previous;
 
-      Product2 product = ContractTestDataFactory.buildProduct('Pin Prev Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Pin Prev Product'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
@@ -1244,7 +1316,8 @@ private class EstimateSaveServiceTest {
   }
 
   private static Id fakeHistoryId() {
-    String keyPrefix = ContractHistory__c.SObjectType.getDescribe().getKeyPrefix();
+    String keyPrefix = ContractHistory__c.SObjectType.getDescribe()
+      .getKeyPrefix();
     return (Id) (keyPrefix + '0'.repeat(12) + 'BBB');
   }
 

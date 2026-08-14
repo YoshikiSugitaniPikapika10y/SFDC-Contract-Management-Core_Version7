@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>AccountNameSnapShot__c</fullName>
-    <description>レポート等向け。標準では CMDT サンプル（Account.Name）で Insert 時に埋める。必須ロジックには使わない。</description>
+    <description
+  >レポート等向け。標準では CMDT サンプル（Account.Name）で Insert 時に埋める。必須ロジックには使わない。</description>
     <externalId>false</externalId>
-    <inlineHelpText>取引先名のスナップショット（項目コピーのサンプル／顧客拡張用）。</inlineHelpText>
+    <inlineHelpText
+  >取引先名のスナップショット（項目コピーのサンプル／顧客拡張用）。</inlineHelpText>
     <label>取引先名 SnapShot</label>
     <length>255</length>
     <required>false</required>

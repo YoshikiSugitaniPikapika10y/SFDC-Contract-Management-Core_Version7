@@ -1,28 +1,30 @@
 <template>
-    <div class={alertClass} role={alertRole} aria-live={liveMode}>
-        <template if:true={hasTitle}>
-            <p class="est-alert-title">{title}</p>
-        </template>
-        <ul class="est-alert-list">
-            <template for:each={messages} for:item="message">
-                <li key={message.key} class="est-alert-message">{message.text}</li>
-            </template>
-        </ul>
-        <template if:true={isConfirmVariant}>
-            <div class="est-alert-actions">
-                <button
-                    type="button"
-                    class="est-alert-btn est-alert-btn_secondary"
-                    onclick={handleCancel}>
-                    キャンセル
-                </button>
-                <button
-                    type="button"
-                    class="est-alert-btn est-alert-btn_primary"
-                    onclick={handleProceed}>
-                    了解
-                </button>
-            </div>
-        </template>
-    </div>
+  <div class={alertClass} role={alertRole} aria-live={liveMode}>
+    <template if:true={hasTitle}>
+      <p class="est-alert-title">{title}</p>
+    </template>
+    <ul class="est-alert-list">
+      <template for:each={messages} for:item="message">
+        <li key={message.key} class="est-alert-message">{message.text}</li>
+      </template>
+    </ul>
+    <template if:true={isConfirmVariant}>
+      <div class="est-alert-actions">
+        <button
+          type="button"
+          class="est-alert-btn est-alert-btn_secondary"
+          onclick={handleCancel}
+        >
+          キャンセル
+        </button>
+        <button
+          type="button"
+          class="est-alert-btn est-alert-btn_primary"
+          onclick={handleProceed}
+        >
+          了解
+        </button>
+      </div>
+    </template>
+  </div>
 </template>

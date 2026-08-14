@@ -20,9 +20,7 @@
           </div>
           <template for:each={otherFieldInputs} for:item="field">
             <div key={field.key} class="est-field">
-              <span class={field.labelClass}>
-                {field.label}
-              </span>
+              <span class={field.labelClass}> {field.label} </span>
               <div class="est-value">{field.displayValue}</div>
             </div>
           </template>
@@ -31,9 +29,7 @@
         <div class="est-field-grid est-field-grid_address">
           <template for:each={addressFieldInputs} for:item="field">
             <div key={field.key} class="est-field">
-              <span class={field.labelClass}>
-                {field.label}
-              </span>
+              <span class={field.labelClass}> {field.label} </span>
               <div class="est-value">{field.displayValue}</div>
             </div>
           </template>

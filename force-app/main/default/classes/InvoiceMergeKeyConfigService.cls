@@ -79,9 +79,21 @@ public without sharing class InvoiceMergeKeyConfigService {
 
   public static void validateActiveDefinitions() {
     List<InvoiceMergeKeyPart__mdt> invoiceParts = getActiveParts(SCOPE_INVOICE);
-    List<InvoiceMergeKeyPart__mdt> lineParts = getActiveParts(SCOPE_INVOICE_LINE);
-    validateScopeParts(SCOPE_INVOICE, invoiceParts, INVOICE_PARTS, REQUIRED_INVOICE_PARTS);
-    validateScopeParts(SCOPE_INVOICE_LINE, lineParts, LINE_PARTS, REQUIRED_LINE_PARTS);
+    List<InvoiceMergeKeyPart__mdt> lineParts = getActiveParts(
+      SCOPE_INVOICE_LINE
+    );
+    validateScopeParts(
+      SCOPE_INVOICE,
+      invoiceParts,
+      INVOICE_PARTS,
+      REQUIRED_INVOICE_PARTS
+    );
+    validateScopeParts(
+      SCOPE_INVOICE_LINE,
+      lineParts,
+      LINE_PARTS,
+      REQUIRED_LINE_PARTS
+    );
   }
 
   public static String buildInvoiceBucketKey(InvoiceKeyInput input) {
@@ -103,14 +115,18 @@ public without sharing class InvoiceMergeKeyConfigService {
       input = new LineKeyInput();
     }
     List<String> segments = new List<String>();
-    for (InvoiceMergeKeyPart__mdt definition : getActiveParts(SCOPE_INVOICE_LINE)) {
+    for (
+      InvoiceMergeKeyPart__mdt definition : getActiveParts(SCOPE_INVOICE_LINE)
+    ) {
       String value = resolveLinePartValue(definition.Part__c, input);
       segments.add(PART_PREFIX.get(definition.Part__c) + '=' + value);
     }
     return 'LINE|' + String.join(segments, '|');
   }
 
-  public static String buildLineBucketKeyFromProduct(InvoiceProduct__c product) {
+  public static String buildLineBucketKeyFromProduct(
+    InvoiceProduct__c product
+  ) {
     LineKeyInput input = new LineKeyInput();
     if (product != null) {
       Map<String, Object> fields = product.getPopulatedFieldsAsMap();
@@ -190,7 +206,13 @@ public without sharing class InvoiceMergeKeyConfigService {
       return cachedDefinitions;
     }
     cachedDefinitions = [
-      SELECT DeveloperName, MasterLabel, Active__c, Scope__c, Part__c, SortOrder__c
+      SELECT
+        DeveloperName,
+        MasterLabel,
+        Active__c,
+        Scope__c,
+        Part__c,
+        SortOrder__c
       FROM InvoiceMergeKeyPart__mdt
     ];
     return cachedDefinitions;
@@ -204,7 +226,9 @@ public without sharing class InvoiceMergeKeyConfigService {
   ) {
     if (parts == null || parts.isEmpty()) {
       throw new MergeKeyConfigException(
-        '請求マージキー部品（' + scopeLabel(scope) + '）が1件も有効ではありません。'
+        '請求マージキー部品（' +
+          scopeLabel(scope) +
+          '）が1件も有効ではありません。'
       );
     }
     Set<String> seen = new Set<String>();
@@ -247,7 +271,10 @@ public without sharing class InvoiceMergeKeyConfigService {
     }
   }
 
-  private static String resolveInvoicePartValue(String part, InvoiceKeyInput input) {
+  private static String resolveInvoicePartValue(
+    String part,
+    InvoiceKeyInput input
+  ) {
     if (part == PART_BILLING_ACCOUNT) {
       return formatId(input.billingAccountId);
     }
@@ -326,10 +353,12 @@ public without sharing class InvoiceMergeKeyConfigService {
       InvoiceMergeKeyPart__mdt left,
       InvoiceMergeKeyPart__mdt right
     ) {
-      Decimal leftOrder = left == null || left.SortOrder__c == null
+      Decimal leftOrder = left == null ||
+        left.SortOrder__c == null
         ? 0
         : left.SortOrder__c;
-      Decimal rightOrder = right == null || right.SortOrder__c == null
+      Decimal rightOrder = right == null ||
+        right.SortOrder__c == null
         ? 0
         : right.SortOrder__c;
       if (leftOrder < rightOrder) {
@@ -339,7 +368,9 @@ public without sharing class InvoiceMergeKeyConfigService {
         return 1;
       }
       String leftName = left == null ? '' : String.valueOf(left.DeveloperName);
-      String rightName = right == null ? '' : String.valueOf(right.DeveloperName);
+      String rightName = right == null
+        ? ''
+        : String.valueOf(right.DeveloperName);
       return leftName.compareTo(rightName);
     }
   }

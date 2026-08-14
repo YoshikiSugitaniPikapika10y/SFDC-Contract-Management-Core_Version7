@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>見積ウィザードに動的表示するカスタム項目の定義。対象は契約サービス / 契約履歴 / 見積商品。ShowOn* で New/Change/Renew/Cancel ごとの表示を制御。見積商品のみ Product2 表示条件（Visibility*）を追加で解釈する。</description>
+    <description
+  >見積ウィザードに動的表示するカスタム項目の定義。対象は契約サービス / 契約履歴 / 見積商品。ShowOn* で New/Change/Renew/Cancel ごとの表示を制御。見積商品のみ Product2 表示条件（Visibility*）を追加で解釈する。</description>
     <label>見積ウィザードカスタム項目</label>
     <pluralLabel>見積ウィザードカスタム項目</pluralLabel>
     <visibility>Public</visibility>

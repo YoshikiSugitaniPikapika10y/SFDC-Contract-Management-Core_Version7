@@ -44,9 +44,13 @@ private class CriticalTrustBugProbeTest {
       );
       insert history;
 
-      Product2 productA = ContractTestDataFactory.buildProduct('Probe Recurring A');
+      Product2 productA = ContractTestDataFactory.buildProduct(
+        'Probe Recurring A'
+      );
       productA.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-      Product2 productB = ContractTestDataFactory.buildProduct('Probe Recurring B');
+      Product2 productB = ContractTestDataFactory.buildProduct(
+        'Probe Recurring B'
+      );
       productB.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(productA);
       ContractTestDataFactory.insertProduct(productB);
@@ -134,7 +138,13 @@ private class CriticalTrustBugProbeTest {
       InvoiceCanonicalService.rebuildForHistories(new Set<Id>{ history.Id });
 
       List<InvoiceLine__c> lines = [
-        SELECT Id, Invoice__c, Amount__c, UnitPrice__c, Quantity__c, ProductName__c
+        SELECT
+          Id,
+          Invoice__c,
+          Amount__c,
+          UnitPrice__c,
+          Quantity__c,
+          ProductName__c
         FROM InvoiceLine__c
         WHERE Invoice__r.ContractHistory__c = :history.Id
         ORDER BY ProductName__c ASC

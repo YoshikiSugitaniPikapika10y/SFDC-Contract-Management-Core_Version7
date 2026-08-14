@@ -22,11 +22,7 @@ private class ContractOptimisticLockUtilTest {
 
   @IsTest
   static void assertUnchanged_blankToken_skips() {
-    ContractOptimisticLockUtil.assertUnchanged(
-      Datetime.now(),
-      null,
-      'テスト'
-    );
+    ContractOptimisticLockUtil.assertUnchanged(Datetime.now(), null, 'テスト');
     ContractOptimisticLockUtil.assertUnchanged(Datetime.now(), '', 'テスト');
   }
 
@@ -52,9 +48,7 @@ private class ContractOptimisticLockUtilTest {
   @IsTest
   static void assertUnchanged_mismatch_throws() {
     Datetime actual = Datetime.newInstance(2026, 8, 10, 1, 2, 3);
-    String stale = ContractOptimisticLockUtil.toToken(
-      actual.addSeconds(-10)
-    );
+    String stale = ContractOptimisticLockUtil.toToken(actual.addSeconds(-10));
     try {
       ContractOptimisticLockUtil.assertUnchanged(actual, stale, '契約履歴');
       System.assert(false, 'Expected conflict');

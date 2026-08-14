@@ -583,7 +583,8 @@ function applyAction(state, action) {
       return reduceSetType(state, action);
 
     case WIZARD_ACTIONS.SET_ENTRY_MODE: {
-      const entryMode = action.entryMode === "continuation" ? "continuation" : "new";
+      const entryMode =
+        action.entryMode === "continuation" ? "continuation" : "new";
       if (entryMode === state.data.entryMode) {
         return state;
       }

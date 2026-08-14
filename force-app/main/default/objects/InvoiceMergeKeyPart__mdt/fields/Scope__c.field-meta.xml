@@ -1,7 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Scope__c</fullName>
-    <description>Invoice=請求書単位キー。InvoiceLine=請求明細単位キー。</description>
+    <description
+  >Invoice=請求書単位キー。InvoiceLine=請求明細単位キー。</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <label>対象</label>

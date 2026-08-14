@@ -1,62 +1,62 @@
-import { LightningElement, api } from 'lwc';
-import { NavigationMixin } from 'c/orderWizardNavigation';
-import hasOrder from '@salesforce/customPermission/Contract_09_Can_Order';
+import { LightningElement, api } from "lwc";
+import { NavigationMixin } from "c/orderWizardNavigation";
+import hasOrder from "@salesforce/customPermission/Contract_09_Can_Order";
 import {
-    closeOrderRecordAction,
-    markOrderRecordForRefresh,
-    refreshOnRecordActionUnmount
-} from 'c/orderWizardClose';
-import { resizeQuickActionPanel } from 'c/quickActionPanelResize';
+  closeOrderRecordAction,
+  markOrderRecordForRefresh,
+  refreshOnRecordActionUnmount
+} from "c/orderWizardClose";
+import { resizeQuickActionPanel } from "c/quickActionPanelResize";
 
 export default class OrderCreateRecordAction extends NavigationMixin(
-    LightningElement
+  LightningElement
 ) {
-    @api recordId;
+  @api recordId;
 
-    pendingRecordRefresh;
-    panelSize = 'large';
+  pendingRecordRefresh;
+  panelSize = "large";
 
-    get hasPermission() {
-        return hasOrder === true;
+  get hasPermission() {
+    return hasOrder === true;
+  }
+
+  connectedCallback() {
+    this.applyPanelSize();
+  }
+
+  renderedCallback() {
+    this.applyPanelSize();
+  }
+
+  handlePanelSizeChange(event) {
+    const size = event.detail?.size;
+    if (size !== "confirm" && size !== "large") {
+      return;
     }
-
-    connectedCallback() {
-        this.applyPanelSize();
+    if (this.panelSize === size) {
+      return;
     }
+    this.panelSize = size;
+    this.applyPanelSize();
+  }
 
-    renderedCallback() {
-        this.applyPanelSize();
-    }
+  applyPanelSize() {
+    resizeQuickActionPanel(this, this.panelSize);
+  }
 
-    handlePanelSizeChange(event) {
-        const size = event.detail?.size;
-        if (size !== 'confirm' && size !== 'large') {
-            return;
-        }
-        if (this.panelSize === size) {
-            return;
-        }
-        this.panelSize = size;
-        this.applyPanelSize();
-    }
+  handleRequestClose(event) {
+    const detail = event.detail || {};
+    closeOrderRecordAction(this, {
+      refresh: detail.refresh !== false,
+      recordId: detail.recordId || this.recordId
+    });
+  }
 
-    applyPanelSize() {
-        resizeQuickActionPanel(this, this.panelSize);
-    }
+  handleOrderRecordStatusChanged(event) {
+    markOrderRecordForRefresh(this, event.detail?.recordId);
+  }
 
-    handleRequestClose(event) {
-        const detail = event.detail || {};
-        closeOrderRecordAction(this, {
-            refresh: detail.refresh !== false,
-            recordId: detail.recordId || this.recordId
-        });
-    }
-
-    handleOrderRecordStatusChanged(event) {
-        markOrderRecordForRefresh(this, event.detail?.recordId);
-    }
-
-    disconnectedCallback() {
-        refreshOnRecordActionUnmount(this);
-    }
+  disconnectedCallback() {
+    refreshOnRecordActionUnmount(this);
+  }
 }

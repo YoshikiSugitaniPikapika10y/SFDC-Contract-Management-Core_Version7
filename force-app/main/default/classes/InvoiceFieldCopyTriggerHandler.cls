@@ -19,7 +19,9 @@ public without sharing class InvoiceFieldCopyTriggerHandler {
     );
   }
 
-  public static void handleInvoiceLineBeforeInsert(List<InvoiceLine__c> records) {
+  public static void handleInvoiceLineBeforeInsert(
+    List<InvoiceLine__c> records
+  ) {
     InvoiceProductFieldCopyService.applyOnBeforeInsert(
       records,
       InvoiceProductFieldCopyService.TARGET_INVOICE_LINE

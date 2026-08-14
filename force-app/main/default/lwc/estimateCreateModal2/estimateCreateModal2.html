@@ -119,7 +119,9 @@
       </template>
 
       <template if:false={isNewType}>
-        <div class="est-field-grid est-field-grid_lookup est-field-grid_lookup_solo">
+        <div
+          class="est-field-grid est-field-grid_lookup est-field-grid_lookup_solo"
+        >
           <div class="est-field est-field_service">
             <span class="est-label est-label_required">契約サービス</span>
             <div class="est-control">
@@ -147,7 +149,8 @@
                         >
                       </template>
                       <template if:true={selectedServiceCard.lifecycleLabel}>
-                        <span class="est-service-picker-chip est-service-picker-chip_muted"
+                        <span
+                          class="est-service-picker-chip est-service-picker-chip_muted"
                           >{selectedServiceCard.lifecycleLabel}</span
                         >
                       </template>
@@ -156,7 +159,9 @@
                           >{selectedServiceCard.termLabel}</span
                         >
                       </template>
-                      <template if:true={selectedServiceCard.currentProductsLabel}>
+                      <template
+                        if:true={selectedServiceCard.currentProductsLabel}
+                      >
                         <span class="est-service-picker-products"
                           >{selectedServiceCard.currentProductsLabel}</span
                         >
@@ -195,10 +200,7 @@
                     role="listbox"
                     aria-label="契約サービス候補"
                   >
-                    <template
-                      for:each={servicePickerOptions}
-                      for:item="option"
-                    >
+                    <template for:each={servicePickerOptions} for:item="option">
                       <button
                         key={option.key}
                         type="button"
@@ -218,7 +220,8 @@
                             >
                           </template>
                           <template if:true={option.lifecycleLabel}>
-                            <span class="est-service-picker-chip est-service-picker-chip_muted"
+                            <span
+                              class="est-service-picker-chip est-service-picker-chip_muted"
                               >{option.lifecycleLabel}</span
                             >
                           </template>
@@ -396,15 +399,9 @@
                     <span class="est-ops-copy">
                       <span class="est-ops-title">{option.label}</span>
                       <span class="est-ops-help">
-                        <template
-                          for:each={option.helpLines}
-                          for:item="line"
-                        >
+                        <template for:each={option.helpLines} for:item="line">
                           <span key={line.key} class="est-ops-help-line">
-                            <template
-                              for:each={line.segments}
-                              for:item="seg"
-                            >
+                            <template for:each={line.segments} for:item="seg">
                               <span key={seg.key} class={seg.className}
                                 >{seg.text}</span
                               >

@@ -87,7 +87,9 @@ private class InvoiceProductFieldCopyServiceTest {
       )
     };
 
-    Invoice__c invoice = new Invoice__c(AccountNameSnapShot__c = 'DataLoader取引先');
+    Invoice__c invoice = new Invoice__c(
+      AccountNameSnapShot__c = 'DataLoader取引先'
+    );
     InvoiceProductFieldCopyService.applyCopies(
       invoice,
       InvoiceProductFieldCopyService.TARGET_INVOICE,
@@ -177,10 +179,7 @@ private class InvoiceProductFieldCopyServiceTest {
       InvoiceProductFieldCopyService.validateActiveDefinitions();
     } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
       rejected = true;
-      System.assert(
-        ex.getMessage().contains('ハードコード'),
-        ex.getMessage()
-      );
+      System.assert(ex.getMessage().contains('ハードコード'), ex.getMessage());
     }
     System.assertEquals(true, rejected);
   }
@@ -331,7 +330,10 @@ private class InvoiceProductFieldCopyServiceTest {
     );
     System.assertEquals(
       false,
-      InvoiceProductFieldCopyService.areTypesCompatible(null, Schema.DisplayType.STRING)
+      InvoiceProductFieldCopyService.areTypesCompatible(
+        null,
+        Schema.DisplayType.STRING
+      )
     );
     System.assertEquals(
       InvoiceProductFieldCopyService.PATH_CONTRACT_HISTORY,

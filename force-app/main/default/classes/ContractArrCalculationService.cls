@@ -53,17 +53,14 @@ public without sharing class ContractArrCalculationService {
       // null は未計算扱い。0 と同一視してスキップしない。
       Boolean arrUnchanged = history.ARR__c != null && history.ARR__c == arr;
       Boolean aveArrUnchanged =
-        history.AveARR__c != null && history.AveARR__c == aveArr;
+        history.AveARR__c != null &&
+        history.AveARR__c == aveArr;
       if (arrUnchanged && aveArrUnchanged) {
         continue;
       }
 
       historiesToUpdate.add(
-        new ContractHistory__c(
-          Id = historyId,
-          ARR__c = arr,
-          AveARR__c = aveArr
-        )
+        new ContractHistory__c(Id = historyId, ARR__c = arr, AveARR__c = aveArr)
       );
     }
 
@@ -89,10 +86,7 @@ public without sharing class ContractArrCalculationService {
     ]) {
       arrByHistoryId.put(history.Id, 0);
       avePeriodAmountByHistoryId.put(history.Id, 0);
-      termStartDateByHistoryId.put(
-        history.Id,
-        history.CurrentTermStartDate__c
-      );
+      termStartDateByHistoryId.put(history.Id, history.CurrentTermStartDate__c);
       termEndDateByHistoryId.put(history.Id, history.CurrentTermEndDate__c);
     }
 
@@ -147,8 +141,7 @@ public without sharing class ContractArrCalculationService {
 
       aveArrByHistoryId.put(
         historyId,
-        ((periodAmountSum / termCycles) * 12)
-          .setScale(2, RoundingMode.HALF_UP)
+        ((periodAmountSum / termCycles) * 12).setScale(2, RoundingMode.HALF_UP)
       );
     }
   }

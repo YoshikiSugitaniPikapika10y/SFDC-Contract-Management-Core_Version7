@@ -5,8 +5,7 @@
  */
 public without sharing class InvoiceOpsController {
   @TestVisible
-  private static final String CLEAR_EXPORT_WHEN_INVOICED_MESSAGE =
-    '連携済の請求の消込日はクリアできません。';
+  private static final String CLEAR_EXPORT_WHEN_INVOICED_MESSAGE = '連携済の請求の消込日はクリアできません。';
 
   public class InvoiceRowDto {
     @AuraEnabled
@@ -93,7 +92,10 @@ public without sharing class InvoiceOpsController {
   }
 
   @AuraEnabled
-  public static Integer markInvoiced(List<Id> invoiceIds, Date integrationDate) {
+  public static Integer markInvoiced(
+    List<Id> invoiceIds,
+    Date integrationDate
+  ) {
     ContractPermissionUtil.assertManageInvoiceOps();
     return applyLockDates(invoiceIds, integrationDate, null, true);
   }

@@ -60,6 +60,10 @@
         </layoutColumns>
         <layoutColumns>
             <layoutItems>
+                <behavior>Edit</behavior>
+                <field>RenewEstimateAutoCreateCheck__c</field>
+            </layoutItems>
+            <layoutItems>
                 <behavior>Readonly</behavior>
                 <field>RenewalRemainingMonths__c</field>
             </layoutItems>

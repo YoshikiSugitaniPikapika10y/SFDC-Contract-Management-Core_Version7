@@ -8,6 +8,8 @@
           value={selectedVersion}
           options={versionOptions}
           onchange={handleVersionChange}
+          disabled={versionFilterDisabled}
+          title={versionFilterTitle}
           dropdown-alignment="left"
           variant="label-hidden"
         >
@@ -190,6 +192,7 @@
                   value={invoice.draftPaymentScheduledDate}
                   data-field="paymentScheduledDate"
                   onchange={handleBillingFieldChange}
+                  required
                 ></lightning-input>
                 <lightning-input
                   type="number"
@@ -200,6 +203,7 @@
                   min="0"
                   max="100"
                   step="0.01"
+                  required
                 ></lightning-input>
                 <lightning-input
                   label="宛名"
@@ -248,7 +252,8 @@
           <template if:true={invoice.isInvoiceMoveOpen}>
             <div class="split-panel">
               <p class="edit-note" role="note">
-                下の明細にチェックを付けて、同じ Version の既存請求へ全額移します。請求日・請求アカウント・税率は移動先に従います。同じ商品でも合算せず別行のまま載せます。
+                下の明細にチェックを付けて、同じ Version
+                の既存請求へ全額移します。請求日・請求アカウント・税率は移動先に従います。同じ商品でも合算せず別行のまま載せます。
               </p>
               <template if:true={invoice.invoiceMoveWillEmptySource}>
                 <p class="edit-note" role="status">
@@ -279,7 +284,9 @@
                       <div class="split-field">
                         <span class="split-field-label">請求日</span>
                         <div class="split-field-control">
-                          <div class="split-field-value">{invoice.invoiceDate}</div>
+                          <div class="split-field-value">
+                            {invoice.invoiceDate}
+                          </div>
                         </div>
                       </div>
                       <div class="split-field">
@@ -373,7 +380,9 @@
                       <div class="split-field">
                         <span class="split-field-label">請求日</span>
                         <div class="split-field-control">
-                          <div class="split-field-value">{invoice.invoiceDate}</div>
+                          <div class="split-field-value">
+                            {invoice.invoiceDate}
+                          </div>
                         </div>
                       </div>
                       <div class="split-field">
@@ -405,7 +414,9 @@
                     <div class="split-field split-field_full">
                       <span class="split-field-label">請求アカウント</span>
                       <div class="split-field-control">
-                        <template if:true={showInvoiceSplitRelatedBillingCombobox}>
+                        <template
+                          if:true={showInvoiceSplitRelatedBillingCombobox}
+                        >
                           <lightning-combobox
                             name="newBillingAccount"
                             label="請求アカウント"
@@ -453,6 +464,7 @@
                             variant="label-hidden"
                             value={invoice.invoiceSplitNewPaymentDate}
                             onchange={handleInvoiceSplitPaymentChange}
+                            required
                           ></lightning-input>
                         </div>
                       </div>
@@ -494,7 +506,9 @@
               <p class="edit-note line-split-status">分割候補を読み込み中…</p>
             </template>
             <template if:true={invoice.lineSplitError}>
-              <p class="edit-note line-split-status">{invoice.lineSplitError}</p>
+              <p class="edit-note line-split-status">
+                {invoice.lineSplitError}
+              </p>
             </template>
           </template>
 
@@ -608,9 +622,10 @@
                             <button
                               type="button"
                               class="amount-chip"
-                              title="1円増やす"
+                              title={invoice.amountAdjustPlus1Title}
                               data-line-id={row.lineId}
                               data-delta="1"
+                              disabled={invoice.amountAdjustDisabled}
                               onclick={handleAdjustAmount}
                             >
                               +1
@@ -618,9 +633,10 @@
                             <button
                               type="button"
                               class="amount-chip"
-                              title="1円減らす"
+                              title={invoice.amountAdjustMinus1Title}
                               data-line-id={row.lineId}
                               data-delta="-1"
+                              disabled={invoice.amountAdjustDisabled}
                               onclick={handleAdjustAmount}
                             >
                               -1
@@ -628,9 +644,10 @@
                             <button
                               type="button"
                               class="amount-chip"
-                              title="10円増やす"
+                              title={invoice.amountAdjustPlus10Title}
                               data-line-id={row.lineId}
                               data-delta="10"
+                              disabled={invoice.amountAdjustDisabled}
                               onclick={handleAdjustAmount}
                             >
                               +10
@@ -638,9 +655,10 @@
                             <button
                               type="button"
                               class="amount-chip"
-                              title="10円減らす"
+                              title={invoice.amountAdjustMinus10Title}
                               data-line-id={row.lineId}
                               data-delta="-10"
+                              disabled={invoice.amountAdjustDisabled}
                               onclick={handleAdjustAmount}
                             >
                               -10
@@ -747,7 +765,9 @@
                                   <div
                                     class="split-factor-slot split-factor-slot_formula"
                                   >
-                                    <template if:true={row.isUnitPriceFormulaOpen}>
+                                    <template
+                                      if:true={row.isUnitPriceFormulaOpen}
+                                    >
                                       <div
                                         class="split-formula-picker"
                                         data-id="unit-price-formula-picker"
@@ -765,7 +785,9 @@
                                           oninput={handleUnitPriceFormulaDraftChange}
                                           onkeydown={handleUnitPriceFormulaKeydown}
                                         />
-                                        <template if:true={unitPriceFormulaError}>
+                                        <template
+                                          if:true={unitPriceFormulaError}
+                                        >
                                           <div
                                             class="split-formula-error"
                                             role="alert"
@@ -773,7 +795,9 @@
                                             {unitPriceFormulaError}
                                           </div>
                                         </template>
-                                        <template if:true={unitPriceFormulaHint}>
+                                        <template
+                                          if:true={unitPriceFormulaHint}
+                                        >
                                           <div class="split-formula-hint">
                                             {unitPriceFormulaHint}
                                           </div>
@@ -796,7 +820,9 @@
                                         </div>
                                       </div>
                                     </template>
-                                    <template if:false={row.isUnitPriceFormulaOpen}>
+                                    <template
+                                      if:false={row.isUnitPriceFormulaOpen}
+                                    >
                                       <button
                                         type="button"
                                         class="split-formula-trigger"

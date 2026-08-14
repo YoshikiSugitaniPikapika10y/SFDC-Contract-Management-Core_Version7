@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>12 操作。カスタム権限 Contract_12_Can_Edit_Invoice_Preview のみ。通常は 01 + 11 と併用。コード接続は別途。</description>
+    <description
+  >12 操作。カスタム権限 Contract_12_Can_Edit_Invoice_Preview のみ。通常は 01 + 11 と併用。コード接続は別途。</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>12 契約 請求プレビュー編集</label>
     <customPermissions>

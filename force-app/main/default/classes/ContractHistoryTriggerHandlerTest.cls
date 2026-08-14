@@ -529,7 +529,9 @@ private class ContractHistoryTriggerHandlerTest {
           FROM Invoice__c
           WHERE
             ContractHistory__c = :openHistory.Id
-            OR (ContractHistory__c = NULL AND ContractService__c = :service.Id AND Amount__c = 20000)
+            OR (ContractHistory__c = NULL
+            AND ContractService__c = :service.Id
+            AND Amount__c = 20000)
         ],
         '未ロック側請求は孤児にせず削除する'
       );
@@ -751,7 +753,9 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
       insert history;
-      Product2 product = ContractTestDataFactory.buildProduct('Archive Purge Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Archive Purge Product'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(product);
       ContractProduct__c cp = new ContractProduct__c(

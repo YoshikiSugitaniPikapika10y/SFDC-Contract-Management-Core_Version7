@@ -17,8 +17,7 @@ public without sharing class InvoiceLockUtil {
 
   /** CS 未設定時の既定: 入金消込額・消込完了日のみロック除外 */
   @TestVisible
-  private static final String DEFAULT_LOCK_EXEMPT_FIELDS =
-    'PaymentClearedAmount__c,PaymentClearingCompletedDate__c';
+  private static final String DEFAULT_LOCK_EXEMPT_FIELDS = 'PaymentClearedAmount__c,PaymentClearingCompletedDate__c';
 
   private static final Set<String> IGNORED_FIELD_NAMES = new Set<String>{
     'Id',
@@ -93,7 +92,9 @@ public without sharing class InvoiceLockUtil {
         continue;
       }
       // 除外項目だけの更新はロック中も許可
-      if (oldMap != null && isLockExemptOnlyUpdate(prior, record, exemptFields)) {
+      if (
+        oldMap != null && isLockExemptOnlyUpdate(prior, record, exemptFields)
+      ) {
         continue;
       }
       record.addError(LOCKED_ROW_DML_BLOCK_MESSAGE);
@@ -132,7 +133,12 @@ public without sharing class InvoiceLockUtil {
     Invoice__c current,
     Set<String> exemptFields
   ) {
-    if (prior == null || current == null || exemptFields == null || exemptFields.isEmpty()) {
+    if (
+      prior == null ||
+      current == null ||
+      exemptFields == null ||
+      exemptFields.isEmpty()
+    ) {
       return false;
     }
     Boolean anyExemptChange = false;
@@ -154,8 +160,7 @@ public without sharing class InvoiceLockUtil {
       // Describe のキーは小文字のことがあるため、正規名でも照合する
       String fieldName = token.getDescribe().getName();
       if (
-        !exemptFields.contains(fieldName) &&
-        !exemptFields.contains(apiName)
+        !exemptFields.contains(fieldName) && !exemptFields.contains(apiName)
       ) {
         return false;
       }
@@ -241,11 +246,7 @@ public without sharing class InvoiceLockUtil {
   }
 
   public static void assertInvoicesEditable(Set<Id> invoiceIds) {
-    if (
-      canBypassLockedDml() ||
-      invoiceIds == null ||
-      invoiceIds.isEmpty()
-    ) {
+    if (canBypassLockedDml() || invoiceIds == null || invoiceIds.isEmpty()) {
       return;
     }
     String lockedSoql =

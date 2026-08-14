@@ -187,7 +187,9 @@ private class ContractProductTriggerHandlerTest {
   @IsTest
   static void populateInvoiceAnchorFields_monthlySplitStoresCycleCount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Anchor Monthly Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Anchor Monthly Account'
+      );
       ContractService__c service = new ContractService__c(
         Name = 'Anchor Monthly Service',
         Account__c = account.Id
@@ -208,7 +210,9 @@ private class ContractProductTriggerHandlerTest {
       );
       insert history;
 
-      Product2 product = ContractTestDataFactory.buildProduct('Anchor Monthly Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Anchor Monthly Product'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(product);
 

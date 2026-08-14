@@ -390,7 +390,9 @@ public without sharing class EstimateSaveService {
   ) {
     Id serviceId = existing.ContractService__c;
     if (serviceId == null) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
     ContractService__c contractService = new ContractService__c(Id = serviceId);
     applyContractServiceCustomFields(contractService, request);
@@ -518,7 +520,9 @@ public without sharing class EstimateSaveService {
 
     Id serviceId = existing.ContractService__c;
     if (serviceId == null) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
 
     ContractService__c contractService = new ContractService__c(
@@ -558,7 +562,9 @@ public without sharing class EstimateSaveService {
   ) {
     Id serviceId = existing.ContractService__c;
     if (serviceId == null) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
     List<ContractService__c> services = [
       SELECT Id, Account__c
@@ -568,7 +574,9 @@ public without sharing class EstimateSaveService {
       LIMIT 1
     ];
     if (services.isEmpty()) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
 
     ContractService__c contractService = new ContractService__c(
@@ -755,7 +763,9 @@ public without sharing class EstimateSaveService {
       LIMIT 1
     ];
     if (services.isEmpty()) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
 
     ContractService__c contractService = new ContractService__c(
@@ -830,7 +840,9 @@ public without sharing class EstimateSaveService {
       LIMIT 1
     ];
     if (services.isEmpty()) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
 
     ContractService__c contractService = new ContractService__c(

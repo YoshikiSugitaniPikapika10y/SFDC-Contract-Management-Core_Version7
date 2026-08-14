@@ -558,7 +558,9 @@ public without sharing class EstimateDocumentService {
 
     for (ContractProduct__c product : products) {
       GroupedLineDto item = toGroupedLine(product);
-      String category = product.Product__r == null ? null : product.Product__r.Field1__c;
+      String category = product.Product__r == null
+        ? null
+        : product.Product__r.Field1__c;
       String groupingName = resolveGroupingProductName(product);
 
       if (category == '研修（エンパワー）') {
@@ -586,7 +588,9 @@ public without sharing class EstimateDocumentService {
     allocateGrandTaxToGroups(allGroups, grandExcl, grandTax);
 
     context.digitalTotalIncTax = sumGroupTotalIncTax(context.digitalGroups);
-    context.consultingTotalIncTax = sumGroupTotalIncTax(context.consultingGroups);
+    context.consultingTotalIncTax = sumGroupTotalIncTax(
+      context.consultingGroups
+    );
     context.trainingTotalIncTax = sumGroupTotalIncTax(context.trainingGroups);
     context.otherTotalIncTax = sumGroupTotalIncTax(context.otherGroups);
     context.totalAmount = grandExcl + grandTax;
@@ -660,7 +664,9 @@ public without sharing class EstimateDocumentService {
       if (i == groups.size() - 1) {
         groupTax = remainingTax;
       } else {
-        groupTax = (taxTotal * groupExcl / exclTotal)
+        groupTax = (taxTotal *
+          groupExcl /
+          exclTotal)
           .setScale(0, RoundingMode.HALF_UP);
         remainingTax -= groupTax;
       }
@@ -727,7 +733,9 @@ public without sharing class EstimateDocumentService {
   }
 
   private static String resolveGroupingProductName(ContractProduct__c product) {
-    if (product.Product__r != null && String.isNotBlank(product.Product__r.Name)) {
+    if (
+      product.Product__r != null && String.isNotBlank(product.Product__r.Name)
+    ) {
       return product.Product__r.Name;
     }
     return itemFallbackName(product);
@@ -918,12 +926,13 @@ public without sharing class EstimateDocumentService {
     }
 
     if (
-      setting != null &&
-      String.isNotBlank(setting.TermFeeStartDateSencence__c)
+      setting != null && String.isNotBlank(setting.TermFeeStartDateSencence__c)
     ) {
       context.termFeeStartDateDisplay = setting.TermFeeStartDateSencence__c;
     } else {
-      Date earliest = getEarliestProductStartDate(history == null ? null : history.Id);
+      Date earliest = getEarliestProductStartDate(
+        history == null ? null : history.Id
+      );
       context.termFeeStartDateDisplay = earliest == null
         ? ''
         : formatEstimateDateWithWeekday(earliest);
@@ -965,7 +974,11 @@ public without sharing class EstimateDocumentService {
       '金',
       '土'
     };
-    Datetime dt = Datetime.newInstance(value.year(), value.month(), value.day());
+    Datetime dt = Datetime.newInstance(
+      value.year(),
+      value.month(),
+      value.day()
+    );
     return dt.format('yyyy/M/d') + '(' + daysJP[dayIdx] + ')';
   }
 

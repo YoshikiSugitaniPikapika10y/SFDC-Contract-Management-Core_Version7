@@ -101,7 +101,11 @@ private class InvoiceMergeKeyConfigServiceTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(true, failed, 'ContractHistory 必須欠落で失敗すること');
+      System.assertEquals(
+        true,
+        failed,
+        'ContractHistory 必須欠落で失敗すること'
+      );
     } finally {
       InvoiceMergeKeyConfigService.resetCache();
     }
@@ -199,7 +203,9 @@ private class InvoiceMergeKeyConfigServiceTest {
         Quantity__c = 2,
         Unit__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT
       );
-      product.ContractProduct__r = new ContractProduct__c(Product__c = productId);
+      product.ContractProduct__r = new ContractProduct__c(
+        Product__c = productId
+      );
       String fromProduct = InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(
         product
       );
@@ -210,7 +216,10 @@ private class InvoiceMergeKeyConfigServiceTest {
       System.assert(fromProduct.contains('UP=2500.5'), fromProduct);
       System.assert(fromProduct.contains('Q=2'), fromProduct);
       System.assert(fromProduct.contains('U=式'), fromProduct);
-      System.assert(fromProduct.contains('P=' + String.valueOf(productId)), fromProduct);
+      System.assert(
+        fromProduct.contains('P=' + String.valueOf(productId)),
+        fromProduct
+      );
 
       System.assertEquals(
         'LINE|CP=|UP=0|Q=0|U=|P=',

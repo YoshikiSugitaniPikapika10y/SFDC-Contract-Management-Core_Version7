@@ -39,7 +39,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;p&gt;請求条件・送付先のマスタです。受注時に請求へ SnapShot されます（既存請求は自動更新されません）。&lt;/p&gt;</value>
+                    <value
+          >&lt;p&gt;請求条件・送付先のマスタです。受注時に請求へ SnapShot されます（既存請求は自動更新されません）。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_hint</identifier>
@@ -137,7 +138,8 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>richTextValue</name>
-                    <value>&lt;p&gt;この請求アカウントが SnapShot されている請求です。&lt;/p&gt;</value>
+                    <value
+          >&lt;p&gt;この請求アカウントが SnapShot されている請求です。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_invoices</identifier>

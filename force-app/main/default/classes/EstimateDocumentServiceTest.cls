@@ -15,7 +15,10 @@ private class EstimateDocumentServiceTest {
       );
 
       System.assertEquals('サンプル見積タイトル', context.documentTitle);
-      System.assertEquals(EstimateDocumentService.COMPANY_NAME, context.companyName);
+      System.assertEquals(
+        EstimateDocumentService.COMPANY_NAME,
+        context.companyName
+      );
       System.assertEquals('テスト取引先', context.addresseeName);
       System.assertEquals(1, context.lines.size());
       System.assertEquals(144000, context.lines[0].amount);
@@ -50,7 +53,11 @@ private class EstimateDocumentServiceTest {
       System.assertEquals(0, context.taxPercent, '未入力税率は 0%');
       System.assertEquals(0, context.taxAmount);
       System.assertEquals(144000, context.lineTotalInclTax);
-      System.assertEquals(144000, context.totalAmount, 'PDF合計も CS 未入力なら 0%');
+      System.assertEquals(
+        144000,
+        context.totalAmount,
+        'PDF合計も CS 未入力なら 0%'
+      );
       System.assertEquals('0', context.taxPercentLabel);
     }
   }
@@ -150,7 +157,7 @@ private class EstimateDocumentServiceTest {
       System.assertEquals(
         33,
         context.otherGroups[0].totalAmountIncTax +
-          context.otherGroups[1].totalAmountIncTax,
+        context.otherGroups[1].totalAmountIncTax,
         'グループ税込の合計＝御見積'
       );
       System.assertEquals(
@@ -657,7 +664,12 @@ private class EstimateDocumentServiceTest {
       for (EstimateDocumentService.LineDto line : context.lines) {
         typeLabels.add(line.typeLabel);
       }
-      System.assertEquals(true, typeLabels.contains('新規') || typeLabels.contains('変更前') || typeLabels.contains('変更後'));
+      System.assertEquals(
+        true,
+        typeLabels.contains('新規') ||
+          typeLabels.contains('変更前') ||
+          typeLabels.contains('変更後')
+      );
     }
   }
 
@@ -688,7 +700,10 @@ private class EstimateDocumentServiceTest {
       for (EstimateDocumentService.LineDto line : context.lines) {
         unitPrices.add(line.unitPrice);
       }
-      System.assertEquals(true, unitPrices.contains(8000) || unitPrices.size() > 0);
+      System.assertEquals(
+        true,
+        unitPrices.contains(8000) || unitPrices.size() > 0
+      );
     }
   }
 

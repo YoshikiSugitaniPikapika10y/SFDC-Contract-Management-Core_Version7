@@ -61,12 +61,8 @@ describe("endDateForMonthlyCycles is the canonical N-month end", () => {
   });
 
   it("floors misaligned end down, never stretches to 13", () => {
-    expect(floorMonthlyEndDate("2025-01-31", "2026-01-30")).toBe(
-      "2026-01-27"
-    );
-    expect(alignMonthlyEndDate("2025-01-31", "2026-01-30")).toBe(
-      "2026-01-27"
-    );
+    expect(floorMonthlyEndDate("2025-01-31", "2026-01-30")).toBe("2026-01-27");
+    expect(alignMonthlyEndDate("2025-01-31", "2026-01-30")).toBe("2026-01-27");
     expect(countBillingCycles("2025-01-31", "2026-01-30")).toBe(-1);
     expect(
       calculateLineAmount({
@@ -89,15 +85,15 @@ describe("endDateForMonthlyCycles is the canonical N-month end", () => {
   });
 
   it("adjusts end by cycle deltas from the start anchor", () => {
-    expect(
-      adjustMonthlyEndByCycles("2025-01-31", "2026-01-27", 1)
-    ).toBe("2026-02-27");
-    expect(
-      adjustMonthlyEndByCycles("2025-01-31", "2026-01-30", 0)
-    ).toBe("2026-01-30");
-    expect(
-      adjustMonthlyEndByCycles("2025-01-31", "2026-01-30", 12)
-    ).toBe("2027-01-27");
+    expect(adjustMonthlyEndByCycles("2025-01-31", "2026-01-27", 1)).toBe(
+      "2026-02-27"
+    );
+    expect(adjustMonthlyEndByCycles("2025-01-31", "2026-01-30", 0)).toBe(
+      "2026-01-30"
+    );
+    expect(adjustMonthlyEndByCycles("2025-01-31", "2026-01-30", 12)).toBe(
+      "2027-01-27"
+    );
   });
 
   it("keeps anniversary endOfMonthlyPeriod clamp semantics", () => {

@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>08 操作。カスタム権限 Contract_08_Can_Issue_Estimate_Document のみ。通常は 01 と併用。コード接続は別途。</description>
+    <description
+  >08 操作。カスタム権限 Contract_08_Can_Issue_Estimate_Document のみ。通常は 01 と併用。コード接続は別途。</description>
     <hasActivationRequired>false</hasActivationRequired>
     <label>08 契約 見積書発行</label>
     <customPermissions>

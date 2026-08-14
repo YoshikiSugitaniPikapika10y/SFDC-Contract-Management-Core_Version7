@@ -85,10 +85,7 @@ private class InvoiceProductMergeServiceTest {
       '税額は税抜合計×税率を1回切り捨て'
     );
     System.assertEquals(1000, invoices[0].openAmount);
-    System.assertEquals(
-      'INV|BA=x|CH=y|DT=2026-01-01',
-      invoices[0].mergeKey
-    );
+    System.assertEquals('INV|BA=x|CH=y|DT=2026-01-01', invoices[0].mergeKey);
 
     Boolean missingKeyFailed = false;
     try {
