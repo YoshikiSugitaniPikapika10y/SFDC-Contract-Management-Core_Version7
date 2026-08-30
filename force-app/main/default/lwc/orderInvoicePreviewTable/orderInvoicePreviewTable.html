@@ -1302,7 +1302,7 @@
           <template if:true={invoice.isBillingEditOpen}>
             <div class="edit-panel">
               <p class="edit-note" role="note">
-                請求日・入金予定日・税率だけをこの請求に保存します。宛名・To/Cc/Bcc・届け方は参照表示です。請求アカウントマスタには書き戻しません。
+                請求日・入金予定日だけをこの請求に保存します。税率・宛名・To/Cc/Bcc・届け方は参照表示です。請求アカウントマスタには書き戻しません。
               </p>
               <div class="billing-edit-grid">
                 <div>
@@ -1327,18 +1327,10 @@
                   required
                   disabled={invoice.billingCoreFieldsDisabled}
                 ></lightning-input>
-                <lightning-input
-                  type="number"
-                  label="税率 (%)"
-                  value={invoice.draftTaxPercent}
-                  data-field="taxPercent"
-                  onchange={handleBillingFieldChange}
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  required
-                  disabled={invoice.billingCoreFieldsDisabled}
-                ></lightning-input>
+                <div>
+                  <span class="invoice-meta-k">税率 (%)</span>
+                  <div class="invoice-meta-v">{invoice.draftTaxPercent}</div>
+                </div>
                 <div>
                   <span class="invoice-meta-k">宛名</span>
                   <div class="invoice-meta-v">{invoice.billingAddressee}</div>
@@ -1474,7 +1466,7 @@
             <div class="split-panel">
               <p class="edit-note" role="note">
                 下の明細にチェックを付けて、同じ版
-                の既存請求へ全額移します。請求日・請求アカウント・税率は移動先に従います。同じ商品でも合算せず別行のまま載せます。
+                の既存請求へ全額移します。請求日・請求アカウントは移動先に従います。税率が違う先へは移せません。同じ商品でも合算せず別行のまま載せます。
               </p>
               <template if:true={invoice.invoiceMoveWillEmptySource}>
                 <p class="edit-note" role="status">

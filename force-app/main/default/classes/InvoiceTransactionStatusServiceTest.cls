@@ -4,7 +4,6 @@ private class InvoiceTransactionStatusServiceTest {
   static void confirmDraftAndCompleteZeroInvoice() {
     Invoice__c invoice = new Invoice__c(
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT,
-      TaxInclusiveAmount__c = 0,
       InvoicePaymentNet__c = 0
     );
     InvoiceTransactionStatusService.applyConfirmed(
@@ -34,7 +33,6 @@ private class InvoiceTransactionStatusServiceTest {
   static void applyConfirmed_nullDate_usesOrganizationToday() {
     Invoice__c invoice = new Invoice__c(
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT,
-      TaxInclusiveAmount__c = 0,
       InvoicePaymentNet__c = 0
     );
     InvoiceTransactionStatusService.applyConfirmed(
@@ -69,7 +67,6 @@ private class InvoiceTransactionStatusServiceTest {
   static void collectionInProgressWhenNetDiffers() {
     Invoice__c invoice = new Invoice__c(
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-      TaxInclusiveAmount__c = 11000,
       InvoicePaymentNet__c = 5000
     );
     InvoiceTransactionStatusService.applyCollectionRefund(invoice);
@@ -176,6 +173,51 @@ private class InvoiceTransactionStatusServiceTest {
         InvoiceTransactionStatusService.DELIVERY_UNSENT,
         mailed.DeliveryStatus__c,
         '第7.11節: PDFとメール送付の送付状態初期値は Unsent'
+      );
+
+      Invoice__c emailInvoice = new Invoice__c(
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT,
+        InvoicePaymentNet__c = 0,
+        InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.EMAIL
+      );
+      InvoiceTransactionStatusService.applyConfirmed(
+        new List<Invoice__c>{ emailInvoice },
+        Date.newInstance(2026, 8, 1)
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.DELIVERY_UNSENT,
+        emailInvoice.DeliveryStatus__c,
+        '第7.11節: 確定時メールは Unsent'
+      );
+
+      Invoice__c postInvoice = new Invoice__c(
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT,
+        InvoicePaymentNet__c = 0,
+        InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.POST
+      );
+      InvoiceTransactionStatusService.applyConfirmed(
+        new List<Invoice__c>{ postInvoice },
+        Date.newInstance(2026, 8, 1)
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.DELIVERY_NOT_APPLICABLE,
+        postInvoice.DeliveryStatus__c,
+        '第7.11節: 確定時郵送は NotApplicable'
+      );
+
+      Invoice__c noneInvoice = new Invoice__c(
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT,
+        InvoicePaymentNet__c = 0,
+        InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.NONE
+      );
+      InvoiceTransactionStatusService.applyConfirmed(
+        new List<Invoice__c>{ noneInvoice },
+        Date.newInstance(2026, 8, 1)
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.DELIVERY_NOT_APPLICABLE,
+        noneInvoice.DeliveryStatus__c,
+        '第7.11節: 確定時送付なしは NotApplicable'
       );
     }
   }

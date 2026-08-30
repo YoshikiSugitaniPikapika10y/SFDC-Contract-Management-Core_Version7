@@ -26,7 +26,6 @@ public without sharing class InvoiceTransactionStatusService {
     Date confirmedOn = confirmationDate == null
       ? organizationToday()
       : confirmationDate;
-    String deliverySeed = resolveDeliverySeed();
     for (Invoice__c invoice : invoices) {
       if (invoice == null) {
         continue;
@@ -35,10 +34,11 @@ public without sharing class InvoiceTransactionStatusService {
       if (current != TX_DRAFT) {
         throw new InvoiceStatusException(INVALID_CONFIRM_MESSAGE);
       }
+      String deliveryStatus = resolveConfirmedDeliveryStatus(invoice);
       invoice.InvoiceTransactionStatus__c = TX_CONFIRMED;
       invoice.SystemIntegrationDate__c = confirmedOn;
-      invoice.DeliveryStatus__c = deliverySeed;
-      if (deliverySeed != DELIVERY_SENT) {
+      invoice.DeliveryStatus__c = deliveryStatus;
+      if (deliveryStatus != DELIVERY_SENT) {
         invoice.SentDate__c = null;
       }
       applyCollectionRefund(invoice, 0);
@@ -221,6 +221,26 @@ public without sharing class InvoiceTransactionStatusService {
       return invoice.InvoiceTransactionStatus__c;
     }
     return TX_DRAFT;
+  }
+
+  /** 仕様: Core 第7.11節。確定時は組織3択と届け方スナップショット。 */
+  private static String resolveConfirmedDeliveryStatus(Invoice__c invoice) {
+    String seed = resolveDeliverySeed();
+    if (seed == DELIVERY_NOT_APPLICABLE) {
+      return DELIVERY_NOT_APPLICABLE;
+    }
+    InvoiceDeliveryMethodService.assertRequiredOnConfirm(invoice);
+    String snapshot = invoice.InvoiceDeliveryMethodSnapShot__c;
+    if (snapshot == InvoiceDeliveryMethodService.EMAIL) {
+      return DELIVERY_UNSENT;
+    }
+    if (
+      snapshot == InvoiceDeliveryMethodService.POST ||
+      snapshot == InvoiceDeliveryMethodService.NONE
+    ) {
+      return DELIVERY_NOT_APPLICABLE;
+    }
+    return DELIVERY_NOT_APPLICABLE;
   }
 
   /** 仕様: Core 第7.11節、第7.9.3節、Accounting 第4.2節 */

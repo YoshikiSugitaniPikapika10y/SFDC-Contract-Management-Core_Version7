@@ -4716,15 +4716,15 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     const sourceTax = this.normalizeTaxPercent(invoice?.taxPercent);
     const targetTax = this.normalizeTaxPercent(targetInvoice?.taxPercent);
     if (sourceTax !== targetTax) {
-      const confirmedTax = await LightningConfirm.open({
-        label: "別の請求へ分ける",
-        message: `移動先の税率（${targetTax}%）が元請求（${sourceTax}%）と異なります。税抜金額はそのまま、税額・税込は移動先の税率で再計算されます。よろしいですか？`,
-        theme: "warning",
-        variant: "header"
-      });
-      if (!confirmedTax) {
-        return;
-      }
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "税率が違う請求へは移せません",
+          message: `移動先の税率（${targetTax}%）が元請求（${sourceTax}%）と異なります。同じ税率の未確定へだけ移せます。`,
+          variant: "error",
+          mode: "dismissable"
+        })
+      );
+      return;
     }
     if (movesAllNonZeroLines(invoice, lineIds)) {
       const confirmed = await LightningConfirm.open({
@@ -5362,36 +5362,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    const taxPercentRaw = this.billingEditState.taxPercent;
-    if (taxPercentRaw == null || taxPercentRaw === "") {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "税率を入力してください",
-          message:
-            "税率は必須です。0% で運用する場合は 0 を明示的に入力してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
-      return;
-    }
-    const taxPercent = Number(taxPercentRaw);
-    if (
-      !Number.isFinite(taxPercent) ||
-      taxPercent < 0 ||
-      taxPercent > 100 ||
-      (taxPercent > 0 && taxPercent < 1)
-    ) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "税率が不正です",
-          message: "税率は 0〜100 の数値で入力してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
-      return;
-    }
     const invoiceId = this.billingEditState.invoiceId;
     const invoice = this.findInvoice(invoiceId);
     this.dispatchEvent(
@@ -5400,7 +5370,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           invoiceId,
           invoiceDate: this.billingEditState.invoiceDate,
           paymentScheduledDate: this.billingEditState.paymentScheduledDate,
-          taxPercent,
           extraFieldValues: this.extraFieldValuesFromViews(
             this.buildExtraFieldViews({
               targetObject: "Invoice__c",

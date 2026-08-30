@@ -1693,7 +1693,6 @@ export default class ContractCrossWork extends LightningElement {
       invoiceId,
       invoiceDate,
       paymentScheduledDate,
-      taxPercent,
       expectedContentVersion,
       businessOperationKey,
       extraFieldValues
@@ -1701,7 +1700,6 @@ export default class ContractCrossWork extends LightningElement {
     if (!invoiceId) {
       return;
     }
-    const taxPercentNumber = Number(taxPercent);
     const saved = await this.runEdit(() =>
       updateInvoiceHeaderAndDates({
         contractHistoryId: this.previewHistoryId,
@@ -1712,7 +1710,7 @@ export default class ContractCrossWork extends LightningElement {
         billingEmailTo: "",
         billingEmailCc: "",
         billingEmailBcc: "",
-        taxPercent: taxPercentNumber,
+        taxPercent: null,
         expectedContentVersion:
           expectedContentVersion || this.invoicePreview?.contentVersion,
         businessOperationKey,

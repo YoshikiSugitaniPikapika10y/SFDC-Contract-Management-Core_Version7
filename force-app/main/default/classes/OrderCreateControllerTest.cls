@@ -50,7 +50,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '??E???ID???????E?????E,
+          '??E???ID???????E?????E',
           ex.getMessage()
         );
       }
@@ -69,7 +69,7 @@ private class OrderCreateControllerTest {
         OrderCreateController.getOrderContext(missingId);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assertEquals('??E????????????E, ex.getMessage());
+        System.assertEquals('??E????????????E', ex.getMessage());
       }
       System.assertEquals(true, thrown);
     }
@@ -87,7 +87,7 @@ private class OrderCreateControllerTest {
       );
 
       System.assertEquals(true, dto.isOrdered);
-      System.assertEquals(false, dto.canOrder, '????E???????E???E);
+      System.assertEquals(false, dto.canOrder, '????E???????E???E');
       System.assertEquals(
         true,
         dto.canRevert,
@@ -97,7 +97,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         false,
         dto.showCreateRenewOpportunity,
-        '???E??E???E??????????????E
+        '???E??E???E??????????????E'
       );
       System.assert(
         dto.products != null && !dto.products.isEmpty(),
@@ -136,7 +136,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '?????E??E???????E??????E,
+          '?????E??E???????E??????E',
           ex.getMessage()
         );
       }
@@ -160,7 +160,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '??E???ID???????E?????E,
+          '??E???ID???????E?????E',
           ex.getMessage()
         );
       }
@@ -180,7 +180,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '??????????????????E,
+          '??????????????????E',
           ex.getMessage()
         );
       } finally {
@@ -196,7 +196,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         'Ordered',
         stillOrdered.historystatus__c,
-        '??????????E???????E
+        '??????????E???????E'
       );
     }
   }
@@ -564,7 +564,7 @@ private class OrderCreateControllerTest {
             AND Version__c = 1
             AND historystatus__c = 'Ordered'
         ],
-        '?? Version ????????E
+        '?? Version ????????E'
       );
     }
   }
@@ -731,7 +731,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(true, lineRejected, '???????????E?????E);
+      System.assertEquals(true, lineRejected, '???????????E?????E');
 
       Boolean invoiceRejected = false;
       try {
@@ -757,7 +757,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         true,
         invoiceRejected,
-        '?????????E??E?????E
+        '?????????E??E?????E'
       );
 
       Boolean acceptancePreviewRejected = false;
@@ -786,7 +786,7 @@ private class OrderCreateControllerTest {
         otherLine.Amount__c,
         [SELECT Amount__c FROM InvoiceLine__c WHERE Id = :otherLine.Id]
         .Amount__c,
-        '????E????????????????E
+        '????E????????????????E'
       );
       System.assertEquals(
         otherInvoice.PaymentScheduledDate__c,
@@ -796,7 +796,7 @@ private class OrderCreateControllerTest {
           WHERE Id = :otherInvoice.Id
         ]
         .PaymentScheduledDate__c,
-        '????E????????????????E
+        '????E????????????????E'
       );
     }
   }
@@ -951,7 +951,7 @@ private class OrderCreateControllerTest {
         System.assertEquals(
           Date.newInstance(2026, 6, 5),
           invoice.InvoiceDate__c,
-          '?????????????E?E??E???????????E
+          '?????????????E?E??E???????????E'
         );
       }
     }
@@ -1049,7 +1049,7 @@ private class OrderCreateControllerTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :context.history.Id
         ],
-        '????E????????E
+        '????E????????E'
       );
     }
   }
@@ -1086,7 +1086,7 @@ private class OrderCreateControllerTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :context.history.Id
         ],
-        '????E????????E
+        '????E????????E'
       );
     }
   }
@@ -1153,7 +1153,7 @@ private class OrderCreateControllerTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :rival.Id
         ],
-        '?? Ordered ????E????????E
+        '?? Ordered ????E????????E'
       );
     }
   }
@@ -1219,7 +1219,7 @@ private class OrderCreateControllerTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :context.history.Id
         ],
-        '????E??????????E
+        '????E??????????E'
       );
     }
   }
@@ -1235,13 +1235,17 @@ private class OrderCreateControllerTest {
           Id,
           InvoiceDate__c,
           BillingAddresseeSnapShot__c,
-          BillingEmailToSnapShot__c
+          BillingEmailToSnapShot__c,
+          TaxPercent__c
         FROM Invoice__c
         WHERE ContractHistory__c = :context.history.Id
         LIMIT 1
       ];
       String originalAddressee = invoice.BillingAddresseeSnapShot__c;
       String originalTo = invoice.BillingEmailToSnapShot__c;
+      Decimal originalTax = TaxCalculationUtil.fromPercentFieldStorage(
+        invoice.TaxPercent__c
+      );
 
       Date paymentDue = Date.newInstance(2026, 8, 31);
       String token = OrderCreateController.getInvoicePreview(
@@ -1282,9 +1286,9 @@ private class OrderCreateControllerTest {
       );
       System.assertEquals(true, stored.IsManuallyAdjusted__c);
       System.assertEquals(
-        8,
+        originalTax,
         TaxCalculationUtil.fromPercentFieldStorage(stored.TaxPercent__c),
-        'Core 第7.8節: 請求情報編集は税率を当該請求へ保存する'
+        'Core 第7.8節: 請求情報編集は税率を変えない'
       );
       System.assertEquals(
         originalAddressee,
@@ -1401,7 +1405,6 @@ private class OrderCreateControllerTest {
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
-        TaxInclusiveAmount__c = 1100,
         BillingAccountSnapShot__c = context.billingAccount.Id,
         InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED,
         IsManuallyAdjusted__c = true
@@ -1419,7 +1422,6 @@ private class OrderCreateControllerTest {
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
-        TaxInclusiveAmount__c = 1100,
         BillingAccountSnapShot__c = context.billingAccount.Id,
         InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT,
         IsManuallyAdjusted__c = true
@@ -1628,7 +1630,7 @@ private class OrderCreateControllerTest {
           WHERE Id = :context.history.Id
         ]
         .RenewalOpportunity__c,
-        '??????E?????E??E????E????????E
+        '??????E?????E??E????E????????E'
       );
 
       OrderCreateController.OrderContextDto afterOrder = OrderCreateController.getOrderContext(
@@ -2202,7 +2204,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '???????E??E??????????????E,
+          '???????E??E??????????????E',
           ex.getMessage()
         );
       }
@@ -2228,7 +2230,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '????????????????E,
+          '????????????????E',
           ex.getMessage()
         );
       } finally {
@@ -2244,7 +2246,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         'Estimate',
         stillEstimate.historystatus__c,
-        '???????????????E
+        '???????????????E'
       );
 
       OrderCreateController.testHasOrderPermission = false;
@@ -2303,7 +2305,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         invoices[0].Amount__c,
         preview.integratedAmount,
-        '????????E????????E????E
+        '????????E????????E????E'
       );
       System.assert(preview.openAmount >= 0);
       System.assert(preview.invoices.size() > 0);
@@ -2312,7 +2314,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         false,
         preview.versionEditBlocked,
-        '???????E?E??????E?? Version ?????E?????E
+        '???????E?E??????E?? Version ?????E?????E'
       );
 
       Boolean foundIntegrated = false;
@@ -2487,7 +2489,7 @@ private class OrderCreateControllerTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :context.history.Id
         ],
-        '????E????????E
+        '????E????????E'
       );
     }
   }
@@ -2559,7 +2561,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         600000,
         preview.periodLineAmountTotal,
-        '????? Ordered ???Erchive ? 999999 ?????E
+        '????? Ordered ???Erchive ? 999999 ?????E'
       );
       System.assertEquals(
         600000,
@@ -2947,7 +2949,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         600020,
         preview.periodLineAmountTotal,
-        '????????????E??E?EAmount ??E
+        '????????????E??E?EAmount ??E'
       );
       System.assertEquals(
         600000,
@@ -2983,7 +2985,7 @@ private class OrderCreateControllerTest {
         WHERE ContractHistory__c = :context.history.Id
         ORDER BY StartDate__c ASC
       ];
-      System.assertEquals(12, periodLines.size(), '??: 12??E);
+      System.assertEquals(12, periodLines.size(), '??: 12??E');
       List<String> allPeriodIdTexts = new List<String>();
       for (InvoiceProduct__c period : periodLines) {
         allPeriodIdTexts.add(String.valueOf(period.Id));
@@ -3306,7 +3308,7 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         0,
         preview.manualAdjustmentAmount,
-        '???E????????????E?E???ID??E???????????E??E
+        '???E????????????E?E???ID??E???????????E??E'
       );
       if (preview.versionOptions != null && !preview.versionOptions.isEmpty()) {
         System.assertEquals(

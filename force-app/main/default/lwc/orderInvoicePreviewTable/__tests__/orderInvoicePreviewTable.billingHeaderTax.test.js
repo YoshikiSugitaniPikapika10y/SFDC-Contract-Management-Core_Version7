@@ -41,35 +41,30 @@ jest.mock(
   { virtual: true }
 );
 
-describe("orderInvoicePreviewTable billing header tax (Core 4.6 / 7.8 / 1.1.10)", () => {
+describe("orderInvoicePreviewTable billing header (Core 7.8)", () => {
   const proto = OrderInvoicePreviewTable.prototype;
 
-  it("税率0超〜1未満を画面で止める", async () => {
+  it("請求情報編集の保存に税率を載せない", async () => {
     const dispatchEvent = jest.fn();
     await proto.handleSaveBillingHeader.call({
       billingEditState: {
         invoiceId: "a00INV000000001",
         invoiceDate: "2026-06-01",
         paymentScheduledDate: "2026-07-31",
-        taxPercent: 0.5
+        extraFieldValues: {}
       },
       isSaving: false,
       hasAmountDrafts: false,
+      preview: { invoiceLockExemptFieldApiNames: [] },
+      findInvoice: () => ({ extraFieldValues: {}, lastModifiedToken: "1" }),
+      extraFieldValuesFromViews: () => ({}),
+      buildExtraFieldViews: () => [],
+      isConfirmedInvoice: () => false,
+      resolvePendingOperationKey: async () => "k1",
       dispatchEvent
     });
-    expect(dispatchEvent).toHaveBeenCalled();
     const event = dispatchEvent.mock.calls[0][0];
-    expect(event.detail.message).toBe(
-      "税率は 0〜100 の数値で入力してください。"
-    );
-    expect(event.type).not.toBe("savebillingheader");
-  });
-
-  it("税率空を0で埋めない (Core 7.7.3 / 7.8 / 1.1.10)", () => {
-    expect(proto.billingEditTaxPercent(null)).toBe("");
-    expect(proto.billingEditTaxPercent("")).toBe("");
-    expect(proto.billingEditTaxPercent("   ")).toBe("");
-    expect(proto.billingEditTaxPercent(0)).toBe(0);
-    expect(proto.billingEditTaxPercent(10)).toBe(10);
+    expect(event.type).toBe("savebillingheader");
+    expect(event.detail.taxPercent).toBeUndefined();
   });
 });

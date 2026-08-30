@@ -768,8 +768,8 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /**
-   * 請求ボード「請求情報編集」: 請求日・入金予定日・税率だけを同一 Invoice へ 1 DML で更新する。
-   * 宛名・メール引数は互換のため残すが書き込まない。
+   * 請求ボード「請求情報編集」: 請求日・入金予定日だけを同一 Invoice へ 1 DML で更新する。
+   * 宛名・メール・税率引数は互換のため残すが書き込まない。
    * 仕様: Core 第7.8節
    */
   public static void updateInvoiceHeaderAndDates(
@@ -799,7 +799,7 @@ public without sharing class InvoiceCanonicalService {
     );
   }
 
-  /** 仕様: Core 第7.8節、第7.9.2節、第11.4.4節。確定後は日付・税率・請求アカウントを拒否し、ロック除外の追加項目だけ残す。 */
+  /** 仕様: Core 第7.8節、第7.9.2節、第11.4.4節。未確定は請求日・入金予定日。税率は書かない。確定後は日付・請求アカウントを拒否し、ロック除外の追加項目だけ残す。 */
   public static void updateInvoiceHeaderAndDates(
     Id invoiceId,
     Date invoiceDate,
@@ -850,12 +850,7 @@ public without sharing class InvoiceCanonicalService {
       if (
         (invoiceDate != null && invoiceDate != invoice.InvoiceDate__c) ||
         (paymentScheduledDate != null &&
-        paymentScheduledDate != invoice.PaymentScheduledDate__c) ||
-        (taxPercent != null &&
-        TaxCalculationUtil.toPercentFieldStorage(
-          TaxCalculationUtil.resolveTaxPercent(taxPercent)
-        ) !=
-        invoice.TaxPercent__c)
+        paymentScheduledDate != invoice.PaymentScheduledDate__c)
       ) {
         throw new InvoiceEditException(
           InvoiceLockUtil.CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE
@@ -868,21 +863,9 @@ public without sharing class InvoiceCanonicalService {
       if (paymentScheduledDate == null) {
         throw new InvoiceEditException('入金予定日は必須です。');
       }
-      if (taxPercent == null) {
-        throw new InvoiceEditException('税率は必須です。0% のときは 0 を指定してください。');
-      }
       invoice.InvoiceDate__c = invoiceDate;
       invoice.PaymentScheduledDate__c = paymentScheduledDate;
-      Decimal displayPercent = TaxCalculationUtil.resolveTaxPercent(taxPercent);
-      invoice.TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(
-        displayPercent
-      );
-      Decimal amountTotal = invoice.Amount__c == null ? 0 : invoice.Amount__c;
-      invoice.TaxAmount__c = TaxCalculationUtil.calculateTaxAmount(
-        amountTotal,
-        displayPercent
-      );
-      // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
+      // 仕様: Core 第7.8節。税率は請求情報編集の対象外。書かない。
       markInvoiceHeaderTouched(invoice);
       invoice.MergeKey__c = null;
     }
@@ -1498,6 +1481,9 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException(
         '同一 Version（契約履歴）の請求へだけ明細を移せます。'
       );
+    }
+    if (source.TaxPercent__c != target.TaxPercent__c) {
+      throw new InvoiceEditException('税率が違う請求へは移せません。');
     }
 
     List<InvoiceLine__c> sourceLines = [

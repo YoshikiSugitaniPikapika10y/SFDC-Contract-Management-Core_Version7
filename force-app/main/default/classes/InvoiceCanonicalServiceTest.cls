@@ -31,7 +31,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         TaxCalculationUtil.calculateTaxAmount(30000, 10),
         invoices[0].TaxAmount__c,
-        '??10%???E
+        '??10%???E'
       );
       System.assertEquals(false, invoices[0].IsManuallyAdjusted__c);
 
@@ -40,7 +40,7 @@ private class InvoiceCanonicalServiceTest {
         FROM InvoiceLine__c
         WHERE Invoice__c = :invoices[0].Id
       ];
-      System.assertEquals(1, lines.size(), '????E????E??1???E??E);
+      System.assertEquals(1, lines.size(), '????E????E??1???E??E');
       System.assertEquals(30000, lines[0].Amount__c);
     }
   }
@@ -71,7 +71,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         thrown = true;
         System.assertEquals(
-          '???E?????E????????????E,
+          '???E?????E????????????E',
           ex.getMessage()
         );
       } finally {
@@ -92,7 +92,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         false,
         afterInvoice.IsManuallyAdjusted__c,
-        '???????????????E
+        '???????????????E'
       );
     }
   }
@@ -107,7 +107,7 @@ private class InvoiceCanonicalServiceTest {
       );
     } catch (InvoiceCanonicalService.InvoiceEditException ex) {
       thrown = true;
-      System.assertEquals('??????E?E?????E, ex.getMessage());
+      System.assertEquals('??????E?E?????E', ex.getMessage());
     }
     System.assertEquals(true, thrown);
   }
@@ -194,7 +194,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        '??E????E???????????E????E
+        '??E????E???????????E????E'
       );
       Invoice__c still = [
         SELECT Amount__c, SystemIntegrationDate__c
@@ -266,7 +266,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         false,
         updated.IsSplitMoved__c,
-        '??????E?E?E??????E?E? IsSplitMoved ?????E
+        '??????E?E?E??????E?E? IsSplitMoved ?????E'
       );
       System.assertEquals(
         null,
@@ -385,7 +385,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         null,
         created.MergeKey__c,
-        '?E??????E MergeKey ??????E????? Id ??E??E?E
+        '?E??????E MergeKey ??????E????? Id ??E??E?E'
       );
 
       InvoiceLine__c createdLine = [
@@ -426,7 +426,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         null,
         remain.MergeKey__c,
-        '?E???E??????E MergeKey ???E??????? Id ??E??E?E
+        '?E???E??????E MergeKey ???E??????? Id ??E??E?E'
       );
     }
   }
@@ -588,7 +588,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         true,
         afterInPlace.IsAmountAdjusted__c,
-        '?????E?E???????E?E???????????E
+        '?????E?E???????E?E???????????E'
       );
       System.assertEquals(
         periodBeforeInPlace,
@@ -648,12 +648,12 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         10000,
         created.PeriodLineAmountTotal__c,
-        '????E?????????E?E?E0000�E0000/30001 ?E10000?E?E
+        '????E?????????E?E?E0000�E0000/30001 ?E10000?E?E'
       );
       System.assertEquals(
         20000,
         remain.PeriodLineAmountTotal__c,
-        '??E?????E?E?????E???E?E??????E?E+1???E????E?E
+        '??E?????E?E?????E???E?E??????E?E+1???E????E?E'
       );
       System.assertEquals(
         30000,
@@ -668,12 +668,12 @@ private class InvoiceCanonicalServiceTest {
     System.assertEquals(
       1000,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(2000, 1000, 1000),
-      '????E??????????E
+      '????E??????????E'
     );
     System.assertEquals(
       2000,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(2000, 1000, 0),
-      '??E??E???????E
+      '??E??E???????E'
     );
     System.assertEquals(
       0,
@@ -683,12 +683,12 @@ private class InvoiceCanonicalServiceTest {
     System.assertEquals(
       2000,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(2000, 0, 0),
-      '???E??E????E??E??E???????E
+      '???E??E????E??E??E???????E'
     );
     System.assertEquals(
       67,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(100, 2, 1),
-      'HALF_UP ??E????E???????E
+      'HALF_UP ??E????E???????E'
     );
   }
 
@@ -781,7 +781,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         15000,
         afterTarget.PeriodLineAmountTotal__c,
-        '??0?????????E????E?????E???E
+        '??0?????????E????E?????E???E'
       );
       System.assertEquals(
         15000,
@@ -880,7 +880,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         15000,
         created.PeriodLineAmountTotal__c,
-        '??0??????E????E?????E???E
+        '??0??????E????E?????E???E'
       );
       System.assertEquals(
         15000,
@@ -1117,7 +1117,7 @@ private class InvoiceCanonicalServiceTest {
           WHERE Id = :sourceId
         ]
         .Amount__c,
-        '????E???E????E
+        '????E???E????E'
       );
       System.assertEquals(
         sourceLineCountBefore,
@@ -1126,7 +1126,7 @@ private class InvoiceCanonicalServiceTest {
           FROM InvoiceLine__c
           WHERE Invoice__c = :sourceId
         ],
-        '????E???E?????E
+        '????E???E?????E'
       );
     }
   }
@@ -1175,7 +1175,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         failed = true;
         System.assertEquals(
-          '?? Version?E???E????E??E??????E???????E,
+          '?? Version?E???E????E??E??????E???????E',
           ex.getMessage()
         );
       }
@@ -1184,6 +1184,63 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
+  @IsTest
+  static void moveLinesToExistingInvoice_rejectsDifferentTaxPercent() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id, TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = 1;
+      InvoiceCanonicalService.splitInvoiceByDate(
+        source.Id,
+        Date.newInstance(2026, 10, 1),
+        Date.newInstance(2026, 10, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Invoice__c target = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id AND Id != :source.Id
+        LIMIT 1
+      ];
+      target.TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(8);
+      update target;
+      InvoiceLine__c remain = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      Boolean failed = false;
+      try {
+        InvoiceCanonicalService.moveLinesToExistingInvoice(
+          source.Id,
+          target.Id,
+          new List<Id>{ remain.Id }
+        );
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        failed = true;
+        System.assertEquals('税率が違う請求へは移せません。', ex.getMessage());
+      }
+      System.assertEquals(true, failed);
+    }
+  }
 
   /** ???????E???E????????????????E?E??????????????E??E*/
   @IsTest
@@ -1209,7 +1266,7 @@ private class InvoiceCanonicalServiceTest {
       Product2 productB = ContractTestDataFactory.buildProduct(
         'Canonical Product B'
       );
-      productB.BillingType__c = '????E;
+      productB.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(productB);
       ContractProduct__c cpB = new ContractProduct__c(
         ContractHistory__c = fixture.history.Id,
@@ -1219,8 +1276,8 @@ private class InvoiceCanonicalServiceTest {
         Unit__c = 'ID',
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2026, 8, 31),
-        InvoiceSetting__c = '????',
-        BillingType__c = '????E,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
         Type__c = 'New',
         Amount__c = 30000
       );
@@ -1359,7 +1416,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        '?????E?E????????????E
+        '?????E?E????????????E'
       );
       List<InvoiceLine__c> lines = [
         SELECT
@@ -1520,7 +1577,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         remainShare,
         remainInvoice.Amount__c,
-        '?????E????????????????????????E
+        '?????E????????????????????????E'
       );
       System.assertEquals(remainShare, remainInvoice.PeriodLineAmountTotal__c);
 
@@ -1607,7 +1664,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         original,
         invoice.Amount__c,
-        '???E???????E?E???????????????E
+        '???E???????E?E???????????????E'
       );
       System.assertEquals(original, invoice.PeriodLineAmountTotal__c);
     }
@@ -1659,7 +1716,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         baseline,
         invoice.Amount__c,
-        '?? +10 ??E???????E?????????????E
+        '?? +10 ??E???????E?????????????E'
       );
       System.assertEquals(baseline, invoice.PeriodLineAmountTotal__c);
       System.assertEquals(false, invoice.IsAmountAdjusted__c);
@@ -2212,7 +2269,7 @@ private class InvoiceCanonicalServiceTest {
           FROM InvoiceLine__c
           WHERE Invoice__c = :line.Invoice__c
         ],
-        '????E???????E
+        '????E???????E'
       );
       Invoice__c still = [
         SELECT Amount__c
@@ -2279,7 +2336,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         originalAmount,
         (Decimal) total.get('amt'),
-        '?????????E?????E
+        '?????????E?????E'
       );
     }
   }
@@ -2342,11 +2399,15 @@ private class InvoiceCanonicalServiceTest {
           PaymentTermMethodSnapShot__c,
           Amount__c,
           BillingAddresseeSnapShot__c,
-          BillingEmailToSnapShot__c
+          BillingEmailToSnapShot__c,
+          TaxPercent__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
+      Decimal originalTax = TaxCalculationUtil.fromPercentFieldStorage(
+        invoice.TaxPercent__c
+      );
       String originalPaymentTerm = invoice.PaymentTermMethodSnapShot__c;
       Date newInvoiceDate = Date.newInstance(2026, 8, 20);
       Date newPaymentDate = Date.newInstance(2026, 9, 30);
@@ -2387,31 +2448,32 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         invoice.BillingAddresseeSnapShot__c,
         updated.BillingAddresseeSnapShot__c,
-        '??????E?E?????????E
+        '??????E?E?????????E'
       );
       System.assertEquals(
         invoice.BillingEmailToSnapShot__c,
         updated.BillingEmailToSnapShot__c,
-        '??????E?E??????????E
+        '??????E?E??????????E'
       );
       System.assertEquals(
         originalPaymentTerm,
         updated.PaymentTermMethodSnapShot__c,
-        '???? SnapShot ????????E??????E
+        '???? SnapShot ????????E??????E'
       );
       System.assertEquals(
-        8,
-        TaxCalculationUtil.fromPercentFieldStorage(updated.TaxPercent__c)
+        originalTax,
+        TaxCalculationUtil.fromPercentFieldStorage(updated.TaxPercent__c),
+        'Core 第7.8節: 請求情報編集は税率を変えない'
       );
       System.assertEquals(
-        TaxCalculationUtil.calculateTaxAmount(updated.Amount__c, 8),
+        TaxCalculationUtil.calculateTaxAmount(updated.Amount__c, originalTax),
         updated.TaxAmount__c
       );
       System.assertEquals(true, updated.IsManuallyAdjusted__c);
       System.assertEquals(
         false,
         updated.IsSplitMoved__c,
-        '??????E?E?E??????E?E? IsSplitMoved ?????E
+        '??????E?E?E??????E?E? IsSplitMoved ?????E'
       );
     }
   }
@@ -2787,7 +2849,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :historyId
         ],
-        '????????E???E
+        '????????E???E'
       );
 
       insert new InvoiceProduct__c(
@@ -2831,7 +2893,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         thrown = true;
         System.assertEquals(
-          '????????E???E?????????E????????E?????E,
+          '????????E???E?????????E????????E?????E',
           ex.getMessage()
         );
       }
@@ -2843,7 +2905,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        '??????????????E
+        '??????????????E'
       );
       ContractHistory__c still = [
         SELECT historystatus__c
@@ -3031,7 +3093,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         Date.newInstance(2026, 6, 1),
         lockedStill.InvoiceDate__c,
-        '??E?????????????E
+        '??E?????????????E'
       );
       System.assertEquals(
         20000,

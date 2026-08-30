@@ -246,7 +246,6 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       billingEmailTo,
       billingEmailCc,
       billingEmailBcc,
-      taxPercent,
       expectedContentVersion,
       businessOperationKey,
       extraFieldValues
@@ -276,34 +275,6 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       );
       return;
     }
-    if (taxPercent == null || taxPercent === "") {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "税率を入力してください",
-          message:
-            "税率は必須です。0% で運用する場合は 0 を明示的に入力してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
-      return;
-    }
-    const taxPercentNumber = Number(taxPercent);
-    if (
-      !Number.isFinite(taxPercentNumber) ||
-      taxPercentNumber < 0 ||
-      taxPercentNumber > 100
-    ) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "税率が不正です",
-          message: "税率は 0〜100 の数値で入力してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
-      return;
-    }
     const saved = await this.runEdit(() =>
       updateInvoiceHeaderAndDates({
         contractHistoryId: this.previewHistoryId,
@@ -314,7 +285,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
         billingEmailTo: "",
         billingEmailCc: "",
         billingEmailBcc: "",
-        taxPercent: taxPercentNumber,
+        taxPercent: null,
         expectedContentVersion:
           expectedContentVersion || this.previewContentVersion,
         businessOperationKey,
