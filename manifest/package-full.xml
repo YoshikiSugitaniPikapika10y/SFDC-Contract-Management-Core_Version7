@@ -14,8 +14,8 @@
         <members>Product2.UnitName__c</members>
         <members>Product2.invoicetype__c</members>
         <members>Product2.UnitPrice__c</members>
+        <members>Product2.RevenueRecognitionBasis__c</members>
         <members>Opportunity.ContractService__c</members>
-        <members>Opportunity.RenewEstimateAutoCreateCheck__c</members>
         <name>CustomField</name>
     </types>
     <types>
@@ -49,8 +49,13 @@
         <members>EstimateRevertInvoiceServiceTest</members>
         <members>InvoiceProductGenerationService</members>
         <members>InvoiceProductGenerationServiceTest</members>
+        <members>InvoiceDocumentPdfController</members>
+        <members>InvoiceDocumentService</members>
+        <members>InvoiceDocumentServiceTest</members>
         <members>InvoiceProductMergeKeyUtil</members>
         <members>InvoiceProductMergeKeyUtilTest</members>
+        <members>InvoiceMergeKeyConfigService</members>
+        <members>InvoiceMergeKeyConfigServiceTest</members>
         <members>InvoiceProductMergeService</members>
         <members>InvoiceProductMergeServiceTest</members>
         <members>ContractLifecycleScenarioTest</members>
@@ -109,11 +114,13 @@
         <members>ContractService__c-契約サービスレイアウト</members>
         <members>ContractHistory__c-契約履歴レイアウト</members>
         <members>ContractProduct__c-契約商品レイアウト</members>
+        <members>Invoice__c-請求レイアウト</members>
         <name>Layout</name>
     </types>
     <types>
         <members>FlexiPage122</members>
         <members>FlexiPage124</members>
+        <members>Invoice_RecordPage</members>
         <name>FlexiPage</name>
     </types>
     <types>
@@ -135,6 +142,8 @@
     </types>
     <types>
         <members>ContractEstimateAccess</members>
+        <members>Contract_08_Issue_Estimate_Document</members>
+        <members>Contract_13_Manage_Invoice_Ops</members>
         <name>PermissionSet</name>
     </types>
     <types>
@@ -144,11 +153,18 @@
     <types>
         <members>EstimateDocumentIssue</members>
         <members>EstimateDocumentPdf</members>
+        <members>InvoiceDocumentPdf</members>
         <name>ApexPage</name>
     </types>
     <types>
-        <members>ContractHistory__c.EstimateIssuePdf</members>
+        <members>ContractHistory__c.InvoiceIssuePdf</members>
+        <members>Invoice__c.InvoiceIssuePdf</members>
         <name>WebLink</name>
+    </types>
+    <types>
+        <members>Contract_08_Can_Issue_Estimate_Document</members>
+        <members>Contract_13_Can_Manage_Invoice_Ops</members>
+        <name>CustomPermission</name>
     </types>
     <types>
         <members>SetEstimateRelateFields</members>
