@@ -1,6 +1,6 @@
 import { LightningElement, api } from "lwc";
 import { NavigationMixin } from "lightning/navigation";
-import hasCreateEstimate from "@salesforce/customPermission/Contract_04_Can_Create_Estimate";
+import hasCreateEstimate from "@salesforce/customPermission/Loop_03_Can_Estimate";
 import {
   closeEstimateWizard,
   markEstimateRecordForRefresh,

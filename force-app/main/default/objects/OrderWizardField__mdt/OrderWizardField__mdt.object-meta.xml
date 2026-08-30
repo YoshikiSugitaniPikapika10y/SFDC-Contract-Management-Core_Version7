@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>仕様: Core 第11.4.3節。受注ウィザードの契約履歴追加項目。</description>
+    <label>受注ウィザードカスタム項目</label>
+    <pluralLabel>受注ウィザードカスタム項目</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

@@ -16,8 +16,8 @@ public without sharing class MonthlyBillingPeriodUtil {
   }
 
   /**
+   * 仕様: 日付仕様 第1.2節、第2.5節。
    * 開始日から cycles 回分の月次期間を積んだ終了日。
-   * cycles が 1 未満、または startDate が null のときは null。
    */
   public static Date endDateForMonthlyCycles(Date startDate, Integer cycles) {
     if (startDate == null || cycles == null || cycles < 1) {
@@ -74,6 +74,7 @@ public without sharing class MonthlyBillingPeriodUtil {
     return alignMonthlyEndDate(startDate, endDate);
   }
 
+  /** 仕様: 日付仕様 第1.2節 */
   public static List<BillingPeriod> buildMonthlyPeriods(
     Date startDate,
     Date endDate
@@ -99,6 +100,34 @@ public without sharing class MonthlyBillingPeriodUtil {
     return periods;
   }
 
+  /**
+   * 仕様: Accounting 第3.3節、日付仕様 第2章
+   * 開始日起点の月次バケットで終了日までを覆う。
+   * 最終バケットだけ短期になってよい（認識の時間軸正本用）。
+   */
+  public static List<BillingPeriod> buildMonthlyPeriodsCoveringEnd(
+    Date startDate,
+    Date endDate
+  ) {
+    List<BillingPeriod> periods = buildMonthlyPeriods(startDate, endDate);
+    if (startDate == null || endDate == null || endDate < startDate) {
+      return periods;
+    }
+    Date coveredEnd = periods.isEmpty()
+      ? startDate.addDays(-1)
+      : periods[periods.size() - 1].endDate;
+    if (coveredEnd >= endDate) {
+      return periods;
+    }
+    Date nextStart = coveredEnd.addDays(1);
+    if (nextStart > endDate) {
+      return periods;
+    }
+    periods.add(new BillingPeriod(nextStart, endDate));
+    return periods;
+  }
+
+  /** 仕様: 日付仕様 第1.2節 */
   public static Integer countMonthlyCycles(Date startDate, Date endDate) {
     if (startDate == null || endDate == null || endDate < startDate) {
       return -1;
@@ -120,6 +149,7 @@ public without sharing class MonthlyBillingPeriodUtil {
     return -1;
   }
 
+  /** 仕様: 日付仕様 第1.1節、第1.2節 */
   public static Date endOfMonthlyPeriod(Date periodStart) {
     return periodStart.addMonths(1).addDays(-1);
   }
@@ -155,6 +185,7 @@ public without sharing class MonthlyBillingPeriodUtil {
       .addDays(-1);
   }
 
+  /** 仕様: Accounting 第3.3節、日付仕様 第2章 */
   public static List<BillingPeriod> buildCalendarMonthPeriods(
     Date startDate,
     Date endDate

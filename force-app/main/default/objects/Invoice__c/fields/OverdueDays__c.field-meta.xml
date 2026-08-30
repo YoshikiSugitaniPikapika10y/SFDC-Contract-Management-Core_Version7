@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OverdueDays__c</fullName>
+    <description>仕様: Core 第7.11節</description>
+    <externalId>false</externalId>
+    <formula>IF(
+  AND(
+    ISPICKVAL(InvoiceTransactionStatus__c, "Confirmed"),
+    NOT(ISPICKVAL(CollectionRefundStatus__c, "Completed")),
+    NOT(ISBLANK(PaymentScheduledDate__c)),
+    TODAY() &gt; PaymentScheduledDate__c
+  ),
+  TODAY() - PaymentScheduledDate__c,
+  NULL
+)</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <inlineHelpText>未完了かつ遅延のときだけ日数を出します。</inlineHelpText>
+    <label>遅延日数</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

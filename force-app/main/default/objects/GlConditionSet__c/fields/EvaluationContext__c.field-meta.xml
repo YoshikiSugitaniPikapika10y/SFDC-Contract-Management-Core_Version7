@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>EvaluationContext__c</fullName>
+    <description>仕様: Accounting 第4.7節</description>
+    <label>評価コンテキスト</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>InvoiceLine</fullName>
+                <default>false</default>
+                <label>請求明細</label>
+            </value>
+            <value>
+                <fullName>Invoice</fullName>
+                <default>false</default>
+                <label>請求書</label>
+            </value>
+            <value>
+                <fullName>InvoicePayment</fullName>
+                <default>false</default>
+                <label>請求入出金</label>
+            </value>
+            <value>
+                <fullName>InvoicePaymentAllocation</fullName>
+                <default>false</default>
+                <label>請求入出金明細別割当</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

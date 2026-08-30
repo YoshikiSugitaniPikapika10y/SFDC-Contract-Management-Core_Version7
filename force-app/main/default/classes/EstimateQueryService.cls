@@ -8,8 +8,8 @@ public without sharing class EstimateQueryService {
   private static final String HISTORY_TYPE_NEW = ContractDomainConstants.HISTORY_TYPE_NEW;
   private static final String HISTORY_TYPE_CHANGE = ContractDomainConstants.HISTORY_TYPE_CHANGE;
   private static final String HISTORY_TYPE_RENEW = ContractDomainConstants.HISTORY_TYPE_RENEW;
-  private static final String HISTORY_TYPE_ADD = ContractDomainConstants.HISTORY_TYPE_ADD;
   private static final String HISTORY_TYPE_CANCEL = ContractDomainConstants.HISTORY_TYPE_CANCEL;
+  private static final String LEGACY_HISTORY_TYPE_ADD = 'Add';
   private static final String BILLING_TYPE_RECURRING = ContractDomainConstants.BILLING_TYPE_RECURRING;
   private static final String BILLING_TYPE_ONE_TIME = ContractDomainConstants.BILLING_TYPE_ONE_TIME;
   private static final String MONTHLY_BILLING_CYCLE = ContractDomainConstants.MONTHLY_BILLING_CYCLE;
@@ -20,9 +20,9 @@ public without sharing class EstimateQueryService {
   private static final String PRODUCT_TYPE_RENEW = ContractDomainConstants.PRODUCT_TYPE_RENEW;
   private static final Integer NOTE_MAX_LENGTH = ContractDomainConstants.NOTE_MAX_LENGTH;
 
-  /** 継続課金の正は明細 BillingType。空のときだけ Product2。 */
+  /** 継続課金の正は明細 BillingType。商品マスタへ戻さない。 */
   private static String recurringLineSoqlPredicate() {
-    return '(BillingType__c = :BILLING_TYPE_RECURRING OR (BillingType__c = null AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))';
+    return 'BillingType__c = :BILLING_TYPE_RECURRING';
   }
 
   public static List<EstimateCreateController.ContractProductLineDto> getRecurringContractProducts(
@@ -105,11 +105,13 @@ public without sharing class EstimateQueryService {
       'Product__r.Name',
       'Product__r.UnitName__c',
       'Product__r.BillingType__c',
+      'Product__r.RevenueRecognitionBasis__c',
       'Unit__c',
       'UnitPrice__c',
       'Quantity__c',
       'Amount__c',
       'BillingType__c',
+      'RevenueRecognitionBasis__c',
       'Type__c',
       'StartDate__c',
       'Enddate__c',
@@ -138,6 +140,7 @@ public without sharing class EstimateQueryService {
     return selectFields;
   }
 
+  /** 仕様: Core 第4.5.2節、第1.1.10節。Change／Renew 継承元の単位は保存値のまま。商品マスタから埋めない。 */
   public static List<EstimateCreateController.ContractProductLineDto> toContractProductLineDtos(
     List<ContractProduct__c> products
   ) {
@@ -155,12 +158,10 @@ public without sharing class EstimateQueryService {
       line.billingCycle = EstimateCreateSupport.resolveRecurringBillingCycleLabel(
         billingType
       );
-      line.unit = String.isNotBlank(product.Unit__c)
-        ? product.Unit__c
-        : EstimateCreateSupport.buildDisplayUnit(
-            product.Product__r.UnitName__c,
-            billingType
-          );
+      line.revenueRecognitionBasis = ContractMetadataService.resolveLineRevenueRecognitionBasis(
+        product
+      );
+      line.unit = product.Unit__c;
       line.unitPrice = product.UnitPrice__c;
       line.quantity = product.Quantity__c;
       line.amount = product.Amount__c;
@@ -224,7 +225,8 @@ public without sharing class EstimateQueryService {
         Version__c,
         Type__c,
         CurrentTermStartDate__c,
-        CurrentTermEndDate__c
+        CurrentTermEndDate__c,
+        EstimateSendContact__c
       FROM ContractHistory__c
       WHERE
         ContractService__c = :contractServiceId
@@ -233,7 +235,8 @@ public without sharing class EstimateQueryService {
           :HISTORY_TYPE_NEW,
           :HISTORY_TYPE_CHANGE,
           :HISTORY_TYPE_RENEW,
-          :HISTORY_TYPE_ADD
+          :HISTORY_TYPE_CANCEL,
+          :LEGACY_HISTORY_TYPE_ADD
         )
       WITH SYSTEM_MODE
       ORDER BY Version__c DESC NULLS LAST
@@ -260,7 +263,8 @@ public without sharing class EstimateQueryService {
         Version__c,
         Type__c,
         CurrentTermStartDate__c,
-        CurrentTermEndDate__c
+        CurrentTermEndDate__c,
+        EstimateSendContact__c
       FROM ContractHistory__c
       WHERE Id = :contractHistoryId
       WITH SYSTEM_MODE
@@ -272,38 +276,6 @@ public without sharing class EstimateQueryService {
     }
 
     return toContractHistoryDto(histories[0]);
-  }
-
-  public static Id getEstimateCopyLaunchInfo(Id contractHistoryId) {
-    if (contractHistoryId == null) {
-      throw new AuraHandledException(
-        'コピー元の契約履歴が指定されていません。'
-      );
-    }
-
-    List<ContractHistory__c> histories = [
-      SELECT Id, Opportunity__c, historystatus__c
-      FROM ContractHistory__c
-      WHERE Id = :contractHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-
-    if (histories.isEmpty()) {
-      throw new AuraHandledException('契約履歴が見つかりません。');
-    }
-
-    ContractHistory__c history = histories[0];
-    if (history.historystatus__c != HISTORY_STATUS_ESTIMATE) {
-      throw new AuraHandledException(
-        'Estimate状態の契約履歴のみコピーできます。'
-      );
-    }
-    if (history.Opportunity__c == null) {
-      throw new AuraHandledException('商談が設定されていません。');
-    }
-
-    return history.Opportunity__c;
   }
 
   public static EstimateCreateController.EstimateCopyPresetDto getEstimateCopyPreset(
@@ -345,6 +317,9 @@ public without sharing class EstimateQueryService {
         ContractService__c,
         EstimateNoteMaster__c,
         Note__c,
+        EstimateDate__c,
+        EstimateValidDate__c,
+        EstimateSendContact__c,
         PreviousHistory__c,
         PreviousHistory__r.Name,
         PreviousHistory__r.Version__c,
@@ -382,8 +357,8 @@ public without sharing class EstimateQueryService {
 
     EstimateCreateController.EstimateCopyPresetDto preset = new EstimateCreateController.EstimateCopyPresetDto();
     preset.historyStatus = history.historystatus__c;
-    preset.lastModifiedToken = ContractOptimisticLockUtil.toToken(
-      history.LastModifiedDate
+    preset.lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+      history.Id
     );
     preset.opportunityId = history.Opportunity__c;
     preset.opportunityName = history.Opportunity__r.Name;
@@ -391,9 +366,10 @@ public without sharing class EstimateQueryService {
       ? ''
       : history.Opportunity__r.Account.Name;
     preset.selectedType = history.Type__c;
+    // 仕様: Core 第4.3.3節、第4.7節、第0.1節。コピーに「のコピー」を付けない。
     preset.contractHistoryName = forEdit == true
       ? history.Name
-      : buildCopyHistoryName(history.Name);
+      : resolveCopyHistoryName(history);
     preset.contractStartDate = EstimateCreateSupport.formatDate(
       history.CurrentTermStartDate__c
     );
@@ -402,17 +378,19 @@ public without sharing class EstimateQueryService {
     );
     preset.endDate = termEnd;
     preset.contractEndDate = termEnd;
+    // 仕様: Core 第1.1.10節、第4.7節。空の切替日を開始日で埋めない。
     preset.contractEffectiveDate = EstimateCreateSupport.formatDate(
       history.EffectiveDate__c
     );
-    if (
-      (history.Type__c == 'Renew' || history.Type__c == 'Cancel') &&
-      String.isBlank(preset.contractEffectiveDate)
-    ) {
-      preset.contractEffectiveDate = preset.contractStartDate;
-    }
     preset.estimateRemarkMasterId = history.EstimateNoteMaster__c;
     preset.estimateRemarks = history.Note__c == null ? '' : history.Note__c;
+    preset.estimateDate = EstimateCreateSupport.formatDate(
+      history.EstimateDate__c
+    );
+    preset.estimateValidDate = EstimateCreateSupport.formatDate(
+      history.EstimateValidDate__c
+    );
+    preset.estimateSendContactId = history.EstimateSendContact__c;
     preset.selectedProducts = loadCopyProductLines(history.Id, history.Type__c);
     preset.contractHistoryCustomFields = ContractWizardFieldService.extractCustomFields(
       loadRecordWithWizardFields(
@@ -422,6 +400,22 @@ public without sharing class EstimateQueryService {
       ),
       ContractWizardFieldService.WizardTarget.ContractHistory
     );
+    // 仕様: Core 第4.3節、第11.4.3節
+    if (
+      forEdit == true &&
+      history.historystatus__c == HISTORY_STATUS_ORDERED
+    ) {
+      if (preset.contractHistoryCustomFields == null) {
+        preset.contractHistoryCustomFields = new Map<String, Object>();
+      }
+      try {
+        preset.contractHistoryCustomFields.putAll(
+          OrderWizardFieldService.querySavedHistoryFieldValues(history.Id)
+        );
+      } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+        throw EstimateValidationService.wrapAura(ex.getMessage());
+      }
+    }
 
     ContractService__c service = loadContractServiceForCopy(
       history.ContractService__c
@@ -434,6 +428,9 @@ public without sharing class EstimateQueryService {
     preset.contractCustomFieldsExpanded = true;
     if (service != null) {
       preset.serviceLifecycle = service.Lifecycle__c;
+      preset.taxPercent = TaxCalculationUtil.fromPercentFieldStorage(
+        service.TaxPercent__c
+      );
     }
 
     if (history.Type__c == 'New') {
@@ -519,7 +516,13 @@ public without sharing class EstimateQueryService {
       contractServiceId,
       ContractService__c.SObjectType,
       ContractWizardFieldService.WizardTarget.ContractService,
-      new List<String>{ 'Id', 'Name', 'BiilingAcccount__c', 'Lifecycle__c' }
+      new List<String>{
+        'Id',
+        'Name',
+        'BiilingAcccount__c',
+        'Lifecycle__c',
+        'TaxPercent__c'
+      }
     );
     return loaded == null ? null : (ContractService__c) loaded;
   }
@@ -607,6 +610,38 @@ public without sharing class EstimateQueryService {
     return baseName + 'のコピー';
   }
 
+  /** 仕様: Core 第4.3.3節、第4.7節、第0.1節 */
+  private static String resolveCopyHistoryName(ContractHistory__c history) {
+    if (history == null) {
+      return '';
+    }
+    if (
+      history.Type__c == HISTORY_TYPE_CHANGE ||
+      history.Type__c == HISTORY_TYPE_RENEW
+    ) {
+      return '';
+    }
+    if (history.Type__c == HISTORY_TYPE_CANCEL) {
+      String baseName = history.PreviousHistory__r == null
+        ? ''
+        : history.PreviousHistory__r.Name;
+      return buildCancelHistoryName(baseName);
+    }
+    return history.Name == null ? '' : history.Name;
+  }
+
+  /** 仕様: Core 第4.3.3節、第0.1節 */
+  private static String buildCancelHistoryName(String sourceName) {
+    String baseName = String.isBlank(sourceName) ? '' : sourceName.trim();
+    if (String.isBlank(baseName)) {
+      return '';
+    }
+    if (baseName.endsWith('解約')) {
+      return baseName;
+    }
+    return baseName + ' 解約';
+  }
+
   public static List<EstimateCreateController.ProductLineItem> loadCopyProductLines(
     Id contractHistoryId,
     String selectedType
@@ -617,6 +652,7 @@ public without sharing class EstimateQueryService {
       'Product__r.Name',
       'Product__r.UnitName__c',
       'Product__r.BillingType__c',
+      'Product__r.RevenueRecognitionBasis__c',
       'Unit__c',
       'UnitPrice__c',
       'Quantity__c',
@@ -624,6 +660,7 @@ public without sharing class EstimateQueryService {
       'Enddate__c',
       'InvoiceSetting__c',
       'BillingType__c',
+      'RevenueRecognitionBasis__c',
       'Type__c',
       'Amount__c',
       'PreviousContractProduct__c'
@@ -675,6 +712,7 @@ public without sharing class EstimateQueryService {
     return lines;
   }
 
+  /** 仕様: Core 第4.5.2節、第4.7節、第1.1.10節。Original／Remake／Renew の空単位を商品マスタから埋めない。 */
   public static EstimateCreateController.ProductLineItem toCopyProductLineItem(
     ContractProduct__c product,
     String selectedType,
@@ -702,12 +740,20 @@ public without sharing class EstimateQueryService {
     line.unitName = product.Product__r != null
       ? product.Product__r.UnitName__c
       : null;
-    line.unit = String.isNotBlank(product.Unit__c)
+    // 仕様: Core 第4.5.2節、第4.7節、第1.1.10節。Original／Remake／Renew の空単位を商品マスタから埋めない。
+    Boolean keepSavedUnitSnapshot =
+      recordType == PRODUCT_TYPE_ORIGINAL ||
+      recordType == PRODUCT_TYPE_REMAKE ||
+      recordType == PRODUCT_TYPE_RENEW;
+    line.unit = keepSavedUnitSnapshot || String.isNotBlank(product.Unit__c)
       ? product.Unit__c
       : EstimateCreateSupport.buildDisplayUnit(line.unitName, billingType);
     line.billingType = billingType;
     line.billingCycle = EstimateCreateSupport.resolveRecurringBillingCycleLabel(
       billingType
+    );
+    line.revenueRecognitionBasis = ContractMetadataService.resolveLineRevenueRecognitionBasis(
+      product
     );
     line.recordType = recordType;
     line.typeLabel = resolveCopyTypeLabel(recordType);
@@ -772,6 +818,7 @@ public without sharing class EstimateQueryService {
     );
     dto.historyType = history.Type__c;
     dto.renewEligible = isRenewEligibleHistory(history);
+    dto.estimateSendContactId = history.EstimateSendContact__c;
     return dto;
   }
 
@@ -803,9 +850,7 @@ public without sharing class EstimateQueryService {
       FROM ContractProduct__c
       WHERE
         ContractHistory__c = :contractHistoryId
-        AND (BillingType__c = :BILLING_TYPE_RECURRING
-        OR (BillingType__c = NULL
-        AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))
+        AND BillingType__c = :BILLING_TYPE_RECURRING
         AND Quantity__c > 0
         AND Enddate__c = :termEndDate
         AND (Type__c = NULL
@@ -832,6 +877,7 @@ public without sharing class EstimateQueryService {
       'UnitPrice__c',
       'invoicetype__c',
       'BillingType__c',
+      'RevenueRecognitionBasis__c',
       'AvailableForContract__c'
     };
     selectFields.addAll(
@@ -867,6 +913,13 @@ public without sharing class EstimateQueryService {
       product.invoicetype__c
     );
     dto.billingType = product.BillingType__c;
+    try {
+      dto.revenueRecognitionBasis = ContractMetadataService.resolveRevenueRecognitionBasis(
+        product.RevenueRecognitionBasis__c
+      );
+    } catch (ContractMetadataService.RevenueRecognitionBasisException ex) {
+      throw EstimateValidationService.wrapAura(ex.getMessage());
+    }
     dto.billingCycle = EstimateCreateSupport.resolveRecurringBillingCycleLabel(
       product.BillingType__c
     );
@@ -922,7 +975,7 @@ public without sharing class EstimateQueryService {
     }
 
     // 契約サービスを直クエリせず、受注済の契約履歴からサービスを洗い出す。
-    // サービスごとの最新受注済（Version 最大）が New/Change/Renew/Add なら未解約扱い。
+    // サービスごとの最新受注済（Version 最大）が New/Change/Renew なら未解約扱い。
     Map<Id, ContractHistory__c> latestOrderedByServiceId = new Map<Id, ContractHistory__c>();
     for (ContractHistory__c history : [
       SELECT
@@ -937,7 +990,8 @@ public without sharing class EstimateQueryService {
         CurrentTermStartDate__c,
         CurrentTermEndDate__c,
         ContractService__r.BiilingAcccount__c,
-        ContractService__r.BiilingAcccount__r.Name
+        ContractService__r.BiilingAcccount__r.Name,
+        ContractService__r.TaxPercent__c
       FROM ContractHistory__c
       WHERE
         ContractService__r.Account__c = :accountId
@@ -965,7 +1019,7 @@ public without sharing class EstimateQueryService {
         historyType != HISTORY_TYPE_NEW &&
         historyType != HISTORY_TYPE_CHANGE &&
         historyType != HISTORY_TYPE_RENEW &&
-        historyType != HISTORY_TYPE_ADD
+        historyType != LEGACY_HISTORY_TYPE_ADD
       ) {
         continue;
       }
@@ -979,7 +1033,7 @@ public without sharing class EstimateQueryService {
       }
       option.lifecycleLabel = toLifecycleLabel(option.lifecycle);
       option.status = history.ContractService__r.Status__c;
-      option.statusLabel = toStatusLabel(option.status, option.lifecycle);
+      option.statusLabel = option.status == null ? '' : option.status;
       if (option.lifecycle == ContractDomainConstants.LIFECYCLE_TERM) {
         option.termStart = history.CurrentTermStartDate__c;
         option.termEnd = history.CurrentTermEndDate__c;
@@ -1001,6 +1055,9 @@ public without sharing class EstimateQueryService {
         null
         ? history.ContractService__r.BiilingAcccount__r.Name
         : null;
+      option.taxPercent = TaxCalculationUtil.fromPercentFieldStorage(
+        history.ContractService__r.TaxPercent__c
+      );
 
       String sortKey =
         (option.name == null ? '' : option.name) +
@@ -1046,11 +1103,9 @@ public without sharing class EstimateQueryService {
       FROM ContractProduct__c
       WHERE
         ContractHistory__c IN :historyIds
-        AND (BillingType__c = :BILLING_TYPE_RECURRING
-        OR (BillingType__c = NULL
-        AND Product__r.BillingType__c = :BILLING_TYPE_RECURRING))
+        AND BillingType__c = :BILLING_TYPE_RECURRING
         AND Quantity__c > 0
-        AND (Type__c = NULL
+        AND (Type__c = NULL)
         OR Type__c IN (
           :PRODUCT_TYPE_REMAKE,
           :PRODUCT_TYPE_NEW,
@@ -1105,19 +1160,34 @@ public without sharing class EstimateQueryService {
     }
   }
 
+  /** 仕様: Core 第5.2節。宛名・To/Cc/Bcc・支払条件・請求日ルールの最新。 */
   public static EstimateCreateController.BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
     Id billingAccountId
   ) {
     EstimateCreateController.BillingAccountInvoiceSettingsDto dto = new EstimateCreateController.BillingAccountInvoiceSettingsDto();
+    dto.billingCustomFields = new Map<String, Object>();
     if (billingAccountId == null) {
       return dto;
     }
 
     List<BillingAccount__c> billingAccounts = [
       SELECT
-        PaymentTerm__c,
-        BillingDayOfMonth__c,
-        AdjustInvoiceDateToBusinessDay__c
+        BillingAddressee__c,
+        BillingEmailTo__c,
+        BillingEmailCc__c,
+        BillingEmailBcc__c,
+        InvoiceDateMethod__c,
+        InvoiceDateDayKind__c,
+        InvoiceDateDayOfMonth__c,
+        InvoiceDateMonthOffset__c,
+        InvoiceDateDayOffset__c,
+        InvoiceDateAdjust__c,
+        PaymentTermMethod__c,
+        PaymentTermDayKind__c,
+        PaymentTermDayOfMonth__c,
+        PaymentTermMonthOffset__c,
+        PaymentTermDayOffset__c,
+        PaymentTermAdjust__c
       FROM BillingAccount__c
       WHERE Id = :billingAccountId
       WITH SYSTEM_MODE
@@ -1126,18 +1196,14 @@ public without sharing class EstimateQueryService {
     if (billingAccounts.isEmpty()) {
       return dto;
     }
-
-    BillingAccount__c billingAccount = billingAccounts[0];
-    dto.paymentTerm = billingAccount.PaymentTerm__c;
-    dto.adjustInvoiceDateToBusinessDay =
-      billingAccount.AdjustInvoiceDateToBusinessDay__c == true;
-    dto.billingDayOfMonthPicklistValue = billingAccount.BillingDayOfMonth__c;
-    dto.billingDayOfMonth = ContractMetadataService.parseBillingDayOfMonth(
-      billingAccount.BillingDayOfMonth__c
-    );
-    dto.billingDayOfMonthLabel = ContractMetadataService.formatBillingDayPicklistLabel(
-      billingAccount.BillingDayOfMonth__c
-    );
+    BillingAccount__c loaded = billingAccounts[0];
+    dto.billingCustomFields.put('BillingAddressee__c', loaded.BillingAddressee__c);
+    dto.billingCustomFields.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
+    dto.billingCustomFields.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
+    dto.billingCustomFields.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
+    for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
+      dto.billingCustomFields.put(fieldApiName, loaded.get(fieldApiName));
+    }
     return dto;
   }
 
@@ -1169,22 +1235,4 @@ public without sharing class EstimateQueryService {
     return '';
   }
 
-  private static String toStatusLabel(String status, String lifecycle) {
-    if (
-      lifecycle == ContractDomainConstants.LIFECYCLE_SPOT ||
-      status == 'SPOT'
-    ) {
-      return '都度';
-    }
-    if (status == 'InTerm') {
-      return '期間内';
-    }
-    if (status == 'OutOfTerm') {
-      return '期間外';
-    }
-    if (status == 'Cancelled') {
-      return '解約済';
-    }
-    return '';
-  }
 }

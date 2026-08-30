@@ -13,12 +13,6 @@ public without sharing class ContractMetadataService {
     public Integer sortOrder;
   }
 
-  public class InvoiceDateContext {
-    public Integer billingDayOfMonth;
-    public Boolean immediateBillingDay;
-    public Boolean adjustToBusinessDay;
-  }
-
   public enum InvoiceDateRouteType {
     MONTHLY_PERIOD_START,
     BULK_CONTRACT_START,
@@ -33,16 +27,6 @@ public without sharing class ContractMetadataService {
     public Integer sortOrder;
   }
 
-  private class PaymentTermRuleDefinition {
-    public String label;
-    public String paymentDateRule;
-    public Integer daysToAdd;
-  }
-
-  private static final String PAYMENT_DATE_RULE_CURRENT_MONTH_END = 'CurrentMonthEnd';
-  private static final String PAYMENT_DATE_RULE_NEXT_MONTH_DAY15 = 'NextMonthDay15';
-  private static final String PAYMENT_DATE_RULE_NEXT_MONTH_END = 'NextMonthEnd';
-
   private static final String BILLING_CATEGORY_RECURRING = 'Recurring';
   private static final String BILLING_CATEGORY_ONE_TIME = 'OneTime';
 
@@ -56,7 +40,6 @@ public without sharing class ContractMetadataService {
   public static final String INVOICE_SETTING_SPLIT_MONTHLY = '月次分割';
 
   private static final Map<String, InvoiceSettingDefinition> INVOICE_SETTINGS_BY_LABEL = buildInvoiceSettingMap();
-  private static final Map<String, PaymentTermRuleDefinition> PAYMENT_TERM_RULES_BY_LABEL = buildPaymentTermRuleMap();
 
   private static List<InvoiceSettingDefinition> invoiceSettings() {
     return new List<InvoiceSettingDefinition>(
@@ -95,29 +78,6 @@ public without sharing class ContractMetadataService {
         false,
         30
       )
-    };
-  }
-
-  private static Map<String, PaymentTermRuleDefinition> buildPaymentTermRuleMap() {
-    PaymentTermRuleDefinition currentMonthEnd = new PaymentTermRuleDefinition();
-    currentMonthEnd.label = '当月末';
-    currentMonthEnd.paymentDateRule = PAYMENT_DATE_RULE_CURRENT_MONTH_END;
-    currentMonthEnd.daysToAdd = 0;
-
-    PaymentTermRuleDefinition nextMonth15 = new PaymentTermRuleDefinition();
-    nextMonth15.label = '翌月15日';
-    nextMonth15.paymentDateRule = PAYMENT_DATE_RULE_NEXT_MONTH_DAY15;
-    nextMonth15.daysToAdd = 0;
-
-    PaymentTermRuleDefinition nextMonthEnd = new PaymentTermRuleDefinition();
-    nextMonthEnd.label = '翌月末';
-    nextMonthEnd.paymentDateRule = PAYMENT_DATE_RULE_NEXT_MONTH_END;
-    nextMonthEnd.daysToAdd = 0;
-
-    return new Map<String, PaymentTermRuleDefinition>{
-      currentMonthEnd.label => currentMonthEnd,
-      nextMonth15.label => nextMonth15,
-      nextMonthEnd.label => nextMonthEnd
     };
   }
 
@@ -173,20 +133,66 @@ public without sharing class ContractMetadataService {
     return billingTypeLabel == RECURRING_BILLING_TYPE_LABEL;
   }
 
+  public static final String REVENUE_BASIS_OVER_TIME = '月次計上';
+  public static final String REVENUE_BASIS_POINT_IN_TIME = '一括計上';
+  private static final String LEGACY_REVENUE_BASIS_OVER_TIME = 'OverTime';
+  private static final String LEGACY_REVENUE_BASIS_POINT_IN_TIME = 'PointInTime';
+
+  public static String normalizeRevenueRecognitionBasis(String basis) {
+    if (basis == LEGACY_REVENUE_BASIS_OVER_TIME) {
+      return REVENUE_BASIS_OVER_TIME;
+    }
+    if (basis == LEGACY_REVENUE_BASIS_POINT_IN_TIME) {
+      return REVENUE_BASIS_POINT_IN_TIME;
+    }
+    return basis;
+  }
+
   /**
-   * 既存明細の継続／一回の正。BillingType__c があればそれ、空なら Product2。
+   * 仕様: Core 第1.1.10節、Accounting 第1.16節。
+   * 行の値だけを使い、商品マスタや課金形態へ落とさない。
    */
-  public static String resolveLineBillingType(ContractProduct__c product) {
+  public static String resolveRevenueRecognitionBasis(String lineBasis) {
+    lineBasis = normalizeRevenueRecognitionBasis(lineBasis);
+    if (
+      lineBasis == REVENUE_BASIS_OVER_TIME ||
+      lineBasis == REVENUE_BASIS_POINT_IN_TIME
+    ) {
+      return lineBasis;
+    }
+    if (String.isBlank(lineBasis)) {
+      throw new RevenueRecognitionBasisException('売上計上基準が空です。');
+    }
+    throw new RevenueRecognitionBasisException(
+      '売上計上基準は月次計上または一括計上です。'
+    );
+  }
+
+  /**
+   * 保存済み行の表示用。空でも商品マスタへ戻さない。
+   * 仕様: Core 第1.1.10節
+   */
+  public static String resolveLineRevenueRecognitionBasis(
+    ContractProduct__c product
+  ) {
     if (product == null) {
       return null;
     }
-    if (String.isNotBlank(product.BillingType__c)) {
-      return product.BillingType__c;
+    return normalizeRevenueRecognitionBasis(product.RevenueRecognitionBasis__c);
+  }
+
+  /** 仕様: Core 第1.1.10節。行の課金形態だけを使い、商品マスタへ戻さない。 */
+  public static String resolveLineBillingType(ContractProduct__c product) {
+    if (product == null || String.isBlank(product.BillingType__c)) {
+      throw new BillingTypeException('課金形態が空です。');
     }
-    if (product.Product__r == null) {
-      return null;
+    if (
+      product.BillingType__c != RECURRING_BILLING_TYPE_LABEL &&
+      product.BillingType__c != ONE_TIME_BILLING_TYPE_LABEL
+    ) {
+      throw new BillingTypeException('課金形態は継続課金または一回課金です。');
     }
-    return product.Product__r.BillingType__c;
+    return product.BillingType__c;
   }
 
   public static Boolean shouldSplitMonthlyInvoicePeriods(
@@ -240,61 +246,6 @@ public without sharing class ContractMetadataService {
       INVOICE_SETTING_SPLIT_MONTHLY;
   }
 
-  public static final String BILLING_DAY_IMMEDIATE_VALUE = '即日';
-  private static final String LEGACY_BILLING_DAY_IMMEDIATE_VALUE = 'IMMEDIATE';
-  public static final Integer BILLING_DAY_END_OF_MONTH = 31;
-
-  public static Boolean isImmediateBillingDay(String picklistValue) {
-    return picklistValue == BILLING_DAY_IMMEDIATE_VALUE ||
-      picklistValue == LEGACY_BILLING_DAY_IMMEDIATE_VALUE;
-  }
-
-  public static InvoiceDateContext buildInvoiceDateContext(
-    String billingDayPicklistValue,
-    Boolean adjustToBusinessDay
-  ) {
-    InvoiceDateContext context = new InvoiceDateContext();
-    context.immediateBillingDay = isImmediateBillingDay(
-      billingDayPicklistValue
-    );
-    context.billingDayOfMonth = context.immediateBillingDay
-      ? null
-      : parseBillingDayOfMonth(billingDayPicklistValue);
-    context.adjustToBusinessDay = adjustToBusinessDay == true;
-    return context;
-  }
-
-  public static Integer parseBillingDayOfMonth(String picklistValue) {
-    if (String.isBlank(picklistValue) || isImmediateBillingDay(picklistValue)) {
-      return null;
-    }
-    Integer day = Integer.valueOf(picklistValue.trim());
-    if (day >= 1 && day <= BILLING_DAY_END_OF_MONTH) {
-      return day;
-    }
-    return null;
-  }
-
-  public static String formatBillingDayPicklistLabel(String picklistValue) {
-    if (isImmediateBillingDay(picklistValue)) {
-      return '即日';
-    }
-    return formatBillingDayOfMonthLabel(parseBillingDayOfMonth(picklistValue));
-  }
-
-  public static String formatBillingDayOfMonthLabel(Integer day) {
-    if (day == null) {
-      return null;
-    }
-    if (day == 1) {
-      return '月初';
-    }
-    if (day == BILLING_DAY_END_OF_MONTH) {
-      return '月末日';
-    }
-    return String.valueOf(day) + '日';
-  }
-
   public static InvoiceDateRouteType resolveInvoiceDateRoute(
     String invoiceSettingLabel
   ) {
@@ -319,6 +270,7 @@ public without sharing class ContractMetadataService {
       route == InvoiceDateRouteType.BULK_CONTRACT_END_PLUS_ONE;
   }
 
+  /** 仕様: Core 第7.2節。請求基準日だけ返す。請求日ルールは BillingScheduleService.computeInvoiceDate。 */
   public static Date resolveInvoiceDate(
     String invoiceSettingLabel,
     Date periodStart,
@@ -329,8 +281,7 @@ public without sharing class ContractMetadataService {
       periodStart,
       periodEnd,
       periodStart,
-      periodEnd,
-      null
+      periodEnd
     );
   }
 
@@ -339,37 +290,16 @@ public without sharing class ContractMetadataService {
     Date periodStart,
     Date periodEnd,
     Date contractProductStart,
-    Date contractProductEnd,
-    InvoiceDateContext context
+    Date contractProductEnd
   ) {
     InvoiceDateRouteType route = resolveInvoiceDateRoute(invoiceSettingLabel);
-    Date anchorDate = resolveAnchorDate(
+    return resolveAnchorDate(
       route,
       periodStart,
       periodEnd,
       contractProductStart,
       contractProductEnd
     );
-    Date baseDate = resolveBaseInvoiceDate(route, anchorDate, context);
-    return applyWeekendSkip(baseDate, context);
-  }
-
-  /**
-   * 契約商品に保存済みの請求基準日を、請求先の請求日ルール・営業日調整のみ反映して請求日にする。
-   */
-  public static Date resolveInvoiceDateFromStoredAnchor(
-    Date anchorDate,
-    InvoiceDateContext context
-  ) {
-    if (anchorDate == null) {
-      return null;
-    }
-    Date baseDate = resolveBaseInvoiceDate(
-      InvoiceDateRouteType.MONTHLY_PERIOD_START,
-      anchorDate,
-      context
-    );
-    return applyWeekendSkip(baseDate, context);
   }
 
   @TestVisible
@@ -390,114 +320,6 @@ public without sharing class ContractMetadataService {
       return contractProductEnd == null ? null : contractProductEnd.addDays(1);
     }
     return periodStart;
-  }
-
-  @TestVisible
-  private static Date resolveBaseInvoiceDate(
-    InvoiceDateRouteType route,
-    Date anchorDate,
-    InvoiceDateContext context
-  ) {
-    if (anchorDate == null) {
-      return null;
-    }
-    if (usesBillingDaySnap(route, context)) {
-      return snapToBillingDayOnOrAfter(anchorDate, context.billingDayOfMonth);
-    }
-    return anchorDate;
-  }
-
-  @TestVisible
-  private static Boolean usesBillingDaySnap(
-    InvoiceDateRouteType route,
-    InvoiceDateContext context
-  ) {
-    if (context == null || context.immediateBillingDay == true) {
-      return false;
-    }
-    return context.billingDayOfMonth != null;
-  }
-
-  @TestVisible
-  private static Date snapToBillingDayOnOrAfter(
-    Date anchorDate,
-    Integer billingDayOfMonth
-  ) {
-    if (anchorDate == null || billingDayOfMonth == null) {
-      return anchorDate;
-    }
-
-    Date sameMonthCandidate = dateWithDayOfMonth(
-      anchorDate.year(),
-      anchorDate.month(),
-      billingDayOfMonth
-    );
-    if (sameMonthCandidate >= anchorDate) {
-      return sameMonthCandidate;
-    }
-
-    Date nextMonthStart = Date.newInstance(
-        anchorDate.year(),
-        anchorDate.month(),
-        1
-      )
-      .addMonths(1);
-    return dateWithDayOfMonth(
-      nextMonthStart.year(),
-      nextMonthStart.month(),
-      billingDayOfMonth
-    );
-  }
-
-  @TestVisible
-  private static Date dateWithDayOfMonth(
-    Integer year,
-    Integer month,
-    Integer dayOfMonth
-  ) {
-    Integer lastDay = Date.daysInMonth(year, month);
-    Integer day = Math.min(dayOfMonth, lastDay);
-    return Date.newInstance(year, month, day);
-  }
-
-  @TestVisible
-  private static Date applyWeekendSkip(
-    Date baseDate,
-    InvoiceDateContext context
-  ) {
-    if (baseDate == null) {
-      return null;
-    }
-    if (context == null || context.adjustToBusinessDay != true) {
-      return baseDate;
-    }
-    return adjustToNextBusinessDay(baseDate);
-  }
-
-  @TestVisible
-  private static Date adjustToNextBusinessDay(Date dateValue) {
-    if (dateValue == null) {
-      return null;
-    }
-    Date cursor = dateValue;
-    while (isWeekend(cursor)) {
-      cursor = cursor.addDays(1);
-    }
-    return cursor;
-  }
-
-  @TestVisible
-  private static Boolean isWeekend(Date dateValue) {
-    Integer isoDay = isoDayOfWeek(dateValue);
-    return isoDay == 6 || isoDay == 7;
-  }
-
-  @TestVisible
-  private static Integer isoDayOfWeek(Date dateValue) {
-    Date referenceMonday = Date.newInstance(2024, 1, 1);
-    Integer daysBetween = referenceMonday.daysBetween(dateValue);
-    Integer mod = Math.mod(daysBetween, 7);
-    return mod + 1;
   }
 
   public static Boolean isRecurringInvoiceSetting(String invoiceSettingLabel) {
@@ -542,6 +364,7 @@ public without sharing class ContractMetadataService {
     return '請求設定が不正です。';
   }
 
+  /** 仕様: Core 第1.1.10節 */
   public static String resolveInvoiceSettingForBillingType(
     String billingTypeLabel,
     String invoiceSettingLabel
@@ -555,47 +378,22 @@ public without sharing class ContractMetadataService {
       return normalized;
     }
 
-    List<String> allowedLabels = getAllowedInvoiceSettingLabels(
-      billingTypeLabel
+    String error = validateInvoiceSettingForBillingType(
+      billingTypeLabel,
+      normalized
     );
-    return allowedLabels.isEmpty() ? normalized : allowedLabels[0];
+    throw new InvoiceSettingException(
+      String.isBlank(error) ? '請求設定が不正です。' : error
+    );
   }
 
-  public static Date resolvePaymentScheduledDate(
-    String paymentTermLabel,
-    Date invoiceDate
-  ) {
-    if (invoiceDate == null || String.isBlank(paymentTermLabel)) {
-      return null;
-    }
+  public class InvoiceSettingException extends Exception {
+  }
 
-    PaymentTermRuleDefinition rule = PAYMENT_TERM_RULES_BY_LABEL.get(
-      paymentTermLabel
-    );
-    if (rule == null) {
-      return null;
-    }
+  public class BillingTypeException extends Exception {
+  }
 
-    Date monthStart = Date.newInstance(
-      invoiceDate.year(),
-      invoiceDate.month(),
-      1
-    );
-
-    Date scheduledDate;
-    if (rule.paymentDateRule == PAYMENT_DATE_RULE_CURRENT_MONTH_END) {
-      scheduledDate = monthStart.addMonths(1).addDays(-1);
-    } else if (rule.paymentDateRule == PAYMENT_DATE_RULE_NEXT_MONTH_DAY15) {
-      scheduledDate = monthStart.addMonths(1).addDays(14);
-    } else if (rule.paymentDateRule == PAYMENT_DATE_RULE_NEXT_MONTH_END) {
-      scheduledDate = monthStart.addMonths(2).addDays(-1);
-    } else {
-      scheduledDate = invoiceDate;
-    }
-
-    return rule.daysToAdd == 0
-      ? scheduledDate
-      : scheduledDate.addDays(rule.daysToAdd);
+  public class RevenueRecognitionBasisException extends Exception {
   }
 
   public static Integer countMonthlyBillingCycles(

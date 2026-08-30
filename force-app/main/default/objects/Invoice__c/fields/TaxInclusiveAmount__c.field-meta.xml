@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TaxInclusiveAmount__c</fullName>
+    <description
+  >仕様: Core 第8.10節。請求税込の正。Amount__c + TaxAmount__c。回収・期限・フッタの比較はこの1本だけを見る。</description>
+    <formula
+  >BLANKVALUE(Amount__c, 0) + BLANKVALUE(TaxAmount__c, 0)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <inlineHelpText>税抜合計＋税額</inlineHelpText>
+    <label>税込合計</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Currency</type>
+</CustomField>

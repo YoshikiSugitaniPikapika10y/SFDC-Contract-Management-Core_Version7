@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>17 操作。仕訳 Unlock。閲覧を含む。16 では代替しない。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>17 契約 仕訳をUnlockする</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_17_Can_UnlockJournal</name>
+    </customPermissions>
+</PermissionSet>

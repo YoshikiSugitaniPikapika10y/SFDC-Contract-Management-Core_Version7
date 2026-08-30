@@ -1,0 +1,104 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TargetObject__c</fullName>
+    <description>仕様: 共通基盤.md 第12章</description>
+    <label>主対象オブジェクト</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>ContractHistory__c</fullName>
+                <default>true</default>
+                <label>ContractHistory__c</label>
+            </value>            <value>
+                <fullName>ContractService__c</fullName>
+                <default>false</default>
+                <label>ContractService__c</label>
+            </value>            <value>
+                <fullName>ContractProduct__c</fullName>
+                <default>false</default>
+                <label>ContractProduct__c</label>
+            </value>            <value>
+                <fullName>InvoiceProduct__c</fullName>
+                <default>false</default>
+                <label>InvoiceProduct__c</label>
+            </value>            <value>
+                <fullName>Invoice__c</fullName>
+                <default>false</default>
+                <label>Invoice__c</label>
+            </value>            <value>
+                <fullName>InvoiceLine__c</fullName>
+                <default>false</default>
+                <label>InvoiceLine__c</label>
+            </value>            <value>
+                <fullName>InvoicePayment__c</fullName>
+                <default>false</default>
+                <label>InvoicePayment__c</label>
+            </value>            <value>
+                <fullName>InvoicePaymentAllocation__c</fullName>
+                <default>false</default>
+                <label>InvoicePaymentAllocation__c</label>
+            </value>            <value>
+                <fullName>GlJournal__c</fullName>
+                <default>false</default>
+                <label>GlJournal__c</label>
+            </value>            <value>
+                <fullName>GlManualJournalHeader__c</fullName>
+                <default>false</default>
+                <label>GlManualJournalHeader__c</label>
+            </value>            <value>
+                <fullName>BillingAccount__c</fullName>
+                <default>false</default>
+                <label>BillingAccount__c</label>
+            </value>            <value>
+                <fullName>EstimateNoteMaster__c</fullName>
+                <default>false</default>
+                <label>EstimateNoteMaster__c</label>
+            </value>            <value>
+                <fullName>FieldCopyDefinition__c</fullName>
+                <default>false</default>
+                <label>FieldCopyDefinition__c</label>
+            </value>            <value>
+                <fullName>GlAccount__c</fullName>
+                <default>false</default>
+                <label>GlAccount__c</label>
+            </value>            <value>
+                <fullName>GlAccountMap__c</fullName>
+                <default>false</default>
+                <label>GlAccountMap__c</label>
+            </value>            <value>
+                <fullName>GlConditionSet__c</fullName>
+                <default>false</default>
+                <label>GlConditionSet__c</label>
+            </value>            <value>
+                <fullName>GlConditionRule__c</fullName>
+                <default>false</default>
+                <label>GlConditionRule__c</label>
+            </value>            <value>
+                <fullName>GlAccountingTagRule__c</fullName>
+                <default>false</default>
+                <label>GlAccountingTagRule__c</label>
+            </value>            <value>
+                <fullName>GlManualJournalSetting__c</fullName>
+                <default>false</default>
+                <label>GlManualJournalSetting__c</label>
+            </value>            <value>
+                <fullName>GlAccountingPolicy__c</fullName>
+                <default>false</default>
+                <label>GlAccountingPolicy__c</label>
+            </value>            <value>
+                <fullName>ContractDocumentSetting__c</fullName>
+                <default>false</default>
+                <label>ContractDocumentSetting__c</label>
+            </value>            <value>
+                <fullName>User</fullName>
+                <default>false</default>
+                <label>User</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

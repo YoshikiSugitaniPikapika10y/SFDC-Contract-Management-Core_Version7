@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CountsTowardInvoicedCount__c</fullName>
+    <description>仕様: Core 第5.7節。取消済みを除く確定済み件数の対象。</description>
+    <formula>TEXT(InvoiceTransactionStatus__c) = &quot;Confirmed&quot;</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>進捗用_確定済み</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

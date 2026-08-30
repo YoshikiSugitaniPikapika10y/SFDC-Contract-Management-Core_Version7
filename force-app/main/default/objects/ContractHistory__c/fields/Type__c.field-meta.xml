@@ -13,27 +13,22 @@
             <value>
                 <fullName>New</fullName>
                 <default>false</default>
-                <label>New</label>
+                <label>新規</label>
             </value>
             <value>
                 <fullName>Change</fullName>
                 <default>false</default>
-                <label>Change</label>
+                <label>追加変更</label>
             </value>
             <value>
                 <fullName>Renew</fullName>
                 <default>false</default>
-                <label>Renew</label>
+                <label>更新</label>
             </value>
             <value>
                 <fullName>Cancel</fullName>
                 <default>false</default>
-                <label>Cancel</label>
-            </value>
-            <value>
-                <fullName>Add</fullName>
-                <default>false</default>
-                <label>Add</label>
+                <label>解約</label>
             </value>
         </valueSetDefinition>
     </valueSet>

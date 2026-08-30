@@ -4,7 +4,6 @@
     <fields>Name</fields>
     <fields>Account__c</fields>
     <fields>Status__c</fields>
-    <fields>LatestARR__c</fields>
     <fields>BiilingAcccount__c</fields>
     <fields>ServiceStartDate__c</fields>
     <fields>ServiceEndDate__c</fields>

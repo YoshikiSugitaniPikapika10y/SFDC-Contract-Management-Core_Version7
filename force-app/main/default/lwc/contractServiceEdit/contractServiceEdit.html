@@ -1,0 +1,71 @@
+<template>
+  <lightning-card title="契約サービスを編集">
+    <template if:true={loading}>
+      <lightning-spinner alternative-text="読み込み中"></lightning-spinner>
+    </template>
+    <template if:false={loading}>
+      <template if:false={canEditService}>
+        <p class="slds-p-around_medium">契約サービスを編集する権限がありません。</p>
+      </template>
+      <template if:true={canEditService}>
+        <div class="slds-p-around_medium">
+          <lightning-input
+            label="名前"
+            value={name}
+            required
+            onchange={handleNameChange}
+          ></lightning-input>
+          <!-- 仕様: Core 第3.4.1節・第4.3.3節。Newと同じ。他取引先検索ON/OFF。 -->
+          <lightning-record-picker
+            label="請求アカウント"
+            object-api-name="BillingAccount__c"
+            value={billingAccountId}
+            required
+            filter={billingAccountFilter}
+            onchange={handleBillingAccountChange}
+          ></lightning-record-picker>
+          <lightning-input
+            type="checkbox"
+            label="他の取引先の請求アカウントも検索する"
+            checked={allowOtherAccountBilling}
+            onchange={handleAllowOtherAccountBillingChange}
+          ></lightning-input>
+          <lightning-input
+            label="税率"
+            type="number"
+            value={taxPercent}
+            required
+            onchange={handleTaxChange}
+          ></lightning-input>
+          <lightning-textarea
+            label="備考"
+            value={customerMemo}
+            onchange={handleMemoChange}
+          ></lightning-textarea>
+          <template if:true={hasCustomFields}>
+            <div class="slds-m-top_medium">
+              <c-estimate-wizard-custom-field-grid
+                fields={customFieldInputs}
+                field-target="service"
+                oncustomfieldchange={handleCustomFieldChange}
+              ></c-estimate-wizard-custom-field-grid>
+            </div>
+          </template>
+          <div class="slds-m-top_medium slds-grid slds-grid_align-end">
+            <lightning-button
+              label="キャンセル"
+              onclick={handleCancel}
+            ></lightning-button>
+            <lightning-button
+              class="slds-m-left_small"
+              variant="brand"
+              label="保存"
+              disabled={saving}
+              onclick={handleSave}
+            ></lightning-button>
+          </div>
+        </div>
+      </template>
+    </template>
+  </lightning-card>
+</template>

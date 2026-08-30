@@ -3,6 +3,9 @@ private class InvoiceProductFieldCopyServiceTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountInstallService.seedOnInstall();
+    }
   }
 
   @IsTest
@@ -10,7 +13,7 @@ private class InvoiceProductFieldCopyServiceTest {
     InvoiceProductFieldCopyService.resetCache();
     Set<String> invoiceTargets = new Set<String>();
     for (
-      InvoiceProductFieldCopy__mdt definition : InvoiceProductFieldCopyService.getActiveDefinitions(
+      FieldCopyDefinition__c definition : InvoiceProductFieldCopyService.getActiveDefinitions(
         InvoiceProductFieldCopyService.TARGET_INVOICE
       )
     ) {
@@ -18,7 +21,7 @@ private class InvoiceProductFieldCopyServiceTest {
     }
     Set<String> lineTargets = new Set<String>();
     for (
-      InvoiceProductFieldCopy__mdt definition : InvoiceProductFieldCopyService.getActiveDefinitions(
+      FieldCopyDefinition__c definition : InvoiceProductFieldCopyService.getActiveDefinitions(
         InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
       )
     ) {
@@ -26,7 +29,7 @@ private class InvoiceProductFieldCopyServiceTest {
     }
     Set<String> periodTargets = new Set<String>();
     for (
-      InvoiceProductFieldCopy__mdt definition : InvoiceProductFieldCopyService.getActiveDefinitions(
+      FieldCopyDefinition__c definition : InvoiceProductFieldCopyService.getActiveDefinitions(
         InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT
       )
     ) {
@@ -34,28 +37,29 @@ private class InvoiceProductFieldCopyServiceTest {
     }
 
     System.assert(
-      invoiceTargets.contains('AccountNameSnapShot__c'),
-      '請求向けサンプル（取引先名）があること'
+      invoiceTargets.contains('Memo__c'),
+      '仕様: Core 第11.4.2節 Sample_Inv_AccountName'
     );
     System.assert(
       lineTargets.contains('ProductCodeSnapShot__c'),
-      '請求明細向けサンプル（商品コード）があること'
+      '仕様: Core 第11.4.2節 Sample_Line_ProductCode'
     );
-    System.assert(
-      periodTargets.contains('AccountNameSnapShot__c'),
-      '期間明細向けサンプル（取引先名）があること'
+    System.assertEquals(
+      true,
+      periodTargets.isEmpty(),
+      '期間明細向け寄せ項目サンプルは置かない'
     );
   }
 
   @IsTest
   static void applyCopies_toInvoice_copiesSampleAccountName() {
     InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Test_Inv_AccountName',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Test_Inv_AccountName',
         SourceObject__c = 'Account',
         SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'AccountNameSnapShot__c',
+        TargetFieldApiName__c = 'Memo__c',
         TargetObject__c = 'Invoice__c'
       )
     };
@@ -71,24 +75,24 @@ private class InvoiceProductFieldCopyServiceTest {
     );
     Test.stopTest();
 
-    System.assertEquals('サンプル取引先', invoice.AccountNameSnapShot__c);
+    System.assertEquals('サンプル取引先', invoice.Memo__c);
   }
 
   @IsTest
   static void applyCopies_doesNotOverwriteExistingTargetValues() {
     InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Test_Inv_AccountName_Keep',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Test_Inv_AccountName_Keep',
         SourceObject__c = 'Account',
         SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'AccountNameSnapShot__c',
+        TargetFieldApiName__c = 'Memo__c',
         TargetObject__c = 'Invoice__c'
       )
     };
 
     Invoice__c invoice = new Invoice__c(
-      AccountNameSnapShot__c = 'DataLoader取引先'
+      Memo__c = 'DataLoader取引先'
     );
     InvoiceProductFieldCopyService.applyCopies(
       invoice,
@@ -97,15 +101,15 @@ private class InvoiceProductFieldCopyServiceTest {
         'Account' => new Account(Name = 'マスタ取引先')
       }
     );
-    System.assertEquals('DataLoader取引先', invoice.AccountNameSnapShot__c);
+    System.assertEquals('DataLoader取引先', invoice.Memo__c);
   }
 
   @IsTest
   static void applyCopies_toInvoiceLine_copiesSampleProductCode() {
     InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Test_Line_ProductCode',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Test_Line_ProductCode',
         SourceObject__c = 'Product2',
         SourceFieldApiName__c = 'ProductCode',
         TargetFieldApiName__c = 'ProductCodeSnapShot__c',
@@ -130,21 +134,14 @@ private class InvoiceProductFieldCopyServiceTest {
   @IsTest
   static void applyCopies_toPeriodLine_ignoresInvoiceTargetDefinitions() {
     InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Test_Inv_Only',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Test_Inv_Only',
         SourceObject__c = 'Account',
         SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'AccountNameSnapShot__c',
+        TargetFieldApiName__c = 'Memo__c',
         TargetObject__c = 'Invoice__c'
       ),
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Test_IP_AccountName',
-        SourceObject__c = 'Account',
-        SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'AccountNameSnapShot__c',
-        TargetObject__c = 'InvoiceProduct__c'
-      )
     };
 
     InvoiceProduct__c periodLine = new InvoiceProduct__c();
@@ -159,15 +156,15 @@ private class InvoiceProductFieldCopyServiceTest {
       }
     );
 
-    System.assertEquals('期間明細取引先', periodLine.AccountNameSnapShot__c);
+    System.assertEquals(null, periodLine.Amount__c);
   }
 
   @IsTest
   static void validateActiveDefinitions_rejectsHardcodedTargetOverlap() {
     InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Bad_Overlap_Addressee',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Bad_Overlap_Addressee',
         SourceObject__c = 'BillingAccount__c',
         SourceFieldApiName__c = 'BillingAddressee__c',
         TargetFieldApiName__c = 'BillingAddresseeSnapShot__c',
@@ -229,13 +226,19 @@ private class InvoiceProductFieldCopyServiceTest {
       )
     );
 
+    Account coverAccount = ContractTestDataFactory.insertAccount('query-cover');
     BillingAccount__c ba = new BillingAccount__c(
+      Account__c = coverAccount.Id,
       BillingAddressee__c = 'query-cover',
       BillingEmailTo__c = 'query@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_1,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 1,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(ba);
     insert ba;
 
@@ -265,30 +268,34 @@ private class InvoiceProductFieldCopyServiceTest {
         InvoiceProductFieldCopyService.OBJECT_ACCOUNT => new Account(Name = 'a')
       }
     );
-    System.assertEquals('a', periodLine.AccountNameSnapShot__c);
+    System.assertEquals(null, periodLine.Amount__c);
   }
 
   @IsTest
   static void applyCopies_blankTargetDefaultsToInvoiceProduct() {
     InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Test_Blank_Target',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Test_Blank_Target',
         SourceObject__c = 'Account',
         SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'AccountNameSnapShot__c',
-        TargetObject__c = null
+        TargetFieldApiName__c = 'Memo__c',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE
       )
     };
-    InvoiceProduct__c periodLine = new InvoiceProduct__c();
+    Invoice__c invoice = new Invoice__c();
     InvoiceProductFieldCopyService.applyCopies(
-      periodLine,
-      null,
+      invoice,
+      InvoiceProductFieldCopyService.TARGET_INVOICE,
       new Map<String, SObject>{
         'Account' => new Account(Name = 'デフォルト先')
       }
     );
-    System.assertEquals('デフォルト先', periodLine.AccountNameSnapShot__c);
+    System.assertEquals('デフォルト先', invoice.Memo__c);
+    System.assertEquals(
+      InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT,
+      InvoiceProductFieldCopyService.resolveTargetObject(null)
+    );
   }
 
   @IsTest
@@ -385,13 +392,12 @@ private class InvoiceProductFieldCopyServiceTest {
   @IsTest
   static void applyCopies_andValidate_coverErrorAndCoercePaths() {
     InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Test_Account_Coerce',
-        MasterLabel = '取引先名',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Test_Account_Coerce',
         SourceObject__c = 'Account',
         SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'AccountNameSnapShot__c',
+        TargetFieldApiName__c = 'Memo__c',
         TargetObject__c = 'Invoice__c'
       )
     };
@@ -404,7 +410,7 @@ private class InvoiceProductFieldCopyServiceTest {
         'Account' => new Account(Name = 'coerce-account')
       }
     );
-    System.assertEquals('coerce-account', invoice.AccountNameSnapShot__c);
+    System.assertEquals('coerce-account', invoice.Memo__c);
 
     Boolean missingSource = false;
     try {
@@ -418,9 +424,9 @@ private class InvoiceProductFieldCopyServiceTest {
     }
     System.assertEquals(true, missingSource);
 
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Bad_Incomplete',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Bad_Incomplete',
         SourceObject__c = null,
         SourceFieldApiName__c = null,
         TargetFieldApiName__c = null,
@@ -435,12 +441,12 @@ private class InvoiceProductFieldCopyServiceTest {
     }
     System.assertEquals(true, incomplete);
 
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Bad_SourceObject',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Bad_SourceObject',
         SourceObject__c = 'NotAnObject__c',
         SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'AccountNameSnapShot__c',
+        TargetFieldApiName__c = 'Memo__c',
         TargetObject__c = 'Invoice__c'
       )
     };
@@ -452,9 +458,9 @@ private class InvoiceProductFieldCopyServiceTest {
     }
     System.assertEquals(true, badSource);
 
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<InvoiceProductFieldCopy__mdt>{
-      new InvoiceProductFieldCopy__mdt(
-        DeveloperName = 'Bad_TargetField',
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Bad_TargetField',
         SourceObject__c = 'Account',
         SourceFieldApiName__c = 'Name',
         TargetFieldApiName__c = 'DoesNotExist__c',

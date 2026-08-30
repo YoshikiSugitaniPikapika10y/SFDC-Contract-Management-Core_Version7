@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Context_RequiredForHistoryAndJournal</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。契約履歴・仕訳はコンテキスト必須。</description>
+    <errorConditionFormula>AND(
+        OR(
+            ISPICKVAL(TargetObject__c, "ContractHistory__c"),
+            ISPICKVAL(TargetObject__c, "GlJournal__c")
+        ),
+        ISBLANK(Context__c)
+    )</errorConditionFormula>
+    <errorDisplayField>Context__c</errorDisplayField>
+    <errorMessage>契約履歴と仕訳ではコンテキストを1つ以上選んでください。</errorMessage>
+</ValidationRule>

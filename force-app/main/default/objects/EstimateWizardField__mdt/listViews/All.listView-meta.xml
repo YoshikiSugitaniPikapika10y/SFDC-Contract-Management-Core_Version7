@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>All</fullName>
+    <columns>MasterLabel</columns>
+    <columns>Active__c</columns>
+    <columns>TargetObject__c</columns>
+    <columns>ShowOnNew__c</columns>
+    <columns>ShowOnChange__c</columns>
+    <columns>ShowOnRenew__c</columns>
+    <columns>ShowOnCancel__c</columns>
+    <columns>SortOrder__c</columns>
+    <columns>DeveloperName</columns>
+    <filterScope>Everything</filterScope>
+    <label>すべて</label>
+</ListView>

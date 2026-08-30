@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CompactLayout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>FieldCopyDefinition_Compact</fullName>
+    <fields>Name</fields>
+    <fields>TargetObject__c</fields>
+    <label>追加項目コピー コンパクト</label>
+</CompactLayout>

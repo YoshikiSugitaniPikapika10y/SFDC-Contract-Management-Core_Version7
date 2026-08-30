@@ -9,6 +9,7 @@ trigger InvoiceTrigger on Invoice__c(
 ) {
   if (Trigger.isBefore) {
     if (Trigger.isInsert) {
+      InvoiceTriggerHandler.handleBeforeInsert(Trigger.new);
       InvoiceFieldCopyTriggerHandler.handleInvoiceBeforeInsert(Trigger.new);
     } else if (Trigger.isUpdate) {
       InvoiceTriggerHandler.handleBeforeUpdate(Trigger.new, Trigger.oldMap);

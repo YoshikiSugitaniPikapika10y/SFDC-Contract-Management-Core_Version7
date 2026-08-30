@@ -8,26 +8,41 @@
                     <valueList>
                         <valueListItems>
                             <value>Edit</value>
+                            <visibilityRule>
+                                <booleanFilter>1 OR 2</booleanFilter>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_102_Can_FixContract}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_104_Can_MigrateAll}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                            </visibilityRule>
                         </valueListItems>
                         <valueListItems>
-                            <value>ContractHistory__c.EstimateEdit</value>
+                            <value>ContractHistory__c.Estimate_Actions</value>
                             <visibilityRule>
-                                <booleanFilter>(1 OR 2) AND 3</booleanFilter>
+                                <booleanFilter>1 AND (2 OR 3 OR 4)</booleanFilter>
                                 <criteria>
-                                    <leftValue
-                  >{!Record.historystatus__c}</leftValue>
+                                    <leftValue>{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Estimate</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue
-                  >{!Record.historystatus__c}</leftValue>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_03_Can_Estimate}</leftValue>
                                     <operator>EQUAL</operator>
-                                    <rightValue>Ordered</rightValue>
+                                    <rightValue>true</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue
-                  >{!$Permission.CustomPermission.Contract_05_Can_Edit_Estimate}</leftValue>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_04_Can_IssueEstimate}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_05_Can_SendEstimate}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -38,69 +53,28 @@
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue
-                  >{!Record.historystatus__c}</leftValue>
+                                    <leftValue>{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>Estimate</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue
-                  >{!$Permission.CustomPermission.Contract_09_Can_Order}</leftValue>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_06_Can_Order}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
                             </visibilityRule>
                         </valueListItems>
                         <valueListItems>
-                            <value>ContractHistory__c.EstimateCopy</value>
+                            <value>ContractHistory__c.EstimateEdit</value>
                             <visibilityRule>
                                 <booleanFilter>1 AND 2</booleanFilter>
                                 <criteria>
-                                    <leftValue
-                  >{!Record.historystatus__c}</leftValue>
+                                    <leftValue>{!Record.historystatus__c}</leftValue>
                                     <operator>EQUAL</operator>
-                                    <rightValue>Estimate</rightValue>
+                                    <rightValue>Ordered</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue
-                  >{!$Permission.CustomPermission.Contract_06_Can_Copy_Estimate}</leftValue>
-                                    <operator>EQUAL</operator>
-                                    <rightValue>true</rightValue>
-                                </criteria>
-                            </visibilityRule>
-                        </valueListItems>
-                        <valueListItems>
-                            <value>ContractHistory__c.Estimate_Archive</value>
-                            <visibilityRule>
-                                <booleanFilter>1 AND 2</booleanFilter>
-                                <criteria>
-                                    <leftValue
-                  >{!Record.historystatus__c}</leftValue>
-                                    <operator>EQUAL</operator>
-                                    <rightValue>Estimate</rightValue>
-                                </criteria>
-                                <criteria>
-                                    <leftValue
-                  >{!$Permission.CustomPermission.Contract_07_Can_Archive_Estimate}</leftValue>
-                                    <operator>EQUAL</operator>
-                                    <rightValue>true</rightValue>
-                                </criteria>
-                            </visibilityRule>
-                        </valueListItems>
-                        <valueListItems>
-                            <value
-              >CustomButton.ContractHistory__c.EstimateIssuePdf</value>
-                            <visibilityRule>
-                                <booleanFilter>1 AND 2</booleanFilter>
-                                <criteria>
-                                    <leftValue
-                  >{!Record.historystatus__c}</leftValue>
-                                    <operator>EQUAL</operator>
-                                    <rightValue>Estimate</rightValue>
-                                </criteria>
-                                <criteria>
-                                    <leftValue
-                  >{!$Permission.CustomPermission.Contract_08_Can_Issue_Estimate_Document}</leftValue>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_03_Can_Estimate}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -110,7 +84,7 @@
                             <value
               >ContractHistory__c.Order_Invoice_Preview</value>
                             <visibilityRule>
-                                <booleanFilter>1 AND 2</booleanFilter>
+                                <booleanFilter>1 AND (2 OR 3 OR 4 OR 5 OR 6 OR 7 OR 8 OR 9 OR 10)</booleanFilter>
                                 <criteria>
                                     <leftValue
                   >{!Record.historystatus__c}</leftValue>
@@ -118,8 +92,47 @@
                                     <rightValue>Ordered</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue
-                  >{!$Permission.CustomPermission.Contract_11_Can_View_Invoice_Preview}</leftValue>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_09_Can_ViewInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_10_Can_EditDraftInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_11_Can_ConfirmInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_12_Can_SendInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_13_Can_InvoicePayment}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_14_Can_ManualJournal}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_15_Can_CancelInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_16_Can_LockJournal}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_17_Can_UnlockJournal}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -137,7 +150,7 @@
                                 </criteria>
                                 <criteria>
                                     <leftValue
-                  >{!$Permission.CustomPermission.Contract_10_Can_Revert}</leftValue>
+                  >{!$Permission.CustomPermission.Loop_07_Can_Revert}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -163,7 +176,7 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>numVisibleActions</name>
-                    <value>8</value>
+                    <value>10</value>
                 </componentInstanceProperties>
                 <componentName>force:highlightsPanel</componentName>
                 <identifier>force_highlightsPanel</identifier>
@@ -214,7 +227,7 @@
                 <componentInstanceProperties>
                     <name>richTextValue</name>
                     <value
-          >&lt;p&gt;この Version の見積商品です。編集は見積作成画面から行います。&lt;/p&gt;</value>
+          >&lt;p&gt;この版の見積商品です。編集は見積作成画面から行います。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_product_hint</identifier>
@@ -312,7 +325,7 @@
                 <componentInstanceProperties>
                     <name>richTextValue</name>
                     <value
-          >&lt;p&gt;受注後に生成される請求の正本です。例外編集は「請求プレビュー」から行います。&lt;/p&gt;</value>
+          >&lt;p&gt;受注後に生成される請求の正本です。例外編集は「請求ボード」から行います。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_invoice_hint</identifier>
@@ -367,9 +380,6 @@
                             <value>PaymentClearingCompletedDate__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>PaymentClearedAmount__c</value>
-                        </valueListItems>
-                        <valueListItems>
                             <value>IsManuallyAdjusted__c</value>
                         </valueListItems>
                         <valueListItems>
@@ -398,6 +408,36 @@
             </componentInstance>
         </itemInstances>
         <name>invoicesTabContent</name>
+        <type>Facet</type>
+    </flexiPageRegions>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>parentFieldApiName</name>
+                    <value>ContractHistory__c.Id</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>relatedListApiName</name>
+                    <value>AttachedContentDocuments</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>relatedListComponentOverride</name>
+                    <value>NONE</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>rowsToDisplay</name>
+                    <value>10</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>showActionBar</name>
+                    <value>true</value>
+                </componentInstanceProperties>
+                <componentName>force:relatedListSingleContainer</componentName>
+                <identifier>force_relatedList_files</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>filesTabContent</name>
         <type>Facet</type>
     </flexiPageRegions>
     <flexiPageRegions>
@@ -453,6 +493,24 @@
                 </componentInstanceProperties>
                 <componentName>flexipage:tab</componentName>
                 <identifier>flexipage_tab_invoices</identifier>
+            </componentInstance>
+        </itemInstances>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>active</name>
+                    <value>false</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>body</name>
+                    <value>filesTabContent</value>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
+                    <name>title</name>
+                    <value>ファイル</value>
+                </componentInstanceProperties>
+                <componentName>flexipage:tab</componentName>
+                <identifier>flexipage_tab_files</identifier>
             </componentInstance>
         </itemInstances>
         <name>maintabs</name>

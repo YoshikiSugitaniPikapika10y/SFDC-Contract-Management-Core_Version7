@@ -9,11 +9,35 @@ public without sharing class ContractServiceTriggerHandler {
   private static final String LOCKED_INVOICE_DELETE_BLOCK_MESSAGE = '請求済またはエクスポート済の請求があるため、契約サービスを削除できません。';
   private static final String HISTORY_STATUS_ORDERED = ContractDomainConstants.HISTORY_STATUS_ORDERED;
 
+  /** 仕様: Core 第3.3.1節 */
+  public static Set<Id> collectBillingAccountIds(
+    List<ContractService__c> records,
+    Map<Id, ContractService__c> oldMap
+  ) {
+    Set<Id> ids = new Set<Id>();
+    if (records == null) {
+      return ids;
+    }
+    for (ContractService__c record : records) {
+      if (record != null && record.BiilingAcccount__c != null) {
+        ids.add(record.BiilingAcccount__c);
+      }
+      if (oldMap != null && record != null) {
+        ContractService__c prior = oldMap.get(record.Id);
+        if (prior != null && prior.BiilingAcccount__c != null) {
+          ids.add(prior.BiilingAcccount__c);
+        }
+      }
+    }
+    return ids;
+  }
+
+  /** 仕様: 共通基盤 第3.6節。物理削除は 103／104（hasDeleteRecords。104 は 103 を含む）。 */
   public static void handleBeforeDelete(List<ContractService__c> oldServices) {
     if (oldServices == null || oldServices.isEmpty()) {
       return;
     }
-    if (ContractPermissionUtil.canBypassIntegrityGuards()) {
+    if (ContractPermissionUtil.hasDeleteRecords()) {
       return;
     }
 

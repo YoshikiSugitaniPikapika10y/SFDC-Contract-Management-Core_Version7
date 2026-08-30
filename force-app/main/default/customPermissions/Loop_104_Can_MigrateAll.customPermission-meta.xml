@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>パッケージ全オブジェクトの参照・作成・更新・削除。101〜103 を含む</description>
+    <isLicensed>false</isLicensed>
+    <label>104 契約 例外 移行（全部操作）</label>
+</CustomPermission>

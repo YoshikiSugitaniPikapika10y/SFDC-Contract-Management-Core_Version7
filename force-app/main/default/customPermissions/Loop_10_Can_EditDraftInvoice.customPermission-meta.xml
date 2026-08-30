@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>未確定を直す。確定後の請求情報編集（追加項目はロック除外のみ）。メモ。閲覧を含む</description>
+    <isLicensed>false</isLicensed>
+    <label>10 契約 未確定請求を直す</label>
+</CustomPermission>

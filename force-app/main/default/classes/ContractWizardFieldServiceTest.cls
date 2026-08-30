@@ -24,34 +24,56 @@ private class ContractWizardFieldServiceTest {
   }
 
   @IsTest
+  static void getContractHistoryFieldDefinitions_supportsReferenceLookup() {
+    ContractWizardFieldService.setCachedDefinitionsForTest(
+      new List<EstimateWizardField__mdt>{
+        new EstimateWizardField__mdt(
+          DeveloperName = 'Test_Estimate_Send_Contact',
+          MasterLabel = 'Test Estimate Send Contact',
+          Active__c = true,
+          TargetObject__c = 'ContractHistory__c',
+          FieldApiName__c = 'EstimateSendContact__c',
+          ShowOnNew__c = true
+        )
+      }
+    );
+
+    List<ContractWizardFieldService.WizardFieldDefinition> definitions = ContractWizardFieldService.getContractHistoryFieldDefinitions();
+
+    System.assertEquals(1, definitions.size());
+    System.assertEquals('REFERENCE', definitions[0].fieldType);
+    System.assertEquals('Contact', definitions[0].referenceObjectApiName);
+  }
+
+  @IsTest
   static void getContractProductFieldDefinitions_returnsConfiguredFields() {
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
     List<ContractWizardFieldService.WizardFieldDefinition> definitions = ContractWizardFieldService.getContractProductFieldDefinitions();
     System.assertNotEquals(null, definitions);
     System.assertEquals(true, definitions.size() >= 1);
 
-    ContractWizardFieldService.WizardFieldDefinition customerMemo;
+    ContractWizardFieldService.WizardFieldDefinition productField;
     for (
       ContractWizardFieldService.WizardFieldDefinition definition : definitions
     ) {
-      if (definition.apiName == 'CustomerMemo__c') {
-        customerMemo = definition;
+      if (definition.apiName == 'Description__c') {
+        productField = definition;
         break;
       }
     }
-    System.assertNotEquals(null, customerMemo);
-    System.assertEquals('STRING', customerMemo.fieldType);
-    System.assertEquals('Family', customerMemo.visibilityFieldApiName);
-    System.assertEquals('EQUALS', customerMemo.visibilityOperator);
+    System.assertNotEquals(null, productField);
+    System.assertEquals('STRING', productField.fieldType);
+    System.assertEquals('Family', productField.visibilityFieldApiName);
+    System.assertEquals('EQUALS', productField.visibilityOperator);
     System.assertEquals(
       ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY,
-      customerMemo.visibilityValues
+      productField.visibilityValues
     );
-    System.assertEquals('サンプルデフォルトメモ', customerMemo.defaultValue);
-    System.assertEquals(true, customerMemo.showOnNew);
-    System.assertEquals(true, customerMemo.showOnChange);
-    System.assertEquals(true, customerMemo.showOnRenew);
-    System.assertEquals(true, customerMemo.showOnCancel);
+    System.assertEquals('サンプルデフォルトメモ', productField.defaultValue);
+    System.assertEquals(true, productField.showOnNew);
+    System.assertEquals(true, productField.showOnChange);
+    System.assertEquals(true, productField.showOnRenew);
+    System.assertEquals(true, productField.showOnCancel);
   }
 
   @IsTest
@@ -121,7 +143,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Legacy',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'CustomerMemo__c',
+          FieldApiName__c = 'Description__c',
           DefaultSource__c = 'Opportunity',
           DefaultValue__c = 'Account.Name',
           SortOrder__c = 30,
@@ -135,7 +157,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Product2',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'CustomerMemo__c',
+          FieldApiName__c = 'Description__c',
           DefaultSource__c = 'Product2',
           DefaultValue__c = 'Family',
           SortOrder__c = 40,
@@ -430,10 +452,10 @@ private class ContractWizardFieldServiceTest {
     ContractProduct__c product = new ContractProduct__c();
     ContractWizardFieldService.applyCustomFields(
       product,
-      new Map<String, Object>{ 'CustomerMemo__c' => 'product memo' },
+      new Map<String, Object>{ 'Description__c' => 'product memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct
     );
-    System.assertEquals('product memo', product.CustomerMemo__c);
+    System.assertEquals('product memo', product.Description__c);
   }
 
   @IsTest
@@ -477,7 +499,7 @@ private class ContractWizardFieldServiceTest {
 
     System.assert(serviceFields.contains('CustomerMemo__c'));
     System.assert(historyFields.contains('ApplicationDate__c'));
-    System.assert(productFields.contains('CustomerMemo__c'));
+    System.assert(productFields.contains('Description__c'));
   }
 
   @IsTest
@@ -574,21 +596,21 @@ private class ContractWizardFieldServiceTest {
   static void filterCustomFieldsByVisibility_respectsProductFamily() {
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
     Map<String, Object> hidden = ContractWizardFieldService.filterCustomFieldsByVisibility(
-      new Map<String, Object>{ 'CustomerMemo__c' => 'memo' },
+      new Map<String, Object>{ 'Description__c' => 'memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct,
       new Map<String, String>{ 'Family' => 'Software' }
     );
-    System.assertEquals(true, hidden.containsKey('CustomerMemo__c'));
-    System.assertEquals(null, hidden.get('CustomerMemo__c'));
+    System.assertEquals(true, hidden.containsKey('Description__c'));
+    System.assertEquals(null, hidden.get('Description__c'));
 
     Map<String, Object> visible = ContractWizardFieldService.filterCustomFieldsByVisibility(
-      new Map<String, Object>{ 'CustomerMemo__c' => 'memo' },
+      new Map<String, Object>{ 'Description__c' => 'memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct,
       new Map<String, String>{
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
       }
     );
-    System.assertEquals('memo', visible.get('CustomerMemo__c'));
+    System.assertEquals('memo', visible.get('Description__c'));
   }
 
   @IsTest
@@ -599,7 +621,7 @@ private class ContractWizardFieldServiceTest {
       ContractWizardFieldService.WizardTarget.ContractProduct,
       new Map<String, String>{ 'Family' => 'Software' }
     );
-    System.assertEquals(null, cleared.get('CustomerMemo__c'));
+    System.assertEquals(null, cleared.get('Description__c'));
   }
 
   @IsTest
@@ -794,7 +816,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Bad Visibility Field',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'CustomerMemo__c',
+          FieldApiName__c = 'Description__c',
           VisibilityFieldApiName__c = 'DoesNotExistOnProduct2__c',
           VisibilityOperator__c = 'IN',
           VisibilityValues__c = 'X',
@@ -865,7 +887,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Bad Visibility Op',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'CustomerMemo__c',
+          FieldApiName__c = 'Description__c',
           VisibilityFieldApiName__c = 'Family',
           VisibilityOperator__c = 'CONTAINS',
           VisibilityValues__c = 'X',
@@ -899,7 +921,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Empty Visibility Values',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'CustomerMemo__c',
+          FieldApiName__c = 'Description__c',
           VisibilityFieldApiName__c = 'Family',
           VisibilityOperator__c = 'IN',
           VisibilityValues__c = null,

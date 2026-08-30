@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MonthlyRecognitionDatePosition__c</fullName>
+    <description>仕様: Accounting 第3.1節</description>
+    <label>月次計上の計上日位置</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>BucketStart</fullName>
+                <default>false</default>
+                <label>バケット開始日</label>
+            </value>
+            <value>
+                <fullName>BucketEnd</fullName>
+                <default>true</default>
+                <label>バケット終了日</label>
+            </value>
+            <value>
+                <fullName>MonthEnd</fullName>
+                <default>false</default>
+                <label>終了日所属月の末日</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

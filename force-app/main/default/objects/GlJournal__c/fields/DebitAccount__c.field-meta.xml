@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DebitAccount__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>仕様: Accounting 第9.1節。借方の実勘定科目。</description>
+    <label>借方実勘定科目</label>
+    <referenceTo>GlAccount__c</referenceTo>
+    <relationshipLabel>仕訳（借方）</relationshipLabel>
+    <relationshipName>DebitJournals</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

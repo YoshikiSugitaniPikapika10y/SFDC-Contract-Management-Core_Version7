@@ -76,4 +76,25 @@ private class ContractOptimisticLockUtilTest {
       );
     }
   }
+
+  @IsTest
+  static void assertRequiredUnchanged_blankOrMissingActual_throws() {
+    for (Integer scenario = 0; scenario < 2; scenario++) {
+      try {
+        ContractOptimisticLockUtil.assertRequiredUnchanged(
+          scenario == 0 ? Datetime.now() : null,
+          scenario == 0
+            ? null
+            : ContractOptimisticLockUtil.toToken(Datetime.now()),
+          'テスト'
+        );
+        System.assert(false, 'Expected required optimistic lock conflict');
+      } catch (AuraHandledException ex) {
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage()
+        );
+      }
+    }
+  }
 }

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description
-  >請求書／請求明細のマージキー部品定義。組織で1セット。受注時の期間明細生成・請求正本生成でのみ適用（プレビュー編集では再計算しない）。</description>
-    <label>請求マージキー部品</label>
-    <pluralLabel>請求マージキー部品</pluralLabel>
-    <visibility>Public</visibility>
-</CustomObject>

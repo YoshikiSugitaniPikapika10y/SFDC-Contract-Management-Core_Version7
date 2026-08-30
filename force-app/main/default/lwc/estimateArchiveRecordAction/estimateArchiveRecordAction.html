@@ -11,7 +11,7 @@
         </span>
         <div class="confirm-heading-text">
           <h1 class="confirm-title">アーカイブ</h1>
-          <p class="confirm-subtitle">見積を破棄して編集不可にします</p>
+          <p class="confirm-subtitle">{confirmSubtitle}</p>
         </div>
       </div>
     </header>
@@ -30,7 +30,7 @@
       <template if:true={hasPermission}>
         <section class="confirm-card">
           <p class="confirm-lead">
-            この見積（Estimate）をアーカイブします。よろしいですか？
+            この見積を不採用にします。よろしいですか？
           </p>
           <ul class="confirm-list">
             <li>編集・受注・コピーができなくなります</li>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>HistoricalSpAmount__c</fullName>
+    <defaultValue>0</defaultValue>
+    <description>仕様: Core 第8.1節、Accounting 第4.4節、第5.2.16節、第8.4節</description>
+    <label>過去日SP振替額</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Currency</type>
+</CustomField>

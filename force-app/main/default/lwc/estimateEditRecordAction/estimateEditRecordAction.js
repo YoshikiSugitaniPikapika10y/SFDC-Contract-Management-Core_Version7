@@ -1,6 +1,8 @@
-import { LightningElement, api } from "lwc";
+import { LightningElement, api, wire } from "lwc";
 import { NavigationMixin } from "lightning/navigation";
-import hasEditEstimate from "@salesforce/customPermission/Contract_05_Can_Edit_Estimate";
+import { getRecord } from "lightning/uiRecordApi";
+import hasEditEstimate from "@salesforce/customPermission/Loop_03_Can_Estimate";
+import HISTORY_STATUS_FIELD from "@salesforce/schema/ContractHistory__c.historystatus__c";
 import {
   closeEstimateWizard,
   markEstimateRecordForRefresh,
@@ -14,9 +16,24 @@ export default class EstimateEditRecordAction extends NavigationMixin(
   @api recordId;
 
   pendingRecordRefresh;
+  historyStatus;
 
   get hasPermission() {
     return hasEditEstimate === true;
+  }
+
+  // 仕様: Core 第4.3節、第4.3.1節
+  get canOpenWizard() {
+    return this.hasPermission && Boolean(this.historyStatus);
+  }
+
+  @wire(getRecord, { recordId: "$recordId", fields: [HISTORY_STATUS_FIELD] })
+  wiredHistory({ data, error }) {
+    if (data) {
+      this.historyStatus = data.fields?.historystatus__c?.value || "";
+    } else if (error) {
+      this.historyStatus = "";
+    }
   }
 
   connectedCallback() {

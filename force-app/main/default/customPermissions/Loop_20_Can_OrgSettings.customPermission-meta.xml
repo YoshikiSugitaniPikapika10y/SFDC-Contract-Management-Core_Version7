@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>組織設定を保存する。追加項目コピーの参照・作成・編集・削除</description>
+    <isLicensed>false</isLicensed>
+    <label>20 契約 組織設定</label>
+</CustomPermission>

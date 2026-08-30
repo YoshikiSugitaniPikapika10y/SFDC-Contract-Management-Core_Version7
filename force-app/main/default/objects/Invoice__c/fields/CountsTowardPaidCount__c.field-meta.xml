@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CountsTowardPaidCount__c</fullName>
+    <description>仕様: Core 第5.7節。取消済みを除く回収完了件数の対象。</description>
+    <formula>AND(
+  TEXT(CollectionRefundStatus__c) = &quot;Completed&quot;,
+  TEXT(InvoiceTransactionStatus__c) &lt;&gt; &quot;Cancelled&quot;
+)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>進捗用_回収完了</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -13,8 +13,8 @@ private class ContractServiceTriggerHandlerTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE
     );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
@@ -79,8 +79,7 @@ private class ContractServiceTriggerHandlerTest {
           Date.newInstance(2026, 6, 1),
           null
         ),
-        Amount__c = 96000,
-        invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        Amount__c = 96000
       );
 
       Test.startTest();
@@ -109,7 +108,7 @@ private class ContractServiceTriggerHandlerTest {
         'CS Delete Ordered Service'
       );
 
-      // Cancel Ordered は商品不要で BA 検証のみ通る（削除ガード用の Ordered 実体を作る）
+      // Cancel Ordered ??E????? BA ???????E???????? Ordered ??????E?E
       insert new ContractHistory__c(
         Name = 'CS Delete Ordered History',
         ContractService__c = service.Id,
@@ -178,7 +177,7 @@ private class ContractServiceTriggerHandlerTest {
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
 
-      // ポインタだけ空でも実 Ordered があれば削除不可
+      // ??????????EOrdered ????E????
       update new ContractService__c(
         Id = service.Id,
         LatestOrderedHistory__c = null,
@@ -245,13 +244,16 @@ private class ContractServiceTriggerHandlerTest {
       );
       insert contractProduct;
 
-      insert new Invoice__c(
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new Invoice__c(
         ContractService__c = service.Id,
         ContractHistory__c = history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 96000,
         TaxAmount__c = 9600,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
+      )
       );
 
       Boolean thrown = false;
@@ -280,5 +282,51 @@ private class ContractServiceTriggerHandlerTest {
         ]
       );
     }
+  }
+
+  @IsTest
+  static void serviceEndDate_helpUsesJapaneseOrderedCancelNames() {
+    String helpText = ContractService__c.ServiceEndDate__c.getDescribe()
+      .getInlineHelpText();
+    System.assertNotEquals(null, helpText);
+    System.assert(
+      helpText.contains('受注済み'),
+      'Core 第0.1節: Ordered の画面表示は受注済み'
+    );
+    System.assert(
+      helpText.contains('解約'),
+      'Core 第0.1節: Cancel の画面表示は解約'
+    );
+    System.assert(
+      !helpText.contains('Ordered'),
+      'Core 第0.1節: ヘルプに Ordered と出さない'
+    );
+    System.assert(
+      !helpText.contains('Cancel'),
+      'Core 第0.1節: ヘルプに Cancel と出さない'
+    );
+  }
+
+  @IsTest
+  static void lifecycle_helpUsesJapaneseTermSpotDisplayNames() {
+    String helpText = ContractService__c.Lifecycle__c.getDescribe()
+      .getInlineHelpText();
+    System.assertNotEquals(null, helpText);
+    System.assert(
+      helpText.contains('期間契約'),
+      'Core 第0.1節: Lifecycle の画面表示は期間契約'
+    );
+    System.assert(
+      helpText.contains('都度契約'),
+      'Core 第0.1節: Lifecycle の画面表示は都度契約'
+    );
+    System.assert(
+      !helpText.contains('Term'),
+      'Core 第0.1節: ヘルプに Term と出さない'
+    );
+    System.assert(
+      !helpText.contains('Spot'),
+      'Core 第0.1節: ヘルプに Spot と出さない'
+    );
   }
 }

@@ -1,19 +1,14 @@
 /**
  * 見積書の表示データ組み立て・PDF 発行・ファイル保存。
  *
- * 導入先ブランド表記は下記定数を差し替える（値変更はそのまま PDF に反映される）。
- * プライバシーポリシー URL は Visualforce `EstimateDocumentPdf` 側も合わせて確認する。
+ * 会社名・住所は ContractDocumentSetting__c の発行時点の値を使う。
  */
 public without sharing class EstimateDocumentService {
-  // --- 導入先ブランド（見積書ヘッダ／フッタ）。導入時に差し替え ---
-  public static final String COMPANY_NAME = 'テスト株式会社';
-  public static final String COMPANY_POSTAL_CODE = '100 - 0001';
-  public static final String COMPANY_ADDRESS_LINE1 = '東京都千代田区テスト1-1-1';
-  public static final String COMPANY_ADDRESS_LINE2 = 'テストビル 1階';
-  public static final String COMPANY_REGISTRATION_NUMBER = 'T0000000000000';
 
+  /** 仕様: Core 第0.1節、第4.8節 */
   @TestVisible
-  private static final String ESTIMATE_STATUS_REQUIRED_MESSAGE = '見積書の表示・発行はステータスが Estimate の契約履歴のみ利用できます。';
+  private static final String ESTIMATE_STATUS_REQUIRED_MESSAGE =
+    '見積書の表示・発行はステータスが見積の契約履歴のみ利用できます。';
 
   public class LineDto {
     public String productName;
@@ -53,6 +48,51 @@ public without sharing class EstimateDocumentService {
     }
   }
 
+  /**
+   * 見積帳票の表示文言。
+   * 発行元情報は請求書と共通の ContractDocumentSetting__c を正とし、
+   * 帳票固有の固定ラベルはこの DTO で組み立てる。
+   */
+  public class EstimateDocumentTextDto {
+    public String toCompanyName { get; set; }
+    public String estimateTitle { get; set; }
+    public String otherFeeLabel { get; set; }
+    public Decimal tax { get; set; }
+    public String termFeeStartDateLabel { get; set; }
+    public String termFeeStartDateSentence { get; set; }
+    public String estimateDateLabel { get; set; }
+    public String estimateDateSentence { get; set; }
+    public String ownerLabel { get; set; }
+    public String ownerName { get; set; }
+    public String postalNumber { get; set; }
+    public String addressFirstHalf { get; set; }
+    public String addressLastHalf { get; set; }
+    public String companyName { get; set; }
+    public String telLabel { get; set; }
+    public String telValue { get; set; }
+    public String faxLabel { get; set; }
+    public String faxSentence { get; set; }
+    public String paymentTermLabel { get; set; }
+    public String paymentTermSentence { get; set; }
+    public String termDueDateLabel { get; set; }
+    public String estimateDueDateSentence { get; set; }
+    public String basicTermPeriodLabel { get; set; }
+    public String basicTermPeriod { get; set; }
+    public String estimateSumLabel { get; set; }
+    public String unitLabel { get; set; }
+    public String unitSentence { get; set; }
+    public String honorificTitle { get; set; }
+    public String digitalLicenceFeeLabel { get; set; }
+    public String consultingFeeLabel { get; set; }
+    public String feedbackCoachingFeeLabel { get; set; }
+    public String noteSentenceLabel { get; set; }
+    public String noteSentence { get; set; }
+    public String documentFooter { get; set; }
+    public String privacyPolicyUrl { get; set; }
+    public String estimateNumberLabel { get; set; }
+    public String estimateSentence { get; set; }
+  }
+
   public class DocumentContext {
     public ContractHistory__c history;
     public List<LineDto> lines;
@@ -75,8 +115,7 @@ public without sharing class EstimateDocumentService {
     public String issueDateLabel;
     public String termLabel;
     public String typeLabel;
-    // 商談 EstimatePdf 互換の表示値
-    public EstimateSetting__c estimateSetting;
+    public EstimateDocumentTextDto documentText;
     public String toCompanyNameDisplay;
     public String ownerNameDisplay;
     public String estimateDateDisplay;
@@ -95,8 +134,11 @@ public without sharing class EstimateDocumentService {
 
   public class IssueResult {
     public Id contentVersionId;
+    public Id contentDocumentId;
     public String fileName;
     public Date issueDate;
+    public String templateKey;
+    public String visualforcePage;
   }
 
   public class EstimateDocumentException extends Exception {
@@ -140,11 +182,12 @@ public without sharing class EstimateDocumentService {
 
     DocumentContext context = new DocumentContext();
     context.history = histories[0];
-    context.companyName = COMPANY_NAME;
-    context.companyPostalCode = COMPANY_POSTAL_CODE;
-    context.companyAddressLine1 = COMPANY_ADDRESS_LINE1;
-    context.companyAddressLine2 = COMPANY_ADDRESS_LINE2;
-    context.companyRegistrationNumber = COMPANY_REGISTRATION_NUMBER;
+    ContractDocumentSetting__c orgSetting = loadDocumentOrgSetting();
+    context.companyName = orgDocumentText(orgSetting.CompanyName__c);
+    context.companyPostalCode = '';
+    context.companyAddressLine1 = orgDocumentText(orgSetting.Address__c);
+    context.companyAddressLine2 = '';
+    context.companyRegistrationNumber = '';
     context.lines = loadLines(contractHistoryId, context.history.Type__c);
     context.lineTotal = resolveLineTotal(context.history, context.lines);
     // Percent 項目の Apex 値（0.1＝10%）を表示％へ戻してから正規化する。未入力は 0%。
@@ -208,24 +251,95 @@ public without sharing class EstimateDocumentService {
   }
 
   public static IssueResult issueEstimateDocument(Id contractHistoryId) {
+    return issueEstimateDocument(contractHistoryId, null);
+  }
+
+  /** 仕様: Core 第4.8節、第11.3.1節 */
+  public static IssueResult issueEstimateDocument(
+    Id contractHistoryId,
+    String templateKey
+  ) {
+    return issueEstimateDocument(contractHistoryId, templateKey, null);
+  }
+
+  /** 仕様: Core 第4.8節、第7.10節。attachmentFileName は「新しく発行する」の送付添付名。個別発行は処理中に重ねない。 */
+  public static IssueResult issueEstimateDocument(
+    Id contractHistoryId,
+    String templateKey,
+    String attachmentFileName
+  ) {
+    ContractDocumentTemplateService.TemplateDefinition template = resolveIssueTemplate(
+      templateKey
+    );
+    try {
+      if (
+        ContractDocumentSettingService.requireSendMode('Estimate') ==
+        ContractDocumentSettingService.MODE_UNUSED
+      ) {
+        throw new EstimateDocumentException(
+          '見積書設定が使わないのため、発行も送付もできません。'
+        );
+      }
+      ContractDocumentSettingService.assertRequiredCompanyFields();
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      throw new EstimateDocumentException(ex.getMessage());
+    }
+    lockHistoryForDocumentIssue(contractHistoryId);
     DocumentContext context = loadContext(contractHistoryId);
     Date issueDate = ensureIssueDate(context.history);
     context.history.EstimateIssueDate__c = issueDate;
     context.issueDateLabel = formatDisplayDate(issueDate);
 
-    String fileName = buildFileName(context.history, issueDate);
-    Blob pdfBody = generatePdfBlob(contractHistoryId);
+    String fileName = String.isNotBlank(attachmentFileName)
+      ? attachmentFileName.trim()
+      : buildFileName(context.history, issueDate, template);
+    Blob pdfBody = generatePdfBlob(contractHistoryId, template);
     Id contentVersionId = savePdfToRecord(contractHistoryId, fileName, pdfBody);
 
     IssueResult result = new IssueResult();
     result.contentVersionId = contentVersionId;
+    result.contentDocumentId = [
+      SELECT ContentDocumentId
+      FROM ContentVersion
+      WHERE Id = :contentVersionId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ]
+    .ContentDocumentId;
     result.fileName = fileName;
     result.issueDate = issueDate;
+    result.templateKey = template.templateKey;
+    result.visualforcePage = template.visualforcePage;
+    if (ContractOperationLogService.suppressIssueLog != true) {
+      ContractOperationLogService.write(
+        'EstimatePdfIssue',
+        null,
+        'ContractHistory__c',
+        String.valueOf(contractHistoryId)
+      );
+    }
     return result;
   }
 
+  /** 仕様: Core 第7.10節。個別発行・送付は開始時に行ロックし、同時の後着を失敗させる。 */
+  private static void lockHistoryForDocumentIssue(Id contractHistoryId) {
+    if (contractHistoryId == null) {
+      throw new EstimateDocumentException('契約履歴が指定されていません。');
+    }
+    List<ContractHistory__c> locked = [
+      SELECT Id
+      FROM ContractHistory__c
+      WHERE Id = :contractHistoryId
+      WITH SYSTEM_MODE
+      FOR UPDATE
+    ];
+    if (locked.isEmpty()) {
+      throw new EstimateDocumentException('契約履歴が見つかりません。');
+    }
+  }
+
   /**
-   * 発行日は自動で本日をセットしない。未設定なら null のまま返す（ユーザーが明示的に入力するまで確定させない）。
+   * 仕様: Core 第4.10節。発行日は自動で本日をセットしない。未設定なら null のまま返す。
    */
   public static Date ensureIssueDate(ContractHistory__c history) {
     if (history == null || history.Id == null) {
@@ -234,14 +348,47 @@ public without sharing class EstimateDocumentService {
     return history.EstimateIssueDate__c;
   }
 
+  /** 仕様: Core 第11.3.2節、日付仕様 第8章 */
   public static String buildFileName(
     ContractHistory__c history,
     Date issueDate
   ) {
     String title = resolveDocumentTitle(history);
     String sanitizedTitle = sanitizeFileName(title);
-    Date targetIssueDate = issueDate == null ? Date.today() : issueDate;
+    Date targetIssueDate = issueDate == null
+      ? InvoiceTransactionStatusService.organizationToday()
+      : issueDate;
     return sanitizedTitle + '_' + formatFileDate(targetIssueDate) + '.pdf';
+  }
+
+  /** 仕様: Core 第11.3.2節、日付仕様 第8章 */
+  public static String buildFileName(
+    ContractHistory__c history,
+    Date issueDate,
+    ContractDocumentTemplateService.TemplateDefinition template
+  ) {
+    if (template == null) {
+      return buildFileName(history, issueDate);
+    }
+    String pattern = String.isBlank(template.fileNamePattern)
+      ? '{TemplateKey}_{Title}_{yyyyMMdd}.pdf'
+      : template.fileNamePattern;
+    Date targetIssueDate = issueDate == null
+      ? InvoiceTransactionStatusService.organizationToday()
+      : issueDate;
+    String rendered = pattern
+      .replace('{TemplateKey}', sanitizeFileName(template.templateKey))
+      .replace('{Title}', sanitizeFileName(resolveDocumentTitle(history)))
+      .replace(
+        '{DocumentType}',
+        sanitizeFileName(template.documentType)
+      )
+      .replace('{yyyyMMdd}', formatCompactFileDate(targetIssueDate));
+    rendered = sanitizeFileName(rendered);
+    if (!rendered.toLowerCase().endsWith('.pdf')) {
+      rendered += '.pdf';
+    }
+    return rendered;
   }
 
   public static Id savePdfToRecord(Id recordId, String fileName, Blob pdfBody) {
@@ -264,7 +411,8 @@ public without sharing class EstimateDocumentService {
     ContentVersion contentVersion = new ContentVersion(
       Title = title,
       PathOnClient = normalizedFileName,
-      VersionData = pdfBody
+      VersionData = pdfBody,
+      ContractDocumentIssued__c = true
     );
     SystemContextAccess.insertRecords(new List<SObject>{ contentVersion });
 
@@ -287,16 +435,188 @@ public without sharing class EstimateDocumentService {
     return contentVersion.Id;
   }
 
+  public class FileOptionDto {
+    @AuraEnabled
+    public String value;
+    @AuraEnabled
+    public String label;
+    @AuraEnabled
+    public String fileName;
+    @AuraEnabled
+    public Boolean issued;
+  }
+
+  public static final String ATTACHMENT_NEW = 'NEW';
+
+  /** 仕様: Core 第7.10節。候補は最新の発行1つと「新しく発行する」だけ。印は画面に出さない。 */
+  public static List<FileOptionDto> listLinkedFiles(Id linkedEntityId) {
+    List<FileOptionDto> options = new List<FileOptionDto>();
+    FileOptionDto createNew = new FileOptionDto();
+    createNew.value = ATTACHMENT_NEW;
+    createNew.label = '新しく発行する';
+    createNew.fileName = null;
+    createNew.issued = false;
+    options.add(createNew);
+    ContentVersion latest = latestIssuedVersion(linkedEntityId);
+    if (latest == null) {
+      return options;
+    }
+    FileOptionDto option = new FileOptionDto();
+    option.value = String.valueOf(latest.ContentDocumentId);
+    option.issued = true;
+    option.fileName = linkedFileName(latest);
+    option.label = option.fileName;
+    options.add(option);
+    return options;
+  }
+
+  /** 仕様: Core 第7.10節。古い発行は候補に出さない・送れない。 */
+  public static Id latestIssuedContentDocumentId(Id linkedEntityId) {
+    ContentVersion latest = latestIssuedVersion(linkedEntityId);
+    return latest == null ? null : latest.ContentDocumentId;
+  }
+
+  private static ContentVersion latestIssuedVersion(Id linkedEntityId) {
+    if (linkedEntityId == null) {
+      return null;
+    }
+    List<ContentDocumentLink> links = [
+      SELECT ContentDocumentId
+      FROM ContentDocumentLink
+      WHERE LinkedEntityId = :linkedEntityId
+      WITH SYSTEM_MODE
+    ];
+    Set<Id> documentIds = new Set<Id>();
+    for (ContentDocumentLink link : links) {
+      if (link.ContentDocumentId != null) {
+        documentIds.add(link.ContentDocumentId);
+      }
+    }
+    if (documentIds.isEmpty()) {
+      return null;
+    }
+    List<ContentVersion> versions = [
+      SELECT
+        ContentDocumentId,
+        Title,
+        FileExtension,
+        PathOnClient,
+        ContractDocumentIssued__c
+      FROM ContentVersion
+      WHERE
+        ContentDocumentId IN :documentIds
+        AND IsLatest = true
+        AND ContractDocumentIssued__c = true
+      WITH SYSTEM_MODE
+      ORDER BY CreatedDate DESC, Id DESC
+      LIMIT 1
+    ];
+    return versions.isEmpty() ? null : versions[0];
+  }
+
+  /** 仕様: Core 第7.10節。0件は新しく発行する、1件以上は最新の発行ファイル。 */
+  public static String initialAttachmentId(
+    List<FileOptionDto> options,
+    String preferredDocumentId
+  ) {
+    if (preferredDocumentId == ATTACHMENT_NEW) {
+      return ATTACHMENT_NEW;
+    }
+    List<FileOptionDto> files = new List<FileOptionDto>();
+    if (options != null) {
+      for (FileOptionDto option : options) {
+        if (option != null && option.value != ATTACHMENT_NEW) {
+          files.add(option);
+          if (
+            String.isNotBlank(preferredDocumentId) &&
+            option.value == preferredDocumentId
+          ) {
+            return option.value;
+          }
+        }
+      }
+    }
+    if (files.isEmpty()) {
+      return ATTACHMENT_NEW;
+    }
+    return files[0].value;
+  }
+
+  public static String fileNameForAttachment(
+    List<FileOptionDto> options,
+    String attachmentId,
+    String newIssueFileName
+  ) {
+    if (attachmentId == ATTACHMENT_NEW || String.isBlank(attachmentId)) {
+      return newIssueFileName;
+    }
+    if (options != null) {
+      for (FileOptionDto option : options) {
+        if (option != null && option.value == attachmentId) {
+          return option.fileName;
+        }
+      }
+    }
+    return newIssueFileName;
+  }
+
+  /** 仕様: Core 第7.10節。既存ファイルの添付名初期値は Files の Title（拡張子付き）。 */
+  private static String linkedFileName(ContentVersion version) {
+    if (version == null) {
+      return '';
+    }
+    String title = String.isBlank(version.Title) ? '' : version.Title;
+    String extension = String.isBlank(version.FileExtension)
+      ? ''
+      : version.FileExtension;
+    if (String.isNotBlank(title) && String.isNotBlank(extension)) {
+      String suffix = '.' + extension;
+      return title.toLowerCase().endsWith(suffix.toLowerCase())
+        ? title
+        : title + suffix;
+    }
+    if (String.isNotBlank(title)) {
+      return title;
+    }
+    if (String.isNotBlank(version.PathOnClient)) {
+      return version.PathOnClient;
+    }
+    return 'file';
+  }
+
   public static Blob generatePdfBlob(Id contractHistoryId) {
+    ContractDocumentTemplateService.TemplateDefinition template = resolveIssueTemplate(
+      null
+    );
+    return generatePdfBlob(contractHistoryId, template);
+  }
+
+  public static Blob generatePdfBlob(
+    Id contractHistoryId,
+    String templateKey
+  ) {
+    ContractDocumentTemplateService.TemplateDefinition template = resolveIssueTemplate(
+      templateKey
+    );
+    return generatePdfBlob(contractHistoryId, template);
+  }
+
+  private static Blob generatePdfBlob(
+    Id contractHistoryId,
+    ContractDocumentTemplateService.TemplateDefinition template
+  ) {
     if (Test.isRunningTest()) {
       return Blob.valueOf('%PDF-1.4 test');
     }
 
-    PageReference pdfPage = Page.EstimateDocumentPdf;
-    pdfPage.getParameters().put('id', contractHistoryId);
+    PageReference pdfPage = ContractDocumentTemplateService.buildPageReference(
+      template,
+      contractHistoryId
+    );
     return pdfPage.getContentAsPDF();
   }
 
+  /** 仕様: Core 第4.8節、第11.9節。数量・単価は OrgDefault。HALF_UP 直書きしない。 */
   private static List<LineDto> loadLines(
     Id contractHistoryId,
     String historyType
@@ -331,18 +651,20 @@ public without sharing class EstimateDocumentService {
     List<LineDto> lines = new List<LineDto>();
     for (ContractProduct__c product : products) {
       LineDto line = new LineDto();
-      line.billingType = String.isNotBlank(product.BillingType__c)
-        ? product.BillingType__c
-        : product.Product__r == null ? '' : product.Product__r.BillingType__c;
+      line.billingType = ContractMetadataService.resolveLineBillingType(product);
       line.productName = product.Product__r == null
         ? ''
         : product.Product__r.Name;
       line.quantity = product.Quantity__c == null
         ? 0
-        : product.Quantity__c.setScale(2, RoundingMode.HALF_UP);
+        : AmountCalculationSettingService.roundQuantityUnitPrice(
+            product.Quantity__c
+          );
       line.unitPrice = product.UnitPrice__c == null
         ? 0
-        : product.UnitPrice__c.setScale(2, RoundingMode.HALF_UP);
+        : AmountCalculationSettingService.roundQuantityUnitPrice(
+            product.UnitPrice__c
+          );
       line.amount = resolveLineAmount(product, line.billingType);
       line.invoiceSetting = ContractMetadataService.normalizeInvoiceSettingLabel(
         product.InvoiceSetting__c
@@ -442,12 +764,13 @@ public without sharing class EstimateDocumentService {
     return '';
   }
 
+  /** 仕様: Core 第0.1節 */
   private static String resolveHistoryTypeLabel(String historyType) {
     if (historyType == 'New') {
       return '新規';
     }
     if (historyType == 'Change') {
-      return '変更';
+      return '追加変更';
     }
     if (historyType == 'Renew') {
       return '更新';
@@ -458,9 +781,10 @@ public without sharing class EstimateDocumentService {
     return historyType;
   }
 
+  /** 仕様: Core 第0.1節 */
   private static String resolveProductTypeLabel(String productType) {
     if (productType == 'New') {
-      return '新規';
+      return '追加';
     }
     if (productType == 'Renew') {
       return '更新';
@@ -512,11 +836,22 @@ public without sharing class EstimateDocumentService {
   }
 
   public static String formatFileDate(Date value) {
-    Date targetDate = value == null ? Date.today() : value;
+    Date targetDate = value == null
+      ? InvoiceTransactionStatusService.organizationToday()
+      : value;
     return String.valueOf(targetDate.year()) +
       '_' +
       String.valueOf(targetDate.month()).leftPad(2, '0') +
       '_' +
+      String.valueOf(targetDate.day()).leftPad(2, '0');
+  }
+
+  private static String formatCompactFileDate(Date value) {
+    Date targetDate = value == null
+      ? InvoiceTransactionStatusService.organizationToday()
+      : value;
+    return String.valueOf(targetDate.year()) +
+      String.valueOf(targetDate.month()).leftPad(2, '0') +
       String.valueOf(targetDate.day()).leftPad(2, '0');
   }
 
@@ -533,11 +868,11 @@ public without sharing class EstimateDocumentService {
   /**
    * カテゴリ別グループを組み立て、税込を付与する。
    * 税の正はウィザード／請求ヘッダと同じく「PDF 掲載明細の税抜合計 × 税率を1回切り捨て」。
-   * グループ／カテゴリ税込は、その総額税を税抜比で按分した表示（最後のグループで端数吸収）。
+   * グループ／カテゴリ税込は金額計算設定の帳票グループ税込に従う。
    */
   @TestVisible
   private static void buildGroupedPdfContext(DocumentContext context) {
-    context.estimateSetting = loadEstimateSetting(context.history);
+    context.documentText = buildEstimateDocumentText(context.history);
     context.estimateNumber = generateEstimateNumber(context.history);
     buildDisplayValues(context);
 
@@ -555,12 +890,11 @@ public without sharing class EstimateDocumentService {
       context.history.Id,
       context.history.Type__c
     );
+    Map<Id, String> categoryByProductId = loadProductCategories(products);
 
     for (ContractProduct__c product : products) {
       GroupedLineDto item = toGroupedLine(product);
-      String category = product.Product__r == null
-        ? null
-        : product.Product__r.Field1__c;
+      String category = categoryByProductId.get(product.Product__c);
       String groupingName = resolveGroupingProductName(product);
 
       if (category == '研修（エンパワー）') {
@@ -627,14 +961,16 @@ public without sharing class EstimateDocumentService {
   }
 
   /**
-   * 総額税をグループ税抜比で按分。最後のグループで端数を吸収し、
-   * グループ税込の合計＝御見積金額になるようにする。
+   * 総額税を帳票グループ税込設定で按分する。
+   * 仕様: Core 第4.8節・第11.9節。税抜比。非最終は0方向切捨て。最後のグループで端数を吸収する。
    */
+  @TestVisible
   private static void allocateGrandTaxToGroups(
     List<GroupDto> groups,
     Decimal grandExcl,
     Decimal grandTax
   ) {
+    AmountCalculationSettingService.requireOrgDefault();
     if (groups == null || groups.isEmpty()) {
       return;
     }
@@ -667,7 +1003,7 @@ public without sharing class EstimateDocumentService {
         groupTax = (taxTotal *
           groupExcl /
           exclTotal)
-          .setScale(0, RoundingMode.HALF_UP);
+          .setScale(0, RoundingMode.DOWN);
         remainingTax -= groupTax;
       }
       groupDto.taxAmount = groupTax;
@@ -684,7 +1020,6 @@ public without sharing class EstimateDocumentService {
         Id,
         Product__c,
         Product__r.Name,
-        Product__r.Field1__c,
         Product__r.UnitName__c,
         Product__r.BillingType__c,
         Description__c,
@@ -709,10 +1044,42 @@ public without sharing class EstimateDocumentService {
     );
   }
 
+  private static Map<Id, String> loadProductCategories(
+    List<ContractProduct__c> products
+  ) {
+    Map<Id, String> categoryByProductId = new Map<Id, String>();
+    if (
+      products == null ||
+      products.isEmpty() ||
+      !Schema.SObjectType.Product2.fields.getMap().containsKey('Field1__c')
+    ) {
+      return categoryByProductId;
+    }
+    Set<Id> productIds = new Set<Id>();
+    for (ContractProduct__c product : products) {
+      if (product.Product__c != null) {
+        productIds.add(product.Product__c);
+      }
+    }
+    if (productIds.isEmpty()) {
+      return categoryByProductId;
+    }
+    for (
+      SObject product : Database.query(
+        'SELECT Id, Field1__c FROM Product2 WHERE Id IN :productIds WITH SYSTEM_MODE'
+      )
+    ) {
+      categoryByProductId.put(
+        (Id) product.get('Id'),
+        (String) product.get('Field1__c')
+      );
+    }
+    return categoryByProductId;
+  }
+
+  /** 仕様: Core 第4.8節、第11.9節。数量は OrgDefault。HALF_UP 直書きしない。 */
   private static GroupedLineDto toGroupedLine(ContractProduct__c product) {
-    String billingType = String.isNotBlank(product.BillingType__c)
-      ? product.BillingType__c
-      : product.Product__r == null ? '' : product.Product__r.BillingType__c;
+    String billingType = ContractMetadataService.resolveLineBillingType(product);
 
     GroupedLineDto item = new GroupedLineDto();
     item.breakdown = String.isNotBlank(product.Description__c)
@@ -726,7 +1093,9 @@ public without sharing class EstimateDocumentService {
         );
     item.quantity = product.Quantity__c == null
       ? 0
-      : product.Quantity__c.setScale(2, RoundingMode.HALF_UP);
+      : AmountCalculationSettingService.roundQuantityUnitPrice(
+          product.Quantity__c
+        );
     item.amount = resolveLineAmount(product, billingType);
     item.period = buildPeriodLabel(product.StartDate__c, product.Enddate__c);
     return item;
@@ -769,138 +1138,125 @@ public without sharing class EstimateDocumentService {
     }
   }
 
-  private static EstimateSetting__c loadEstimateSetting(
-    ContractHistory__c history
-  ) {
-    if (history == null || history.Opportunity__c == null) {
-      return buildFallbackEstimateSetting(history);
-    }
-
-    List<EstimateSetting__c> settings = [
-      SELECT
-        Id,
-        Opportunity__c,
-        ToCompanyName__c,
-        EstimateTitle__c,
-        OtherFeeLavel__c,
-        Tax__c,
-        TermFeeStartDate__c,
-        TermFeeStartDateSencence__c,
-        EstimateDateLabel__c,
-        EstimateDateSentence__c,
-        OwnerLabel__c,
-        OwnerName__c,
-        PostalNumber__c,
-        AdressFirstHalf__c,
-        AddressLastHalf__c,
-        CompanyName__c,
-        TELLabel__c,
-        TELValue__c,
-        FAXLabel__c,
-        FAXSentence__c,
-        PaymentTerm__c,
-        PaymentTermSentence__c,
-        TermDueDate__c,
-        EstimateDueDateSentence__c,
-        BasicTermPeriodLabel__c,
-        BasicTermPeriod__c,
-        EstimateSumLabel__c,
-        UnitLabel__c,
-        UnitSentence__c,
-        HonorificTitle__c,
-        DigitalLicenceFeeLabel__c,
-        ConsultingFeeLabel__c,
-        FeedbackCoacingFeeLabel__c,
-        NoteSentenceLabel__c,
-        NoteSencente__c,
-        EstimateNumberLabel__c,
-        EstimateSentence__c
-      FROM EstimateSetting__c
-      WHERE Opportunity__c = :history.Opportunity__c
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (settings.isEmpty()) {
-      return buildFallbackEstimateSetting(history);
-    }
-    return settings[0];
-  }
-
   @TestVisible
-  private static EstimateSetting__c buildFallbackEstimateSetting(
+  private static EstimateDocumentTextDto buildEstimateDocumentText(
     ContractHistory__c history
   ) {
-    EstimateSetting__c fallback = new EstimateSetting__c();
-    fallback.EstimateTitle__c = resolveDocumentTitle(history);
-    fallback.ToCompanyName__c = resolveAddresseeName(history);
-    fallback.CompanyName__c = COMPANY_NAME;
-    fallback.PostalNumber__c = COMPANY_POSTAL_CODE;
-    fallback.AdressFirstHalf__c = COMPANY_ADDRESS_LINE1;
-    fallback.AddressLastHalf__c = COMPANY_ADDRESS_LINE2;
-    fallback.HonorificTitle__c = '御中';
-    fallback.EstimateSentence__c = '下記の通り、お見積り申し上げます。';
-    fallback.BasicTermPeriodLabel__c = '基本契約期間';
-    fallback.BasicTermPeriod__c = buildTermLabel(
+    EstimateDocumentTextDto text = new EstimateDocumentTextDto();
+    ContractDocumentSetting__c orgSetting = loadDocumentOrgSetting();
+    text.estimateTitle = resolveDocumentTitle(history);
+    text.toCompanyName = resolveAddresseeName(history);
+    text.companyName = orgDocumentText(orgSetting.CompanyName__c);
+    text.postalNumber = '';
+    text.addressFirstHalf = orgDocumentText(orgSetting.Address__c);
+    text.addressLastHalf = '';
+    text.honorificTitle = '御中';
+    text.estimateSentence = '下記の通り、お見積り申し上げます。';
+    text.basicTermPeriodLabel = '基本契約期間';
+    text.basicTermPeriod = buildTermLabel(
       history == null ? null : history.CurrentTermStartDate__c,
       history == null ? null : history.CurrentTermEndDate__c
     );
-    fallback.PaymentTerm__c = '支払条件';
-    fallback.PaymentTermSentence__c = '';
-    fallback.TermFeeStartDate__c = '取引料金開始日';
-    fallback.TermDueDate__c = '見積有効期限';
-    fallback.EstimateDueDateSentence__c = history == null
+    text.paymentTermLabel = '支払条件';
+    text.paymentTermSentence = '';
+    text.termFeeStartDateLabel = '取引料金開始日';
+    text.termDueDateLabel = '見積有効期限';
+    text.estimateDueDateSentence = history == null
       ? ''
       : formatDisplayDate(history.EstimateValidDate__c);
-    fallback.EstimateSumLabel__c = '御見積金額';
-    fallback.UnitSentence__c = '円';
-    fallback.DigitalLicenceFeeLabel__c = 'デジタルライセンス料';
-    fallback.ConsultingFeeLabel__c = 'コンサルティング料';
-    fallback.FeedbackCoacingFeeLabel__c = 'フィードバックコーチング料';
-    fallback.OtherFeeLavel__c = 'その他';
-    fallback.NoteSentenceLabel__c = '特記事項';
-    fallback.NoteSencente__c = resolveFallbackNoteText(history);
-    fallback.OwnerLabel__c = '担当：';
+    text.estimateSumLabel = '御見積金額';
+    text.unitSentence = '円';
+    text.digitalLicenceFeeLabel = 'デジタルライセンス料';
+    text.consultingFeeLabel = 'コンサルティング料';
+    text.feedbackCoachingFeeLabel = 'フィードバックコーチング料';
+    text.otherFeeLabel = 'その他';
+    text.noteSentenceLabel = '特記事項';
+    // 仕様: Core 第4.10節、第4.8節、第1.1.10節。備考空はマスタ本文で埋めない。
+    text.noteSentence = resolveFallbackNoteText(history);
+    text.ownerLabel = '担当：';
+    // 仕様: Core 第11.3.1節・第4.8節。帳票フッターとプライバシーポリシーURLは空でなければ出す。定数で埋めない。
+    text.documentFooter = orgDocumentText(orgSetting.DocumentFooter__c);
+    text.privacyPolicyUrl = orgDocumentText(orgSetting.PrivacyPolicyUrl__c);
     if (
       history != null &&
       history.ContractService__r != null &&
       history.ContractService__r.TaxPercent__c != null
     ) {
-      fallback.Tax__c = TaxCalculationUtil.fromPercentFieldStorage(
+      text.tax = TaxCalculationUtil.fromPercentFieldStorage(
         history.ContractService__r.TaxPercent__c
       );
     }
-    return fallback;
+    return text;
   }
 
+  /** 仕様: Core 第11.3.2節。キー空なら組織の既定。カタログ先頭では埋めない。 */
+  private static ContractDocumentTemplateService.TemplateDefinition resolveIssueTemplate(
+    String templateKey
+  ) {
+    String resolvedKey = templateKey;
+    if (String.isBlank(resolvedKey)) {
+      try {
+        resolvedKey = ContractDocumentSettingService.requireOrgSetting()
+          .EstimateDefaultDocumentTemplateKey__c;
+      } catch (ContractDocumentSettingService.SettingException ex) {
+        throw new EstimateDocumentException(ex.getMessage());
+      }
+    }
+    try {
+      return ContractDocumentTemplateService.resolveTemplate(
+        ContractDocumentTemplateService.TYPE_ESTIMATE,
+        resolvedKey
+      );
+    } catch (ContractDocumentTemplateService.DocumentTemplateException ex) {
+      throw new EstimateDocumentException(ex.getMessage());
+    }
+  }
+
+  /** 仕様: Core 第4.8節、第1.1.10節。会社名・住所は発行時点の組織設定。空欄は定数で埋めない。 */
+  private static String orgDocumentText(String value) {
+    return String.isBlank(value) ? '' : value;
+  }
+
+  private static ContractDocumentSetting__c loadDocumentOrgSetting() {
+    List<ContractDocumentSetting__c> settings = [
+      SELECT
+        CompanyName__c,
+        Address__c,
+        InvoiceRegistrationNumber__c,
+        BankTransferInfo__c,
+        DocumentFooter__c,
+        PrivacyPolicyUrl__c
+      FROM ContractDocumentSetting__c
+      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    return settings.isEmpty()
+      ? new ContractDocumentSetting__c()
+      : settings[0];
+  }
+
+  /** 仕様: Core 第4.10節、第4.8節、第1.1.10節。備考空はマスタ本文で埋めない。 */
   private static String resolveFallbackNoteText(ContractHistory__c history) {
-    if (history == null) {
+    if (history == null || String.isBlank(history.Note__c)) {
       return '';
     }
-    if (String.isNotBlank(history.Note__c)) {
-      return history.Note__c;
-    }
-    if (
-      history.EstimateNoteMaster__r != null &&
-      String.isNotBlank(history.EstimateNoteMaster__r.NoteText__c)
-    ) {
-      return history.EstimateNoteMaster__r.NoteText__c;
-    }
-    return '';
+    return history.Note__c;
   }
 
   @TestVisible
   private static void buildDisplayValues(DocumentContext context) {
     ContractHistory__c history = context.history;
-    EstimateSetting__c setting = context.estimateSetting;
+    EstimateDocumentTextDto setting = context.documentText;
 
-    if (setting != null && String.isNotBlank(setting.ToCompanyName__c)) {
-      context.toCompanyNameDisplay = setting.ToCompanyName__c;
+    if (setting != null && String.isNotBlank(setting.toCompanyName)) {
+      context.toCompanyNameDisplay = setting.toCompanyName;
     } else {
       context.toCompanyNameDisplay = resolveAddresseeName(history);
     }
 
-    if (setting != null && String.isNotBlank(setting.OwnerName__c)) {
-      context.ownerNameDisplay = setting.OwnerName__c;
+    if (setting != null && String.isNotBlank(setting.ownerName)) {
+      context.ownerNameDisplay = setting.ownerName;
     } else if (
       history != null &&
       history.Opportunity__r != null &&
@@ -912,23 +1268,27 @@ public without sharing class EstimateDocumentService {
       context.ownerNameDisplay = '';
     }
 
-    if (setting != null && String.isNotBlank(setting.EstimateDateSentence__c)) {
-      context.estimateDateDisplay = setting.EstimateDateSentence__c;
+    if (setting != null && String.isNotBlank(setting.estimateDateSentence)) {
+      context.estimateDateDisplay = setting.estimateDateSentence;
     } else {
-      Date estimateDate = history == null
-        ? Date.today()
-        : history.EstimateIssueDate__c != null
-            ? history.EstimateIssueDate__c
-            : history.EstimateDate__c != null
-                ? history.EstimateDate__c
-                : Date.today();
-      context.estimateDateDisplay = formatEstimateDateWithWeekday(estimateDate);
+      // 仕様: Core 第4.8節。見積日・発行日は保存値だけ。両方空なら日付行は空。今日で埋めない。
+      Date estimateDate = null;
+      if (history != null) {
+        if (history.EstimateIssueDate__c != null) {
+          estimateDate = history.EstimateIssueDate__c;
+        } else if (history.EstimateDate__c != null) {
+          estimateDate = history.EstimateDate__c;
+        }
+      }
+      context.estimateDateDisplay = estimateDate == null
+        ? ''
+        : formatEstimateDateWithWeekday(estimateDate);
     }
 
     if (
-      setting != null && String.isNotBlank(setting.TermFeeStartDateSencence__c)
+      setting != null && String.isNotBlank(setting.termFeeStartDateSentence)
     ) {
-      context.termFeeStartDateDisplay = setting.TermFeeStartDateSencence__c;
+      context.termFeeStartDateDisplay = setting.termFeeStartDateSentence;
     } else {
       Date earliest = getEarliestProductStartDate(
         history == null ? null : history.Id

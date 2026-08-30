@@ -6,13 +6,14 @@ import {
 } from "lightning/uiRecordApi";
 import OPP_NAME_FIELD from "@salesforce/schema/Opportunity.Name";
 import ACCOUNT_NAME_FIELD from "@salesforce/schema/Opportunity.Account.Name";
+import OPP_CONTACT_ID_FIELD from "@salesforce/schema/Opportunity.ContactId";
 
 const ENTRY_NEW = "new";
 const ENTRY_CONTINUATION = "continuation";
 
 /**
  * Step1 入口: 商談メタ + 新規 / 続きの2択カード。
- * 操作（Change/Renew/Cancel/Add）は契約サービス選択後に modal2 側で選ぶ。
+ * 操作（Change/Renew/Cancel）は契約サービス選択後に modal2 側で選ぶ。
  */
 export default class EstimateCreateModal1 extends LightningElement {
   @api recordId;
@@ -81,7 +82,7 @@ export default class EstimateCreateModal1 extends LightningElement {
 
   @wire(getRecord, {
     recordId: "$recordId",
-    fields: [OPP_NAME_FIELD, ACCOUNT_NAME_FIELD]
+    fields: [OPP_NAME_FIELD, ACCOUNT_NAME_FIELD, OPP_CONTACT_ID_FIELD]
   })
   wiredOpportunity({ data }) {
     if (!data) {
@@ -89,12 +90,14 @@ export default class EstimateCreateModal1 extends LightningElement {
     }
     const opportunityName = getFieldValue(data, OPP_NAME_FIELD) || "";
     const accountName = getFieldValue(data, ACCOUNT_NAME_FIELD) || "";
-    if (!opportunityName && !accountName) {
+    const opportunityContactId =
+      getFieldValue(data, OPP_CONTACT_ID_FIELD) || "";
+    if (!opportunityName && !accountName && !opportunityContactId) {
       return;
     }
     this.dispatchEvent(
       new CustomEvent("opportunityloaded", {
-        detail: { opportunityName, accountName }
+        detail: { opportunityName, accountName, opportunityContactId }
       })
     );
   }

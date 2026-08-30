@@ -25,7 +25,6 @@ describe("serializeBusinessProduct", () => {
       productVisibilityContext: { Family: "SaaS" },
       invoiceTypeOptions: [{ label: "月次前受", value: "月次前受" }],
       isInvoiceTypeDisabled: false,
-      canCopyDatesFromAbove: true,
       gridRowClass: "est-line",
       tableRowClass: "est-table-row",
       rowIndex: 3,

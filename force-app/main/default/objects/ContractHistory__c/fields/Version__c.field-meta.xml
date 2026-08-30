@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Version__c</fullName>
     <externalId>false</externalId>
-    <label>Version</label>
+    <label>版</label>
     <precision>2</precision>
     <required>false</required>
     <scale>0</scale>

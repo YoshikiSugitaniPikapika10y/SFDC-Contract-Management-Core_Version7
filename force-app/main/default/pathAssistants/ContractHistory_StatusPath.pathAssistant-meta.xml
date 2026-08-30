@@ -12,17 +12,17 @@
     </pathAssistantSteps>
     <pathAssistantSteps>
         <info
-    >受注が完了しています。次は「請求プレビュー」で請求内容を確認してください。</info>
+    >受注が完了しています。次は「請求ボード」で請求内容を確認してください。解約の受注はここで完了です。</info>
         <picklistValueName>Ordered</picklistValueName>
     </pathAssistantSteps>
     <pathAssistantSteps>
         <info
-    >請求はありますが、まだ全部は請求済になっていません。対応が終わった請求から請求済にしてください。</info>
+    >請求対応中です。未確定の請求を確定してください。社外への請求書送付は別作業です。</info>
         <picklistValueName>Invoicing</picklistValueName>
     </pathAssistantSteps>
     <pathAssistantSteps>
         <info
-    >すべての請求が請求済です。入金を確認できたら、各請求に消込完了日を入れてください。</info>
+    >入金待ちです。回収・返金が完了していない請求があります。社外への請求書送付は別作業です。</info>
         <picklistValueName>Invoiced</picklistValueName>
     </pathAssistantSteps>
     <pathAssistantSteps>

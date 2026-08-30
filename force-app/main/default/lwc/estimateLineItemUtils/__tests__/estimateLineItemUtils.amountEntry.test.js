@@ -17,12 +17,22 @@ import {
   roundUnitPrice,
   roundQuantity,
   roundAmountYen,
+  setAmountCalculationRoundingModes,
+  QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
+  AMOUNT_ROUNDING_SCALE0_HALF_UP,
   BILLING_TYPE_RECURRING,
   BILLING_TYPE_ONE_TIME,
   PRODUCT_TYPE_REMAKE,
   PRODUCT_TYPE_ORIGINAL,
   PRODUCT_TYPE_NEW
 } from "c/estimateLineItemUtils";
+
+beforeEach(() => {
+  setAmountCalculationRoundingModes({
+    quantityUnitPriceRoundingMode: QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
+    amountRoundingMode: AMOUNT_ROUNDING_SCALE0_HALF_UP
+  });
+});
 
 describe("resolveChangePairAmountsFromSource", () => {
   it("keeps positive charge as Original negative / Remake positive", () => {
@@ -353,13 +363,17 @@ describe("resolveInvoicePreviewRoundingDiff", () => {
   });
 
   it("shows Change Remake gaps when lineage has a billing event", () => {
-    // 内容差は invoiceType で作り、単価ギャップ（33.33）は残す
-    const gapRemake = {
+    // 途中開始 Remake で系統に課金イベントを立て、端数ギャップ行は据え置き金額のまま（BUG-095）
+    const midStartRemake = {
       ...remakeRow,
-      invoiceType: "月次分割"
+      startDate: "2026-05-01",
+      unitPrice: 1000
     };
-    const productsWithGap = [originalRow, gapRemake];
-    expect(lineageHasChangeBillingEvent(originalRow, [gapRemake])).toBe(true);
+    const gapRemake = { ...remakeRow };
+    const productsWithGap = [originalRow, midStartRemake, gapRemake];
+    expect(
+      lineageHasChangeBillingEvent(originalRow, [midStartRemake, gapRemake])
+    ).toBe(true);
     expect(
       resolveInvoicePreviewRoundingDiff(gapRemake, productsWithGap, {
         isChange: true
@@ -369,6 +383,21 @@ describe("resolveInvoicePreviewRoundingDiff", () => {
       billingTotal: 396,
       delta: -4
     });
+  });
+
+  it("does not treat invoiceType-only Remake as a Change billing event (BUG-095)", () => {
+    const invoiceOnlyRemake = {
+      ...remakeRow,
+      invoiceType: "月次分割"
+    };
+    expect(
+      lineageHasChangeBillingEvent(originalRow, [invoiceOnlyRemake])
+    ).toBe(false);
+    expect(
+      resolveInvoicePreviewRoundingDiff(invoiceOnlyRemake, [originalRow, invoiceOnlyRemake], {
+        isChange: true
+      })
+    ).toBeNull();
   });
 
   it("keeps non-Change behavior (any line gap is alerted)", () => {

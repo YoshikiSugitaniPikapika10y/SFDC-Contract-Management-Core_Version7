@@ -1,0 +1,162 @@
+<template>
+  <lightning-quick-action-panel header="見積を送る">
+    <template if:true={isLoading}>
+      <lightning-spinner
+        alternative-text="見積の送付情報を読み込んでいます"
+        size="small"
+      ></lightning-spinner>
+    </template>
+
+    <template if:true={estimate}>
+      <div class="slds-p-horizontal_small">
+        <p class="slds-text-heading_small">{estimate.historyName}</p>
+        <template if:true={estimate.title}>
+          <p class="slds-text-body_small">{estimate.title}</p>
+        </template>
+
+        <div class="slds-grid slds-gutters slds-wrap slds-m-top_medium">
+          <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+            <template if:true={showDocumentTemplatePicker}>
+              <lightning-combobox
+                label="帳票テンプレート"
+                value={documentTemplateKey}
+                options={documentTemplateOptions}
+                required
+                disabled={isSending}
+                onchange={handleDocumentTemplateChange}
+              ></lightning-combobox>
+            </template>
+          </div>
+          <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+            <lightning-combobox
+              label="メールテンプレート"
+              value={emailTemplateApiName}
+              options={emailTemplateOptions}
+              required
+              disabled={isSending}
+              onchange={handleEmailTemplateChange}
+            ></lightning-combobox>
+          </div>
+        </div>
+
+        <lightning-combobox
+          class="slds-m-top_small"
+          name="fromChoice"
+          label="From"
+          value={fromChoice}
+          options={fromChoiceOptions}
+          disabled={isSending}
+          onchange={handleFromChoiceChange}
+        ></lightning-combobox>
+        <p class="slds-text-body_small slds-m-top_xx-small">{fromLabel}</p>
+        <lightning-combobox
+          class="slds-m-top_small"
+          name="attachmentId"
+          label="添付"
+          value={attachmentId}
+          options={attachmentOptions}
+          required
+          disabled={isSending}
+          onchange={handleAttachmentChange}
+        ></lightning-combobox>
+        <template if:true={showExistingFilePreview}>
+          <p class="slds-m-top_xx-small">
+            <a href={existingFilePreviewUrl} target="_blank">標準 Files でプレビュー</a>
+          </p>
+        </template>
+        <lightning-input
+          name="toAddresses"
+          label="To"
+          value={toAddresses}
+          required
+          read-only
+        ></lightning-input>
+        <lightning-input
+          name="ccAddresses"
+          label="Cc"
+          value={ccAddresses}
+          maxlength="255"
+          disabled={isSending}
+          onchange={handleDraftChange}
+        ></lightning-input>
+        <lightning-input
+          name="bccAddresses"
+          label="Bcc"
+          value={bccAddresses}
+          maxlength="255"
+          disabled={isSending}
+          onchange={handleDraftChange}
+        ></lightning-input>
+        <lightning-input
+          name="subject"
+          label="件名"
+          value={subject}
+          disabled={isSending}
+          onchange={handleDraftChange}
+        ></lightning-input>
+        <lightning-textarea
+          name="body"
+          label="本文"
+          value={body}
+          disabled={isSending}
+          onchange={handleDraftChange}
+        ></lightning-textarea>
+        <lightning-input
+          name="fileName"
+          label="添付ファイル名"
+          value={fileName}
+          disabled={isSending}
+          onchange={handleDraftChange}
+        ></lightning-input>
+
+        <template if:true={isResend}>
+          <div
+            class="slds-notify slds-notify_alert slds-alert_warning slds-m-top_medium"
+            role="status"
+          >
+            <span>この見積は送付済みです。実行すると再送されます。</span>
+          </div>
+        </template>
+        <div
+          class="slds-notify slds-notify_alert slds-alert_offline slds-m-top_medium"
+          role="note"
+        >
+          <span>{sendFailureRetryNote}</span>
+        </div>
+
+        <template if:true={hasUnavailableMessage}>
+          <div
+            class="slds-notify slds-notify_alert slds-alert_warning slds-m-top_medium"
+            role="alert"
+          >
+            <span>{unavailableMessage}</span>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <template if:true={errorMessage}>
+      <div
+        class="slds-notify slds-notify_alert slds-alert_error slds-m-horizontal_small"
+        role="alert"
+      >
+        <span>{errorMessage}</span>
+      </div>
+    </template>
+
+    <div slot="footer">
+      <lightning-button
+        label="キャンセル"
+        disabled={isSending}
+        onclick={handleCancel}
+      ></lightning-button>
+      <lightning-button
+        class="slds-m-left_x-small"
+        variant="brand"
+        label={sendButtonLabel}
+        disabled={sendDisabled}
+        onclick={handleSend}
+      ></lightning-button>
+    </div>
+  </lightning-quick-action-panel>
+</template>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TagKey__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>仕様: Accounting 第7章。組織内一意。</description>
+    <externalId>false</externalId>
+    <label>タグキー</label>
+    <length>80</length>
+    <required>true</required>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

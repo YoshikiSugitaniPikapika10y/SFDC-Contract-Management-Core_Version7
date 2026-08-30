@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InvoicePaymentNet__c</fullName>
+    <description>仕様: Core 第7.11節、第8.1節</description>
+    <inlineHelpText>Purpose=請求金額の有効な入出金合計。</inlineHelpText>
+    <label>請求金額Net</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Currency</type>
+</CustomField>

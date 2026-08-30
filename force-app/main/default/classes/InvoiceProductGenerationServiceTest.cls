@@ -1,14 +1,19 @@
 @IsTest
 private class InvoiceProductGenerationServiceTest {
+  @TestSetup
+  static void setupAccountingPolicy() {
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
+  }
+
   private static ContractService__c insertServiceWithBillingAccount(
     String name,
     Account account
   ) {
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = account.Id,
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_1,
-      BillingAddressee__c = 'テスト宛名',
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 1, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      BillingAddressee__c = '?E?????',
       BillingEmailTo__c = 'to@example.com'
     );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -83,13 +88,13 @@ private class InvoiceProductGenerationServiceTest {
         String message = dmlMessage(ex);
         System.assert(
           message.startsWith(
-            '契約サービスの取引先と商談の取引先が一致しません'
+            '??E?????????E??E??E?E???E???????'
           ),
           message
         );
       }
       Test.stopTest();
-      System.assertEquals(true, thrown, '取引先不一致でエラーになること');
+      System.assertEquals(true, thrown, '???E????????????');
       System.assertEquals(
         'Estimate',
         [
@@ -98,7 +103,7 @@ private class InvoiceProductGenerationServiceTest {
           WHERE Id = :history.Id
         ]
         .historystatus__c,
-        '拒否時は Estimate のまま'
+        '????E Estimate ???'
       );
       System.assertEquals(
         0,
@@ -107,7 +112,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :history.Id
         ],
-        'エラー時は請求商品が作成されないこと'
+        '?????E???????E????E???'
       );
     }
   }
@@ -170,7 +175,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :history.Id
         ] > 0,
-        '取引先一致時は請求商品が作成されること'
+        '???E????E???????E?????'
       );
     }
   }
@@ -184,7 +189,7 @@ private class InvoiceProductGenerationServiceTest {
       update data.history;
       Test.stopTest();
       List<InvoiceProduct__c> invoiceProducts = [
-        SELECT StartDate__c, Enddate__c, Amount__c, TaxPercent__c, TaxAmount__c
+        SELECT StartDate__c, Enddate__c, Amount__c
         FROM InvoiceProduct__c
         WHERE ContractHistory__c = :data.history.Id
         ORDER BY StartDate__c ASC
@@ -199,31 +204,18 @@ private class InvoiceProductGenerationServiceTest {
         invoiceProducts[0].Enddate__c
       );
       System.assertEquals(8000, invoiceProducts[0].Amount__c);
-      System.assertEquals(
-        10,
-        TaxCalculationUtil.resolveTaxPercent(
-          TaxCalculationUtil.fromPercentFieldStorage(
-            invoiceProducts[0].TaxPercent__c
-          )
-        )
-      );
-      System.assertEquals(
-        null,
-        invoiceProducts[0].TaxAmount__c,
-        '請求商品行に税額は持たない'
-      );
       List<Invoice__c> invoices = [
         SELECT InvoiceDate__c
         FROM Invoice__c
         WHERE ContractHistory__c = :data.history.Id
         ORDER BY InvoiceDate__c ASC
       ];
-      System.assert(!invoices.isEmpty(), '請求ヘッダが作成されること');
+      System.assert(!invoices.isEmpty(), '???E?E?????E?????');
       for (Invoice__c invoice : invoices) {
         System.assertEquals(
           Date.newInstance(2026, 6, 1),
           invoice.InvoiceDate__c,
-          '前請求は月次分割しても請求日は期間開始日で統一'
+          '????E???E?????????????????'
         );
       }
       System.assertEquals(
@@ -243,7 +235,7 @@ private class InvoiceProductGenerationServiceTest {
             WHERE ContractHistory__c = :data.history.Id
           ][0]
           .get('totalAmount'),
-        '請求正本の税抜合計も期間明細合計と一致'
+        '???????????????????'
       );
     }
   }
@@ -260,25 +252,24 @@ private class InvoiceProductGenerationServiceTest {
       update data.history;
       Test.stopTest();
       InvoiceProduct__c invoiceProduct = [
-        SELECT Amount__c, TaxPercent__c, TaxAmount__c
+        SELECT Amount__c
         FROM InvoiceProduct__c
         WHERE ContractHistory__c = :data.history.Id
         ORDER BY StartDate__c ASC
         LIMIT 1
       ];
       System.assertEquals(8000, invoiceProduct.Amount__c);
+      Invoice__c invoice = [
+        SELECT TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :data.history.Id
+        LIMIT 1
+      ];
       System.assertEquals(
         8,
         TaxCalculationUtil.resolveTaxPercent(
-          TaxCalculationUtil.fromPercentFieldStorage(
-            invoiceProduct.TaxPercent__c
-          )
+          TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
         )
-      );
-      System.assertEquals(
-        null,
-        invoiceProduct.TaxAmount__c,
-        '請求商品行に税額は持たない'
       );
     }
   }
@@ -307,7 +298,7 @@ private class InvoiceProductGenerationServiceTest {
   static void estimateToOrdered_copiesQuantityUnitPriceAndUnit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createHistoryWithProducts(false);
-      data.recurringProduct.Unit__c = 'ID/月';
+      data.recurringProduct.Unit__c = 'ID/?E;
       update data.recurringProduct;
       Test.startTest();
       data.history.historystatus__c = 'Ordered';
@@ -326,7 +317,7 @@ private class InvoiceProductGenerationServiceTest {
       ];
       System.assertEquals(1, invoiceProduct.ContractProduct__r.Quantity__c);
       System.assertEquals(8000, invoiceProduct.ContractProduct__r.UnitPrice__c);
-      System.assertEquals('ID/月', invoiceProduct.Unit__c);
+      System.assertEquals('ID/?E, invoiceProduct.Unit__c);
       System.assertEquals(8000, invoiceProduct.Amount__c);
     }
   }
@@ -334,7 +325,7 @@ private class InvoiceProductGenerationServiceTest {
   static void estimateToOrdered_createsSeparateLinesForDifferentUnit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createHistoryWithProducts(false);
-      data.recurringProduct.Unit__c = 'ID/月';
+      data.recurringProduct.Unit__c = 'ID/?E;
       update data.recurringProduct;
       insert new ContractProduct__c(
         ContractHistory__c = data.history.Id,
@@ -342,7 +333,7 @@ private class InvoiceProductGenerationServiceTest {
         Quantity__c = 1,
         UnitPrice__c = 8000,
         Amount__c = 1,
-        Unit__c = '式/月',
+        Unit__c = '?E?E,
         StartDate__c = data.recurringProduct.StartDate__c,
         Enddate__c = data.recurringProduct.Enddate__c,
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -362,9 +353,9 @@ private class InvoiceProductGenerationServiceTest {
         ORDER BY Unit__c ASC
       ];
       System.assertEquals(2, juneLines.size());
-      System.assertEquals('ID/月', juneLines[0].Unit__c);
+      System.assertEquals('ID/?E, juneLines[0].Unit__c);
       System.assertEquals(8000, juneLines[0].Amount__c);
-      System.assertEquals('式/月', juneLines[1].Unit__c);
+      System.assertEquals('?E?E, juneLines[1].Unit__c);
       System.assertEquals(8000, juneLines[1].Amount__c);
     }
   }
@@ -467,8 +458,8 @@ private class InvoiceProductGenerationServiceTest {
       ];
       System.assertEquals(12, monthlyPeriodLines.size());
       System.assertEquals(3000, monthlyPeriodLines[0].Amount__c);
-      // 一括前払行と請求日が重なる月は同一 Invoice に集約されうるため、
-      // 月次商品の InvoiceLine 件数で請求回数を検証する
+      // ????????????????? Invoice ??E??E????????E
+      // ???E??? InvoiceLine ????????????
       List<InvoiceLine__c> monthlyLines = [
         SELECT Invoice__r.InvoiceDate__c, Amount__c
         FROM InvoiceLine__c
@@ -485,7 +476,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         Date.newInstance(2026, 7, 1),
         monthlyLines[1].Invoice__r.InvoiceDate__c,
-        '月次請求は各月の開始日が請求日'
+        '?????E?E??????????'
       );
       System.assertEquals(
         24,
@@ -505,9 +496,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_5,
-        BillingAddressee__c = 'テスト宛名',
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -585,7 +576,7 @@ private class InvoiceProductGenerationServiceTest {
   static void estimateToOrdered_usesAfterBillingInvoiceDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createHistoryWithProducts(false);
-      data.recurringProduct.InvoiceSetting__c = '一括後払';
+      data.recurringProduct.InvoiceSetting__c = '????';
       update data.recurringProduct;
       Test.startTest();
       data.history.historystatus__c = 'Ordered';
@@ -803,9 +794,11 @@ private class InvoiceProductGenerationServiceTest {
       ];
       System.assert(
         !lockedInvoices.isEmpty(),
-        '再生成拒否テスト用の請求があること'
+        '??????E????????????'
       );
       for (Invoice__c invoice : lockedInvoices) {
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+        CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
         invoice.PaymentClearingCompletedDate__c = Date.today();
       }
       update lockedInvoices;
@@ -828,7 +821,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         true,
         thrown,
-        'ロック済み請求がある場合は再生成を拒否する'
+        '??E????????????E????????'
       );
       InvoiceProduct__c preservedProduct = [
         SELECT Amount__c
@@ -858,9 +851,9 @@ private class InvoiceProductGenerationServiceTest {
       ];
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = service.Account__c,
-        PaymentTerm__c = '翌月15日',
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        BillingAddressee__c = 'テスト宛名',
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY, PaymentTermDayOfMonth__c = 15, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -896,9 +889,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        BillingAddressee__c = 'テスト宛名',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -965,9 +958,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_5,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        BillingAddressee__c = 'テスト宛名',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -1027,12 +1020,12 @@ private class InvoiceProductGenerationServiceTest {
         WHERE ContractHistory__c = :history.Id
         ORDER BY InvoiceDate__c ASC
       ];
-      System.assert(!invoices.isEmpty(), '請求ヘッダが作成されること');
+      System.assert(!invoices.isEmpty(), '???E?E?????E?????');
       for (Invoice__c invoice : invoices) {
         System.assertEquals(
           Date.newInstance(2026, 6, 5),
           invoice.InvoiceDate__c,
-          '一括前払も請求アカウントの請求日ルールを請求日に反映する'
+          '?????????????E???????????????'
         );
       }
     }
@@ -1046,12 +1039,13 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        PaymentTerm__c = '翌月15日',
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        BillingAddressee__c = '株式会社スナップショット 御中',
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY, PaymentTermDayOfMonth__c = 15, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '???????????E?? ??',
         BillingEmailTo__c = 'billing-to@example.com',
         BillingEmailCc__c = 'billing-cc@example.com',
-        BillingEmailBcc__c = 'billing-bcc@example.com'
+        BillingEmailBcc__c = 'billing-bcc@example.com',
+        InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
@@ -1110,23 +1104,42 @@ private class InvoiceProductGenerationServiceTest {
       Invoice__c invoice = [
         SELECT
           BillingAccountSnapShot__c,
-          PaymentTermSnapShot__c,
-          BillingDayOfMonthSnapShot__c,
+          BillingAccountKeySnapShot__c,
+          PaymentTermMethodSnapShot__c,
+          InvoiceDateDayOfMonthSnapShot__c,
           BillingAddresseeSnapShot__c,
           BillingEmailToSnapShot__c,
           BillingEmailCcSnapShot__c,
-          BillingEmailBccSnapShot__c
+          BillingEmailBccSnapShot__c,
+          InvoiceDeliveryMethodSnapShot__c
         FROM Invoice__c
         WHERE ContractHistory__c = :history.Id
         ORDER BY InvoiceDate__c ASC
         LIMIT 1
       ];
-      // BillingAccount__c → Invoice__c（ハードコード SnapShot）
+      BillingAccount__c keyedAccount = [
+        SELECT BillingAccountKey__c
+        FROM BillingAccount__c
+        WHERE Id = :billingAccount.Id
+      ];
+      // BillingAccount__c ?EInvoice__c?E???????ESnapShot?E?E
       System.assertEquals(billingAccount.Id, invoice.BillingAccountSnapShot__c);
-      System.assertEquals('翌月15日', invoice.PaymentTermSnapShot__c);
-      System.assertEquals('25', invoice.BillingDayOfMonthSnapShot__c);
       System.assertEquals(
-        '株式会社スナップショット 御中',
+        keyedAccount.BillingAccountKey__c,
+        invoice.BillingAccountKeySnapShot__c
+      );
+      System.assertEquals(
+        BillingScheduleService.METHOD_MONTH_OFFSET,
+        invoice.PaymentTermMethodSnapShot__c,
+        'Core 第7.5節: 生成時に支払条件の計算方式をスナップショットする'
+      );
+      System.assertEquals(
+        25,
+        invoice.InvoiceDateDayOfMonthSnapShot__c,
+        'Core 第7.2節: 生成時に請求日ルールの指定日をスナップショットする'
+      );
+      System.assertEquals(
+        '???????????E?? ??',
         invoice.BillingAddresseeSnapShot__c
       );
       System.assertEquals(
@@ -1141,7 +1154,12 @@ private class InvoiceProductGenerationServiceTest {
         'billing-bcc@example.com',
         invoice.BillingEmailBccSnapShot__c
       );
-      // ContractProduct__c → 期間明細コア
+      System.assertEquals(
+        InvoiceDeliveryMethodService.EMAIL,
+        invoice.InvoiceDeliveryMethodSnapShot__c,
+        'Core 第3.3.7節: 受注生成で届け方をスナップショットする'
+      );
+      // ContractProduct__c ?E??????
       System.assertEquals(1, invoiceProduct.Quantity__c);
       System.assertEquals(8000, invoiceProduct.UnitPrice__c);
       System.assertEquals(
@@ -1160,9 +1178,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
-        BillingAddressee__c = 'テスト宛名',
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -1207,15 +1225,16 @@ private class InvoiceProductGenerationServiceTest {
       update history;
       Test.stopTest();
       Invoice__c invoice = [
-        SELECT BillingDayOfMonthSnapShot__c
+        SELECT InvoiceDateDayOfMonthSnapShot__c
         FROM Invoice__c
         WHERE ContractHistory__c = :history.Id
         ORDER BY InvoiceDate__c ASC
         LIMIT 1
       ];
       System.assertEquals(
-        ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
-        invoice.BillingDayOfMonthSnapShot__c
+        null,
+        invoice.InvoiceDateDayOfMonthSnapShot__c,
+        'Core 第7.2節: SameDayでは指定日を空にする'
       );
     }
   }
@@ -1332,7 +1351,7 @@ private class InvoiceProductGenerationServiceTest {
       InvoiceProductGenerationService.generateForHistories(
         new Set<Id>{ priorHistory.Id }
       );
-      // 期間明細ロック廃止。Change 生成は V2 側のため prior ロック不要。
+      // ??????E???E???Ehange ??E? V2 ???? prior ??E?????E
       ContractHistory__c changeHistory = new ContractHistory__c(
         Name = 'Change Invoice History',
         ContractService__c = service.Id,
@@ -1410,7 +1429,7 @@ private class InvoiceProductGenerationServiceTest {
         WHERE ContractHistory__c = :changeHistory.Id
         ORDER BY StartDate__c ASC, Amount__c ASC
       ];
-      System.assertEquals(16, changeInvoices.size(), '±2行×8ヶ月');
+      System.assertEquals(16, changeInvoices.size(), '?2??E??E);
       System.assertEquals(-8000, changeInvoices[0].Amount__c);
       System.assertEquals(1, changeInvoices[0].Quantity__c);
       System.assertEquals(8000, changeInvoices[0].UnitPrice__c);
@@ -1432,7 +1451,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         effectiveDate,
         changeInvoiceHeader.InvoiceDate__c,
-        'Change初回請求期間は有効日を請求日にする'
+        'Change???????E??????????'
       );
       System.assertEquals(
         64000,
@@ -1496,7 +1515,7 @@ private class InvoiceProductGenerationServiceTest {
         FROM Invoice__c
         WHERE ContractHistory__c = :priorHistory.Id
       ];
-      System.assert(!priorInvoices.isEmpty(), 'prior 請求があること');
+      System.assert(!priorInvoices.isEmpty(), 'prior ???????');
       for (Invoice__c invoice : priorInvoices) {
         invoice.SystemIntegrationDate__c = Date.today();
       }
@@ -1574,7 +1593,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :changeHistory.Id
         ] > 0,
-        'prior 請求ロックでも Change 側の期間明細は生成される'
+        'prior ????E????EChange ?????????E???E
       );
       System.assertEquals(
         priorInvoices.size(),
@@ -1585,7 +1604,7 @@ private class InvoiceProductGenerationServiceTest {
             ContractHistory__c = :priorHistory.Id
             AND SystemIntegrationDate__c != NULL
         ],
-        'prior ロック請求は残る'
+        'prior ??E?????E??'
       );
     }
   }
@@ -1706,7 +1725,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         1,
         addonInvoices.size(),
-        'Changeの一回課金追加商品に請求商品が1件生成される'
+        'Change????????E????????1???E???E
       );
       System.assertEquals(50000, addonInvoices[0].Amount__c);
       System.assertEquals(addonStart, addonInvoices[0].StartDate__c);
@@ -1726,7 +1745,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         0,
         recurringNet,
-        '継続課金に変更がない Change では継続課金の差分合計は0'
+        '??????????EChange ???????E??E????E0'
       );
     }
   }
@@ -1743,7 +1762,7 @@ private class InvoiceProductGenerationServiceTest {
       );
       Date termStart = Date.newInstance(2025, 7, 1);
       Date termEnd = Date.newInstance(2026, 6, 30);
-      // 一回課金 New 追加のみ → 期中有効日可。継続課金 Remake は内容同一の据え置き。
+      // ????ENew ???? ?E???????????ERemake ??E??????????E
       Date addonStart = Date.newInstance(2025, 8, 29);
       Date addonEnd = Date.newInstance(2025, 9, 29);
       Date effectiveDate = addonStart;
@@ -1850,7 +1869,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         0,
         changeRecurring.size(),
-        '据え置き継続課金は期中有効日でも period key 偽差分を出さない'
+        '?????????E???????Eperiod key ???E??????E
       );
 
       List<InvoiceProduct__c> addonInvoices = [
@@ -1871,7 +1890,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         1200000,
         (Decimal) changeTotal.get('total'),
-        'Change 受注の請求商品合計は一回課金追加分のみ'
+        'Change ??????????E???????E?E?'
       );
     }
   }
@@ -1885,7 +1904,7 @@ private class InvoiceProductGenerationServiceTest {
         anchor,
         Date.newInstance(2025, 9, 1)
       ),
-      '境界上はその日'
+      '?E????E??E?'
     );
     System.assertEquals(
       Date.newInstance(2025, 9, 1),
@@ -1893,7 +1912,7 @@ private class InvoiceProductGenerationServiceTest {
         anchor,
         Date.newInstance(2025, 8, 29)
       ),
-      '期中は次の明細開始日起点境界'
+      '?????????????E??'
     );
     System.assertEquals(
       anchor,
@@ -1901,7 +1920,7 @@ private class InvoiceProductGenerationServiceTest {
         anchor,
         Date.newInstance(2025, 6, 15)
       ),
-      'アンカー前はアンカーへ'
+      '??????E?????'
     );
   }
 
@@ -1981,7 +2000,7 @@ private class InvoiceProductGenerationServiceTest {
       } catch (Exception ex) {
         thrown = true;
         System.assertEquals(
-          '前回Versionの期間終了日と一致する継続課金商品がないためChangeできません。',
+          '?????E????E????????????????E?????????????E,
           dmlMessage(ex)
         );
       }
@@ -1989,7 +2008,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         true,
         thrown,
-        '継続課金のない Change は請求生成前に拒否される'
+        '?????E??EChange ????????????E
       );
       System.assertEquals(
         'Estimate',
@@ -2022,7 +2041,7 @@ private class InvoiceProductGenerationServiceTest {
       );
       Date termStart = Date.newInstance(2026, 6, 1);
       Date termEnd = Date.newInstance(2027, 5, 31);
-      // 単価変更が期首からなので有効日も期首（受注前検証を通す）
+      // ????????????????????????????E?E
       Date effectiveDate = termStart;
       ContractHistory__c priorHistory = new ContractHistory__c(
         Name = 'Change Reversal FailClosed Prior',
@@ -2069,7 +2088,7 @@ private class InvoiceProductGenerationServiceTest {
         PreviousHistory__c = priorHistory.Id
       );
       insert changeHistory;
-      // Data Loader 改変相当: Original 単価を past と不一致にして紐付け不能にする
+      // Data Loader ????E Original ???Epast ????????????E???
       insert new ContractProduct__c(
         ContractHistory__c = changeHistory.Id,
         Product__c = product.Id,
@@ -2111,14 +2130,14 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         true,
         thrown,
-        '打消し紐付け失敗時は受注を Fail closed で止める（黙殺してプラスだけ残さない）'
+        '?????????????EFail closed ?????E??????????????E??E
       );
       System.assert(
         message != null &&
         message.startsWith(
-          'Change の打消し行を Original に紐づけられませんでした。'
+          'Change ?????? Original ?????????????E
         ),
-        'Fail closed メッセージ: ' + message
+        'Fail closed ??E????: ' + message
       );
       System.assertEquals(
         'Estimate',
@@ -2136,7 +2155,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :changeHistory.Id
         ],
-        'Fail closed 時は請求期間明細を残さない'
+        'Fail closed ??E?????E??????E
       );
     }
   }
@@ -2220,7 +2239,7 @@ private class InvoiceProductGenerationServiceTest {
       } catch (Exception ex) {
         thrown = true;
         System.assertEquals(
-          '前回Versionの継続課金商品すべてにOriginal行が必要です。',
+          '?????E??????????????E???E?????E,
           dmlMessage(ex)
         );
       }
@@ -2228,7 +2247,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         true,
         thrown,
-        'Original なしの Change は請求生成前に拒否される'
+        'Original ???E Change ????????????E
       );
       System.assertEquals(
         'Estimate',
@@ -2309,29 +2328,29 @@ private class InvoiceProductGenerationServiceTest {
     System.assertEquals(
       true,
       InvoiceProductGenerationService.isPreferredPastSample(positive, negative),
-      '正金額は打消しより優先'
+      '????E???????E
     );
     System.assertEquals(
       true,
       InvoiceProductGenerationService.isPreferredPastSample(positive, zero),
-      '正金額は0より優先'
+      '????E0????E
     );
     System.assertEquals(
       false,
       InvoiceProductGenerationService.isPreferredPastSample(negative, positive),
-      '打消しは正金額を上書きしない'
+      '??????????????E
     );
     System.assertEquals(
       false,
       InvoiceProductGenerationService.isPreferredPastSample(positive, positive),
-      '同符号は先勝ち（既存維持）'
+      '????????E?????E??E
     );
   }
 
   /**
-   * Change→Change の単価改定2回。V2 打消しが CreatedDate 上で先でも、
-   * 正金額サンプル優先により V3 受注が fail-closed しないこと。
-   * V1/V2 は Ordered 直 insert（空 generate）＋期間明細手積みで SOQL を抑える。
+   * Change?Change ?????E??V2 ????ECreatedDate ??????E
+   * ???????????? V3 ???Efail-closed ???E????E
+   * V1/V2 ? Ordered ? insert?E?? generate?E?????E????? SOQL ?????E
    */
   @IsTest
   static void changeChange_priceRevisionTwice_ordersSuccessfully() {
@@ -2390,11 +2409,10 @@ private class InvoiceProductGenerationServiceTest {
         InvoiceBucketKey__c = v1Bucket,
         Quantity__c = 1,
         UnitPrice__c = 8000,
-        Amount__c = 8000,
-        invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        Amount__c = 8000
       );
 
-      // past シード専用。Type=New の空 generate を使い、Change 受注経路の二重実行を避ける
+      // past ??????Type=New ?? generate ???E??Change ?????????????
       ContractHistory__c v2 = new ContractHistory__c(
         Name = 'Change Change Price V2',
         ContractService__c = service.Id,
@@ -2448,8 +2466,7 @@ private class InvoiceProductGenerationServiceTest {
         InvoiceBucketKey__c = v2Bucket,
         Quantity__c = 1,
         UnitPrice__c = 8000,
-        Amount__c = -8000,
-        invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        Amount__c = -8000
       );
       InvoiceProduct__c v2Charge = new InvoiceProduct__c(
         ContractHistory__c = v2.Id,
@@ -2459,8 +2476,7 @@ private class InvoiceProductGenerationServiceTest {
         InvoiceBucketKey__c = v2Bucket,
         Quantity__c = 1,
         UnitPrice__c = 9000,
-        Amount__c = 9000,
-        invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        Amount__c = 9000
       );
       insert new List<InvoiceProduct__c>{ v2Reversal, v2Charge };
       Test.setCreatedDate(
@@ -2484,34 +2500,36 @@ private class InvoiceProductGenerationServiceTest {
         PreviousHistory__c = v2.Id
       );
       insert v3;
-      insert new ContractProduct__c(
-        ContractHistory__c = v3.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 9000,
-        Amount__c = -1,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'Original',
-        PreviousContractProduct__c = v2Remake.Id
-      );
-      insert new ContractProduct__c(
-        ContractHistory__c = v3.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 10000,
-        Amount__c = 1,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'Remake',
-        PreviousContractProduct__c = v2Remake.Id
-      );
-
       Test.startTest();
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = v3.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 9000,
+          Amount__c = -1,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = v2Remake.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = v3.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = 1,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = v2Remake.Id
+        )
+      };
+
       v3.historystatus__c = 'Ordered';
       update v3;
       Test.stopTest();
@@ -2520,7 +2538,7 @@ private class InvoiceProductGenerationServiceTest {
         'Ordered',
         [SELECT historystatus__c FROM ContractHistory__c WHERE Id = :v3.Id]
         .historystatus__c,
-        'V3 受注がサンプル揺れで失敗しないこと'
+        'V3 ???????????????E???'
       );
       assertReversalInvoiceProductsUseOriginalContractProduct(v3.Id);
       Decimal v3Net = (Decimal) [
@@ -2529,8 +2547,8 @@ private class InvoiceProductGenerationServiceTest {
           WHERE ContractHistory__c = :v3.Id
         ][0]
         .get('totalAmount');
-      // 1ヶ月 × (10000 - 9000) = 1000
-      System.assertEquals(1000, v3Net, 'V3 ネットは差分のみ');
+      // 1??E?E(10000 - 9000) = 1000
+      System.assertEquals(1000, v3Net, 'V3 ????E??E?E?');
       for (InvoiceProduct__c reversal : [
         SELECT Amount__c, UnitPrice__c, ContractProduct__r.UnitPrice__c
         FROM InvoiceProduct__c
@@ -2539,7 +2557,7 @@ private class InvoiceProductGenerationServiceTest {
         System.assertEquals(
           9000,
           reversal.ContractProduct__r.UnitPrice__c,
-          '打消しは V2 条件（9000）の Original に紐づく'
+          '???? V2 ???E?E000?E??E Original ????E
         );
       }
     }
@@ -2553,7 +2571,7 @@ private class InvoiceProductGenerationServiceTest {
         FROM InvoiceProduct__c
         WHERE ContractHistory__c = :contractHistoryId AND Amount__c < 0
       ],
-      '反転行は生成されない'
+      '????E??E????E
     );
   }
   private static void assertReversalInvoiceProductsUseOriginalContractProduct(
@@ -2567,7 +2585,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         'Original',
         invoiceProduct.ContractProduct__r.Type__c,
-        '反転行は Original 契約商品に紐づく'
+        '????E Original ??E???????E
       );
     }
   }
@@ -2656,10 +2674,10 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         12,
         renewInvoices.size(),
-        'Renew は更新期間の継続課金12行のみ生成'
+        'Renew ??????????E2??E???E'
       );
       for (InvoiceProduct__c invoiceProduct : renewInvoices) {
-        System.assert(invoiceProduct.Amount__c > 0, 'Renew に反転行なし');
+        System.assert(invoiceProduct.Amount__c > 0, 'Renew ??????E);
         System.assertNotEquals(null, invoiceProduct.Quantity__c);
         System.assertNotEquals(null, invoiceProduct.UnitPrice__c);
         System.assertEquals(8000, invoiceProduct.Amount__c);
@@ -2674,9 +2692,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_15,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        BillingAddressee__c = 'テスト宛名',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 15, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -2789,12 +2807,12 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         Date.newInstance(2026, 10, 15),
         changeInvoices[0].InvoiceDate__c,
-        'Change初回も請求アカウントの毎月指定日'
+        'Change???????????E???E???'
       );
       System.assertEquals(
         Date.newInstance(2026, 11, 15),
         changeInvoices[1].InvoiceDate__c,
-        '2ヶ月目以降も請求アカウントの毎月指定日'
+        '2??????????????E???E???'
       );
     }
   }
@@ -2806,9 +2824,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_5,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        BillingAddressee__c = 'テスト宛名',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -2832,7 +2850,7 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Change Prepaid Effective Anchor Prior',
         ContractService__c = service.Id,
         Type__c = 'New',
-        historystatus__c = 'Ordered',
+        historystatus__c = 'Estimate',
         Version__c = 1,
         CurrentTermStartDate__c = termStart,
         CurrentTermEndDate__c = termEnd,
@@ -2863,9 +2881,8 @@ private class InvoiceProductGenerationServiceTest {
         WHERE ContractHistory__c = :priorHistory.Id
         LIMIT 1
       ];
-      InvoiceProductGenerationService.generateForHistories(
-        new Set<Id>{ priorHistory.Id }
-      );
+      priorHistory.historystatus__c = 'Ordered';
+      update priorHistory;
       ContractHistory__c changeHistory = new ContractHistory__c(
         Name = 'Change Prepaid Effective Anchor History',
         ContractService__c = service.Id,
@@ -2878,59 +2895,61 @@ private class InvoiceProductGenerationServiceTest {
         PreviousHistory__c = priorHistory.Id
       );
       insert changeHistory;
-      insert new ContractProduct__c(
-        ContractHistory__c = changeHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = priorQuantity,
-        UnitPrice__c = priorUnitPrice,
-        Amount__c = -1,
-        StartDate__c = Date.newInstance(2027, 2, 1),
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'Original',
-        PreviousContractProduct__c = priorContractProduct.Id
-      );
-      insert new ContractProduct__c(
-        ContractHistory__c = changeHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = priorQuantity,
-        UnitPrice__c = priorUnitPrice,
-        Amount__c = 1,
-        StartDate__c = Date.newInstance(2027, 2, 1),
-        Enddate__c = effectiveDate.addDays(-1),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'Remake',
-        PreviousContractProduct__c = priorContractProduct.Id
-      );
-      insert new ContractProduct__c(
-        ContractHistory__c = changeHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = priorQuantity,
-        UnitPrice__c = 52000,
-        Amount__c = 1,
-        StartDate__c = effectiveDate,
-        Enddate__c = Date.newInstance(2027, 5, 31),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'Remake',
-        PreviousContractProduct__c = priorContractProduct.Id
-      );
-      insert new ContractProduct__c(
-        ContractHistory__c = changeHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = 3,
-        UnitPrice__c = 55000,
-        Amount__c = 1,
-        StartDate__c = laterRemakeStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'Remake',
-        PreviousContractProduct__c = priorContractProduct.Id
-      );
       Test.startTest();
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = priorQuantity,
+          UnitPrice__c = priorUnitPrice,
+          Amount__c = -1,
+          StartDate__c = Date.newInstance(2027, 2, 1),
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = priorContractProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = priorQuantity,
+          UnitPrice__c = priorUnitPrice,
+          Amount__c = 1,
+          StartDate__c = Date.newInstance(2027, 2, 1),
+          Enddate__c = effectiveDate.addDays(-1),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = priorContractProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = priorQuantity,
+          UnitPrice__c = 52000,
+          Amount__c = 1,
+          StartDate__c = effectiveDate,
+          Enddate__c = Date.newInstance(2027, 5, 31),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = priorContractProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 3,
+          UnitPrice__c = 55000,
+          Amount__c = 1,
+          StartDate__c = laterRemakeStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = priorContractProduct.Id
+        )
+      };
       changeHistory.historystatus__c = 'Ordered';
       update changeHistory;
       Test.stopTest();
@@ -2942,7 +2961,7 @@ private class InvoiceProductGenerationServiceTest {
           AND StartDate__c >= :effectiveDate
         ORDER BY StartDate__c ASC, Amount__c ASC
       ];
-      System.assertEquals(6, changeInvoices.size(), '4〜6月は ±2 行 × 3 ヶ月');
+      System.assertEquals(6, changeInvoices.size(), '4?E??E ?2 ?E?E3 ??E);
       Invoice__c changeInvoiceHeader = [
         SELECT InvoiceDate__c, PaymentScheduledDate__c
         FROM Invoice__c
@@ -2954,12 +2973,12 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         expectedInvoiceDate,
         changeInvoiceHeader.InvoiceDate__c,
-        'Change × 一括前払は有効日基準の請求日'
+        'Change ?E???????????E???'
       );
       System.assertEquals(
         expectedPaymentScheduledDate,
         changeInvoiceHeader.PaymentScheduledDate__c,
-        'Change × 一括前払は有効日基準の入金予定日'
+        'Change ?E???????????E?????'
       );
       InvoiceProduct__c juneCharge = null;
       for (InvoiceProduct__c changeInvoice : changeInvoices) {
@@ -2971,7 +2990,7 @@ private class InvoiceProductGenerationServiceTest {
           break;
         }
       }
-      System.assertNotEquals(null, juneCharge, '6月の請求行');
+      System.assertNotEquals(null, juneCharge, '6??E???E);
     }
   }
   @IsTest
@@ -2982,9 +3001,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_5,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        BillingAddressee__c = 'テスト宛名',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -3000,7 +3019,7 @@ private class InvoiceProductGenerationServiceTest {
       Date termEnd = Date.newInstance(2027, 5, 31);
       Date addonStart = Date.newInstance(2026, 10, 15);
       Date addonEnd = Date.newInstance(2026, 10, 31);
-      // 継続課金に内容差分がない場合、課金イベントは一回課金開始日のみ。
+      // ??????E????E????E???????????E??????????E
       Date effectiveDate = addonStart;
       Date expectedInvoiceDate = Date.newInstance(2026, 11, 5);
       Date expectedPaymentScheduledDate = Date.newInstance(2026, 12, 31);
@@ -3117,12 +3136,12 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         expectedInvoiceDate,
         addonHeader.InvoiceDate__c,
-        'Change × 一回 × 一括前払×Newは商品開始日基準'
+        'Change ?E??E?E?????New??E???????E
       );
       System.assertEquals(
         expectedPaymentScheduledDate,
         addonHeader.PaymentScheduledDate__c,
-        'Change × 一回 × 一括前払の入金予定日'
+        'Change ?E??E?E??????????'
       );
       Integer recurringChangeCount = [
         SELECT COUNT()
@@ -3134,7 +3153,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         0,
         recurringChangeCount,
-        '据え置き継続課金（一括前払）も期中有効日で偽差分を出さない'
+        '??????????????E???????????E??????E
       );
     }
   }
@@ -3146,9 +3165,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingAddressee__c = 'テスト宛名',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -3264,19 +3283,19 @@ private class InvoiceProductGenerationServiceTest {
       ];
       System.assert(
         !changePeriodLines.isEmpty(),
-        '期中停止（単価0フルカバー Remake）でも請求商品が作られる'
+        '?????E???0?????E Remake?E????????????'
       );
       List<Invoice__c> changeInvoices = [
         SELECT InvoiceDate__c
         FROM Invoice__c
         WHERE ContractHistory__c = :changeHistory.Id
       ];
-      System.assert(!changeInvoices.isEmpty(), '請求ヘッダが作成されること');
+      System.assert(!changeInvoices.isEmpty(), '???E?E?????E?????');
       for (Invoice__c changeInvoice : changeInvoices) {
         System.assertEquals(
           effectiveDate,
           changeInvoice.InvoiceDate__c,
-          'Starter相当: Change × 一括前払は商品開始日ではなく有効日が請求基準日'
+          'Starter??E Change ?E??????E??????????????????'
         );
       }
     }
@@ -3290,9 +3309,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingAddressee__c = 'テスト宛名',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        BillingAddressee__c = '?E?????',
         BillingEmailTo__c = 'to@example.com'
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
@@ -3388,14 +3407,14 @@ private class InvoiceProductGenerationServiceTest {
       Boolean thrown = false;
       String message = null;
       try {
-        // Estimate 直呼びは Ordered 不変条件で拒否されるため、受注経路でカバー検証する
+        // Estimate ???? Ordered ?????????????????????E????
         changeHistory.historystatus__c = 'Ordered';
         update changeHistory;
       } catch (Exception ex) {
         thrown = true;
         message = dmlMessage(ex);
       }
-      System.assertEquals(true, thrown, '隙間 Remake の Change は受注できない');
+      System.assertEquals(true, thrown, '?? Remake ? Change ???????E);
       System.assertEquals(
         EstimateValidationService.CHANGE_REMAKE_COVERAGE_MESSAGE,
         message
@@ -3416,7 +3435,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :changeHistory.Id
         ],
-        '拒否時は請求商品が作られない'
+        '????E??????????E
       );
     }
   }
@@ -3482,12 +3501,12 @@ private class InvoiceProductGenerationServiceTest {
       );
       insert new List<ContractProduct__c>{ priorFirst, priorSecond };
 
-      // ARR 再計算＋請求生成の SOQL を startTest 枠内へ寄せる
+      // ARR ?????????E SOQL ?EstartTest ??E???E???E
       Test.startTest();
       InvoiceProductGenerationService.generateForHistories(
         new Set<Id>{ priorHistory.Id }
       );
-      // 期間明細ロック廃止。Change 生成は V2 側のため prior ロック不要。
+      // ??????E???E???Ehange ??E? V2 ???? prior ??E?????E
 
       ContractHistory__c changeHistory = new ContractHistory__c(
         Name = 'Change Dual Lineage History',
@@ -3502,7 +3521,7 @@ private class InvoiceProductGenerationServiceTest {
       );
       insert changeHistory;
 
-      // 系統1: 4-9月。有効日7/1以降だけ数量2へ。系統2: 10-3月。変更なし。
+      // ??1: 4-9?????7/1??????E????2: 10-3???????E
       insert new List<ContractProduct__c>{
         new ContractProduct__c(
           ContractHistory__c = changeHistory.Id,
@@ -3582,28 +3601,28 @@ private class InvoiceProductGenerationServiceTest {
       ];
       Test.stopTest();
 
-      // 系統単位なら 7-9月のみ差分（取消+新規）×3ヶ月 = 6行。
-      // Product2 単位で潰すと有効日前の穴や誤差分が出る。
+      // ??????E7-9??E???E????E????E??E= 6??E
+      // Product2 ???????????E??E????E?????E
       System.assertEquals(
         6,
         changeInvoices.size(),
-        '同一商品でも系統別なら有効日以降3ヶ月の±のみ'
+        '???E??????????????E???E???'
       );
       for (InvoiceProduct__c changeInvoice : changeInvoices) {
         System.assert(
           changeInvoice.StartDate__c >= effectiveDate,
-          '差分請求は有効日以降のみ'
+          '??E????E??????E?'
         );
         System.assert(
           changeInvoice.Enddate__c <= firstEnd,
-          '系統1の期間内に収まる'
+          '??1????E?????E
         );
       }
       Decimal totalAmount = 0;
       for (InvoiceProduct__c changeInvoice : changeInvoices) {
         totalAmount += changeInvoice.Amount__c;
       }
-      System.assertEquals(30000, totalAmount, '数量1→2の差分 10000×3ヶ月');
+      System.assertEquals(30000, totalAmount, '??E?E???E10000?E??E);
     }
   }
 
@@ -3624,7 +3643,7 @@ private class InvoiceProductGenerationServiceTest {
       Date remake2End = Date.newInstance(2026, 8, 31);
       Date remake3Start = Date.newInstance(2026, 9, 1);
       Date termEnd = Date.newInstance(2027, 3, 31);
-      // Remake②の途中。As-Is では 6月が欠落して過剰 reversal になり得た。
+      // Remake?????Es-Is ?? 6???????? reversal ??????E
       Date effectiveDate = Date.newInstance(2026, 7, 1);
 
       ContractHistory__c priorHistory = new ContractHistory__c(
@@ -3663,7 +3682,7 @@ private class InvoiceProductGenerationServiceTest {
       InvoiceProductGenerationService.generateForHistories(
         new Set<Id>{ priorHistory.Id }
       );
-      // 期間明細ロック廃止。Change 生成は V2 側のため prior ロック不要。
+      // ??????E???E???Ehange ??E? V2 ???? prior ??E?????E
 
       ContractHistory__c changeHistory = new ContractHistory__c(
         Name = 'Change Multi Remake History',
@@ -3767,29 +3786,29 @@ private class InvoiceProductGenerationServiceTest {
       for (InvoiceProduct__c changeInvoice : changeInvoices) {
         System.assert(
           changeInvoice.StartDate__c >= effectiveDate,
-          '有効日前は Original=過去と一致するため差分行は出ない: ' +
+          '?????E Original=???????????E???E???E ' +
           String.valueOf(changeInvoice.StartDate__c)
         );
         System.assertNotEquals(
           null,
           changeInvoice.ContractProduct__c,
-          '請求明細は契約商品に紐づく必要がある'
+          '???E????E????????E?????'
         );
         if (changeInvoice.Amount__c != null && changeInvoice.Amount__c > 0) {
           System.assertEquals(
             'Remake',
             changeInvoice.ContractProduct__r.Type__c,
-            'プラス請求は Remake 契約商品へ帰属すること'
+            '??????E Remake ??E??????????'
           );
           System.assertEquals(
             2,
             changeInvoice.ContractProduct__r.Quantity__c,
-            'プラス請求の数量は該当 Remake と一致すること（最後のRemake勝ち禁止）'
+            '??????E???E??ERemake ????????E????ERemake?????E?E
           );
         }
       }
 
-      // 7月〜翌3月 = 9ヶ月 × 数量差分10000
+      // 7???E?E= 9??E?E????E0000
       Decimal totalAmount = 0;
       for (InvoiceProduct__c changeInvoice : changeInvoices) {
         totalAmount += changeInvoice.Amount__c == null
@@ -3799,13 +3818,13 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         90000,
         totalAmount,
-        '6月欠落による過剰 reversal がなく、7月以降9ヶ月分のみ'
+        '6???????? reversal ????E???E???E??'
       );
-      System.assertEquals(18, changeInvoices.size(), '±2行×9ヶ月');
+      System.assertEquals(18, changeInvoices.size(), '?2??E??E);
     }
   }
 
-  /** Trigger / Exception ラッパを剥がして業務メッセージ本体を返す */
+  /** Trigger / Exception ??E???????????E????????? */
   private static String dmlMessage(Exception ex) {
     if (ex == null) {
       return null;

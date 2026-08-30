@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EmailTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <available>true</available>
+    <description>仕様: Core 第11.3.2節。請求送付の同梱テキストClassic。関連は請求書。Contact差し込みは使わない。</description>
+    <encodingKey>UTF-8</encodingKey>
+    <name>標準請求メール</name>
+    <style>none</style>
+    <subject>請求書のご送付（{!Invoice__c.Name}）</subject>
+    <textOnly>true</textOnly>
+    <type>text</type>
+    <uiType>Aloha</uiType>
+</EmailTemplate>

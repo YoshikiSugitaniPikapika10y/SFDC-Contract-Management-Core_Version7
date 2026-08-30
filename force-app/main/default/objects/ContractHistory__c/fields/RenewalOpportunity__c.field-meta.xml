@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RenewalOpportunity__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>仕様: Core 第11.5節。テナント自動化が書いた更新商談。</description>
+    <label>更新商談</label>
+    <referenceTo>Opportunity</referenceTo>
+    <relationshipLabel>更新元契約履歴</relationshipLabel>
+    <relationshipName>RenewalOpportunityHistories</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

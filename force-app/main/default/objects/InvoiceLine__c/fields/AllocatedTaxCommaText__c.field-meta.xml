@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AllocatedTaxCommaText__c</fullName>
+    <description>仕様: Accounting 第9.1.1節。確認用の明細税。カンマ付き。Apexが AllocatedTaxAmount__c から書く。</description>
+    <externalId>false</externalId>
+    <inlineHelpText>確認用の明細税。桁区切りカンマ。利用者が直接は編集しない。</inlineHelpText>
+    <label>明細税（カンマ）</label>
+    <length>80</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

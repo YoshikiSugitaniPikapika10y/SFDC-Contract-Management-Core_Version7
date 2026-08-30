@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Context_BlankForOtherTargets</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。契約履歴・仕訳以外のToにコンテキストを書かない。</description>
+    <errorConditionFormula>AND(
+        OR(
+            ISPICKVAL(TargetObject__c, "InvoiceProduct__c"),
+            ISPICKVAL(TargetObject__c, "Invoice__c"),
+            ISPICKVAL(TargetObject__c, "InvoiceLine__c"),
+            ISPICKVAL(TargetObject__c, "InvoicePayment__c")
+        ),
+        NOT(ISBLANK(Context__c))
+    )</errorConditionFormula>
+    <errorDisplayField>Context__c</errorDisplayField>
+    <errorMessage>このToオブジェクトではコンテキストを空にしてください。</errorMessage>
+</ValidationRule>

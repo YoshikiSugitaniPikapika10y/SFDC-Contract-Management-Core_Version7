@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SlotKey_Required</fullName>
+    <active>true</active>
+    <description>科目マップの固定スロットキーを必須とする。</description>
+    <errorConditionFormula>ISBLANK(TEXT(SlotKey__c))</errorConditionFormula>
+    <errorDisplayField>SlotKey__c</errorDisplayField>
+    <errorMessage>スロットは必須です。</errorMessage>
+</ValidationRule>

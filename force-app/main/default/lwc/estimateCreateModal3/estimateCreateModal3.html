@@ -1,5 +1,17 @@
 <template>
   <div class="est-step3">
+    <template if:true={accountingPolicyLoadError}>
+      <div class="est-alert est-alert_error" role="alert">
+        <span>{accountingPolicyLoadError}</span>
+        <button
+          type="button"
+          class="slds-button slds-button_neutral slds-m-left_small"
+          onclick={handleReloadAccountingPolicy}
+        >
+          再読み込み
+        </button>
+      </div>
+    </template>
     <template if:true={showStepBusyBanner}>
       <div class="est-step3-busy" role="status" aria-live="polite">
         <lightning-spinner
@@ -36,89 +48,17 @@
                 <span class="est-label est-label_required"
                   >継続課金の期間開始日</span
                 >
-                <template if:true={isStartDateReadonly}>
-                  <div class="est-value">{contractStartDate}</div>
-                </template>
-                <template if:false={isStartDateReadonly}>
-                  <lightning-input
-                    type="date"
-                    class="est-date-input"
-                    variant="label-hidden"
-                    label="継続課金の期間開始日"
-                    value={contractStartDate}
-                    onchange={handleContractStartDateChange}
-                  ></lightning-input>
-                </template>
+                <div class="est-value">{contractStartDate}</div>
               </div>
               <div class="est-field">
                 <span class="est-label">継続課金の切替日</span>
-                <template if:true={isEffectiveDateReadonly}>
-                  <div class="est-value">{contractEffectiveDate}</div>
-                </template>
-                <template if:false={isEffectiveDateReadonly}>
-                  <lightning-input
-                    type="date"
-                    class="est-date-input"
-                    variant="label-hidden"
-                    label="継続課金の切替日"
-                    value={contractEffectiveDate}
-                    onchange={handleEffectiveDateChange}
-                  ></lightning-input>
-                </template>
+                <div class="est-value">{contractEffectiveDate}</div>
               </div>
               <div class="est-field">
                 <span class="est-label est-label_required"
                   >継続課金の期間終了日</span
                 >
-                <template if:true={isEndDateReadonly}>
-                  <div class="est-value">{contractEndDate}</div>
-                </template>
-                <template if:false={isEndDateReadonly}>
-                  <lightning-input
-                    type="date"
-                    class="est-date-input"
-                    variant="label-hidden"
-                    label="継続課金の期間終了日"
-                    value={contractEndDate}
-                    onchange={handleContractEndDateChange}
-                  ></lightning-input>
-                  <template if:true={showContractEndDateShortcuts}>
-                    <div class="est-date-shortcuts est-date-shortcuts_header">
-                      <button
-                        type="button"
-                        class="est-date-chip"
-                        title="終了日を1年進める"
-                        onclick={handleFillContractEndOneYear}
-                      >
-                        +1y
-                      </button>
-                      <button
-                        type="button"
-                        class="est-date-chip"
-                        title="終了日を1年戻す"
-                        onclick={handleFillContractEndMinusOneYear}
-                      >
-                        -1y
-                      </button>
-                      <button
-                        type="button"
-                        class="est-date-chip"
-                        title="終了日を1ヶ月進める"
-                        onclick={handleFillContractEndOneMonth}
-                      >
-                        +1m
-                      </button>
-                      <button
-                        type="button"
-                        class="est-date-chip"
-                        title="終了日を1ヶ月戻す"
-                        onclick={handleFillContractEndMinusOneMonth}
-                      >
-                        -1m
-                      </button>
-                    </div>
-                  </template>
-                </template>
+                <div class="est-value">{contractEndDate}</div>
               </div>
             </div>
           </div>
@@ -223,7 +163,7 @@
                   icon-name="utility:add"
                   size="xx-small"
                 ></lightning-icon>
-                行を追加
+                {addRowButtonLabel}
               </button>
             </template>
           </div>
@@ -243,6 +183,9 @@
                 <col class="est-col-cycle" />
                 <col class="est-col-amount" />
                 <col class="est-col-invoice" />
+                <template if:true={showRevenueRecognitionColumn}>
+                  <col class="est-col-revenue" />
+                </template>
                 <col class="est-col-actions" />
               </colgroup>
               <thead>
@@ -252,11 +195,14 @@
                   <th scope="col" class="est-th est-th-center">商品</th>
                   <th scope="col" class="est-th est-th-center">単価</th>
                   <th scope="col" class="est-th est-th-center">数量</th>
-                  <th scope="col" class="est-th est-th-center">開始日</th>
-                  <th scope="col" class="est-th est-th-center">終了日</th>
+                  <th scope="col" class="est-th est-th-center">提供開始日</th>
+                  <th scope="col" class="est-th est-th-center">提供終了日</th>
                   <th scope="col" class="est-th est-th-center">サイクル数</th>
                   <th scope="col" class="est-th est-th-center">金額</th>
                   <th scope="col" class="est-th est-th-center">請求設定</th>
+                  <template if:true={showRevenueRecognitionColumn}>
+                    <th scope="col" class="est-th est-th-center">売上計上</th>
+                  </template>
                   <th
                     scope="col"
                     class="est-th est-th-center est-th-actions"
@@ -265,9 +211,30 @@
               </thead>
               <tbody>
                 <template for:each={displayItemList} for:item="item">
+                  <template if:true={item.isCustomToggleRow}>
+                    <tr key={item.id} class={item.tableRowClass}>
+                      <td colspan={productTableColspan}>
+                        <button
+                          type="button"
+                          class={item.productCustomRowToggleClass}
+                          title="商品のカスタム項目"
+                          data-id={item.parentRowId}
+                          aria-expanded={item.productCustomRowExpandedAria}
+                          onclick={handleToggleRowProductCustomFields}
+                        >
+                          <lightning-icon
+                            icon-name="utility:chevronright"
+                            size="xx-small"
+                            class={item.productCustomRowChevronClass}
+                          ></lightning-icon>
+                          商品のカスタム項目
+                        </button>
+                      </td>
+                    </tr>
+                  </template>
                   <template if:true={item.isCustomDetailRow}>
                     <tr key={item.id} class={item.tableRowClass}>
-                      <td colspan="11">
+                      <td colspan={productTableColspan}>
                         <div class="est-detail-panel">
                           <c-estimate-wizard-custom-field-grid
                             fields={item.customFieldInputs}
@@ -280,10 +247,10 @@
                       </td>
                     </tr>
                   </template>
-                  <template if:false={item.isCustomDetailRow}>
+                  <template if:false={item.isCustomChromeRow}>
                     <template if:true={item.isGroupHeader}>
                       <tr key={item.id} class={item.groupHeaderRowClass}>
-                        <td colspan="11">
+                        <td colspan={productTableColspan}>
                           <div class={item.groupHeaderClass}>
                             <div class="est-change-group-card__header-text">
                               <span class="est-change-group-card__title"
@@ -300,7 +267,7 @@
                                   icon-name="utility:add"
                                   size="xx-small"
                                 ></lightning-icon>
-                                行を追加
+                                {changeNewProductButtonLabel}
                               </button>
                             </template>
                           </div>
@@ -566,7 +533,7 @@
                                   <input
                                     type="date"
                                     class="est-cell-input est-cell-date"
-                                    aria-label="開始日"
+                                    aria-label="提供開始日"
                                     value={item.startDate}
                                     data-id={item.id}
                                     data-field="startDate"
@@ -587,37 +554,37 @@
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="開始日を1年進める"
+                                    title="提供開始日を1年進める"
                                     onclick={handleFillLineStartOneYear}
                                   >
-                                    +1y
+                                    +1年
                                   </button>
                                   <button
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="開始日を1年戻す"
+                                    title="提供開始日を1年戻す"
                                     onclick={handleFillLineStartMinusOneYear}
                                   >
-                                    -1y
+                                    -1年
                                   </button>
                                   <button
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="開始日を1ヶ月進める"
+                                    title="提供開始日を1ヶ月進める"
                                     onclick={handleFillLineStartOneMonth}
                                   >
-                                    +1m
+                                    +1ヶ月
                                   </button>
                                   <button
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="開始日を1ヶ月戻す"
+                                    title="提供開始日を1ヶ月戻す"
                                     onclick={handleFillLineStartMinusOneMonth}
                                   >
-                                    -1m
+                                    -1ヶ月
                                   </button>
                                 </div>
                               </template>
@@ -641,7 +608,7 @@
                                   <input
                                     type="date"
                                     class="est-cell-input est-cell-date"
-                                    aria-label="終了日"
+                                    aria-label="提供終了日"
                                     value={item.endDate}
                                     data-id={item.id}
                                     data-field="endDate"
@@ -662,37 +629,37 @@
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="終了日を1年進める"
+                                    title="提供終了日を1年進める"
                                     onclick={handleFillLineEndOneYear}
                                   >
-                                    +1y
+                                    +1年
                                   </button>
                                   <button
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="終了日を1年戻す"
+                                    title="提供終了日を1年戻す"
                                     onclick={handleFillLineEndMinusOneYear}
                                   >
-                                    -1y
+                                    -1年
                                   </button>
                                   <button
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="終了日を1ヶ月進める"
+                                    title="提供終了日を1ヶ月進める"
                                     onclick={handleFillLineEndOneMonth}
                                   >
-                                    +1m
+                                    +1ヶ月
                                   </button>
                                   <button
                                     type="button"
                                     class="est-date-chip"
                                     data-id={item.id}
-                                    title="終了日を1ヶ月戻す"
+                                    title="提供終了日を1ヶ月戻す"
                                     onclick={handleFillLineEndMinusOneMonth}
                                   >
-                                    -1m
+                                    -1ヶ月
                                   </button>
                                 </div>
                               </template>
@@ -721,7 +688,7 @@
                               <template if:true={item.amountInvalid}>
                                 <span
                                   class="est-cell-amount est-amount-invalid"
-                                  title="開始日・終了日は明細開始日起点の月次分割である必要があります（カレンダー月分割は使えません）"
+                                  title="提供開始日・提供終了日は明細の提供開始日起点の月次分割である必要があります（カレンダー月分割は使えません）"
                                   >—</span
                                 >
                               </template>
@@ -835,14 +802,14 @@
                             <div
                               class="est-cell-stack__main est-cell-stack__main_center"
                             >
-                              <template if:true={item.isReadonly}>
+                              <template if:true={item.isInvoiceSettingReadonly}>
                                 <span
                                   class="est-cell-static"
                                   title={item.invoiceType}
                                   >{item.invoiceType}</span
                                 >
                               </template>
-                              <template if:false={item.isReadonly}>
+                              <template if:false={item.isInvoiceSettingReadonly}>
                                 <div class="est-cell-field">
                                   <select
                                     class="est-cell-input est-cell-select"
@@ -892,6 +859,49 @@
                             </div>
                           </div>
                         </td>
+                        <template if:true={showRevenueRecognitionColumn}>
+                          <td class="est-td est-td-center est-td-revenue">
+                            <div class="est-cell-stack">
+                              <div
+                                class="est-cell-stack__main est-cell-stack__main_center"
+                              >
+                                <template if:true={item.isRevenueBasisReadonly}>
+                                  <span
+                                    class="est-cell-static"
+                                    title={item.revenueRecognitionBasisLabel}
+                                    >{item.revenueRecognitionBasisLabel}</span
+                                  >
+                                </template>
+                                <template if:false={item.isRevenueBasisReadonly}>
+                                  <div class="est-cell-field">
+                                    <select
+                                      class="est-cell-input est-cell-select"
+                                      title={item.revenueRecognitionBasisLabel}
+                                      data-id={item.id}
+                                      onchange={handleRevenueRecognitionBasisChange}
+                                      disabled={item.isRevenueBasisDisabled}
+                                      required
+                                    >
+                                      <template
+                                        for:each={item.revenueRecognitionBasisOptions}
+                                        for:item="option"
+                                      >
+                                        <option
+                                          key={option.value}
+                                          value={option.value}
+                                          selected={option.isSelected}
+                                        >
+                                          {option.label}
+                                        </option>
+                                      </template>
+                                    </select>
+                                  </div>
+                                </template>
+                              </div>
+                              <div class="est-cell-stack__sub"></div>
+                            </div>
+                          </td>
+                        </template>
                         <td class="est-td est-td-center est-td-actions">
                           <div class="est-cell-stack est-cell-stack_full">
                             <div class="est-row-actions">
@@ -922,8 +932,8 @@
                               <template if:true={item.showAddRemakeButton}>
                                 <lightning-button-icon
                                   icon-name="utility:add"
-                                  alternative-text="Remake行を追加"
-                                  title="Remake行を追加（期間分割）"
+                                  alternative-text={addRemakeButtonLabel}
+                                  title={addRemakeButtonLabel}
                                   variant="border-filled"
                                   size="x-small"
                                   data-pair-id={item.groupPairId}
@@ -985,7 +995,7 @@
                 size="xx-small"
                 class={contractCustomChevronClass}
               ></lightning-icon>
-              <span class="est-panel-title">契約のカスタム項目</span>
+              <span class="est-panel-title">{contractCustomSectionTitle}</span>
             </button>
           </div>
         </div>
@@ -1017,6 +1027,88 @@
             </template>
           </div>
         </template>
+      </section>
+    </template>
+
+    <template if:true={showEstimateDocumentSection}>
+      <section class="est-panel est-panel_remarks">
+        <div class="est-panel-header est-panel-header_row">
+          <div class="est-panel-header-lead">
+            <span class="est-panel-title">見積書</span>
+          </div>
+        </div>
+        <div class="est-panel-body est-remarks-body">
+          <div class="est-field">
+            <span class="est-label">見積日</span>
+            <template if:true={isEstimateDocumentReadonly}>
+              <div class="est-value">{estimateDate}</div>
+            </template>
+            <template if:false={isEstimateDocumentReadonly}>
+              <lightning-input
+                type="date"
+                label="見積日"
+                variant="label-hidden"
+                value={estimateDate}
+                onchange={handleEstimateDateChange}
+              >
+              </lightning-input>
+            </template>
+          </div>
+          <div class="est-field">
+            <span class="est-label">有効期限</span>
+            <template if:true={isEstimateDocumentReadonly}>
+              <div class="est-value">{estimateValidDate}</div>
+            </template>
+            <template if:false={isEstimateDocumentReadonly}>
+              <lightning-input
+                type="date"
+                label="有効期限"
+                variant="label-hidden"
+                value={estimateValidDate}
+                onchange={handleEstimateValidDateChange}
+              >
+              </lightning-input>
+            </template>
+          </div>
+          <div class="est-field est-field_remark-master">
+            <span class="est-label">見積備考マスタ</span>
+            <template if:true={isRemarksReadonly}>
+              <div class="est-value">{estimateRemarkMasterDisplayValue}</div>
+            </template>
+            <template if:false={isRemarksReadonly}>
+              <lightning-record-picker
+                key={remarkMasterPickerKey}
+                label="見積備考マスタ"
+                object-api-name="EstimateNoteMaster__c"
+                value={estimateRemarkMasterId}
+                variant="label-hidden"
+                placeholder="マスタ名で検索..."
+                matching-info={remarkMasterMatchingInfo}
+                display-info={remarkMasterDisplayInfo}
+                onchange={handleRemarkMasterChange}
+              >
+              </lightning-record-picker>
+            </template>
+          </div>
+          <div class="est-field est-field_remarks">
+            <span class="est-label">見積備考</span>
+            <template if:true={isRemarksReadonly}>
+              <div class="est-value est-value_multiline">
+                {estimateRemarks}
+              </div>
+            </template>
+            <template if:false={isRemarksReadonly}>
+              <lightning-textarea
+                label="見積備考"
+                value={estimateRemarks}
+                variant="label-hidden"
+                onchange={handleRemarksChange}
+                max-length="32768"
+              >
+              </lightning-textarea>
+            </template>
+          </div>
+        </div>
       </section>
     </template>
 
@@ -1075,7 +1167,7 @@
                   value={estimateRemarks}
                   variant="label-hidden"
                   onchange={handleRemarksChange}
-                  max-length="255"
+                  max-length="32768"
                 >
                 </lightning-textarea>
               </template>

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OperationType__c</fullName>
+    <description>仕様: 共通基盤.md 第12章</description>
+    <label>操作種別</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>EstimateCreate</fullName>
+                <default>true</default>
+                <label>見積を保存</label>
+            </value>            <value>
+                <fullName>EstimateCopy</fullName>
+                <default>false</default>
+                <label>見積をコピー</label>
+            </value>            <value>
+                <fullName>EstimateEdit</fullName>
+                <default>false</default>
+                <label>見積を編集</label>
+            </value>            <value>
+                <fullName>EstimateArchive</fullName>
+                <default>false</default>
+                <label>見積をArchive</label>
+            </value>            <value>
+                <fullName>EstimatePdfIssue</fullName>
+                <default>false</default>
+                <label>見積書を発行</label>
+            </value>            <value>
+                <fullName>EstimateSend</fullName>
+                <default>false</default>
+                <label>見積を送付</label>
+            </value>            <value>
+                <fullName>Order</fullName>
+                <default>false</default>
+                <label>受注</label>
+            </value>            <value>
+                <fullName>RevertOrder</fullName>
+                <default>false</default>
+                <label>差し戻す</label>
+            </value>            <value>
+                <fullName>EditService</fullName>
+                <default>false</default>
+                <label>契約サービスを編集</label>
+            </value>            <value>
+                <fullName>AdjustInvoiceAmount</fullName>
+                <default>false</default>
+                <label>端数を調整</label>
+            </value>            <value>
+                <fullName>SplitToNewInvoice</fullName>
+                <default>false</default>
+                <label>新しい請求へ分ける</label>
+            </value>            <value>
+                <fullName>MoveToExistingInvoice</fullName>
+                <default>false</default>
+                <label>既存の未確定へ移す</label>
+            </value>            <value>
+                <fullName>SplitLinesInPlace</fullName>
+                <default>false</default>
+                <label>同一請求内で分割</label>
+            </value>            <value>
+                <fullName>ApplyBillingAccount</fullName>
+                <default>false</default>
+                <label>請求アカウントの内容を反映</label>
+            </value>            <value>
+                <fullName>EditInvoice</fullName>
+                <default>false</default>
+                <label>請求情報を編集</label>
+            </value>            <value>
+                <fullName>InvoiceMemo</fullName>
+                <default>false</default>
+                <label>請求書のメモを直す</label>
+            </value>            <value>
+                <fullName>ResetInvoicesToPostOrder</fullName>
+                <default>false</default>
+                <label>受注直後の請求に戻す</label>
+            </value>            <value>
+                <fullName>ConfirmInvoice</fullName>
+                <default>false</default>
+                <label>請求を確定</label>
+            </value>            <value>
+                <fullName>InvoicePdfIssue</fullName>
+                <default>false</default>
+                <label>請求PDFを発行</label>
+            </value>            <value>
+                <fullName>InvoiceSend</fullName>
+                <default>false</default>
+                <label>請求を送付</label>
+            </value>            <value>
+                <fullName>RegisterPayment</fullName>
+                <default>false</default>
+                <label>入金を登録</label>
+            </value>            <value>
+                <fullName>CancelPayment</fullName>
+                <default>false</default>
+                <label>入金を取り消す</label>
+            </value>            <value>
+                <fullName>EditPayment</fullName>
+                <default>false</default>
+                <label>入金のメモ・追加項目を直す</label>
+            </value>            <value>
+                <fullName>JournalMemo</fullName>
+                <default>false</default>
+                <label>仕訳のメモ・追加項目を直す</label>
+            </value>            <value>
+                <fullName>LockJournal</fullName>
+                <default>false</default>
+                <label>仕訳をLock</label>
+            </value>            <value>
+                <fullName>UnlockJournal</fullName>
+                <default>false</default>
+                <label>仕訳をUnlock</label>
+            </value>            <value>
+                <fullName>RegisterManualJournal</fullName>
+                <default>false</default>
+                <label>手動仕訳を登録</label>
+            </value>            <value>
+                <fullName>CancelManualJournal</fullName>
+                <default>false</default>
+                <label>手動仕訳を取り消す</label>
+            </value>            <value>
+                <fullName>CancelInvoice</fullName>
+                <default>false</default>
+                <label>確定済み請求を取り消す</label>
+            </value>            <value>
+                <fullName>ChangeAcceptanceEndDate</fullName>
+                <default>false</default>
+                <label>検収終了日を変える</label>
+            </value>            <value>
+                <fullName>SaveOrgSettings</fullName>
+                <default>false</default>
+                <label>組織設定を保存</label>
+            </value>            <value>
+                <fullName>SaveFieldCopyDefinition</fullName>
+                <default>false</default>
+                <label>コピー定義を保存</label>
+            </value>            <value>
+                <fullName>DeleteFieldCopyDefinition</fullName>
+                <default>false</default>
+                <label>コピー定義を削除</label>
+            </value>            <value>
+                <fullName>SaveBillingAccount</fullName>
+                <default>false</default>
+                <label>請求アカウントを保存</label>
+            </value>            <value>
+                <fullName>DeleteBillingAccount</fullName>
+                <default>false</default>
+                <label>請求アカウントを削除</label>
+            </value>            <value>
+                <fullName>SaveEstimateNoteMaster</fullName>
+                <default>false</default>
+                <label>備考マスタを保存</label>
+            </value>            <value>
+                <fullName>DeleteEstimateNoteMaster</fullName>
+                <default>false</default>
+                <label>備考マスタを削除</label>
+            </value>            <value>
+                <fullName>SaveAccountingMaster</fullName>
+                <default>false</default>
+                <label>会計マスタを保存</label>
+            </value>            <value>
+                <fullName>DeleteAccountingMaster</fullName>
+                <default>false</default>
+                <label>会計マスタを削除</label>
+            </value>            <value>
+                <fullName>IrregularDelete</fullName>
+                <default>false</default>
+                <label>例外でレコードを消す</label>
+            </value>            <value>
+                <fullName>IrregularUpdate</fullName>
+                <default>false</default>
+                <label>例外でレコードを直す</label>
+            </value>            <value>
+                <fullName>IrregularCreate</fullName>
+                <default>false</default>
+                <label>例外でレコードを作る</label>
+            </value>            <value>
+                <fullName>IrregularRecalc</fullName>
+                <default>false</default>
+                <label>例外で再計算する</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

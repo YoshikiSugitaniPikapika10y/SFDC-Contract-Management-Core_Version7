@@ -10,16 +10,15 @@ import {
   readOrderWizardRecordId
 } from "c/orderWizardNavigation";
 import {
-  HISTORY_STATUS_ARCHIVE,
   isOrderActionBootstrapping,
   requestOrderWizardClose,
   scheduleRecordActionLoad,
   resetRecordActionLoadState
 } from "c/orderWizardClose";
-import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
+import resolvePreviewScope from "@salesforce/apex/OrderCreateController.resolvePreviewScope";
 import getInvoicePreview from "@salesforce/apex/OrderCreateController.getInvoicePreview";
 import updateInvoiceLineAmounts from "@salesforce/apex/OrderCreateController.updateInvoiceLineAmounts";
-import updateInvoiceDates from "@salesforce/apex/OrderCreateController.updateInvoiceDates";
+import updateInvoiceLineAcceptanceEndDate from "@salesforce/apex/OrderCreateController.updateInvoiceLineAcceptanceEndDate";
 import splitInvoiceByDate from "@salesforce/apex/OrderCreateController.splitInvoiceByDate";
 import splitInvoiceByBillingAccount from "@salesforce/apex/OrderCreateController.splitInvoiceByBillingAccount";
 import moveLinesToExistingInvoice from "@salesforce/apex/OrderCreateController.moveLinesToExistingInvoice";
@@ -27,6 +26,11 @@ import splitLinesInPlace from "@salesforce/apex/OrderCreateController.splitLines
 import resetLatestVersionInvoicesToPostOrder from "@salesforce/apex/OrderCreateController.resetLatestVersionInvoicesToPostOrder";
 import getBillingAccountOptionsForPreview from "@salesforce/apex/OrderCreateController.getBillingAccountOptionsForPreview";
 import updateInvoiceHeaderAndDates from "@salesforce/apex/OrderCreateController.updateInvoiceHeaderAndDates";
+import applyBillingAccountContent from "@salesforce/apex/OrderCreateController.applyBillingAccountContent";
+import cancelConfirmedFromPreview from "@salesforce/apex/OrderCreateController.cancelConfirmedFromPreview";
+
+const VERSION_CONFLICT_MESSAGE =
+  "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。";
 
 export default class OrderInvoicePreviewWizard extends NavigationMixin(
   LightningElement
@@ -37,36 +41,76 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   @track isLoading = true;
   @track isSaving = false;
   @track errorMessage = "";
+  @track contentLoadFailed = false;
   @track invoicePreview;
   @track billingAccountOptions = [];
+  @track previewScope;
 
-  _wheelBound = false;
-  _onPreviewWheel = (event) => this.handlePreviewWheel(event);
+  _onViewportResize = () => this.applyScrollSizing();
+  _resizeBound = false;
 
   connectedCallback() {
     initializeOrderWizardFromUrl(this);
-    // 開くたびに請求プレビューをサーバ最新で取り直す
+    // 開くたびに請求ボードをサーバ最新で取り直す
     resetRecordActionLoadState(this);
     scheduleRecordActionLoad(this, () => this.loadPreview());
-    this.template.host.addEventListener("wheel", this._onPreviewWheel, {
-      passive: false,
-      capture: true
-    });
-    this._wheelBound = true;
+    window.addEventListener("resize", this._onViewportResize);
+    this._resizeBound = true;
   }
 
   disconnectedCallback() {
-    if (!this._wheelBound) {
-      return;
+    if (this._resizeBound) {
+      window.removeEventListener("resize", this._onViewportResize);
+      this._resizeBound = false;
     }
-    this.template.host.removeEventListener("wheel", this._onPreviewWheel, {
-      capture: true
-    });
-    this._wheelBound = false;
   }
 
   renderedCallback() {
+    this.applyScrollSizing();
+    // 初回描画直後は親レイアウトが未確定で上端がずれることがある
+    requestAnimationFrame(() => this.applyScrollSizing());
     scheduleRecordActionLoad(this, () => this.loadPreview());
+  }
+
+  get scrollRoot() {
+    return this.template.querySelector(".preview-page");
+  }
+
+  /**
+   * 親（モーダル枠・タブページ）に確定した高さが無いと height:100% が auto に落ち、
+   * スクローラが1本も成立せずポインタ位置でホイールが死ぬ。
+   * ビューポート基準の実測値を max-height に流し込んで、常に自前スクローラを作る。
+   */
+  applyScrollSizing() {
+    const host = this.template.host;
+    const root = this.scrollRoot;
+    if (!host || !host.style) {
+      return;
+    }
+    if (this.isTabView) {
+      host.style.removeProperty("height");
+      host.style.removeProperty("min-height");
+    } else {
+      host.style.setProperty("height", "100%");
+      host.style.setProperty("min-height", "0");
+    }
+    if (!root) {
+      return;
+    }
+    const viewportHeight =
+      window.innerHeight ||
+      (document.scrollingElement || document.documentElement).clientHeight ||
+      0;
+    if (!viewportHeight) {
+      return;
+    }
+    const top = Math.max(root.getBoundingClientRect().top, 0);
+    const bottomGap = this.isTabView ? 8 : 24;
+    const available = Math.max(viewportHeight - top - bottomGap, 240);
+    root.style.setProperty(
+      "--preview-scroll-max",
+      `${Math.round(available)}px`
+    );
   }
 
   @wire(CurrentPageReference)
@@ -85,6 +129,19 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       : "preview-page preview-page_modal";
   }
 
+  get previewHistoryId() {
+    return this.previewScope?.contractHistoryId || null;
+  }
+
+  get tableInitialVersion() {
+    return this.previewScope?.initialVersion || "";
+  }
+
+  get tableInitialInvoiceId() {
+    return this.previewScope?.initialInvoiceId || "";
+  }
+
+  // 仕様: Core 第7.7.0節、第4.3.11節
   async loadPreview() {
     if (!this.recordId) {
       return;
@@ -92,35 +149,37 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
 
     this.isLoading = true;
     this.errorMessage = "";
+    this.contentLoadFailed = false;
     this.invoicePreview = undefined;
     try {
-      const context = await getOrderContext({
-        contractHistoryId: this.recordId
+      const scope = await resolvePreviewScope({
+        recordId: this.recordId
       });
-
-      if (context.historyStatus === HISTORY_STATUS_ARCHIVE) {
+      this.previewScope = scope;
+      if (!scope?.canOpen) {
         this.errorMessage =
-          "アーカイブ済みの契約履歴では請求プレビューは利用できません。";
-        return;
-      }
-
-      if (!context.isOrdered) {
-        this.errorMessage =
-          "Estimate 状態の契約履歴です。「受注」ボタンをご利用ください。";
+          scope?.blockReason || "請求ボードを開けません。";
         return;
       }
 
       this.invoicePreview = await getInvoicePreview({
-        contractHistoryId: this.recordId
+        contractHistoryId: scope.contractHistoryId
       });
       this.billingAccountOptions = await getBillingAccountOptionsForPreview({
-        contractHistoryId: this.recordId
+        contractHistoryId: scope.contractHistoryId
       });
     } catch (error) {
+      // 仕様: Core 第4.3.11節
       this.errorMessage = this.reduceError(error);
+      this.contentLoadFailed = true;
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /** 仕様: Core 第4.3.11節 */
+  handleContentReload() {
+    this.loadPreview();
   }
 
   get hasPreview() {
@@ -136,32 +195,45 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleSaveLineAmounts(event) {
-    const { edits } = event.detail || {};
+    const { edits, expectedTokenByInvoiceId, businessOperationKey } =
+      event.detail || {};
     if (!edits?.length) {
       return;
     }
     await this.runEdit(() =>
       updateInvoiceLineAmounts({
-        contractHistoryId: this.recordId,
+        contractHistoryId: this.previewHistoryId,
         edits,
-        expectedContentVersion: this.previewContentVersion
+        expectedTokenByInvoiceId: expectedTokenByInvoiceId || {},
+        businessOperationKey
       })
     );
   }
 
-  async handleSaveInvoiceDates(event) {
-    const { invoiceId, invoiceDate, paymentScheduledDate } = event.detail || {};
-    if (!invoiceId) {
+  async handleSaveAcceptanceEndDate(event) {
+    const {
+      lineId,
+      acceptanceEndDate,
+      cancellationDate,
+      journalPreviewText,
+      expectedContentVersion,
+      businessOperationKey
+    } = event.detail || {};
+    if (!lineId) {
       return;
     }
-    await this.runEdit(() =>
-      updateInvoiceDates({
-        contractHistoryId: this.recordId,
-        invoiceId,
-        invoiceDate: invoiceDate || null,
-        paymentScheduledDate: paymentScheduledDate || null,
-        expectedContentVersion: this.previewContentVersion
-      })
+    await this.runEdit(
+      () =>
+        updateInvoiceLineAcceptanceEndDate({
+          contractHistoryId: this.previewHistoryId,
+          lineId,
+          acceptanceEndDate: acceptanceEndDate || null,
+          expectedContentVersion:
+            expectedContentVersion || this.previewContentVersion,
+          cancellationDate: cancellationDate || null,
+          businessOperationKey
+        }),
+      journalPreviewText || ""
     );
   }
 
@@ -174,7 +246,10 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       billingEmailTo,
       billingEmailCc,
       billingEmailBcc,
-      taxPercent
+      taxPercent,
+      expectedContentVersion,
+      businessOperationKey,
+      extraFieldValues
     } = event.detail || {};
     if (!invoiceId) {
       return;
@@ -229,19 +304,21 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       );
       return;
     }
-    // 日付＋宛名／メール／税率は 1 Apex・1 DML。片側だけ成功してエラー表示、を防ぐ。
     const saved = await this.runEdit(() =>
       updateInvoiceHeaderAndDates({
-        contractHistoryId: this.recordId,
+        contractHistoryId: this.previewHistoryId,
         invoiceId,
         invoiceDate,
         paymentScheduledDate,
-        billingAddressee: billingAddressee ?? "",
-        billingEmailTo: billingEmailTo ?? "",
-        billingEmailCc: billingEmailCc ?? "",
-        billingEmailBcc: billingEmailBcc ?? "",
+        billingAddressee: "",
+        billingEmailTo: "",
+        billingEmailCc: "",
+        billingEmailBcc: "",
         taxPercent: taxPercentNumber,
-        expectedContentVersion: this.previewContentVersion
+        expectedContentVersion:
+          expectedContentVersion || this.previewContentVersion,
+        businessOperationKey,
+        extraFieldValues
       })
     );
     if (saved) {
@@ -261,7 +338,9 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       newInvoiceDate,
       newPaymentScheduledDate,
       newBillingAccountId,
-      splitLines
+      splitLines,
+      expectedContentVersion,
+      businessOperationKey
     } = event.detail || {};
     if (!sourceInvoiceId || !(splitLines || []).length) {
       return;
@@ -294,75 +373,155 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       }
       await this.runEdit(() =>
         splitInvoiceByBillingAccount({
-          contractHistoryId: this.recordId,
+          contractHistoryId: this.previewHistoryId,
           sourceInvoiceId,
           newBillingAccountId,
           newInvoiceDate,
           newPaymentScheduledDate,
           splitLines,
-          expectedContentVersion: this.previewContentVersion
+          expectedContentVersion:
+            expectedContentVersion || this.previewContentVersion,
+          businessOperationKey
         })
       );
       return;
     }
     await this.runEdit(() =>
       splitInvoiceByDate({
-        contractHistoryId: this.recordId,
+        contractHistoryId: this.previewHistoryId,
         sourceInvoiceId,
         newInvoiceDate,
         newPaymentScheduledDate,
         splitLines,
-        expectedContentVersion: this.previewContentVersion
+        expectedContentVersion:
+          expectedContentVersion || this.previewContentVersion,
+        businessOperationKey
       })
     );
   }
 
   async handleMoveLines(event) {
-    const { sourceInvoiceId, targetInvoiceId, lineIds } = event.detail || {};
+    const {
+      sourceInvoiceId,
+      targetInvoiceId,
+      lineIds,
+      expectedContentVersion,
+      expectedTargetContentVersion,
+      businessOperationKey
+    } = event.detail || {};
     if (!sourceInvoiceId || !targetInvoiceId || !(lineIds || []).length) {
       return;
     }
     await this.runEdit(() =>
       moveLinesToExistingInvoice({
-        contractHistoryId: this.recordId,
+        contractHistoryId: this.previewHistoryId,
         sourceInvoiceId,
         targetInvoiceId,
         lineIds,
-        expectedContentVersion: this.previewContentVersion
+        expectedContentVersion:
+          expectedContentVersion || this.previewContentVersion,
+        expectedTargetContentVersion:
+          expectedTargetContentVersion ||
+          expectedContentVersion ||
+          this.previewContentVersion,
+        businessOperationKey
       })
     );
   }
 
   async handleSplitLinesInPlace(event) {
-    const { invoiceId, splitLines } = event.detail || {};
+    const {
+      invoiceId,
+      splitLines,
+      expectedContentVersion,
+      businessOperationKey
+    } = event.detail || {};
     if (!invoiceId || !(splitLines || []).length) {
       return;
     }
     await this.runEdit(() =>
       splitLinesInPlace({
-        contractHistoryId: this.recordId,
+        contractHistoryId: this.previewHistoryId,
         invoiceId,
         splitLines,
-        expectedContentVersion: this.previewContentVersion
+        expectedContentVersion:
+          expectedContentVersion || this.previewContentVersion,
+        businessOperationKey
       })
     );
   }
 
   async handleResetPostOrder(event) {
-    const { versionValue } = event.detail || {};
+    const {
+      versionValue,
+      expectedTokenByInvoiceId,
+      businessOperationKey
+    } = event.detail || {};
     if (!versionValue) {
       return;
     }
     await this.runEdit(() =>
       resetLatestVersionInvoicesToPostOrder({
-        contractHistoryId: this.recordId,
+        contractHistoryId: this.previewHistoryId,
         versionValue: String(versionValue),
-        expectedContentVersion: this.previewContentVersion
+        expectedTokenByInvoiceId: expectedTokenByInvoiceId || {},
+        businessOperationKey
       })
     );
   }
 
-  async runEdit(action) {
+  async handleApplyBillingAccountContent(event) {
+    const { invoiceId, expectedContentVersion, businessOperationKey } =
+      event.detail || {};
+    if (!invoiceId) {
+      return;
+    }
+    await this.runEdit(() =>
+      applyBillingAccountContent({
+        contractHistoryId: this.previewHistoryId,
+        invoiceId,
+        expectedContentVersion:
+          expectedContentVersion || this.previewContentVersion,
+        businessOperationKey
+      })
+    );
+  }
+
+  async handleCancelConfirmed(event) {
+    const {
+      invoiceId,
+      cancellationReason,
+      cancellationReasonText,
+      cancellationDate,
+      journalPreviewText,
+      customerNotice,
+      expectedContentVersion,
+      businessOperationKey
+    } = event.detail || {};
+    if (!invoiceId) {
+      return;
+    }
+    await this.runEdit(
+      () =>
+        cancelConfirmedFromPreview({
+          contractHistoryId: this.previewHistoryId,
+          invoiceId,
+          cancellationReason,
+          cancellationReasonText: cancellationReasonText || null,
+          cancellationDate: cancellationDate || null,
+          expectedContentVersion:
+            expectedContentVersion || this.previewContentVersion,
+          businessOperationKey
+        }),
+      [journalPreviewText, customerNotice].filter((part) => part).join("\n")
+    );
+  }
+
+  async handleInvoiceOpsComplete() {
+    await this.loadPreview();
+  }
+
+  async runEdit(action, successMessage) {
     if (this.isSaving) {
       return false;
     }
@@ -373,8 +532,9 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       this.dispatchEvent(
         new ShowToastEvent({
           title: "保存しました",
-          message: "請求正本を更新しました。",
-          variant: "success"
+          message: successMessage || "請求正本を更新しました。",
+          variant: "success",
+          mode: successMessage ? "sticky" : "dismissable"
         })
       );
       return true;
@@ -387,6 +547,10 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
           variant: "error"
         })
       );
+      // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
+      if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
+        await this.loadPreview();
+      }
       return false;
     } finally {
       this.isSaving = false;
@@ -414,8 +578,8 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   /**
-   * 商品名・金額セル等がホイールを握っても、モーダルは .preview-table-area、
-   * タブは外側スクローラへ渡す。document へ誤って preventDefault しない。
+   * ポインタ直下に自力で動けるスクローラがあればブラウザ既定に任せ、
+   * ない位置（ヘッダ・余白・overflow を持たないセル等）だけ肩代わりする。
    */
   handlePreviewWheel(event) {
     if (!event || event.ctrlKey) {
@@ -426,25 +590,43 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return;
     }
     const path = event.composedPath ? event.composedPath() : [];
-    const target = path[0] || event.target;
-    if (this.isNativeScrollField(target)) {
+    const root = this.scrollRoot;
+    // combobox のドロップダウン等、ポインタ直下の内側スクローラは尊重する
+    if (this.findInnerScroller(path, deltaY, root)) {
       return;
     }
-    const scroller = this.resolvePreviewScroller();
-    if (!scroller || !this.canScrollY(scroller)) {
+    const scroller = this.resolvePreviewScroller(deltaY);
+    if (!scroller) {
       return;
     }
     scroller.scrollTop += deltaY;
     event.preventDefault();
   }
 
-  resolvePreviewScroller() {
-    if (!this.isTabView) {
-      const area = this.template.querySelector(".preview-table-area");
-      if (area && this.canScrollY(area)) {
-        return area;
+  findInnerScroller(path, deltaY, root) {
+    for (const node of path) {
+      if (!node || node.nodeType !== 1) {
+        continue;
+      }
+      if (node === root || node === this.template.host) {
+        break;
+      }
+      if (this.canConsumeY(node, deltaY)) {
+        return node;
       }
     }
+    return null;
+  }
+
+  resolvePreviewScroller(deltaY) {
+    // ポインタ位置に関係なく、まず自前のルートスクローラで受ける
+    const root = this.scrollRoot;
+    if (root && this.canConsumeY(root, deltaY)) {
+      return root;
+    }
+    // overflow:hidden の祖先は自力では動かないが scrollTop は効く。
+    // 本来のスクローラが1つも無い組み方に落ちたときの最後の受け皿にする。
+    let clipped = null;
     let el = this.template.host.parentElement;
     if (!el) {
       const root = this.template.host.getRootNode();
@@ -453,8 +635,11 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       }
     }
     while (el) {
-      if (this.canScrollY(el)) {
+      if (this.canConsumeY(el, deltaY)) {
         return el;
+      }
+      if (!clipped && this.canConsumeYWhenClipped(el, deltaY)) {
+        clipped = el;
       }
       if (el.parentElement) {
         el = el.parentElement;
@@ -468,7 +653,25 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       }
     }
     const doc = document.scrollingElement || document.documentElement;
-    return this.canScrollY(doc) ? doc : null;
+    if (this.canConsumeY(doc, deltaY)) {
+      return doc;
+    }
+    return clipped;
+  }
+
+  canConsumeYWhenClipped(el, deltaY) {
+    if (!el || el.nodeType !== 1) {
+      return false;
+    }
+    if (getComputedStyle(el).overflowY !== "hidden") {
+      return false;
+    }
+    if (el.scrollHeight <= el.clientHeight + 1) {
+      return false;
+    }
+    return deltaY < 0
+      ? el.scrollTop > 0
+      : el.scrollTop + el.clientHeight < el.scrollHeight - 1;
   }
 
   resolveWheelDeltaY(event) {
@@ -487,34 +690,27 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     return delta;
   }
 
-  isNativeScrollField(target) {
-    let node = target;
-    if (node && node.nodeType === Node.TEXT_NODE) {
-      node = node.parentElement;
+  canConsumeY(el, deltaY) {
+    if (!this.canScrollY(el)) {
+      return false;
     }
-    while (node && node.nodeType === 1) {
-      const tag = node.tagName;
-      if (tag === "TEXTAREA") {
-        return true;
-      }
-      if (node === this.template.host) {
-        break;
-      }
-      const root = node.getRootNode && node.getRootNode();
-      node =
-        node.parentElement || (root instanceof ShadowRoot ? root.host : null);
+    if (deltaY < 0) {
+      return el.scrollTop > 0;
     }
-    return false;
+    return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
   }
 
   canScrollY(el) {
     if (!el || el.nodeType !== 1) {
       return false;
     }
-    const style = getComputedStyle(el);
-    const oy = style.overflowY;
-    if (oy !== "auto" && oy !== "scroll" && oy !== "overlay") {
-      return false;
+    // ビューポートのスクローラは overflow が visible のままでも縦に動く
+    const viewport = document.scrollingElement || document.documentElement;
+    if (el !== viewport) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy !== "auto" && oy !== "scroll" && oy !== "overlay") {
+        return false;
+      }
     }
     return el.scrollHeight > el.clientHeight + 1;
   }

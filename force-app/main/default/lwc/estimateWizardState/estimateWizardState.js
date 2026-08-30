@@ -7,6 +7,8 @@
  *   - Salesforce / DOM に一切依存しないため、Jest で単体テストできる
  */
 
+import { setAmountCalculationRoundingModes } from "c/estimateLineItemUtils";
+
 export const WIZARD_ACTIONS = {
   /** 新規作成として初期化する */
   INITIALIZE_NEW: "INITIALIZE_NEW",
@@ -71,7 +73,13 @@ const TYPE_DEPENDENT_FIELDS = [
   "historyCustomFieldsExpanded",
   "remarksExpanded",
   "contractServiceCustomFields",
-  "contractHistoryCustomFields"
+  "contractHistoryCustomFields",
+  "taxPercent",
+  "estimateDate",
+  "estimateValidDate",
+  "estimateValidDateTouched",
+  "serviceLifecycle",
+  "estimateSendContactId"
 ];
 
 /**
@@ -90,7 +98,11 @@ const CONTRACT_DEPENDENT_FIELDS = [
   "estimateRemarks",
   "contractHistoryCustomFields",
   "serviceCustomFieldsExpanded",
-  "historyCustomFieldsExpanded"
+  "historyCustomFieldsExpanded",
+  "estimateDate",
+  "estimateValidDate",
+  "estimateValidDateTouched",
+  "estimateSendContactId"
 ];
 
 /**
@@ -113,7 +125,10 @@ const STEP3_ALLOWED_FIELDS = [
   "historyCustomFieldsExpanded",
   "remarksExpanded",
   "contractServiceCustomFields",
-  "contractHistoryCustomFields"
+  "contractHistoryCustomFields",
+  "estimateDate",
+  "estimateValidDate",
+  "estimateValidDateTouched"
 ];
 
 export function createEmptyWizardData() {
@@ -144,6 +159,7 @@ export function createEmptyWizardData() {
     estimateRemarkMasterId: "",
     estimateRemarks: "",
     billingAccountId: "",
+    taxPercent: null,
     historyStatus: "",
     /** 編集時の楽観ロック用（ContractHistory LastModified epoch ms） */
     lastModifiedToken: "",
@@ -151,7 +167,18 @@ export function createEmptyWizardData() {
     historyCustomFieldsExpanded: true,
     remarksExpanded: true,
     contractServiceCustomFields: {},
-    contractHistoryCustomFields: {}
+    contractHistoryCustomFields: {},
+    estimateDate: "",
+    estimateValidDate: "",
+    estimateValidDateTouched: false,
+    estimateSendContactId: "",
+    opportunityContactId: "",
+    defaultMonthlyCycles: null,
+    estimateValidMonths: null,
+    estimateSendMode: "",
+    taxRoundingMode: null,
+    quantityUnitPriceRoundingMode: null,
+    amountRoundingMode: null
   };
 }
 
@@ -177,7 +204,8 @@ export function createInitialWizardState() {
       /** 契約サービス選択の連番。古い応答を破棄するために使う。 */
       serviceRequestId: 0,
       loadingStep3: false,
-      saving: false
+      saving: false,
+      loadingDocumentDefaults: false
     }
   };
 }
@@ -220,6 +248,16 @@ export function buildWizardDataFromPreset(preset) {
     estimateRemarkMasterId: preset.estimateRemarkMasterId || "",
     estimateRemarks: preset.estimateRemarks || "",
     billingAccountId: preset.billingAccountId || "",
+    taxPercent:
+      preset.taxPercent == null || preset.taxPercent === ""
+        ? selectedType === "New"
+          ? 10
+          : null
+        : Number(preset.taxPercent),
+    estimateDate: preset.estimateDate || "",
+    estimateValidDate: preset.estimateValidDate || "",
+    estimateValidDateTouched: Boolean(preset.estimateValidDate),
+    estimateSendContactId: preset.estimateSendContactId || "",
     historyStatus: preset.historyStatus || "",
     lastModifiedToken: preset.lastModifiedToken || "",
     serviceCustomFieldsExpanded: resolveCustomPanelExpanded(
@@ -267,9 +305,10 @@ function withMountedSteps(ui, step) {
   };
 }
 
-const CONTINUATION_OPS = new Set(["Change", "Renew", "Cancel", "Add"]);
+const CONTINUATION_OPS = new Set(["Change", "Renew", "Cancel"]);
 
 function reduceSetType(state, action) {
+  // 仕様: Core 第4.3節、第4.3.7節。見積種別を変えたら商談と取引先以外を破棄する。
   // 空文字は「続きで操作未選択」として明示的に許可する
   if (!Object.prototype.hasOwnProperty.call(action, "selectedType")) {
     return state;
@@ -282,31 +321,8 @@ function reduceSetType(state, action) {
   const prevType = state.data.selectedType || "";
   const nextIsNew = nextType === "New";
   const prevIsNew = prevType === "New";
-  const softContinuationSwitch =
-    CONTINUATION_OPS.has(prevType) && CONTINUATION_OPS.has(nextType);
 
-  if (softContinuationSwitch) {
-    // Change/Renew/Cancel/Add 同士: 契約サービスは維持し、明細・期間だけ捨てる
-    const data = resetFields(state.data, [
-      ...CONTRACT_DEPENDENT_FIELDS,
-      "estimateRemarkMasterId",
-      "estimateRemarks",
-      "remarksExpanded",
-      "contractHistoryCustomFields"
-    ]);
-    data.selectedType = nextType;
-    // Cancel の履歴名は modal2 が再初期化できるよう空にする
-    if (nextType === "Cancel" || prevType === "Cancel") {
-      data.contractHistoryName = "";
-    }
-    return {
-      ...state,
-      data,
-      ui: { step2Mounted: true, step3Mounted: false },
-      async: { ...state.async, loadingStep3: false }
-    };
-  }
-
+  const previousSendContactId = state.data.estimateSendContactId;
   const data = resetFields(state.data, TYPE_DEPENDENT_FIELDS);
   // サービス選択後の初回操作選択（"" → Change 等）は契約ポインタを残す
   if (
@@ -324,10 +340,20 @@ function reduceSetType(state, action) {
     data.nextHistoryVersion = state.data.nextHistoryVersion;
     data.billingAccountId = state.data.billingAccountId;
     data.renewEligible = state.data.renewEligible;
+    data.estimateSendContactId = previousSendContactId;
     data.contractHistoryName =
-      nextType === "Cancel" ? "" : state.data.contractHistoryName;
+      nextType === "Cancel"
+        ? buildCancelHistoryName(data.autoHistoryName)
+        : state.data.contractHistoryName;
   }
   data.selectedType = nextType;
+  if (nextIsNew && (data.taxPercent == null || data.taxPercent === "")) {
+    data.taxPercent = 10;
+  }
+  if (nextIsNew) {
+    data.estimateSendContactId =
+      data.opportunityContactId || data.estimateSendContactId || "";
+  }
   if (!nextIsNew && nextType !== "") {
     data.entryMode = "continuation";
   } else if (nextIsNew) {
@@ -407,7 +433,7 @@ function reduceSelectContractServiceStart(state, action) {
   const contractServiceId = action.contractServiceId || "";
   const data = resetFields(state.data, CONTRACT_DEPENDENT_FIELDS);
   data.contractServiceId = contractServiceId;
-  // Change／Renew／Cancel／Add はサービス名テキスト入力がないため、選択ラベルをヘッダ／状態へ載せる
+  // Change／Renew／Cancel はサービス名テキスト入力がないため、選択ラベルをヘッダ／状態へ載せる
   data.contractServiceName = contractServiceId
     ? (action.contractServiceName || "").trim()
     : "";
@@ -425,14 +451,14 @@ function reduceSelectContractServiceStart(state, action) {
   // 追加項目パネルはデフォルト開く
   data.serviceCustomFieldsExpanded = true;
   data.historyCustomFieldsExpanded = true;
-  // Lifecycle に合わない操作を補正（続きで操作未選択 "" の Spot も Add に確定）
+  // Lifecycle に合わない操作を補正（続きで操作未選択 "" の Spot は Change）
   const lifecycle = data.serviceLifecycle;
   const type = data.selectedType;
   if (!lifecycle) {
     data.selectedType = "";
-  } else if (lifecycle === "Spot" && type !== "Add") {
-    data.selectedType = "Add";
-  } else if (lifecycle === "Term" && type === "Add") {
+  } else if (lifecycle === "Spot" && type !== "Change") {
+    data.selectedType = "Change";
+  } else if (lifecycle === "Term" && type !== "" && !CONTINUATION_OPS.has(type)) {
     data.selectedType = "";
   }
   return {
@@ -459,6 +485,11 @@ function reduceSelectContractServiceResult(state, action, result) {
   data.nextHistoryVersion =
     result && result.nextVersion != null ? result.nextVersion : null;
   data.renewEligible = result ? result.renewEligible === true : null;
+  if (data.selectedType === "Cancel") {
+    data.contractHistoryName = buildCancelHistoryName(data.autoHistoryName);
+  }
+  data.estimateSendContactId =
+    (result && result.estimateSendContactId) || "";
   return {
     ...state,
     data,
@@ -563,19 +594,35 @@ function applyAction(state, action) {
     case WIZARD_ACTIONS.SET_OPPORTUNITY: {
       const opportunityName = action.opportunityName || "";
       const accountName = action.accountName || "";
+      const opportunityContactId = action.opportunityContactId || "";
       // 取得失敗や未解決の空値でプリセット由来の名前を消さない。
-      if (!opportunityName && !accountName) {
+      if (!opportunityName && !accountName && !opportunityContactId) {
         return state;
       }
       if (
         opportunityName === state.data.opportunityName &&
-        accountName === state.data.accountName
+        accountName === state.data.accountName &&
+        opportunityContactId === (state.data.opportunityContactId || "")
       ) {
         return state;
       }
+      const next = {
+        ...state.data,
+        opportunityName: opportunityName || state.data.opportunityName,
+        accountName: accountName || state.data.accountName,
+        opportunityContactId:
+          opportunityContactId || state.data.opportunityContactId || ""
+      };
+      if (
+        next.selectedType === "New" &&
+        !next.estimateSendContactId &&
+        next.opportunityContactId
+      ) {
+        next.estimateSendContactId = next.opportunityContactId;
+      }
       return {
         ...state,
-        data: { ...state.data, opportunityName, accountName }
+        data: next
       };
     }
 
@@ -661,7 +708,8 @@ export function canLeaveCurrentStep(state) {
     !state.async.loadingPreset &&
     !state.async.loadingContractHistory &&
     !state.async.loadingStep3 &&
-    !state.async.saving
+    !state.async.saving &&
+    !state.async.loadingDocumentDefaults
   );
 }
 
@@ -689,6 +737,72 @@ export function formatHistoryVersion(value) {
 }
 
 /** 同じプリセットを再読込すべきか（成功済み・失敗済みは再試行しない）。 */
+// 仕様: Core 第4.10節、第11.9節、日付仕様 第2.6節
+export function applyEstimateDocumentDefaults(state, defaults) {
+  if (!state || !defaults) {
+    return state;
+  }
+  const mode = defaults.estimateSendMode;
+  const data = { ...state.data };
+  data.defaultMonthlyCycles = defaults.defaultMonthlyCycles;
+  data.estimateValidMonths = defaults.estimateValidMonths;
+  data.estimateSendMode = mode;
+  data.taxRoundingMode = defaults.taxRoundingMode;
+  data.quantityUnitPriceRoundingMode =
+    defaults.quantityUnitPriceRoundingMode;
+  data.amountRoundingMode = defaults.amountRoundingMode;
+  // 仕様: Core 第4.6節、第11.9節。明細金額計算へ OrgDefault を載せる。
+  setAmountCalculationRoundingModes({
+    quantityUnitPriceRoundingMode: defaults.quantityUnitPriceRoundingMode,
+    amountRoundingMode: defaults.amountRoundingMode
+  });
+  if (mode === "Unused") {
+    return { ...state, data };
+  }
+  if (!data.estimateDate) {
+    data.estimateDate = defaults.today || "";
+  }
+  if (!data.estimateValidDateTouched) {
+    data.estimateValidDate = addCalendarMonths(
+      data.estimateDate,
+      defaults.estimateValidMonths
+    );
+  }
+  return { ...state, data };
+}
+
+export function followEstimateValidDate(estimateDate, months, touched, currentValid) {
+  if (touched) {
+    return currentValid || "";
+  }
+  return addCalendarMonths(estimateDate, months);
+}
+
+function addCalendarMonths(isoDate, months) {
+  if (!isoDate || !Number.isInteger(months)) {
+    return "";
+  }
+  const parts = String(isoDate).split("-").map(Number);
+  if (parts.length < 3 || parts.some((n) => !Number.isFinite(n))) {
+    return "";
+  }
+  const year = parts[0];
+  const monthIndex = parts[1] - 1 + months;
+  const nextYear = year + Math.floor(monthIndex / 12);
+  const nextMonth = ((monthIndex % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(nextYear, nextMonth + 1, 0)).getUTCDate();
+  const day = Math.min(parts[2], lastDay);
+  return `${nextYear}-${String(nextMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function buildCancelHistoryName(baseName) {
+  const base = (baseName || "").trim();
+  if (!base) {
+    return "";
+  }
+  return base.endsWith("解約") ? base : `${base} 解約`;
+}
+
 export function shouldLoadPreset(state, key) {
   if (!key) {
     return false;

@@ -23,6 +23,9 @@ public without sharing class EstimateCreateController {
     public String billingCycle;
 
     @AuraEnabled
+    public String revenueRecognitionBasis;
+
+    @AuraEnabled
     public String displayUnit;
 
     @AuraEnabled
@@ -69,6 +72,9 @@ public without sharing class EstimateCreateController {
 
     @AuraEnabled
     public String billingCycle;
+
+    @AuraEnabled
+    public String revenueRecognitionBasis;
 
     @AuraEnabled
     public String recordType;
@@ -185,6 +191,20 @@ public without sharing class EstimateCreateController {
     /** 同時編集ガード用。ContractHistory.LastModifiedDate の epoch ms 文字列 */
     @AuraEnabled
     public String lastModifiedToken;
+
+    /** 表示％。New の編集／コピーで保存済み税率を戻す */
+    @AuraEnabled
+    public Decimal taxPercent;
+
+    @AuraEnabled
+    public String estimateDate;
+
+    @AuraEnabled
+    public String estimateValidDate;
+
+    /** 仕様: Core 第4.3.3節。見積送付先。Ordered編集では画面に出さない。 */
+    @AuraEnabled
+    public Id estimateSendContactId;
   }
 
   public class BillingAccountInvoiceSettingsDto {
@@ -202,6 +222,10 @@ public without sharing class EstimateCreateController {
 
     @AuraEnabled
     public Boolean adjustInvoiceDateToBusinessDay;
+
+    /** 仕様: Core 第5.2節 */
+    @AuraEnabled
+    public Map<String, Object> billingCustomFields;
   }
 
   public class BillingAccountOptionDto {
@@ -227,11 +251,11 @@ public without sharing class EstimateCreateController {
     @AuraEnabled
     public String lifecycleLabel;
 
-    /** InTerm / OutOfTerm / SPOT など */
+    /** 契約期間状態。数式の日本語値をそのまま載せる */
     @AuraEnabled
     public String status;
 
-    /** 表示用: 期間内 / 期間外 / 都度 */
+    /** 表示用。status と同じ日本語値 */
     @AuraEnabled
     public String statusLabel;
 
@@ -269,6 +293,10 @@ public without sharing class EstimateCreateController {
      */
     @AuraEnabled
     public String currentProductNames;
+
+    /** 表示％。未設定は null */
+    @AuraEnabled
+    public Decimal taxPercent;
   }
 
   public class EstimateSaveRequest {
@@ -297,6 +325,19 @@ public without sharing class EstimateCreateController {
     public String effectiveDate;
 
     @AuraEnabled
+    public Decimal taxPercent;
+
+    @AuraEnabled
+    public String estimateDate;
+
+    @AuraEnabled
+    public String estimateValidDate;
+
+    /** 仕様: Core 第4.3.3節。契約履歴へ保存する。必須にしない。 */
+    @AuraEnabled
+    public Id estimateSendContactId;
+
+    @AuraEnabled
     public String applicationDate;
 
     @AuraEnabled
@@ -321,6 +362,10 @@ public without sharing class EstimateCreateController {
     @AuraEnabled
     public String expectedLastModifiedToken;
 
+    /** 仕様: Core 第4.3.12節 */
+    @AuraEnabled
+    public String businessOperationKey;
+
     public Map<String, Object> contractServiceCustomFields;
 
     public Map<String, Object> contractHistoryCustomFields;
@@ -342,6 +387,10 @@ public without sharing class EstimateCreateController {
     /** 保存後の楽観ロック用トークン（連続保存用） */
     @AuraEnabled
     public String lastModifiedToken;
+
+    /** 仕様: Core 第4.3.12節 */
+    @AuraEnabled
+    public String businessOperationKey;
   }
 
   public class ContractHistoryDto {
@@ -368,6 +417,10 @@ public without sharing class EstimateCreateController {
 
     @AuraEnabled
     public Boolean renewEligible;
+
+    /** 仕様: Core 第4.3.3節。ベース Ordered の見積送付先。裏コピーではない。 */
+    @AuraEnabled
+    public Id estimateSendContactId;
   }
 
   public class ContractProductLineDto {
@@ -412,6 +465,9 @@ public without sharing class EstimateCreateController {
     public String billingCycle;
 
     @AuraEnabled
+    public String revenueRecognitionBasis;
+
+    @AuraEnabled
     public Map<String, Object> customFields;
 
     @AuraEnabled
@@ -424,6 +480,7 @@ public without sharing class EstimateCreateController {
   public static List<ContractProductLineDto> getRecurringContractProducts(
     Id contractHistoryId
   ) {
+    ContractPermissionUtil.assertEstimateSave(null, null);
     return EstimateQueryService.getRecurringContractProducts(contractHistoryId);
   }
 
@@ -431,6 +488,7 @@ public without sharing class EstimateCreateController {
   public static List<ContractProductLineDto> getRenewContractProducts(
     Id contractServiceId
   ) {
+    ContractPermissionUtil.assertEstimateSave(null, null);
     return EstimateQueryService.getRenewContractProducts(contractServiceId);
   }
 
@@ -438,6 +496,7 @@ public without sharing class EstimateCreateController {
   public static ContractHistoryDto getLatestContractHistory(
     Id contractServiceId
   ) {
+    ContractPermissionUtil.assertEstimateSave(null, null);
     return EstimateQueryService.getLatestContractHistory(contractServiceId);
   }
 
@@ -445,12 +504,8 @@ public without sharing class EstimateCreateController {
   public static ContractHistoryDto getContractHistoryInfo(
     Id contractHistoryId
   ) {
+    ContractPermissionUtil.assertEstimateSave(null, null);
     return EstimateQueryService.getContractHistoryInfo(contractHistoryId);
-  }
-
-  @AuraEnabled
-  public static Id getEstimateCopyLaunchInfo(Id contractHistoryId) {
-    return EstimateQueryService.getEstimateCopyLaunchInfo(contractHistoryId);
   }
 
   @AuraEnabled
@@ -458,7 +513,7 @@ public without sharing class EstimateCreateController {
     Id contractHistoryId
   ) {
     ContractPermissionUtil.assertHas(
-      ContractPermissionUtil.COPY_ESTIMATE,
+      ContractPermissionUtil.ESTIMATE,
       '見積コピーを実行する権限がありません。'
     );
     return EstimateQueryService.getEstimateCopyPreset(contractHistoryId);
@@ -469,25 +524,36 @@ public without sharing class EstimateCreateController {
     Id contractHistoryId
   ) {
     ContractPermissionUtil.assertHas(
-      ContractPermissionUtil.EDIT_ESTIMATE,
+      ContractPermissionUtil.ESTIMATE,
       '見積編集を実行する権限がありません。'
     );
     return EstimateQueryService.getEstimateEditPreset(contractHistoryId);
   }
 
+  /** 仕様: Core 第1.1.10節 */
   @AuraEnabled
   public static ProductDefaultDto getProductDefaults(Id productId) {
+    ContractPermissionUtil.assertEstimateSave(null, null);
     return EstimateQueryService.getProductDefaults(productId);
   }
 
   @AuraEnabled(cacheable=true)
   public static List<ContractMetadataService.InvoiceSettingOption> getInvoiceSettingOptions() {
+    ContractPermissionUtil.assertEstimateSave(null, null);
     return EstimateQueryService.getInvoiceSettingOptions();
   }
 
   @AuraEnabled(cacheable=true)
   public static String getDefaultInvoiceSettingLabel() {
     return EstimateQueryService.getDefaultInvoiceSettingLabel();
+  }
+
+  /** 仕様: Core 第1.1.10節、第4.5.2節、第7.6節、Accounting 第3.2節。0件はOFFと埋めない。 */
+  @AuraEnabled(cacheable=true)
+  public static Boolean isAccountingEnabled() {
+    ContractPermissionUtil.assertEstimateSave(null, null);
+    return GlAccountingPolicyService.requireOrgPolicy().AccountingEnabled__c ==
+      true;
   }
 
   @AuraEnabled(cacheable=true)
@@ -632,11 +698,11 @@ public without sharing class EstimateCreateController {
       editHistoryId,
       contractServiceCustomFieldsJson,
       contractHistoryCustomFieldsJson,
-      null
+      resolveCurrentHistoryToken(editHistoryId)
     );
   }
 
-  @AuraEnabled
+  /** Apex テスト互換。税・見積日は未指定。 */
   public static EstimateSaveResult saveEstimate(
     Id opportunityId,
     String selectedType,
@@ -658,6 +724,122 @@ public without sharing class EstimateCreateController {
     String contractHistoryCustomFieldsJson,
     String expectedLastModifiedToken
   ) {
+    return saveEstimate(
+      opportunityId,
+      selectedType,
+      contractServiceName,
+      contractHistoryName,
+      contractServiceId,
+      previousHistoryId,
+      contractStartDate,
+      contractEndDate,
+      effectiveDate,
+      applicationDate,
+      productsJson,
+      estimateRemarkMasterId,
+      remarksText,
+      billingAccountId,
+      copyFromHistoryId,
+      editHistoryId,
+      contractServiceCustomFieldsJson,
+      contractHistoryCustomFieldsJson,
+      expectedLastModifiedToken,
+      null,
+      null,
+      null,
+      null
+    );
+  }
+
+  /** Apex テスト互換。操作キー未指定。 */
+  public static EstimateSaveResult saveEstimate(
+    Id opportunityId,
+    String selectedType,
+    String contractServiceName,
+    String contractHistoryName,
+    Id contractServiceId,
+    Id previousHistoryId,
+    String contractStartDate,
+    String contractEndDate,
+    String effectiveDate,
+    String applicationDate,
+    String productsJson,
+    Id estimateRemarkMasterId,
+    String remarksText,
+    Id billingAccountId,
+    Id copyFromHistoryId,
+    Id editHistoryId,
+    String contractServiceCustomFieldsJson,
+    String contractHistoryCustomFieldsJson,
+    String expectedLastModifiedToken,
+    Decimal taxPercent,
+    String estimateDate,
+    String estimateValidDate,
+    Id estimateSendContactId
+  ) {
+    return saveEstimate(
+      opportunityId,
+      selectedType,
+      contractServiceName,
+      contractHistoryName,
+      contractServiceId,
+      previousHistoryId,
+      contractStartDate,
+      contractEndDate,
+      effectiveDate,
+      applicationDate,
+      productsJson,
+      estimateRemarkMasterId,
+      remarksText,
+      billingAccountId,
+      copyFromHistoryId,
+      editHistoryId,
+      contractServiceCustomFieldsJson,
+      contractHistoryCustomFieldsJson,
+      expectedLastModifiedToken,
+      taxPercent,
+      estimateDate,
+      estimateValidDate,
+      estimateSendContactId,
+      null
+    );
+  }
+
+  /** 仕様: Core 第4.3.12節、共通基盤 第10.4節。見積のキー発行は 03。 */
+  @AuraEnabled
+  public static String issueEstimateOperationKey() {
+    ContractPermissionUtil.assertEstimateSave(null, null);
+    return AccountingCauseLockService.issueOperationKey();
+  }
+
+  /** 仕様: Core 第4.3.12節 */
+  @AuraEnabled
+  public static EstimateSaveResult saveEstimate(
+    Id opportunityId,
+    String selectedType,
+    String contractServiceName,
+    String contractHistoryName,
+    Id contractServiceId,
+    Id previousHistoryId,
+    String contractStartDate,
+    String contractEndDate,
+    String effectiveDate,
+    String applicationDate,
+    String productsJson,
+    Id estimateRemarkMasterId,
+    String remarksText,
+    Id billingAccountId,
+    Id copyFromHistoryId,
+    Id editHistoryId,
+    String contractServiceCustomFieldsJson,
+    String contractHistoryCustomFieldsJson,
+    String expectedLastModifiedToken,
+    Decimal taxPercent,
+    String estimateDate,
+    String estimateValidDate,
+    Id estimateSendContactId,
+    String businessOperationKey
+  ) {
     ContractPermissionUtil.assertEstimateSave(editHistoryId, copyFromHistoryId);
     return EstimateSaveService.saveEstimate(
       opportunityId,
@@ -678,8 +860,62 @@ public without sharing class EstimateCreateController {
       editHistoryId,
       contractServiceCustomFieldsJson,
       contractHistoryCustomFieldsJson,
-      expectedLastModifiedToken
+      expectedLastModifiedToken,
+      taxPercent,
+      estimateDate,
+      estimateValidDate,
+      estimateSendContactId,
+      businessOperationKey
     );
+  }
+
+  /** Apex テスト互換 overload 用。外部公開の編集 API は token 必須。 */
+  private static String resolveCurrentHistoryToken(Id contractHistoryId) {
+    return ContractOptimisticLockUtil.toHistoryProductToken(contractHistoryId);
+  }
+
+  public class DocumentDefaultsDto {
+    @AuraEnabled
+    public Integer estimateValidMonths;
+
+    @AuraEnabled
+    public Integer defaultMonthlyCycles;
+
+    @AuraEnabled
+    public String estimateSendMode;
+
+    @AuraEnabled
+    public String today;
+
+    /** 仕様: Core 第11.9節。DOWN / HALF_UP / UP。無い・空は既定へ落とさない。 */
+    @AuraEnabled
+    public String taxRoundingMode;
+
+    /** 仕様: Core 第4.6節、第11.9節。Scale2HalfUp 等。無い・空は既定へ落とさない。 */
+    @AuraEnabled
+    public String quantityUnitPriceRoundingMode;
+
+    /** 仕様: Core 第4.6節、第11.9節。Scale0HalfUp 等。無い・空は既定へ落とさない。 */
+    @AuraEnabled
+    public String amountRoundingMode;
+  }
+
+  /** 仕様: Core 第4.10節、第11.9節、第4.3.1節、日付仕様 第2.5節・第2.6節・第8章、共通基盤 第10.4節 */
+  @AuraEnabled(cacheable=true)
+  public static DocumentDefaultsDto getDocumentDefaults() {
+    ContractPermissionUtil.assertEstimateDocumentDefaults();
+    DocumentDefaultsDto dto = new DocumentDefaultsDto();
+    dto.estimateValidMonths = ContractDocumentSettingService.requireEstimateValidMonths();
+    dto.defaultMonthlyCycles = ContractDocumentSettingService.requireDefaultCycles();
+    dto.estimateSendMode = ContractDocumentSettingService.requireSendMode('Estimate');
+    dto.today = String.valueOf(
+      InvoiceTransactionStatusService.organizationToday()
+    );
+    GlAccountingSetting__mdt amountSetting = AmountCalculationSettingService.requireOrgDefault();
+    dto.taxRoundingMode = amountSetting.TaxRoundingMode__c;
+    dto.quantityUnitPriceRoundingMode = amountSetting.QuantityUnitPriceRoundingMode__c;
+    dto.amountRoundingMode = amountSetting.AmountRoundingMode__c;
+    return dto;
   }
 
   /**

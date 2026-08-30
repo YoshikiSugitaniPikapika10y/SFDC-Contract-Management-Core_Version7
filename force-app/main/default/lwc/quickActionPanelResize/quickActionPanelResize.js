@@ -17,6 +17,7 @@ const LARGE_ACTION_HOST_SELECTORS = [
 /** Compact confirmation dialogs (archive / revert). */
 const CONFIRM_ACTION_HOST_SELECTORS = [
   "c-estimate-archive-record-action",
+  "c-estimate-action-hub-record-action",
   "c-order-revert-record-action"
 ];
 

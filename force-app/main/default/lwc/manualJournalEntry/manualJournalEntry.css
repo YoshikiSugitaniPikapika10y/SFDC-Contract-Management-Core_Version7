@@ -1,0 +1,69 @@
+.manual-entry {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ops-form-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ops-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.setting-description {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.ops-table-wrap {
+  overflow: visible;
+}
+
+.ops-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ops-table th,
+.ops-table td {
+  padding: 0.35rem 0.4rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.num-col {
+  text-align: right;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ghost-btn,
+.solid-btn {
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+}
+
+.ghost-btn {
+  background: #fff;
+  border: 1px solid #94a3b8;
+}
+
+.solid-btn {
+  background: #059669;
+  border: 1px solid #047857;
+  color: #fff;
+}
+
+.solid-btn:disabled,
+.ghost-btn:disabled {
+  opacity: 0.5;
+}

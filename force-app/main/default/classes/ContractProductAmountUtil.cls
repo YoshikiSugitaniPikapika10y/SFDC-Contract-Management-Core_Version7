@@ -39,6 +39,34 @@ public without sharing class ContractProductAmountUtil {
     return amount;
   }
 
+  /**
+   * 画面 `yenFromQuantityUnitPrice` と同定義。
+   * 数量・単価・税抜は第11.9節の OrgDefault。無い・空は既定へ落とさない。
+   */
+  public static Decimal yenFromQuantityUnitPrice(
+    Decimal quantity,
+    Decimal unitPrice,
+    Integer cycles
+  ) {
+    if (quantity == null || unitPrice == null || cycles == null) {
+      return null;
+    }
+    // 仕様: Core 第4.6節、第11.9節
+    Integer qtyScale = AmountCalculationSettingService.quantityUnitPriceScale();
+    RoundingMode qtyMode = AmountCalculationSettingService.quantityUnitPriceRoundingMode();
+    Integer amountScale = AmountCalculationSettingService.amountScale();
+    RoundingMode amountMode = AmountCalculationSettingService.amountRoundingMode();
+    Decimal qScaled = quantity.setScale(qtyScale, qtyMode);
+    Decimal pScaled = unitPrice.setScale(qtyScale, qtyMode);
+    Long qInt = qScaled.movePointRight(qtyScale).longValue();
+    Long pInt = pScaled.movePointRight(qtyScale).longValue();
+    Decimal scaleFactor = Decimal.valueOf(10).pow(qtyScale * 2);
+    Decimal numerator = Decimal.valueOf(qInt)
+      .multiply(Decimal.valueOf(pInt))
+      .multiply(Decimal.valueOf(cycles));
+    return numerator.divide(scaleFactor, amountScale, amountMode);
+  }
+
   public static Decimal calculateUnsignedAmount(
     Decimal quantity,
     Decimal unitPrice,
@@ -53,7 +81,7 @@ public without sharing class ContractProductAmountUtil {
     }
 
     if (!ContractMetadataService.isRecurringBillingType(billingType)) {
-      return (qty * price).setScale(0, RoundingMode.HALF_UP);
+      return yenFromQuantityUnitPrice(qty, price, 1);
     }
     if (startDate == null || endDate == null) {
       return null;
@@ -66,7 +94,7 @@ public without sharing class ContractProductAmountUtil {
     if (cycles == null || cycles < 1) {
       return null;
     }
-    return (qty * price * cycles).setScale(0, RoundingMode.HALF_UP);
+    return yenFromQuantityUnitPrice(qty, price, cycles);
   }
 
   public static Decimal applyProductTypeSign(

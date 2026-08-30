@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>FieldApiNames__c</fullName>
     <description
-  >ロック中も更新許可する Invoice__c 項目 API 名。カンマ区切り（例: PaymentClearedAmount__c,PaymentClearingCompletedDate__c）。空ならコード既定（消込額・消込完了日）。</description>
+  >仕様: Core 第11.6節。ロック中も更新許可する Invoice__c 項目 API 名。カンマ区切り。レコード無し・空は実行時にシードへ落とさずエラー。</description>
     <externalId>false</externalId>
     <label>除外項目 API 名</label>
     <length>255</length>

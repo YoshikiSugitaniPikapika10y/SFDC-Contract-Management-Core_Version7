@@ -38,7 +38,7 @@ public without sharing class ContractHistoryStatusPathService {
   }
 
   /**
-   * before insert/update: 期待値を強制セット。ユーザーが別値へ変えた場合はエラー。
+   * 仕様: Core 第5.7節。before insert/update: 期待値を強制セット。ユーザーが別値へ変えた場合はエラー。
    */
   public static void applyOnBeforeWrite(
     List<ContractHistory__c> newHistories,
@@ -66,8 +66,7 @@ public without sharing class ContractHistoryStatusPathService {
   }
 
   /**
-   * 請求の作成・更新・削除後に親履歴の StatusPath を再計算する。
-   * 積み上げ更新で親トリガが動かない経路の保険。
+   * 仕様: Core 第5.7節。請求の作成・更新・削除後に親履歴の StatusPath を再計算する。
    */
   public static void syncForInvoiceParents(Set<Id> contractHistoryIds) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
@@ -87,6 +86,7 @@ public without sharing class ContractHistoryStatusPathService {
     List<ContractHistory__c> histories = [
       SELECT
         Id,
+        Type__c,
         historystatus__c,
         StatusPath__c,
         InvoiceCount__c,
@@ -122,12 +122,14 @@ public without sharing class ContractHistoryStatusPathService {
     syncForInvoiceParents(historyIds);
   }
 
+  /** 仕様: Core 第5.7節 */
   public static String resolvePath(ContractHistory__c history) {
     if (history == null) {
       return null;
     }
     return resolvePath(
       history.historystatus__c,
+      history.Type__c,
       history.InvoiceCount__c,
       history.InvoicedCount__c,
       history.PaidCount__c
@@ -141,6 +143,17 @@ public without sharing class ContractHistoryStatusPathService {
     Decimal invoicedCount,
     Decimal paidCount
   ) {
+    return resolvePath(historyStatus, null, invoiceCount, invoicedCount, paidCount);
+  }
+
+  @TestVisible
+  static String resolvePath(
+    String historyStatus,
+    String historyType,
+    Decimal invoiceCount,
+    Decimal invoicedCount,
+    Decimal paidCount
+  ) {
     if (historyStatus == PATH_ARCHIVE) {
       // Path 本線外。RT の StatusPath からも外し、バーに出さない。
       return null;
@@ -150,6 +163,9 @@ public without sharing class ContractHistoryStatusPathService {
     }
     if (historyStatus != PATH_ORDERED) {
       return historyStatus;
+    }
+    if (historyType == ContractDomainConstants.HISTORY_TYPE_CANCEL) {
+      return PATH_ORDERED;
     }
 
     Decimal invoices = nullToZero(invoiceCount);

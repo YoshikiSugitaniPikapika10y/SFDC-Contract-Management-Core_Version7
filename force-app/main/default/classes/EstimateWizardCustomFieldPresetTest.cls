@@ -40,10 +40,11 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
       lineItem.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'product-memo-original'
+        'Description__c' => 'product-memo-original'
       };
 
       EstimateCreateController.EstimateSaveResult saveResult = EstimateCreateController.saveEstimate(
@@ -96,7 +97,7 @@ private class EstimateWizardCustomFieldPresetTest {
       System.assertEquals(1, preset.selectedProducts.size());
       System.assertEquals(
         'product-memo-original',
-        preset.selectedProducts[0].customFields.get('CustomerMemo__c')
+        preset.selectedProducts[0].customFields.get('Description__c')
       );
       System.assertEquals(true, preset.contractCustomFieldsExpanded);
 
@@ -125,14 +126,14 @@ private class EstimateWizardCustomFieldPresetTest {
       );
 
       ContractProduct__c reloadedProduct = [
-        SELECT CustomerMemo__c
+        SELECT Description__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :editResult.contractHistoryId
         LIMIT 1
       ];
       System.assertEquals(
         'product-memo-original',
-        reloadedProduct.CustomerMemo__c,
+        reloadedProduct.Description__c,
         '編集保存後も商品カスタム項目が残ること'
       );
     }
@@ -156,10 +157,14 @@ private class EstimateWizardCustomFieldPresetTest {
         BillingEmailTo__c = 'to@example.com',
         BillingEmailCc__c = 'cc@example.com',
         BillingEmailBcc__c = 'bcc@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -187,10 +192,11 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
       lineItem.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'product-before'
+        'Description__c' => 'product-before'
       };
 
       EstimateCreateController.EstimateSaveResult saveResult = EstimateCreateController.saveEstimate(
@@ -252,7 +258,7 @@ private class EstimateWizardCustomFieldPresetTest {
       String remarksBefore = history.Note__c;
 
       ContractProduct__c productBefore = [
-        SELECT Id, Quantity__c, UnitPrice__c, CustomerMemo__c
+        SELECT Id, Quantity__c, UnitPrice__c, Description__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :history.Id
         LIMIT 1
@@ -269,7 +275,7 @@ private class EstimateWizardCustomFieldPresetTest {
 
       EstimateCreateController.ProductLineItem editedLine = preset.selectedProducts[0];
       editedLine.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'product-after'
+        'Description__c' => 'product-after'
       };
       // 改ざんしても標準項目は反映されないこと
       editedLine.quantity = 999;
@@ -336,7 +342,7 @@ private class EstimateWizardCustomFieldPresetTest {
       System.assertEquals('service-after', serviceAfter.CustomerMemo__c);
 
       ContractProduct__c productAfter = [
-        SELECT Quantity__c, UnitPrice__c, CustomerMemo__c
+        SELECT Quantity__c, UnitPrice__c, Description__c
         FROM ContractProduct__c
         WHERE Id = :productBefore.Id
       ];
@@ -345,7 +351,7 @@ private class EstimateWizardCustomFieldPresetTest {
         productBefore.UnitPrice__c,
         productAfter.UnitPrice__c
       );
-      System.assertEquals('product-after', productAfter.CustomerMemo__c);
+      System.assertEquals('product-after', productAfter.Description__c);
     }
   }
 
@@ -372,10 +378,14 @@ private class EstimateWizardCustomFieldPresetTest {
         BillingEmailTo__c = 'to@example.com',
         BillingEmailCc__c = 'cc@example.com',
         BillingEmailBcc__c = 'bcc@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -403,10 +413,11 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
       lineItem.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'keep-me'
+        'Description__c' => 'keep-me'
       };
       lineItem.productVisibilityContext = new Map<String, String>{
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
@@ -444,19 +455,19 @@ private class EstimateWizardCustomFieldPresetTest {
       update history;
 
       ContractProduct__c productBefore = [
-        SELECT Id, CustomerMemo__c
+        SELECT Id, Description__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :history.Id
         LIMIT 1
       ];
-      System.assertEquals('keep-me', productBefore.CustomerMemo__c);
+      System.assertEquals('keep-me', productBefore.Description__c);
 
       EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
         history.Id
       );
       EstimateCreateController.ProductLineItem editedLine = preset.selectedProducts[0];
       editedLine.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'still-here'
+        'Description__c' => 'still-here'
       };
       // 画面から context が欠落したケースを模擬
       editedLine.productVisibilityContext = new Map<String, String>();
@@ -487,13 +498,13 @@ private class EstimateWizardCustomFieldPresetTest {
       Test.stopTest();
 
       ContractProduct__c productAfter = [
-        SELECT CustomerMemo__c
+        SELECT Description__c
         FROM ContractProduct__c
         WHERE Id = :productBefore.Id
       ];
       System.assertEquals(
         'still-here',
-        productAfter.CustomerMemo__c,
+        productAfter.Description__c,
         '空の visibility context でも Product2 再構築により条件付き項目を保持すること'
       );
     }
@@ -521,10 +532,14 @@ private class EstimateWizardCustomFieldPresetTest {
         BillingEmailTo__c = 'to@example.com',
         BillingEmailCc__c = 'cc@example.com',
         BillingEmailBcc__c = 'bcc@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -552,10 +567,11 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
       lineItem.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'keep-stale'
+        'Description__c' => 'keep-stale'
       };
       lineItem.productVisibilityContext = new Map<String, String>{
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
@@ -593,19 +609,19 @@ private class EstimateWizardCustomFieldPresetTest {
       update history;
 
       ContractProduct__c productBefore = [
-        SELECT Id, CustomerMemo__c
+        SELECT Id, Description__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :history.Id
         LIMIT 1
       ];
-      System.assertEquals('keep-stale', productBefore.CustomerMemo__c);
+      System.assertEquals('keep-stale', productBefore.Description__c);
 
       EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
         history.Id
       );
       EstimateCreateController.ProductLineItem editedLine = preset.selectedProducts[0];
       editedLine.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'kept-despite-stale-ctx'
+        'Description__c' => 'kept-despite-stale-ctx'
       };
       // 誤った Family を送っても Product2 実値を正とする
       editedLine.productVisibilityContext = new Map<String, String>{
@@ -638,13 +654,13 @@ private class EstimateWizardCustomFieldPresetTest {
       Test.stopTest();
 
       ContractProduct__c productAfter = [
-        SELECT CustomerMemo__c
+        SELECT Description__c
         FROM ContractProduct__c
         WHERE Id = :productBefore.Id
       ];
       System.assertEquals(
         'kept-despite-stale-ctx',
-        productAfter.CustomerMemo__c,
+        productAfter.Description__c,
         '古い visibility context を無視し Product2 で判定して条件付き項目を保持すること'
       );
     }
@@ -758,10 +774,14 @@ private class EstimateWizardCustomFieldPresetTest {
         BillingEmailTo__c = 'to@example.com',
         BillingEmailCc__c = 'cc@example.com',
         BillingEmailBcc__c = 'bcc@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -789,6 +809,7 @@ private class EstimateWizardCustomFieldPresetTest {
       createLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       createLine.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       createLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      createLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       createLine.billingCycle = '月';
       createLine.recordType = 'New';
 
@@ -824,7 +845,7 @@ private class EstimateWizardCustomFieldPresetTest {
       try {
         update history;
       } catch (DmlException dmlEx) {
-        // 組織の InvoiceProductFieldCopy__mdt 設定次第で受注時コピーが失敗しうる
+        // 組織の FieldCopyDefinition__c 設定次第で受注時コピーが失敗しうる
         System.debug(
           LoggingLevel.WARN,
           'Skip orderedEdit_missingContractProductId_throws: ' +
@@ -846,10 +867,11 @@ private class EstimateWizardCustomFieldPresetTest {
       badLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       badLine.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       badLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      badLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       badLine.billingCycle = '月';
       badLine.recordType = 'New';
       badLine.customFields = new Map<String, Object>{
-        'CustomerMemo__c' => 'should-not-save'
+        'Description__c' => 'should-not-save'
       };
 
       Boolean thrown = false;
@@ -989,7 +1011,7 @@ private class EstimateWizardCustomFieldPresetTest {
       ContractWizardFieldService.getActiveFieldApiNames(
           ContractWizardFieldService.WizardTarget.ContractProduct
         )
-        .contains('CustomerMemo__c')
+        .contains('Description__c')
     );
 
     Product2 product = ContractTestDataFactory.buildProduct(
@@ -1002,11 +1024,11 @@ private class EstimateWizardCustomFieldPresetTest {
       product
     );
     Map<String, Object> visible = ContractWizardFieldService.filterCustomFieldsByVisibility(
-      new Map<String, Object>{ 'CustomerMemo__c' => 'helper-memo' },
+      new Map<String, Object>{ 'Description__c' => 'helper-memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct,
       context
     );
-    System.assertEquals('helper-memo', visible.get('CustomerMemo__c'));
+    System.assertEquals('helper-memo', visible.get('Description__c'));
 
     System.assertNotEquals(
       null,
@@ -1026,10 +1048,14 @@ private class EstimateWizardCustomFieldPresetTest {
       Account__c = accountId,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 25,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     return billingAccount;

@@ -50,6 +50,21 @@ public with sharing class ContractOptimisticLockUtil {
     }
   }
 
+  /**
+   * Aura / LWC の更新入口向け。トークン欠落や比較対象日時の欠落も
+   * 「競合を検知できない状態」として安全側に拒否する。
+   */
+  public static void assertRequiredUnchanged(
+    Datetime actualLastModified,
+    String expectedToken,
+    String entityLabel
+  ) {
+    if (String.isBlank(expectedToken) || actualLastModified == null) {
+      throw conflict(entityLabel);
+    }
+    assertUnchanged(actualLastModified, expectedToken, entityLabel);
+  }
+
   public static void assertHistoryUnchanged(
     ContractHistory__c history,
     String expectedToken
@@ -62,6 +77,70 @@ public with sharing class ContractOptimisticLockUtil {
       throw ex;
     }
     assertUnchanged(history.LastModifiedDate, expectedToken, '契約履歴');
+  }
+
+  public static void assertRequiredHistoryUnchanged(
+    ContractHistory__c history,
+    String expectedToken
+  ) {
+    if (history == null) {
+      AuraHandledException ex = new AuraHandledException(
+        '契約履歴が見つかりません。'
+      );
+      ex.setMessage('契約履歴が見つかりません。');
+      throw ex;
+    }
+    assertRequiredUnchanged(
+      history.LastModifiedDate,
+      expectedToken,
+      '契約履歴'
+    );
+  }
+
+  /** 仕様: Core 第4.3.12節。版は契約履歴と配下の見積商品。 */
+  public static Datetime resolveHistoryProductDatetime(Id historyId) {
+    if (historyId == null) {
+      return null;
+    }
+    Datetime maxLm;
+    for (ContractHistory__c history : [
+      SELECT LastModifiedDate
+      FROM ContractHistory__c
+      WHERE Id = :historyId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ]) {
+      maxLm = history.LastModifiedDate;
+    }
+    for (AggregateResult row : [
+      SELECT MAX(LastModifiedDate) maxLm
+      FROM ContractProduct__c
+      WHERE ContractHistory__c = :historyId
+      WITH SYSTEM_MODE
+    ]) {
+      Datetime productMax = (Datetime) row.get('maxLm');
+      if (productMax != null && (maxLm == null || productMax > maxLm)) {
+        maxLm = productMax;
+      }
+    }
+    return maxLm;
+  }
+
+  /** 仕様: Core 第4.3.12節 */
+  public static String toHistoryProductToken(Id historyId) {
+    return toToken(resolveHistoryProductDatetime(historyId));
+  }
+
+  /** 仕様: Core 第4.3.12節 */
+  public static void assertRequiredHistoryProductsUnchanged(
+    Id historyId,
+    String expectedToken
+  ) {
+    assertRequiredUnchanged(
+      resolveHistoryProductDatetime(historyId),
+      expectedToken,
+      '契約履歴'
+    );
   }
 
   public static AuraHandledException conflict(String entityLabel) {

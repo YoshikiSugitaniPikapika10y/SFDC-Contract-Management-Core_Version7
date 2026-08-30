@@ -1,0 +1,12 @@
+{!Contact.Account.Name}
+{!Contact.Name} 様
+
+お世話になっております。
+見積書を添付いたしましたので、ご確認ください。
+
+見積番号: {!ContractHistory__c.Name}
+件名: {!ContractHistory__c.EstimateTitleName__c}
+見積日: {!ContractHistory__c.EstimateDate__c}
+有効期限: {!ContractHistory__c.EstimateValidDate__c}
+
+ご不明点がございましたら、本メールへご返信ください。

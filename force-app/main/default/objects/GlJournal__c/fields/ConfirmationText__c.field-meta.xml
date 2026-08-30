@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ConfirmationText__c</fullName>
+    <description>仕様: Accounting 第9.1.1節。原因の事実を1列に出す。Goalの再計算ではない。</description>
+    <externalId>false</externalId>
+    <formula>IF(
+  OR(
+    ISBLANK(InvoiceLine__c),
+    ISBLANK(JournalPatternKey__c),
+    JournalPatternKey__c = "PAYMENT_NON_INVOICE_POSITIVE",
+    JournalPatternKey__c = "PAYMENT_NON_INVOICE_NEGATIVE",
+    NOT(
+      OR(
+        JournalPatternKey__c = "BILLING_BASIS_INVOICE_BODY",
+        JournalPatternKey__c = "CASH_BASIS_INVOICE_BODY_CTA_TRANSFER",
+        JournalPatternKey__c = "BILLING_TAX_AT_INVOICE",
+        JournalPatternKey__c = "BILLING_BASIS_INVOICE_TAX_DEFERRED",
+        JournalPatternKey__c = "CASH_BASIS_INVOICE_TAX_CTA_TRANSFER",
+        JournalPatternKey__c = "BILLING_BASIS_REVENUE_BODY",
+        JournalPatternKey__c = "CASH_BASIS_REVENUE_BODY",
+        JournalPatternKey__c = "BILLING_BASIS_REVENUE_TAX",
+        JournalPatternKey__c = "CASH_BASIS_REVENUE_TAX",
+        JournalPatternKey__c = "PAYMENT_INVOICE_CURRENT",
+        JournalPatternKey__c = "PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH",
+        JournalPatternKey__c = "PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH",
+        JournalPatternKey__c = "PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER",
+        JournalPatternKey__c = "PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER"
+      )
+    )
+  ),
+  "",
+  CASE(
+    JournalPatternKey__c,
+    "BILLING_BASIS_REVENUE_BODY", "明細税抜 ",
+    "CASH_BASIS_REVENUE_BODY", "明細税抜 ",
+    "BILLING_BASIS_INVOICE_BODY", "明細税抜 ",
+    "CASH_BASIS_INVOICE_BODY_CTA_TRANSFER", "明細税抜 ",
+    "BILLING_BASIS_REVENUE_TAX", "明細税 ",
+    "CASH_BASIS_REVENUE_TAX", "明細税 ",
+    "BILLING_TAX_AT_INVOICE", "明細税 ",
+    "BILLING_BASIS_INVOICE_TAX_DEFERRED", "明細税 ",
+    "CASH_BASIS_INVOICE_TAX_CTA_TRANSFER", "明細税 ",
+    "明細税込 "
+  )
+  &amp;
+  IF(
+    OR(
+      JournalPatternKey__c = "BILLING_BASIS_REVENUE_BODY",
+      JournalPatternKey__c = "CASH_BASIS_REVENUE_BODY",
+      JournalPatternKey__c = "BILLING_BASIS_INVOICE_BODY",
+      JournalPatternKey__c = "CASH_BASIS_INVOICE_BODY_CTA_TRANSFER"
+    ),
+    InvoiceLine__r.AmountCommaText__c,
+    IF(
+      OR(
+        JournalPatternKey__c = "BILLING_BASIS_REVENUE_TAX",
+        JournalPatternKey__c = "CASH_BASIS_REVENUE_TAX",
+        JournalPatternKey__c = "BILLING_TAX_AT_INVOICE",
+        JournalPatternKey__c = "BILLING_BASIS_INVOICE_TAX_DEFERRED",
+        JournalPatternKey__c = "CASH_BASIS_INVOICE_TAX_CTA_TRANSFER"
+      ),
+      InvoiceLine__r.AllocatedTaxCommaText__c,
+      InvoiceLine__r.TaxInclusiveCommaText__c
+    )
+  )
+  &amp; "円　"
+  &amp; TEXT(YEAR(InvoiceLine__r.ServicePeriodStartDate__c)) &amp; "/"
+  &amp; RIGHT("0" &amp; TEXT(MONTH(InvoiceLine__r.ServicePeriodStartDate__c)), 2) &amp; "/"
+  &amp; RIGHT("0" &amp; TEXT(DAY(InvoiceLine__r.ServicePeriodStartDate__c)), 2)
+  &amp; "～"
+  &amp; TEXT(YEAR(InvoiceLine__r.ServicePeriodEndDate__c)) &amp; "/"
+  &amp; RIGHT("0" &amp; TEXT(MONTH(InvoiceLine__r.ServicePeriodEndDate__c)), 2) &amp; "/"
+  &amp; RIGHT("0" &amp; TEXT(DAY(InvoiceLine__r.ServicePeriodEndDate__c)), 2)
+  &amp; "　"
+  &amp; IF(
+    OR(
+      JournalPatternKey__c = "BILLING_BASIS_REVENUE_BODY",
+      JournalPatternKey__c = "CASH_BASIS_REVENUE_BODY",
+      JournalPatternKey__c = "BILLING_BASIS_REVENUE_TAX",
+      JournalPatternKey__c = "CASH_BASIS_REVENUE_TAX"
+    ),
+    IF(
+      ISPICKVAL(InvoiceLine__r.RevenueRecognitionBasis__c, "月次計上"),
+      "月次計上で " &amp; TEXT(FLOOR(RecognitionSequence__c)) &amp; "/" &amp; TEXT(FLOOR(InvoiceLine__r.RecognitionBucketCount__c)) &amp; " 回目",
+      "一括計上で検収日 "
+      &amp; TEXT(YEAR(InvoiceLine__r.AcceptanceEndDate__c)) &amp; "/"
+      &amp; RIGHT("0" &amp; TEXT(MONTH(InvoiceLine__r.AcceptanceEndDate__c)), 2) &amp; "/"
+      &amp; RIGHT("0" &amp; TEXT(DAY(InvoiceLine__r.AcceptanceEndDate__c)), 2)
+    ),
+    TEXT(InvoiceLine__r.RevenueRecognitionBasis__c)
+  )
+)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <inlineHelpText>明細の満額事実。この仕訳額や部分割当は出さない。</inlineHelpText>
+    <label>確認用</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -10,7 +10,7 @@ public without sharing class ContractOrderValidationService {
   public static final String BILLING_ACCOUNT_MISSING_MESSAGE = '請求アカウントが未設定のため受注できません。';
   public static final String PRODUCTS_MISSING_MESSAGE = '見積商品がないため受注できません。';
   public static final String AMOUNT_MISSING_MESSAGE = '見積商品の金額が未設定のため受注できません。見積ウィザードで保存してから受注してください。';
-  public static final String DUPLICATE_ORDERED_VERSION_MESSAGE = '同一契約サービスに同じ Version の受注済み履歴が既にあるため受注できません。';
+  public static final String DUPLICATE_ORDERED_VERSION_MESSAGE = '同一契約サービスに同じ版の受注済み履歴が既にあるため受注できません。';
   public static final String INVOICE_SETTING_ONLY_CHANGE_MESSAGE = '請求設定だけの変更では受注できません。まだ請求していない場合は、差し戻して元の見積の請求設定を編集してください。';
 
   /**
@@ -27,6 +27,31 @@ public without sharing class ContractOrderValidationService {
     AuraHandledException ex = new AuraHandledException(message);
     ex.setMessage(message);
     throw ex;
+  }
+
+  /**
+   * 横断一覧用。受注時と同じ検証を行い、履歴 Id ごとのエラーを返す。
+   * 値が null の履歴は受注可能。実行時にも assertReadyForOrder を再実行する。
+   */
+  public static Map<Id, String> resolveOrderReadinessByHistoryId(
+    List<ContractHistory__c> histories
+  ) {
+    Map<Id, String> errorsByHistoryId = new Map<Id, String>();
+    if (histories == null || histories.isEmpty()) {
+      return errorsByHistoryId;
+    }
+    List<String> errors = resolveOrderReadinessErrors(histories);
+    for (Integer i = 0; i < histories.size(); i++) {
+      ContractHistory__c history = histories[i];
+      if (history == null || history.Id == null) {
+        continue;
+      }
+      errorsByHistoryId.put(
+        history.Id,
+        i < errors.size() ? errors[i] : null
+      );
+    }
+    return errorsByHistoryId;
   }
 
   /**
@@ -57,6 +82,9 @@ public without sharing class ContractOrderValidationService {
     }
 
     hydrateVersionAndServiceFields(histories);
+    List<String> terminalErrors = ContractHistoryTerminalService.resolveVersionAfterCancelErrors(
+      histories
+    );
 
     Set<Id> contractServiceIds = new Set<Id>();
     Set<Id> historyIdsForProducts = new Set<Id>();
@@ -126,6 +154,7 @@ public without sharing class ContractOrderValidationService {
           UnitPrice__c,
           BillingType__c,
           InvoiceSetting__c,
+          RevenueRecognitionBasis__c,
           StartDate__c,
           Enddate__c
         FROM ContractProduct__c
@@ -145,6 +174,14 @@ public without sharing class ContractOrderValidationService {
     for (ContractHistory__c history : histories) {
       if (history == null) {
         errors.add(BILLING_ACCOUNT_MISSING_MESSAGE);
+        continue;
+      }
+      Integer historyIndex = errors.size();
+      if (
+        historyIndex < terminalErrors.size() &&
+        String.isNotBlank(terminalErrors[historyIndex])
+      ) {
+        errors.add(terminalErrors[historyIndex]);
         continue;
       }
 
@@ -197,12 +234,20 @@ public without sharing class ContractOrderValidationService {
         continue;
       }
 
-      if (
-        history.Type__c == HISTORY_TYPE_CHANGE &&
-        ChangeBillingEventUtil.isInvoiceSettingOnlyChange(products)
-      ) {
-        errors.add(INVOICE_SETTING_ONLY_CHANGE_MESSAGE);
-        continue;
+      if (history.Type__c == HISTORY_TYPE_CHANGE) {
+        // 仕様: Core 第5.1節、第1.1.8節。見積保存と同じ Change 経路を受注前に再実行。
+        String changeReadinessError = EstimateValidationService.resolvePersistedChangeReadinessError(
+          history,
+          products
+        );
+        if (String.isNotBlank(changeReadinessError)) {
+          errors.add(changeReadinessError);
+          continue;
+        }
+        if (ChangeBillingEventUtil.isInvoiceSettingOnlyChange(products)) {
+          errors.add(INVOICE_SETTING_ONLY_CHANGE_MESSAGE);
+          continue;
+        }
       }
 
       String amountError = null;
@@ -222,8 +267,9 @@ public without sharing class ContractOrderValidationService {
   }
 
   /**
-   * Trigger.new / 部分 SOQL では Version__c 未取得のことがある。
+   * Trigger.new / 部分 SOQL では Version__c 等未取得のことがある。
    * 未取得のときだけ DB から補完する（アクセス時の SObjectException 防止）。
+   * Change 再検証用に PreviousHistory／期間／切替日も補完する。
    */
   private static void hydrateVersionAndServiceFields(
     List<ContractHistory__c> histories
@@ -236,7 +282,12 @@ public without sharing class ContractOrderValidationService {
       Map<String, Object> populated = history.getPopulatedFieldsAsMap();
       if (
         !populated.containsKey('Version__c') ||
-        !populated.containsKey('ContractService__c')
+        !populated.containsKey('ContractService__c') ||
+        !populated.containsKey('Type__c') ||
+        !populated.containsKey('PreviousHistory__c') ||
+        !populated.containsKey('CurrentTermStartDate__c') ||
+        !populated.containsKey('CurrentTermEndDate__c') ||
+        !populated.containsKey('EffectiveDate__c')
       ) {
         needIds.add(history.Id);
       }
@@ -246,7 +297,15 @@ public without sharing class ContractOrderValidationService {
     }
     Map<Id, ContractHistory__c> loaded = new Map<Id, ContractHistory__c>(
       [
-        SELECT Id, Version__c, ContractService__c
+        SELECT
+          Id,
+          Version__c,
+          ContractService__c,
+          Type__c,
+          PreviousHistory__c,
+          CurrentTermStartDate__c,
+          CurrentTermEndDate__c,
+          EffectiveDate__c
         FROM ContractHistory__c
         WHERE Id IN :needIds
         WITH SYSTEM_MODE
@@ -266,6 +325,21 @@ public without sharing class ContractOrderValidationService {
       }
       if (!populated.containsKey('ContractService__c')) {
         history.ContractService__c = full.ContractService__c;
+      }
+      if (!populated.containsKey('Type__c')) {
+        history.Type__c = full.Type__c;
+      }
+      if (!populated.containsKey('PreviousHistory__c')) {
+        history.PreviousHistory__c = full.PreviousHistory__c;
+      }
+      if (!populated.containsKey('CurrentTermStartDate__c')) {
+        history.CurrentTermStartDate__c = full.CurrentTermStartDate__c;
+      }
+      if (!populated.containsKey('CurrentTermEndDate__c')) {
+        history.CurrentTermEndDate__c = full.CurrentTermEndDate__c;
+      }
+      if (!populated.containsKey('EffectiveDate__c')) {
+        history.EffectiveDate__c = full.EffectiveDate__c;
       }
     }
   }
@@ -338,9 +412,18 @@ public without sharing class ContractOrderValidationService {
         BillingEmailTo__c,
         BillingEmailCc__c,
         BillingEmailBcc__c,
-        PaymentTerm__c,
-        BillingDayOfMonth__c,
-        AdjustInvoiceDateToBusinessDay__c
+        InvoiceDateMethod__c,
+        InvoiceDateDayKind__c,
+        InvoiceDateDayOfMonth__c,
+        InvoiceDateMonthOffset__c,
+        InvoiceDateDayOffset__c,
+        InvoiceDateAdjust__c,
+        PaymentTermMethod__c,
+        PaymentTermDayKind__c,
+        PaymentTermDayOfMonth__c,
+        PaymentTermMonthOffset__c,
+        PaymentTermDayOffset__c,
+        PaymentTermAdjust__c
       FROM BillingAccount__c
       WHERE Id IN :billingAccountIds
       WITH SYSTEM_MODE
@@ -350,12 +433,9 @@ public without sharing class ContractOrderValidationService {
       values.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
       values.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
       values.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
-      values.put('PaymentTerm__c', loaded.PaymentTerm__c);
-      values.put('BillingDayOfMonth__c', loaded.BillingDayOfMonth__c);
-      values.put(
-        'AdjustInvoiceDateToBusinessDay__c',
-        loaded.AdjustInvoiceDateToBusinessDay__c == true
-      );
+      for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
+        values.put(fieldApiName, loaded.get(fieldApiName));
+      }
       fieldsById.put(loaded.Id, values);
     }
     return fieldsById;

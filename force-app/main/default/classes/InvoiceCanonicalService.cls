@@ -8,7 +8,29 @@ public without sharing class InvoiceCanonicalService {
 
   public static final String SPLIT_AMOUNT_CONSERVE_MESSAGE = '分割後の金額合計が元の明細金額と一致しません。';
 
+  /** 仕様: Core 第7.6節、第4.4.3節、Accounting 第3.2節 */
+  @TestVisible
+  private static final String EXISTING_BASIS_LOCKED_MESSAGE = '既存請求明細の売上計上基準は変更できません。';
+
   public class InvoiceEditException extends Exception {
+  }
+
+  /** 仕様: Core 第11.9節、第4.6節、第1.1.10節。無い・空はエラー。HALF_UP 直書きへ落とさない。 */
+  private static Decimal roundInvoiceAmount(Decimal value) {
+    try {
+      return AmountCalculationSettingService.roundAmount(value);
+    } catch (AmountCalculationSettingService.SettingException ex) {
+      throw new InvoiceEditException(ex.getMessage());
+    }
+  }
+
+  /** 仕様: Core 第11.9節、第4.6節、第1.1.10節 */
+  private static Decimal roundInvoiceQuantityUnitPrice(Decimal value) {
+    try {
+      return AmountCalculationSettingService.roundQuantityUnitPrice(value);
+    } catch (AmountCalculationSettingService.SettingException ex) {
+      throw new InvoiceEditException(ex.getMessage());
+    }
   }
 
   public class LineAmountEdit {
@@ -100,14 +122,14 @@ public without sharing class InvoiceCanonicalService {
       return testHasEditPreviewPermission;
     }
     return ContractPermissionUtil.has(
-      ContractPermissionUtil.EDIT_INVOICE_PREVIEW
+      ContractPermissionUtil.EDIT_DRAFT_INVOICE
     );
   }
 
   public static void assertCanEditInvoicePreview() {
     if (!canEditInvoicePreview()) {
       throw new InvoiceEditException(
-        '請求プレビューを編集する権限がありません。'
+        '未確定請求を直す権限がありません。'
       );
     }
   }
@@ -126,7 +148,7 @@ public without sharing class InvoiceCanonicalService {
     Set<Id> orderedIds = retainOrderedHistoryIds(contractHistoryIds);
     if (orderedIds.size() != contractHistoryIds.size()) {
       throw new InvoiceEditException(
-        '期間明細・請求・請求明細は受注済み（Ordered）の契約履歴にのみ作成できます。'
+        '期間明細・請求・請求明細は受注済みの契約履歴にのみ作成できます。'
       );
     }
   }
@@ -157,7 +179,22 @@ public without sharing class InvoiceCanonicalService {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
-    deleteInvoicesForHistories(contractHistoryIds);
+    List<Invoice__c> invoices = [
+      SELECT Id, InvoiceTransactionStatus__c
+      FROM Invoice__c
+      WHERE ContractHistory__c IN :contractHistoryIds
+      WITH SYSTEM_MODE
+    ];
+    List<Invoice__c> deletable = new List<Invoice__c>();
+    for (Invoice__c invoice : invoices) {
+      if (InvoiceTransactionStatusService.isCancelled(invoice)) {
+        continue;
+      }
+      deletable.add(invoice);
+    }
+    if (!deletable.isEmpty()) {
+      SystemContextAccess.deleteRecords(deletable);
+    }
     List<InvoiceProduct__c> invoiceProducts = [
       SELECT Id
       FROM InvoiceProduct__c
@@ -178,22 +215,29 @@ public without sharing class InvoiceCanonicalService {
       assertHistoriesAreOrdered(contractHistoryIds);
       // ロック判定と削除を1クエリにまとめ、受注時の SOQL 消費を抑える
       List<Invoice__c> existing = [
-        SELECT Id, SystemIntegrationDate__c, PaymentClearingCompletedDate__c
+        SELECT
+          Id,
+          SystemIntegrationDate__c,
+          PaymentClearingCompletedDate__c,
+          InvoiceTransactionStatus__c
         FROM Invoice__c
         WHERE ContractHistory__c IN :contractHistoryIds
         WITH SYSTEM_MODE
       ];
-      if (!ContractPermissionUtil.canBypassIntegrityGuards()) {
-        for (Invoice__c invoice : existing) {
-          if (InvoiceLockUtil.isLocked(invoice)) {
-            throw new InvoiceLockUtil.InvoiceLockException(
-              InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE
-            );
-          }
+      List<Invoice__c> deletable = new List<Invoice__c>();
+      for (Invoice__c invoice : existing) {
+        if (InvoiceTransactionStatusService.isCancelled(invoice)) {
+          continue;
         }
+        if (InvoiceLockUtil.isActiveConfirmed(invoice)) {
+          throw new InvoiceLockUtil.InvoiceLockException(
+            InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE
+          );
+        }
+        deletable.add(invoice);
       }
-      if (!existing.isEmpty()) {
-        SystemContextAccess.deleteRecords(existing);
+      if (!deletable.isEmpty()) {
+        SystemContextAccess.deleteRecords(deletable);
       }
       persistFromPeriodLines(contractHistoryIds);
     } finally {
@@ -221,61 +265,14 @@ public without sharing class InvoiceCanonicalService {
     }
   }
 
-  /**
-   * 契約サービス配下で請求正本が無い Version を、既存の契約期間明細から埋める。
-   */
-  public static Integer backfillMissingForContractService(
-    Id contractServiceId
-  ) {
-    if (contractServiceId == null) {
-      return 0;
-    }
-    Set<Id> historyIds = new Set<Id>();
-    String orderedStatus = ContractDomainConstants.HISTORY_STATUS_ORDERED;
-    for (AggregateResult ar : [
-      SELECT ContractHistory__c historyId
-      FROM InvoiceProduct__c
-      WHERE
-        ContractHistory__r.ContractService__c = :contractServiceId
-        AND ContractHistory__r.historystatus__c = :orderedStatus
-      WITH SYSTEM_MODE
-      GROUP BY ContractHistory__c
-    ]) {
-      historyIds.add((Id) ar.get('historyId'));
-    }
-    if (historyIds.isEmpty()) {
-      return 0;
-    }
-    Set<Id> already = new Set<Id>();
-    for (AggregateResult ar : [
-      SELECT ContractHistory__c historyId
-      FROM Invoice__c
-      WHERE ContractHistory__c IN :historyIds
-      WITH SYSTEM_MODE
-      GROUP BY ContractHistory__c
-    ]) {
-      already.add((Id) ar.get('historyId'));
-    }
-    Set<Id> missing = new Set<Id>();
-    for (Id historyId : historyIds) {
-      if (!already.contains(historyId)) {
-        missing.add(historyId);
-      }
-    }
-    if (missing.isEmpty()) {
-      return 0;
-    }
-    persistFromPeriodLines(missing);
-    return missing.size();
-  }
-
   private static void persistFromPeriodLines(Set<Id> contractHistoryIds) {
     // 非 Ordered には請求正本を作らない（バックフィル混入防止）
     contractHistoryIds = retainOrderedHistoryIds(contractHistoryIds);
     if (contractHistoryIds.isEmpty()) {
       return;
     }
-    InvoiceProductFieldCopyService.validateActiveDefinitions();
+    // 仕様: Core 第11.4.2節
+    FieldCopyDefinitionService.validateAllDefinitions();
     List<InvoiceProduct__c> products = queryPeriodLinesForCanonical(
       contractHistoryIds
     );
@@ -329,9 +326,10 @@ public without sharing class InvoiceCanonicalService {
         billingAccountId
       );
       applyHardcodedBillingAccountSnapshot(invoice, billingAccount);
-      InvoiceProductFieldCopyService.applyCopies(
+      FieldCopyDefinitionService.apply(
         invoice,
         InvoiceProductFieldCopyService.TARGET_INVOICE,
+        null,
         buildCanonicalCopySources(rep, billingAccount)
       );
 
@@ -366,6 +364,10 @@ public without sharing class InvoiceCanonicalService {
         line.HistoryVersionLabel__c = ml.historyVersionLabel;
         clearLineManualFlags(line);
         line.SourcePeriodLineIds__c = joinIds(ml.sourceInvoiceProductIds);
+        line.ServicePeriodStartDate__c = ml.servicePeriodStartDate;
+        line.ServicePeriodEndDate__c = ml.servicePeriodEndDate;
+        line.RevenueRecognitionBasis__c = ml.revenueRecognitionBasis;
+        line.AcceptanceEndDate__c = acceptanceEndDateForNewLine(ml.revenueRecognitionBasis, ml.servicePeriodEndDate);
         ContractProduct__c sourceContractProduct = null;
         if (ml.sourceProducts != null && !ml.sourceProducts.isEmpty()) {
           InvoiceProduct__c sourcePeriod = ml.sourceProducts[0];
@@ -379,9 +381,10 @@ public without sharing class InvoiceCanonicalService {
             line.Unit__c = sourceContractProduct.Unit__c;
           }
         }
-        InvoiceProductFieldCopyService.applyCopies(
+        FieldCopyDefinitionService.apply(
           line,
           InvoiceProductFieldCopyService.TARGET_INVOICE_LINE,
+          null,
           buildCanonicalCopySources(
             ml.sourceProducts == null || ml.sourceProducts.isEmpty()
               ? null
@@ -412,6 +415,7 @@ public without sharing class InvoiceCanonicalService {
   /**
    * 請求プレビュー編集: 複数明細の金額を一括更新し、親請求へ税抜・税額を同期する。
    * DML 対象は InvoiceLine__c / Invoice__c のみ。
+   * 仕様: Core 第11.9節、第7.8節、第1.1.10節
    */
   public static void updateLineAmounts(List<LineAmountEdit> edits) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
@@ -433,10 +437,7 @@ public without sharing class InvoiceCanonicalService {
       if (edit == null || edit.lineId == null || edit.amount == null) {
         throw new InvoiceEditException('明細と金額は必須です。');
       }
-      amountByLineId.put(
-        edit.lineId,
-        edit.amount.setScale(0, RoundingMode.HALF_UP)
-      );
+      amountByLineId.put(edit.lineId, roundInvoiceAmount(edit.amount));
     }
 
     List<InvoiceLine__c> lines = [
@@ -466,118 +467,310 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /**
-   * 請求プレビュー編集: 請求に埋め込まれた請求日・入金予定日のみ更新する。
-   * 上流マスタや契約期間明細は更新しない（入金予定の自動再計算もしない）。
+   * 請求プレビュー編集: 請求明細の検収終了日のみ更新する。
+   * 金額系の編集と違い、確定済み請求でも編集を許す（InvoiceLockUtil を通さない）。
+   * 仕様: Core 第7.6節、第7.9.6節、日付仕様 第6.1節・第7.3節、Accounting 第8.2節、第8.5節、第8.8節
+   * 取消基準日は呼び出し側が渡す。null 固定の省略経路は持たない。
    */
-  public static void updateInvoiceDates(
-    Id invoiceId,
-    Date invoiceDate,
-    Date paymentScheduledDate
+  public static void updateLineAcceptanceEndDates(
+    Map<Id, Date> acceptanceEndDateByLineId,
+    Date cancellationDate
   ) {
-    assertCanEditInvoicePreview();
-    if (invoiceId == null) {
-      throw new InvoiceEditException('請求は必須です。');
+    updateLineAcceptanceEndDates(acceptanceEndDateByLineId, cancellationDate, null);
+  }
+
+  /** 仕様: Core 第7.6節、第7.9.6節、第7.9.7節、日付仕様 第6.1節・第7.3節、Accounting 第8.2節、第8.5節、第8.8節 */
+  public static void updateLineAcceptanceEndDates(
+    Map<Id, Date> acceptanceEndDateByLineId,
+    Date cancellationDate,
+    String businessOperationKey
+  ) {
+    updateLineAcceptanceEndDates(
+      acceptanceEndDateByLineId,
+      cancellationDate,
+      businessOperationKey,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.6節、第7.9.6節、第7.9.7節、日付仕様 第6.1節・第7.3節、Accounting 第8.2節、第8.5節、第8.8節 */
+  public static void updateLineAcceptanceEndDates(
+    Map<Id, Date> acceptanceEndDateByLineId,
+    Date cancellationDate,
+    String businessOperationKey,
+    String expectedToken
+  ) {
+    List<InvoiceLine__c> lines = loadAcceptanceLines(acceptanceEndDateByLineId);
+    Set<Id> confirmedInvoiceIds = lockConfirmedAcceptanceInvoices(
+      lines,
+      cancellationDate
+    );
+    Set<Id> invoiceIds = new Set<Id>();
+    for (InvoiceLine__c line : lines) {
+      invoiceIds.add(line.Invoice__c);
     }
-    Invoice__c invoice = [
-      SELECT
-        Id,
-        ContractHistory__c,
-        InvoiceDate__c,
-        PaymentScheduledDate__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    InvoiceLockUtil.assertInvoiceEditable(invoice);
-    if (invoiceDate != null) {
-      invoice.InvoiceDate__c = invoiceDate;
+    String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+      invoiceIds.size() == 1 ? businessOperationKey : null
+    );
+    if (String.isNotBlank(businessOperationKey) && invoiceIds.size() == 1) {
+      Id invoiceId = new List<Id>(invoiceIds)[0];
+      Invoice__c locked = [
+        SELECT BusinessOperationKey__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      if (locked.BusinessOperationKey__c == operationKey) {
+        return;
+      }
     }
-    if (paymentScheduledDate != null) {
-      invoice.PaymentScheduledDate__c = paymentScheduledDate;
+    // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
+    for (Id invoiceId : invoiceIds) {
+      AccountingCauseLockService.assertInvoiceOperationUnchanged(
+        invoiceId,
+        expectedToken
+      );
     }
-    // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
-    markInvoiceHeaderTouched(invoice);
-    invoice.MergeKey__c = null;
-    SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
+    for (InvoiceLine__c line : lines) {
+      line.AcceptanceEndDate__c = acceptanceEndDateByLineId.get(line.Id);
+    }
+    SystemContextAccess.updateRecords(lines);
+    applyAcceptanceAccounting(
+      confirmedInvoiceIds,
+      cancellationDate,
+      businessOperationKey
+    );
+  }
+
+  /** 仕様: Core 第7.6節、第7.9.6節、Accounting 第8.5節・第8.8節、日付仕様 第7.3節 */
+  public static AccountingDiffService.CancelPreview previewLineAcceptanceEndDates(
+    Map<Id, Date> acceptanceEndDateByLineId,
+    Date cancellationDate
+  ) {
+    List<InvoiceLine__c> lines = loadAcceptanceLines(acceptanceEndDateByLineId);
+    Set<Id> confirmedInvoiceIds = lockConfirmedAcceptanceInvoices(
+      lines,
+      cancellationDate
+    );
+    if (!isAccountingEnabledForAcceptance(confirmedInvoiceIds)) {
+      AccountingDiffService.CancelPreview empty = new AccountingDiffService.CancelPreview();
+      empty.logicalDeleteCount = 0;
+      empty.reverseCount = 0;
+      empty.reverseDateCounts = new List<AccountingDiffService.ReverseDateCount>();
+      empty.hasFutureReverseDate = false;
+      empty.displayText = AccountingDiffService.toDisplayText(empty);
+      return empty;
+    }
+    Savepoint savepoint = Database.setSavepoint();
+    try {
+      for (InvoiceLine__c line : lines) {
+        line.AcceptanceEndDate__c = acceptanceEndDateByLineId.get(line.Id);
+      }
+      SystemContextAccess.updateRecords(lines);
+      AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
+      preview.logicalDeleteCount = 0;
+      preview.reverseCount = 0;
+      preview.reverseDateCounts = new List<AccountingDiffService.ReverseDateCount>();
+      preview.hasFutureReverseDate = false;
+      Map<Date, Integer> countByDate = new Map<Date, Integer>();
+      for (Id invoiceId : confirmedInvoiceIds) {
+        AccountingDiffService.CancelPreview one = AccountingDiffService.previewApply(
+          invoiceId,
+          AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key,
+          cancellationDate
+        );
+        preview.logicalDeleteCount += one.logicalDeleteCount == null
+          ? 0
+          : one.logicalDeleteCount;
+        preview.reverseCount += one.reverseCount == null ? 0 : one.reverseCount;
+        if (one.hasFutureReverseDate == true) {
+          preview.hasFutureReverseDate = true;
+        }
+        if (one.reverseDateCounts == null) {
+          continue;
+        }
+        for (AccountingDiffService.ReverseDateCount row : one.reverseDateCounts) {
+          Integer currentCount = countByDate.containsKey(row.reverseDate)
+            ? countByDate.get(row.reverseDate)
+            : 0;
+          countByDate.put(
+            row.reverseDate,
+            currentCount + (row.journalCount == null ? 0 : row.journalCount)
+          );
+        }
+      }
+      List<Date> dates = new List<Date>(countByDate.keySet());
+      dates.sort();
+      for (Date reverseDate : dates) {
+        AccountingDiffService.ReverseDateCount row = new AccountingDiffService.ReverseDateCount();
+        row.reverseDate = reverseDate;
+        row.journalCount = countByDate.get(reverseDate);
+        preview.reverseDateCounts.add(row);
+      }
+      preview.displayText = AccountingDiffService.toDisplayText(preview);
+      Database.rollback(savepoint);
+      return preview;
+    } catch (Exception ex) {
+      Database.rollback(savepoint);
+      throw ex;
+    }
+  }
+
+  /** 仕様: Core 第1.1.10節、第7.6節、Accounting 第8.2節、第1.1節、第1.8.1節、第8.5節、第8.8節 */
+  private static void applyAcceptanceAccounting(
+    Set<Id> invoiceIds,
+    Date cancellationDate,
+    String businessOperationKey
+  ) {
+    if (!isAccountingEnabledForAcceptance(invoiceIds)) {
+      return;
+    }
+    for (Id invoiceId : invoiceIds) {
+      String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+        invoiceIds.size() == 1 ? businessOperationKey : null
+      );
+      writeInvoiceOperationKey(invoiceId, operationKey);
+      AccountingDiffService.applyForInvoice(
+        invoiceId,
+        AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key,
+        operationKey,
+        cancellationDate
+      );
+    }
+  }
+
+  /** 仕様: Core 第7.9.7節 */
+  private static void writeInvoiceOperationKey(Id invoiceId, String operationKey) {
+    if (invoiceId == null || String.isBlank(operationKey)) {
+      return;
+    }
+    Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+    InvoiceLockUtil.allowLockedStatusWrite = true;
+    try {
+      SystemContextAccess.updateRecords(
+        new List<Invoice__c>{
+          new Invoice__c(Id = invoiceId, BusinessOperationKey__c = operationKey)
+        }
+      );
+    } finally {
+      InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+    }
+  }
+
+  private static Boolean isAccountingEnabledForAcceptance(Set<Id> invoiceIds) {
+    if (invoiceIds == null || invoiceIds.isEmpty()) {
+      return false;
+    }
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+    if (policy.AccountingEnabled__c == true) {
+      return true;
+    }
+    for (Id invoiceId : invoiceIds) {
+      if (hasActiveCurrent(invoiceId)) {
+        throw new InvoiceEditException(
+          'Accounting OFFで過去の関連仕訳があるため検収終了日を変更できません。'
+        );
+      }
+    }
+    return false;
   }
 
   /**
-   * 請求プレビュー編集: 請求に埋め込まれた宛名・メール SnapShot と税率を更新する。
-   * 請求アカウントマスタ／支払条件ルール／契約期間明細等は更新しない。
-   * billingAccountId・paymentTerm 引数は互換のため残すが無視する（BA 差し替えは分割を使う）。
-   * taxPercent は表示％（10＝10%）。null のときは税率を変更しない。
+   * 仕様: Core 第7.6節・第7.7.3節・第7.7.0節。
+   * 検収終了日変更は請求ボードの操作。未確定請求を直す権限（10）を見る。
    */
-  public static void updateInvoiceBillingHeader(
-    Id invoiceId,
-    Id billingAccountId,
-    String billingAddressee,
-    String billingEmailTo,
-    String billingEmailCc,
-    String billingEmailBcc,
-    String paymentTerm,
-    Decimal taxPercent
+  private static List<InvoiceLine__c> loadAcceptanceLines(
+    Map<Id, Date> acceptanceEndDateByLineId
   ) {
     assertCanEditInvoicePreview();
-    if (invoiceId == null) {
-      throw new InvoiceEditException('請求は必須です。');
+    if (acceptanceEndDateByLineId == null || acceptanceEndDateByLineId.isEmpty()) {
+      throw new InvoiceEditException('明細は必須です。');
     }
-    // billingAccountId / paymentTerm は Aura 互換のため残すが意図的に未使用。
-    // BA 差し替えは splitInvoiceByBillingAccount、支払条件は BA ルール側の責務。
-    Invoice__c invoice = [
+    List<InvoiceLine__c> lines = [
       SELECT
         Id,
-        ContractHistory__c,
-        Amount__c,
-        TaxPercent__c,
-        TaxAmount__c,
-        BillingAddresseeSnapShot__c,
-        BillingEmailToSnapShot__c,
-        BillingEmailCcSnapShot__c,
-        BillingEmailBccSnapShot__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
+        AcceptanceEndDate__c,
+        RevenueRecognitionBasis__c,
+        Invoice__c,
+        Invoice__r.InvoiceTransactionStatus__c
+      FROM InvoiceLine__c
+      WHERE Id IN :acceptanceEndDateByLineId.keySet()
       WITH SYSTEM_MODE
-      LIMIT 1
     ];
-    InvoiceLockUtil.assertInvoiceEditable(invoice);
-    if (billingAddressee != null) {
-      invoice.BillingAddresseeSnapShot__c = billingAddressee;
+    if (lines.size() != acceptanceEndDateByLineId.size()) {
+      throw new InvoiceEditException('更新対象の明細が見つかりません。');
     }
-    if (billingEmailTo != null) {
-      invoice.BillingEmailToSnapShot__c = billingEmailTo;
+    for (InvoiceLine__c line : lines) {
+      Date nextDate = acceptanceEndDateByLineId.get(line.Id);
+      if (nextDate == null) {
+        throw new InvoiceEditException('検収終了日は空にできません。');
+      }
+      // 仕様: Core 第1.1.5節・第7.6節・第12.2節。取消済みは編集対象にしない。
+      if (InvoiceTransactionStatusService.isCancelled(line.Invoice__r)) {
+        throw new InvoiceEditException('取消済み請求の検収終了日は変更できません。');
+      }
+      if (
+        ContractMetadataService.normalizeRevenueRecognitionBasis(
+          line.RevenueRecognitionBasis__c
+        ) == ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      ) {
+        throw new InvoiceEditException('月次計上に検収終了日は設定できません。');
+      }
     }
-    if (billingEmailCc != null) {
-      invoice.BillingEmailCcSnapShot__c = billingEmailCc;
+    return lines;
+  }
+
+  private static Set<Id> lockConfirmedAcceptanceInvoices(
+    List<InvoiceLine__c> lines,
+    Date cancellationDate
+  ) {
+    Set<Id> confirmedInvoiceIds = new Set<Id>();
+    Set<Id> allInvoiceIds = new Set<Id>();
+    for (InvoiceLine__c line : lines) {
+      allInvoiceIds.add(line.Invoice__c);
+      if (InvoiceTransactionStatusService.isConfirmed(line.Invoice__r)) {
+        confirmedInvoiceIds.add(line.Invoice__c);
+      }
     }
-    if (billingEmailBcc != null) {
-      invoice.BillingEmailBccSnapShot__c = billingEmailBcc;
+    List<Id> lockOrder = new List<Id>(allInvoiceIds);
+    lockOrder.sort();
+    for (Id invoiceId : lockOrder) {
+      AccountingCauseLockService.lockInvoice(invoiceId);
     }
-    if (taxPercent != null) {
-      Decimal displayPercent = TaxCalculationUtil.resolveTaxPercent(taxPercent);
-      invoice.TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(
-        displayPercent
-      );
-      Decimal amountTotal = invoice.Amount__c == null ? 0 : invoice.Amount__c;
-      invoice.TaxAmount__c = TaxCalculationUtil.calculateTaxAmount(
-        amountTotal,
-        displayPercent
-      );
+    if (!allInvoiceIds.isEmpty()) {
+      Integer lockedJournals = [
+        SELECT COUNT()
+        FROM GlJournal__c
+        WHERE
+          Invoice__c IN :allInvoiceIds
+          AND IsLocked__c = TRUE
+          AND TransactionStatus__c = 'Active'
+        WITH SYSTEM_MODE
+      ];
+      if (lockedJournals > 0 && cancellationDate == null) {
+        throw new InvoiceEditException(
+          'ロック済み仕訳がある取消では取消基準日が必要です。'
+        );
+      }
     }
-    // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
-    markInvoiceHeaderTouched(invoice);
-    invoice.MergeKey__c = null;
-    SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
+    return confirmedInvoiceIds;
+  }
+
+  /** 仕様: Accounting 第1.1節、第1.8.1節。Currentは論理削除・取消済元・取消仕訳を数えない。 */
+  private static Boolean hasActiveCurrent(Id invoiceId) {
+    for (GlJournal__c journal : AccountingCurrentService.load(invoiceId)) {
+      if (journal.TransactionStatus__c == 'Active') {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
-   * 請求プレビュー「請求情報編集」: 日付・宛名・メール・税率を同一 Invoice へ 1 DML で更新する。
-   * 画面上の一体保存を 2 トランザクションに割らない（片側だけ成功してエラー表示、を防ぐ）。
-   * billingAccountId・paymentTerm は互換のため残すが無視する（updateInvoiceBillingHeader と同じ）。
+   * 請求ボード「請求情報編集」: 請求日・入金予定日・税率だけを同一 Invoice へ 1 DML で更新する。
+   * 宛名・メール引数は互換のため残すが書き込まない。
+   * 仕様: Core 第7.8節
    */
   public static void updateInvoiceHeaderAndDates(
     Id invoiceId,
@@ -591,6 +784,35 @@ public without sharing class InvoiceCanonicalService {
     String paymentTerm,
     Decimal taxPercent
   ) {
+    updateInvoiceHeaderAndDates(
+      invoiceId,
+      invoiceDate,
+      paymentScheduledDate,
+      billingAccountId,
+      billingAddressee,
+      billingEmailTo,
+      billingEmailCc,
+      billingEmailBcc,
+      paymentTerm,
+      taxPercent,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.8節、第7.9.2節、第11.4.4節。確定後は日付・税率・請求アカウントを拒否し、ロック除外の追加項目だけ残す。 */
+  public static void updateInvoiceHeaderAndDates(
+    Id invoiceId,
+    Date invoiceDate,
+    Date paymentScheduledDate,
+    Id billingAccountId,
+    String billingAddressee,
+    String billingEmailTo,
+    String billingEmailCc,
+    String billingEmailBcc,
+    String paymentTerm,
+    Decimal taxPercent,
+    Map<String, Object> extraFieldValues
+  ) {
     assertCanEditInvoicePreview();
     if (invoiceId == null) {
       throw new InvoiceEditException('請求は必須です。');
@@ -610,32 +832,47 @@ public without sharing class InvoiceCanonicalService {
         BillingEmailCcSnapShot__c,
         BillingEmailBccSnapShot__c,
         SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c
+        PaymentClearingCompletedDate__c,
+        InvoiceTransactionStatus__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    InvoiceLockUtil.assertInvoiceEditable(invoice);
-    if (invoiceDate != null) {
+    if (InvoiceTransactionStatusService.isCancelled(invoice)) {
+      throw new InvoiceEditException(InvoiceLockUtil.INVOICE_EDIT_BLOCK_MESSAGE);
+    }
+    Boolean confirmed = InvoiceTransactionStatusService.isConfirmed(invoice);
+    if (!confirmed) {
+      InvoiceLockUtil.assertInvoiceEditable(invoice);
+    }
+    if (confirmed) {
+      if (
+        (invoiceDate != null && invoiceDate != invoice.InvoiceDate__c) ||
+        (paymentScheduledDate != null &&
+        paymentScheduledDate != invoice.PaymentScheduledDate__c) ||
+        (taxPercent != null &&
+        TaxCalculationUtil.toPercentFieldStorage(
+          TaxCalculationUtil.resolveTaxPercent(taxPercent)
+        ) !=
+        invoice.TaxPercent__c)
+      ) {
+        throw new InvoiceEditException(
+          InvoiceLockUtil.CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE
+        );
+      }
+    } else {
+      if (invoiceDate == null) {
+        throw new InvoiceEditException('請求日は必須です。');
+      }
+      if (paymentScheduledDate == null) {
+        throw new InvoiceEditException('入金予定日は必須です。');
+      }
+      if (taxPercent == null) {
+        throw new InvoiceEditException('税率は必須です。0% のときは 0 を指定してください。');
+      }
       invoice.InvoiceDate__c = invoiceDate;
-    }
-    if (paymentScheduledDate != null) {
       invoice.PaymentScheduledDate__c = paymentScheduledDate;
-    }
-    if (billingAddressee != null) {
-      invoice.BillingAddresseeSnapShot__c = billingAddressee;
-    }
-    if (billingEmailTo != null) {
-      invoice.BillingEmailToSnapShot__c = billingEmailTo;
-    }
-    if (billingEmailCc != null) {
-      invoice.BillingEmailCcSnapShot__c = billingEmailCc;
-    }
-    if (billingEmailBcc != null) {
-      invoice.BillingEmailBccSnapShot__c = billingEmailBcc;
-    }
-    if (taxPercent != null) {
       Decimal displayPercent = TaxCalculationUtil.resolveTaxPercent(taxPercent);
       invoice.TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(
         displayPercent
@@ -645,125 +882,73 @@ public without sharing class InvoiceCanonicalService {
         amountTotal,
         displayPercent
       );
+      // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
+      markInvoiceHeaderTouched(invoice);
+      invoice.MergeKey__c = null;
     }
-    // 請求情報編集は分割ではない → IsSplitMoved は立てず傘だけオン
-    markInvoiceHeaderTouched(invoice);
-    invoice.MergeKey__c = null;
+    Set<String> extraAllowed = InvoiceOpsFieldService.fieldApiNames('Invoice__c');
+    if (confirmed) {
+      extraAllowed.retainAll(InvoiceLockUtil.resolveLockExemptFieldNames());
+      extraAllowed.removeAll(
+        new Set<String>{
+          'InvoiceDate__c',
+          'PaymentScheduledDate__c',
+          'TaxPercent__c',
+          'BillingAccountSnapShot__c'
+        }
+      );
+    }
+    InvoiceOpsFieldService.applyDisplayedValues(
+      invoice,
+      'Invoice__c',
+      extraFieldValues,
+      extraAllowed
+    );
     SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
 
-  /**
-   * 統一分割: 明細ごと（whole）／単価／個数／月 を混在して新請求へ振り分ける。
-   * ②（unitPrice / quantity / period）が1行でも含まれると端数・手動調整をクリアする。
-   * ①のみのときは従来の請求日分割と同様、調整前を金額比で引き継ぐ。
-   *
-   * 現行 LWC（請求プレビュー）からは呼ばない。廃止候補の Apex API。
-   * 残置はテスト互換と将来削除までの内部利用のみ。
-   */
-  public static Id splitInvoiceUnified(
-    Id sourceInvoiceId,
-    Date newInvoiceDate,
-    Date newPaymentScheduledDate,
-    Id newBillingAccountId,
-    List<SplitLineInput> splitLines
-  ) {
+  /** 仕様: Core 第7.8節。宛名・To/Cc/Bcc・届け方を請求アカウントから載せ直す。 */
+  public static void applyBillingAccountContent(Id invoiceId) {
     assertCanEditInvoicePreview();
-    if (
-      sourceInvoiceId == null ||
-      newInvoiceDate == null ||
-      splitLines == null ||
-      splitLines.isEmpty()
-    ) {
-      throw new InvoiceEditException(
-        '分割元請求・請求日・分割内容は必須です。'
-      );
+    if (invoiceId == null) {
+      throw new InvoiceEditException('請求は必須です。');
     }
-
-    Map<Id, InvoiceLine__c> sourceLineById = new Map<Id, InvoiceLine__c>(
-      [
-        SELECT
-          Id,
-          Amount__c,
-          UnitPrice__c,
-          Quantity__c,
-          ProductName__c,
-          SourcePeriodLineIds__c,
-          ContractProduct__r.BillingType__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :sourceInvoiceId
-        WITH SYSTEM_MODE
-      ]
-    );
-    if (sourceLineById.isEmpty()) {
-      throw new InvoiceEditException('分割対象の明細が見つかりません。');
+    Invoice__c invoice = [
+      SELECT
+        Id,
+        BillingAccountSnapShot__c,
+        InvoiceDate__c,
+        PaymentScheduledDate__c,
+        TaxPercent__c,
+        BillingAccountKeySnapShot__c
+      FROM Invoice__c
+      WHERE Id = :invoiceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    InvoiceLockUtil.assertInvoiceEditable(invoice);
+    if (invoice.BillingAccountSnapShot__c == null) {
+      throw new InvoiceEditException('請求アカウントがありません。');
     }
-
-    Boolean clearManualAdjustment = false;
-    Set<Id> periodMoveIds = new Set<Id>();
-    Map<Id, SplitLineInput> periodInputByLineId = new Map<Id, SplitLineInput>();
-    List<SplitLineInput> normalized = new List<SplitLineInput>();
-
-    for (SplitLineInput raw : splitLines) {
-      if (raw == null || raw.lineId == null) {
-        continue;
-      }
-      InvoiceLine__c sourceLine = sourceLineById.get(raw.lineId);
-      if (sourceLine == null) {
-        throw new InvoiceEditException('分割対象の明細が見つかりません。');
-      }
-      String mode = String.isBlank(raw.splitMode) ? null : raw.splitMode.trim();
-      if (mode == SPLIT_MODE_PERIOD) {
-        clearManualAdjustment = true;
-        if (
-          !ContractMetadataService.isRecurringBillingType(
-            sourceLine.ContractProduct__r == null
-              ? null
-              : sourceLine.ContractProduct__r.BillingType__c
-          )
-        ) {
-          throw new InvoiceEditException(
-            '月分割は継続課金明細のみです: ' + sourceLine.ProductName__c
-          );
-        }
-        List<Id> resolvedMoveIds = resolvePeriodMoveIdsForLine(raw, sourceLine);
-        for (Id periodId : resolvedMoveIds) {
-          if (periodId != null) {
-            periodMoveIds.add(periodId);
-          }
-        }
-        periodInputByLineId.put(raw.lineId, raw);
-        continue;
-      }
-      if (mode == SPLIT_MODE_UNIT_PRICE || mode == SPLIT_MODE_QUANTITY) {
-        clearManualAdjustment = true;
-      }
-      normalized.add(normalizeFactorSplitInput(raw, sourceLine, mode));
-    }
-
-    if (!periodMoveIds.isEmpty()) {
-      List<SplitLineInput> periodNormalized = buildPeriodSplitInputs(
-        sourceInvoiceId,
-        periodMoveIds,
-        periodInputByLineId.keySet()
-      );
-      for (SplitLineInput periodInput : periodNormalized) {
-        periodInput.splitMode = SPLIT_MODE_PERIOD;
-        normalized.add(periodInput);
-      }
-    }
-    if (normalized.isEmpty()) {
-      throw new InvoiceEditException('移動する明細がありません。');
-    }
-
-    return splitInvoice(
-      sourceInvoiceId,
-      newInvoiceDate,
-      newPaymentScheduledDate,
-      newBillingAccountId,
-      normalized,
-      true,
-      clearManualAdjustment
-    );
+    BillingAccount__c account = [
+      SELECT
+        Id,
+        BillingAddressee__c,
+        BillingEmailTo__c,
+        BillingEmailCc__c,
+        BillingEmailBcc__c,
+        InvoiceDeliveryMethod__c
+      FROM BillingAccount__c
+      WHERE Id = :invoice.BillingAccountSnapShot__c
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    invoice.BillingAddresseeSnapShot__c = account.BillingAddressee__c;
+    invoice.BillingEmailToSnapShot__c = account.BillingEmailTo__c;
+    invoice.BillingEmailCcSnapShot__c = account.BillingEmailCc__c;
+    invoice.BillingEmailBccSnapShot__c = account.BillingEmailBcc__c;
+    invoice.InvoiceDeliveryMethodSnapShot__c = account.InvoiceDeliveryMethod__c;
+    SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
 
   /**
@@ -788,7 +973,8 @@ public without sharing class InvoiceCanonicalService {
     List<SplitLineInput> splitLines
   ) {
     assertCanEditInvoicePreview();
-    InvoiceProductFieldCopyService.validateActiveDefinitions();
+    // 仕様: Core 第11.4.2節
+    FieldCopyDefinitionService.validateAllDefinitions();
     if (invoiceId == null || splitLines == null || splitLines.isEmpty()) {
       throw new InvoiceEditException('分割元請求・分割内容は必須です。');
     }
@@ -799,7 +985,8 @@ public without sharing class InvoiceCanonicalService {
         Amount__c,
         PeriodLineAmountTotal__c,
         SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c
+        PaymentClearingCompletedDate__c,
+        InvoiceTransactionStatus__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
@@ -813,6 +1000,7 @@ public without sharing class InvoiceCanonicalService {
           Id,
           Amount__c,
           ProductName__c,
+          Product__c,
           Unit__c,
           UnitPrice__c,
           Quantity__c,
@@ -820,6 +1008,9 @@ public without sharing class InvoiceCanonicalService {
           LineMergeKey__c,
           HistoryVersionLabel__c,
           SourcePeriodLineIds__c,
+          ServicePeriodStartDate__c,
+          ServicePeriodEndDate__c,
+          RevenueRecognitionBasis__c,
           IsManuallyAdjusted__c,
           IsAmountAdjusted__c,
           IsSplitMoved__c,
@@ -916,16 +1107,18 @@ public without sharing class InvoiceCanonicalService {
       if (input == null || input.lineId == null || input.moveAmount == null) {
         continue;
       }
-      Decimal move = input.moveAmount.setScale(0, RoundingMode.HALF_UP);
-      if (move == 0) {
+      Decimal move = roundInvoiceAmount(input.moveAmount);
+      // 仕様: Core 第7.8.4節、第1.1.4節
+      if (
+        move == 0 &&
+        input.splitMode != SPLIT_MODE_UNIT_PRICE &&
+        input.splitMode != SPLIT_MODE_QUANTITY
+      ) {
         continue;
       }
       input.moveAmount = move;
       if (input.remainAmount != null) {
-        input.remainAmount = input.remainAmount.setScale(
-          0,
-          RoundingMode.HALF_UP
-        );
+        input.remainAmount = roundInvoiceAmount(input.remainAmount);
       }
       inputByLineId.put(input.lineId, input);
     }
@@ -961,22 +1154,25 @@ public without sharing class InvoiceCanonicalService {
       createdLine.PeriodLabel__c = String.isNotBlank(input.movePeriodLabel)
         ? input.movePeriodLabel
         : sourceLine.PeriodLabel__c;
-      createdLine.LineMergeKey__c = sourceLine.LineMergeKey__c;
       createdLine.HistoryVersionLabel__c = sourceLine.HistoryVersionLabel__c;
       createdLine.SourcePeriodLineIds__c = input.moveSourcePeriodLineIds != null
         ? input.moveSourcePeriodLineIds
         : sourceLine.SourcePeriodLineIds__c;
+      createdLine.RevenueRecognitionBasis__c = sourceLine.RevenueRecognitionBasis__c;
+      applyServicePeriodSnapshot(
+        createdLine,
+        sourceLine,
+        createdLine.SourcePeriodLineIds__c
+      );
       createdLine.ContractProduct__c = sourceLine.ContractProduct__c;
       if (sourceLine.ContractProduct__r != null) {
         createdLine.Product__c = sourceLine.ContractProduct__r.Product__c;
-        createdLine.Unit__c = String.isNotBlank(
-            sourceLine.ContractProduct__r.Unit__c
-          )
-          ? sourceLine.ContractProduct__r.Unit__c
-          : sourceLine.Unit__c;
       } else {
-        createdLine.Unit__c = sourceLine.Unit__c;
+        createdLine.Product__c = sourceLine.Product__c;
       }
+      // 仕様: Core 第7.8節、第1.1.10節。単位は元明細。商品マスタから埋めない。
+      createdLine.Unit__c = sourceLine.Unit__c;
+      refreshLineMergeKey(createdLine);
       // 同一請求内分割: 端数はリセット済み。分割・移動済を立てる
       markLineSplitMoved(createdLine, false);
       newLines.add(createdLine);
@@ -987,7 +1183,10 @@ public without sharing class InvoiceCanonicalService {
         current,
         sourceLine.ProductName__c
       );
-      if (remain == 0) {
+      Boolean keepZeroRemain =
+        input.splitMode == SPLIT_MODE_UNIT_PRICE ||
+        input.splitMode == SPLIT_MODE_QUANTITY;
+      if (remain == 0 && !keepZeroRemain) {
         sourceDeletes.add(sourceLine);
       } else {
         sourceLine.Amount__c = remain;
@@ -1004,6 +1203,12 @@ public without sharing class InvoiceCanonicalService {
         if (input.remainPeriodLabel != null) {
           sourceLine.PeriodLabel__c = input.remainPeriodLabel;
         }
+        applyServicePeriodSnapshot(
+          sourceLine,
+          sourceLine,
+          sourceLine.SourcePeriodLineIds__c
+        );
+        refreshLineMergeKey(sourceLine);
         sourceUpdates.add(sourceLine);
       }
     }
@@ -1270,7 +1475,8 @@ public without sharing class InvoiceCanonicalService {
           TaxPercent__c,
           MergeKey__c,
           SystemIntegrationDate__c,
-          PaymentClearingCompletedDate__c
+          PaymentClearingCompletedDate__c,
+          InvoiceTransactionStatus__c
         FROM Invoice__c
         WHERE Id IN :new Set<Id>{ sourceInvoiceId, targetInvoiceId }
         WITH SYSTEM_MODE
@@ -1299,6 +1505,7 @@ public without sharing class InvoiceCanonicalService {
         Id,
         Amount__c,
         ProductName__c,
+        Product__c,
         Unit__c,
         UnitPrice__c,
         Quantity__c,
@@ -1306,6 +1513,10 @@ public without sharing class InvoiceCanonicalService {
         LineMergeKey__c,
         HistoryVersionLabel__c,
         SourcePeriodLineIds__c,
+        ServicePeriodStartDate__c,
+        ServicePeriodEndDate__c,
+        AcceptanceEndDate__c,
+        RevenueRecognitionBasis__c,
         ContractProduct__c,
         ContractProduct__r.Product__c,
         ContractProduct__r.Unit__c,
@@ -1342,20 +1553,21 @@ public without sharing class InvoiceCanonicalService {
       created.Quantity__c = sourceLine.Quantity__c;
       created.Amount__c = amount;
       created.PeriodLabel__c = sourceLine.PeriodLabel__c;
-      created.LineMergeKey__c = sourceLine.LineMergeKey__c;
       created.HistoryVersionLabel__c = sourceLine.HistoryVersionLabel__c;
       created.SourcePeriodLineIds__c = sourceLine.SourcePeriodLineIds__c;
+      created.ServicePeriodStartDate__c = sourceLine.ServicePeriodStartDate__c;
+      created.ServicePeriodEndDate__c = sourceLine.ServicePeriodEndDate__c;
+      created.AcceptanceEndDate__c = sourceLine.AcceptanceEndDate__c;
+      created.RevenueRecognitionBasis__c = sourceLine.RevenueRecognitionBasis__c;
       created.ContractProduct__c = sourceLine.ContractProduct__c;
       if (sourceLine.ContractProduct__r != null) {
         created.Product__c = sourceLine.ContractProduct__r.Product__c;
-        created.Unit__c = String.isNotBlank(
-            sourceLine.ContractProduct__r.Unit__c
-          )
-          ? sourceLine.ContractProduct__r.Unit__c
-          : sourceLine.Unit__c;
       } else {
-        created.Unit__c = sourceLine.Unit__c;
+        created.Product__c = sourceLine.Product__c;
       }
+      // 仕様: Core 第7.8節、第1.1.10節。単位は元明細。商品マスタから埋めない。
+      created.Unit__c = sourceLine.Unit__c;
+      refreshLineMergeKey(created);
       // 明細移動: 端数フラグは引き継ぎ、分割・移動済を立てる
       created.IsAmountAdjusted__c = sourceLine.IsAmountAdjusted__c == true;
       markLineSplitMoved(created, true);
@@ -1393,10 +1605,9 @@ public without sharing class InvoiceCanonicalService {
       );
       remainPeriodTotal = sourcePeriodTotal - movedPeriodTotal;
     } else {
-      movedPeriodTotal = (sourcePeriodTotal *
-        movedAmount /
-        sourceAmountBefore)
-        .setScale(0, RoundingMode.HALF_UP);
+      movedPeriodTotal = roundInvoiceAmount(
+        sourcePeriodTotal * movedAmount / sourceAmountBefore
+      );
       remainPeriodTotal = sourcePeriodTotal - movedPeriodTotal;
     }
 
@@ -1454,9 +1665,10 @@ public without sharing class InvoiceCanonicalService {
 
   /**
    * 請求アカウント分割: 明細金額を別 BA の新請求へ移す。
-   * 請求日は元請求を引き継ぎ（必要なら引数で上書き可）。
+   * 請求日・入金予定日・請求アカウントは必須。元請求日のコピーはしない。
    * 指定 BA は SnapShot コピー元として参照するだけで、BA マスタ自体は更新しない。
    */
+  /** 仕様: Core 第7.8節 */
   public static Id splitInvoiceByBillingAccount(
     Id sourceInvoiceId,
     Id newBillingAccountId,
@@ -1467,81 +1679,9 @@ public without sharing class InvoiceCanonicalService {
     if (newBillingAccountId == null) {
       throw new InvoiceEditException('分割先の請求アカウントは必須です。');
     }
-    return splitInvoice(
-      sourceInvoiceId,
-      newInvoiceDate,
-      newPaymentScheduledDate,
-      newBillingAccountId,
-      splitLines,
-      false,
-      false
-    );
-  }
-
-  /**
-   * 利用期間でわける: 選んだ契約期間明細を新請求へ移し、
-   * 残す／移す双方の SourcePeriodLineIds・PeriodLabel・金額を付け替える。
-   * 金額の正は請求明細 Amount（現状値）。由来期間の InvoiceProduct 合計との比で按分する。
-   * 請求日／BA 金額分割後も同一 SourcePeriodLineIds が残っていて満額合算すると水増しになるため、
-   * 期間明細金額をそのまま書き戻さない。
-   * newBillingAccountId 指定時は新請求の SnapShot をその BA からコピーする。
-   * 現行 LWC（請求プレビュー）からは呼ばない。廃止候補の Apex API。
-   * 残存元請求がある場合は IsSplitMoved を立てる。
-   */
-  public static Id splitInvoiceByPeriod(
-    Id sourceInvoiceId,
-    Date newInvoiceDate,
-    Date newPaymentScheduledDate,
-    List<Id> movePeriodLineIds
-  ) {
-    return splitInvoiceByPeriod(
-      sourceInvoiceId,
-      newInvoiceDate,
-      newPaymentScheduledDate,
-      movePeriodLineIds,
-      null
-    );
-  }
-
-  public static Id splitInvoiceByPeriod(
-    Id sourceInvoiceId,
-    Date newInvoiceDate,
-    Date newPaymentScheduledDate,
-    List<Id> movePeriodLineIds,
-    Id newBillingAccountId
-  ) {
-    assertCanEditInvoicePreview();
-    if (
-      sourceInvoiceId == null ||
-      newInvoiceDate == null ||
-      movePeriodLineIds == null ||
-      movePeriodLineIds.isEmpty()
-    ) {
-      throw new InvoiceEditException(
-        '分割元請求・請求日・移す利用期間は必須です。'
-      );
+    if (newInvoiceDate == null) {
+      throw new InvoiceEditException('分割先の請求日は必須です。');
     }
-
-    Set<Id> movePeriodIdSet = new Set<Id>();
-    for (Id periodId : movePeriodLineIds) {
-      if (periodId != null) {
-        movePeriodIdSet.add(periodId);
-      }
-    }
-    if (movePeriodIdSet.isEmpty()) {
-      throw new InvoiceEditException('移す利用期間を選択してください。');
-    }
-
-    List<SplitLineInput> splitLines = buildPeriodSplitInputs(
-      sourceInvoiceId,
-      movePeriodIdSet,
-      null
-    );
-    if (splitLines.isEmpty()) {
-      throw new InvoiceEditException('移動する金額がありません。');
-    }
-
-    // 期間明細ベースへ戻す分割なので、手動調整フラグ／端数調整はクリアする
     return splitInvoice(
       sourceInvoiceId,
       newInvoiceDate,
@@ -1549,7 +1689,7 @@ public without sharing class InvoiceCanonicalService {
       newBillingAccountId,
       splitLines,
       true,
-      true
+      false
     );
   }
 
@@ -1588,7 +1728,8 @@ public without sharing class InvoiceCanonicalService {
     Boolean clearManualAdjustment
   ) {
     assertCanEditInvoicePreview();
-    InvoiceProductFieldCopyService.validateActiveDefinitions();
+    // 仕様: Core 第11.4.2節
+    FieldCopyDefinitionService.validateAllDefinitions();
     if (
       sourceInvoiceId == null ||
       splitLines == null ||
@@ -1613,7 +1754,8 @@ public without sharing class InvoiceCanonicalService {
         Amount__c,
         PeriodLineAmountTotal__c,
         SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c
+        PaymentClearingCompletedDate__c,
+        InvoiceTransactionStatus__c
       FROM Invoice__c
       WHERE Id = :sourceInvoiceId
       WITH SYSTEM_MODE
@@ -1632,16 +1774,13 @@ public without sharing class InvoiceCanonicalService {
       if (input == null || input.lineId == null || input.moveAmount == null) {
         continue;
       }
-      Decimal move = input.moveAmount.setScale(0, RoundingMode.HALF_UP);
+      Decimal move = roundInvoiceAmount(input.moveAmount);
       if (move == 0) {
         continue;
       }
       input.moveAmount = move;
       if (input.remainAmount != null) {
-        input.remainAmount = input.remainAmount.setScale(
-          0,
-          RoundingMode.HALF_UP
-        );
+        input.remainAmount = roundInvoiceAmount(input.remainAmount);
       }
       inputByLineId.put(input.lineId, input);
     }
@@ -1654,6 +1793,7 @@ public without sharing class InvoiceCanonicalService {
         Id,
         Amount__c,
         ProductName__c,
+        Product__c,
         Unit__c,
         UnitPrice__c,
         Quantity__c,
@@ -1661,6 +1801,9 @@ public without sharing class InvoiceCanonicalService {
         LineMergeKey__c,
         HistoryVersionLabel__c,
         SourcePeriodLineIds__c,
+        ServicePeriodStartDate__c,
+        ServicePeriodEndDate__c,
+        RevenueRecognitionBasis__c,
         ContractProduct__c,
         ContractProduct__r.Product__c,
         ContractProduct__r.Unit__c,
@@ -1727,7 +1870,7 @@ public without sharing class InvoiceCanonicalService {
       InvoiceLine__c createdLine = new InvoiceLine__c();
       createdLine.Invoice__c = created.Id;
       // 表示名・金額は分割入力。単価・数量は因子分割時のみ上書き、それ以外は分割元をコピー。
-      // 商品参照・単位は作成時の契約商品マスタ。
+      // 仕様: Core 第7.8節、第1.1.10節。単位は元明細。商品マスタから埋めない。
       createdLine.ProductName__c = sourceLine.ProductName__c;
       createdLine.UnitPrice__c = input.moveUnitPrice != null
         ? input.moveUnitPrice
@@ -1739,22 +1882,25 @@ public without sharing class InvoiceCanonicalService {
       createdLine.PeriodLabel__c = String.isNotBlank(input.movePeriodLabel)
         ? input.movePeriodLabel
         : sourceLine.PeriodLabel__c;
-      createdLine.LineMergeKey__c = sourceLine.LineMergeKey__c;
       createdLine.HistoryVersionLabel__c = sourceLine.HistoryVersionLabel__c;
       createdLine.SourcePeriodLineIds__c = input.moveSourcePeriodLineIds != null
         ? input.moveSourcePeriodLineIds
         : sourceLine.SourcePeriodLineIds__c;
+      createdLine.RevenueRecognitionBasis__c = sourceLine.RevenueRecognitionBasis__c;
+      applyServicePeriodSnapshot(
+        createdLine,
+        sourceLine,
+        createdLine.SourcePeriodLineIds__c
+      );
       createdLine.ContractProduct__c = sourceLine.ContractProduct__c;
       if (sourceLine.ContractProduct__r != null) {
         createdLine.Product__c = sourceLine.ContractProduct__r.Product__c;
-        createdLine.Unit__c = String.isNotBlank(
-            sourceLine.ContractProduct__r.Unit__c
-          )
-          ? sourceLine.ContractProduct__r.Unit__c
-          : sourceLine.Unit__c;
       } else {
-        createdLine.Unit__c = sourceLine.Unit__c;
+        createdLine.Product__c = sourceLine.Product__c;
       }
+      // 仕様: Core 第7.8節、第1.1.10節。単位は元明細。商品マスタから埋めない。
+      createdLine.Unit__c = sourceLine.Unit__c;
+      refreshLineMergeKey(createdLine);
       if (clearManualAdjustment == true) {
         markLineSplitMoved(createdLine, false);
       } else {
@@ -1797,6 +1943,12 @@ public without sharing class InvoiceCanonicalService {
         if (input.remainPeriodLabel != null) {
           sourceLine.PeriodLabel__c = input.remainPeriodLabel;
         }
+        applyServicePeriodSnapshot(
+          sourceLine,
+          sourceLine,
+          sourceLine.SourcePeriodLineIds__c
+        );
+        refreshLineMergeKey(sourceLine);
         sourceUpdates.add(sourceLine);
       }
     }
@@ -1842,10 +1994,9 @@ public without sharing class InvoiceCanonicalService {
       remainPeriodTotal = sourcePeriodTotal - createdPeriodTotal;
     } else {
       // 請求日／BA 分割: 調整前を金額比で按分（端数調整のギャップを比率で引き継ぐ）
-      createdPeriodTotal = (sourcePeriodTotal *
-        newInvoiceAmount /
-        sourceAmountBefore)
-        .setScale(0, RoundingMode.HALF_UP);
+      createdPeriodTotal = roundInvoiceAmount(
+        sourcePeriodTotal * newInvoiceAmount / sourceAmountBefore
+      );
       remainPeriodTotal = sourcePeriodTotal - createdPeriodTotal;
     }
 
@@ -2081,6 +2232,7 @@ public without sharing class InvoiceCanonicalService {
     SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
 
+  /** 仕様: Core 第7.8.4節、第1.1.4節 */
   private static SplitLineInput normalizeFactorSplitInput(
     SplitLineInput raw,
     InvoiceLine__c sourceLine,
@@ -2107,13 +2259,13 @@ public without sharing class InvoiceCanonicalService {
     if (mode == SPLIT_MODE_UNIT_PRICE) {
       Decimal original = sourceLine.UnitPrice__c == null
         ? 0
-        : sourceLine.UnitPrice__c.setScale(2, RoundingMode.HALF_UP);
+        : roundInvoiceQuantityUnitPrice(sourceLine.UnitPrice__c);
       Decimal movePrice = raw.moveUnitPrice == null
         ? null
-        : raw.moveUnitPrice.setScale(2, RoundingMode.HALF_UP);
+        : roundInvoiceQuantityUnitPrice(raw.moveUnitPrice);
       Decimal remainPrice = raw.remainUnitPrice == null
         ? null
-        : raw.remainUnitPrice.setScale(2, RoundingMode.HALF_UP);
+        : roundInvoiceQuantityUnitPrice(raw.remainUnitPrice);
       if (movePrice == null || remainPrice == null) {
         throw new InvoiceEditException(
           '残す単価と移す単価を入力してください: ' + sourceLine.ProductName__c
@@ -2140,12 +2292,6 @@ public without sharing class InvoiceCanonicalService {
         movePrice,
         original
       );
-      if (moveAmount == 0 || moveAmount == lineAmount) {
-        throw new InvoiceEditException(
-          '単価分割の結果が全額または0円になります: ' +
-          sourceLine.ProductName__c
-        );
-      }
       input.moveUnitPrice = movePrice;
       input.remainUnitPrice = remainPrice;
       input.moveAmount = moveAmount;
@@ -2156,13 +2302,13 @@ public without sharing class InvoiceCanonicalService {
     if (mode == SPLIT_MODE_QUANTITY) {
       Decimal original = sourceLine.Quantity__c == null
         ? 0
-        : sourceLine.Quantity__c.setScale(2, RoundingMode.HALF_UP);
+        : roundInvoiceQuantityUnitPrice(sourceLine.Quantity__c);
       Decimal moveQty = raw.moveQuantity == null
         ? null
-        : raw.moveQuantity.setScale(2, RoundingMode.HALF_UP);
+        : roundInvoiceQuantityUnitPrice(raw.moveQuantity);
       Decimal remainQty = raw.remainQuantity == null
         ? null
-        : raw.remainQuantity.setScale(2, RoundingMode.HALF_UP);
+        : roundInvoiceQuantityUnitPrice(raw.remainQuantity);
       if (moveQty == null || remainQty == null) {
         throw new InvoiceEditException(
           '残す数量と移す数量を入力してください: ' + sourceLine.ProductName__c
@@ -2189,12 +2335,6 @@ public without sharing class InvoiceCanonicalService {
         moveQty,
         original
       );
-      if (moveAmount == 0 || moveAmount == lineAmount) {
-        throw new InvoiceEditException(
-          '個数分割の結果が全額または0円になります: ' +
-          sourceLine.ProductName__c
-        );
-      }
       input.moveQuantity = moveQty;
       input.remainQuantity = remainQty;
       input.moveAmount = moveAmount;
@@ -2386,12 +2526,9 @@ public without sharing class InvoiceCanonicalService {
       }
       if (resetAmountSum == 0) {
         // 同符号で割れないときは均等
-        return (pool / resetCount).setScale(0, RoundingMode.HALF_UP);
+        return roundInvoiceAmount(pool / resetCount);
       }
-      return (pool *
-        currentAmount /
-        resetAmountSum)
-        .setScale(0, RoundingMode.HALF_UP);
+      return roundInvoiceAmount(pool * currentAmount / resetAmountSum);
     }
     return periodSumHint == null ? currentAmount : periodSumHint;
   }
@@ -2576,10 +2713,7 @@ public without sharing class InvoiceCanonicalService {
     ) {
       return 0;
     }
-    return (lineAmount *
-      movePeriodSum /
-      allPeriodSum)
-      .setScale(0, RoundingMode.HALF_UP);
+    return roundInvoiceAmount(lineAmount * movePeriodSum / allPeriodSum);
   }
 
   /** 移す金額が明細と同符号かつ絶対値が明細以内か。0 は範囲外扱いしない（呼び出し側で除外）。 */
@@ -2640,7 +2774,7 @@ public without sharing class InvoiceCanonicalService {
       // 分けようがない: 残寄与が無ければ新側へ全額、あれば残側維持（移す側0）
       return remainAbs == 0 ? baseline : 0;
     }
-    return (baseline * movedAbs / denom).setScale(0, RoundingMode.HALF_UP);
+    return roundInvoiceAmount(baseline * movedAbs / denom);
   }
 
   /**
@@ -2792,13 +2926,15 @@ public without sharing class InvoiceCanonicalService {
       'StartDate__c',
       'Enddate__c',
       'Amount__c',
-      'TaxPercent__c',
+      'ContractHistory__r.ContractService__r.TaxPercent__c',
       'ContractProduct__c',
       'ContractProduct__r.Product__c',
       'ContractProduct__r.Product__r.Name',
       'ContractProduct__r.Product__r.BillingType__c',
+      'ContractProduct__r.Product__r.RevenueRecognitionBasis__c',
       'ContractProduct__r.Unit__c',
       'ContractProduct__r.BillingType__c',
+      'ContractProduct__r.RevenueRecognitionBasis__c',
       'ContractProduct__r.Type__c',
       'ContractHistory__c',
       'ContractHistory__r.Version__c',
@@ -2866,9 +3002,9 @@ public without sharing class InvoiceCanonicalService {
       'BillingEmailTo__c',
       'BillingEmailCc__c',
       'BillingEmailBcc__c',
-      'PaymentTerm__c',
-      'BillingDayOfMonth__c'
+      'BillingAccountKey__c'
     };
+    selectFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
     selectFields.addAll(
       InvoiceProductFieldCopyService.getSourceFieldApiNames(
         InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
@@ -2953,8 +3089,9 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /**
-   * 必須の BA SnapShot（Id・宛名・メール・支払条件・請求日）をコードで埋める。
+   * 必須の BA SnapShot（Id・キー・宛名・メール・支払条件・請求日）をコードで埋める。
    * Insert トリガ側と同じ空欄埋め（手入力の非空は尊重）。
+   * 仕様: Core 第3.3.5節、第5.2節
    */
   private static void applyHardcodedBillingAccountSnapshot(
     Invoice__c invoice,
@@ -2966,6 +3103,114 @@ public without sharing class InvoiceCanonicalService {
     );
   }
 
+  private static void refreshLineMergeKey(InvoiceLine__c line) {
+    if (line == null) {
+      return;
+    }
+    line.LineMergeKey__c = InvoiceMergeKeyConfigService.buildLineBucketKey(
+      line.ContractProduct__c,
+      line.UnitPrice__c,
+      line.Quantity__c,
+      line.Unit__c,
+      line.Product__c
+    );
+  }
+
+  /**
+   * 期間 ID リストからサービス期間を再計算。リストが空／同一なら source をコピー。
+   */
+  private static void applyServicePeriodSnapshot(
+    InvoiceLine__c target,
+    InvoiceLine__c sourceFallback,
+    String sourcePeriodLineIds
+  ) {
+    if (target == null) {
+      return;
+    }
+    DateRange bounds = resolveServicePeriodBounds(sourcePeriodLineIds);
+    if (bounds != null) {
+      target.ServicePeriodStartDate__c = bounds.startDate;
+      target.ServicePeriodEndDate__c = bounds.endDate;
+      InvoiceProductMergeService.assertPeriodIdsContiguous(
+        sourcePeriodLineIds,
+        loadPeriodsByIds(sourcePeriodLineIds)
+      );
+      return;
+    }
+    if (sourceFallback != null) {
+      target.ServicePeriodStartDate__c = sourceFallback.ServicePeriodStartDate__c;
+      target.ServicePeriodEndDate__c = sourceFallback.ServicePeriodEndDate__c;
+    }
+  }
+
+  private class DateRange {
+    public Date startDate;
+    public Date endDate;
+  }
+
+  private static DateRange resolveServicePeriodBounds(String sourcePeriodLineIds) {
+    Map<Id, InvoiceProduct__c> periodById = loadPeriodsByIds(sourcePeriodLineIds);
+    if (periodById.isEmpty()) {
+      return null;
+    }
+    Date minStart;
+    Date maxEnd;
+    for (InvoiceProduct__c period : periodById.values()) {
+      if (
+        period.StartDate__c != null &&
+        (minStart == null || period.StartDate__c < minStart)
+      ) {
+        minStart = period.StartDate__c;
+      }
+      if (
+        period.Enddate__c != null &&
+        (maxEnd == null || period.Enddate__c > maxEnd)
+      ) {
+        maxEnd = period.Enddate__c;
+      }
+    }
+    if (minStart == null || maxEnd == null || maxEnd < minStart) {
+      throw new InvoiceEditException(
+        '請求明細のサービス期間が不正です（開始・終了が揃いません）。'
+      );
+    }
+    DateRange bounds = new DateRange();
+    bounds.startDate = minStart;
+    bounds.endDate = maxEnd;
+    return bounds;
+  }
+
+  private static Map<Id, InvoiceProduct__c> loadPeriodsByIds(
+    String sourcePeriodLineIds
+  ) {
+    Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>();
+    if (String.isBlank(sourcePeriodLineIds)) {
+      return periodById;
+    }
+    Set<Id> ids = new Set<Id>();
+    for (String token : sourcePeriodLineIds.split(',')) {
+      if (String.isBlank(token)) {
+        continue;
+      }
+      ids.add(Id.valueOf(token.trim()));
+    }
+    if (ids.isEmpty()) {
+      return periodById;
+    }
+    for (InvoiceProduct__c period : [
+      SELECT Id, StartDate__c, Enddate__c, Amount__c
+      FROM InvoiceProduct__c
+      WHERE Id IN :ids
+      WITH SYSTEM_MODE
+    ]) {
+      periodById.put(period.Id, period);
+    }
+    return periodById;
+  }
+
+  /**
+   * 仕様: Core 第3.3.5節、第3.3.7節、第7.8節
+   */
   private static BillingAccount__c loadBillingAccountForSnapshot(
     Id billingAccountId
   ) {
@@ -2979,8 +3224,20 @@ public without sharing class InvoiceCanonicalService {
         BillingEmailTo__c,
         BillingEmailCc__c,
         BillingEmailBcc__c,
-        PaymentTerm__c,
-        BillingDayOfMonth__c
+        BillingAccountKey__c,
+        InvoiceDeliveryMethod__c,
+        InvoiceDateMethod__c,
+        InvoiceDateDayKind__c,
+        InvoiceDateDayOfMonth__c,
+        InvoiceDateMonthOffset__c,
+        InvoiceDateDayOffset__c,
+        InvoiceDateAdjust__c,
+        PaymentTermMethod__c,
+        PaymentTermDayKind__c,
+        PaymentTermDayOfMonth__c,
+        PaymentTermMonthOffset__c,
+        PaymentTermDayOffset__c,
+        PaymentTermAdjust__c
       FROM BillingAccount__c
       WHERE Id = :billingAccountId
       WITH SYSTEM_MODE
@@ -3010,5 +3267,191 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException('指定の請求アカウントが見つかりません。');
     }
     invoice.BillingAccountSnapShot__c = billingAccountId;
+  }
+
+  /**
+   * 仕様: Accounting 第3.2節、第3.3節、日付仕様 第1.2節。
+   * 月次は組織の月次方式と同じ刻みの件数。一括は1。月次でサービス期間が空なら空欄。検収終了日は使わない。
+   */
+  public static void applyRecognitionBucketCount(List<InvoiceLine__c> lines) {
+    applyRecognitionBucketCount(lines, null);
+  }
+
+  /** 仕様: Accounting 第3.2節、第3.3節、日付仕様 第1.2節 */
+  public static void applyRecognitionBucketCount(
+    List<InvoiceLine__c> lines,
+    Map<Id, InvoiceLine__c> oldMap
+  ) {
+    if (lines == null || lines.isEmpty()) {
+      return;
+    }
+    String method = null;
+    for (InvoiceLine__c line : lines) {
+      if (line == null) {
+        continue;
+      }
+      InvoiceLine__c prior = oldMap == null || line.Id == null
+        ? null
+        : oldMap.get(line.Id);
+      String basis = ContractMetadataService.normalizeRevenueRecognitionBasis(
+        (String) recognitionField(line, prior, InvoiceLine__c.RevenueRecognitionBasis__c)
+      );
+      if (basis == ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME) {
+        line.RecognitionBucketCount__c = 1;
+        continue;
+      }
+      if (basis != ContractMetadataService.REVENUE_BASIS_OVER_TIME) {
+        line.RecognitionBucketCount__c = null;
+        continue;
+      }
+      Date startDate = (Date) recognitionField(
+        line,
+        prior,
+        InvoiceLine__c.ServicePeriodStartDate__c
+      );
+      Date endDate = (Date) recognitionField(
+        line,
+        prior,
+        InvoiceLine__c.ServicePeriodEndDate__c
+      );
+      if (startDate == null || endDate == null) {
+        line.RecognitionBucketCount__c = null;
+        continue;
+      }
+      if (method == null) {
+        method = recognitionBucketMethod();
+      }
+      List<MonthlyBillingPeriodUtil.BillingPeriod> periods = monthlyRecognitionPeriods(
+        startDate,
+        endDate,
+        method
+      );
+      line.RecognitionBucketCount__c = periods.isEmpty() ? null : periods.size();
+    }
+  }
+
+  /** 仕様: Accounting 第9.1.1節。確認用のカンマ金額。税込は税抜＋明細税。 */
+  public static void applyYenCommaTexts(List<InvoiceLine__c> lines) {
+    if (lines == null || lines.isEmpty()) {
+      return;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line == null) {
+        continue;
+      }
+      Decimal body = line.Amount__c == null ? 0 : line.Amount__c;
+      Decimal tax = line.AllocatedTaxAmount__c == null ? 0 : line.AllocatedTaxAmount__c;
+      line.AmountCommaText__c = yenCommaText(body);
+      line.AllocatedTaxCommaText__c = yenCommaText(tax);
+      line.TaxInclusiveCommaText__c = yenCommaText(body + tax);
+    }
+  }
+
+  /** 仕様: Accounting 第9.1.1節。桁区切りはカンマ。例 1,000,000。負は先頭に - */
+  @TestVisible
+  private static String yenCommaText(Decimal value) {
+    Long n = value == null ? 0 : value.longValue();
+    Long absN = n < 0 ? -n : n;
+    String digits = String.valueOf(absN);
+    String grouped = '';
+    while (digits.length() > 3) {
+      grouped = ',' + digits.substring(digits.length() - 3) + grouped;
+      digits = digits.substring(0, digits.length() - 3);
+    }
+    grouped = digits + grouped;
+    return n < 0 ? '-' + grouped : grouped;
+  }
+
+  /** 仕様: Core 第7.6節、第4.4.3節、Accounting 第3.2節 */
+  public static void assertAcceptanceRules(List<InvoiceLine__c> lines) {
+    assertAcceptanceRules(lines, null);
+  }
+
+  /** 仕様: Core 第7.6節、第4.4.3節、Accounting 第3.2節 */
+  public static void assertAcceptanceRules(
+    List<InvoiceLine__c> lines,
+    Map<Id, InvoiceLine__c> oldMap
+  ) {
+    if (lines == null) {
+      return;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line == null) {
+        continue;
+      }
+      if (oldMap != null && line.Id != null) {
+        InvoiceLine__c prior = oldMap.get(line.Id);
+        if (prior != null) {
+          String nextBasis = ContractMetadataService.normalizeRevenueRecognitionBasis(
+            line.RevenueRecognitionBasis__c
+          );
+          String priorBasis = ContractMetadataService.normalizeRevenueRecognitionBasis(
+            prior.RevenueRecognitionBasis__c
+          );
+          if (nextBasis != priorBasis) {
+            line.addError(EXISTING_BASIS_LOCKED_MESSAGE);
+          }
+        }
+      }
+      String basis = ContractMetadataService.normalizeRevenueRecognitionBasis(
+        line.RevenueRecognitionBasis__c
+      );
+      if (
+        basis == ContractMetadataService.REVENUE_BASIS_OVER_TIME &&
+        line.AcceptanceEndDate__c != null
+      ) {
+        line.addError('月次計上に検収終了日は設定できません。');
+      }
+      if (
+        basis == ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME &&
+        line.AcceptanceEndDate__c == null
+      ) {
+        line.addError('一括計上の検収終了日は空にできません。');
+      }
+    }
+  }
+
+  private static Date acceptanceEndDateForNewLine(String basis, Date servicePeriodEndDate) {
+    return ContractMetadataService.normalizeRevenueRecognitionBasis(basis) ==
+        ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+      ? servicePeriodEndDate
+      : null;
+  }
+
+  /** 仕様: Accounting 第3.1節・第3.2節、Core 第1.1.10節。方針0件・月次方式空を Auto へ落とさない。 */
+  private static String recognitionBucketMethod() {
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+    if (String.isBlank(policy.MonthlyBucketMethod__c)) {
+      throw new GlAccountingPolicyService.PolicyException(
+        '月次バケットの刻み方がありません。'
+      );
+    }
+    return policy.MonthlyBucketMethod__c;
+  }
+
+  private static Object recognitionField(
+    InvoiceLine__c line,
+    InvoiceLine__c prior,
+    SObjectField field
+  ) {
+    if (prior == null || line.isSet(field)) {
+      return line.get(field);
+    }
+    return prior.get(field);
+  }
+
+  /** 仕様: Accounting 第3.3節、日付仕様 第1.2節。AccountingGoalService の月次刻みと同じ。 */
+  private static List<MonthlyBillingPeriodUtil.BillingPeriod> monthlyRecognitionPeriods(
+    Date startDate,
+    Date endDate,
+    String method
+  ) {
+    if (method == 'CalendarMonth') {
+      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(startDate, endDate);
+    }
+    if (method == 'Auto' && MonthlyBillingPeriodUtil.countMonthlyCycles(startDate, endDate) < 0) {
+      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(startDate, endDate);
+    }
+    return MonthlyBillingPeriodUtil.buildMonthlyPeriodsCoveringEnd(startDate, endDate);
   }
 }

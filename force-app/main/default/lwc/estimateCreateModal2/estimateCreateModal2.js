@@ -11,7 +11,10 @@ import CS_BILLING_ACCOUNT_FIELD from "@salesforce/schema/ContractService__c.Biil
 import BA_NAME_FIELD from "@salesforce/schema/BillingAccount__c.Name";
 import getBillingAccountsByAccount from "@salesforce/apex/EstimateCreateController.getBillingAccountsByAccount";
 import getActiveContractServicesByAccount from "@salesforce/apex/EstimateCreateController.getActiveContractServicesByAccount";
-import { formatHistoryVersion } from "c/estimateWizardState";
+import {
+  formatHistoryVersion,
+  buildCancelHistoryName
+} from "c/estimateWizardState";
 import { addDaysToIsoDate } from "c/estimateLineItemUtils";
 
 const CS_BILLING_ACCOUNT_NAME_FIELD =
@@ -19,20 +22,16 @@ const CS_BILLING_ACCOUNT_NAME_FIELD =
 
 const TYPE_META = {
   Change: {
-    label: "Change",
+    label: "追加変更",
     iconName: "utility:edit"
   },
   Renew: {
-    label: "Renew",
+    label: "更新",
     iconName: "utility:refresh"
   },
   Cancel: {
-    label: "Cancel",
+    label: "解約",
     iconName: "utility:close"
-  },
-  Add: {
-    label: "Add",
-    iconName: "utility:add"
   }
 };
 
@@ -83,6 +82,12 @@ export default class EstimateCreateModal2 extends LightningElement {
   }
 
   billingAccountMatchingInfo = {
+    primaryField: {
+      fieldPath: "Name"
+    }
+  };
+
+  sendContactMatchingInfo = {
     primaryField: {
       fieldPath: "Name"
     }
@@ -164,12 +169,69 @@ export default class EstimateCreateModal2 extends LightningElement {
     return this._wizardData?.billingAccountId || "";
   }
 
+  get taxPercent() {
+    const raw = this._wizardData?.taxPercent;
+    return raw == null || raw === "" ? "" : raw;
+  }
+
+  get taxPercentDisplayValue() {
+    if (this.taxPercent === "" || this.taxPercent == null) {
+      return "未設定";
+    }
+    return `${this.taxPercent}%`;
+  }
+
+  /** 仕様: Core 第4.3.3節。Ordered編集では見積送付先を出さない。 */
+  get showEstimateSendContact() {
+    return this.orderedCustomFieldsOnly !== true;
+  }
+
+  get estimateSendContactId() {
+    return this._wizardData?.estimateSendContactId || "";
+  }
+
+  get sendContactFilter() {
+    const accountId = this.opportunityAccountId;
+    if (!accountId) {
+      return {
+        criteria: [
+          {
+            fieldPath: "Id",
+            operator: "eq",
+            value: "000000000000000AAA"
+          }
+        ]
+      };
+    }
+    return {
+      criteria: [
+        {
+          fieldPath: "AccountId",
+          operator: "eq",
+          value: accountId
+        }
+      ]
+    };
+  }
+
+  get isSendContactPickerDisabled() {
+    return !this.opportunityAccountId;
+  }
+
+  get isServiceIdentityReadonly() {
+    return this.orderedCustomFieldsOnly === true || !this.isNewType;
+  }
+
   get effectiveWizardType() {
     return this.selectedType || this._wizardData?.selectedType || "";
   }
 
   get isNewType() {
     return this.effectiveWizardType === "New";
+  }
+
+  get isCancelType() {
+    return this.effectiveWizardType === "Cancel";
   }
 
   get cardTitle() {
@@ -185,7 +247,15 @@ export default class EstimateCreateModal2 extends LightningElement {
   }
 
   get showOtherBillingPicker() {
-    return this.allowOtherAccountBilling;
+    return this.canSearchOtherAccountBilling && this.allowOtherAccountBilling;
+  }
+
+  /** 仕様: Core 第3.2節、第1.1.10節 */
+  get canSearchOtherAccountBilling() {
+    return (
+      Boolean(this.opportunityAccountId) &&
+      this.orderedCustomFieldsOnly !== true
+    );
   }
 
   get showBillingAccountReadonly() {
@@ -301,6 +371,7 @@ export default class EstimateCreateModal2 extends LightningElement {
       : "est-service-picker-trigger";
   }
 
+  /** 仕様: Core 第0.1節 */
   buildServicePickerOption(service, selectedId) {
     const selected = !!(service && service.id === selectedId);
     const versionLabel = formatHistoryVersion(service?.version);
@@ -314,7 +385,7 @@ export default class EstimateCreateModal2 extends LightningElement {
       key: service?.id || "__none__",
       id: service?.id || "",
       nameLabel: name,
-      versionLabel: versionLabel ? `V${versionLabel}` : "",
+      versionLabel: versionLabel ? `版${versionLabel}` : "",
       lifecycleLabel,
       termLabel: start && end ? `${start}～${end}` : start || end || "",
       currentProductsLabel:
@@ -322,6 +393,10 @@ export default class EstimateCreateModal2 extends LightningElement {
       billingLabel: service?.billingAccountName
         ? `請求: ${service.billingAccountName}`
         : "",
+      taxLabel:
+        service?.taxPercent == null || service?.taxPercent === ""
+          ? "税率: 未設定"
+          : `税率: ${service.taxPercent}%`,
       selectedAria: selected ? "true" : "false",
       itemClass: selected
         ? "est-service-picker-item est-service-picker-item_selected"
@@ -398,7 +473,7 @@ export default class EstimateCreateModal2 extends LightningElement {
       return [];
     }
     if (lifecycle === "Spot") {
-      return ["Add"];
+      return ["Change"];
     }
     if (lifecycle === "Term") {
       return ["Change", "Renew", "Cancel"];
@@ -577,6 +652,9 @@ export default class EstimateCreateModal2 extends LightningElement {
     }
     this.opportunityAccountId = nextAccountId;
     this.opportunityName = getFieldValue(data, OPP_NAME_FIELD) || "";
+    if (!this.opportunityAccountId) {
+      this.allowOtherAccountBilling = false;
+    }
     this.maybeApplyDefaultNames();
   }
 
@@ -641,7 +719,11 @@ export default class EstimateCreateModal2 extends LightningElement {
     this.allowOtherAccountBilling = false;
     this.linkedBillingAccountName = service?.billingAccountName || "";
     this.emitChange({
-      billingAccountId: service?.billingAccountId || ""
+      billingAccountId: service?.billingAccountId || "",
+      taxPercent:
+        service?.taxPercent == null || service?.taxPercent === ""
+          ? null
+          : Number(service.taxPercent)
     });
   }
 
@@ -700,8 +782,14 @@ export default class EstimateCreateModal2 extends LightningElement {
       fields.contractServiceName = `${oppName} の契約サービス`;
     }
     if (!(this.contractHistoryName || "").trim()) {
-      // サービス切替で履歴名がクリアされたあとも、空なら都度入れる
-      fields.contractHistoryName = `${oppName} の契約履歴`;
+      if (this.isCancelType) {
+        const cancelName = buildCancelHistoryName(this.autoHistoryName);
+        if (cancelName) {
+          fields.contractHistoryName = cancelName;
+        }
+      } else if (this.isNewType) {
+        fields.contractHistoryName = `${oppName} の契約履歴`;
+      }
     }
     if (Object.keys(fields).length > 0) {
       this.emitChange(fields);
@@ -726,6 +814,25 @@ export default class EstimateCreateModal2 extends LightningElement {
     this.emitChange({ billingAccountId: event.detail.recordId || "" });
   }
 
+  handleTaxPercentChange(event) {
+    const raw = event.target.value;
+    if (raw === "" || raw == null) {
+      this.emitChange({ taxPercent: null });
+      return;
+    }
+    const numeric = Number(raw);
+    this.emitChange({
+      taxPercent: Number.isFinite(numeric) ? numeric : null
+    });
+  }
+
+  // 仕様: Core 第4.3.3節。候補は契約サービス（未作成なら商談）の取引先の責任者。メール空でも選べる。
+  handleEstimateSendContactChange(event) {
+    this.emitChange({
+      estimateSendContactId: event.detail.recordId || ""
+    });
+  }
+
   handleReselectBillingAccount() {
     // 続き系はサービス wire がデフォルトを戻さないよう resolved のままにする。
     // New は候補1件の自動選択を再度効かせるため false。
@@ -735,6 +842,10 @@ export default class EstimateCreateModal2 extends LightningElement {
   }
 
   handleAllowOtherAccountBillingChange(event) {
+    if (!this.canSearchOtherAccountBilling) {
+      this.allowOtherAccountBilling = false;
+      return;
+    }
     this.allowOtherAccountBilling = event.target.checked === true;
     if (this.allowOtherAccountBilling) {
       return;
@@ -868,31 +979,35 @@ function buildOperationHelpLines(type, termStartIso, termEndIso) {
   let lines = [];
 
   if (type === "Change") {
-    const period = termStart && termEnd ? `${termStart}～${termEnd}` : "";
-    const extendFrom = termEndNext || "";
-    lines = [
-      period
-        ? [
-            helpSeg(period, true),
-            helpSeg("の期間内に課金変更を行います", false)
-          ]
-        : [helpSeg("期間内に課金変更を行います", false)],
-      extendFrom
-        ? [
-            helpSeg(
-              "商材追加 / 単価・数量・金額の変更 / 途中停止ができ、同時に",
-              false
-            ),
-            helpSeg(extendFrom, true),
-            helpSeg("から契約延長も可能です", false)
-          ]
-        : [
-            helpSeg(
-              "商材追加 / 単価・数量・金額の変更 / 途中停止ができ、同時に契約延長も可能です",
-              false
-            )
-          ]
-    ];
+    if (!termStart && !termEnd) {
+      lines = [[helpSeg("一回課金を追加します", false)]];
+    } else {
+      const period = termStart && termEnd ? `${termStart}～${termEnd}` : "";
+      const extendFrom = termEndNext || "";
+      lines = [
+        period
+          ? [
+              helpSeg(period, true),
+              helpSeg("の期間内に課金変更を行います", false)
+            ]
+          : [helpSeg("期間内に課金変更を行います", false)],
+        extendFrom
+          ? [
+              helpSeg(
+                "商材追加 / 単価・数量・金額の変更 / 途中停止ができ、同時に",
+                false
+              ),
+              helpSeg(extendFrom, true),
+              helpSeg("から契約延長も可能です", false)
+            ]
+          : [
+              helpSeg(
+                "商材追加 / 単価・数量・金額の変更 / 途中停止ができ、同時に契約延長も可能です",
+                false
+              )
+            ]
+      ];
+    }
   } else if (type === "Renew") {
     lines = termEndNext
       ? [[helpSeg(termEndNext, true), helpSeg("から契約を延長します", false)]]
@@ -906,8 +1021,6 @@ function buildOperationHelpLines(type, termStartIso, termEndIso) {
           ]
         ]
       : [[helpSeg("期間満了をもって解約します", false)]];
-  } else if (type === "Add") {
-    lines = [[helpSeg("都度契約に1回課金を追加します", false)]];
   }
 
   return lines.map((segments, lineIndex) => ({

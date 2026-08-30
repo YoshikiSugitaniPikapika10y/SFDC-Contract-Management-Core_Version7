@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>確定済み・取消済みの請求書と請求明細の項目を直す</description>
+    <isLicensed>false</isLicensed>
+    <label>101 契約 例外 確定した請求を直す</label>
+</CustomPermission>

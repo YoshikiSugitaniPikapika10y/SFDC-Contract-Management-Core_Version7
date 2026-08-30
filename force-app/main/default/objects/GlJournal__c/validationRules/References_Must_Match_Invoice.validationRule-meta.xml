@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>References_Must_Match_Invoice</fullName>
+    <active>true</active>
+    <description>請求明細または入金を参照するとき、仕訳の請求と同じ親請求であることを保証する。</description>
+    <errorConditionFormula>OR(
+  AND(
+    NOT(ISBLANK(InvoiceLine__c)),
+    InvoiceLine__r.Invoice__c &lt;&gt; Invoice__c
+  ),
+  AND(
+    NOT(ISBLANK(InvoicePayment__c)),
+    InvoicePayment__r.Invoice__c &lt;&gt; Invoice__c
+  )
+)</errorConditionFormula>
+    <errorMessage>請求明細または入金は、仕訳に設定した請求に属している必要があります。</errorMessage>
+</ValidationRule>

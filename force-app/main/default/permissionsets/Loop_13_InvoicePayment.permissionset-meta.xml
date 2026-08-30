@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>13 操作。入金の登録・取消。閲覧を含む。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>13 契約 入金する</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_13_Can_InvoicePayment</name>
+    </customPermissions>
+</PermissionSet>

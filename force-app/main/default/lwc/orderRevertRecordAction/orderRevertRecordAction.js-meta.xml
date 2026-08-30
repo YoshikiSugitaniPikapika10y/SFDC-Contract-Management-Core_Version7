@@ -3,7 +3,7 @@
     <apiVersion>66.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>差し戻し</masterLabel>
-    <description>Ordered 状態の契約履歴を Estimate に差し戻します。</description>
+    <description>受注済みの契約履歴を見積に差し戻します。</description>
     <targets>
         <target>lightning__RecordAction</target>
     </targets>

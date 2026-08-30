@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Context_JournalValues</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。仕訳のコンテキストは明細仕訳 / 明細外仕訳だけ。</description>
+    <errorConditionFormula>AND(
+        ISPICKVAL(TargetObject__c, "GlJournal__c"),
+        NOT(ISBLANK(Context__c)),
+        OR(
+            INCLUDES(Context__c, "AutoRenew"),
+            INCLUDES(Context__c, "NotAutoRenew")
+        )
+    )</errorConditionFormula>
+    <errorDisplayField>Context__c</errorDisplayField>
+    <errorMessage>仕訳のコンテキストは明細仕訳 / 明細外仕訳だけです。</errorMessage>
+</ValidationRule>

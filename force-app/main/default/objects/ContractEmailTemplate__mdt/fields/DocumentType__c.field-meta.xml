@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>DocumentType__c</fullName>
+    <description>仕様: Core 第11.3.2節。見積の行は見積だけ、請求の行は請求だけ。</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>帳票種別</label>
+    <required>true</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Estimate</fullName>
+                <default>false</default>
+                <label>見積</label>
+            </value>
+            <value>
+                <fullName>Invoice</fullName>
+                <default>false</default>
+                <label>請求</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

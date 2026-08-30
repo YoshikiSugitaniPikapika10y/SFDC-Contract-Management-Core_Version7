@@ -227,6 +227,14 @@
           width: 18%;
           text-align: right;
         }
+        .document-footer {
+          border-top: 1px solid #999;
+          margin-top: 7mm;
+          padding-top: 3mm;
+          font-size: 8.5pt;
+          white-space: pre-line;
+          page-break-inside: avoid;
+        }
         .group-total-row {
           page-break-inside: avoid;
         }
@@ -264,7 +272,7 @@
         <div class="page">
           <div class="title-row">
             <h1 class="title">
-              <apex:outputText value="{!estimateSetting.EstimateTitle__c}" />
+              <apex:outputText value="{!documentText.estimateTitle}" />
             </h1>
           </div>
 
@@ -276,7 +284,7 @@
                 </span>
                 <span class="honorificright">
                   <apex:outputText
-                    value="{!estimateSetting.HonorificTitle__c}"
+                    value="{!documentText.honorificTitle}"
                   />
                 </span>
                 <div style="clear: both"></div>
@@ -284,7 +292,7 @@
 
               <p style="margin-bottom: 10px">
                 <apex:outputText
-                  value="{!estimateSetting.EstimateSentence__c}"
+                  value="{!documentText.estimateSentence}"
                 />
               </p>
 
@@ -292,31 +300,31 @@
                 <tr>
                   <th>
                     <apex:outputText
-                      value="{!estimateSetting.BasicTermPeriodLabel__c}"
+                      value="{!documentText.basicTermPeriodLabel}"
                     />
                   </th>
                   <td>
                     <apex:outputText
-                      value="{!estimateSetting.BasicTermPeriod__c}"
+                      value="{!documentText.basicTermPeriod}"
                     />
                   </td>
                 </tr>
                 <tr>
                   <th>
                     <apex:outputText
-                      value="{!estimateSetting.PaymentTerm__c}"
+                      value="{!documentText.paymentTermLabel}"
                     />
                   </th>
                   <td>
                     <apex:outputText
-                      value="{!estimateSetting.PaymentTermSentence__c}"
+                      value="{!documentText.paymentTermSentence}"
                     />
                   </td>
                 </tr>
                 <tr>
                   <th>
                     <apex:outputText
-                      value="{!estimateSetting.TermFeeStartDate__c}"
+                      value="{!documentText.termFeeStartDateLabel}"
                     />
                   </th>
                   <td>
@@ -326,12 +334,12 @@
                 <tr>
                   <th>
                     <apex:outputText
-                      value="{!estimateSetting.TermDueDate__c}"
+                      value="{!documentText.termDueDateLabel}"
                     />
                   </th>
                   <td>
                     <apex:outputText
-                      value="{!estimateSetting.EstimateDueDateSentence__c}"
+                      value="{!documentText.estimateDueDateSentence}"
                     />
                   </td>
                 </tr>
@@ -342,16 +350,9 @@
               <table class="company-logo-table">
                 <tr>
                   <td>
-                    <img
-                      src="{!URLFOR($Resource.UZEROLOGO)}"
-                      alt="Logo"
-                      class="company-logo"
-                    />
-                  </td>
-                  <td>
                     <p class="company-name">
                       <apex:outputText
-                        value="{!estimateSetting.CompanyName__c}"
+                        value="{!documentText.companyName}"
                       />
                     </p>
                     <p>No : <apex:outputText value="{!estimateNumber}" /></p>
@@ -363,29 +364,32 @@
               </table>
               <div class="header-line"></div>
               <p>
-                <apex:outputText value="{!estimateSetting.PostalNumber__c}" />
-              </p>
-              <p>
                 <apex:outputText
-                  value="{!estimateSetting.AdressFirstHalf__c}"
+                  rendered="{!NOT(ISBLANK(documentText.postalNumber))}"
+                  value="{!documentText.postalNumber}"
                 />
               </p>
               <p>
                 <apex:outputText
-                  value="{!estimateSetting.AddressLastHalf__c}"
+                  value="{!documentText.addressFirstHalf}"
                 />
               </p>
               <p>
-                <apex:outputText value="{!estimateSetting.TELLabel__c}" />
-                <apex:outputText value="{!estimateSetting.TELValue__c}" />
+                <apex:outputText
+                  value="{!documentText.addressLastHalf}"
+                />
               </p>
               <p>
-                <apex:outputText value="{!estimateSetting.FAXLabel__c}" />
-                <apex:outputText value="{!estimateSetting.FAXSentence__c}" />
+                <apex:outputText value="{!documentText.telLabel}" />
+                <apex:outputText value="{!documentText.telValue}" />
+              </p>
+              <p>
+                <apex:outputText value="{!documentText.faxLabel}" />
+                <apex:outputText value="{!documentText.faxSentence}" />
               </p>
               <p>
                 <apex:outputText
-                  value="{!estimateSetting.OwnerLabel__c}"
+                  value="{!documentText.ownerLabel}"
                 /><apex:outputText value="{!ownerNameDisplay}" />
               </p>
             </div>
@@ -393,7 +397,7 @@
 
           <div class="amount-block">
             <span class="amount-label"
-              ><apex:outputText value="{!estimateSetting.EstimateSumLabel__c}"
+              ><apex:outputText value="{!documentText.estimateSumLabel}"
             /></span>
             <span class="amount-value">
               <apex:outputText value="{0, number, ###,###,###,###}">
@@ -401,7 +405,7 @@
               </apex:outputText>
             </span>
             <span class="amount-unit"
-              ><apex:outputText value="{!estimateSetting.UnitSentence__c}"
+              ><apex:outputText value="{!documentText.unitSentence}"
             /></span>
           </div>
 
@@ -409,14 +413,14 @@
             <div class="section">
               <h2 class="section-title">
                 <apex:outputText
-                  value="{!estimateSetting.DigitalLicenceFeeLabel__c}"
+                  value="{!documentText.digitalLicenceFeeLabel}"
                 />
                 <span class="section-total">
                   合計:
                   <apex:outputText value="{0, number, ###,###,###}"
                     ><apex:param value="{!digitalTotalIncTax}"
                   /></apex:outputText>
-                  <apex:outputText value="{!estimateSetting.UnitSentence__c}" />
+                  <apex:outputText value="{!documentText.unitSentence}" />
                 </span>
               </h2>
 
@@ -505,14 +509,14 @@
             <div class="section">
               <h2 class="section-title">
                 <apex:outputText
-                  value="{!estimateSetting.ConsultingFeeLabel__c}"
+                  value="{!documentText.consultingFeeLabel}"
                 />
                 <span class="section-total">
                   合計:
                   <apex:outputText value="{0, number, ###,###,###}"
                     ><apex:param value="{!consultingTotalIncTax}"
                   /></apex:outputText>
-                  <apex:outputText value="{!estimateSetting.UnitSentence__c}" />
+                  <apex:outputText value="{!documentText.unitSentence}" />
                 </span>
               </h2>
 
@@ -600,14 +604,14 @@
             <div class="section">
               <h2 class="section-title">
                 <apex:outputText
-                  value="{!estimateSetting.FeedbackCoacingFeeLabel__c}"
+                  value="{!documentText.feedbackCoachingFeeLabel}"
                 />
                 <span class="section-total">
                   合計:
                   <apex:outputText value="{0, number, ###,###,###}"
                     ><apex:param value="{!trainingTotalIncTax}"
                   /></apex:outputText>
-                  <apex:outputText value="{!estimateSetting.UnitSentence__c}" />
+                  <apex:outputText value="{!documentText.unitSentence}" />
                 </span>
               </h2>
 
@@ -694,13 +698,13 @@
           <apex:outputPanel rendered="{!NOT(otherGroups.empty)}">
             <div class="section">
               <h2 class="section-title">
-                <apex:outputText value="{!estimateSetting.OtherFeeLavel__c}" />
+                <apex:outputText value="{!documentText.otherFeeLabel}" />
                 <span class="section-total">
                   合計:
                   <apex:outputText value="{0, number, ###,###,###}"
                     ><apex:param value="{!otherTotalIncTax}"
                   /></apex:outputText>
-                  <apex:outputText value="{!estimateSetting.UnitSentence__c}" />
+                  <apex:outputText value="{!documentText.unitSentence}" />
                 </span>
               </h2>
               <apex:repeat value="{!otherGroups}" var="group">
@@ -786,18 +790,32 @@
           <div class="notes">
             <p style="font-weight: bold; margin-bottom: 5px">
               <apex:outputText
-                value="{!estimateSetting.NoteSentenceLabel__c}"
+                value="{!documentText.noteSentenceLabel}"
               />
             </p>
             <div
               style="width: 100%; word-wrap: break-word; word-break: break-all"
             >
               <apex:outputText
-                value="{!SUBSTITUTE(SUBSTITUTE(estimateSetting.NoteSencente__c, '\r\n', '<br/>'), '\n', '<br/>')}"
+                value="{!SUBSTITUTE(SUBSTITUTE(documentText.noteSentence, '\r\n', '<br/>'), '\n', '<br/>')}"
                 escape="false"
               />
             </div>
           </div>
+          <apex:outputPanel
+            layout="block"
+            styleClass="document-footer"
+            rendered="{!NOT(ISBLANK(documentText.documentFooter))}"
+          >
+            <apex:outputText value="{!documentText.documentFooter}" />
+          </apex:outputPanel>
+          <apex:outputPanel
+            layout="block"
+            styleClass="document-footer"
+            rendered="{!NOT(ISBLANK(documentText.privacyPolicyUrl))}"
+          >
+            <apex:outputText value="{!documentText.privacyPolicyUrl}" />
+          </apex:outputPanel>
         </div>
       </apex:outputPanel>
     </body>

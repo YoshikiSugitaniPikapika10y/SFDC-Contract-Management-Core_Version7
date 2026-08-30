@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Parent_Must_Be_Confirmed</fullName>
+    <active>true</active>
+    <description>仕様: Core 第8.1節、第7.11節。確定済みの請求にだけ入出金を登録できる。取消済みは拒否する。</description>
+    <errorConditionFormula>OR(
+  ISPICKVAL(Invoice__r.InvoiceTransactionStatus__c, "Draft"),
+  ISPICKVAL(Invoice__r.InvoiceTransactionStatus__c, "Cancelled"),
+  ISBLANK(TEXT(Invoice__r.InvoiceTransactionStatus__c))
+)</errorConditionFormula>
+    <errorMessage>未確定または取消済みの請求には入金を登録できません。確定後に登録してください。</errorMessage>
+</ValidationRule>

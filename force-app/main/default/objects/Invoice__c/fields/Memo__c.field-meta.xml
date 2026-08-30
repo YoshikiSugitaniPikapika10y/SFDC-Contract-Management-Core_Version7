@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Memo__c</fullName>
+    <description>仕様: Core 第7.7.3節</description>
+    <inlineHelpText>請求ボードから直せるメモ。金額・日付・宛先・税率は変えません。</inlineHelpText>
+    <label>請求書メモ</label>
+    <length>32768</length>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <visibleLines>3</visibleLines>
+</CustomField>

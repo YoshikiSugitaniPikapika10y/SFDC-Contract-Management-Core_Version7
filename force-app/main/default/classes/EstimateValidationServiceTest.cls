@@ -111,10 +111,14 @@ private class EstimateValidationServiceTest {
         Account__c = serviceAccount.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -260,10 +264,18 @@ private class EstimateValidationServiceTest {
       )
     );
     System.assertEquals(
-      true,
+      false,
       EstimateValidationService.requiresChangeEffectiveDateOnBillingPeriodStart(
         null
-      )
+      ),
+      '課金イベント0件（null）は切替日必須にしない'
+    );
+    System.assertEquals(
+      false,
+      EstimateValidationService.requiresChangeEffectiveDateOnBillingPeriodStart(
+        new List<EstimateCreateController.ProductLineItem>()
+      ),
+      '課金イベント0件は切替日必須にしない（Renew誘導・カスタム専用へ進ませる）'
     );
     System.assertEquals(
       0,
@@ -348,6 +360,14 @@ private class EstimateValidationServiceTest {
         new List<EstimateCreateController.ProductLineItem>{ recurringNew }
       )
     );
+
+    System.assertEquals(
+      false,
+      EstimateValidationService.requiresChangeEffectiveDateOnBillingPeriodStart(
+        new List<EstimateCreateController.ProductLineItem>{ original, remake }
+      ),
+      'CHANGE-241: 課金イベント0件は切替日必須にしない'
+    );
   }
 
   @IsTest
@@ -421,6 +441,39 @@ private class EstimateValidationServiceTest {
           request.products
         )
       );
+      EstimateValidationService.validateHistoryMetaDates(
+        request,
+        termStart,
+        termEnd
+      );
+
+      Id remakeSourceId = fakeId(ContractProduct__c.SObjectType, 88);
+      EstimateCreateController.ProductLineItem original = new EstimateCreateController.ProductLineItem();
+      original.productId = fakeId(Product2.SObjectType, 99);
+      original.quantity = 1;
+      original.unitPrice = 8000;
+      original.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      original.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      original.startDate = '2026-06-01';
+      original.endDate = '2027-05-31';
+      original.recordType = 'Original';
+      original.sourceContractProductId = remakeSourceId;
+
+      EstimateCreateController.ProductLineItem remakeOffCycle = new EstimateCreateController.ProductLineItem();
+      remakeOffCycle.productId = original.productId;
+      remakeOffCycle.quantity = 1;
+      remakeOffCycle.unitPrice = 9000;
+      remakeOffCycle.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeOffCycle.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      remakeOffCycle.startDate = '2026-10-15';
+      remakeOffCycle.endDate = '2027-05-31';
+      remakeOffCycle.recordType = 'Remake';
+      remakeOffCycle.sourceContractProductId = remakeSourceId;
+
+      request.products = new List<EstimateCreateController.ProductLineItem>{
+        original,
+        remakeOffCycle
+      };
       Boolean rejected = false;
       try {
         EstimateValidationService.validateHistoryMetaDates(
@@ -433,15 +486,64 @@ private class EstimateValidationServiceTest {
         System.assertEquals(
           EstimateValidationService.CHANGE_EFFECTIVE_DATE_BILLING_PERIOD_START_MESSAGE,
           ex.getMessage(),
-          '継続課金の期中有効日は日割り不可として拒否'
+          '元明細開始日起点から外れた課金イベント日は日割り不可として拒否'
         );
       }
       System.assertEquals(
         true,
         rejected,
-        '継続課金イベントがある期中有効日は拒否'
+        '元明細サイクル外の課金イベント日は拒否'
       );
     }
+  }
+
+  @IsTest
+  static void validateChangeBillingEventsOnSourceCycle_ignoresHeaderStart() {
+    Id fakeProductId = fakeId(Product2.SObjectType, 11);
+    Id fakeSourceId = fakeId(ContractProduct__c.SObjectType, 22);
+
+    EstimateCreateController.ProductLineItem original = new EstimateCreateController.ProductLineItem();
+    original.productId = fakeProductId;
+    original.quantity = 1;
+    original.unitPrice = 8000;
+    original.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    original.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    original.startDate = '2026-03-01';
+    original.endDate = '2027-01-14';
+    original.recordType = 'Original';
+    original.sourceContractProductId = fakeSourceId;
+
+    EstimateCreateController.ProductLineItem remake = new EstimateCreateController.ProductLineItem();
+    remake.productId = fakeProductId;
+    remake.quantity = 1;
+    remake.unitPrice = 9000;
+    remake.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    remake.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    remake.startDate = '2026-05-01';
+    remake.endDate = '2027-01-14';
+    remake.recordType = 'Remake';
+    remake.sourceContractProductId = fakeSourceId;
+
+    List<EstimateCreateController.ProductLineItem> onSourceCycle = new List<EstimateCreateController.ProductLineItem>{
+      original,
+      remake
+    };
+    System.assertEquals(
+      null,
+      EstimateValidationService.validateChangeBillingEventsOnSourceCycle(
+        onSourceCycle
+      ),
+      'ヘッダー1/15基準では5/1は境界外でも、元明細3/1起点なら許可'
+    );
+
+    remake.startDate = '2026-05-15';
+    System.assertEquals(
+      EstimateValidationService.CHANGE_EFFECTIVE_DATE_BILLING_PERIOD_START_MESSAGE,
+      EstimateValidationService.validateChangeBillingEventsOnSourceCycle(
+        onSourceCycle
+      ),
+      'ヘッダー1/15基準では5/15は境界でも、元明細3/1起点なら拒否'
+    );
   }
 
   @IsTest
@@ -467,6 +569,19 @@ private class EstimateValidationServiceTest {
     remakeLate.endDate = '2027-05-31';
 
     System.assertEquals(
+      '変更後は変更前の期間を重複や隙間なく埋める必要があります。',
+      EstimateValidationService.CHANGE_REMAKE_COVERAGE_MESSAGE,
+      'Core 第0.1節: 期間カバーの画面文言は変更後／変更前'
+    );
+    System.assertEquals(
+      '変更後の商品明細を1行以上入力してください。',
+      EstimateValidationService.validateChangeReconstitutionCoverage(
+        original,
+        new List<EstimateCreateController.ProductLineItem>()
+      ),
+      'Core 第0.1節・第4.3.13節: Remake欠落の画面文言は変更後'
+    );
+    System.assertEquals(
       EstimateValidationService.CHANGE_REMAKE_COVERAGE_MESSAGE,
       EstimateValidationService.validateChangeReconstitutionCoverage(
         original,
@@ -489,6 +604,82 @@ private class EstimateValidationServiceTest {
         }
       ),
       '隣接する Remake は通る'
+    );
+  }
+
+  @IsTest
+  static void validateChangeMidTermRemakeSplit_requiresPrePeriodSameAsOriginal() {
+    EstimateCreateController.ProductLineItem original = new EstimateCreateController.ProductLineItem();
+    original.productId = fakeId(Product2.SObjectType, 31);
+    original.quantity = 1;
+    original.unitPrice = 30000;
+    original.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    original.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
+    original.startDate = '2026-04-01';
+    original.endDate = '2027-03-31';
+
+    EstimateCreateController.ProductLineItem remakeFullWash = new EstimateCreateController.ProductLineItem();
+    remakeFullWash.productId = original.productId;
+    remakeFullWash.recordType = 'Remake';
+    remakeFullWash.quantity = 1;
+    remakeFullWash.unitPrice = 50000;
+    remakeFullWash.billingType = original.billingType;
+    remakeFullWash.invoiceType = original.invoiceType;
+    remakeFullWash.startDate = '2026-04-01';
+    remakeFullWash.endDate = '2027-03-31';
+    System.assertEquals(
+      null,
+      EstimateValidationService.validateChangeMidTermRemakeSplit(
+        original,
+        new List<EstimateCreateController.ProductLineItem>{ remakeFullWash }
+      ),
+      '全期間1本の単価変更は洗替として許容'
+    );
+
+    EstimateCreateController.ProductLineItem remakePost = new EstimateCreateController.ProductLineItem();
+    remakePost.productId = original.productId;
+    remakePost.recordType = 'Remake';
+    remakePost.quantity = 1;
+    remakePost.unitPrice = 50000;
+    remakePost.billingType = original.billingType;
+    remakePost.invoiceType = original.invoiceType;
+    remakePost.startDate = '2026-05-01';
+    remakePost.endDate = '2027-03-31';
+
+    System.assertEquals(
+      '期中切替では、切替日前は変更前と同条件の変更後と、切替日以降の変更後に分けてください。',
+      EstimateValidationService.CHANGE_MID_TERM_REMAKE_SPLIT_MESSAGE,
+      'Core 第0.1節: 期中切替の画面文言は変更前／変更後'
+    );
+    System.assertEquals(
+      EstimateValidationService.CHANGE_MID_TERM_REMAKE_SPLIT_MESSAGE,
+      EstimateValidationService.validateChangeMidTermRemakeSplit(
+        original,
+        new List<EstimateCreateController.ProductLineItem>{ remakePost }
+      ),
+      '切替日前 Remake が無い期中差分は拒否'
+    );
+
+    EstimateCreateController.ProductLineItem remakePreSame = new EstimateCreateController.ProductLineItem();
+    remakePreSame.productId = original.productId;
+    remakePreSame.recordType = 'Remake';
+    remakePreSame.quantity = 1;
+    remakePreSame.unitPrice = 30000;
+    remakePreSame.billingType = original.billingType;
+    remakePreSame.invoiceType = original.invoiceType;
+    remakePreSame.startDate = '2026-04-01';
+    remakePreSame.endDate = '2026-04-30';
+
+    System.assertEquals(
+      null,
+      EstimateValidationService.validateChangeMidTermRemakeSplit(
+        original,
+        new List<EstimateCreateController.ProductLineItem>{
+          remakePreSame,
+          remakePost
+        }
+      ),
+      '切替日前同条件＋切替日以降 Remake は通る'
     );
   }
 
@@ -720,10 +911,57 @@ private class EstimateValidationServiceTest {
     right.startDate = '2026-06-15';
     right.endDate = '2026-07-15';
     right.recordType = 'New';
+    EstimateValidationService.validateNewProductPeriodOverlap(
+      new List<EstimateCreateController.ProductLineItem>{ left, right }
+    );
+
+    EstimateCreateController.ProductLineItem recurringLeft = new EstimateCreateController.ProductLineItem();
+    recurringLeft.productId = left.productId;
+    recurringLeft.quantity = 1;
+    recurringLeft.unitPrice = 1000;
+    recurringLeft.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    recurringLeft.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    recurringLeft.startDate = '2026-06-01';
+    recurringLeft.endDate = '2026-06-30';
+    recurringLeft.recordType = 'New';
+    EstimateCreateController.ProductLineItem recurringRight = new EstimateCreateController.ProductLineItem();
+    recurringRight.productId = left.productId;
+    recurringRight.quantity = 1;
+    recurringRight.unitPrice = 1000;
+    recurringRight.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    recurringRight.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    recurringRight.startDate = '2026-06-15';
+    recurringRight.endDate = '2026-07-15';
+    recurringRight.recordType = 'New';
     ex = null;
     try {
       EstimateValidationService.validateNewProductPeriodOverlap(
-        new List<EstimateCreateController.ProductLineItem>{ left, right }
+        new List<EstimateCreateController.ProductLineItem>{
+          recurringLeft,
+          recurringRight
+        }
+      );
+    } catch (Exception e) {
+      ex = e;
+    }
+    assertRejected('同一商品の契約期間が重複しています', ex);
+
+    EstimateCreateController.ProductLineItem mixedOneTime = new EstimateCreateController.ProductLineItem();
+    mixedOneTime.productId = left.productId;
+    mixedOneTime.quantity = 1;
+    mixedOneTime.unitPrice = 1000;
+    mixedOneTime.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    mixedOneTime.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    mixedOneTime.startDate = '2026-06-01';
+    mixedOneTime.endDate = '2026-06-30';
+    mixedOneTime.recordType = 'New';
+    ex = null;
+    try {
+      EstimateValidationService.validateNewProductPeriodOverlap(
+        new List<EstimateCreateController.ProductLineItem>{
+          recurringLeft,
+          mixedOneTime
+        }
       );
     } catch (Exception e) {
       ex = e;
@@ -818,18 +1056,43 @@ private class EstimateValidationServiceTest {
     }
     assertRejected('前回契約履歴が見つかりません', ex);
 
+    EstimateCreateController.ProductLineItem recurringOverlap = new EstimateCreateController.ProductLineItem();
+    recurringOverlap.productId = continuation.productId;
+    recurringOverlap.quantity = 1;
+    recurringOverlap.unitPrice = 1;
+    recurringOverlap.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    recurringOverlap.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    recurringOverlap.startDate = '2026-06-01';
+    recurringOverlap.endDate = '2026-06-01';
+    recurringOverlap.recordType = 'New';
+    EstimateCreateController.ProductLineItem recurringOverlapRight = new EstimateCreateController.ProductLineItem();
+    recurringOverlapRight.productId = continuation.productId;
+    recurringOverlapRight.quantity = 1;
+    recurringOverlapRight.unitPrice = 1;
+    recurringOverlapRight.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    recurringOverlapRight.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    recurringOverlapRight.startDate = '2026-06-01';
+    recurringOverlapRight.endDate = '2026-06-01';
+    recurringOverlapRight.recordType = 'New';
     ex = null;
     try {
       EstimateValidationService.validateChangeProductPeriodOverlap(
         new List<EstimateCreateController.ProductLineItem>{
-          continuation,
-          continuation
+          recurringOverlap,
+          recurringOverlapRight
         }
       );
     } catch (Exception e) {
       ex = e;
     }
     assertRejected('同一商品の契約期間が重複しています', ex);
+
+    EstimateValidationService.validateChangeProductPeriodOverlap(
+      new List<EstimateCreateController.ProductLineItem>{
+        continuation,
+        continuation
+      }
+    );
 
     // 一回課金・日付ありは Change 編集行バリデーションを通る想定
     EstimateValidationService.validateChangeEditableLine(
@@ -961,6 +1224,163 @@ private class EstimateValidationServiceTest {
       }
       assertRejected('課金種別が商品マスタと一致しません', mismatchEx);
 
+      mismatch.recordType = 'Remake';
+      mismatch.sourceContractProductId = available.Id;
+      Exception remakeOverrideEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ mismatch },
+          true,
+          'EST-S3-New',
+          true
+        );
+      } catch (Exception ex) {
+        remakeOverrideEx = ex;
+      }
+      System.assertEquals(
+        null,
+        remakeOverrideEx,
+        '第4.4.1節: Remakeの課金形態はProduct2へ追従しない'
+      );
+
+      mismatch.recordType = 'Renew';
+      Exception renewOverrideEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ mismatch },
+          false,
+          'EST-S3-Renew',
+          true
+        );
+      } catch (Exception ex) {
+        renewOverrideEx = ex;
+      }
+      System.assertEquals(
+        null,
+        renewOverrideEx,
+        '第4.4.1節: Renewは継続マスタの一回切替を許可する'
+      );
+
+      mismatch.recordType = 'Original';
+      Exception originalOverrideEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ mismatch },
+          true,
+          null,
+          true
+        );
+      } catch (Exception ex) {
+        originalOverrideEx = ex;
+      }
+      System.assertEquals(
+        null,
+        originalOverrideEx,
+        '第4.4.1節: Originalの課金形態はProduct2へ追従しない'
+      );
+
+      EstimateCreateController.ProductLineItem renewOneTimeMaster = new EstimateCreateController.ProductLineItem();
+      Product2 oneTimeMaster = ContractTestDataFactory.buildProduct('OneTimeMaster');
+      oneTimeMaster.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      oneTimeMaster.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(oneTimeMaster);
+      renewOneTimeMaster.productId = oneTimeMaster.Id;
+      renewOneTimeMaster.quantity = 1;
+      renewOneTimeMaster.unitPrice = 1000;
+      renewOneTimeMaster.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewOneTimeMaster.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      renewOneTimeMaster.startDate = '2026-06-01';
+      renewOneTimeMaster.endDate = '2027-05-31';
+      renewOneTimeMaster.recordType = 'Renew';
+      Exception renewOneTimeMasterEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{
+            renewOneTimeMaster
+          },
+          false,
+          'EST-S3-Renew',
+          true
+        );
+      } catch (Exception ex) {
+        renewOneTimeMasterEx = ex;
+      }
+      assertRejected(
+        '課金種別が商品マスタと一致しません',
+        renewOneTimeMasterEx
+      );
+
+      EstimateCreateController.ProductLineItem zeroQty = new EstimateCreateController.ProductLineItem();
+      zeroQty.productId = available.Id;
+      zeroQty.quantity = 0;
+      zeroQty.unitPrice = 1000;
+      zeroQty.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      zeroQty.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      zeroQty.startDate = '2026-06-01';
+      zeroQty.endDate = '2027-05-31';
+      zeroQty.recordType = 'New';
+      Exception zeroQtyEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ zeroQty },
+          false,
+          'EST-S3-New'
+        );
+      } catch (Exception ex) {
+        zeroQtyEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.QUANTITY_MIN_MESSAGE,
+        zeroQtyEx
+      );
+      System.assert(
+        zeroQtyEx.getMessage()
+          .contains(EstimateValidationService.QUANTITY_MIN_MESSAGE),
+        '第4.3.9節: 数量0は指定メッセージで拒否する'
+      );
+
+      zeroQty.quantity = 0.009;
+      Exception belowMinEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ zeroQty },
+          false,
+          'EST-S3-New'
+        );
+      } catch (Exception ex) {
+        belowMinEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.QUANTITY_MIN_MESSAGE,
+        belowMinEx
+      );
+      System.assert(
+        belowMinEx.getMessage()
+          .contains(EstimateValidationService.QUANTITY_MIN_MESSAGE),
+        '第4.3.9節: 数量0.01未満は拒否する'
+      );
+
+      zeroQty.quantity = 0;
+      zeroQty.recordType = 'Original';
+      Exception originalZeroEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ zeroQty },
+          true
+        );
+      } catch (Exception ex) {
+        originalZeroEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.QUANTITY_MIN_MESSAGE,
+        originalZeroEx
+      );
+      System.assert(
+        originalZeroEx.getMessage()
+          .contains(EstimateValidationService.QUANTITY_MIN_MESSAGE),
+        '第4.3.9節: Originalを含め数量0を保存しない'
+      );
+
       EstimateCreateController.ProductLineItem noPrice = new EstimateCreateController.ProductLineItem();
       noPrice.productId = available.Id;
       noPrice.quantity = 1;
@@ -988,6 +1408,8 @@ private class EstimateValidationServiceTest {
         account.Id,
         'Coverage Meta Service'
       );
+      service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
+      update service;
       Date termStart = Date.newInstance(2026, 6, 1);
       Date termEnd = Date.newInstance(2027, 5, 31);
       ContractHistory__c previous = new ContractHistory__c(
@@ -1058,7 +1480,7 @@ private class EstimateValidationServiceTest {
         cancelEligEx = ex;
       }
       assertRejected(
-        'Churn（解約）済みの契約履歴からCancelは作成できません',
+        '解約済みの契約履歴から解約は作成できません',
         cancelEligEx
       );
 
@@ -1069,7 +1491,7 @@ private class EstimateValidationServiceTest {
         renewEligEx = ex;
       }
       assertRejected(
-        '前回Versionの期間終了日と一致する継続課金商品がないためRenewできません',
+        '前回の版の期間終了日と一致する継続課金商品がないため更新できません',
         renewEligEx
       );
 
@@ -1094,7 +1516,7 @@ private class EstimateValidationServiceTest {
         renewPeriodEx = ex;
       }
       assertRejected(
-        '期間開始日は前回Versionの期間終了日の翌日である必要があります',
+        '期間開始日は前回の版の期間終了日の翌日である必要があります',
         renewPeriodEx
       );
 
@@ -1109,7 +1531,7 @@ private class EstimateValidationServiceTest {
         cancelPeriodEx = ex;
       }
       assertRejected(
-        '解約日は前回Versionの期間終了日の翌日である必要があります',
+        '解約日は前回の版の期間終了日の翌日である必要があります',
         cancelPeriodEx
       );
 
@@ -1135,8 +1557,63 @@ private class EstimateValidationServiceTest {
         renewOneTimeEx = ex;
       }
       assertRejected(
-        'Renewでは継続課金商品を1行以上指定してください',
+        '更新では継続課金商品を1行以上指定してください。一回課金のみの更新はできません。',
         renewOneTimeEx
+      );
+
+      Product2 renewSourceProduct = ContractTestDataFactory.buildProduct(
+        'Renew Source Locked'
+      );
+      renewSourceProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewSourceProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(renewSourceProduct);
+      Product2 renewOtherProduct = ContractTestDataFactory.buildProduct(
+        'Renew Other Locked'
+      );
+      renewOtherProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewOtherProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(renewOtherProduct);
+      ContractProduct__c renewSourceCp = new ContractProduct__c(
+        ContractHistory__c = previous.Id,
+        Product__c = renewSourceProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+        Type__c = ContractDomainConstants.PRODUCT_TYPE_NEW
+      );
+      insert renewSourceCp;
+      EstimateCreateController.ProductLineItem renewSwapped = new EstimateCreateController.ProductLineItem();
+      renewSwapped.productId = renewOtherProduct.Id;
+      renewSwapped.quantity = 1;
+      renewSwapped.unitPrice = 1000;
+      renewSwapped.amount = 12000;
+      renewSwapped.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewSwapped.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      renewSwapped.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      renewSwapped.startDate = String.valueOf(termEnd.addDays(1));
+      renewSwapped.endDate = String.valueOf(
+        termEnd.addDays(1).addYears(1).addDays(-1)
+      );
+      renewSwapped.recordType = 'Renew';
+      renewSwapped.sourceContractProductId = renewSourceCp.Id;
+      Exception renewProductEx = null;
+      try {
+        EstimateValidationService.validateRenewProductLineRules(
+          new List<EstimateCreateController.ProductLineItem>{ renewSwapped },
+          String.valueOf(termEnd.addDays(1)),
+          String.valueOf(termEnd.addDays(1).addYears(1).addDays(-1))
+        );
+      } catch (Exception ex) {
+        renewProductEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.RENEW_PRODUCT_LOCKED_MESSAGE,
+        renewProductEx
       );
 
       Exception cancelProductsEx = null;
@@ -1147,7 +1624,7 @@ private class EstimateValidationServiceTest {
       } catch (Exception ex) {
         cancelProductsEx = ex;
       }
-      assertRejected('Cancelでは商品明細を入力できません', cancelProductsEx);
+      assertRejected('解約では商品明細を入力できません', cancelProductsEx);
 
       ContractHistory__c changeNoPrev = new ContractHistory__c(
         Name = 'Coverage Change NoPrev',
@@ -1194,7 +1671,7 @@ private class EstimateValidationServiceTest {
         changeFromCancelEx = ex;
       }
       assertRejected(
-        'Churn（解約）済みの契約履歴からChangeは作成できません',
+        '解約済みの契約履歴から追加変更は作成できません',
         changeFromCancelEx
       );
 
@@ -1220,7 +1697,7 @@ private class EstimateValidationServiceTest {
       }
       // この時点では previous に継続課金商品が未作成のため、期間終了日不一致より先に資格エラーになる
       assertRejected(
-        '前回Versionの期間終了日と一致する継続課金商品がないためChangeできません',
+        '前回の版の期間終了日と一致する継続課金商品がないため追加変更できません',
         changeBadEndEx
       );
 
@@ -1261,7 +1738,7 @@ private class EstimateValidationServiceTest {
         badOriginalEx = ex;
       }
       assertRejected(
-        'Original行に元の見積商品が指定されていません',
+        '変更前の行に元の見積商品が指定されていません',
         badOriginalEx
       );
 
@@ -1287,7 +1764,7 @@ private class EstimateValidationServiceTest {
         badRemakeEx = ex;
       }
       assertRejected(
-        'Remake行の商品はOriginal（前回Version）と同じ商品にしてください',
+        '変更後の行の商品は変更前（前回の版）と同じ商品にしてください',
         badRemakeEx
       );
 
@@ -1295,6 +1772,7 @@ private class EstimateValidationServiceTest {
         Product__c = available.Id,
         Quantity__c = 1,
         UnitPrice__c = 8000,
+        Amount__c = 96000,
         StartDate__c = termStart,
         Enddate__c = termEnd,
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
@@ -1303,6 +1781,7 @@ private class EstimateValidationServiceTest {
       mismatchOriginal.productId = available.Id;
       mismatchOriginal.quantity = 2;
       mismatchOriginal.unitPrice = 8000;
+      mismatchOriginal.amount = -96000;
       mismatchOriginal.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       mismatchOriginal.startDate = String.valueOf(termStart);
       mismatchOriginal.endDate = String.valueOf(termEnd);
@@ -1317,14 +1796,313 @@ private class EstimateValidationServiceTest {
         originalMatchEx = ex;
       }
       assertRejected(
-        'Original行は前回Versionの見積商品と一致している必要があります',
+        '変更前の行は前回の版の見積商品と一致している必要があります',
         originalMatchEx
+      );
+
+      ContractProduct__c sourceRevenue = new ContractProduct__c(
+        Product__c = available.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 96000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      EstimateCreateController.ProductLineItem revenueMismatch = new EstimateCreateController.ProductLineItem();
+      revenueMismatch.productId = available.Id;
+      revenueMismatch.quantity = 1;
+      revenueMismatch.unitPrice = 8000;
+      revenueMismatch.amount = -96000;
+      revenueMismatch.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      revenueMismatch.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+      revenueMismatch.startDate = String.valueOf(termStart);
+      revenueMismatch.endDate = String.valueOf(termEnd);
+      Exception revenueMatchEx = null;
+      try {
+        EstimateValidationService.validateOriginalMatchesSource(
+          revenueMismatch,
+          sourceRevenue,
+          1
+        );
+      } catch (Exception ex) {
+        revenueMatchEx = ex;
+      }
+      assertRejected(
+        '変更前の行は前回の版の見積商品と一致している必要があります',
+        revenueMatchEx
+      );
+
+      ContractProduct__c sourceAmount = new ContractProduct__c(
+        Product__c = available.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 96000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      EstimateCreateController.ProductLineItem amountMismatch = new EstimateCreateController.ProductLineItem();
+      amountMismatch.productId = available.Id;
+      amountMismatch.quantity = 1;
+      amountMismatch.unitPrice = 8000;
+      amountMismatch.amount = 96000;
+      amountMismatch.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      amountMismatch.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      amountMismatch.startDate = String.valueOf(termStart);
+      amountMismatch.endDate = String.valueOf(termEnd);
+      Exception amountMatchEx = null;
+      try {
+        EstimateValidationService.validateOriginalMatchesSource(
+          amountMismatch,
+          sourceAmount,
+          1
+        );
+      } catch (Exception ex) {
+        amountMatchEx = ex;
+      }
+      assertRejected(
+        '変更前の行は前回の版の見積商品と一致している必要があります',
+        amountMatchEx
+      );
+
+      ContractProduct__c sourceBilling = new ContractProduct__c(
+        Product__c = available.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 96000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
+      );
+      EstimateCreateController.ProductLineItem billingMismatch = new EstimateCreateController.ProductLineItem();
+      billingMismatch.productId = available.Id;
+      billingMismatch.quantity = 1;
+      billingMismatch.unitPrice = 8000;
+      billingMismatch.amount = -96000;
+      billingMismatch.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      billingMismatch.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      billingMismatch.startDate = String.valueOf(termStart);
+      billingMismatch.endDate = String.valueOf(termEnd);
+      Exception billingMatchEx = null;
+      try {
+        EstimateValidationService.validateOriginalMatchesSource(
+          billingMismatch,
+          sourceBilling,
+          1
+        );
+      } catch (Exception ex) {
+        billingMatchEx = ex;
+      }
+      assertRejected(
+        '変更前の行は前回の版の見積商品と一致している必要があります',
+        billingMatchEx
+      );
+
+      EstimateCreateController.ProductLineItem remakeBillingMismatch = new EstimateCreateController.ProductLineItem();
+      remakeBillingMismatch.productId = available.Id;
+      remakeBillingMismatch.quantity = 1;
+      remakeBillingMismatch.unitPrice = 8000;
+      remakeBillingMismatch.amount = 96000;
+      remakeBillingMismatch.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      remakeBillingMismatch.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      remakeBillingMismatch.startDate = String.valueOf(termStart);
+      remakeBillingMismatch.endDate = String.valueOf(termEnd);
+      remakeBillingMismatch.recordType = 'Remake';
+      remakeBillingMismatch.sourceContractProductId = sourceProduct.Id;
+      EstimateCreateController.ProductLineItem remakeOriginal = new EstimateCreateController.ProductLineItem();
+      remakeOriginal.productId = available.Id;
+      remakeOriginal.quantity = 1;
+      remakeOriginal.unitPrice = 8000;
+      remakeOriginal.amount = null;
+      remakeOriginal.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeOriginal.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      remakeOriginal.startDate = String.valueOf(termStart);
+      remakeOriginal.endDate = String.valueOf(termEnd);
+      remakeOriginal.recordType = 'Original';
+      remakeOriginal.sourceContractProductId = sourceProduct.Id;
+      changeReq.products = new List<EstimateCreateController.ProductLineItem>{
+        remakeOriginal,
+        remakeBillingMismatch
+      };
+      Exception remakeBillingEx = null;
+      try {
+        EstimateValidationService.validateChangeProductLineRules(changeReq);
+      } catch (Exception ex) {
+        remakeBillingEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.REMAKE_BILLING_TYPE_LOCKED_MESSAGE,
+        remakeBillingEx
       );
     }
   }
 
   @IsTest
-  static void validateAddAndSpotNew_pathsCoverLifecycleRules() {
+  static void assertChangeHistoriesReadyForInvoice_blocksTermOriginalAmountMismatch() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Inv Change Cover Acc'
+      );
+      ContractService__c service = insertServiceWithBilling(
+        account.Id,
+        'Inv Change Cover Service'
+      );
+      service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
+      update service;
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2027, 5, 31);
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Inv Change Cover Previous',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      insert previous;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Inv Change Cover Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c previousProduct = new ContractProduct__c(
+        ContractHistory__c = previous.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      insert previousProduct;
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Inv Change Cover Bad Original',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        PreviousHistory__c = previous.Id,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insert changeHistory;
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 1000,
+          Amount__c = 12000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = previousProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 2,
+          UnitPrice__c = 1000,
+          Amount__c = 24000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = previousProduct.Id
+        )
+      };
+
+      Exception thrown = null;
+      try {
+        EstimateValidationService.assertChangeHistoriesReadyForInvoice(
+          new Set<Id>{ changeHistory.Id }
+        );
+      } catch (Exception ex) {
+        thrown = ex;
+      }
+      assertRejected(
+        '変更前の行は前回の版の見積商品と一致している必要があります',
+        thrown
+      );
+    }
+  }
+
+  @IsTest
+  static void assertChangeHistoriesReadyForInvoice_blocksSpotChangeRecurring() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Inv Spot Change Acc'
+      );
+      ContractService__c service = insertServiceWithBilling(
+        account.Id,
+        'Inv Spot Change Service'
+      );
+      service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_SPOT;
+      update service;
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Inv Spot Change Previous',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1
+      );
+      insert previous;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Inv Spot Change Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(product);
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Inv Spot Change Bad',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        PreviousHistory__c = previous.Id
+      );
+      insert changeHistory;
+      insert new ContractProduct__c(
+        ContractHistory__c = changeHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 3000,
+        Amount__c = 3000,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2026, 6, 1),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+
+      Exception thrown = null;
+      try {
+        EstimateValidationService.assertChangeHistoriesReadyForInvoice(
+          new Set<Id>{ changeHistory.Id }
+        );
+      } catch (Exception ex) {
+        thrown = ex;
+      }
+      assertRejected(
+        EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
+        thrown
+      );
+    }
+  }
+
+  @IsTest
+  static void validateSpotChangeAndSpotNew_pathsCoverLifecycleRules() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount('Add Spot Acc');
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
@@ -1337,13 +2115,6 @@ private class EstimateValidationServiceTest {
       );
       spotService.Lifecycle__c = ContractDomainConstants.LIFECYCLE_SPOT;
       update spotService;
-
-      ContractService__c termService = insertServiceWithBilling(
-        account.Id,
-        'Add Term Service'
-      );
-      termService.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
-      update termService;
 
       Date termStart = ContractTestDataFactory.stableTermStart();
       Date termEnd = ContractTestDataFactory.stableTermEnd();
@@ -1359,19 +2130,6 @@ private class EstimateValidationServiceTest {
         EffectiveDate__c = termStart
       );
       insert spotOrdered;
-
-      ContractHistory__c termOrdered = new ContractHistory__c(
-        Name = 'Add Term V1',
-        ContractService__c = termService.Id,
-        Opportunity__c = opportunity.Id,
-        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
-        Version__c = 1,
-        CurrentTermStartDate__c = termStart,
-        CurrentTermEndDate__c = termEnd,
-        EffectiveDate__c = termStart
-      );
-      insert termOrdered;
 
       Product2 oneTimeProduct = ContractTestDataFactory.buildProduct(
         'Add OneTime Prod'
@@ -1397,6 +2155,7 @@ private class EstimateValidationServiceTest {
       oneTimeLine.startDate = String.valueOf(termStart.addMonths(1));
       oneTimeLine.endDate = String.valueOf(termStart.addMonths(1));
       oneTimeLine.recordType = 'New';
+      oneTimeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
 
       EstimateCreateController.ProductLineItem recurringLine = new EstimateCreateController.ProductLineItem();
       recurringLine.productId = recurringProduct.Id;
@@ -1408,6 +2167,7 @@ private class EstimateValidationServiceTest {
       recurringLine.startDate = String.valueOf(termStart);
       recurringLine.endDate = String.valueOf(termEnd);
       recurringLine.recordType = 'New';
+      recurringLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
 
       System.assertEquals(
         true,
@@ -1422,18 +2182,18 @@ private class EstimateValidationServiceTest {
         )
       );
 
-      EstimateCreateController.EstimateSaveRequest addMeta = new EstimateCreateController.EstimateSaveRequest();
-      addMeta.selectedType = ContractDomainConstants.HISTORY_TYPE_ADD;
-      addMeta.effectiveDate = String.valueOf(termStart);
-      addMeta.products = new List<EstimateCreateController.ProductLineItem>{
+      EstimateCreateController.EstimateSaveRequest spotChangeMeta = new EstimateCreateController.EstimateSaveRequest();
+      spotChangeMeta.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      spotChangeMeta.effectiveDate = String.valueOf(termStart);
+      spotChangeMeta.products = new List<EstimateCreateController.ProductLineItem>{
         oneTimeLine
       };
       EstimateValidationService.validateHistoryMetaDates(
-        addMeta,
+        spotChangeMeta,
         termStart,
         termEnd
       );
-      System.assertEquals(null, addMeta.effectiveDate);
+      System.assertEquals(null, spotChangeMeta.effectiveDate);
 
       EstimateCreateController.EstimateSaveRequest changeOneTimeOnly = new EstimateCreateController.EstimateSaveRequest();
       changeOneTimeOnly.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
@@ -1451,6 +2211,8 @@ private class EstimateValidationServiceTest {
       EstimateCreateController.EstimateSaveRequest newOneTimeOnly = new EstimateCreateController.EstimateSaveRequest();
       newOneTimeOnly.opportunityId = opportunity.Id;
       newOneTimeOnly.contractServiceName = 'Spot New Service';
+      newOneTimeOnly.billingAccountId = spotService.BiilingAcccount__c;
+      newOneTimeOnly.taxPercent = 10;
       newOneTimeOnly.contractStartDate = String.valueOf(termStart);
       newOneTimeOnly.contractEndDate = String.valueOf(termEnd);
       newOneTimeOnly.effectiveDate = String.valueOf(termStart);
@@ -1475,6 +2237,7 @@ private class EstimateValidationServiceTest {
       downgradeLine.startDate = String.valueOf(termStart);
       downgradeLine.endDate = String.valueOf(termStart);
       downgradeLine.recordType = 'New';
+      downgradeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
       EstimateValidationService.validateProductLines(
         new List<EstimateCreateController.ProductLineItem>{ downgradeLine },
         false,
@@ -1482,111 +2245,113 @@ private class EstimateValidationServiceTest {
         true
       );
 
-      EstimateCreateController.EstimateSaveRequest addOk = new EstimateCreateController.EstimateSaveRequest();
-      addOk.opportunityId = opportunity.Id;
-      addOk.contractServiceId = spotService.Id;
-      addOk.previousHistoryId = spotOrdered.Id;
-      addOk.selectedType = ContractDomainConstants.HISTORY_TYPE_ADD;
-      addOk.contractStartDate = String.valueOf(termStart);
-      addOk.contractEndDate = String.valueOf(termEnd);
-      addOk.effectiveDate = String.valueOf(termStart);
-      addOk.products = new List<EstimateCreateController.ProductLineItem>{
+      EstimateCreateController.EstimateSaveRequest spotChangeOk = new EstimateCreateController.EstimateSaveRequest();
+      spotChangeOk.opportunityId = opportunity.Id;
+      spotChangeOk.contractServiceId = spotService.Id;
+      spotChangeOk.previousHistoryId = spotOrdered.Id;
+      spotChangeOk.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      spotChangeOk.contractStartDate = String.valueOf(termStart);
+      spotChangeOk.contractEndDate = String.valueOf(termEnd);
+      spotChangeOk.effectiveDate = String.valueOf(termStart);
+      spotChangeOk.products = new List<EstimateCreateController.ProductLineItem>{
         oneTimeLine
       };
       Test.startTest();
-      EstimateValidationService.validateAddSaveRequest(addOk, 'Add History');
+      EstimateValidationService.validateChangeSaveRequest(
+        spotChangeOk,
+        'Spot Change History'
+      );
       Test.stopTest();
-      System.assertEquals(null, addOk.contractStartDate);
-      System.assertEquals(null, addOk.contractEndDate);
-      System.assertEquals(null, addOk.effectiveDate);
+      System.assertEquals(null, spotChangeOk.contractStartDate);
+      System.assertEquals(null, spotChangeOk.contractEndDate);
+      System.assertEquals(null, spotChangeOk.effectiveDate);
 
-      EstimateCreateController.EstimateSaveRequest addOnTerm = new EstimateCreateController.EstimateSaveRequest();
-      addOnTerm.opportunityId = opportunity.Id;
-      addOnTerm.contractServiceId = termService.Id;
-      addOnTerm.previousHistoryId = termOrdered.Id;
-      addOnTerm.selectedType = ContractDomainConstants.HISTORY_TYPE_ADD;
-      addOnTerm.products = new List<EstimateCreateController.ProductLineItem>{
-        oneTimeLine
-      };
-      Exception termEx = null;
+      Exception termExpectedSpotEx = null;
       try {
-        EstimateValidationService.validateAddSaveRequest(
-          addOnTerm,
-          'Add On Term'
+        EstimateValidationService.assertLoadedLifecycle(
+          ContractDomainConstants.LIFECYCLE_TERM,
+          ContractDomainConstants.LIFECYCLE_SPOT,
+          'Change'
         );
       } catch (Exception ex) {
-        termEx = ex;
+        termExpectedSpotEx = ex;
       }
-      assertRejected('都度契約（Spot）', termEx);
+      assertRejected(
+        '都度契約の後続見積は一回課金だけの Change',
+        termExpectedSpotEx
+      );
 
-      EstimateCreateController.EstimateSaveRequest addRecurring = new EstimateCreateController.EstimateSaveRequest();
-      addRecurring.opportunityId = opportunity.Id;
-      addRecurring.contractServiceId = spotService.Id;
-      addRecurring.previousHistoryId = spotOrdered.Id;
-      addRecurring.selectedType = ContractDomainConstants.HISTORY_TYPE_ADD;
-      addRecurring.products = new List<EstimateCreateController.ProductLineItem>{
+      EstimateCreateController.EstimateSaveRequest spotChangeRecurring = new EstimateCreateController.EstimateSaveRequest();
+      spotChangeRecurring.opportunityId = opportunity.Id;
+      spotChangeRecurring.contractServiceId = spotService.Id;
+      spotChangeRecurring.previousHistoryId = spotOrdered.Id;
+      spotChangeRecurring.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      spotChangeRecurring.products = new List<EstimateCreateController.ProductLineItem>{
         recurringLine
       };
       Exception recurringEx = null;
       try {
-        EstimateValidationService.validateAddSaveRequest(
-          addRecurring,
-          'Add Recurring'
+        EstimateValidationService.validateChangeSaveRequest(
+          spotChangeRecurring,
+          'Spot Change Recurring'
         );
       } catch (Exception ex) {
         recurringEx = ex;
       }
-      assertRejected('一回課金商品のみ', recurringEx);
+      assertRejected('都度契約の Change は一回課金だけです', recurringEx);
 
-      Exception addNoOppEx = null;
+      Exception noServiceEx = null;
       try {
-        EstimateValidationService.validateAddSaveRequest(
+        EstimateValidationService.validateChangeSaveRequest(
           new EstimateCreateController.EstimateSaveRequest(),
-          'Add No Opp'
+          'Spot Change No Service'
         );
       } catch (Exception ex) {
-        addNoOppEx = ex;
+        noServiceEx = ex;
       }
-      assertRejected('商談IDが指定されていません', addNoOppEx);
+      assertRejected('契約サービスを選択してください', noServiceEx);
 
-      EstimateCreateController.EstimateSaveRequest addBlankName = new EstimateCreateController.EstimateSaveRequest();
-      addBlankName.opportunityId = opportunity.Id;
-      Exception addBlankNameEx = null;
+      EstimateCreateController.EstimateSaveRequest blankName = new EstimateCreateController.EstimateSaveRequest();
+      blankName.opportunityId = opportunity.Id;
+      blankName.contractServiceId = spotService.Id;
+      blankName.previousHistoryId = spotOrdered.Id;
+      Exception blankNameEx = null;
       try {
-        EstimateValidationService.validateAddSaveRequest(addBlankName, '');
+        EstimateValidationService.validateChangeSaveRequest(blankName, '');
       } catch (Exception ex) {
-        addBlankNameEx = ex;
+        blankNameEx = ex;
       }
-      assertRejected('契約履歴名を入力してください', addBlankNameEx);
+      assertRejected('契約履歴名を入力してください', blankNameEx);
 
-      EstimateCreateController.EstimateSaveRequest addNoService = new EstimateCreateController.EstimateSaveRequest();
-      addNoService.opportunityId = opportunity.Id;
-      Exception addNoServiceEx = null;
+      EstimateCreateController.EstimateSaveRequest noOpp = new EstimateCreateController.EstimateSaveRequest();
+      noOpp.contractServiceId = spotService.Id;
+      noOpp.previousHistoryId = spotOrdered.Id;
+      Exception noOppEx = null;
       try {
-        EstimateValidationService.validateAddSaveRequest(
-          addNoService,
-          'Add No Service'
+        EstimateValidationService.validateChangeSaveRequest(
+          noOpp,
+          'Spot Change No Opp'
         );
       } catch (Exception ex) {
-        addNoServiceEx = ex;
+        noOppEx = ex;
       }
-      assertRejected('契約サービスを選択してください', addNoServiceEx);
+      assertRejected('商談IDが指定されていません', noOppEx);
 
-      EstimateCreateController.EstimateSaveRequest addNoProducts = new EstimateCreateController.EstimateSaveRequest();
-      addNoProducts.opportunityId = opportunity.Id;
-      addNoProducts.contractServiceId = spotService.Id;
-      addNoProducts.previousHistoryId = spotOrdered.Id;
-      addNoProducts.products = new List<EstimateCreateController.ProductLineItem>();
-      Exception addNoProductsEx = null;
+      EstimateCreateController.EstimateSaveRequest noProducts = new EstimateCreateController.EstimateSaveRequest();
+      noProducts.opportunityId = opportunity.Id;
+      noProducts.contractServiceId = spotService.Id;
+      noProducts.previousHistoryId = spotOrdered.Id;
+      noProducts.products = new List<EstimateCreateController.ProductLineItem>();
+      Exception noProductsEx = null;
       try {
-        EstimateValidationService.validateAddSaveRequest(
-          addNoProducts,
-          'Add No Products'
+        EstimateValidationService.validateChangeSaveRequest(
+          noProducts,
+          'Spot Change No Products'
         );
       } catch (Exception ex) {
-        addNoProductsEx = ex;
+        noProductsEx = ex;
       }
-      assertRejected('商品明細を1行以上入力してください', addNoProductsEx);
+      assertRejected('商品明細を1行以上入力してください', noProductsEx);
 
       EstimateCreateController.EstimateSaveRequest newMetaOneTime = new EstimateCreateController.EstimateSaveRequest();
       newMetaOneTime.selectedType = ContractDomainConstants.HISTORY_TYPE_NEW;
@@ -1731,6 +2496,64 @@ private class EstimateValidationServiceTest {
     }
   }
 
+  @IsTest
+  static void assertContinuationDoesNotMutateService_rejectsBlankServiceTax() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Blank Tax Continuation Account'
+      );
+      ContractService__c service = insertServiceWithBilling(
+        account.Id,
+        'Blank Tax Continuation Service'
+      );
+      service.TaxPercent__c = null;
+      update service;
+
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.contractServiceId = service.Id;
+      request.selectedType = 'Change';
+
+      Exception ex = null;
+      try {
+        EstimateValidationService.assertContinuationDoesNotMutateService(
+          request
+        );
+      } catch (Exception caught) {
+        ex = caught;
+      }
+      assertRejected('消費税率が空です', ex);
+    }
+  }
+
+  @IsTest
+  static void assertContinuationDoesNotMutateService_rejectsBlankServiceBillingAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Blank BA Continuation Account'
+      );
+      ContractService__c service = insertServiceWithBilling(
+        account.Id,
+        'Blank BA Continuation Service'
+      );
+      service.BiilingAcccount__c = null;
+      update service;
+
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.contractServiceId = service.Id;
+      request.selectedType = 'Change';
+
+      Exception ex = null;
+      try {
+        EstimateValidationService.assertContinuationDoesNotMutateService(
+          request
+        );
+      } catch (Exception caught) {
+        ex = caught;
+      }
+      assertRejected('請求アカウントを入力してください', ex);
+    }
+  }
+
   /**
    * 拒否系アサート。例外必須かつ業務メッセージを含むこと（Script-thrown のみは不合格）。
    */
@@ -1762,10 +2585,14 @@ private class EstimateValidationServiceTest {
       Account__c = accountId,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 25,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     ContractService__c service = new ContractService__c(
@@ -1798,17 +2625,20 @@ private class EstimateValidationServiceTest {
         'Change'
       );
 
-      Exception addOnTermEx = null;
+      Exception termExpectedSpotEx = null;
       try {
         EstimateValidationService.assertLoadedLifecycle(
           ContractDomainConstants.LIFECYCLE_TERM,
           ContractDomainConstants.LIFECYCLE_SPOT,
-          'Add'
+          'Change'
         );
       } catch (Exception ex) {
-        addOnTermEx = ex;
+        termExpectedSpotEx = ex;
       }
-      assertRejected('都度契約（Spot）', addOnTermEx);
+      assertRejected(
+        '都度契約の後続見積は一回課金だけの Change',
+        termExpectedSpotEx
+      );
 
       Exception changeOnSpotEx = null;
       try {
@@ -1820,7 +2650,327 @@ private class EstimateValidationServiceTest {
       } catch (Exception ex) {
         changeOnSpotEx = ex;
       }
-      assertRejected('Add を選んでください', changeOnSpotEx);
+      assertRejected(
+        '都度契約では Change は使えません。一回課金だけの Change を使ってください。',
+        changeOnSpotEx
+      );
+    }
+  }
+
+  @IsTest
+  static void validateProductLines_rejectsCustomFieldOnlyChange() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+      Account account = ContractTestDataFactory.insertAccount(
+        'Custom Field Only Change Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Custom Field Only Change Opp'
+      );
+      ContractService__c service = insertServiceWithBilling(
+        account.Id,
+        'Custom Field Only Change Service'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c previousHistory = new ContractHistory__c(
+        Name = 'Custom Field Only Previous',
+        ContractService__c = service.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1,
+        Opportunity__c = opportunity.Id,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      insert previousHistory;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Custom Field Only Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c previousProduct = new ContractProduct__c(
+        ContractHistory__c = previousHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = ContractDomainConstants.PRODUCT_TYPE_NEW,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+        Description__c = 'previous-memo'
+      );
+      insert previousProduct;
+
+      EstimateCreateController.ProductLineItem original = new EstimateCreateController.ProductLineItem();
+      original.productId = product.Id;
+      original.quantity = 1;
+      original.unitPrice = 1000;
+      original.amount = 12000;
+      original.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      original.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      original.startDate = String.valueOf(termStart);
+      original.endDate = String.valueOf(termEnd);
+      original.recordType = 'Original';
+      original.sourceContractProductId = previousProduct.Id;
+      original.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+
+      EstimateCreateController.ProductLineItem remakeCustomOnly = new EstimateCreateController.ProductLineItem();
+      remakeCustomOnly.productId = product.Id;
+      remakeCustomOnly.quantity = 1;
+      remakeCustomOnly.unitPrice = 1000;
+      remakeCustomOnly.amount = 12000;
+      remakeCustomOnly.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeCustomOnly.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      remakeCustomOnly.startDate = String.valueOf(termStart);
+      remakeCustomOnly.endDate = String.valueOf(termEnd);
+      remakeCustomOnly.recordType = 'Remake';
+      remakeCustomOnly.sourceContractProductId = previousProduct.Id;
+      remakeCustomOnly.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      remakeCustomOnly.customFields = new Map<String, Object>{
+        'Description__c' => 'changed-memo'
+      };
+
+      Exception customOnlyEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{
+            original,
+            remakeCustomOnly
+          },
+          true
+        );
+      } catch (Exception ex) {
+        customOnlyEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE,
+        customOnlyEx
+      );
+      System.assert(
+        customOnlyEx.getMessage()
+          .contains(EstimateValidationService.CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE),
+        '第4.5.2節: カスタム項目だけ変えたChangeは成立させない'
+      );
+
+      EstimateCreateController.ProductLineItem remakeWithPrice = new EstimateCreateController.ProductLineItem();
+      remakeWithPrice.productId = product.Id;
+      remakeWithPrice.quantity = 1;
+      remakeWithPrice.unitPrice = 2000;
+      remakeWithPrice.amount = 24000;
+      remakeWithPrice.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeWithPrice.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      remakeWithPrice.startDate = String.valueOf(termStart);
+      remakeWithPrice.endDate = String.valueOf(termEnd);
+      remakeWithPrice.recordType = 'Remake';
+      remakeWithPrice.sourceContractProductId = previousProduct.Id;
+      remakeWithPrice.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      remakeWithPrice.customFields = new Map<String, Object>{
+        'Description__c' => 'changed-memo'
+      };
+      EstimateValidationService.validateProductLines(
+        new List<EstimateCreateController.ProductLineItem>{
+          original,
+          remakeWithPrice
+        },
+        true
+      );
+    }
+  }
+
+  @IsTest
+  static void validateProductLines_rejectsBlankAndInvalidRevenueRecognitionBasis() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Validate Revenue Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem blank = new EstimateCreateController.ProductLineItem();
+      blank.productId = product.Id;
+      blank.quantity = 1;
+      blank.unitPrice = 1000;
+      blank.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      blank.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      blank.startDate = '2026-06-01';
+      blank.endDate = '2027-05-31';
+      blank.amount = 12000;
+      blank.revenueRecognitionBasis = null;
+      Exception blankEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ blank },
+          false,
+          'EST-S3-New'
+        );
+      } catch (Exception ex) {
+        blankEx = ex;
+      }
+      assertRejected('売上計上基準が空です', blankEx);
+
+      blank.revenueRecognitionBasis = 'UnknownBasis';
+      Exception invalidEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{ blank },
+          false,
+          'EST-S3-New'
+        );
+      } catch (Exception ex) {
+        invalidEx = ex;
+      }
+      assertRejected('売上計上基準は月次計上または一括計上です', invalidEx);
+
+      blank.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      EstimateValidationService.validateProductLines(
+        new List<EstimateCreateController.ProductLineItem>{ blank },
+        false,
+        'EST-S3-New'
+      );
+    }
+  }
+
+  @IsTest
+  static void validateProductLines_rejectsRemakeInvoiceOrRevenueMismatch() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Remake Lock Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Remake Lock Opp'
+      );
+      ContractService__c service = insertServiceWithBilling(
+        account.Id,
+        'Remake Lock Service'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c previousHistory = new ContractHistory__c(
+        Name = 'Remake Lock Previous',
+        ContractService__c = service.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1,
+        Opportunity__c = opportunity.Id,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      insert previousHistory;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Remake Lock Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c previousProduct = new ContractProduct__c(
+        ContractHistory__c = previousHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+        Type__c = ContractDomainConstants.PRODUCT_TYPE_NEW
+      );
+      insert previousProduct;
+
+      EstimateCreateController.ProductLineItem original = new EstimateCreateController.ProductLineItem();
+      original.productId = product.Id;
+      original.quantity = 1;
+      original.unitPrice = 1000;
+      original.amount = 12000;
+      original.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      original.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      original.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      original.startDate = String.valueOf(termStart);
+      original.endDate = String.valueOf(termEnd);
+      original.recordType = 'Original';
+      original.sourceContractProductId = previousProduct.Id;
+
+      EstimateCreateController.ProductLineItem remakeInvoiceChanged = new EstimateCreateController.ProductLineItem();
+      remakeInvoiceChanged.productId = product.Id;
+      remakeInvoiceChanged.quantity = 1;
+      remakeInvoiceChanged.unitPrice = 2000;
+      remakeInvoiceChanged.amount = 24000;
+      remakeInvoiceChanged.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeInvoiceChanged.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
+      remakeInvoiceChanged.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      remakeInvoiceChanged.startDate = String.valueOf(termStart);
+      remakeInvoiceChanged.endDate = String.valueOf(termEnd);
+      remakeInvoiceChanged.recordType = 'Remake';
+      remakeInvoiceChanged.sourceContractProductId = previousProduct.Id;
+
+      Exception invoiceEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{
+            original,
+            remakeInvoiceChanged
+          },
+          true
+        );
+      } catch (Exception ex) {
+        invoiceEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE,
+        invoiceEx
+      );
+
+      EstimateCreateController.ProductLineItem remakeRevenueChanged = new EstimateCreateController.ProductLineItem();
+      remakeRevenueChanged.productId = product.Id;
+      remakeRevenueChanged.quantity = 1;
+      remakeRevenueChanged.unitPrice = 2000;
+      remakeRevenueChanged.amount = 24000;
+      remakeRevenueChanged.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeRevenueChanged.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      remakeRevenueChanged.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+      remakeRevenueChanged.startDate = String.valueOf(termStart);
+      remakeRevenueChanged.endDate = String.valueOf(termEnd);
+      remakeRevenueChanged.recordType = 'Remake';
+      remakeRevenueChanged.sourceContractProductId = previousProduct.Id;
+
+      Exception revenueEx = null;
+      try {
+        EstimateValidationService.validateProductLines(
+          new List<EstimateCreateController.ProductLineItem>{
+            original,
+            remakeRevenueChanged
+          },
+          true
+        );
+      } catch (Exception ex) {
+        revenueEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.REMAKE_REVENUE_LOCKED_MESSAGE,
+        revenueEx
+      );
+    }
+  }
+
+  @IsTest
+  static void validateBillingAccount_rejectsBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      Exception ex = null;
+      try {
+        EstimateValidationService.validateBillingAccount(request);
+      } catch (Exception caught) {
+        ex = caught;
+      }
+      assertRejected('請求アカウントを入力してください', ex);
     }
   }
 }

@@ -19,8 +19,18 @@ import {
 } from "c/orderWizardClose";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import confirmOrder from "@salesforce/apex/OrderCreateController.confirmOrder";
+import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
+import {
+  applyDefaultCustomFields,
+  buildCustomFieldInputs,
+  isMissingRequiredCustomValue
+} from "c/estimateWizardCustomFields";
+import hasOrder from "@salesforce/customPermission/Loop_06_Can_Order";
 
 const HISTORY_TYPE_CANCEL = "Cancel";
+
+const VERSION_CONFLICT_MESSAGE =
+  "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。";
 
 export default class OrderCreateWizard extends NavigationMixin(
   LightningElement
@@ -39,11 +49,20 @@ export default class OrderCreateWizard extends NavigationMixin(
   @track isLoading = true;
   @track isSaving = false;
   @track errorMessage = "";
+  @track contentLoadFailed = false;
   @track context;
   @track billingCustomFields = {};
+  @track historyCustomFields = {};
+  @track historyFieldDefinitions = [];
   @track createRenewOpportunity = true;
   /** 楽観ロック（getOrderContext.lastModifiedToken） */
   _lastModifiedToken = "";
+  /** 仕様: Core 第4.3.12節 */
+  _pendingOperationKey = "";
+
+  get canOrder() {
+    return hasOrder === true;
+  }
 
   connectedCallback() {
     initializeOrderWizardFromUrl(this);
@@ -83,6 +102,7 @@ export default class OrderCreateWizard extends NavigationMixin(
 
     this.isLoading = true;
     this.errorMessage = "";
+    this.contentLoadFailed = false;
     this.context = undefined;
     this.emitPanelSize();
 
@@ -99,15 +119,23 @@ export default class OrderCreateWizard extends NavigationMixin(
 
       if (data.isOrdered) {
         this.errorMessage =
-          "受注済みの契約履歴です。「請求プレビュー」「差し戻し」ボタンをご利用ください。";
+          "受注済みの契約履歴です。「請求ボード」「差し戻し」ボタンをご利用ください。";
         return;
       }
 
       this.context = data;
       this._lastModifiedToken = data.lastModifiedToken || "";
+      this.historyFieldDefinitions = data.historyFieldDefinitions || [];
+      this.historyCustomFields = applyDefaultCustomFields(
+        { ...(data.historyCustomFields || {}) },
+        this.historyFieldDefinitions,
+        null,
+        data.historyType,
+        null
+      );
       this.billingCustomFields = { ...(data.billingCustomFields || {}) };
-      // 表示時は常に初期 ON（ユーザが意図的に外さない限り作成／作り直し）
-      this.createRenewOpportunity = true;
+      // 仕様: Core 第5.2節、第11.5節。TermのNew・Change・Renewは初期状態ON。
+      this.createRenewOpportunity = data.showCreateRenewOpportunity === true;
       // 請求ステップの wire／LDS もコンテキスト確定後に最新化
       // eslint-disable-next-line @lwc/lwc/no-async-operation
       Promise.resolve().then(() => {
@@ -116,11 +144,18 @@ export default class OrderCreateWizard extends NavigationMixin(
           ?.refreshReferenceWires?.();
       });
     } catch (error) {
+      // 仕様: Core 第4.3.11節
       this.errorMessage = this.reduceError(error);
+      this.contentLoadFailed = true;
     } finally {
       this.isLoading = false;
       this.emitPanelSize();
     }
+  }
+
+  /** 仕様: Core 第4.3.11節 */
+  handleContentReload() {
+    this.loadContext();
   }
 
   get hasContext() {
@@ -137,6 +172,21 @@ export default class OrderCreateWizard extends NavigationMixin(
 
   get showBillingStep() {
     return this.hasContext && !this.isCancel;
+  }
+
+  get historyFieldInputs() {
+    return buildCustomFieldInputs(
+      this.historyFieldDefinitions,
+      this.historyCustomFields,
+      "order-history",
+      false,
+      null,
+      this.context?.historyType
+    );
+  }
+
+  get showHistoryFields() {
+    return this.historyFieldInputs.length > 0;
   }
 
   get showMissingRecordError() {
@@ -161,6 +211,35 @@ export default class OrderCreateWizard extends NavigationMixin(
 
   handleCreateRenewOpportunityChange(event) {
     this.createRenewOpportunity = event.target.checked === true;
+  }
+
+  handleHistoryFieldChange(event) {
+    const fieldApi = event.detail?.fieldApi;
+    if (!fieldApi) {
+      return;
+    }
+    this.historyCustomFields = {
+      ...this.historyCustomFields,
+      [fieldApi]: event.detail.value
+    };
+  }
+
+  validateHistoryFields() {
+    const missingLabels = [];
+    for (const field of this.historyFieldInputs) {
+      if (field.required !== true) {
+        continue;
+      }
+      if (
+        isMissingRequiredCustomValue(this.historyCustomFields[field.apiName])
+      ) {
+        missingLabels.push(field.label);
+      }
+    }
+    if (missingLabels.length === 0) {
+      return null;
+    }
+    return "必須のカスタム項目を入力してください: " + missingLabels.join("、");
   }
 
   get isBusy() {
@@ -198,6 +277,20 @@ export default class OrderCreateWizard extends NavigationMixin(
     return null;
   }
 
+  /** 仕様: Core 第5.2節。必須不足時は請求アカウントの正規編集画面へ誘導する。 */
+  guideToBillingAccountFormalEdit() {
+    const billingStep = this.template.querySelector(
+      "c-order-create-step-billing"
+    );
+    if (
+      billingStep &&
+      typeof billingStep.openBillingAccountFormalEdit === "function"
+    ) {
+      billingStep.openBillingAccountFormalEdit();
+    }
+  }
+
+  // 仕様: Core 第5.2節、第1.1.10節。Cancelも請求アカウント必須検証を維持し、不足は正規編集へ誘導する。
   async handleConfirmOrder() {
     if (this.isSaving || !this.canOrder) {
       return;
@@ -211,36 +304,56 @@ export default class OrderCreateWizard extends NavigationMixin(
     this.isSaving = true;
     this.errorMessage = "";
     try {
-      if (!this.isCancel) {
-        const validationError = this.validateBillingStep();
-        if (validationError) {
-          this.errorMessage = validationError;
-          this.showToast("入力エラー", validationError, "error");
-          this.isSaving = false;
-          return;
-        }
+      const historyError = this.validateHistoryFields();
+      if (historyError) {
+        this.errorMessage = historyError;
+        this.showToast("入力エラー", historyError, "error");
+        this.isSaving = false;
+        return;
+      }
+      const validationError = this.validateBillingStep();
+      if (validationError) {
+        this.errorMessage = validationError;
+        this.showToast("入力エラー", validationError, "error");
+        this.guideToBillingAccountFormalEdit();
+        this.isSaving = false;
+        return;
       }
       const shouldCreateRenew =
         this.showCreateRenewOpportunity && this.createRenewOpportunity;
+      if (!this._pendingOperationKey) {
+        this._pendingOperationKey = await issueOrderOperationKey();
+      }
       const result = await confirmOrder({
         contractHistoryId: this.recordId,
         billingCustomFieldsJson: null,
         createRenewOpportunity: shouldCreateRenew,
-        expectedLastModifiedToken: this._lastModifiedToken || null
+        expectedLastModifiedToken: this._lastModifiedToken || null,
+        historyCustomFieldsJson: JSON.stringify(this.historyCustomFields || {}),
+        businessOperationKey: this._pendingOperationKey
       });
+      if (result?.businessOperationKey) {
+        this._pendingOperationKey = result.businessOperationKey;
+      }
+      this._pendingOperationKey = "";
       notifyOrderRecordStatusChanged(this, this.recordId);
       const renewCreated = Boolean(result?.renewOpportunityId);
       this.showToast(
         "受注完了",
         renewCreated
-          ? "ステータスを Ordered に更新し、更新商談を作成しました。"
-          : "ステータスを Ordered に更新しました。",
+          ? "ステータスを受注済みに更新し、更新商談を作成しました。"
+          : "ステータスを受注済みに更新しました。",
         "success"
       );
       this.closeAction();
     } catch (error) {
       this.errorMessage = this.reduceError(error);
       this.showToast("受注エラー", this.errorMessage, "error");
+      // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直す。
+      if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
+        this._pendingOperationKey = "";
+        await this.loadContext();
+      }
     } finally {
       this.isSaving = false;
     }
@@ -251,6 +364,9 @@ export default class OrderCreateWizard extends NavigationMixin(
   }
 
   closeAction({ refresh = true } = {}) {
+    this.dispatchEvent(
+      new CustomEvent("panelclose", { bubbles: true, composed: true })
+    );
     if (this.isTabView) {
       closeOrderWizardTab(this, {
         recordId: this.recordId,

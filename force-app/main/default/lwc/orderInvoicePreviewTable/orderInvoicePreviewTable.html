@@ -4,7 +4,7 @@
       <div class="version-filter">
         <lightning-combobox
           name="versionFilter"
-          label="Version"
+          label="版"
           value={selectedVersion}
           options={versionOptions}
           onchange={handleVersionChange}
@@ -15,6 +15,36 @@
         >
         </lightning-combobox>
       </div>
+      <div class="version-filter invoice-filter">
+        <lightning-combobox
+          name="invoiceFilter"
+          label="請求書"
+          value={selectedInvoiceId}
+          options={invoiceFilterOptions}
+          onchange={handleInvoiceFilterChange}
+          dropdown-alignment="left"
+          variant="label-hidden"
+        >
+        </lightning-combobox>
+      </div>
+      <div class="version-filter difference-filter">
+        <lightning-combobox
+          name="differenceFilter"
+          label="差額"
+          value={selectedDifferenceFilter}
+          options={differenceFilterOptions}
+          onchange={handleDifferenceFilterChange}
+          dropdown-alignment="left"
+          variant="label-hidden"
+        >
+        </lightning-combobox>
+      </div>
+      <lightning-input
+        type="checkbox"
+        label="取消済みを含める"
+        checked={includeCancelled}
+        onchange={handleIncludeCancelledChange}
+      ></lightning-input>
       <template if:true={showResetPostOrderButton}>
         <button
           type="button"
@@ -63,6 +93,15 @@
             maximum-fraction-digits="0"
           ></lightning-formatted-number>
         </span>
+        <span class="amount-compare-part">
+          <span class="amount-compare-k">端数調整実績</span>
+          <lightning-formatted-number
+            value={manualAdjustmentAmount}
+            format-style="currency"
+            currency-code="JPY"
+            maximum-fraction-digits="0"
+          ></lightning-formatted-number>
+        </span>
       </div>
       <template if:true={showAmountDraftActions}>
         <div class="amount-compare-actions">
@@ -89,6 +128,9 @@
 
   <template if:true={editBlockedMessage}>
     <p class="edit-note">{editBlockedMessage}</p>
+  </template>
+  <template if:true={invoiceOpsFieldConfigError}>
+    <p class="edit-note" role="alert">{invoiceOpsFieldConfigError}</p>
   </template>
 
   <template if:true={hasInvoices}>
@@ -118,6 +160,12 @@
                 <p class="invoice-addressee" title={invoice.billingAddressee}>
                   {invoice.billingAddressee}
                 </p>
+                <p class="invoice-addressee">
+                  届け方 {invoice.invoiceDeliveryMethodLabel}
+                </p>
+                <template if:true={invoice.isCancelled}>
+                  <p class="edit-note" role="status">{invoice.cancelledLabel}</p>
+                </template>
                 <div class="invoice-dates" aria-label="請求日程">
                   <span class="invoice-date-item">
                     <span class="invoice-meta-k">請求日</span>
@@ -132,28 +180,8 @@
                   </span>
                 </div>
               </div>
-              <template if:true={invoice.canEditInvoice}>
-                <div class="header-actions">
-                  <button
-                    type="button"
-                    class="ghost-btn"
-                    data-invoice-id={invoice.invoiceId}
-                    onclick={handleOpenInvoiceSplit}
-                    disabled={invoice.otherActionsDisabled}
-                    title={invoice.otherActionsTitle}
-                  >
-                    請求を分ける
-                  </button>
-                  <button
-                    type="button"
-                    class="ghost-btn"
-                    data-invoice-id={invoice.invoiceId}
-                    onclick={handleOpenInvoiceMove}
-                    disabled={invoice.moveLinesDisabled}
-                    title={invoice.moveLinesTitle}
-                  >
-                    明細を移す
-                  </button>
+              <div class="header-actions">
+                <template if:true={invoice.showBillingEdit}>
                   <button
                     type="button"
                     class="ghost-btn"
@@ -164,20 +192,1123 @@
                   >
                     請求情報編集
                   </button>
-                </div>
-              </template>
+                </template>
+                <template if:true={invoice.canEditInvoice}>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleOpenInvoiceRedirect}
+                    disabled={invoice.otherActionsDisabled}
+                    title={invoice.otherActionsTitle}
+                  >
+                    別の請求へ分ける
+                  </button>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleApplyBillingAccountContent}
+                    disabled={invoice.applyBillingDisabled}
+                    title={invoice.applyBillingTitle}
+                  >
+                    請求アカウントの内容を反映
+                  </button>
+                </template>
+                <template if:true={invoice.showConfirmAction}>
+                  <button
+                    type="button"
+                    class="solid-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleConfirmInvoice}
+                    disabled={invoice.confirmActionDisabled}
+                    title={invoice.confirmActionTitle}
+                  >
+                    確定する
+                  </button>
+                </template>
+                <template if:true={invoice.showViewPdfAction}>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleViewIssuedPdf}
+                  >
+                    PDFを見る
+                  </button>
+                </template>
+                <template if:true={invoice.showIssueAction}>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleIssueInvoice}
+                    disabled={invoice.issueActionDisabled}
+                    title={invoice.issueActionTitle}
+                  >
+                    PDF発行
+                  </button>
+                </template>
+                <template if:true={invoice.showSendAction}>
+                  <button
+                    type="button"
+                    class="solid-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleOpenInvoiceSend}
+                    disabled={invoice.sendActionDisabled}
+                    title={invoice.sendActionTitle}
+                  >
+                    {invoice.sendActionLabel}
+                  </button>
+                </template>
+                <template if:true={invoice.showCancelAction}>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    data-invoice-id={invoice.invoiceId}
+                    onclick={handleOpenInvoiceCancel}
+                    disabled={invoice.cancelActionDisabled}
+                    title={invoice.cancelActionTitle}
+                  >
+                    取消
+                  </button>
+                </template>
+              </div>
             </div>
             <template if:true={invoice.lockNote}>
               <p class="edit-note" role="status">{invoice.lockNote}</p>
             </template>
+            <div class="invoice-status-meta" aria-label="請求ステータス">
+              <span class="invoice-date-item">
+                <span class="invoice-meta-k">取引状態</span>
+                <span class="invoice-meta-v"
+                  >{invoice.invoiceTransactionStatusLabel}</span
+                >
+              </span>
+              <span class="invoice-date-sep" aria-hidden="true"></span>
+              <span class="invoice-date-item">
+                <span class="invoice-meta-k">送付日</span>
+                <span class="invoice-meta-v">{invoice.sentDateLabel}</span>
+              </span>
+            </div>
           </header>
+
+          <div class="invoice-tabs" role="tablist" aria-label="請求表示">
+            <button
+              type="button"
+              class={invoice.linesTabClass}
+              role="tab"
+              data-invoice-id={invoice.invoiceId}
+              data-tab="lines"
+              onclick={handleInvoiceTabClick}
+            >
+              明細
+            </button>
+            <button
+              type="button"
+              class={invoice.paymentsTabClass}
+              role="tab"
+              data-invoice-id={invoice.invoiceId}
+              data-tab="payments"
+              onclick={handleInvoiceTabClick}
+            >
+              入金
+            </button>
+            <template if:true={invoice.showJournalsTab}>
+              <button
+                type="button"
+                class={invoice.journalsTabClass}
+                role="tab"
+                data-invoice-id={invoice.invoiceId}
+                data-tab="journals"
+                onclick={handleInvoiceTabClick}
+              >
+                仕訳
+              </button>
+            </template>
+          </div>
+
+          <template if:true={invoice.isPaymentsTab}>
+            <div class="ops-panel">
+              <lightning-input
+                type="checkbox"
+                label="取消済みを含める"
+                checked={invoice.includeCancelledPayments}
+                onchange={handleIncludeCancelledPaymentsChange}
+              ></lightning-input>
+              <template if:true={invoice.opsLoading}>
+                <p class="edit-note">入金情報を読み込み中…</p>
+              </template>
+              <template if:true={invoice.opsError}>
+                <p class="edit-note">{invoice.opsError}</p>
+              </template>
+              <template if:true={invoice.hasPayments}>
+                <div class="ops-table-wrap">
+                  <table class="ops-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">日付</th>
+                        <th scope="col">目的</th>
+                        <th class="num-col" scope="col">金額</th>
+                        <th scope="col">メモ</th>
+                        <th scope="col">状態</th>
+                        <th scope="col">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template for:each={invoice.payments} for:item="payment">
+                        <tr key={payment.key}>
+                          <td>{payment.paymentDate}</td>
+                          <td>{payment.typeLabel}</td>
+                          <td class="num-col">
+                            <lightning-formatted-number
+                              value={payment.displayAmount}
+                              format-style="currency"
+                              currency-code="JPY"
+                              maximum-fraction-digits="0"
+                            ></lightning-formatted-number>
+                          </td>
+                          <td class="muted">{payment.memo}</td>
+                          <td>{payment.statusLabel}</td>
+                          <td>
+                            <div class="ops-row-actions">
+                              <template if:true={payment.showActions}>
+                                <template if:true={payment.canCancel}>
+                                  <button
+                                    type="button"
+                                    class="ghost-btn"
+                                    data-invoice-id={invoice.invoiceId}
+                                    data-payment-id={payment.paymentId}
+                                    onclick={handlePaymentCancel}
+                                  >
+                                    取消
+                                  </button>
+                                </template>
+                              </template>
+                              <template if:true={payment.canEditPayment}>
+                                <button
+                                  type="button"
+                                  class="ghost-btn"
+                                  data-invoice-id={invoice.invoiceId}
+                                  data-payment-id={payment.paymentId}
+                                  onclick={handleOpenPaymentEdit}
+                                >
+                                  編集
+                                </button>
+                              </template>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+              <template if:false={invoice.hasPayments}>
+                <p class="edit-note">入金はありません。</p>
+              </template>
+
+              <template if:true={invoice.isPaymentEditOpen}>
+                <div class="ops-form">
+                  <p class="ops-form-title">入出金を編集</p>
+                  <dl class="ops-readonly">
+                    <div>
+                      <dt>目的</dt>
+                      <dd>{invoice.paymentEditPurposeLabel}</dd>
+                    </div>
+                    <div>
+                      <dt>金額</dt>
+                      <dd>
+                        <lightning-formatted-number
+                          value={invoice.paymentEditAmount}
+                          format-style="currency"
+                          currency-code="JPY"
+                          maximum-fraction-digits="0"
+                        ></lightning-formatted-number>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>入出金日</dt>
+                      <dd>{invoice.paymentEditDate}</dd>
+                    </div>
+                  </dl>
+                  <div class="ops-form-grid">
+                    <lightning-input
+                      label="メモ"
+                      value={invoice.paymentEditMemo}
+                      onchange={handlePaymentEditFieldChange}
+                    ></lightning-input>
+                    <template
+                      for:each={invoice.paymentEditExtraFields}
+                      for:item="field"
+                    >
+                      <div key={field.key} class="ops-extra-field">
+                        <template if:true={field.isCheckbox}>
+                          <lightning-input
+                            type="checkbox"
+                            label={field.label}
+                            checked={field.checked}
+                            field-level-help={field.helpText}
+                            disabled={field.disabled}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            data-input-kind="checkbox"
+                            onchange={handlePaymentEditFieldChange}
+                          ></lightning-input>
+                        </template>
+                        <template if:true={field.isPicklist}>
+                          <lightning-combobox
+                            label={field.label}
+                            value={field.value}
+                            options={field.picklistOptions}
+                            field-level-help={field.helpText}
+                            required={field.required}
+                            disabled={field.disabled}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            onchange={handlePaymentEditFieldChange}
+                          ></lightning-combobox>
+                        </template>
+                        <template if:true={field.isTextarea}>
+                          <lightning-textarea
+                            label={field.label}
+                            value={field.value}
+                            field-level-help={field.helpText}
+                            required={field.required}
+                            disabled={field.disabled}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            onchange={handlePaymentEditFieldChange}
+                          ></lightning-textarea>
+                        </template>
+                        <template if:true={field.isInput}>
+                          <lightning-input
+                            type={field.inputType}
+                            label={field.label}
+                            value={field.value}
+                            field-level-help={field.helpText}
+                            required={field.required}
+                            disabled={field.disabled}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            onchange={handlePaymentEditFieldChange}
+                          ></lightning-input>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="panel-actions">
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      onclick={handleClosePaymentEdit}
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="button"
+                      class="solid-btn"
+                      onclick={handleSavePaymentEdit}
+                    >
+                      保存
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <template if:true={invoice.showPaymentCancelForm}>
+                <div class="ops-form">
+                  <p class="ops-form-title">入出金を取消</p>
+                  <dl class="ops-readonly">
+                    <div>
+                      <dt>請求書</dt>
+                      <dd>{invoice.paymentCancelInvoiceName}</dd>
+                    </div>
+                    <div>
+                      <dt>目的</dt>
+                      <dd>{invoice.paymentCancelPurposeLabel}</dd>
+                    </div>
+                    <div>
+                      <dt>金額</dt>
+                      <dd>
+                        <lightning-formatted-number
+                          value={invoice.paymentCancelAmount}
+                          format-style="currency"
+                          currency-code="JPY"
+                          maximum-fraction-digits="0"
+                        ></lightning-formatted-number>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>入出金日</dt>
+                      <dd>{invoice.paymentCancelDateDisplay}</dd>
+                    </div>
+                  </dl>
+                  <div class="ops-form-grid">
+                    <lightning-combobox
+                      label="取消理由"
+                      value={invoice.paymentCancelReason}
+                      options={invoice.cancellationReasonOptions}
+                      data-invoice-id={invoice.invoiceId}
+                      data-field="cancellationReason"
+                      onchange={handlePaymentCancelDraftChange}
+                      required
+                    ></lightning-combobox>
+                    <lightning-input
+                      label="取消理由の内容"
+                      value={invoice.paymentCancelReasonText}
+                      data-invoice-id={invoice.invoiceId}
+                      data-field="cancellationReasonText"
+                      onchange={handlePaymentCancelDraftChange}
+                    ></lightning-input>
+                    <template if:true={invoice.paymentCancelRequiresDate}>
+                      <lightning-input
+                        type="date"
+                        label="取消基準日"
+                        value={invoice.paymentCancelDate}
+                        data-invoice-id={invoice.invoiceId}
+                        data-field="cancelDate"
+                        onchange={handlePaymentCancelDraftChange}
+                        required
+                      ></lightning-input>
+                    </template>
+                  </div>
+                  <div class="panel-actions">
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      onclick={handlePaymentCancelClose}
+                    >
+                      戻る
+                    </button>
+                    <button
+                      type="button"
+                      class="solid-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      onclick={handlePaymentCancelSave}
+                      disabled={invoice.paymentCancelSaveDisabled}
+                    >
+                      取消する
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <template if:true={invoice.showPaymentForm}>
+                <div class="ops-form">
+                  <p class="ops-form-title">{invoice.paymentFormTitle}</p>
+                  <div class="ops-form-grid">
+                    <lightning-combobox
+                      label="目的"
+                      value={invoice.paymentDraftType}
+                      options={invoice.paymentTypeOptions}
+                      data-invoice-id={invoice.invoiceId}
+                      data-field="purpose"
+                      onchange={handlePaymentDraftChange}
+                      required
+                    ></lightning-combobox>
+                    <lightning-input
+                      type="number"
+                      label="金額"
+                      step="1"
+                      value={invoice.paymentDraftAmount}
+                      data-invoice-id={invoice.invoiceId}
+                      data-field="amount"
+                      onchange={handlePaymentDraftChange}
+                      required
+                    ></lightning-input>
+                    <lightning-input
+                      type="date"
+                      label="入出金日"
+                      value={invoice.paymentDraftDate}
+                      data-invoice-id={invoice.invoiceId}
+                      data-field="paymentDate"
+                      onchange={handlePaymentDraftChange}
+                      required
+                    ></lightning-input>
+                    <template if:true={invoice.paymentRegisterRequiresDate}>
+                      <lightning-input
+                        type="date"
+                        label="取消基準日"
+                        value={invoice.paymentRegisterCancelDate}
+                        data-invoice-id={invoice.invoiceId}
+                        data-field="cancellationDate"
+                        onchange={handlePaymentDraftChange}
+                        required
+                      ></lightning-input>
+                    </template>
+                    <lightning-input
+                      label="メモ"
+                      value={invoice.paymentDraftMemo}
+                      data-invoice-id={invoice.invoiceId}
+                      data-field="memo"
+                      onchange={handlePaymentDraftChange}
+                    ></lightning-input>
+                    <template
+                      for:each={invoice.paymentRegisterExtraFields}
+                      for:item="field"
+                    >
+                      <div key={field.key} class="ops-extra-field">
+                        <template if:true={field.isCheckbox}>
+                          <lightning-input
+                            type="checkbox"
+                            label={field.label}
+                            checked={field.checked}
+                            field-level-help={field.helpText}
+                            disabled={field.disabled}
+                            data-invoice-id={invoice.invoiceId}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            data-input-kind="checkbox"
+                            onchange={handlePaymentDraftChange}
+                          ></lightning-input>
+                        </template>
+                        <template if:true={field.isPicklist}>
+                          <lightning-combobox
+                            label={field.label}
+                            value={field.value}
+                            options={field.picklistOptions}
+                            field-level-help={field.helpText}
+                            required={field.required}
+                            disabled={field.disabled}
+                            data-invoice-id={invoice.invoiceId}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            onchange={handlePaymentDraftChange}
+                          ></lightning-combobox>
+                        </template>
+                        <template if:true={field.isTextarea}>
+                          <lightning-textarea
+                            label={field.label}
+                            value={field.value}
+                            field-level-help={field.helpText}
+                            required={field.required}
+                            disabled={field.disabled}
+                            data-invoice-id={invoice.invoiceId}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            onchange={handlePaymentDraftChange}
+                          ></lightning-textarea>
+                        </template>
+                        <template if:true={field.isInput}>
+                          <lightning-input
+                            type={field.inputType}
+                            label={field.label}
+                            value={field.value}
+                            field-level-help={field.helpText}
+                            required={field.required}
+                            disabled={field.disabled}
+                            data-invoice-id={invoice.invoiceId}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            onchange={handlePaymentDraftChange}
+                          ></lightning-input>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                  <template if:true={invoice.showPaymentDateBeforeInvoiceWarning}>
+                    <p class="edit-note" role="status">
+                      入出金日が請求日より前です。請求日へ置き換えません。
+                    </p>
+                  </template>
+                  <template if:true={invoice.showPaymentOverflow}>
+                    <div class="edit-note" role="status">
+                      <p>
+                        登録上限を超えています。超過額は目的「請求金額以外」の別レコードで登録してください。この保存では目的を変えず、複数の入出金も作りません。
+                      </p>
+                      <ul class="ops-overflow-list">
+                        <li>目的: {invoice.paymentOverflowPurposeLabel}</li>
+                        <li>
+                          登録可能額:
+                          <lightning-formatted-number
+                            value={invoice.paymentAllowedAmount}
+                            format-style="currency"
+                            currency-code="JPY"
+                            maximum-fraction-digits="0"
+                          ></lightning-formatted-number>
+                        </li>
+                        <li>
+                          入力額:
+                          <lightning-formatted-number
+                            value={invoice.paymentInputAmount}
+                            format-style="currency"
+                            currency-code="JPY"
+                            maximum-fraction-digits="0"
+                          ></lightning-formatted-number>
+                        </li>
+                        <li>
+                          超過額:
+                          <lightning-formatted-number
+                            value={invoice.paymentExcessAmount}
+                            format-style="currency"
+                            currency-code="JPY"
+                            maximum-fraction-digits="0"
+                          ></lightning-formatted-number>
+                        </li>
+                      </ul>
+                    </div>
+                  </template>
+                  <template if:true={invoice.showPaymentAllocations}>
+                    <table class="ops-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">明細</th>
+                          <th class="num-col" scope="col">処理可能残額</th>
+                          <th class="num-col" scope="col">割当額</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template
+                          for:each={invoice.paymentAllocationRows}
+                          for:item="allocation"
+                        >
+                          <tr key={allocation.lineId}>
+                            <td>{allocation.productName}</td>
+                            <td class="num-col">
+                              <lightning-formatted-number
+                                value={allocation.remainingInclusive}
+                                format-style="currency"
+                                currency-code="JPY"
+                                maximum-fraction-digits="0"
+                              ></lightning-formatted-number>
+                            </td>
+                            <td class="num-col">
+                              <lightning-input
+                                type="number"
+                                label="割当額"
+                                variant="label-hidden"
+                                step="1"
+                                value={allocation.amount}
+                                data-invoice-id={invoice.invoiceId}
+                                data-line-id={allocation.lineId}
+                                disabled={invoice.paymentAllocationsLocked}
+                                onchange={handlePaymentAllocationChange}
+                              ></lightning-input>
+                            </td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                    <template if:true={invoice.paymentAllocationTotalMismatch}>
+                      <p class="edit-note" role="status">
+                        明細別割当額合計を親の符号付き金額と一致させてください。
+                      </p>
+                    </template>
+                  </template>
+                  <div class="panel-actions">
+                    <button
+                      type="button"
+                      class="solid-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      onclick={handlePaymentSave}
+                      disabled={invoice.paymentSaveDisabled}
+                    >
+                      {invoice.paymentSaveLabel}
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <template if:false={invoice.showPaymentForm}>
+                <template if:false={invoice.showPaymentCancelForm}>
+                <template if:true={invoice.paymentBlockedReason}>
+                  <p class="edit-note" role="status">
+                    {invoice.paymentBlockedReason}
+                  </p>
+                </template>
+                </template>
+              </template>
+            </div>
+          </template>
+
+          <template if:true={invoice.isJournalsTab}>
+            <div class="ops-panel">
+              <template if:true={invoice.opsLoading}>
+                <p class="edit-note">仕訳情報を読み込み中…</p>
+              </template>
+              <template if:true={invoice.opsError}>
+                <p class="edit-note">{invoice.opsError}</p>
+              </template>
+              <template if:true={invoice.showAccountingOffNote}>
+                <p class="edit-note" role="status">
+                  仕訳連携は停止中です。仕訳の作成・再生成は行われません。
+                </p>
+              </template>
+              <template if:true={invoice.hasJournals}>
+                <div class="journal-filters" aria-label="仕訳の絞り込み">
+                  <lightning-checkbox-group
+                    name="journalEvents"
+                    label="会計イベント"
+                    options={journalEventFilterOptions}
+                    value={journalEventFilter}
+                    onchange={handleJournalEventFilterChange}
+                  ></lightning-checkbox-group>
+                  <lightning-checkbox-group
+                    name="journalStatuses"
+                    label="取引状態"
+                    options={journalStatusFilterOptions}
+                    value={journalStatusFilter}
+                    onchange={handleJournalStatusFilterChange}
+                  ></lightning-checkbox-group>
+                  <lightning-checkbox-group
+                    name="journalLocks"
+                    label="ロック状態"
+                    options={journalLockFilterOptions}
+                    value={journalLockFilter}
+                    onchange={handleJournalLockFilterChange}
+                  ></lightning-checkbox-group>
+                  <button
+                    type="button"
+                    class="ghost-btn"
+                    onclick={handleClearJournalFilters}
+                  >
+                    クリア
+                  </button>
+                </div>
+                <div class="ops-table-wrap">
+                  <table class="ops-table">
+                    <thead>
+                      <tr>
+                        <th class="split-select-col" scope="col">選択</th>
+                        <th scope="col">イベント</th>
+                        <th scope="col">借方</th>
+                        <th scope="col">貸方</th>
+                        <th class="num-col" scope="col">金額</th>
+                        <th scope="col">計上日</th>
+                        <th scope="col">計上時期</th>
+                        <th scope="col">状態</th>
+                        <th scope="col">Lock</th>
+                        <th scope="col">メモ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template for:each={invoice.journals} for:item="journal">
+                        <tr key={journal.key} class={journal.rowClass}>
+                          <td class="split-select-col">
+                            <template if:true={invoice.showJournalLockActions}>
+                              <template if:true={journal.canSelectForJournalLock}>
+                                <lightning-input
+                                  type="checkbox"
+                                  variant="label-hidden"
+                                  label="選択"
+                                  checked={journal.journalSelected}
+                                  data-invoice-id={invoice.invoiceId}
+                                  data-journal-id={journal.journalId}
+                                  onchange={handleJournalLockToggle}
+                                ></lightning-input>
+                              </template>
+                            </template>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              class="journal-toggle"
+                              data-journal-id={journal.journalId}
+                              onclick={handleToggleJournalExtras}
+                              aria-expanded={journal.extrasOpen}
+                            >
+                              {journal.toggleGlyph}
+                            </button>
+                            {journal.eventName}
+                          </td>
+                          <td>{journal.debitAccountName}</td>
+                          <td>{journal.creditAccountName}</td>
+                          <td class="num-col">{journal.amount}</td>
+                          <td>{journal.postingDate}</td>
+                          <td>{journal.postingPeriod}</td>
+                          <td>{journal.transactionStatusLabel}</td>
+                          <td>{journal.lockLabel}</td>
+                          <td>
+                            <template if:true={invoice.canEditJournalMemo}>
+                              <lightning-input
+                                label="仕訳メモ"
+                                variant="label-hidden"
+                                value={journal.memoDraft}
+                                data-journal-id={journal.journalId}
+                                onchange={handleJournalMemoChange}
+                              ></lightning-input>
+                              <button
+                                type="button"
+                                class="ghost-btn"
+                                data-journal-id={journal.journalId}
+                                data-invoice-id={invoice.invoiceId}
+                                onclick={handleSaveJournalMemo}
+                              >
+                                メモ保存
+                              </button>
+                            </template>
+                            <template if:false={invoice.canEditJournalMemo}>
+                              <span class="muted">{journal.memoDraft}</span>
+                            </template>
+                          </td>
+                        </tr>
+                        <template if:true={journal.extrasOpen}>
+                          <tr key={journal.extraRowKey} class="journal-extra-row">
+                            <td colspan="10">
+                              <div class="journal-extra-panel">
+                                <p class="journal-confirmation">
+                                  <span class="invoice-meta-k">確認用</span>
+                                  <span class="invoice-meta-v"
+                                    >{journal.confirmationText}</span
+                                  >
+                                </p>
+                                <div class="ops-form-grid">
+                                  <template
+                                    for:each={journal.extraFields}
+                                    for:item="field"
+                                  >
+                                    <div key={field.key} class="ops-extra-field">
+                                      <template if:true={field.isCheckbox}>
+                                        <lightning-input
+                                          type="checkbox"
+                                          label={field.label}
+                                          checked={field.checked}
+                                          field-level-help={field.helpText}
+                                          disabled={field.disabled}
+                                          data-journal-id={journal.journalId}
+                                          data-field={field.apiName}
+                                          data-extra="true"
+                                          data-input-kind="checkbox"
+                                          onchange={handleJournalExtraChange}
+                                        ></lightning-input>
+                                      </template>
+                                      <template if:true={field.isPicklist}>
+                                        <lightning-combobox
+                                          label={field.label}
+                                          value={field.value}
+                                          options={field.picklistOptions}
+                                          field-level-help={field.helpText}
+                                          required={field.required}
+                                          disabled={field.disabled}
+                                          data-journal-id={journal.journalId}
+                                          data-field={field.apiName}
+                                          data-extra="true"
+                                          onchange={handleJournalExtraChange}
+                                        ></lightning-combobox>
+                                      </template>
+                                      <template if:true={field.isTextarea}>
+                                        <lightning-textarea
+                                          label={field.label}
+                                          value={field.value}
+                                          field-level-help={field.helpText}
+                                          required={field.required}
+                                          disabled={field.disabled}
+                                          data-journal-id={journal.journalId}
+                                          data-field={field.apiName}
+                                          data-extra="true"
+                                          onchange={handleJournalExtraChange}
+                                        ></lightning-textarea>
+                                      </template>
+                                      <template if:true={field.isInput}>
+                                        <lightning-input
+                                          type={field.inputType}
+                                          label={field.label}
+                                          value={field.value}
+                                          field-level-help={field.helpText}
+                                          required={field.required}
+                                          disabled={field.disabled}
+                                          data-journal-id={journal.journalId}
+                                          data-field={field.apiName}
+                                          data-extra="true"
+                                          onchange={handleJournalExtraChange}
+                                        ></lightning-input>
+                                      </template>
+                                    </div>
+                                  </template>
+                                </div>
+                                <template if:true={journal.canSaveJournalExtras}>
+                                  <button
+                                    type="button"
+                                    class="ghost-btn"
+                                    data-journal-id={journal.journalId}
+                                    data-invoice-id={invoice.invoiceId}
+                                    onclick={handleSaveJournalMemo}
+                                  >
+                                    保存
+                                  </button>
+                                </template>
+                              </div>
+                            </td>
+                          </tr>
+                        </template>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="panel-actions">
+                  <template if:true={invoice.showJournalLockButton}>
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      disabled={invoice.journalLockDisabled}
+                      onclick={handleLockJournals}
+                    >
+                      選んだ仕訳をLock
+                    </button>
+                  </template>
+                  <template if:true={invoice.showJournalUnlockButton}>
+                    <lightning-input
+                      label="Unlock理由"
+                      value={invoice.unlockReason}
+                      maxlength="255"
+                      onchange={handleUnlockReasonChange}
+                    ></lightning-input>
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      disabled={invoice.journalUnlockDisabled}
+                      onclick={handleUnlockJournals}
+                    >
+                      選んだ仕訳をUnlock
+                    </button>
+                  </template>
+                </div>
+              </template>
+              <template if:false={invoice.hasJournals}>
+                <p class="edit-note">この請求の仕訳はありません。</p>
+              </template>
+              <template if:true={invoice.hasTagResults}>
+                <p class="ops-form-title">会計タグ</p>
+                <template for:each={invoice.tagResults} for:item="tag">
+                  <p key={tag.fieldApiName} class="edit-note">{tag.name}</p>
+                </template>
+              </template>
+              <template if:true={invoice.showManualJournalEntry}>
+                <c-manual-journal-entry
+                  invoice-id={invoice.invoiceId}
+                  contract-history-id={contractHistoryId}
+                  settings={invoice.manualSettings}
+                  headers={invoice.manualJournals}
+                  operation-day={previewOperationDay}
+                  has-locked-journals={invoice.hasLockedJournals}
+                  expected-token={invoice.lastModifiedToken}
+                  oncomplete={handleManualJournalComplete}
+                ></c-manual-journal-entry>
+              </template>
+            </div>
+          </template>
+
+          <template if:true={invoice.isLinesTab}>
+          <template if:true={invoice.isInvoiceIssueOpen}>
+            <div class="edit-panel invoice-issue-panel">
+              <div class="invoice-send-fields">
+                <lightning-combobox
+                  label="帳票"
+                  value={invoice.invoiceIssueDocumentTemplateKey}
+                  options={invoice.invoiceDocumentTemplateOptions}
+                  onchange={handleInvoiceIssueTemplateChange}
+                  required
+                ></lightning-combobox>
+                <lightning-input
+                  label="ファイル名"
+                  value={invoice.invoiceIssueFileName}
+                  read-only
+                ></lightning-input>
+                <template if:true={invoice.showInvoiceIssuePdfPreview}>
+                  <p>
+                    <a
+                      href={invoice.invoiceIssuePdfPreviewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      >プレビュー</a
+                    >
+                  </p>
+                </template>
+                <template if:true={invoice.showInvoiceIssuePdfDownload}>
+                  <p>
+                    <a
+                      href={invoice.invoiceIssuePdfDownloadUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      >最新PDFをダウンロード</a
+                    >
+                  </p>
+                </template>
+              </div>
+              <div class="edit-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  onclick={handleCloseInvoiceIssue}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  onclick={handleSubmitInvoiceIssue}
+                  disabled={invoice.invoiceIssueConfirmDisabled}
+                >
+                  発行する
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template if:true={invoice.isInvoiceSendOpen}>
+            <div class="edit-panel invoice-send-panel">
+              <div class="invoice-send-fields">
+                <template if:true={invoice.showInvoiceDocumentTemplatePicker}>
+                  <lightning-combobox
+                    label="帳票テンプレート"
+                    value={invoice.invoiceDocumentTemplateKey}
+                    options={invoice.invoiceDocumentTemplateOptions}
+                    onchange={handleInvoiceDocumentTemplateChange}
+                    required
+                  ></lightning-combobox>
+                </template>
+                <lightning-combobox
+                  label="メールテンプレート"
+                  value={invoice.invoiceEmailTemplateApiName}
+                  options={invoice.invoiceEmailTemplateOptions}
+                  onchange={handleInvoiceEmailTemplateChange}
+                  required
+                ></lightning-combobox>
+                <lightning-input
+                  label="From"
+                  value={invoice.invoiceFromLabel}
+                  disabled
+                ></lightning-input>
+                <lightning-input
+                  name="toAddresses"
+                  label="To"
+                  value={invoice.invoiceDraftTo}
+                  required
+                  read-only
+                ></lightning-input>
+                <lightning-input
+                  name="ccAddresses"
+                  label="Cc"
+                  value={invoice.invoiceDraftCc}
+                  read-only
+                ></lightning-input>
+                <lightning-input
+                  name="bccAddresses"
+                  label="Bcc"
+                  value={invoice.invoiceDraftBcc}
+                  read-only
+                ></lightning-input>
+                <lightning-input
+                  name="subject"
+                  label="件名"
+                  value={invoice.invoiceDraftSubject}
+                  onchange={handleInvoiceSendDraftChange}
+                ></lightning-input>
+                <lightning-textarea
+                  name="body"
+                  label="本文"
+                  value={invoice.invoiceDraftBody}
+                  onchange={handleInvoiceSendDraftChange}
+                ></lightning-textarea>
+                <lightning-combobox
+                  label="添付"
+                  value={invoice.invoiceAttachmentId}
+                  options={invoice.invoiceAttachmentOptions}
+                  required
+                  onchange={handleInvoiceAttachmentChange}
+                ></lightning-combobox>
+                <template if:true={invoice.showExistingFilePreview}>
+                  <p>
+                    <a href={invoice.existingFilePreviewUrl} target="_blank"
+                      >標準 Files でプレビュー</a
+                    >
+                  </p>
+                </template>
+                <lightning-input
+                  name="fileName"
+                  label="添付ファイル名"
+                  value={invoice.invoiceDraftFileName}
+                  onchange={handleInvoiceSendDraftChange}
+                ></lightning-input>
+                <p class="edit-note" role="note">{sendFailureRetryNote}</p>
+              </div>
+              <div class="edit-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  onclick={handleCloseInvoiceSend}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  onclick={handleSendInvoice}
+                  disabled={invoice.invoiceSendConfirmDisabled}
+                >
+                  {invoice.sendActionLabel}する
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template if:true={invoice.isInvoiceCancelOpen}>
+            <div class="edit-panel">
+              <p class="edit-note" role="note">
+                確定済み請求を取消済みにし、同じ内容の未確定請求を作ります。未確定には戻しません。
+              </p>
+              <template if:true={invoice.requiresCustomerNotice}>
+                <p class="edit-note" role="note">{invoice.customerNotice}</p>
+              </template>
+              <div class="billing-edit-grid">
+                <lightning-combobox
+                  label="取消理由"
+                  value={invoice.cancelReason}
+                  options={invoice.cancellationReasonOptions}
+                  data-field="cancellationReason"
+                  onchange={handleCancelFieldChange}
+                  required
+                ></lightning-combobox>
+                <lightning-input
+                  label="取消理由の内容"
+                  value={invoice.cancelReasonText}
+                  data-field="cancellationReasonText"
+                  onchange={handleCancelFieldChange}
+                  required={invoice.cancelReasonTextRequired}
+                ></lightning-input>
+                <template if:true={invoice.cancelRequiresDate}>
+                  <lightning-input
+                    type="date"
+                    label="取消基準日"
+                    value={invoice.cancelDate}
+                    data-field="cancellationDate"
+                    onchange={handleCancelFieldChange}
+                    required
+                  ></lightning-input>
+                </template>
+              </div>
+              <div class="edit-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  onclick={handleCloseInvoiceCancel}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  onclick={handleConfirmInvoiceCancel}
+                  disabled={invoice.invoiceCancelConfirmDisabled}
+                >
+                  取り消す
+                </button>
+              </div>
+            </div>
+          </template>
 
           <template if:true={invoice.isBillingEditOpen}>
             <div class="edit-panel">
               <p class="edit-note" role="note">
-                宛名・メール・税率はこの請求だけに保存されます。請求アカウントマスタには反映されません。
+                請求日・入金予定日・税率だけをこの請求に保存します。宛名・To/Cc/Bcc・届け方は参照表示です。請求アカウントマスタには書き戻しません。
               </p>
               <div class="billing-edit-grid">
+                <div>
+                  <span class="invoice-meta-k">請求アカウント</span>
+                  <div class="invoice-meta-v">{invoice.billingAccountName}</div>
+                </div>
                 <lightning-input
                   type="date"
                   label="請求日"
@@ -185,6 +1316,7 @@
                   data-field="invoiceDate"
                   onchange={handleBillingFieldChange}
                   required
+                  disabled={invoice.billingCoreFieldsDisabled}
                 ></lightning-input>
                 <lightning-input
                   type="date"
@@ -193,6 +1325,7 @@
                   data-field="paymentScheduledDate"
                   onchange={handleBillingFieldChange}
                   required
+                  disabled={invoice.billingCoreFieldsDisabled}
                 ></lightning-input>
                 <lightning-input
                   type="number"
@@ -204,31 +1337,88 @@
                   max="100"
                   step="0.01"
                   required
+                  disabled={invoice.billingCoreFieldsDisabled}
                 ></lightning-input>
-                <lightning-input
-                  label="宛名"
-                  value={invoice.draftBillingAddressee}
-                  data-field="billingAddressee"
-                  onchange={handleBillingFieldChange}
-                ></lightning-input>
-                <lightning-input
-                  label="To"
-                  value={invoice.draftBillingEmailTo}
-                  data-field="billingEmailTo"
-                  onchange={handleBillingFieldChange}
-                ></lightning-input>
-                <lightning-input
-                  label="Cc"
-                  value={invoice.draftBillingEmailCc}
-                  data-field="billingEmailCc"
-                  onchange={handleBillingFieldChange}
-                ></lightning-input>
-                <lightning-input
-                  label="Bcc"
-                  value={invoice.draftBillingEmailBcc}
-                  data-field="billingEmailBcc"
-                  onchange={handleBillingFieldChange}
-                ></lightning-input>
+                <div>
+                  <span class="invoice-meta-k">宛名</span>
+                  <div class="invoice-meta-v">{invoice.billingAddressee}</div>
+                </div>
+                <div>
+                  <span class="invoice-meta-k">To</span>
+                  <div class="invoice-meta-v">{invoice.billingEmailTo}</div>
+                </div>
+                <div>
+                  <span class="invoice-meta-k">Cc</span>
+                  <div class="invoice-meta-v">{invoice.billingEmailCc}</div>
+                </div>
+                <div>
+                  <span class="invoice-meta-k">Bcc</span>
+                  <div class="invoice-meta-v">{invoice.billingEmailBcc}</div>
+                </div>
+                <div>
+                  <span class="invoice-meta-k">届け方</span>
+                  <div class="invoice-meta-v">
+                    {invoice.invoiceDeliveryMethodLabel}
+                  </div>
+                </div>
+                <template
+                  for:each={invoice.billingExtraFields}
+                  for:item="field"
+                >
+                  <div key={field.key} class="ops-extra-field">
+                    <template if:true={field.isCheckbox}>
+                      <lightning-input
+                        type="checkbox"
+                        label={field.label}
+                        checked={field.checked}
+                        field-level-help={field.helpText}
+                        disabled={field.disabled}
+                        data-field={field.apiName}
+                        data-extra="true"
+                        data-input-kind="checkbox"
+                        onchange={handleBillingFieldChange}
+                      ></lightning-input>
+                    </template>
+                    <template if:true={field.isPicklist}>
+                      <lightning-combobox
+                        label={field.label}
+                        value={field.value}
+                        options={field.picklistOptions}
+                        field-level-help={field.helpText}
+                        required={field.required}
+                        disabled={field.disabled}
+                        data-field={field.apiName}
+                        data-extra="true"
+                        onchange={handleBillingFieldChange}
+                      ></lightning-combobox>
+                    </template>
+                    <template if:true={field.isTextarea}>
+                      <lightning-textarea
+                        label={field.label}
+                        value={field.value}
+                        field-level-help={field.helpText}
+                        required={field.required}
+                        disabled={field.disabled}
+                        data-field={field.apiName}
+                        data-extra="true"
+                        onchange={handleBillingFieldChange}
+                      ></lightning-textarea>
+                    </template>
+                    <template if:true={field.isInput}>
+                      <lightning-input
+                        type={field.inputType}
+                        label={field.label}
+                        value={field.value}
+                        field-level-help={field.helpText}
+                        required={field.required}
+                        disabled={field.disabled}
+                        data-field={field.apiName}
+                        data-extra="true"
+                        onchange={handleBillingFieldChange}
+                      ></lightning-input>
+                    </template>
+                  </div>
+                </template>
               </div>
               <div class="panel-actions">
                 <button
@@ -249,10 +1439,41 @@
             </div>
           </template>
 
+          <template if:true={invoice.isInvoiceDestinationChoiceOpen}>
+            <div class="split-panel">
+              <p class="edit-note" role="note">
+                同じ版の他の未確定請求があります。新しい請求を作るか、既存の未確定へ移すかを選んでください。
+              </p>
+              <div class="panel-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  onclick={handleCloseInvoiceDestinationChoice}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  onclick={handleChooseNewInvoiceDestination}
+                >
+                  新しい請求を作る
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  onclick={handleChooseExistingInvoiceDestination}
+                >
+                  既存の未確定へ移す
+                </button>
+              </div>
+            </div>
+          </template>
+
           <template if:true={invoice.isInvoiceMoveOpen}>
             <div class="split-panel">
               <p class="edit-note" role="note">
-                下の明細にチェックを付けて、同じ Version
+                下の明細にチェックを付けて、同じ版
                 の既存請求へ全額移します。請求日・請求アカウント・税率は移動先に従います。同じ商品でも合算せず別行のまま載せます。
               </p>
               <template if:true={invoice.invoiceMoveWillEmptySource}>
@@ -525,6 +1746,9 @@
                 <col class="col-qty" />
                 <col class="col-period" />
                 <col class="col-cycle" />
+                <template if:true={invoice.showAcceptanceEndDateColumn}>
+                  <col class="col-acceptance" />
+                </template>
                 <col class="col-amount" />
               </colgroup>
               <thead>
@@ -539,6 +1763,15 @@
                   <th class="num-col qty-col" scope="col">数量</th>
                   <th class="period-col" scope="col">期間</th>
                   <th class="cycle-col" scope="col">サイクル数</th>
+                  <template if:true={invoice.showAcceptanceEndDateColumn}>
+                    <th
+                      class="acceptance-col"
+                      scope="col"
+                      title="検収が完了した日。既定はサービス期間終了日で、請求確定後も変更できます。"
+                    >
+                      検収終了日
+                    </th>
+                  </template>
                   <th class="num-col amount-col" scope="col">
                     <!-- 行と同じ4列グリッド。メタ/チップ枠を空けて「金」と「￥」の左端を揃える -->
                     <div class="amount-with-adjust amount-with-adjust_head">
@@ -591,6 +1824,25 @@
                     </td>
                     <td class="period-col muted">{row.periodLabel}</td>
                     <td class="cycle-col muted">{row.cycleCountLabel}</td>
+                    <template if:true={invoice.showAcceptanceEndDateColumn}>
+                      <td class="acceptance-col">
+                        <template if:true={row.showAcceptanceEndDateInput}>
+                          <lightning-input
+                            type="date"
+                            variant="label-hidden"
+                            label="検収終了日"
+                            date-style="short"
+                            value={row.acceptanceEndDate}
+                            disabled={row.acceptanceEndDateDisabled}
+                            data-line-id={row.lineId}
+                            onchange={handleAcceptanceEndDateChange}
+                          ></lightning-input>
+                        </template>
+                        <template if:false={row.showAcceptanceEndDateInput}>
+                          <span class="muted">—</span>
+                        </template>
+                      </td>
+                    </template>
                     <td class="num-col amount-cell amount-col">
                       <div class="amount-with-adjust">
                         <span class="amount-yen-slot">
@@ -895,6 +2147,39 @@
               </template>
             </table>
           </div>
+          <template if:true={invoice.acceptanceCancelDraft}>
+            <div class="ops-form">
+              <p class="ops-form-title">検収終了日の変更</p>
+              <lightning-input
+                type="date"
+                label="取消基準日"
+                value={invoice.acceptanceCancelDate}
+                data-invoice-id={invoice.invoiceId}
+                onchange={handleAcceptanceCancelDraftChange}
+                required
+              ></lightning-input>
+              <div class="panel-actions">
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  data-invoice-id={invoice.invoiceId}
+                  onclick={handleAcceptanceCancelClose}
+                >
+                  戻る
+                </button>
+                <button
+                  type="button"
+                  class="solid-btn"
+                  data-invoice-id={invoice.invoiceId}
+                  onclick={handleAcceptanceCancelSave}
+                  disabled={invoice.acceptanceCancelSaveDisabled}
+                >
+                  変更する
+                </button>
+              </div>
+            </div>
+          </template>
+          </template>
 
           <footer class="invoice-footer" aria-label="請求金額">
             <div class="summary-row summary-row_totals">
@@ -936,11 +2221,30 @@
               </div>
             </div>
             <div class="summary-row summary-row_status">
+              <template if:true={invoice.showDraftBefore}>
+                <div class="money-item">
+                  <span class="money-label">請求前</span>
+                  <span class="money-value money-value_secondary">
+                    <lightning-formatted-number
+                      value={invoice.draftBeforeAmount}
+                      format-style="currency"
+                      currency-code="JPY"
+                      maximum-fraction-digits="0"
+                    >
+                    </lightning-formatted-number>
+                  </span>
+                </div>
+              </template>
               <div class="money-item">
-                <span class="money-label">請求前</span>
+                <span class="money-label"
+                  >請求金額未処理<template
+                    lwc:if={invoice.invoiceUnprocessedDirectionLabel}
+                    >（{invoice.invoiceUnprocessedDirectionLabel}）</template
+                  ></span
+                >
                 <span class="money-value money-value_secondary">
                   <lightning-formatted-number
-                    value={invoice.openAmountIncl}
+                    value={invoice.invoiceUnprocessedRemaining}
                     format-style="currency"
                     currency-code="JPY"
                     maximum-fraction-digits="0"
@@ -949,10 +2253,10 @@
                 </span>
               </div>
               <div class="money-item">
-                <span class="money-label">請求済</span>
+                <span class="money-label">請求金額処理済み</span>
                 <span class="money-value money-value_secondary">
                   <lightning-formatted-number
-                    value={invoice.integratedAmountIncl}
+                    value={invoice.invoiceProcessedNet}
                     format-style="currency"
                     currency-code="JPY"
                     maximum-fraction-digits="0"
@@ -961,10 +2265,10 @@
                 </span>
               </div>
               <div class="money-item">
-                <span class="money-label">入金消込</span>
+                <span class="money-label">請求金額外Net</span>
                 <span class="money-value money-value_secondary">
                   <lightning-formatted-number
-                    value={invoice.clearedAmountIncl}
+                    value={invoice.nonInvoiceNet}
                     format-style="currency"
                     currency-code="JPY"
                     maximum-fraction-digits="0"
@@ -972,6 +2276,57 @@
                   </lightning-formatted-number>
                 </span>
               </div>
+              <div class="money-item">
+                <span class="money-label">差額</span>
+                <span class="money-value money-value_secondary">
+                  <lightning-formatted-number
+                    value={invoice.balanceDifference}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
+              <template if:true={invoice.showDueLabel}>
+                <div class="money-item">
+                  <span class="money-label">期限</span>
+                  <span class="money-value money-value_secondary"
+                    >{invoice.dueStatus}</span
+                  >
+                </div>
+              </template>
+              <template if:true={invoice.showOverdueDays}>
+                <div class="money-item">
+                  <span class="money-label">遅延</span>
+                  <span class="money-value money-value_secondary"
+                    >{invoice.overdueDays}</span
+                  >
+                </div>
+              </template>
+            </div>
+            <div class="memo-row">
+              <template if:true={invoice.canEditInvoiceMemo}>
+                <lightning-textarea
+                  label="請求書メモ"
+                  value={invoice.memoDraft}
+                  data-invoice-id={invoice.invoiceId}
+                  onchange={handleMemoChange}
+                  max-length="32768"
+                ></lightning-textarea>
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  data-invoice-id={invoice.invoiceId}
+                  onclick={handleSaveMemo}
+                >
+                  メモを保存
+                </button>
+              </template>
+              <template if:false={invoice.canEditInvoiceMemo}>
+                <span class="money-label">請求書メモ</span>
+                <span class="muted">{invoice.memoDraft}</span>
+              </template>
             </div>
           </footer>
         </section>

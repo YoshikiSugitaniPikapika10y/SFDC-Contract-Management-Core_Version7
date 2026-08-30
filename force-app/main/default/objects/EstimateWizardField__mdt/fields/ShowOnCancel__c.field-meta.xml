@@ -5,6 +5,6 @@
     <description>見積ウィザード Type=Cancel のときに表示する</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <label>Cancelで表示</label>
+    <label>解約で表示</label>
     <type>Checkbox</type>
 </CustomField>

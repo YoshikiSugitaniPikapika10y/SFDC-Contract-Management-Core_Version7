@@ -2,6 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Opportunity__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
+    <description>仕様: Core 第3.2節。Lookupのまま項目必須にはしない。Estimate・Orderedの空欄保存は手続きで拒否する。</description>
     <label>商談</label>
     <referenceTo>Opportunity</referenceTo>
     <relationshipLabel>契約履歴</relationshipLabel>

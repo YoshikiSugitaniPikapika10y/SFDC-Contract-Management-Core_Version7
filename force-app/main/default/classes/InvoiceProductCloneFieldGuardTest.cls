@@ -19,8 +19,7 @@ private class InvoiceProductCloneFieldGuardTest {
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2026, 6, 30),
         InvoiceBucketKey__c = exportMergeKey,
-        Amount__c = 8000,
-        TaxPercent__c = 10
+        Amount__c = 8000
       );
 
       InvoiceProduct__c cloned = InvoiceProductGenerationService.cloneInvoiceProduct(
@@ -36,5 +35,14 @@ private class InvoiceProductCloneFieldGuardTest {
         'ExportMergeKey は期間明細クローンに引き継ぐ'
       );
     }
+  }
+
+  @IsTest
+  static void product2_doesNotHaveRevenueCategory() {
+    System.assertEquals(
+      false,
+      Product2.SObjectType.getDescribe().fields.getMap().containsKey('RevenueCategory__c'),
+      'Core 第3.1節: 商品に RevenueCategory__c は持たない。科目は割当とテナント条件'
+    );
   }
 }

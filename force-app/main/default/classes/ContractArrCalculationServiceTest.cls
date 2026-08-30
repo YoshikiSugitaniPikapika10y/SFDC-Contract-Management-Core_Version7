@@ -118,6 +118,7 @@ private class ContractArrCalculationServiceTest {
           Product__c = product.Id,
           Quantity__c = 1,
           UnitPrice__c = 5000,
+          Amount__c = 60000,
           StartDate__c = termStart,
           Enddate__c = termEnd,
           InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -300,6 +301,32 @@ private class ContractArrCalculationServiceTest {
         history.AveARR__c,
         'ARR計算対象OFFの商品はAveARRにも含めない'
       );
+    }
+  }
+
+  @IsTest
+  static void calculateProductArr_blankAmount_throws() {
+    ContractProduct__c line = new ContractProduct__c(
+      Quantity__c = 1,
+      UnitPrice__c = 5000,
+      Amount__c = null,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      Type__c = 'New',
+      StartDate__c = ContractTestDataFactory.stableTermStart(),
+      Enddate__c = ContractTestDataFactory.stableTermEnd()
+    );
+    line.Product__r = new Product2(
+      IncludeInARR__c = true,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
+    );
+    try {
+      ContractArrCalculationService.calculateProductArr(
+        line,
+        ContractTestDataFactory.stableTermEnd()
+      );
+      System.assert(false, '金額空は数量×単価で埋めずエラー');
+    } catch (ContractArrCalculationService.ArrException ex) {
+      System.assert(ex.getMessage().contains('金額が空です。'));
     }
   }
 }

@@ -8,7 +8,7 @@ private class EstimateRevertInvoiceServiceTest {
   private static final String BILLING_TYPE_RECURRING = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
   private static final String INVOICE_SETTING_MONTHLY = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
   private static final String CREDIT_NOTE_INVOICE_TYPE =
-    INVOICE_SETTING_MONTHLY + '（赤伝）';
+    INVOICE_SETTING_MONTHLY + '?E????E;
 
   @IsTest
   static void revertToEstimate_deletesUninvoicedProductsOnOwnHistory() {
@@ -26,8 +26,7 @@ private class EstimateRevertInvoiceServiceTest {
           Date.newInstance(2026, 6, 1),
           null
         ),
-        Amount__c = 8000,
-        invoicetype__c = INVOICE_SETTING_MONTHLY
+        Amount__c = 8000
       );
 
       context.history.historystatus__c = 'Estimate';
@@ -47,12 +46,138 @@ private class EstimateRevertInvoiceServiceTest {
   }
 
   @IsTest
+  static void revertToEstimate_deletesInvoices() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestContext context = createSingleOrderedContext();
+
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = context.history.ContractService__c,
+        ContractHistory__c = context.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 8000,
+        TaxAmount__c = 800
+      );
+      insert invoice;
+
+      context.history.historystatus__c = 'Estimate';
+      Test.startTest();
+      update context.history;
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE ContractHistory__c = :context.history.Id
+        ],
+        '???????????????'
+      );
+    }
+  }
+
+  @IsTest
+  static void revertToEstimate_allowsLogicallyDeletedDraftJournal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestContext context = createSingleOrderedContext();
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = context.history.ContractService__c,
+        ContractHistory__c = context.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 8000,
+        TaxAmount__c = 800
+      );
+      insert invoice;
+      insert new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'REVERT_DELETED', String.valueOf(invoice.Id) }
+        ),
+        JournalLineKey__c = 'revert-deleted',
+        DebitSlotKey__c = AccountingSlotFixedCatalog.Cash.key,
+        CreditSlotKey__c = AccountingSlotFixedCatalog.UnappliedCash.key,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'LogicallyDeleted'
+      );
+
+      context.history.historystatus__c = 'Estimate';
+      Test.startTest();
+      update context.history;
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE ContractHistory__c = :context.history.Id
+        ],
+        'Accounting 第1.8.1節: 論理削除だけ残る未確定は差し戻せる'
+      );
+    }
+  }
+
+  @IsTest
+  static void revertToEstimate_blocksWhenDraftHasActiveJournal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestContext context = createSingleOrderedContext();
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = context.history.ContractService__c,
+        ContractHistory__c = context.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 8000,
+        TaxAmount__c = 800
+      );
+      insert invoice;
+      insert new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'REVERT_ACTIVE', String.valueOf(invoice.Id) }
+        ),
+        JournalLineKey__c = 'revert-active',
+        DebitSlotKey__c = AccountingSlotFixedCatalog.Cash.key,
+        CreditSlotKey__c = AccountingSlotFixedCatalog.UnappliedCash.key,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'Active'
+      );
+
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        context.history.historystatus__c = 'Estimate';
+        update context.history;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assert(
+          ex.getDmlMessage(0)
+            .contains(EstimateRevertInvoiceService.DRAFT_JOURNAL_REVERT_MESSAGE),
+          'Core 第5.3節: 未確定に有効な仕訳がある差し戻しは全体拒否'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        'Ordered',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :context.history.Id
+        ]
+        .historystatus__c
+      );
+    }
+  }
+
+  @IsTest
   static void revertToEstimate_doesNotModifyPriorHistoryInvoiceProducts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestContext context = createTwoVersionContext(
         Date.newInstance(2026, 10, 1)
       );
 
+      Test.startTest();
       context.changeHistory.historystatus__c = 'Ordered';
       update context.changeHistory;
 
@@ -67,8 +192,7 @@ private class EstimateRevertInvoiceServiceTest {
           Date.newInstance(2026, 10, 1),
           null
         ),
-        Amount__c = -8000,
-        invoicetype__c = CREDIT_NOTE_INVOICE_TYPE
+        Amount__c = -8000
       );
 
       Integer priorCountBefore = [
@@ -78,7 +202,6 @@ private class EstimateRevertInvoiceServiceTest {
       ];
 
       context.changeHistory.historystatus__c = 'Estimate';
-      Test.startTest();
       update context.changeHistory;
       Test.stopTest();
 
@@ -98,13 +221,16 @@ private class EstimateRevertInvoiceServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestContext context = createSingleOrderedContext();
 
-      insert new Invoice__c(
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new Invoice__c(
         ContractService__c = context.history.ContractService__c,
         ContractHistory__c = context.history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 8000,
         TaxAmount__c = 800,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
+      )
       );
 
       Integer invoiceCountBefore = [
@@ -114,6 +240,7 @@ private class EstimateRevertInvoiceServiceTest {
       ];
 
       Boolean thrown = false;
+      Test.startTest();
       try {
         context.history.historystatus__c = 'Estimate';
         update context.history;
@@ -124,6 +251,7 @@ private class EstimateRevertInvoiceServiceTest {
           ex.getDmlMessage(0)
         );
       }
+      Test.stopTest();
       System.assertEquals(true, thrown);
       System.assertEquals(
         'Ordered',
@@ -133,7 +261,7 @@ private class EstimateRevertInvoiceServiceTest {
           WHERE Id = :context.history.Id
         ]
         .historystatus__c,
-        'ロック拒否時は Ordered のまま'
+        '??E??????E Ordered ???'
       );
       System.assertEquals(
         invoiceCountBefore,
@@ -142,7 +270,7 @@ private class EstimateRevertInvoiceServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :context.history.Id
         ],
-        '拒否時は請求件数が変わらない'
+        '????E??????????E
       );
     }
   }
@@ -153,6 +281,7 @@ private class EstimateRevertInvoiceServiceTest {
       TestContext context = createTwoVersionContext(
         Date.newInstance(2026, 10, 1)
       );
+      Test.startTest();
       context.changeHistory.historystatus__c = 'Ordered';
       update context.changeHistory;
 
@@ -167,6 +296,7 @@ private class EstimateRevertInvoiceServiceTest {
           ex.getDmlMessage(0)
         );
       }
+      Test.stopTest();
       System.assertEquals(true, thrown);
 
       ContractHistory__c prior = [
@@ -184,6 +314,7 @@ private class EstimateRevertInvoiceServiceTest {
       TestContext context = createTwoVersionContext(
         Date.newInstance(2026, 10, 1)
       );
+      Test.startTest();
       context.changeHistory.historystatus__c = 'Ordered';
       update context.changeHistory;
 
@@ -198,6 +329,7 @@ private class EstimateRevertInvoiceServiceTest {
           ex.getDmlMessage(0)
         );
       }
+      Test.stopTest();
       System.assertEquals(true, thrown);
       System.assertEquals(
         'Ordered',
@@ -207,7 +339,7 @@ private class EstimateRevertInvoiceServiceTest {
           WHERE Id = :context.priorHistory.Id
         ]
         .historystatus__c,
-        'Archive 拒否時は Ordered のまま'
+        'Archive ????E Ordered ???'
       );
     }
   }
@@ -218,6 +350,7 @@ private class EstimateRevertInvoiceServiceTest {
       TestContext context = createTwoVersionContext(
         Date.newInstance(2026, 10, 1)
       );
+      Test.startTest();
       context.changeHistory.historystatus__c = 'Ordered';
       update context.changeHistory;
 
@@ -233,6 +366,7 @@ private class EstimateRevertInvoiceServiceTest {
           context.changeHistory.Id
         )
       );
+      Test.stopTest();
     }
   }
 
@@ -242,10 +376,11 @@ private class EstimateRevertInvoiceServiceTest {
       TestContext context = createTwoVersionContext(
         Date.newInstance(2026, 10, 1)
       );
+      Test.startTest();
       context.changeHistory.historystatus__c = 'Ordered';
       update context.changeHistory;
 
-      // ポインタを意図的に古い V1 へずらす（同期キャッシュ破損相当）
+      // ????????E????EV1 ??????????E????????E
       update new ContractService__c(
         Id = context.priorHistory.ContractService__c,
         LatestOrderedHistory__c = context.priorHistory.Id
@@ -256,14 +391,14 @@ private class EstimateRevertInvoiceServiceTest {
         EstimateRevertInvoiceService.isLatestOrderedHistory(
           context.priorHistory.Id
         ),
-        'Version が小さい V1 はポインタが自分を指しても最新ではない'
+        'Version ????EV1 ???????E?E???E??????????E
       );
       System.assertEquals(
         true,
         EstimateRevertInvoiceService.isLatestOrderedHistory(
           context.changeHistory.Id
         ),
-        'Version 最大の V2 はポインタがずれていても最新'
+        'Version ??? V2 ??????????E?????'
       );
 
       Boolean priorBlocked = false;
@@ -277,7 +412,8 @@ private class EstimateRevertInvoiceServiceTest {
           ex.getDmlMessage(0)
         );
       }
-      System.assertEquals(true, priorBlocked, '古い Version の差し戻しは拒否');
+      Test.stopTest();
+      System.assertEquals(true, priorBlocked, '??EVersion ??????E??');
       System.assertEquals(
         'Ordered',
         [
@@ -296,6 +432,7 @@ private class EstimateRevertInvoiceServiceTest {
       TestContext context = createTwoVersionContext(
         Date.newInstance(2026, 10, 1)
       );
+      Test.startTest();
       context.changeHistory.historystatus__c = 'Ordered';
       update context.changeHistory;
 
@@ -306,30 +443,31 @@ private class EstimateRevertInvoiceServiceTest {
         historystatus__c = 'Estimate',
         Version__c = 3,
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
         EffectiveDate__c = Date.newInstance(2026, 12, 1),
         PreviousHistory__c = context.changeHistory.Id
       );
 
-      Boolean thrown = false;
-      try {
-        context.changeHistory.historystatus__c = 'Estimate';
-        update context.changeHistory;
-      } catch (DmlException ex) {
-        thrown = true;
-        System.assertEquals(
-          EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE,
-          ex.getDmlMessage(0)
-        );
-      }
-      System.assertEquals(true, thrown);
+      context.changeHistory.historystatus__c = 'Estimate';
+      update context.changeHistory;
+      Test.stopTest();
 
-      ContractHistory__c stillOrdered = [
+      ContractHistory__c reverted = [
         SELECT historystatus__c
         FROM ContractHistory__c
         WHERE Id = :context.changeHistory.Id
       ];
-      System.assertEquals('Ordered', stillOrdered.historystatus__c);
+      System.assertEquals('Estimate', reverted.historystatus__c);
+      System.assertEquals(
+        'Archive',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Name = 'Newer Estimate v3'
+          LIMIT 1
+        ]
+        .historystatus__c
+      );
     }
   }
 
@@ -349,10 +487,14 @@ private class EstimateRevertInvoiceServiceTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 25,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     ContractService__c service = new ContractService__c(
@@ -383,10 +525,10 @@ private class EstimateRevertInvoiceServiceTest {
       Name = 'Revert Own History',
       ContractService__c = service.Id,
       Type__c = 'Renew',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1,
       CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-      CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
     );
     insert history;
 
@@ -397,12 +539,19 @@ private class EstimateRevertInvoiceServiceTest {
       UnitPrice__c = 8000,
       Amount__c = 8000,
       StartDate__c = Date.newInstance(2026, 6, 1),
-      Enddate__c = Date.newInstance(2027, 5, 31),
+      Enddate__c = Date.newInstance(2026, 6, 30),
       InvoiceSetting__c = INVOICE_SETTING_MONTHLY,
       BillingType__c = BILLING_TYPE_RECURRING,
       Type__c = 'Renew'
     );
     insert contractProduct;
+    history.historystatus__c = 'Ordered';
+    update history;
+    history = [
+      SELECT Id, ContractService__c, historystatus__c, Version__c
+      FROM ContractHistory__c
+      WHERE Id = :history.Id
+    ];
 
     TestContext context = new TestContext();
     context.history = history;
@@ -429,10 +578,10 @@ private class EstimateRevertInvoiceServiceTest {
       Name = 'Revert Prior History v1',
       ContractService__c = service.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1,
       CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-      CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
       EffectiveDate__c = Date.newInstance(2026, 6, 1)
     );
     insert priorHistory;
@@ -444,14 +593,21 @@ private class EstimateRevertInvoiceServiceTest {
       UnitPrice__c = 8000,
       Amount__c = 8000,
       StartDate__c = Date.newInstance(2026, 6, 1),
-      Enddate__c = Date.newInstance(2027, 5, 31),
+      Enddate__c = Date.newInstance(2026, 6, 30),
       InvoiceSetting__c = INVOICE_SETTING_MONTHLY,
       BillingType__c = BILLING_TYPE_RECURRING,
       Type__c = 'New'
     );
     insert priorContractProduct;
+    priorHistory.historystatus__c = 'Ordered';
+    update priorHistory;
+    priorHistory = [
+      SELECT Id, ContractService__c, historystatus__c, Version__c
+      FROM ContractHistory__c
+      WHERE Id = :priorHistory.Id
+    ];
 
-    // Version 並びの検証用。請求生成の Change 検証を避けるため Type=New
+    // Version ????????????E Change ???????? Type=New
     ContractHistory__c changeHistory = new ContractHistory__c(
       Name = 'Revert Change History v2',
       ContractService__c = service.Id,
@@ -459,7 +615,7 @@ private class EstimateRevertInvoiceServiceTest {
       historystatus__c = 'Estimate',
       Version__c = 2,
       CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-      CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
       EffectiveDate__c = effectiveDate,
       PreviousHistory__c = priorHistory.Id
     );
@@ -471,7 +627,7 @@ private class EstimateRevertInvoiceServiceTest {
       UnitPrice__c = 8000,
       Amount__c = 8000,
       StartDate__c = Date.newInstance(2026, 6, 1),
-      Enddate__c = Date.newInstance(2027, 5, 31),
+      Enddate__c = Date.newInstance(2026, 6, 30),
       InvoiceSetting__c = INVOICE_SETTING_MONTHLY,
       BillingType__c = BILLING_TYPE_RECURRING,
       Type__c = 'New'

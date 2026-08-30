@@ -19,9 +19,7 @@ public without sharing class InvoiceProductGenerationService {
   }
 
   private class HistoryBillingContext {
-    public String paymentTermLabel;
     public Decimal taxPercent;
-    public ContractMetadataService.InvoiceDateContext invoiceDateContext;
     public BillingAccount__c billingAccount;
     public ContractHistory__c contractHistory;
     public Opportunity opportunity;
@@ -59,6 +57,7 @@ public without sharing class InvoiceProductGenerationService {
     }
   }
 
+  /** 仕様: Core 第6.1節、第7.6節、第7.7.2節 */
   public static void generateForHistories(Set<Id> contractHistoryIds) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
@@ -75,8 +74,9 @@ public without sharing class InvoiceProductGenerationService {
     // 期間明細・請求は Ordered のみ（Estimate / Archive には作らない）
     InvoiceCanonicalService.assertHistoriesAreOrdered(contractHistoryIds);
 
-    // 不正な請求商品項目コピー／マージキー定義があると受注 DML 全体をロールバックする
-    InvoiceProductFieldCopyService.validateActiveDefinitions();
+    // 不正なコピー定義があると受注 DML 全体をロールバックする
+    // 仕様: Core 第11.4.2節
+    FieldCopyDefinitionService.validateAllDefinitions();
     InvoiceMergeKeyConfigService.validateActiveDefinitions();
 
     // Version 単位: 請求書ロック1件でもあれば全体エラー。なければ全削除して全作り直し。
@@ -766,20 +766,13 @@ public without sharing class InvoiceProductGenerationService {
       return;
     }
 
-    ContractMetadataService.InvoiceDateContext invoiceDateContext = billingContext ==
-      null
-      ? null
-      : billingContext.invoiceDateContext;
     Boolean usesBulkInvoiceDate = ContractMetadataService.usesBulkContractProductInvoiceDate(
       contractProduct.InvoiceSetting__c
     );
     Date rowAnchor = usesBulkInvoiceDate
       ? contractProduct.InvoiceAnchorDate__c
       : invoiceProduct.StartDate__c;
-    Date invoiceDate = ContractMetadataService.resolveInvoiceDateFromStoredAnchor(
-      rowAnchor,
-      invoiceDateContext
-    );
+    Date invoiceDate = computeGeneratedInvoiceDate(billingContext, rowAnchor);
     applyMergeBucketKeys(
       invoiceProduct,
       contractProduct,
@@ -798,6 +791,22 @@ public without sharing class InvoiceProductGenerationService {
     context.historyType = historyContext.historyType;
     context.effectiveDate = historyContext.effectiveDate;
     return context;
+  }
+
+  /** 仕様: Core 第7.2節、日付仕様 第4章 */
+  private static Date computeGeneratedInvoiceDate(
+    HistoryBillingContext billingContext,
+    Date anchorDate
+  ) {
+    if (billingContext == null || billingContext.billingAccount == null) {
+      throw new BillingScheduleService.ScheduleException(
+        '請求アカウントが指定されていません。'
+      );
+    }
+    return BillingScheduleService.computeInvoiceDateFromAnchor(
+      billingContext.billingAccount,
+      anchorDate
+    );
   }
 
   private static ContractProduct__c findContractProductById(
@@ -1017,26 +1026,7 @@ public without sharing class InvoiceProductGenerationService {
     invoiceProduct.Amount__c = diffAmount;
     applyCorePeriodLineFields(invoiceProduct, contractProduct, billingContext);
     applyConfiguredFieldCopies(invoiceProduct, contractProduct, billingContext);
-    applyTaxFields(
-      invoiceProduct,
-      billingContext == null ? null : billingContext.taxPercent
-    );
     return invoiceProduct;
-  }
-
-  private static void applyTaxFields(
-    InvoiceProduct__c invoiceProduct,
-    Decimal taxPercent
-  ) {
-    if (invoiceProduct == null) {
-      return;
-    }
-    Decimal resolvedPercent = TaxCalculationUtil.resolveTaxPercent(taxPercent);
-    invoiceProduct.TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(
-      resolvedPercent
-    );
-    // 税額は行に持たない（帳票／請求マージ単位の税抜合計で1回切り捨て）。
-    invoiceProduct.TaxAmount__c = null;
   }
 
   /**
@@ -1061,7 +1051,6 @@ public without sharing class InvoiceProductGenerationService {
     invoiceProduct.Quantity__c = contractProduct.Quantity__c;
     invoiceProduct.UnitPrice__c = contractProduct.UnitPrice__c;
     invoiceProduct.Unit__c = contractProduct.Unit__c;
-    invoiceProduct.invoicetype__c = contractProduct.InvoiceSetting__c;
   }
 
   private static void applyConfiguredFieldCopies(
@@ -1076,9 +1065,10 @@ public without sharing class InvoiceProductGenerationService {
       contractProduct,
       billingContext
     );
-    InvoiceProductFieldCopyService.applyCopies(
+    FieldCopyDefinitionService.apply(
       invoiceProduct,
       InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT,
+      null,
       sources
     );
   }
@@ -1203,11 +1193,6 @@ public without sharing class InvoiceProductGenerationService {
         : billingAccountById.get(billingAccountId);
       if (billingAccount != null) {
         billingContext.billingAccount = billingAccount;
-        billingContext.paymentTermLabel = billingAccount.PaymentTerm__c;
-        billingContext.invoiceDateContext = ContractMetadataService.buildInvoiceDateContext(
-          billingAccount.BillingDayOfMonth__c,
-          billingAccount.AdjustInvoiceDateToBusinessDay__c == true
-        );
       }
       if (history.Opportunity__c != null) {
         billingContext.opportunity = opportunityById.get(
@@ -1299,9 +1284,7 @@ public without sharing class InvoiceProductGenerationService {
       InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT
     );
     // Invoice-date / payment-date calculation fields (not necessarily copy targets).
-    selectFields.add('PaymentTerm__c');
-    selectFields.add('BillingDayOfMonth__c');
-    selectFields.add('AdjustInvoiceDateToBusinessDay__c');
+    selectFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
 
     Map<String, Schema.SObjectField> fieldMap = BillingAccount__c.SObjectType.getDescribe()
       .fields.getMap();
@@ -1448,7 +1431,6 @@ public without sharing class InvoiceProductGenerationService {
       'InvoiceBucketKey__c',
       'LineBucketKey__c',
       'Amount__c',
-      'TaxPercent__c',
       'Quantity__c',
       'UnitPrice__c',
       'Unit__c'
@@ -1523,18 +1505,14 @@ public without sharing class InvoiceProductGenerationService {
     }
 
     String billingType = resolveBillingType(contractProduct);
-    ContractMetadataService.InvoiceDateContext invoiceDateContext = billingContext ==
-      null
-      ? null
-      : billingContext.invoiceDateContext;
     Boolean usesBulkInvoiceDate = ContractMetadataService.usesBulkContractProductInvoiceDate(
       invoiceSetting
     );
     Date contractProductInvoiceDate;
     if (usesBulkInvoiceDate && contractProduct.InvoiceAnchorDate__c != null) {
-      contractProductInvoiceDate = ContractMetadataService.resolveInvoiceDateFromStoredAnchor(
-        contractProduct.InvoiceAnchorDate__c,
-        invoiceDateContext
+      contractProductInvoiceDate = computeGeneratedInvoiceDate(
+        billingContext,
+        contractProduct.InvoiceAnchorDate__c
       );
     }
     if (
@@ -1549,10 +1527,7 @@ public without sharing class InvoiceProductGenerationService {
       for (MonthlyBillingPeriodUtil.BillingPeriod period : periods) {
         Date invoiceDate = usesBulkInvoiceDate
           ? contractProductInvoiceDate
-          : ContractMetadataService.resolveInvoiceDateFromStoredAnchor(
-              period.startDate,
-              invoiceDateContext
-            );
+          : computeGeneratedInvoiceDate(billingContext, period.startDate);
         draftLines.add(
           new DraftInvoiceLine(
             contractProduct.Product__c,
@@ -1572,10 +1547,7 @@ public without sharing class InvoiceProductGenerationService {
 
     Date invoiceDate = usesBulkInvoiceDate
       ? contractProductInvoiceDate
-      : ContractMetadataService.resolveInvoiceDateFromStoredAnchor(
-          serviceStartDate,
-          invoiceDateContext
-        );
+      : computeGeneratedInvoiceDate(billingContext, serviceStartDate);
     draftLines.add(
       new DraftInvoiceLine(
         contractProduct.Product__c,
@@ -1697,8 +1669,7 @@ public without sharing class InvoiceProductGenerationService {
       'Enddate__c',
       'InvoiceBucketKey__c',
       'LineBucketKey__c',
-      'Amount__c',
-      'TaxPercent__c'
+      'Amount__c'
     };
     fieldsToCopy.addAll(
       InvoiceProductFieldCopyService.getTargetFieldApiNames(
@@ -1746,7 +1717,7 @@ public without sharing class InvoiceProductGenerationService {
 
   /**
    * 期間明細に請求書／請求明細バケットキーを載せる。
-   * 構成は InvoiceMergeKeyPart__mdt。請求寄せ項目自体は期間明細に持たない。
+   * 構成はパッケージ固定（静的キー）。請求寄せ項目自体は期間明細に持たない。
    */
   private static void applyMergeBucketKeys(
     InvoiceProduct__c invoiceProduct,
@@ -1771,10 +1742,13 @@ public without sharing class InvoiceProductGenerationService {
     ) {
       contractHistoryId = invoiceProduct.ContractHistory__c;
     }
-    Date paymentScheduledDate = ContractMetadataService.resolvePaymentScheduledDate(
-      billingContext == null ? null : billingContext.paymentTermLabel,
-      invoiceDate
-    );
+    Date paymentScheduledDate = billingContext != null &&
+      billingContext.billingAccount != null
+      ? BillingScheduleService.computePaymentScheduledDate(
+          billingContext.billingAccount,
+          invoiceDate
+        )
+      : null;
     invoiceProduct.InvoiceBucketKey__c = InvoiceMergeKeyConfigService.buildInvoiceBucketKey(
       billingAccountId,
       contractHistoryId,
@@ -1813,20 +1787,20 @@ public without sharing class InvoiceProductGenerationService {
     Decimal unitPrice = contractProduct.UnitPrice__c == null
       ? 0
       : contractProduct.UnitPrice__c;
-    // 金額は整数円（Currency scale=0）。単価は小数第2位まで保持し、積を四捨五入。
-    return (quantity * unitPrice).setScale(0, RoundingMode.HALF_UP);
+    // 期間明細1サイクル税抜は画面 yenFromQuantityUnitPrice(qty, price, 1) と一致させる。
+    return ContractProductAmountUtil.yenFromQuantityUnitPrice(
+      quantity,
+      unitPrice,
+      1
+    );
   }
 
   private static String resolveBillingType(ContractProduct__c contractProduct) {
-    if (String.isNotBlank(contractProduct.BillingType__c)) {
-      return contractProduct.BillingType__c;
-    }
-    return contractProduct.Product__r.BillingType__c;
+    return ContractMetadataService.resolveLineBillingType(contractProduct);
   }
 
   /**
-   * period key の課金種別判定。過去サンプル（その月の事実）を優先し、
-   * 無ければ当該 Product2 の見積商品 BillingType にフォールバックする。
+   * period key の課金種別判定。見積商品の課金形態だけを使う。
    */
   private static Boolean isOneTimeBillingForPeriod(
     List<ContractProduct__c> historyProducts,

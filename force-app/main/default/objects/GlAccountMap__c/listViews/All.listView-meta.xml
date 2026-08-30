@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>All</fullName>
+    <columns>NAME</columns>
+    <columns>IsActive__c</columns>
+    <columns>SlotKey__c</columns>
+    <columns>ConditionSourceType__c</columns>
+    <columns>TenantConditionSet__c</columns>
+    <columns>FixedConditionSetKey__c</columns>
+    <columns>Account__c</columns>
+    <filterScope>Everything</filterScope>
+    <label>すべて</label>
+</ListView>

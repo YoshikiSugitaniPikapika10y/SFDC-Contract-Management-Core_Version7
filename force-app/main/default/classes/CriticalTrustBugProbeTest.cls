@@ -8,6 +8,7 @@ private class CriticalTrustBugProbeTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
@@ -18,10 +19,14 @@ private class CriticalTrustBugProbeTest {
         Account__c = account.Id,
         BillingAddressee__c = '株式会社プローブ 御中',
         BillingEmailTo__c = 'probe@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_1,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 1,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 

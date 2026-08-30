@@ -83,6 +83,13 @@ export function getCustomFieldTypeError(fieldType, value) {
     return "真偽値で入力してください";
   }
 
+  if (type === "REFERENCE") {
+    const text = String(value).trim();
+    if (!/^[a-zA-Z0-9]{15}(?:[a-zA-Z0-9]{3})?$/.test(text)) {
+      return "有効なレコードを選択してください";
+    }
+  }
+
   return null;
 }
 
@@ -292,6 +299,14 @@ export function resolveCustomFieldDefault(
     return coerceCustomFieldDefault(field.fieldType, field.defaultValue);
   }
 
+  if (source === "Today") {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   const path = (field.defaultValue || "").trim();
   if (!path) {
     return undefined;
@@ -470,6 +485,7 @@ export function shallowEqualFieldMaps(a, b) {
   return leftKeys.every((key) => left[key] === right[key]);
 }
 
+/** 仕様: Core 第0.1節、第5.2節、第7.2節、第7.5節 */
 export function buildCustomFieldInputs(
   definitions,
   customFields = {},
@@ -505,8 +521,18 @@ export function buildCustomFieldInputs(
       "LONG"
     ].includes(field.fieldType);
     const isDate = field.fieldType === "DATE";
+    const isReference = field.fieldType === "REFERENCE";
     const isTextarea =
       field.fieldType === "TEXTAREA" || field.fieldType === "LONGTEXTAREA";
+    const picklistOptions = (field.picklistOptions || []).map((option) => ({
+      label: option.label,
+      value: option.value,
+      key: `${keyPrefix}-${field.apiName}-${option.value}`,
+      selected: option.value === value
+    }));
+    const picklistLabel = isPicklist
+      ? picklistOptions.find((option) => option.value === value)?.label
+      : null;
 
     return {
       apiName: field.apiName,
@@ -521,21 +547,28 @@ export function buildCustomFieldInputs(
         ? value === true || value === "true"
           ? "する"
           : "しない"
-        : String(value || ""),
+        : String(
+            (isPicklist && picklistLabel != null && picklistLabel !== ""
+              ? picklistLabel
+              : value) || ""
+          ),
       isCheckbox,
       isPicklist,
       isNumber,
       isDate,
+      isReference,
+      referenceObjectApiName: field.referenceObjectApiName || "",
       isTextarea,
-      isText: !isCheckbox && !isPicklist && !isNumber && !isDate && !isTextarea,
+      isText:
+        !isCheckbox &&
+        !isPicklist &&
+        !isNumber &&
+        !isDate &&
+        !isReference &&
+        !isTextarea,
       isReadonly,
       checked: value === true || value === "true",
-      picklistOptions: (field.picklistOptions || []).map((option) => ({
-        label: option.label,
-        value: option.value,
-        key: `${keyPrefix}-${field.apiName}-${option.value}`,
-        selected: option.value === value
-      }))
+      picklistOptions
     };
   });
 }

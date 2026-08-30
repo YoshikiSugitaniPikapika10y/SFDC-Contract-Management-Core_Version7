@@ -625,7 +625,8 @@
 }
 
 /* 商品カスタム項目の直上の横罫線は出さない */
-.est-table-row:has(+ .est-detail-row) > td {
+.est-table-row:has(+ .est-detail-row) > td,
+.est-table-row:has(+ .est-detail-toggle-row) > td {
   border-bottom: none !important;
 }
 
@@ -1339,6 +1340,20 @@
   border-top: none;
   border-bottom: 1px solid var(--est-row-rule);
   vertical-align: top;
+}
+
+.est-detail-toggle-row td {
+  padding: 0.25rem 0.625rem;
+  background: var(--est-surface-muted);
+  border-top: none;
+  border-bottom: none;
+  vertical-align: middle;
+}
+
+.est-btn-custom_row {
+  min-height: 1.75rem;
+  padding: 0.25rem 0.625rem;
+  font-size: var(--est-font-desc);
 }
 
 .est-detail-badge {

@@ -4,7 +4,9 @@
 export const UI_ONLY_PRODUCT_FIELDS = new Set([
   "invoiceTypeOptions",
   "isInvoiceTypeDisabled",
-  "canCopyDatesFromAbove",
+  "isInvoiceSettingReadonly",
+  "isRevenueBasisDisabled",
+  "isRevenueBasisReadonly",
   "gridRowClass",
   "tableRowClass",
   "rowIndex",
@@ -87,6 +89,7 @@ export function serializeBusinessProduct(row) {
     unitName: cleaned.unitName,
     billingType: cleaned.billingType,
     billingCycle: cleaned.billingCycle,
+    revenueRecognitionBasis: cleaned.revenueRecognitionBasis,
     unitPrice: cleaned.unitPrice,
     amount: cleaned.amount,
     startDate: cleaned.startDate,

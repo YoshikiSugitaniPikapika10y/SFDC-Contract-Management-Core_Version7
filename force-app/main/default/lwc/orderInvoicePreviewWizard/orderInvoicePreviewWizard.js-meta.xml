@@ -2,8 +2,8 @@
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>66.0</apiVersion>
     <isExposed>true</isExposed>
-    <masterLabel>請求プレビュー</masterLabel>
-    <description>Ordered 状態の契約履歴で請求商品を確認します。</description>
+    <masterLabel>請求ボード</masterLabel>
+    <description>受注済み請求の確認と作業を行う請求ボードです。</description>
     <targets>
         <target>lightning__RecordAction</target>
         <target>lightning__AppPage</target>
@@ -14,6 +14,8 @@
         <targetConfig targets="lightning__RecordAction">
             <objects>
                 <object>ContractHistory__c</object>
+                <object>ContractService__c</object>
+                <object>Invoice__c</object>
             </objects>
         </targetConfig>
     </targetConfigs>

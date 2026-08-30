@@ -40,7 +40,7 @@
                 <componentInstanceProperties>
                     <name>richTextValue</name>
                     <value
-          >&lt;p&gt;請求条件・送付先のマスタです。受注時に請求へ SnapShot されます（既存請求は自動更新されません）。&lt;/p&gt;</value>
+          >&lt;p&gt;請求条件・送付先のマスタです。受注時に請求へスナップショットされます（既存請求は自動更新されません）。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_hint</identifier>
@@ -93,9 +93,6 @@
                             <value>Status__c</value>
                         </valueListItems>
                         <valueListItems>
-                            <value>LatestARR__c</value>
-                        </valueListItems>
-                        <valueListItems>
                             <value>ServiceStartDate__c</value>
                         </valueListItems>
                         <valueListItems>
@@ -139,7 +136,7 @@
                 <componentInstanceProperties>
                     <name>richTextValue</name>
                     <value
-          >&lt;p&gt;この請求アカウントが SnapShot されている請求です。&lt;/p&gt;</value>
+          >&lt;p&gt;この請求アカウントがスナップショットされている請求です。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_invoices</identifier>
@@ -200,7 +197,7 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>relatedListLabel</name>
-                    <value>請求（宛先SnapShot）</value>
+                    <value>請求（宛先スナップショット）</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>showActionBar</name>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CollectionRefundStatus__c</fullName>
+    <description>仕様: Core 第7.11節</description>
+    <inlineHelpText>未対応／対応中／完了。専用処理以外は変更できません。</inlineHelpText>
+    <label>回収・返金状態</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>NotStarted</fullName>
+                <default>true</default>
+                <label>未対応</label>
+            </value>
+            <value>
+                <fullName>InProgress</fullName>
+                <default>false</default>
+                <label>対応中</label>
+            </value>
+            <value>
+                <fullName>Completed</fullName>
+                <default>false</default>
+                <label>完了</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

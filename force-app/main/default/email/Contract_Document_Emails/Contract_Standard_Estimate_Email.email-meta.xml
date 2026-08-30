@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EmailTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <available>true</available>
+    <description>仕様: Core 第11.3.2節。見積送付の同梱テキストClassic。関連は契約履歴。{!Contact.～}は見積送付先だけ。</description>
+    <encodingKey>UTF-8</encodingKey>
+    <name>標準見積メール</name>
+    <style>none</style>
+    <subject>見積書のご送付（{!ContractHistory__c.Name}）</subject>
+    <textOnly>true</textOnly>
+    <type>text</type>
+    <uiType>Aloha</uiType>
+</EmailTemplate>

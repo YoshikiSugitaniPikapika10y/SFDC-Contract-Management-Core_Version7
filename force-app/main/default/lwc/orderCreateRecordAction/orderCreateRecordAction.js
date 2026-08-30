@@ -1,6 +1,6 @@
 import { LightningElement, api } from "lwc";
 import { NavigationMixin } from "c/orderWizardNavigation";
-import hasOrder from "@salesforce/customPermission/Contract_09_Can_Order";
+import hasOrder from "@salesforce/customPermission/Loop_06_Can_Order";
 import {
   closeOrderRecordAction,
   markOrderRecordForRefresh,

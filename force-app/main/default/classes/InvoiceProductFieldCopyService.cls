@@ -1,5 +1,5 @@
 /**
- * 請求明細生成時の項目コピー（Custom Metadata のマッピングに従う）。
+ * 項目コピー（FieldCopyDefinition__c のマッピングに従う）。
  * コピー先は TargetObject__c（InvoiceProduct__c / Invoice__c / InvoiceLine__c）。
  */
 public without sharing class InvoiceProductFieldCopyService {
@@ -13,6 +13,11 @@ public without sharing class InvoiceProductFieldCopyService {
   public static final String OBJECT_PRODUCT = 'Product2';
   public static final String OBJECT_OPPORTUNITY = 'Opportunity';
   public static final String OBJECT_ACCOUNT = 'Account';
+  public static final String OBJECT_CONTRACT_SERVICE = 'ContractService__c';
+  public static final String OBJECT_INVOICE = 'Invoice__c';
+  public static final String OBJECT_INVOICE_LINE = 'InvoiceLine__c';
+  public static final String OBJECT_INVOICE_PAYMENT = 'InvoicePayment__c';
+  public static final String OBJECT_PAYMENT_ALLOCATION = 'InvoicePaymentAllocation__c';
 
   /** コピー元ごとの固定リレーション（請求商品起点）。 */
   public static final String PATH_CONTRACT_HISTORY = '請求商品 → 契約履歴';
@@ -21,14 +26,18 @@ public without sharing class InvoiceProductFieldCopyService {
   public static final String PATH_BILLING_ACCOUNT = '請求商品 → 契約履歴 → 契約サービス → 請求アカウント';
   public static final String PATH_OPPORTUNITY = '請求商品 → 契約履歴 → 商談';
   public static final String PATH_ACCOUNT = '請求商品 → 契約履歴 → 契約サービス → 取引先';
-
   private static final Set<String> ALLOWED_SOURCE_OBJECTS = new Set<String>{
     OBJECT_CONTRACT_HISTORY,
     OBJECT_CONTRACT_PRODUCT,
     OBJECT_BILLING_ACCOUNT,
     OBJECT_PRODUCT,
     OBJECT_OPPORTUNITY,
-    OBJECT_ACCOUNT
+    OBJECT_ACCOUNT,
+    OBJECT_CONTRACT_SERVICE,
+    OBJECT_INVOICE,
+    OBJECT_INVOICE_LINE,
+    OBJECT_INVOICE_PAYMENT,
+    OBJECT_PAYMENT_ALLOCATION
   };
 
   private static final Set<String> ALLOWED_TARGET_OBJECTS = new Set<String>{
@@ -39,7 +48,7 @@ public without sharing class InvoiceProductFieldCopyService {
 
   /**
    * パッケージ標準でコード直書きする To 項目。
-   * CMDT の TargetFieldApiName__c と重複したら検証エラー（必須ロジックを CMDT に載せない）。
+   * コピー定義の TargetFieldApiName__c と重複したら検証エラー（必須ロジックを定義行に載せない）。
    */
   private static final Map<String, Set<String>> HARDCODED_TARGET_FIELDS = new Map<String, Set<String>>{
     TARGET_INVOICE_PRODUCT => new Set<String>{
@@ -48,14 +57,11 @@ public without sharing class InvoiceProductFieldCopyService {
       'Quantity__c',
       'UnitPrice__c',
       'Unit__c',
-      'invoicetype__c',
       'Amount__c',
       'StartDate__c',
       'Enddate__c',
       'InvoiceBucketKey__c',
-      'LineBucketKey__c',
-      'TaxPercent__c',
-      'TaxAmount__c'
+      'LineBucketKey__c'
     },
     TARGET_INVOICE => new Set<String>{
       'ContractHistory__c',
@@ -65,8 +71,19 @@ public without sharing class InvoiceProductFieldCopyService {
       'BillingEmailToSnapShot__c',
       'BillingEmailCcSnapShot__c',
       'BillingEmailBccSnapShot__c',
-      'PaymentTermSnapShot__c',
-      'BillingDayOfMonthSnapShot__c',
+      'InvoiceDeliveryMethodSnapShot__c',
+      'InvoiceDateMethodSnapShot__c',
+      'InvoiceDateDayKindSnapShot__c',
+      'InvoiceDateDayOfMonthSnapShot__c',
+      'InvoiceDateMonthOffsetSnapShot__c',
+      'InvoiceDateDayOffsetSnapShot__c',
+      'InvoiceDateAdjustSnapShot__c',
+      'PaymentTermMethodSnapShot__c',
+      'PaymentTermDayKindSnapShot__c',
+      'PaymentTermDayOfMonthSnapShot__c',
+      'PaymentTermMonthOffsetSnapShot__c',
+      'PaymentTermDayOffsetSnapShot__c',
+      'PaymentTermAdjustSnapShot__c',
       'InvoiceDate__c',
       'PaymentScheduledDate__c',
       'Amount__c',
@@ -79,8 +96,7 @@ public without sharing class InvoiceProductFieldCopyService {
       'IsAmountAdjusted__c',
       'IsSplitMoved__c',
       'SystemIntegrationDate__c',
-      'PaymentClearingCompletedDate__c',
-      'AdjustmentReason__c'
+      'PaymentClearingCompletedDate__c'
     },
     TARGET_INVOICE_LINE => new Set<String>{
       'Invoice__c',
@@ -95,6 +111,9 @@ public without sharing class InvoiceProductFieldCopyService {
       'LineMergeKey__c',
       'HistoryVersionLabel__c',
       'SourcePeriodLineIds__c',
+      'ServicePeriodStartDate__c',
+      'ServicePeriodEndDate__c',
+      'RevenueRecognitionBasis__c',
       'IsManuallyAdjusted__c',
       'IsAmountAdjusted__c',
       'IsSplitMoved__c'
@@ -104,7 +123,7 @@ public without sharing class InvoiceProductFieldCopyService {
   public class FieldCopyException extends Exception {
   }
 
-  /** ハードコード To 項目（CMDT 重複チェック用）。テストからも参照する。 */
+  /** ハードコード To 項目（定義行との重複チェック用）。テストからも参照する。 */
   public static Set<String> getHardcodedTargetFieldApiNames(
     String targetObjectApiName
   ) {
@@ -113,7 +132,7 @@ public without sharing class InvoiceProductFieldCopyService {
   }
 
   @TestVisible
-  private static List<InvoiceProductFieldCopy__mdt> cachedDefinitions;
+  private static List<FieldCopyDefinition__c> cachedDefinitions;
 
   @TestVisible
   static void resetCache() {
@@ -130,7 +149,7 @@ public without sharing class InvoiceProductFieldCopyService {
     Map<String, Schema.SObjectType> globalDescribe = Schema.getGlobalDescribe();
     Map<String, Map<String, Schema.SObjectField>> targetFieldsByObject = new Map<String, Map<String, Schema.SObjectField>>();
 
-    for (InvoiceProductFieldCopy__mdt definition : getActiveDefinitions()) {
+    for (FieldCopyDefinition__c definition : getActiveDefinitions()) {
       String targetObjectApiName = resolveTargetObject(definition);
       Map<String, Schema.SObjectField> targetFields = targetFieldsByObject.get(
         targetObjectApiName
@@ -202,7 +221,7 @@ public without sharing class InvoiceProductFieldCopyService {
       .fields.getMap();
 
     for (
-      InvoiceProductFieldCopy__mdt definition : getActiveDefinitions(
+      FieldCopyDefinition__c definition : getActiveDefinitions(
         targetObjectApiName
       )
     ) {
@@ -214,7 +233,6 @@ public without sharing class InvoiceProductFieldCopyService {
       );
 
       String targetApiName = definition.TargetFieldApiName__c;
-      // 既に値がある項目は書き換えない
       if (!isBlankTargetValue(target.get(targetApiName))) {
         continue;
       }
@@ -266,7 +284,6 @@ public without sharing class InvoiceProductFieldCopyService {
             blankToEmpty(ex.getMessage())
         );
       }
-      // コピー元も空ならセット不要
       if (isBlankTargetValue(coerced)) {
         continue;
       }
@@ -276,6 +293,7 @@ public without sharing class InvoiceProductFieldCopyService {
 
   /**
    * before insert トリガから呼ぶ一括適用。コピー元を一括取得し、空欄項目だけ埋める。
+   * 仕様: Core 第11.4.2節
    */
   public static void applyOnBeforeInsert(
     List<SObject> records,
@@ -287,13 +305,6 @@ public without sharing class InvoiceProductFieldCopyService {
     if (String.isBlank(targetObjectApiName)) {
       return;
     }
-    List<InvoiceProductFieldCopy__mdt> definitions = getActiveDefinitions(
-      targetObjectApiName
-    );
-    if (definitions.isEmpty()) {
-      return;
-    }
-
     InsertSourceMaps maps = loadInsertSourceMaps(records, targetObjectApiName);
     for (SObject record : records) {
       Map<String, SObject> sources = resolveInsertSources(
@@ -302,12 +313,17 @@ public without sharing class InvoiceProductFieldCopyService {
         maps
       );
       applyHardcodedCoreFields(record, targetObjectApiName, sources);
-      applyCopies(record, targetObjectApiName, sources, true);
+      FieldCopyDefinitionService.apply(
+        record,
+        targetObjectApiName,
+        null,
+        sources
+      );
     }
   }
 
   /**
-   * Insert 時に必須コアをコードで埋める（空欄のみ。CMDT より先）。
+   * Insert 時に必須コアをコードで埋める（空欄のみ。コピー定義より先）。
    */
   @TestVisible
   private static void applyHardcodedCoreFields(
@@ -333,6 +349,7 @@ public without sharing class InvoiceProductFieldCopyService {
     }
   }
 
+  /** 仕様: Core 第3.3.5節、第3.3.7節、第5.2節 */
   public static void applyHardcodedInvoiceBillingAccountSnapshot(
     Invoice__c invoice,
     BillingAccount__c billingAccount
@@ -355,11 +372,12 @@ public without sharing class InvoiceProductFieldCopyService {
     if (String.isBlank(invoice.BillingEmailBccSnapShot__c)) {
       invoice.BillingEmailBccSnapShot__c = billingAccount.BillingEmailBcc__c;
     }
-    if (String.isBlank(invoice.PaymentTermSnapShot__c)) {
-      invoice.PaymentTermSnapShot__c = billingAccount.PaymentTerm__c;
+    if (String.isBlank(invoice.InvoiceDeliveryMethodSnapShot__c)) {
+      invoice.InvoiceDeliveryMethodSnapShot__c = billingAccount.InvoiceDeliveryMethod__c;
     }
-    if (String.isBlank(invoice.BillingDayOfMonthSnapShot__c)) {
-      invoice.BillingDayOfMonthSnapShot__c = billingAccount.BillingDayOfMonth__c;
+    BillingScheduleService.applySnapshots(invoice, billingAccount);
+    if (String.isBlank(invoice.BillingAccountKeySnapShot__c)) {
+      invoice.BillingAccountKeySnapShot__c = billingAccount.BillingAccountKey__c;
     }
   }
 
@@ -600,14 +618,15 @@ public without sharing class InvoiceProductFieldCopyService {
       targetObjectApiName
     );
     baFields.add('Id');
-    // 請求 Insert 時ハードコード SnapShot 用（CMDT に BA 定義が無くても読む）
+    // 請求 Insert 時ハードコード SnapShot 用（コピー定義に BA 行が無くても読む）
     if (targetObjectApiName == TARGET_INVOICE) {
       baFields.add('BillingAddressee__c');
       baFields.add('BillingEmailTo__c');
       baFields.add('BillingEmailCc__c');
       baFields.add('BillingEmailBcc__c');
-      baFields.add('PaymentTerm__c');
-      baFields.add('BillingDayOfMonth__c');
+      baFields.add('InvoiceDeliveryMethod__c');
+      baFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
+      baFields.add('BillingAccountKey__c');
     }
     if (!billingAccountIds.isEmpty()) {
       String baSoql =
@@ -786,7 +805,7 @@ public without sharing class InvoiceProductFieldCopyService {
   }
 
   private static void validateDefinition(
-    InvoiceProductFieldCopy__mdt definition,
+    FieldCopyDefinition__c definition,
     String targetObjectApiName,
     Map<String, Schema.SObjectField> targetFields,
     Map<String, Schema.SObjectType> globalDescribe
@@ -852,7 +871,7 @@ public without sharing class InvoiceProductFieldCopyService {
           developerName +
           '」のコピー先項目「' +
           targetApiName +
-          '」はパッケージ標準（ハードコード）と重複しています。必須項目はコード側、顧客拡張だけを CMDT に定義してください。'
+          '」はパッケージ標準（ハードコード）と重複しています。必須項目はコード側、顧客拡張だけをコピー定義に置いてください。'
       );
     }
 
@@ -918,7 +937,7 @@ public without sharing class InvoiceProductFieldCopyService {
   }
 
   private static FieldCopyException buildException(
-    InvoiceProductFieldCopy__mdt definition,
+    FieldCopyDefinition__c definition,
     String detail
   ) {
     return new FieldCopyException(
@@ -927,25 +946,19 @@ public without sharing class InvoiceProductFieldCopyService {
   }
 
   private static String definitionLabel(
-    InvoiceProductFieldCopy__mdt definition
+    FieldCopyDefinition__c definition
   ) {
-    if (definition == null) {
+    if (definition == null || String.isBlank(definition.Name)) {
       return '(不明)';
     }
-    if (String.isNotBlank(definition.MasterLabel)) {
-      return definition.MasterLabel;
-    }
-    if (String.isNotBlank(definition.DeveloperName)) {
-      return definition.DeveloperName;
-    }
-    return '(不明)';
+    return definition.Name;
   }
 
   /**
    * 未設定の TargetObject__c は後方互換のため InvoiceProduct__c とみなす。
    */
   @TestVisible
-  static String resolveTargetObject(InvoiceProductFieldCopy__mdt definition) {
+  static String resolveTargetObject(FieldCopyDefinition__c definition) {
     if (definition == null || String.isBlank(definition.TargetObject__c)) {
       return TARGET_INVOICE_PRODUCT;
     }
@@ -953,7 +966,7 @@ public without sharing class InvoiceProductFieldCopyService {
   }
 
   private static Boolean matchesTargetObject(
-    InvoiceProductFieldCopy__mdt definition,
+    FieldCopyDefinition__c definition,
     String targetObjectApiName
   ) {
     return resolveTargetObject(definition) == targetObjectApiName;
@@ -998,12 +1011,12 @@ public without sharing class InvoiceProductFieldCopyService {
     if (!ALLOWED_SOURCE_OBJECTS.contains(objectApiName)) {
       return fieldApiNames;
     }
-    List<InvoiceProductFieldCopy__mdt> definitions = String.isBlank(
+    List<FieldCopyDefinition__c> definitions = String.isBlank(
         targetObjectApiName
       )
       ? getActiveDefinitions()
       : getActiveDefinitions(targetObjectApiName);
-    for (InvoiceProductFieldCopy__mdt definition : definitions) {
+    for (FieldCopyDefinition__c definition : definitions) {
       if (
         definition != null &&
         definition.SourceObject__c == objectApiName &&
@@ -1021,12 +1034,12 @@ public without sharing class InvoiceProductFieldCopyService {
 
   public static Set<String> getTargetFieldApiNames(String targetObjectApiName) {
     Set<String> fieldApiNames = new Set<String>();
-    List<InvoiceProductFieldCopy__mdt> definitions = String.isBlank(
+    List<FieldCopyDefinition__c> definitions = String.isBlank(
         targetObjectApiName
       )
       ? getActiveDefinitions()
       : getActiveDefinitions(targetObjectApiName);
-    for (InvoiceProductFieldCopy__mdt definition : definitions) {
+    for (FieldCopyDefinition__c definition : definitions) {
       if (
         definition != null &&
         String.isNotBlank(definition.TargetFieldApiName__c)
@@ -1056,6 +1069,37 @@ public without sharing class InvoiceProductFieldCopyService {
         selectFields.add(fieldApiName);
       }
     }
+    addWalkField(selectFields, fieldMap, objectApiName, OBJECT_OPPORTUNITY, 'AccountId');
+    addWalkField(selectFields, fieldMap, objectApiName, OBJECT_CONTRACT_SERVICE, 'Account__c');
+    addWalkField(
+      selectFields,
+      fieldMap,
+      objectApiName,
+      OBJECT_CONTRACT_SERVICE,
+      'BiilingAcccount__c'
+    );
+    addWalkField(
+      selectFields,
+      fieldMap,
+      objectApiName,
+      OBJECT_CONTRACT_HISTORY,
+      'Opportunity__c'
+    );
+    addWalkField(
+      selectFields,
+      fieldMap,
+      objectApiName,
+      OBJECT_CONTRACT_HISTORY,
+      'ContractService__c'
+    );
+    addWalkField(
+      selectFields,
+      fieldMap,
+      objectApiName,
+      OBJECT_INVOICE,
+      'BillingAccountSnapShot__c'
+    );
+    addWalkField(selectFields, fieldMap, objectApiName, OBJECT_INVOICE, 'ContractHistory__c');
     if (selectFields.isEmpty()) {
       selectFields.add('Id');
     }
@@ -1070,34 +1114,34 @@ public without sharing class InvoiceProductFieldCopyService {
     return rows.isEmpty() ? null : rows[0];
   }
 
-  public static List<InvoiceProductFieldCopy__mdt> getActiveDefinitions() {
+  /** 仕様: Core 第11.4.2節 */
+  public static List<FieldCopyDefinition__c> getActiveDefinitions() {
     if (cachedDefinitions != null) {
       return cachedDefinitions;
     }
 
-    List<InvoiceProductFieldCopy__mdt> definitions = [
+    List<FieldCopyDefinition__c> definitions = [
       SELECT
-        DeveloperName,
-        MasterLabel,
+        Name,
         SourceObject__c,
         SourceFieldApiName__c,
         TargetFieldApiName__c,
         TargetObject__c
-      FROM InvoiceProductFieldCopy__mdt
-      ORDER BY DeveloperName
+      FROM FieldCopyDefinition__c
+      ORDER BY Name
     ];
     cachedDefinitions = definitions;
     return cachedDefinitions;
   }
 
-  public static List<InvoiceProductFieldCopy__mdt> getActiveDefinitions(
+  public static List<FieldCopyDefinition__c> getActiveDefinitions(
     String targetObjectApiName
   ) {
     if (String.isBlank(targetObjectApiName)) {
       return getActiveDefinitions();
     }
-    List<InvoiceProductFieldCopy__mdt> filtered = new List<InvoiceProductFieldCopy__mdt>();
-    for (InvoiceProductFieldCopy__mdt definition : getActiveDefinitions()) {
+    List<FieldCopyDefinition__c> filtered = new List<FieldCopyDefinition__c>();
+    for (FieldCopyDefinition__c definition : getActiveDefinitions()) {
       if (matchesTargetObject(definition, targetObjectApiName)) {
         filtered.add(definition);
       }
@@ -1186,5 +1230,24 @@ public without sharing class InvoiceProductFieldCopyService {
       return Datetime.newInstance(dateValue, Time.newInstance(0, 0, 0, 0));
     }
     return ContractWizardFieldService.coerceValue(targetDescribe, rawValue);
+  }
+
+  private static void addWalkField(
+    List<String> selectFields,
+    Map<String, Schema.SObjectField> fieldMap,
+    String objectApiName,
+    String expectedObjectApiName,
+    String fieldApiName
+  ) {
+    if (
+      objectApiName != expectedObjectApiName ||
+      fieldMap == null ||
+      !fieldMap.containsKey(fieldApiName)
+    ) {
+      return;
+    }
+    if (!selectFields.contains(fieldApiName)) {
+      selectFields.add(fieldApiName);
+    }
   }
 }

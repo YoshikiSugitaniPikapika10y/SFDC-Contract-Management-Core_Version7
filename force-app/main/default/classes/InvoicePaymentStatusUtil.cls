@@ -1,7 +1,7 @@
 /**
- * 請求プレビュー用の入金ステータス金額（排他バケツ）。
+ * 請求プレビュー用の回収ステータス金額（排他バケツ）。
  * 請求前 + 請求済（未消込）+ 入金消込 = 税抜合計。
- * 入金消込額／消込完了日は手動。日付変更で金額を自動セット／クリアしない。
+ * 回収状態の正は CollectionRefundStatus__c、請求金額処理済みの正は InvoicePaymentNet__c。
  */
 public without sharing class InvoicePaymentStatusUtil {
   public class StatusAmounts {
@@ -20,18 +20,43 @@ public without sharing class InvoicePaymentStatusUtil {
     }
   }
 
-  /**
-   * 入金消込額は手入力値のみ。未設定は 0（消込完了日があっても自動で税抜合計とみなさない）。
-   */
+  /** 仕様: Core 第8.7節、第8.10節。請求金額Netを税抜表示額へ比例配分する。 */
   public static Decimal resolveClearedAmount(
     Invoice__c invoice,
     Decimal amountTotal
   ) {
     Decimal amount = amountTotal == null ? 0 : amountTotal;
-    if (invoice == null || invoice.PaymentClearedAmount__c == null) {
+    if (invoice == null || amount == 0) {
       return 0;
     }
-    return clampToAmount(invoice.PaymentClearedAmount__c, amount);
+    if (
+      invoice.CollectionRefundStatus__c ==
+      InvoiceTransactionStatusService.COLLECTION_COMPLETED
+    ) {
+      return amount;
+    }
+    if (
+      !InvoiceTransactionStatusService.isConfirmed(invoice) ||
+      invoice.InvoicePaymentNet__c == null ||
+      invoice.InvoicePaymentNet__c == 0
+    ) {
+      return 0;
+    }
+    Decimal taxInclusive = invoice.TaxInclusiveAmount__c;
+    if (taxInclusive == null) {
+      taxInclusive =
+        (invoice.Amount__c == null ? 0 : invoice.Amount__c) +
+        (invoice.TaxAmount__c == null ? 0 : invoice.TaxAmount__c);
+    }
+    if (taxInclusive == 0) {
+      return 0;
+    }
+    Decimal allocated = (
+      amount *
+      invoice.InvoicePaymentNet__c /
+      taxInclusive
+    ).setScale(0, RoundingMode.HALF_UP);
+    return clampToAmount(allocated, amount);
   }
 
   public static StatusAmounts resolveStatusAmounts(
@@ -40,8 +65,9 @@ public without sharing class InvoicePaymentStatusUtil {
   ) {
     Decimal amount = amountTotal == null ? 0 : amountTotal;
     Decimal cleared = resolveClearedAmount(invoice, amount);
-    Boolean invoiced = InvoiceLockUtil.isInvoiced(invoice);
-    if (!invoiced) {
+    Boolean draft =
+      invoice == null || InvoiceTransactionStatusService.isDraft(invoice);
+    if (draft) {
       return new StatusAmounts(amount - cleared, 0, cleared);
     }
     return new StatusAmounts(0, amount - cleared, cleared);

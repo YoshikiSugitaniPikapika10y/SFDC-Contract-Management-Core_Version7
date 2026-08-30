@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InvoiceTransactionStatus__c</fullName>
+    <description>仕様: Core 第7.11節</description>
+    <inlineHelpText>未確定／確定済み／取消済み。専用処理以外は変更できません。</inlineHelpText>
+    <label>請求取引状態</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Draft</fullName>
+                <default>true</default>
+                <label>未確定</label>
+            </value>
+            <value>
+                <fullName>Confirmed</fullName>
+                <default>false</default>
+                <label>確定済み</label>
+            </value>
+            <value>
+                <fullName>Cancelled</fullName>
+                <default>false</default>
+                <label>取消済み</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

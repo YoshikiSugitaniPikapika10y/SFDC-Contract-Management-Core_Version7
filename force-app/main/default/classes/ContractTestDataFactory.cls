@@ -2,7 +2,7 @@
  * 契約管理パッケージのテストデータ組み立て。
  * 必須項目の describe 埋めと、導入先（テナント）固有の制約・候補値もここに集約する。
  * 他社展開時は本クラスの TENANT_* 定数と applyTenantExtraOpportunityFields /
- * prepareRenewEstimateAutoCreate だけを差し替える。
+ * テナント固有の商談必須項目・選択リスト値だけを差し替える。
  */
 @IsTest
 public class ContractTestDataFactory {
@@ -12,7 +12,7 @@ public class ContractTestDataFactory {
   private static String cachedDefaultStageName;
   private static Id cachedOpportunityRecordTypeId;
   private static Boolean opportunityRecordTypeResolved = false;
-  private static final String PERMISSION_SET_NAME = 'Contract_01_Read';
+  private static final String PERMISSION_SET_NAME = 'Loop_01_Read';
 
   /**
    * 商談 insert 時に使う StageName 候補（先頭から、組織に存在する最初の値を採用）。
@@ -32,14 +32,86 @@ public class ContractTestDataFactory {
   };
 
   // ---- 導入先で差し替える選択リスト値（テスト共通）。顧客展開時はここだけ変更する ----
+  public static final Integer TENANT_BILLING_DAY_1 = 1;
+  public static final Integer TENANT_BILLING_DAY_5 = 5;
+  public static final Integer TENANT_BILLING_DAY_15 = 15;
+  public static final Integer TENANT_BILLING_DAY_20 = 20;
+  public static final Integer TENANT_BILLING_DAY_25 = 25;
   public static final String TENANT_PAYMENT_TERM_MONTH_END = '当月末';
   public static final String TENANT_PAYMENT_TERM_NEXT_MONTH_END = '翌月末';
-  public static final String TENANT_BILLING_DAY_1 = '1';
-  public static final String TENANT_BILLING_DAY_5 = '5';
-  public static final String TENANT_BILLING_DAY_15 = '15';
-  public static final String TENANT_BILLING_DAY_20 = '20';
-  public static final String TENANT_BILLING_DAY_25 = '25';
   public static final String TENANT_BILLING_DAY_SAME_DAY = '即日';
+
+  /** 仕様: Core 第7.2節、第7.5節 */
+  public static void applyDefaultBillingSchedule(BillingAccount__c account) {
+    if (account == null) {
+      return;
+    }
+    if (String.isBlank(account.InvoiceDateMethod__c)) {
+      applyOnOrAfterBillingDay(account, TENANT_BILLING_DAY_25);
+    }
+    if (String.isBlank(account.PaymentTermMethod__c)) {
+      applyPaymentMonthEnd(account, 0);
+    }
+  }
+
+  public static void applyOnOrAfterBillingDay(
+    BillingAccount__c account,
+    Integer dayOfMonth
+  ) {
+    if (account == null) {
+      return;
+    }
+    account.InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER;
+    account.InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY;
+    account.InvoiceDateDayOfMonth__c = dayOfMonth;
+    account.InvoiceDateMonthOffset__c = null;
+    account.InvoiceDateDayOffset__c = null;
+    account.InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE;
+  }
+
+  public static void applySameDayBilling(BillingAccount__c account) {
+    if (account == null) {
+      return;
+    }
+    account.InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY;
+    account.InvoiceDateDayKind__c = null;
+    account.InvoiceDateDayOfMonth__c = null;
+    account.InvoiceDateMonthOffset__c = null;
+    account.InvoiceDateDayOffset__c = null;
+    account.InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE;
+  }
+
+  public static void applyPaymentMonthEnd(
+    BillingAccount__c account,
+    Integer monthOffset
+  ) {
+    if (account == null) {
+      return;
+    }
+    account.PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET;
+    account.PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END;
+    account.PaymentTermDayOfMonth__c = null;
+    account.PaymentTermMonthOffset__c = monthOffset;
+    account.PaymentTermDayOffset__c = null;
+    account.PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE;
+  }
+
+  public static void applyPaymentMonthDay(
+    BillingAccount__c account,
+    Integer monthOffset,
+    Integer dayOfMonth
+  ) {
+    if (account == null) {
+      return;
+    }
+    account.PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET;
+    account.PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY;
+    account.PaymentTermDayOfMonth__c = dayOfMonth;
+    account.PaymentTermMonthOffset__c = monthOffset;
+    account.PaymentTermDayOffset__c = null;
+    account.PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE;
+  }
+
   public static final String TENANT_INVOICE_TYPE_PREPAID = '一括前払';
   public static final String TENANT_INVOICE_TYPE_MONTHLY = '月次分割';
   public static final String TENANT_BILLING_TYPE_RECURRING = '継続課金';
@@ -78,6 +150,10 @@ public class ContractTestDataFactory {
     }
     // Setup DML（PSA）を先に runAs で分離してから、非 Setup（Enforce）を触る
     assignPermissionSetIfNeeded(cachedAdminUser.Id);
+    ensureOrgDocumentSetting();
+    ensureLockExemptSetting();
+    ensurePaymentLockExemptSetting();
+    ensureJournalLockExemptSetting();
     // runAs(admin) 内の DML に効くよう、admin ユーザー階層で Enforce OFF
     ensureCustomerValidationEnforceOff(cachedAdminUser.Id);
     return cachedAdminUser;
@@ -97,36 +173,176 @@ public class ContractTestDataFactory {
     // 実行ユーザー＋ admin（runAs 先）の両方で OFF
     ensureCustomerValidationEnforceOff(UserInfo.getUserId());
     ensureCustomerValidationEnforceOff(admin.Id);
+    ensureOrgDocumentSetting();
+    ensureLockExemptSetting();
+    ensurePaymentLockExemptSetting();
+    ensureJournalLockExemptSetting();
   }
 
-  /** 顧客 VR 強制を OFF。未作成なら指定ユーザー階層で false を insert。 */
+  /** 仕様: Accounting 第3.1節。組織内1件。無いときはシードを作る。 */
+  public static GlAccountingPolicy__c ensureOrgAccountingPolicy() {
+    List<GlAccountingPolicy__c> existing = [
+      SELECT
+        Id,
+        Name,
+        AccountingEnabled__c,
+        RevenueRecognitionBasis__c,
+        TaxRecognitionTiming__c,
+        MonthlyBucketMethod__c,
+        MonthlyRecognitionDatePosition__c,
+        RoundingTargetBucket__c,
+        FrozenAt__c,
+        FrozenBy__c
+      FROM GlAccountingPolicy__c
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (!existing.isEmpty()) {
+      return existing[0];
+    }
+    GlAccountingPolicy__c created = GlAccountingPolicyService.newOrgDefault();
+    insert created;
+    return created;
+  }
+
+  /** 仕様: Core 第11.6節。ロック除外が空だと請求更新が落ちる。 */
+  public static InvoiceLockExemptFields__c ensureLockExemptSetting() {
+    InvoiceLockExemptFields__c existing = InvoiceLockExemptFields__c.getOrgDefaults();
+    if (existing != null && existing.Id != null) {
+      if (String.isBlank(existing.FieldApiNames__c)) {
+        existing.FieldApiNames__c = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS;
+        update existing;
+      }
+      return existing;
+    }
+    InvoiceLockExemptFields__c setting = new InvoiceLockExemptFields__c(
+      SetupOwnerId = UserInfo.getOrganizationId(),
+      FieldApiNames__c = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS
+    );
+    insert setting;
+    return setting;
+  }
+
+  /** 仕様: Core 第11.6節。入出金ロック除外が空だと登録後更新が落ちる。 */
+  public static InvoicePaymentLockExemptFields__c ensurePaymentLockExemptSetting() {
+    InvoicePaymentLockExemptFields__c existing = InvoicePaymentLockExemptFields__c.getOrgDefaults();
+    if (existing != null && existing.Id != null) {
+      if (String.isBlank(existing.FieldApiNames__c)) {
+        existing.FieldApiNames__c = InvoicePaymentLockUtil.SEED_LOCK_EXEMPT_FIELDS;
+        update existing;
+      }
+      return existing;
+    }
+    InvoicePaymentLockExemptFields__c setting = new InvoicePaymentLockExemptFields__c(
+      SetupOwnerId = UserInfo.getOrganizationId(),
+      FieldApiNames__c = InvoicePaymentLockUtil.SEED_LOCK_EXEMPT_FIELDS
+    );
+    insert setting;
+    return setting;
+  }
+
+  /** 仕様: Core 第11.6節。仕訳ロック除外が空だと Lock 後更新が落ちる。 */
+  public static GlJournalLockExemptFields__c ensureJournalLockExemptSetting() {
+    GlJournalLockExemptFields__c existing = GlJournalLockExemptFields__c.getOrgDefaults();
+    if (existing != null && existing.Id != null) {
+      if (String.isBlank(existing.FieldApiNames__c)) {
+        existing.FieldApiNames__c = JournalLockService.SEED_LOCK_EXEMPT_FIELDS;
+        update existing;
+      }
+      return existing;
+    }
+    GlJournalLockExemptFields__c setting = new GlJournalLockExemptFields__c(
+      SetupOwnerId = UserInfo.getOrganizationId(),
+      FieldApiNames__c = JournalLockService.SEED_LOCK_EXEMPT_FIELDS
+    );
+    insert setting;
+    return setting;
+  }
+
+  /** 仕様: Core 第11.5節・第4.10節。組織設定が無いと受注・見積初期値が落ちる。 */
+  public static ContractDocumentSetting__c ensureOrgDocumentSetting() {
+    List<ContractDocumentSetting__c> existing = [
+      SELECT
+        Id,
+        EstimateValidMonths__c,
+        DefaultMonthlyCycles__c,
+        RenewOpportunityEnabled__c,
+        EstimateSendMode__c,
+        InvoiceSendMode__c,
+        CompanyName__c,
+        Address__c,
+        InvoiceRegistrationNumber__c,
+        BankTransferInfo__c,
+        EstimateDefaultDocumentTemplateKey__c,
+        InvoiceDefaultDocumentTemplateKey__c,
+        EstimateDefaultEmailTemplateApiName__c,
+        InvoiceDefaultEmailTemplateApiName__c,
+        EstimateOrgWideEmailAddress__c,
+        InvoiceOrgWideEmailAddress__c
+      FROM ContractDocumentSetting__c
+      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+      LIMIT 1
+    ];
+    if (!existing.isEmpty()) {
+      return existing[0];
+    }
+    ContractDocumentSetting__c setting = new ContractDocumentSetting__c(
+      Name = 'OrgDefault',
+      SetupOwnerId = UserInfo.getOrganizationId(),
+      EstimateValidMonths__c = 1,
+      DefaultMonthlyCycles__c = 12,
+      RenewOpportunityEnabled__c = true,
+      EstimateSendMode__c = 'PdfOnly',
+      InvoiceSendMode__c = 'PdfOnly',
+      EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate',
+      InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice',
+      CompanyName__c = 'テスト発行会社',
+      Address__c = 'テスト住所',
+      InvoiceRegistrationNumber__c = 'T0000000000000',
+      BankTransferInfo__c = 'テスト振込先'
+    );
+    insert setting;
+    ContractDocumentSettingService.clearCache();
+    return setting;
+  }
+
+  /** 顧客 VR 強制を OFF。組織既定だけを書く（第11.6節。ユーザー階層は使わない）。 */
   public static void ensureCustomerValidationEnforceOff() {
-    ensureCustomerValidationEnforceOff(UserInfo.getUserId());
+    ensureCustomerValidationEnforceOff(UserInfo.getOrganizationId());
   }
 
   public static void ensureCustomerValidationEnforceOff(Id setupOwnerId) {
-    if (
-      setupOwnerId == null ||
-      validationEnforceOffOwnerIds.contains(setupOwnerId)
-    ) {
+    Id organizationId = UserInfo.getOrganizationId();
+    Id ownerId = setupOwnerId == null ? organizationId : setupOwnerId;
+    // 仕様: Core 第11.6節。製品は組織既定だけ。引数がユーザーでも Org に寄せる。
+    ownerId = organizationId;
+    if (validationEnforceOffOwnerIds.contains(ownerId)) {
       return;
     }
     List<ContractValidationEnforce__c> existing = [
       SELECT Id, Enforce__c
       FROM ContractValidationEnforce__c
-      WHERE SetupOwnerId = :setupOwnerId
+      WHERE SetupOwnerId = :ownerId
       LIMIT 1
     ];
     if (existing.isEmpty()) {
       insert new ContractValidationEnforce__c(
-        SetupOwnerId = setupOwnerId,
+        SetupOwnerId = ownerId,
         Enforce__c = false
       );
     } else if (existing[0].Enforce__c != false) {
       existing[0].Enforce__c = false;
       update existing[0];
     }
-    validationEnforceOffOwnerIds.add(setupOwnerId);
+    List<ContractValidationEnforce__c> overrides = [
+      SELECT Id
+      FROM ContractValidationEnforce__c
+      WHERE SetupOwnerId != :organizationId
+    ];
+    if (!overrides.isEmpty()) {
+      delete overrides;
+    }
+    validationEnforceOffOwnerIds.add(ownerId);
   }
 
   private static void assignPermissionSetIfNeeded(Id userId) {
@@ -170,6 +386,20 @@ public class ContractTestDataFactory {
       return;
     }
     Schema.SObjectType objectType = record.getSObjectType();
+    // InvoiceLine の計上基準は項目定義上は任意だが、正式仕様の VR では必須。
+    // テストデータ生成時も本番と同じ既定値を明示し、VR を迂回しない。
+    if (
+      objectType == InvoiceLine__c.SObjectType &&
+      record.get('RevenueRecognitionBasis__c') == null
+    ) {
+      record.put(
+        'RevenueRecognitionBasis__c',
+        ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+    }
+    if (objectType == BillingAccount__c.SObjectType) {
+      applyDefaultBillingSchedule((BillingAccount__c) record);
+    }
     Map<String, Schema.SObjectField> fieldMap = objectType.getDescribe()
       .fields.getMap();
     for (Schema.SObjectField fieldToken : fieldMap.values()) {
@@ -321,6 +551,12 @@ public class ContractTestDataFactory {
     if (String.isBlank(product.UnitName__c)) {
       product.UnitName__c = TENANT_UNIT_NAME_DEFAULT;
     }
+    if (String.isBlank(product.RevenueRecognitionBasis__c)) {
+      product.RevenueRecognitionBasis__c = product.BillingType__c ==
+        TENANT_BILLING_TYPE_RECURRING
+        ? ContractMetadataService.REVENUE_BASIS_OVER_TIME
+        : ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+    }
     product.AvailableForContract__c = true;
   }
 
@@ -374,11 +610,9 @@ public class ContractTestDataFactory {
       BillingAddressee__c = TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
       BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com',
-      PaymentTerm__c = TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
+      BillingEmailBcc__c = 'bcc@example.com'
     );
+    applyDefaultBillingSchedule(billingAccount);
     applyRequiredFields(billingAccount);
     insert billingAccount;
     return billingAccount;
@@ -539,17 +773,21 @@ public class ContractTestDataFactory {
     ) {
       opportunity.put('CustomFieldDefinition9__c', Date.today());
     }
-  }
-
-  /** 契約サービスの更新見積自動作成を OFF→ON する（他項目は触らない）。 */
-  public static void prepareRenewEstimateAutoCreate(Id contractServiceId) {
-    if (contractServiceId == null) {
-      return;
+    if (fieldMap.containsKey('OpportunitySequeceNumber__c')) {
+      opportunity.put('OpportunitySequeceNumber__c', '1-1_');
+      if (
+        String.isNotBlank(opportunity.Name) &&
+        !Pattern.matches('^[0-9]+-[0-9]+_.*$', opportunity.Name)
+      ) {
+        opportunity.Name = '1-1_' + opportunity.Name;
+      }
     }
-    update new ContractService__c(
-      Id = contractServiceId,
-      RenewEstimateAutoCreateCheck__c = true
-    );
+    if (fieldMap.containsKey('Product__c')) {
+      opportunity.put('Product__c', 'Zeroboard');
+    }
+    if (fieldMap.containsKey('AccountingDepartment__c')) {
+      opportunity.put('AccountingDepartment__c', 'ES');
+    }
   }
 
   public static void applyOpportunityDefaults(List<Opportunity> opportunities) {
@@ -709,11 +947,11 @@ public class ContractTestDataFactory {
           ShowOnCancel__c = true
         ),
         new EstimateWizardField__mdt(
-          DeveloperName = 'Test_Product_CustomerMemo',
-          MasterLabel = 'Test Product Memo',
+          DeveloperName = 'Test_Product_Description',
+          MasterLabel = 'Test Product Description',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'CustomerMemo__c',
+          FieldApiName__c = 'Description__c',
           DefaultValue__c = 'サンプルデフォルトメモ',
           SortOrder__c = 10,
           ShowOnNew__c = true,
@@ -726,5 +964,19 @@ public class ContractTestDataFactory {
         )
       }
     );
+  }
+
+  public static void insertAllowingInvoiceStatus(Invoice__c invoice) {
+    insertAllowingInvoiceStatus(new List<Invoice__c>{ invoice });
+  }
+
+  public static void insertAllowingInvoiceStatus(List<Invoice__c> invoices) {
+    Boolean previous = InvoiceTransactionStatusService.allowStatusWrite;
+    InvoiceTransactionStatusService.allowStatusWrite = true;
+    try {
+      insert invoices;
+    } finally {
+      InvoiceTransactionStatusService.allowStatusWrite = previous;
+    }
   }
 }

@@ -26,12 +26,12 @@ private class InvoiceCanonicalServiceTest {
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
       ];
-      System.assertEquals(1, invoices.size(), '一括前払は請求1件');
+      System.assertEquals(1, invoices.size(), '???????E?');
       System.assertEquals(30000, invoices[0].Amount__c);
       System.assertEquals(
         TaxCalculationUtil.calculateTaxAmount(30000, 10),
         invoices[0].TaxAmount__c,
-        '税率10%の税額'
+        '??10%???E
       );
       System.assertEquals(false, invoices[0].IsManuallyAdjusted__c);
 
@@ -40,7 +40,7 @@ private class InvoiceCanonicalServiceTest {
         FROM InvoiceLine__c
         WHERE Invoice__c = :invoices[0].Id
       ];
-      System.assertEquals(1, lines.size(), '同一契約商品は明細1行に集約');
+      System.assertEquals(1, lines.size(), '????E????E??1???E??E);
       System.assertEquals(30000, lines[0].Amount__c);
     }
   }
@@ -71,7 +71,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         thrown = true;
         System.assertEquals(
-          '請求プレビューを編集する権限がありません。',
+          '???E?????E????????????E,
           ex.getMessage()
         );
       } finally {
@@ -92,7 +92,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         false,
         afterInvoice.IsManuallyAdjusted__c,
-        '権限不足では手動調整にならない'
+        '???????????????E
       );
     }
   }
@@ -107,9 +107,51 @@ private class InvoiceCanonicalServiceTest {
       );
     } catch (InvoiceCanonicalService.InvoiceEditException ex) {
       thrown = true;
-      System.assertEquals('明細と金額は必須です。', ex.getMessage());
+      System.assertEquals('??????E?E?????E, ex.getMessage());
     }
     System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void updateLineAmounts_missingOrgDefault_errorsInsteadOfHalfUp() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.LineAmountEdit edit = new InvoiceCanonicalService.LineAmountEdit();
+      edit.lineId = line.Id;
+      edit.amount = 100.4;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      AmountCalculationSettingService.testMissingOrgDefault = true;
+      AmountCalculationSettingService.clearCache();
+      Exception thrown = null;
+      try {
+        InvoiceCanonicalService.updateLineAmounts(
+          new List<InvoiceCanonicalService.LineAmountEdit>{ edit }
+        );
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        thrown = ex;
+      } finally {
+        AmountCalculationSettingService.testMissingOrgDefault = false;
+        AmountCalculationSettingService.clearCache();
+      }
+      System.assertNotEquals(
+        null,
+        thrown,
+        'Core 第11.9節・第1.1.10節: 金額計算設定が無ければ端数調整をエラーにする'
+      );
+      System.assert(
+        thrown.getMessage().contains('金額計算設定'),
+        thrown.getMessage()
+      );
+    }
   }
 
   @IsTest
@@ -125,8 +167,11 @@ private class InvoiceCanonicalServiceTest {
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       invoice.SystemIntegrationDate__c = Date.today();
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
 
       Boolean thrown = false;
       try {
@@ -149,7 +194,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        'ロック時の作り直し拒否では請求は消えない'
+        '??E????E???????????E????E
       );
       Invoice__c still = [
         SELECT Amount__c, SystemIntegrationDate__c
@@ -162,7 +207,7 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
-  static void updateInvoiceDates_marksAdjustedClearsMergeKey() {
+  static void updateInvoiceHeaderAndDates_marksAdjustedClearsMergeKey() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();
       InvoiceCanonicalService.rebuildForHistories(
@@ -181,17 +226,24 @@ private class InvoiceCanonicalServiceTest {
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
-      // 日付変更前に MergeKey を立てておく（クリアされること）
+      // ?????? MergeKey ???????E??????????E?E
       update new Invoice__c(Id = invoice.Id, MergeKey__c = 'test-merge-key');
 
       Date newInvoiceDate = Date.newInstance(2026, 7, 1);
       Date newPaymentDate = Date.newInstance(2026, 7, 31);
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      InvoiceCanonicalService.updateInvoiceDates(
+      InvoiceCanonicalService.updateInvoiceHeaderAndDates(
         invoice.Id,
         newInvoiceDate,
-        newPaymentDate
+        newPaymentDate,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
       );
       Test.stopTest();
 
@@ -214,12 +266,12 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         false,
         updated.IsSplitMoved__c,
-        '請求情報編集は分割ではないので IsSplitMoved を立てない'
+        '??????E?E?E??????E?E? IsSplitMoved ?????E
       );
       System.assertEquals(
         null,
         updated.MergeKey__c,
-        '日付変更で統合キーを外す'
+        '????????????'
       );
       System.assertEquals(invoice.Amount__c, updated.Amount__c);
       System.assertEquals(invoice.TaxAmount__c, updated.TaxAmount__c);
@@ -283,15 +335,14 @@ private class InvoiceCanonicalServiceTest {
       System.assertNotEquals(
         null,
         line.ContractProduct__r.Product__c,
-        '分割前明細に商品参照があること'
+        '?E????E???E????E?????'
       );
 
-      // 生成後に BA マスタを更新しても既存請求は据え置き、分割で生まれる新請求は最新を取る
+      // ??E?? BA ??????????????E??????E??????????E?????E
       System.assertNotEquals(null, source.BillingAccountSnapShot__c);
       update new BillingAccount__c(
         Id = source.BillingAccountSnapShot__c,
-        BillingAddressee__c = '分割時点の最新宛名 御中',
-        ConfirmSharedUpdate__c = true
+        BillingAddressee__c = '?E????????? ??'
       );
 
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
@@ -323,18 +374,18 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         10000,
         created.PeriodLineAmountTotal__c,
-        '分割新請求の調整前請求額は移した金額と一致すること'
+        '?E??????E???????E????????????'
       );
       System.assertEquals(Date.newInstance(2026, 7, 1), created.InvoiceDate__c);
       System.assertEquals(true, created.IsManuallyAdjusted__c);
       System.assertEquals(
-        '分割時点の最新宛名 御中',
+        '?E????????? ??',
         created.BillingAddresseeSnapShot__c
       );
       System.assertEquals(
         null,
         created.MergeKey__c,
-        '分割新請求の MergeKey は付与しない（突合は Id ベース）'
+        '?E??????E MergeKey ??????E????? Id ??E??E?E
       );
 
       InvoiceLine__c createdLine = [
@@ -346,7 +397,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         line.ContractProduct__r.Product__c,
         createdLine.Product__c,
-        '分割明細の商品参照は作成時の契約商品から明示セット'
+        '?E??????E????E???E??E??E??????E???E??'
       );
       System.assertEquals(
         line.ContractProduct__c,
@@ -366,7 +417,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         20000,
         remain.PeriodLineAmountTotal__c,
-        '分割元請求の調整前請求額は残す金額と一致すること'
+        '?E???E????E???????E???????????'
       );
       System.assertEquals(
         originalAddressee,
@@ -375,7 +426,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         null,
         remain.MergeKey__c,
-        '分割元（残存）の MergeKey も破棄する（突合は Id ベース）'
+        '?E???E??????E MergeKey ???E??????? Id ??E??E?E
       );
     }
   }
@@ -415,11 +466,11 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException e) {
         threw = true;
         System.assert(
-          e.getMessage().contains('入金予定日'),
+          e.getMessage().contains('?????'),
           e.getMessage()
         );
       }
-      System.assertEquals(true, threw, '入金予定日 null は拒否すること');
+      System.assertEquals(true, threw, '????? null ???????');
     }
   }
 
@@ -450,12 +501,13 @@ private class InvoiceCanonicalServiceTest {
           HistoryVersionLabel__c,
           SourcePeriodLineIds__c,
           ContractProduct__c,
-          Product__c
+          Product__c,
+          RevenueRecognitionBasis__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :source.Id
         LIMIT 1
       ];
-      // 端数なしの弟明細を追加（合計 40000）。単価×数量と金額を一致させておく
+      // ?????E??E?????E???E40000?E????�?????????????
       InvoiceLine__c lineB = lineA.clone(false, true, false, false);
       lineB.Amount__c = 10000;
       lineB.UnitPrice__c = 10000;
@@ -472,7 +524,7 @@ private class InvoiceCanonicalServiceTest {
       );
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      // A だけ +3（端数）。B は端数なしのまま
+      // A ??E+3?E????E??E ??????E??
       InvoiceCanonicalService.updateLineAmount(lineA.Id, 30003);
 
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
@@ -500,12 +552,12 @@ private class InvoiceCanonicalServiceTest {
       System.assertNotEquals(
         created.Amount__c,
         created.PeriodLineAmountTotal__c,
-        '比率按分でギャップが先に乗ること'
+        '????E????E?E??E?????'
       );
       System.assertEquals(
         true,
         created.IsAmountAdjusted__c,
-        'ギャップ付きの先請求は端数フラグを立てること'
+        '???E?E???????E???????????'
       );
       System.assertEquals(true, created.IsSplitMoved__c);
 
@@ -536,12 +588,12 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         true,
         afterInPlace.IsAmountAdjusted__c,
-        '同一請求内分割後もギャップ由来の端数フラグを維持'
+        '?????E?E???????E?E???????????E
       );
       System.assertEquals(
         periodBeforeInPlace,
         afterInPlace.PeriodLineAmountTotal__c,
-        '実ギャップがあるのに調整前を税抜へ潰さないこと'
+        '????E?E????E????????????E???'
       );
       System.assertNotEquals(
         afterInPlace.Amount__c,
@@ -565,7 +617,7 @@ private class InvoiceCanonicalServiceTest {
       ];
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      // 端数 +1 後に分割: 調整前 30000 / 金額 30001 → 移す 10000 は金額比で按分
+      // ?? +1 ???E??: ???E30000 / ??E30001 ?E??E10000 ???????E
       InvoiceCanonicalService.updateLineAmount(line.Id, 30001);
 
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
@@ -596,17 +648,17 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         10000,
         created.PeriodLineAmountTotal__c,
-        '調整前は移す金額比で按分（30000×10000/30001 → 10000）'
+        '????E?????????E?E?E0000�E0000/30001 ?E10000?E?E
       );
       System.assertEquals(
         20000,
         remain.PeriodLineAmountTotal__c,
-        '残側の調整前は元調整前−移す側（端数ギャップ+1は残側に残る）'
+        '??E?????E?E?????E???E?E??????E?E+1???E????E?E
       );
       System.assertEquals(
         30000,
         created.PeriodLineAmountTotal__c + remain.PeriodLineAmountTotal__c,
-        '分割前後で調整前請求額の合計は保存される'
+        '?E????????????E???E?????'
       );
     }
   }
@@ -616,27 +668,27 @@ private class InvoiceCanonicalServiceTest {
     System.assertEquals(
       1000,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(2000, 1000, 1000),
-      '絶対値寄与が等しければ半々'
+      '????E??????????E
     );
     System.assertEquals(
       2000,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(2000, 1000, 0),
-      '残寄与0なら新側へ全額'
+      '??E??E???????E
     );
     System.assertEquals(
       0,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(2000, 0, 1000),
-      '移す寄与0なら新側0'
+      '???E??E????0'
     );
     System.assertEquals(
       2000,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(2000, 0, 0),
-      '双方寄与0かつ残寄与0扱いで新側へ全額'
+      '???E??E????E??E??E???????E
     );
     System.assertEquals(
       67,
       InvoiceCanonicalService.allocatePeriodTotalByAbsShare(100, 2, 1),
-      'HALF_UP で奇数ベースラインを按分'
+      'HALF_UP ??E????E???????E
     );
   }
 
@@ -671,7 +723,8 @@ private class InvoiceCanonicalServiceTest {
           HistoryVersionLabel__c,
           SourcePeriodLineIds__c,
           ContractProduct__c,
-          Product__c
+          Product__c,
+          RevenueRecognitionBasis__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :source.Id
         LIMIT 1
@@ -700,11 +753,11 @@ private class InvoiceCanonicalServiceTest {
         FROM Invoice__c
         WHERE Id = :source.Id
       ];
-      System.assertEquals(0, beforeMove.Amount__c, 'ヘッダ税抜が0であること');
+      System.assertEquals(0, beforeMove.Amount__c, '??????E?????');
       System.assertEquals(
         30000,
         beforeMove.PeriodLineAmountTotal__c,
-        '調整前は端数調整後も残る'
+        '????E????????'
       );
 
       Test.startTest();
@@ -728,18 +781,18 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         15000,
         afterTarget.PeriodLineAmountTotal__c,
-        '税抜0の移設でも調整前は絶対値寄与で按分される'
+        '??0?????????E????E?????E???E
       );
       System.assertEquals(
         15000,
         afterSource.PeriodLineAmountTotal__c,
-        '残側の調整前も半分'
+        '??E???????E'
       );
       System.assertEquals(
         30000,
         afterSource.PeriodLineAmountTotal__c +
         afterTarget.PeriodLineAmountTotal__c,
-        '移設前後で調整前請求額の合計は保存される'
+        '????????????E???E?????'
       );
     }
   }
@@ -771,12 +824,13 @@ private class InvoiceCanonicalServiceTest {
           HistoryVersionLabel__c,
           SourcePeriodLineIds__c,
           ContractProduct__c,
-          Product__c
+          Product__c,
+          RevenueRecognitionBasis__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :source.Id
         LIMIT 1
       ];
-      // 同一請求に相手明細を足し、端数でヘッダ税抜を 0 にする
+      // ????????E??????????????E0 ???
       InvoiceLine__c lineB = lineA.clone(false, true, false, false);
       lineB.Amount__c = 30000;
       lineB.IsAmountAdjusted__c = true;
@@ -791,11 +845,11 @@ private class InvoiceCanonicalServiceTest {
         FROM Invoice__c
         WHERE Id = :source.Id
       ];
-      System.assertEquals(0, beforeSplit.Amount__c, 'ヘッダ税抜が0であること');
+      System.assertEquals(0, beforeSplit.Amount__c, '??????E?????');
       System.assertEquals(
         30000,
         beforeSplit.PeriodLineAmountTotal__c,
-        '調整前は端数調整後も残る'
+        '????E????????'
       );
 
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
@@ -826,17 +880,17 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         15000,
         created.PeriodLineAmountTotal__c,
-        '税抜0でも調整前は絶対値寄与で按分される'
+        '??0??????E????E?????E???E
       );
       System.assertEquals(
         15000,
         remain.PeriodLineAmountTotal__c,
-        '残側の調整前も半分'
+        '??E???????E'
       );
       System.assertEquals(
         30000,
         created.PeriodLineAmountTotal__c + remain.PeriodLineAmountTotal__c,
-        '分割前後で調整前請求額の合計は保存される'
+        '?E????????????E???E?????'
       );
     }
   }
@@ -879,7 +933,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         -4000,
         created.Amount__c,
-        'マイナス打消しも新請求へ移せること'
+        '?????????????????'
       );
 
       Invoice__c remain = [
@@ -890,7 +944,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         -6000,
         remain.Amount__c,
-        '残す側もマイナスのまま残ること'
+        '?????E??????????'
       );
     }
   }
@@ -948,7 +1002,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         0,
         remainCreated.size(),
-        '全明細移動後は移動元請求が削除されること'
+        '???????E???E??????????'
       );
 
       Invoice__c target = [
@@ -960,11 +1014,11 @@ private class InvoiceCanonicalServiceTest {
         FROM Invoice__c
         WHERE Id = :source.Id
       ];
-      System.assertEquals(30000, target.Amount__c, '移動先に金額が戻ること');
+      System.assertEquals(30000, target.Amount__c, '???E????????');
       System.assertEquals(
         30000,
         target.PeriodLineAmountTotal__c,
-        '調整前請求額も合算されること'
+        '??????????????'
       );
       System.assertEquals(null, target.MergeKey__c);
       System.assertEquals(true, target.IsManuallyAdjusted__c);
@@ -975,7 +1029,7 @@ private class InvoiceCanonicalServiceTest {
           FROM InvoiceLine__c
           WHERE Invoice__c = :source.Id
         ],
-        '合算せず別行のまま載ること'
+        '???????E??????'
       );
     }
   }
@@ -1019,6 +1073,7 @@ private class InvoiceCanonicalServiceTest {
 
       update new Invoice__c(
         Id = target.Id,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
       );
 
@@ -1048,11 +1103,11 @@ private class InvoiceCanonicalServiceTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(true, blocked, 'ロック先への明細移動は拒否');
+      System.assertEquals(true, blocked, '??E??????????E??');
       System.assertEquals(
         1,
         [SELECT COUNT() FROM Invoice__c WHERE Id = :sourceId],
-        '拒否時は移動元請求が残る'
+        '????E???E?????'
       );
       System.assertEquals(
         sourceAmountBefore,
@@ -1062,7 +1117,7 @@ private class InvoiceCanonicalServiceTest {
           WHERE Id = :sourceId
         ]
         .Amount__c,
-        '拒否時は移動元金額不変'
+        '????E???E????E
       );
       System.assertEquals(
         sourceLineCountBefore,
@@ -1071,7 +1126,7 @@ private class InvoiceCanonicalServiceTest {
           FROM InvoiceLine__c
           WHERE Invoice__c = :sourceId
         ],
-        '拒否時は移動元明細数不変'
+        '????E???E?????E
       );
     }
   }
@@ -1096,7 +1151,7 @@ private class InvoiceCanonicalServiceTest {
         LIMIT 1
       ];
 
-      // 2サービス分の正本生成は SOQL を食うので startTest 後に回す
+      // 2?????E?E????E? SOQL ????? startTest ????
       Test.startTest();
       Fixture other = createOrderedFixture();
       InvoiceCanonicalService.rebuildForHistories(
@@ -1120,214 +1175,22 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         failed = true;
         System.assertEquals(
-          '同一 Version（契約履歴）の請求へだけ明細を移せます。',
+          '?? Version?E???E????E??E??????E???????E,
           ex.getMessage()
         );
       }
       Test.stopTest();
-      System.assertEquals(true, failed, '別契約履歴への移動は失敗すること');
+      System.assertEquals(true, failed, '???E????????E??????');
     }
   }
 
-  @IsTest
-  static void splitInvoiceUnified_unitPriceSplitsFactorsAndClearsAdjustment() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      InvoiceCanonicalService.rebuildForHistories(
-        new Set<Id>{ fixture.history.Id }
-      );
-      InvoiceLine__c line = [
-        SELECT Id, Invoice__c, Amount__c, UnitPrice__c, Quantity__c
-        FROM InvoiceLine__c
-        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
-        LIMIT 1
-      ];
-      System.assertEquals(30000, line.Amount__c);
-      System.assertEquals(10000, line.UnitPrice__c);
 
-      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
-      split.lineId = line.Id;
-      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
-      split.remainUnitPrice = 4000;
-      split.moveUnitPrice = 6000;
-
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
-      Id createdId = InvoiceCanonicalService.splitInvoiceUnified(
-        line.Invoice__c,
-        Date.newInstance(2026, 7, 1),
-        Date.newInstance(2026, 7, 31),
-        null,
-        new List<InvoiceCanonicalService.SplitLineInput>{ split }
-      );
-      Test.stopTest();
-
-      InvoiceLine__c moved = [
-        SELECT
-          Amount__c,
-          UnitPrice__c,
-          Quantity__c,
-          IsManuallyAdjusted__c,
-          IsAmountAdjusted__c,
-          IsSplitMoved__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :createdId
-        LIMIT 1
-      ];
-      InvoiceLine__c remain = [
-        SELECT
-          Amount__c,
-          UnitPrice__c,
-          Quantity__c,
-          IsManuallyAdjusted__c,
-          IsAmountAdjusted__c,
-          IsSplitMoved__c
-        FROM InvoiceLine__c
-        WHERE Id = :line.Id
-      ];
-      System.assertEquals(6000, moved.UnitPrice__c);
-      System.assertEquals(4000, remain.UnitPrice__c);
-      System.assertEquals(1, moved.Quantity__c);
-      System.assertEquals(1, remain.Quantity__c);
-      System.assertEquals(18000, moved.Amount__c);
-      System.assertEquals(12000, remain.Amount__c);
-      System.assertEquals(false, moved.IsAmountAdjusted__c);
-      System.assertEquals(false, remain.IsAmountAdjusted__c);
-      System.assertEquals(true, moved.IsSplitMoved__c);
-      System.assertEquals(true, remain.IsSplitMoved__c);
-      System.assertEquals(true, moved.IsManuallyAdjusted__c);
-      System.assertEquals(true, remain.IsManuallyAdjusted__c);
-    }
-  }
-
-  @IsTest
-  static void splitInvoiceUnified_quantityAndWholeMixed() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      InvoiceCanonicalService.rebuildForHistories(
-        new Set<Id>{ fixture.history.Id }
-      );
-      Invoice__c source = [
-        SELECT Id
-        FROM Invoice__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        LIMIT 1
-      ];
-      InvoiceLine__c line = [
-        SELECT Id, Amount__c, Quantity__c, UnitPrice__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :source.Id
-        LIMIT 1
-      ];
-      line.Quantity__c = 10;
-      update line;
-
-      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
-      split.lineId = line.Id;
-      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_QUANTITY;
-      split.remainQuantity = 6;
-      split.moveQuantity = 4;
-
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
-      Id createdId = InvoiceCanonicalService.splitInvoiceUnified(
-        source.Id,
-        Date.newInstance(2026, 7, 1),
-        Date.newInstance(2026, 7, 31),
-        null,
-        new List<InvoiceCanonicalService.SplitLineInput>{ split }
-      );
-      Test.stopTest();
-
-      InvoiceLine__c moved = [
-        SELECT Amount__c, Quantity__c, UnitPrice__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :createdId
-        LIMIT 1
-      ];
-      InvoiceLine__c remain = [
-        SELECT Amount__c, Quantity__c, UnitPrice__c
-        FROM InvoiceLine__c
-        WHERE Id = :line.Id
-      ];
-      System.assertEquals(4, moved.Quantity__c);
-      System.assertEquals(6, remain.Quantity__c);
-      System.assertEquals(10000, moved.UnitPrice__c);
-      System.assertEquals(12000, moved.Amount__c);
-      System.assertEquals(18000, remain.Amount__c);
-    }
-  }
-
-  @IsTest
-  static void splitInvoiceUnified_periodOnSelectedLine() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      InvoiceCanonicalService.rebuildForHistories(
-        new Set<Id>{ fixture.history.Id }
-      );
-      Invoice__c source = [
-        SELECT Id
-        FROM Invoice__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        LIMIT 1
-      ];
-      InvoiceLine__c sourceLine = [
-        SELECT Id, Amount__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :source.Id
-        LIMIT 1
-      ];
-      InvoiceProduct__c movePeriod = [
-        SELECT Id
-        FROM InvoiceProduct__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        ORDER BY StartDate__c ASC
-        LIMIT 1
-      ];
-
-      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
-      split.lineId = sourceLine.Id;
-      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_PERIOD;
-      split.movePeriodLineIds = new List<Id>{ movePeriod.Id };
-
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
-      Id createdId = InvoiceCanonicalService.splitInvoiceUnified(
-        source.Id,
-        Date.newInstance(2026, 7, 1),
-        Date.newInstance(2026, 7, 31),
-        null,
-        new List<InvoiceCanonicalService.SplitLineInput>{ split }
-      );
-      Test.stopTest();
-
-      Invoice__c created = [
-        SELECT
-          Amount__c,
-          IsManuallyAdjusted__c,
-          IsAmountAdjusted__c,
-          IsSplitMoved__c
-        FROM Invoice__c
-        WHERE Id = :createdId
-      ];
-      System.assertEquals(10000, created.Amount__c);
-      System.assertEquals(false, created.IsAmountAdjusted__c);
-      System.assertEquals(true, created.IsSplitMoved__c);
-      System.assertEquals(true, created.IsManuallyAdjusted__c);
-      Invoice__c remain = [
-        SELECT Amount__c
-        FROM Invoice__c
-        WHERE Id = :source.Id
-      ];
-      System.assertEquals(20000, remain.Amount__c);
-    }
-  }
-
-  /** 端数調整した兄弟明細があるとき、別明細の同一請求内分割で親の手動調整を消さない。 */
+  /** ???????E???E????????????????E?E??????????????E??E*/
   @IsTest
   static void splitLinesInPlace_keepsSiblingManualAdjustmentOnHeader() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();
+      Test.startTest();
       InvoiceCanonicalService.rebuildForHistories(
         new Set<Id>{ fixture.history.Id }
       );
@@ -1346,7 +1209,7 @@ private class InvoiceCanonicalServiceTest {
       Product2 productB = ContractTestDataFactory.buildProduct(
         'Canonical Product B'
       );
-      productB.BillingType__c = '継続課金';
+      productB.BillingType__c = '????E;
       ContractTestDataFactory.insertProduct(productB);
       ContractProduct__c cpB = new ContractProduct__c(
         ContractHistory__c = fixture.history.Id,
@@ -1356,8 +1219,8 @@ private class InvoiceCanonicalServiceTest {
         Unit__c = 'ID',
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2026, 8, 31),
-        InvoiceSetting__c = '一括前払',
-        BillingType__c = '継続課金',
+        InvoiceSetting__c = '????',
+        BillingType__c = '????E,
         Type__c = 'New',
         Amount__c = 30000
       );
@@ -1434,12 +1297,10 @@ private class InvoiceCanonicalServiceTest {
       split.remainUnitPrice = 4000;
       split.moveUnitPrice = 6000;
 
-      Test.startTest();
       InvoiceCanonicalService.splitLinesInPlace(
         invoiceId,
         new List<InvoiceCanonicalService.SplitLineInput>{ split }
       );
-      Test.stopTest();
 
       Invoice__c after = [
         SELECT Amount__c, PeriodLineAmountTotal__c, IsManuallyAdjusted__c
@@ -1458,6 +1319,7 @@ private class InvoiceCanonicalServiceTest {
         ]
         .IsManuallyAdjusted__c
       );
+      Test.stopTest();
     }
   }
 
@@ -1497,7 +1359,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        '同一請求内分割では新請求を作らない'
+        '?????E?E????????????E
       );
       List<InvoiceLine__c> lines = [
         SELECT
@@ -1541,9 +1403,56 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
+  @IsTest
+  static void splitLinesInPlace_copiesUnitFromSourceLine() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Unit__c, ContractProduct__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      line.Unit__c = '式';
+      update line;
+      update new ContractProduct__c(
+        Id = line.ContractProduct__c,
+        Unit__c = 'ライセンス'
+      );
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = 4000;
+      split.moveUnitPrice = 6000;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        line.Invoice__c,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      for (InvoiceLine__c row : [
+        SELECT Unit__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :line.Invoice__c
+      ]) {
+        System.assertEquals(
+          '式',
+          row.Unit__c,
+          'Core 第7.8節・第1.1.10節: 分割先の単位は元明細であり商品マスタではない'
+        );
+      }
+    }
+  }
+
   /**
-   * 請求日で金額分割したあと端数→同一請求内分割しても、
-   * 共有 SourcePeriodLineIds の満額合算で税抜が水増しされないこと。
+   * ???????E?????????????E?E??????E
+   * ??ESourcePeriodLineIds ????????????????E????E
    */
   @IsTest
   static void splitLinesInPlace_afterDateSplitDoesNotInflateOnAmountReset() {
@@ -1584,7 +1493,7 @@ private class InvoiceCanonicalServiceTest {
 
       InvoiceCanonicalService.updateLineAmount(remainLine.Id, remainShare + 10);
 
-      // 端数リセット後の単価分割: 残シェアを 40%/60% に分ける
+      // ?????E????E???E??: ?????E40%/60% ??E???E
       Decimal remainUnit = remainLine.UnitPrice__c == null
         ? 0
         : remainLine.UnitPrice__c;
@@ -1611,7 +1520,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         remainShare,
         remainInvoice.Amount__c,
-        '端数リセットは残シェアへ戻し、由来期間満額へ水増ししない'
+        '?????E????????????????????????E
       );
       System.assertEquals(remainShare, remainInvoice.PeriodLineAmountTotal__c);
 
@@ -1633,13 +1542,13 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         original,
         (Decimal) serviceTotal.get('total'),
-        'サービス税抜合計は請求日分割前と一致'
+        '?????????E????E??????'
       );
     }
   }
 
   /**
-   * 同一請求内の単価分割後に端数→再分割しても、共有期間ID満額へ戻さないこと。
+   * ?????E????E????????E?E???????E???ID???????E????E
    */
   @IsTest
   static void splitLinesInPlace_afterUnitSplitDoesNotInflateOnAmountReset() {
@@ -1698,13 +1607,13 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         original,
         invoice.Amount__c,
-        '単価分割→端数→再分割で請求合計が水増しされない'
+        '???E???????E?E???????????????E
       );
       System.assertEquals(original, invoice.PeriodLineAmountTotal__c);
     }
   }
 
-  /** 端数調整した明細を因子分割すると、調整前金額へ戻してから分ける。 */
+  /** ????????????E??????????????????E????E*/
   @IsTest
   static void splitLinesInPlace_resetsManualAdjustmentBeforeUnitPriceSplit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -1750,7 +1659,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         baseline,
         invoice.Amount__c,
-        '端数 +10 は分割前にリセットされ請求合計に残らない'
+        '?? +10 ??E???????E?????????????E
       );
       System.assertEquals(baseline, invoice.PeriodLineAmountTotal__c);
       System.assertEquals(false, invoice.IsAmountAdjusted__c);
@@ -1777,7 +1686,7 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
-  /** 値引き／Change Original 相当の負単価明細でも単価分割できること。 */
+  /** ????E?Change Original ???E??????????E????????E*/
   @IsTest
   static void splitLinesInPlace_negativeUnitPriceDiscount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -1866,7 +1775,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         -30000,
         lines[0].Amount__c + lines[1].Amount__c,
-        '負明細でも合計保全'
+        '?????????E'
       );
 
       Invoice__c invoice = [
@@ -1879,21 +1788,21 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         0,
         preview.amountDifference,
-        '負の発生金額でもヘッダ端数0'
+        '??????????E?E????0'
       );
       for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
         for (OrderCreateController.InvoiceMergedLineDto row : groupRow.lines) {
           System.assertEquals(
             false,
             row.hasAmountDrift,
-            '負明細の単価分割後も行端数なし: ' + row.amountDeltaFromSource
+            '???????E?????????E ' + row.amountDeltaFromSource
           );
         }
       }
     }
   }
 
-  /** 負金額の数量分割（打消し行の数量按分）。 */
+  /** ????E???E??E??????E????E???E*/
   @IsTest
   static void splitLinesInPlace_negativeAmountQuantitySplit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -1946,7 +1855,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         -30000,
         lines[0].Amount__c + lines[1].Amount__c,
-        '負金額でも数量分割の合計保全'
+        '????????E??????E'
       );
     }
   }
@@ -1993,6 +1902,118 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(12000, lines[0].Amount__c);
       System.assertEquals(18000, lines[1].Amount__c);
       System.assertEquals(10000, lines[0].UnitPrice__c);
+    }
+  }
+
+  @IsTest
+  static void splitLinesInPlace_unitPriceHalfUpFullAmountIsConserved() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c, UnitPrice__c, Quantity__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      line.UnitPrice__c = 1;
+      line.Quantity__c = 1;
+      line.Amount__c = 1;
+      update line;
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = 0.5;
+      split.moveUnitPrice = 0.5;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        line.Invoice__c,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      List<InvoiceLine__c> lines = [
+        SELECT Amount__c, UnitPrice__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :line.Invoice__c
+        ORDER BY Amount__c DESC
+      ];
+      System.assertEquals(
+        2,
+        lines.size(),
+        'Core 第7.8節: 単価分割は2行に分ける'
+      );
+      System.assertEquals(
+        1,
+        lines[0].Amount__c + lines[1].Amount__c,
+        'Core 第7.8.4節: moveAmount + remainAmount == 元明細Amount'
+      );
+      System.assertEquals(
+        0,
+        lines[1].Amount__c,
+        'Core 第1.1.4節: HALF_UPで片方が0円になっても混在できる'
+      );
+    }
+  }
+
+  @IsTest
+  static void splitLinesInPlace_quantityHalfUpFullAmountIsConserved() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c, Quantity__c, UnitPrice__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      line.Quantity__c = 1;
+      line.UnitPrice__c = 1;
+      line.Amount__c = 1;
+      update line;
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_QUANTITY;
+      split.remainQuantity = 0.5;
+      split.moveQuantity = 0.5;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        line.Invoice__c,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      List<InvoiceLine__c> lines = [
+        SELECT Amount__c, Quantity__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :line.Invoice__c
+        ORDER BY Amount__c DESC
+      ];
+      System.assertEquals(
+        2,
+        lines.size(),
+        'Core 第7.8節: 個数分割は2行に分ける'
+      );
+      System.assertEquals(
+        1,
+        lines[0].Amount__c + lines[1].Amount__c,
+        'Core 第7.8.4節: moveAmount + remainAmount == 元明細Amount'
+      );
+      System.assertEquals(
+        0,
+        lines[1].Amount__c,
+        'Core 第1.1.4節: HALF_UPで片方が0円になっても混在できる'
+      );
     }
   }
 
@@ -2078,7 +2099,7 @@ private class InvoiceCanonicalServiceTest {
         if (row.Amount__c == 20000) {
           System.assert(
             !row.SourcePeriodLineIds__c.contains(String.valueOf(june.Id)),
-            '移す側に最早月が含まれないこと'
+            '???E??????????E???'
           );
           sawMoved = true;
         }
@@ -2136,7 +2157,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals('2026-07-01', rows[0].options[0].value);
       System.assertEquals('2026-08-01', rows[0].options[1].value);
       System.assert(String.isNotBlank(rows[0].options[0].label));
-      // 金額列ベース: 6月残 / 7–8月移し（fixture は月1万×3）
+      // ???E??E?: 6??E/ 7?E????Eixture ??E?E?E?E?E
       System.assertEquals(10000, rows[0].options[0].remainAmount);
       System.assertEquals(20000, rows[0].options[0].moveAmount);
       System.assertEquals(20000, rows[0].options[1].remainAmount);
@@ -2159,6 +2180,7 @@ private class InvoiceCanonicalServiceTest {
       ];
       update new Invoice__c(
         Id = line.Invoice__c,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
       );
 
@@ -2182,7 +2204,7 @@ private class InvoiceCanonicalServiceTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(true, blocked, 'ロック請求の同一請求内分割は拒否');
+      System.assertEquals(true, blocked, '??E?????E?????E?E?????');
       System.assertEquals(
         1,
         [
@@ -2190,7 +2212,7 @@ private class InvoiceCanonicalServiceTest {
           FROM InvoiceLine__c
           WHERE Invoice__c = :line.Invoice__c
         ],
-        '拒否時は明細が増えない'
+        '????E???????E
       );
       Invoice__c still = [
         SELECT Amount__c
@@ -2221,12 +2243,12 @@ private class InvoiceCanonicalServiceTest {
         LIMIT 1
       ];
       Decimal originalAmount = line.Amount__c;
-      System.assert(originalAmount > 1000, '分割検証用に十分な金額があること');
+      System.assert(originalAmount > 1000, '?E????????E????????');
 
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
       split.lineId = line.Id;
       split.moveAmount = 1000;
-      // 元金額を残す指定 → move+remain が元を超える（水増し）
+      // ?E???????E??E?Emove+remain ??E??E????????E?E
       split.remainAmount = originalAmount;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
@@ -2247,7 +2269,7 @@ private class InvoiceCanonicalServiceTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(true, blocked, 'remain 不一致は拒否');
+      System.assertEquals(true, blocked, 'remain ??????');
 
       AggregateResult total = [
         SELECT SUM(Amount__c) amt
@@ -2257,7 +2279,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         originalAmount,
         (Decimal) total.get('amt'),
-        '拒否後も明細合計は変わらない'
+        '?????????E?????E
       );
     }
   }
@@ -2291,7 +2313,7 @@ private class InvoiceCanonicalServiceTest {
           10000,
           null
         ),
-        '未指定なら current - move'
+        '??E????Ecurrent - move'
       );
       System.assertEquals(
         9000,
@@ -2301,364 +2323,11 @@ private class InvoiceCanonicalServiceTest {
           10000,
           null
         ),
-        '一致する remain は許可'
+        '???? remain ???'
       );
     }
   }
 
-  @IsTest
-  static void splitInvoiceByPeriod_rewritesProvenanceAndAmounts() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      InvoiceCanonicalService.rebuildForHistories(
-        new Set<Id>{ fixture.history.Id }
-      );
-      Invoice__c source = [
-        SELECT Id
-        FROM Invoice__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        LIMIT 1
-      ];
-      InvoiceLine__c sourceLine = [
-        SELECT Id, Amount__c, SourcePeriodLineIds__c, PeriodLabel__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :source.Id
-        LIMIT 1
-      ];
-      System.assertEquals(30000, sourceLine.Amount__c);
-
-      InvoiceProduct__c movePeriod = [
-        SELECT Id, Amount__c, StartDate__c
-        FROM InvoiceProduct__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        ORDER BY StartDate__c ASC
-        LIMIT 1
-      ];
-
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
-      Id createdId = InvoiceCanonicalService.splitInvoiceByPeriod(
-        source.Id,
-        Date.newInstance(2026, 7, 1),
-        Date.newInstance(2026, 7, 31),
-        new List<Id>{ movePeriod.Id }
-      );
-      Test.stopTest();
-
-      Invoice__c created = [
-        SELECT
-          Amount__c,
-          PeriodLineAmountTotal__c,
-          InvoiceDate__c,
-          IsManuallyAdjusted__c,
-          IsAmountAdjusted__c,
-          IsSplitMoved__c
-        FROM Invoice__c
-        WHERE Id = :createdId
-      ];
-      System.assertEquals(10000, created.Amount__c);
-      System.assertEquals(
-        10000,
-        created.PeriodLineAmountTotal__c,
-        '利用期間分割の新請求は調整前＝金額'
-      );
-      System.assertEquals(Date.newInstance(2026, 7, 1), created.InvoiceDate__c);
-      System.assertEquals(
-        false,
-        created.IsAmountAdjusted__c,
-        '利用期間分割後の新請求は端数クリア'
-      );
-      System.assertEquals(true, created.IsSplitMoved__c);
-      System.assertEquals(true, created.IsManuallyAdjusted__c);
-
-      InvoiceLine__c movedLine = [
-        SELECT
-          Amount__c,
-          SourcePeriodLineIds__c,
-          PeriodLabel__c,
-          IsManuallyAdjusted__c,
-          IsAmountAdjusted__c,
-          IsSplitMoved__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :createdId
-        LIMIT 1
-      ];
-      System.assertEquals(10000, movedLine.Amount__c);
-      System.assertEquals(false, movedLine.IsAmountAdjusted__c);
-      System.assertEquals(true, movedLine.IsSplitMoved__c);
-      System.assertEquals(
-        String.valueOf(movePeriod.Id),
-        movedLine.SourcePeriodLineIds__c
-      );
-      System.assert(
-        String.isNotBlank(movedLine.PeriodLabel__c),
-        '移す側の期間ラベルが設定されること'
-      );
-
-      Invoice__c remainInvoice = [
-        SELECT
-          Amount__c,
-          PeriodLineAmountTotal__c,
-          IsManuallyAdjusted__c,
-          IsAmountAdjusted__c,
-          IsSplitMoved__c
-        FROM Invoice__c
-        WHERE Id = :source.Id
-      ];
-      System.assertEquals(20000, remainInvoice.Amount__c);
-      System.assertEquals(
-        20000,
-        remainInvoice.PeriodLineAmountTotal__c,
-        '利用期間分割の残請求は調整前＝金額'
-      );
-      System.assertEquals(
-        false,
-        remainInvoice.IsAmountAdjusted__c,
-        '利用期間分割後の残請求も端数クリア'
-      );
-      System.assertEquals(true, remainInvoice.IsSplitMoved__c);
-      System.assertEquals(true, remainInvoice.IsManuallyAdjusted__c);
-
-      InvoiceLine__c remainLine = [
-        SELECT
-          Amount__c,
-          SourcePeriodLineIds__c,
-          PeriodLabel__c,
-          IsManuallyAdjusted__c,
-          IsAmountAdjusted__c,
-          IsSplitMoved__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :source.Id
-        LIMIT 1
-      ];
-      System.assertEquals(20000, remainLine.Amount__c);
-      System.assertEquals(false, remainLine.IsAmountAdjusted__c);
-      System.assertEquals(true, remainLine.IsSplitMoved__c);
-      System.assert(
-        !remainLine.SourcePeriodLineIds__c.contains(
-          String.valueOf(movePeriod.Id)
-        ),
-        '残す側から移した期間明細IDが外れていること'
-      );
-      System.assert(
-        String.isNotBlank(remainLine.PeriodLabel__c),
-        '残す側の期間ラベルが設定されること'
-      );
-    }
-  }
-
-  @IsTest
-  static void splitInvoiceByPeriod_afterAmountSplit_preservesServiceTotal() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      InvoiceCanonicalService.rebuildForHistories(
-        new Set<Id>{ fixture.history.Id }
-      );
-      Invoice__c source = [
-        SELECT Id, ContractService__c, Amount__c
-        FROM Invoice__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        LIMIT 1
-      ];
-      System.assertEquals(30000, source.Amount__c);
-      InvoiceLine__c line = [
-        SELECT Id
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :source.Id
-        LIMIT 1
-      ];
-      List<InvoiceProduct__c> periods = [
-        SELECT Id, Amount__c
-        FROM InvoiceProduct__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        ORDER BY StartDate__c ASC
-      ];
-      System.assert(
-        periods.size() >= 2,
-        '利用期間分割できるよう期間が2件以上必要'
-      );
-
-      InvoiceCanonicalService.SplitLineInput amountSplit = new InvoiceCanonicalService.SplitLineInput();
-      amountSplit.lineId = line.Id;
-      amountSplit.moveAmount = 15000;
-
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
-      Id halfInvoiceId = InvoiceCanonicalService.splitInvoiceByDate(
-        source.Id,
-        Date.newInstance(2026, 7, 1),
-        Date.newInstance(2026, 7, 31),
-        new List<InvoiceCanonicalService.SplitLineInput>{ amountSplit }
-      );
-      // 半額請求（共有由来のまま）で先頭月を利用期間分割 → 水増しせずサービス合計 30000 を維持
-      InvoiceCanonicalService.splitInvoiceByPeriod(
-        halfInvoiceId,
-        Date.newInstance(2026, 8, 1),
-        Date.newInstance(2026, 8, 31),
-        new List<Id>{ periods[0].Id }
-      );
-      Test.stopTest();
-
-      Decimal serviceTotal = 0;
-      for (Invoice__c invoice : [
-        SELECT Amount__c
-        FROM Invoice__c
-        WHERE ContractService__c = :source.ContractService__c
-      ]) {
-        serviceTotal += invoice.Amount__c == null ? 0 : invoice.Amount__c;
-      }
-      System.assertEquals(
-        30000,
-        serviceTotal,
-        '請求日分割→利用期間分割のあとでもサービス税抜合計は変わらない'
-      );
-    }
-  }
-
-  @IsTest
-  static void splitInvoiceByPeriod_afterAmountSplit_moveAllPeriodsKeepsHalf() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      InvoiceCanonicalService.rebuildForHistories(
-        new Set<Id>{ fixture.history.Id }
-      );
-      Invoice__c source = [
-        SELECT Id, ContractService__c
-        FROM Invoice__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        LIMIT 1
-      ];
-      InvoiceLine__c line = [
-        SELECT Id
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :source.Id
-        LIMIT 1
-      ];
-      List<Id> allPeriodIds = new List<Id>();
-      for (InvoiceProduct__c period : [
-        SELECT Id
-        FROM InvoiceProduct__c
-        WHERE ContractHistory__c = :fixture.history.Id
-      ]) {
-        allPeriodIds.add(period.Id);
-      }
-
-      InvoiceCanonicalService.SplitLineInput amountSplit = new InvoiceCanonicalService.SplitLineInput();
-      amountSplit.lineId = line.Id;
-      amountSplit.moveAmount = 15000;
-
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
-      Id halfInvoiceId = InvoiceCanonicalService.splitInvoiceByDate(
-        source.Id,
-        Date.newInstance(2026, 7, 1),
-        Date.newInstance(2026, 7, 31),
-        new List<InvoiceCanonicalService.SplitLineInput>{ amountSplit }
-      );
-      Id createdId = InvoiceCanonicalService.splitInvoiceByPeriod(
-        halfInvoiceId,
-        Date.newInstance(2026, 8, 1),
-        Date.newInstance(2026, 8, 31),
-        allPeriodIds
-      );
-      Test.stopTest();
-
-      Invoice__c created = [
-        SELECT Amount__c
-        FROM Invoice__c
-        WHERE Id = :createdId
-      ];
-      System.assertEquals(
-        15000,
-        created.Amount__c,
-        '半額請求の全期間移動でも満額（30000）に膨らまない'
-      );
-
-      Decimal serviceTotal = 0;
-      for (Invoice__c invoice : [
-        SELECT Amount__c
-        FROM Invoice__c
-        WHERE ContractService__c = :source.ContractService__c
-      ]) {
-        serviceTotal += invoice.Amount__c == null ? 0 : invoice.Amount__c;
-      }
-      System.assertEquals(30000, serviceTotal);
-    }
-  }
-
-  @IsTest
-  static void updateInvoiceBillingHeader_updatesSnapshots() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      InvoiceCanonicalService.rebuildForHistories(
-        new Set<Id>{ fixture.history.Id }
-      );
-      Invoice__c invoice = [
-        SELECT Id, BillingAddresseeSnapShot__c, PaymentTermSnapShot__c
-        FROM Invoice__c
-        WHERE ContractHistory__c = :fixture.history.Id
-        LIMIT 1
-      ];
-      String originalPaymentTerm = invoice.PaymentTermSnapShot__c;
-
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
-      InvoiceCanonicalService.updateInvoiceBillingHeader(
-        invoice.Id,
-        null,
-        '変更後宛名 御中',
-        'new-to@example.com',
-        'new-cc@example.com',
-        'new-bcc@example.com',
-        ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        8
-      );
-      Test.stopTest();
-
-      Invoice__c updated = [
-        SELECT
-          BillingAddresseeSnapShot__c,
-          BillingEmailToSnapShot__c,
-          PaymentTermSnapShot__c,
-          TaxPercent__c,
-          TaxAmount__c,
-          Amount__c,
-          IsManuallyAdjusted__c,
-          IsSplitMoved__c
-        FROM Invoice__c
-        WHERE Id = :invoice.Id
-      ];
-      System.assertEquals(
-        '変更後宛名 御中',
-        updated.BillingAddresseeSnapShot__c
-      );
-      System.assertEquals(
-        'new-to@example.com',
-        updated.BillingEmailToSnapShot__c
-      );
-      System.assertEquals(
-        originalPaymentTerm,
-        updated.PaymentTermSnapShot__c,
-        '支払条件 SnapShot はプレビュー編集で変えない'
-      );
-      System.assertEquals(
-        8,
-        TaxCalculationUtil.fromPercentFieldStorage(updated.TaxPercent__c),
-        '税率は表示％で保存される'
-      );
-      System.assertEquals(
-        TaxCalculationUtil.calculateTaxAmount(updated.Amount__c, 8),
-        updated.TaxAmount__c,
-        '税率変更時は税額を再計算する'
-      );
-      System.assertEquals(true, updated.IsManuallyAdjusted__c);
-      System.assertEquals(
-        false,
-        updated.IsSplitMoved__c,
-        '請求情報編集は分割ではないので IsSplitMoved を立てない'
-      );
-    }
-  }
 
   @IsTest
   static void updateInvoiceHeaderAndDates_updatesDatesAndHeaderInOneCall() {
@@ -2668,12 +2337,17 @@ private class InvoiceCanonicalServiceTest {
         new Set<Id>{ fixture.history.Id }
       );
       Invoice__c invoice = [
-        SELECT Id, PaymentTermSnapShot__c, Amount__c
+        SELECT
+          Id,
+          PaymentTermMethodSnapShot__c,
+          Amount__c,
+          BillingAddresseeSnapShot__c,
+          BillingEmailToSnapShot__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
-      String originalPaymentTerm = invoice.PaymentTermSnapShot__c;
+      String originalPaymentTerm = invoice.PaymentTermMethodSnapShot__c;
       Date newInvoiceDate = Date.newInstance(2026, 8, 20);
       Date newPaymentDate = Date.newInstance(2026, 9, 30);
 
@@ -2684,7 +2358,7 @@ private class InvoiceCanonicalServiceTest {
         newInvoiceDate,
         newPaymentDate,
         null,
-        '一体保存宛名 御中',
+        '?????? ??',
         'combined-to@example.com',
         'combined-cc@example.com',
         'combined-bcc@example.com',
@@ -2699,7 +2373,7 @@ private class InvoiceCanonicalServiceTest {
           PaymentScheduledDate__c,
           BillingAddresseeSnapShot__c,
           BillingEmailToSnapShot__c,
-          PaymentTermSnapShot__c,
+          PaymentTermMethodSnapShot__c,
           TaxPercent__c,
           TaxAmount__c,
           Amount__c,
@@ -2711,17 +2385,19 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(newInvoiceDate, updated.InvoiceDate__c);
       System.assertEquals(newPaymentDate, updated.PaymentScheduledDate__c);
       System.assertEquals(
-        '一体保存宛名 御中',
-        updated.BillingAddresseeSnapShot__c
+        invoice.BillingAddresseeSnapShot__c,
+        updated.BillingAddresseeSnapShot__c,
+        '??????E?E?????????E
       );
       System.assertEquals(
-        'combined-to@example.com',
-        updated.BillingEmailToSnapShot__c
+        invoice.BillingEmailToSnapShot__c,
+        updated.BillingEmailToSnapShot__c,
+        '??????E?E??????????E
       );
       System.assertEquals(
         originalPaymentTerm,
-        updated.PaymentTermSnapShot__c,
-        '支払条件 SnapShot はプレビュー編集で変えない'
+        updated.PaymentTermMethodSnapShot__c,
+        '???? SnapShot ????????E??????E
       );
       System.assertEquals(
         8,
@@ -2735,7 +2411,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         false,
         updated.IsSplitMoved__c,
-        '請求情報編集は分割ではないので IsSplitMoved を立てない'
+        '??????E?E?E??????E?E? IsSplitMoved ?????E
       );
     }
   }
@@ -2753,7 +2429,8 @@ private class InvoiceCanonicalServiceTest {
           Id,
           BillingAccountSnapShot__c,
           InvoiceDate__c,
-          PaymentScheduledDate__c
+          PaymentScheduledDate__c,
+          TaxPercent__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
@@ -2775,8 +2452,8 @@ private class InvoiceCanonicalServiceTest {
           Id,
           BillingAddressee__c,
           BillingEmailTo__c,
-          PaymentTerm__c,
-          BillingDayOfMonth__c
+        PaymentTermMethod__c,
+        InvoiceDateDayOfMonth__c
         FROM BillingAccount__c
         WHERE Id = :invoice.BillingAccountSnapShot__c
       ];
@@ -2800,20 +2477,17 @@ private class InvoiceCanonicalServiceTest {
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
       InvoiceCanonicalService.updateLineAmount(line.Id, 30001);
-      InvoiceCanonicalService.updateInvoiceDates(
+      InvoiceCanonicalService.updateInvoiceHeaderAndDates(
         invoice.Id,
         Date.newInstance(2026, 8, 15),
-        Date.newInstance(2026, 9, 30)
-      );
-      InvoiceCanonicalService.updateInvoiceBillingHeader(
-        invoice.Id,
-        baBefore.Id,
-        '編集後宛名',
-        'edited@example.com',
-        'edited-cc@example.com',
-        'edited-bcc@example.com',
-        ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-        null
+        Date.newInstance(2026, 9, 30),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
       );
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
       split.lineId = line.Id;
@@ -2848,8 +2522,8 @@ private class InvoiceCanonicalServiceTest {
         SELECT
           BillingAddressee__c,
           BillingEmailTo__c,
-          PaymentTerm__c,
-          BillingDayOfMonth__c
+        PaymentTermMethod__c,
+        InvoiceDateDayOfMonth__c
         FROM BillingAccount__c
         WHERE Id = :baBefore.Id
       ];
@@ -2861,10 +2535,10 @@ private class InvoiceCanonicalServiceTest {
         baBefore.BillingEmailTo__c,
         baAfter.BillingEmailTo__c
       );
-      System.assertEquals(baBefore.PaymentTerm__c, baAfter.PaymentTerm__c);
+      System.assertEquals(baBefore.PaymentTermMethod__c, baAfter.PaymentTermMethod__c);
       System.assertEquals(
-        baBefore.BillingDayOfMonth__c,
-        baAfter.BillingDayOfMonth__c
+        baBefore.InvoiceDateDayOfMonth__c,
+        baAfter.InvoiceDateDayOfMonth__c
       );
 
       ContractHistory__c historyAfter = [
@@ -2895,7 +2569,7 @@ private class InvoiceCanonicalServiceTest {
         WHERE Id = :invoice.Id
       ];
       System.assertEquals(
-        '編集後宛名',
+        '??E????',
         invoiceAfter.BillingAddresseeSnapShot__c
       );
       System.assertEquals(
@@ -2913,7 +2587,7 @@ private class InvoiceCanonicalServiceTest {
         new Set<Id>{ fixture.history.Id }
       );
       Invoice__c source = [
-        SELECT Id, BillingAccountSnapShot__c, ContractService__r.Account__c
+        SELECT Id, BillingAccountSnapShot__c, ContractService__r.Account__c, InvoiceDate__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
@@ -2926,12 +2600,17 @@ private class InvoiceCanonicalServiceTest {
       ];
       BillingAccount__c otherBa = new BillingAccount__c(
         Account__c = source.ContractService__r.Account__c,
-        BillingAddressee__c = '別請求先 御中',
+        BillingAddressee__c = '????E ??',
         BillingEmailTo__c = 'other@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_15,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+        InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST,
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 15,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(otherBa);
       insert otherBa;
 
@@ -2944,7 +2623,7 @@ private class InvoiceCanonicalServiceTest {
       Id createdId = InvoiceCanonicalService.splitInvoiceByBillingAccount(
         source.Id,
         otherBa.Id,
-        null,
+        source.InvoiceDate__c,
         Date.newInstance(2026, 7, 31),
         new List<InvoiceCanonicalService.SplitLineInput>{ split }
       );
@@ -2956,24 +2635,91 @@ private class InvoiceCanonicalServiceTest {
           BillingAccountSnapShot__c,
           BillingAddresseeSnapShot__c,
           BillingEmailToSnapShot__c,
-          PaymentTermSnapShot__c,
+          PaymentTermMethodSnapShot__c,
+          InvoiceDeliveryMethodSnapShot__c,
           IsManuallyAdjusted__c
         FROM Invoice__c
         WHERE Id = :createdId
       ];
       System.assertEquals(5000, created.Amount__c);
       System.assertEquals(otherBa.Id, created.BillingAccountSnapShot__c);
-      // 分割新規請求は作成時 BA マスタをハードコードで SnapShot
-      System.assertEquals('別請求先 御中', created.BillingAddresseeSnapShot__c);
+      // ?E???????E??E?EBA ??????????? SnapShot
+      System.assertEquals('????E ??', created.BillingAddresseeSnapShot__c);
       System.assertEquals(
         'other@example.com',
         created.BillingEmailToSnapShot__c
       );
       System.assertEquals(
-        ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        created.PaymentTermSnapShot__c
+        BillingScheduleService.METHOD_MONTH_OFFSET,
+        created.PaymentTermMethodSnapShot__c,
+        'Core 第7.5節: 分割先請求へ支払条件の計算方式をスナップショットする'
+      );
+      System.assertEquals(
+        InvoiceDeliveryMethodService.POST,
+        created.InvoiceDeliveryMethodSnapShot__c,
+        'Core 第3.3.7節: 分割先請求へ届け方をスナップショットする'
       );
       System.assertEquals(true, created.IsManuallyAdjusted__c);
+    }
+  }
+
+  @IsTest
+  static void splitInvoiceByBillingAccount_rejectsNullInvoiceDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id, ContractService__r.Account__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      BillingAccount__c otherBa = new BillingAccount__c(
+        Account__c = source.ContractService__r.Account__c,
+        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+        BillingEmailTo__c = 'ba-date@example.com',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 15,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
+      ContractTestDataFactory.applyRequiredFields(otherBa);
+      insert otherBa;
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = 1;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+
+      Boolean rejected = false;
+      try {
+        InvoiceCanonicalService.splitInvoiceByBillingAccount(
+          source.Id,
+          otherBa.Id,
+          null,
+          Date.newInstance(2026, 7, 31),
+          new List<InvoiceCanonicalService.SplitLineInput>{ split }
+        );
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        rejected = true;
+        System.assertEquals('分割先の請求日は必須です。', ex.getMessage());
+      }
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第7.8節: 新しい請求日の未入力をサーバで拒否する'
+      );
     }
   }
 
@@ -3021,7 +2767,7 @@ private class InvoiceCanonicalServiceTest {
   @IsTest
   static void historyDelete_clearsCanonicalForEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      // 非 Ordered に誤って残った請求でも、履歴削除で Invoice が孤児にならないこと
+      // ?EOrdered ????????????????? Invoice ????????E???
       Fixture fixture = createOrderedFixture();
       Id historyId = fixture.history.Id;
       Id contractProductId = [
@@ -3041,7 +2787,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :historyId
         ],
-        '差し戻しで請求は消える'
+        '????????E???E
       );
 
       insert new InvoiceProduct__c(
@@ -3085,11 +2831,11 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         thrown = true;
         System.assertEquals(
-          '期間明細・請求・請求明細は受注済み（Ordered）の契約履歴にのみ作成できます。',
+          '????????E???E?????????E????????E?????E,
           ex.getMessage()
         );
       }
-      System.assertEquals(true, thrown, '非 Ordered への rebuild は拒否');
+      System.assertEquals(true, thrown, '?EOrdered ?? rebuild ???');
       System.assertEquals(
         0,
         [
@@ -3097,7 +2843,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        '見積状態では正本が作られない'
+        '??????????????E
       );
       ContractHistory__c still = [
         SELECT historystatus__c
@@ -3121,8 +2867,11 @@ private class InvoiceCanonicalServiceTest {
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       invoice.SystemIntegrationDate__c = Date.today();
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
 
       fixture.history.historystatus__c = 'Estimate';
       Boolean reverted = false;
@@ -3138,7 +2887,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         true,
         reverted,
-        'ロック済み請求がある Version は差し戻し不可'
+        '??E????????? Version ???????'
       );
 
       ContractHistory__c stillHistory = [
@@ -3149,7 +2898,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         'Ordered',
         stillHistory.historystatus__c,
-        '差し戻し失敗後も受注のまま'
+        '?????????????'
       );
       System.assertEquals(
         1,
@@ -3158,7 +2907,7 @@ private class InvoiceCanonicalServiceTest {
           FROM Invoice__c
           WHERE Id = :invoice.Id AND SystemIntegrationDate__c != NULL
         ],
-        '連携済請求は残る'
+        '??????E??'
       );
     }
   }
@@ -3167,7 +2916,10 @@ private class InvoiceCanonicalServiceTest {
   static void getInvoicePreview_readsCanonicalAndBackfills() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();
-      // 正本なし（期間明細のみ）→ プレビュー取得でバックフィル
+      // ???????????E???? open ??????E?E???E? rebuild ???E
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
       Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
         fixture.history.Id
@@ -3212,9 +2964,11 @@ private class InvoiceCanonicalServiceTest {
         new List<InvoiceCanonicalService.SplitLineInput>{ split }
       );
 
-      // 分割元（残）を消込済にしてロック。新請求は未ロックのまま
+      // ?E???E?????????????E???????E???E?????
       update new Invoice__c(
         Id = source.Id,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+        CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
         PaymentClearingCompletedDate__c = Date.today()
       );
 
@@ -3230,16 +2984,24 @@ private class InvoiceCanonicalServiceTest {
       InvoiceCanonicalService.updateLineAmount(unlockedLine.Id, nextAmount);
       Boolean lockedBlocked = false;
       try {
-        InvoiceCanonicalService.updateInvoiceDates(
+        InvoiceCanonicalService.updateInvoiceHeaderAndDates(
           source.Id,
           Date.newInstance(2026, 8, 1),
-          Date.newInstance(2026, 8, 31)
+          Date.newInstance(2026, 8, 31),
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          10
         );
-      } catch (InvoiceLockUtil.InvoiceLockException ex) {
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         lockedBlocked = true;
         System.assertEquals(
-          InvoiceLockUtil.INVOICE_EDIT_BLOCK_MESSAGE,
-          ex.getMessage()
+          InvoiceLockUtil.CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.8節・第11.4.4節: 確定後は請求日・入金予定日・税率を拒否する'
         );
       }
       Test.stopTest();
@@ -3251,7 +3013,7 @@ private class InvoiceCanonicalServiceTest {
       ];
       System.assertEquals(nextAmount, unlocked.Amount__c);
       System.assertEquals(true, unlocked.IsManuallyAdjusted__c);
-      System.assertEquals(true, lockedBlocked, 'ロック請求の編集は拒否');
+      System.assertEquals(true, lockedBlocked, '??E?????E??E?E??');
 
       Invoice__c lockedStill = [
         SELECT
@@ -3269,14 +3031,508 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         Date.newInstance(2026, 6, 1),
         lockedStill.InvoiceDate__c,
-        'ロック側の請求日は変わらない'
+        '??E?????????????E
       );
       System.assertEquals(
         20000,
         lockedStill.Amount__c,
-        'ロック側の税抜は分割残のまま'
+        '??E????????E????E??'
       );
     }
+  }
+
+  @IsTest
+  static void updateInvoiceHeaderAndDates_confirmedExtraExemptUpdatesDateRefused() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{
+          new InvoiceOpsField__mdt(
+            DeveloperName = 'InvoiceMemoExtra',
+            Active__c = true,
+            TargetObject__c = 'Invoice__c',
+            FieldApiName__c = 'Memo__c'
+          )
+        }
+      );
+      InvoiceLockUtil.testLockExemptFieldApiNames = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS;
+      InvoiceLockUtil.testCanBypassLockedDml = false;
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c invoice = [
+        SELECT
+          Id,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          TaxPercent__c,
+          Memo__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+      update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+      InvoiceLockUtil.allowLockedStatusWrite = false;
+      invoice = [
+        SELECT
+          Id,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          TaxPercent__c,
+          Memo__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      Decimal taxPercent = TaxCalculationUtil.fromPercentFieldStorage(
+        invoice.TaxPercent__c
+      );
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.updateInvoiceHeaderAndDates(
+        invoice.Id,
+        invoice.InvoiceDate__c,
+        invoice.PaymentScheduledDate__c,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        taxPercent,
+        new Map<String, Object>{ 'Memo__c' => '確定後メモ' }
+      );
+      Boolean dateBlocked = false;
+      try {
+        InvoiceCanonicalService.updateInvoiceHeaderAndDates(
+          invoice.Id,
+          Date.newInstance(2026, 12, 1),
+          invoice.PaymentScheduledDate__c,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          taxPercent,
+          new Map<String, Object>{ 'Memo__c' => '確定後メモ' }
+        );
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        dateBlocked = true;
+        System.assertEquals(
+          InvoiceLockUtil.CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      Test.stopTest();
+      Invoice__c updated = [
+        SELECT Memo__c, InvoiceDate__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        '確定後メモ',
+        updated.Memo__c,
+        'Core 第11.4.4節: 確定後はロック除外の追加項目だけ更新できる'
+      );
+      System.assertEquals(invoice.InvoiceDate__c, updated.InvoiceDate__c);
+      System.assertEquals(
+        true,
+        dateBlocked,
+        'Core 第7.8節・第11.4.4節: 確定後の請求日変更は拒否する'
+      );
+      InvoiceOpsFieldService.resetCache();
+      InvoiceLockUtil.testLockExemptFieldApiNames = null;
+      InvoiceLockUtil.testCanBypassLockedDml = null;
+    }
+  }
+
+  @IsTest
+  static void applyRecognitionBucketCount_monthlyJan11ToMar24_is3() {
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ServicePeriodStartDate__c = Date.newInstance(2025, 1, 11),
+      ServicePeriodEndDate__c = Date.newInstance(2025, 3, 24),
+      AcceptanceEndDate__c = Date.newInstance(2025, 12, 31)
+    );
+    InvoiceCanonicalService.applyRecognitionBucketCount(
+      new List<InvoiceLine__c>{ line }
+    );
+    System.assertEquals(
+      3,
+      line.RecognitionBucketCount__c,
+      'Accounting 第3.2節: 1/11～3/24 は3。検収終了日は使わない'
+    );
+  }
+
+  @IsTest
+  static void applyRecognitionBucketCount_lumpIs1() {
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      ServicePeriodStartDate__c = Date.newInstance(2025, 1, 11),
+      ServicePeriodEndDate__c = Date.newInstance(2025, 3, 24)
+    );
+    InvoiceCanonicalService.applyRecognitionBucketCount(
+      new List<InvoiceLine__c>{ line }
+    );
+    System.assertEquals(
+      1,
+      line.RecognitionBucketCount__c,
+      'Accounting 第3.2節: 一括計上は1'
+    );
+  }
+
+  @IsTest
+  static void applyRecognitionBucketCount_monthlyEmptyPeriod_staysBlank() {
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+    );
+    InvoiceCanonicalService.applyRecognitionBucketCount(
+      new List<InvoiceLine__c>{ line }
+    );
+    System.assertEquals(
+      null,
+      line.RecognitionBucketCount__c,
+      'Accounting 第3.2節: 月次でサービス期間が空なら空欄'
+    );
+  }
+
+  @IsTest
+  static void applyRecognitionBucketCount_jan31TwelveCycles_endsJan27() {
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ServicePeriodStartDate__c = Date.newInstance(2025, 1, 31),
+      ServicePeriodEndDate__c = Date.newInstance(2026, 1, 27)
+    );
+    InvoiceCanonicalService.applyRecognitionBucketCount(
+      new List<InvoiceLine__c>{ line }
+    );
+    System.assertEquals(
+      12,
+      line.RecognitionBucketCount__c,
+      '日付仕様 第1.2節: 1/31開始の12サイクル終了は翌年1/27。addMonths一発計算は使わない'
+    );
+  }
+
+  @IsTest
+  static void applyRecognitionBucketCount_autoApr15Lands_is12() {
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ServicePeriodStartDate__c = Date.newInstance(2025, 4, 15),
+      ServicePeriodEndDate__c = Date.newInstance(2026, 4, 14)
+    );
+    InvoiceCanonicalService.applyRecognitionBucketCount(
+      new List<InvoiceLine__c>{ line }
+    );
+    System.assertEquals(
+      12,
+      line.RecognitionBucketCount__c,
+      'Accounting 第3.3節: 4/15～翌4/14 は着地するので契約日アンカー12'
+    );
+  }
+
+  @IsTest
+  static void applyRecognitionBucketCount_missingPolicy_errors() {
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ServicePeriodStartDate__c = Date.newInstance(2025, 1, 11),
+      ServicePeriodEndDate__c = Date.newInstance(2025, 3, 24)
+    );
+    Boolean thrown = false;
+    try {
+      InvoiceCanonicalService.applyRecognitionBucketCount(
+        new List<InvoiceLine__c>{ line }
+      );
+    } catch (Exception ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('Accounting会計方針がありません'),
+        'Accounting 第3.1節・Core 第1.1.10節: 方針0件を Auto へ落とさない'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void applyRecognitionBucketCount_blankMonthlyMethod_errors() {
+    insert GlAccountingPolicyService.newOrgDefault();
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+    policy.MonthlyBucketMethod__c = null;
+    update policy;
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ServicePeriodStartDate__c = Date.newInstance(2025, 1, 11),
+      ServicePeriodEndDate__c = Date.newInstance(2025, 3, 24)
+    );
+    Boolean thrown = false;
+    try {
+      InvoiceCanonicalService.applyRecognitionBucketCount(
+        new List<InvoiceLine__c>{ line }
+      );
+    } catch (Exception ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('月次バケットの刻み方がありません'),
+        'Accounting 第3.2節・Core 第1.1.10節: 月次方式空を Auto へ落とさない'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void trigger_writesBucketCountAndLineTaxInclusive() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      List<InvoiceLine__c> lines = [
+        SELECT
+          RecognitionBucketCount__c,
+          TaxInclusiveAmount__c,
+          Amount__c,
+          AllocatedTaxAmount__c,
+          AmountCommaText__c,
+          TaxInclusiveCommaText__c,
+          ServicePeriodStartDate__c,
+          ServicePeriodEndDate__c,
+          RevenueRecognitionBasis__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+      ];
+      System.assertEquals(1, lines.size());
+      InvoiceLine__c line = lines[0];
+      InvoiceLine__c expectedComma = new InvoiceLine__c(
+        Amount__c = line.Amount__c,
+        AllocatedTaxAmount__c = line.AllocatedTaxAmount__c
+      );
+      InvoiceCanonicalService.applyYenCommaTexts(
+        new List<InvoiceLine__c>{ expectedComma }
+      );
+      System.assertEquals(
+        '月次計上',
+        ContractMetadataService.normalizeRevenueRecognitionBasis(
+          line.RevenueRecognitionBasis__c
+        )
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 6, 1),
+        line.ServicePeriodStartDate__c
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 8, 31),
+        line.ServicePeriodEndDate__c
+      );
+      System.assertEquals(
+        3,
+        line.RecognitionBucketCount__c,
+        'Accounting 第3.2節: 6/1～8/31 は3'
+      );
+      System.assertEquals(
+        line.Amount__c + nvl(line.AllocatedTaxAmount__c),
+        line.TaxInclusiveAmount__c,
+        'Core 第7.1節: 明細税込は税抜＋明細配分税'
+      );
+      System.assertEquals(
+        expectedComma.AmountCommaText__c,
+        line.AmountCommaText__c,
+        'Accounting 第9.1.1節: Trigger が確認用の明細税抜テキストを書く'
+      );
+      System.assertEquals(
+        expectedComma.TaxInclusiveCommaText__c,
+        line.TaxInclusiveCommaText__c,
+        'Accounting 第9.1.1節: 明細税込テキストは税抜＋明細税'
+      );
+    }
+  }
+
+  @IsTest
+  static void slotKeys_blank_rejected() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = fixture.history.ContractService__c,
+        ContractHistory__c = fixture.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 1000
+      );
+      insert invoice;
+      Boolean thrown = false;
+      try {
+        insert new GlJournal__c(
+          Invoice__c = invoice.Id,
+          Amount__c = 1000,
+          IdempotencyKey__c = 'SLOT-KEYS-BLANK',
+          PostingDate__c = Date.newInstance(2026, 6, 1)
+        );
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('借方・貸方スロットは必須です。'),
+          'Accounting 第9.1節: 借方・貸方スロットキーは必須'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void applyYenCommaTexts_millionAndDiscount() {
+    InvoiceLine__c million = new InvoiceLine__c(
+      Amount__c = 1000000,
+      AllocatedTaxAmount__c = 0
+    );
+    InvoiceCanonicalService.applyYenCommaTexts(new List<InvoiceLine__c>{ million });
+    System.assertEquals(
+      '1,000,000',
+      million.AmountCommaText__c,
+      'Accounting 第9.1.1節: 桁区切りはカンマ（1,000,000）'
+    );
+    System.assertEquals(
+      '1,000,000',
+      million.TaxInclusiveCommaText__c,
+      'Accounting 第9.1.1節: 明細税込は税抜＋明細税'
+    );
+    InvoiceLine__c discount = new InvoiceLine__c(
+      Amount__c = -50000,
+      AllocatedTaxAmount__c = 0
+    );
+    InvoiceCanonicalService.applyYenCommaTexts(new List<InvoiceLine__c>{ discount });
+    System.assertEquals(
+      '-50,000',
+      discount.AmountCommaText__c,
+      'Accounting 第9.1.1節: 値引きは 明細税抜 -50,000円'
+    );
+  }
+
+  @IsTest
+  static void confirmationText_monthlyRevenueBody_matchesSpecExample() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = fixture.history.ContractService__c,
+        ContractHistory__c = fixture.history.Id,
+        InvoiceDate__c = Date.newInstance(2025, 1, 11),
+        Amount__c = 300000,
+        TaxAmount__c = 30000
+      );
+      insert invoice;
+      InvoiceLine__c line = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 300000,
+        AllocatedTaxAmount__c = 30000,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+        ServicePeriodStartDate__c = Date.newInstance(2025, 1, 11),
+        ServicePeriodEndDate__c = Date.newInstance(2025, 3, 24)
+      );
+      insert line;
+      insert new GlJournal__c(
+        Invoice__c = invoice.Id,
+        InvoiceLine__c = line.Id,
+        Amount__c = 100000,
+        IdempotencyKey__c = 'CONF-TEXT-REV-BODY',
+        JournalPatternKey__c = 'BILLING_BASIS_REVENUE_BODY',
+        RecognitionSequence__c = 2,
+        DebitSlotKey__c = 'DEF',
+        CreditSlotKey__c = 'REV',
+        PostingDate__c = Date.newInstance(2025, 2, 10)
+      );
+      GlJournal__c journal = [
+        SELECT ConfirmationText__c, InvoiceLine__r.RecognitionBucketCount__c
+        FROM GlJournal__c
+        WHERE IdempotencyKey__c = 'CONF-TEXT-REV-BODY'
+      ];
+      System.assertEquals(
+        3,
+        journal.InvoiceLine__r.RecognitionBucketCount__c,
+        'Accounting 第3.2節: 1/11～3/24 は3'
+      );
+      System.assertEquals(
+        '明細税抜 300,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目',
+        journal.ConfirmationText__c,
+        'Accounting 第9.1.1節: 売上本体（月次）の確認用'
+      );
+    }
+  }
+
+  @IsTest
+  static void confirmationText_blankWhenNoInvoiceLine() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = fixture.history.ContractService__c,
+        ContractHistory__c = fixture.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 1000
+      );
+      insert invoice;
+      insert new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1000,
+        IdempotencyKey__c = 'CONF-TEXT-MANUAL',
+        DebitSlotKey__c = 'CASH',
+        CreditSlotKey__c = 'REV',
+        PostingDate__c = Date.newInstance(2026, 6, 1)
+      );
+      GlJournal__c journal = [
+        SELECT ConfirmationText__c
+        FROM GlJournal__c
+        WHERE IdempotencyKey__c = 'CONF-TEXT-MANUAL'
+      ];
+      System.assertEquals(
+        '',
+        journal.ConfirmationText__c,
+        'Accounting 第9.1.1節: 請求明細参照が空なら全文空'
+      );
+    }
+  }
+
+  @IsTest
+  static void applyBillingAccountContent_copiesDeliveryMethod() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c invoice = [
+        SELECT Id, BillingAccountSnapShot__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      BillingAccount__c account = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :invoice.BillingAccountSnapShot__c
+      ];
+      account.InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST;
+      update account;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.applyBillingAccountContent(invoice.Id);
+      Test.stopTest();
+      Invoice__c updated = [
+        SELECT InvoiceDeliveryMethodSnapShot__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        InvoiceDeliveryMethodService.POST,
+        updated.InvoiceDeliveryMethodSnapShot__c,
+        'Core 第7.8節: 反映は届け方スナップショットを宛名と同じ集合で載せ直す'
+      );
+    }
+  }
+
+  private static Decimal nvl(Decimal value) {
+    return value == null ? 0 : value;
   }
 
   private class Fixture {
@@ -3284,6 +3540,7 @@ private class InvoiceCanonicalServiceTest {
   }
 
   private static Fixture createOrderedFixture() {
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
     Account account = ContractTestDataFactory.insertAccount(
       'Canonical Invoice Account'
     );
@@ -3291,10 +3548,14 @@ private class InvoiceCanonicalServiceTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_1,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 1,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 

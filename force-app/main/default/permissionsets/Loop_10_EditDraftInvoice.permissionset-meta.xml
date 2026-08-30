@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>10 操作。未確定請求の手直しとメモ。閲覧を含む。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>10 契約 未確定請求を直す</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_10_Can_EditDraftInvoice</name>
+    </customPermissions>
+</PermissionSet>

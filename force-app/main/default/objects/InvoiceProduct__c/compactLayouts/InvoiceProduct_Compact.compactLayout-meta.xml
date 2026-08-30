@@ -8,6 +8,5 @@
     <fields>Quantity__c</fields>
     <fields>UnitPrice__c</fields>
     <fields>Amount__c</fields>
-    <fields>invoicetype__c</fields>
     <label>契約期間明細 コンパクト</label>
 </CompactLayout>

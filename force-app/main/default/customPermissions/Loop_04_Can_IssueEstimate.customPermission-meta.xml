@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>見積書PDFを発行する。送付はしない</description>
+    <isLicensed>false</isLicensed>
+    <label>04 契約 見積書を発行する</label>
+</CustomPermission>

@@ -1,0 +1,201 @@
+<template>
+  <lightning-card title={settingsPageTitle} icon-name="standard:settings">
+    <div class="actions slds-p-horizontal_medium">
+      <lightning-button label="再読込" onclick={load} disabled={loading}></lightning-button>
+      <template lwc:if={canManageOrgSettings}>
+        <lightning-button variant="brand" label="保存" onclick={handleSave} disabled={loading}></lightning-button>
+      </template>
+    </div>
+
+    <template lwc:if={loading}>
+      <lightning-spinner alternative-text="処理中"></lightning-spinner>
+    </template>
+
+    <div class="slds-p-around_medium">
+      <section>
+        <!-- 仕様: Core 第11.6節 -->
+        <h2 class="slds-text-heading_small slds-m-bottom_small">帳票・送付</h2>
+        <p class="slds-text-body_regular slds-m-bottom_small">見積書・請求書の3択、会社情報、組織送信元、既定帳票、既定メールを置く。カタログ本体はリンク先</p>
+        <template for:each={documentDiagnoses} for:item="row">
+          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">
+            <span>{row.message}</span>
+            <template lwc:if={row.linkUrl}>
+              <a class="slds-m-left_xx-small" href={row.linkUrl} target="_blank">{row.linkLabel}</a>
+            </template>
+          </p>
+        </template>
+        <lightning-combobox name="estimateSendMode" label="見積書" value={settings.estimateSendMode} options={sendModeOptions} onchange={handleChange} required></lightning-combobox>
+        <lightning-combobox name="invoiceSendMode" label="請求書" value={settings.invoiceSendMode} options={sendModeOptions} onchange={handleChange} required></lightning-combobox>
+        <div class="slds-grid slds-wrap slds-gutters">
+          <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+            <lightning-input name="companyName" label="会社名" value={settings.companyName} maxlength="255" required={companyNameRequired} onchange={handleChange}></lightning-input>
+            <lightning-textarea name="address" label="住所" value={settings.address} maxlength="255" required={addressRequired} onchange={handleChange}></lightning-textarea>
+            <lightning-input name="invoiceRegistrationNumber" label="適格請求書発行事業者登録番号" value={settings.invoiceRegistrationNumber} maxlength="80" required={invoiceCompanyFieldsRequired} onchange={handleChange}></lightning-input>
+          </div>
+          <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
+            <lightning-combobox name="estimateOrgWideEmailAddress" label="見積の組織送信元" field-level-help="PDFとメール送付でも空でよい。Fromで組織を選んだときだけ使う。" value={settings.estimateOrgWideEmailAddress} options={orgWideEmailAddresses} onchange={handleChange}></lightning-combobox>
+            <lightning-combobox name="invoiceOrgWideEmailAddress" label="請求の組織送信元" field-level-help="請求がPDFとメール送付のときは必須。" value={settings.invoiceOrgWideEmailAddress} options={orgWideEmailAddresses} required={invoiceOrgWideRequired} onchange={handleChange}></lightning-combobox>
+            <lightning-input type="url" name="privacyPolicyUrl" label="プライバシーポリシーURL" value={settings.privacyPolicyUrl} onchange={handleChange}></lightning-input>
+            <lightning-textarea name="documentFooter" label="帳票フッター" value={settings.documentFooter} onchange={handleChange}></lightning-textarea>
+            <lightning-textarea name="bankTransferInfo" label="振込先情報" value={settings.bankTransferInfo} required={invoiceCompanyFieldsRequired} onchange={handleChange}></lightning-textarea>
+          </div>
+        </div>
+        <div class="slds-grid slds-wrap slds-gutters">
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="estimateDefaultDocumentTemplateKey" label="見積の既定帳票テンプレート" value={settings.estimateDefaultDocumentTemplateKey} options={estimateDocumentTemplates} required={estimateDefaultDocumentRequired} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="estimateDefaultEmailTemplateApiName" label="見積の既定メール" value={settings.estimateDefaultEmailTemplateApiName} options={estimateEmailTemplates} required={estimateDefaultEmailRequired} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="invoiceDefaultDocumentTemplateKey" label="請求の既定帳票テンプレート" value={settings.invoiceDefaultDocumentTemplateKey} options={invoiceDocumentTemplates} required={invoiceDefaultDocumentRequired} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="invoiceDefaultEmailTemplateApiName" label="請求の既定メール" value={settings.invoiceDefaultEmailTemplateApiName} options={invoiceEmailTemplates} required={invoiceDefaultEmailRequired} onchange={handleChange}></lightning-combobox>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <!-- 仕様: Core 第11.6節、第11.5節、日付仕様 第2.5節、第2.6節 -->
+        <h2 class="slds-text-heading_small slds-m-bottom_small">契約</h2>
+        <p class="slds-text-body_regular slds-m-bottom_small">継続課金の既定サイクル数、見積有効期間、更新商談スイッチを置く</p>
+        <template for:each={contractDiagnoses} for:item="row">
+          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">{row.message}</p>
+        </template>
+        <div class="slds-grid slds-wrap slds-gutters">
+          <lightning-input
+            class="slds-col slds-size_1-of-1 slds-large-size_1-of-2"
+            type="number"
+            name="defaultMonthlyCycles"
+            label="継続課金の既定サイクル数"
+            value={settings.defaultMonthlyCycles}
+            min="1"
+            max="36"
+            step="1"
+            required
+            onchange={handleChange}
+          ></lightning-input>
+          <lightning-input
+            class="slds-col slds-size_1-of-1 slds-large-size_1-of-2"
+            type="number"
+            name="estimateValidMonths"
+            label="見積有効期間"
+            value={settings.estimateValidMonths}
+            min="1"
+            max="12"
+            step="1"
+            required
+            onchange={handleChange}
+          ></lightning-input>
+        </div>
+        <lightning-input
+          type="checkbox"
+          name="renewOpportunityEnabled"
+          label="更新商談を利用する"
+          checked={settings.renewOpportunityEnabled}
+          onchange={handleChange}
+        ></lightning-input>
+      </section>
+
+      <section class="slds-m-top_large">
+        <!-- 仕様: Core 第11.6節、第11.9節 -->
+        <h2 class="slds-text-heading_small slds-m-bottom_small">金額計算</h2>
+        <p class="slds-text-body_regular slds-m-bottom_small">丸め・按分。変更しても保存済みは再計算しない</p>
+        <template for:each={amountDiagnoses} for:item="row">
+          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">
+            <span>{row.message}</span>
+            <template lwc:if={row.linkUrl}>
+              <a class="slds-m-left_xx-small" href={row.linkUrl} target="_blank">{row.linkLabel}</a>
+            </template>
+          </p>
+        </template>
+        <p class="slds-text-body_regular slds-m-bottom_small">{amountCalculationWarning}</p>
+        <div class="slds-grid slds-wrap slds-gutters">
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxRoundingMode" label="税額丸め" value={settings.taxRoundingMode} options={taxRoundingModeOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="quantityUnitPriceRoundingMode" label="数量・単価の丸め" value={settings.quantityUnitPriceRoundingMode} options={quantityUnitPriceRoundingModeOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="amountRoundingMode" label="税抜金額の丸め" value={settings.amountRoundingMode} options={amountRoundingModeOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxLineAllocationMethod" label="ヘッダ税の明細配分" value={settings.taxLineAllocationMethod} options={taxLineAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="allocationTieBreak" label="同率の決定順" value={settings.allocationTieBreak} options={allocationTieBreakOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="monthlyBucketAmountMethod" label="月次バケットの金額" value={settings.monthlyBucketAmountMethod} options={monthlyBucketAmountMethodOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxScheduleAllocationMethod" label="税のスケジュール配分" value={settings.taxScheduleAllocationMethod} options={taxScheduleAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="paymentLineAllocationMethod" label="一部入返金の初期配分" value={settings.paymentLineAllocationMethod} options={paymentLineAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="accountBalanceAllocationMethod" label="複数実勘定への配分" value={settings.accountBalanceAllocationMethod} options={accountBalanceAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="documentGroupTaxAllocationMethod" label="帳票グループ税込" value={settings.documentGroupTaxAllocationMethod} options={documentGroupTaxAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <!-- 仕様: Core 第11.6節・第11.4.2節、Accounting 第3.1節 -->
+        <h2 class="slds-text-heading_small slds-m-bottom_small">Accounting方針</h2>
+        <p class="slds-text-body_regular slds-m-bottom_small">利用有無と方針。未固定なら変更可。固定後は参照専用。コピー定義の検証は任意</p>
+        <template for:each={policyDiagnoses} for:item="row">
+          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">
+            <span>{row.message}</span>
+            <template lwc:if={row.linkUrl}>
+              <a class="slds-m-left_xx-small" href={row.linkUrl} target="_blank">{row.linkLabel}</a>
+            </template>
+          </p>
+        </template>
+        <lightning-input type="checkbox" name="accountingEnabled" label="仕訳機能の利用有無" checked={settings.accountingEnabled} disabled={policyFrozen} onchange={handleChange}></lightning-input>
+        <div class="slds-grid slds-wrap slds-gutters">
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="revenueRecognitionBasis" label="売上計上方針" value={settings.revenueRecognitionBasis} options={revenueRecognitionBasisOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxRecognitionTiming" label="税認識方針" value={settings.taxRecognitionTiming} options={taxRecognitionTimingOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="monthlyBucketMethod" label="月次バケットの刻み方" value={settings.monthlyBucketMethod} options={monthlyBucketMethodOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="monthlyRecognitionDatePosition" label="月次計上の計上日位置" value={settings.monthlyRecognitionDatePosition} options={monthlyRecognitionDatePositionOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="roundingTargetBucket" label="端数の寄せ先" value={settings.roundingTargetBucket} options={roundingTargetBucketOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+        </div>
+        <template lwc:if={policyFrozen}>
+          <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
+            <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="固定者" value={settings.frozenByName} disabled></lightning-input>
+            <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="固定日時" value={settings.frozenAtLabel} disabled></lightning-input>
+          </div>
+        </template>
+        <!-- 仕様: Core 第11.6節・第11.4.2節。保存とは別。固定後も実行できる。操作キーは置かない。 -->
+        <div class="slds-m-top_small">
+          <template lwc:if={canManageOrgSettings}>
+            <lightning-button label="コピー設定を検証" onclick={handleValidateFieldCopy} disabled={loading}></lightning-button>
+          </template>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <!-- 仕様: Core 第11.6節 -->
+        <h2 class="slds-text-heading_small slds-m-bottom_small">入力</h2>
+        <p class="slds-text-body_regular slds-m-bottom_small">顧客固有 Validation Rule の強制</p>
+        <template for:each={inputDiagnoses} for:item="row">
+          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">{row.message}</p>
+        </template>
+        <lightning-input
+          type="checkbox"
+          name="validationEnforce"
+          label="顧客固有Validation Ruleの強制"
+          checked={settings.validationEnforce}
+          onchange={handleChange}
+        ></lightning-input>
+      </section>
+
+      <section class="slds-m-top_large">
+        <!-- 仕様: Core 第11.6節 -->
+        <h2 class="slds-text-heading_small slds-m-bottom_small">システム</h2>
+        <p class="slds-text-body_regular slds-m-bottom_small">請求・入出金・仕訳のロック除外項目</p>
+        <template for:each={systemDiagnoses} for:item="row">
+          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">{row.message}</p>
+        </template>
+        <lightning-textarea
+          name="lockExemptFieldApiNames"
+          label="請求ロック除外項目"
+          value={settings.lockExemptFieldApiNames}
+          maxlength="255"
+          onchange={handleChange}
+        ></lightning-textarea>
+        <lightning-textarea
+          name="paymentLockExemptFieldApiNames"
+          label="入出金ロック除外項目"
+          value={settings.paymentLockExemptFieldApiNames}
+          maxlength="255"
+          onchange={handleChange}
+        ></lightning-textarea>
+        <lightning-textarea
+          name="journalLockExemptFieldApiNames"
+          label="仕訳ロック除外項目"
+          value={settings.journalLockExemptFieldApiNames}
+          maxlength="255"
+          onchange={handleChange}
+        ></lightning-textarea>
+      </section>
+    </div>
+  </lightning-card>
+</template>

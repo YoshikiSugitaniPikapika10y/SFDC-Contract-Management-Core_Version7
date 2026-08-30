@@ -4,6 +4,8 @@ import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import { getRecordNotifyChange } from "lightning/uiRecordApi";
 import { refreshApex } from "@salesforce/apex";
 import saveEstimate from "@salesforce/apex/EstimateCreateController.saveEstimate";
+import issueEstimateOperationKey from "@salesforce/apex/EstimateCreateController.issueEstimateOperationKey";
+import getDocumentDefaults from "@salesforce/apex/EstimateCreateController.getDocumentDefaults";
 import getEstimateCopyPreset from "@salesforce/apex/EstimateCreateController.getEstimateCopyPreset";
 import getEstimateEditPreset from "@salesforce/apex/EstimateCreateController.getEstimateEditPreset";
 import getLatestContractHistory from "@salesforce/apex/EstimateCreateController.getLatestContractHistory";
@@ -11,9 +13,11 @@ import getContractServiceFieldDefinitions from "@salesforce/apex/ContractWizardF
 import getContractHistoryFieldDefinitions from "@salesforce/apex/ContractWizardFieldService.getContractHistoryFieldDefinitions";
 import getContractProductFieldDefinitions from "@salesforce/apex/ContractWizardFieldService.getContractProductFieldDefinitions";
 import getOpportunityDefaultContext from "@salesforce/apex/ContractWizardFieldService.getOpportunityDefaultContext";
+import getOrderHistoryFieldDefinitions from "@salesforce/apex/OrderWizardFieldService.getDefinitions";
 import {
   validateBillingPeriod,
   validateNewProducts,
+  validateSpotChangeProducts,
   validateNewEffectiveDate,
   validateRenewProducts,
   validateRenewEffectiveDate,
@@ -25,7 +29,8 @@ import {
   buildChangeSameProductNewConfirmMessage,
   isValidIsoDate,
   validateAmountEntryUnitPrices,
-  isChangeOriginalLine
+  isChangeOriginalLine,
+  productTypeDisplayLabel
 } from "c/estimateLineItemUtils";
 import {
   buildWizardValidationAlert,
@@ -34,13 +39,15 @@ import {
 } from "c/estimateValidationAlertUtils";
 import { requestEstimateWizardClose } from "c/estimateWizardClose";
 import { validateCustomFieldMaps } from "c/estimateWizardCustomFields";
+import hasEstimate from "@salesforce/customPermission/Loop_03_Can_Estimate";
 import {
   WIZARD_ACTIONS,
   createInitialWizardState,
   reduceWizardState,
   buildPresetKey,
   canLeaveCurrentStep,
-  shouldLoadPreset
+  shouldLoadPreset,
+  applyEstimateDocumentDefaults
 } from "c/estimateWizardState";
 
 export default class EstimateCreateWizard extends LightningElement {
@@ -55,6 +62,8 @@ export default class EstimateCreateWizard extends LightningElement {
   _confirmState = null;
   /** 保存クリックの同期ガード（isSaving 再描画前の二重実行防止） */
   _saveInFlight = false;
+  /** 仕様: Core 第4.3.12節。押下時発行。応答前の連打は別キーにしないよう保持する */
+  _pendingOperationKey = "";
   /** このセッション中に保存が成功したか（未保存で閉じる際の確認表示に使用） */
   _saveSucceededThisSession = false;
   _wizardInitialized = false;
@@ -67,6 +76,7 @@ export default class EstimateCreateWizard extends LightningElement {
 
   serviceFieldDefinitions = [];
   historyFieldDefinitions = [];
+  orderHistoryFieldDefinitions = [];
   productFieldDefinitions = [];
   opportunityDefaultContext = {};
   /**
@@ -294,6 +304,17 @@ export default class EstimateCreateWizard extends LightningElement {
     );
   }
 
+  // 仕様: Core 第4.3節、第4.3.1節
+  get displayedHistoryFieldDefinitions() {
+    if (!this.isOrderedCustomFieldsOnlyEdit) {
+      return this.historyFieldDefinitions;
+    }
+    return [
+      ...(this.historyFieldDefinitions || []),
+      ...(this.orderHistoryFieldDefinitions || [])
+    ];
+  }
+
   get showWizard() {
     return this.isTabView || this.modalMode;
   }
@@ -334,6 +355,10 @@ export default class EstimateCreateWizard extends LightningElement {
   }
   get isStep2() {
     return this.currentStep === 2;
+  }
+
+  get canSaveEstimate() {
+    return hasEstimate === true;
   }
   /** @deprecated 2段階構成では詳細情報＝Step2。保存ボタン表示用に残す。 */
   get isStep3() {
@@ -377,7 +402,14 @@ export default class EstimateCreateWizard extends LightningElement {
   }
 
   get typeLabel() {
-    return this.wizardData.selectedType || "New";
+    const labels = {
+      New: "新規",
+      Change: "追加変更",
+      Renew: "更新",
+      Cancel: "解約"
+    };
+    const value = this.wizardData.selectedType || "New";
+    return labels[value] || value;
   }
 
   get step1PanelClass() {
@@ -642,10 +674,16 @@ export default class EstimateCreateWizard extends LightningElement {
 
   /** Change / Renew / Cancel で継続課金の期間整合がないときの共通メッセージ。 */
   renewEligibleFalseMessage(selectedType) {
+    const labels = {
+      Change: "追加変更",
+      Renew: "更新",
+      Cancel: "解約"
+    };
+    const typeLabel = labels[selectedType] || selectedType;
     return (
-      "前回Versionの期間終了日と一致する継続課金商品がありません。" +
-      selectedType +
-      "できません。Newで作成してください。"
+      "前回の版の期間終了日と一致する継続課金商品がありません。" +
+      typeLabel +
+      "できません。新規で作成してください。"
     );
   }
 
@@ -657,18 +695,22 @@ export default class EstimateCreateWizard extends LightningElement {
     const d = this.wizardData;
     const type = d && d.selectedType;
     if (type !== "Change" && type !== "Renew" && type !== "Cancel") {
-      // New / Add へ切替えたあとに Change 不可メッセージが残らないようにする
+      // New へ切替えたあとに Change 不可メッセージが残らないようにする
       this.clearValidationAlert();
+      return;
+    }
+    if (d.serviceLifecycle === "Spot") {
+      if (type === "Renew" || type === "Cancel") {
+        this.showValidationAlert(
+          "都度契約では更新／解約は使えません。一回課金だけの追加変更を使ってください。"
+        );
+      } else {
+        this.clearValidationAlert();
+      }
       return;
     }
     if (d.renewEligible === false) {
       this.showValidationAlert(this.renewEligibleFalseMessage(type));
-      return;
-    }
-    if (d.serviceLifecycle === "Spot") {
-      this.showValidationAlert(
-        "都度契約では Change / Renew / Cancel は使えません。Add を選んでください。"
-      );
       return;
     }
     if (d.renewEligible === true) {
@@ -698,6 +740,7 @@ export default class EstimateCreateWizard extends LightningElement {
     this.validationAlert = null;
     this.wizardState = createInitialWizardState();
     this._wizardInitialized = false;
+    this.loadDocumentDefaults();
     // eslint-disable-next-line @lwc/lwc/no-async-operation
     Promise.resolve().then(() => {
       this.refreshWizardReferenceWires();
@@ -778,7 +821,65 @@ export default class EstimateCreateWizard extends LightningElement {
     if (!this._wizardInitialized) {
       this._wizardInitialized = true;
       this.dispatch({ type: WIZARD_ACTIONS.INITIALIZE_NEW });
+      this.loadDocumentDefaults();
     }
+  }
+
+  loadDocumentDefaults() {
+    const session = this._contentSessionSeq;
+    this._documentDefaultsRequestSeq = (this._documentDefaultsRequestSeq || 0) + 1;
+    const requestSeq = this._documentDefaultsRequestSeq;
+    this.wizardState = {
+      ...this.wizardState,
+      async: { ...this.wizardState.async, loadingDocumentDefaults: true }
+    };
+    getDocumentDefaults()
+      .then((defaults) => {
+        if (
+          session !== this._contentSessionSeq ||
+          requestSeq !== this._documentDefaultsRequestSeq
+        ) {
+          return;
+        }
+        this._documentDefaults = defaults;
+        this.wizardState = applyEstimateDocumentDefaults(
+          {
+            ...this.wizardState,
+            async: {
+              ...this.wizardState.async,
+              loadingDocumentDefaults: false
+            }
+          },
+          defaults
+        );
+      })
+      .catch((error) => {
+        if (
+          session !== this._contentSessionSeq ||
+          requestSeq !== this._documentDefaultsRequestSeq
+        ) {
+          return;
+        }
+        this.wizardState = {
+          ...this.wizardState,
+          async: { ...this.wizardState.async, loadingDocumentDefaults: false }
+        };
+        const message =
+          (error && error.body && error.body.message) ||
+          error.message ||
+          "契約帳票・送付設定を読めませんでした。";
+        this.showToast("エラー", message, "error");
+      });
+  }
+
+  reapplyDocumentDefaultsFromCache() {
+    if (!this._documentDefaults) {
+      return;
+    }
+    this.wizardState = applyEstimateDocumentDefaults(
+      this.wizardState,
+      this._documentDefaults
+    );
   }
 
   ensurePresetLoaded() {
@@ -842,6 +943,7 @@ export default class EstimateCreateWizard extends LightningElement {
         key
       });
       this.clearValidationAlert();
+      await this.loadOrderHistoryFieldDefinitions(preset);
     } catch (error) {
       if (session !== this._contentSessionSeq) {
         return;
@@ -857,6 +959,23 @@ export default class EstimateCreateWizard extends LightningElement {
         key,
         message
       });
+    }
+  }
+
+  async loadOrderHistoryFieldDefinitions(preset) {
+    const isOrdered =
+      String(preset?.historyStatus || "").toLowerCase() === "ordered";
+    if (!isOrdered) {
+      this.orderHistoryFieldDefinitions = [];
+      return;
+    }
+    try {
+      this.orderHistoryFieldDefinitions = await getOrderHistoryFieldDefinitions({
+        wizardType: preset.selectedType || ""
+      });
+    } catch (error) {
+      this.orderHistoryFieldDefinitions = [];
+      this.wizardFieldConfigError = this.resolveApexErrorMessage(error);
     }
   }
 
@@ -897,16 +1016,16 @@ export default class EstimateCreateWizard extends LightningElement {
       type: WIZARD_ACTIONS.SET_TYPE,
       selectedType: nextType
     });
-    // New との往復だけ契約特定パネルを作り直す。
-    // Change/Renew/Cancel/Add 同士や、サービス選択後の初回操作では維持する。
-    const remount =
-      previousType === "New" ||
-      nextType === "New" ||
-      (previousType === "" && !hadService);
-    if (remount) {
+    // 仕様: Core 第4.3節、第4.3.7節。種別を変えたら契約選択を作り直す。
+    // サービス選択後の初回操作選択（"" → Change 等）だけパネルを維持する。
+    const typeChanged = previousType !== (nextType || "");
+    const keepContinuationFirstSelect =
+      previousType === "" && hadService && nextType !== "New";
+    if (typeChanged && !keepContinuationFirstSelect) {
       this.remountContractPanel();
     }
     this.maybeShowIneligibleOperationAlert();
+    this.reapplyDocumentDefaultsFromCache();
   }
 
   handleOpportunityLoaded(event) {
@@ -914,7 +1033,8 @@ export default class EstimateCreateWizard extends LightningElement {
     this.dispatch({
       type: WIZARD_ACTIONS.SET_OPPORTUNITY,
       opportunityName: detail.opportunityName,
-      accountName: detail.accountName
+      accountName: detail.accountName,
+      opportunityContactId: detail.opportunityContactId
     });
   }
 
@@ -954,6 +1074,7 @@ export default class EstimateCreateWizard extends LightningElement {
         result
       });
       this.maybeShowIneligibleOperationAlert();
+      this.reapplyDocumentDefaultsFromCache();
     } catch {
       this.dispatch({
         type: WIZARD_ACTIONS.SELECT_CONTRACT_SERVICE_FAILURE,
@@ -1052,6 +1173,10 @@ export default class EstimateCreateWizard extends LightningElement {
         this.showValidationAlert(
           "契約履歴を読み込み中です。完了してから次へ進んでください。"
         );
+      } else if (this.wizardState.async.loadingDocumentDefaults) {
+        this.showValidationAlert(
+          "見積書の初期値を読み込み中です。完了してから次へ進んでください。"
+        );
       }
       return;
     }
@@ -1067,7 +1192,30 @@ export default class EstimateCreateWizard extends LightningElement {
     }
   }
 
+  /** 仕様: Core 第4.3.4節、第4.6節 */
+  validateTaxPercent(taxPercent) {
+    if (taxPercent === "" || taxPercent == null) {
+      return "消費税率を入力してください。空欄は0%になりません。";
+    }
+    const numeric = Number(taxPercent);
+    if (!Number.isFinite(numeric)) {
+      return "消費税率が不正です。";
+    }
+    if (numeric < 0) {
+      return "消費税率が不正です（負の値は指定できません）。";
+    }
+    if (numeric > 0 && numeric < 1) {
+      return "消費税率は0〜100のパーセント値で入力してください。";
+    }
+    if (numeric > 100) {
+      return "消費税率が不正です（100を超える値は指定できません）。";
+    }
+    return null;
+  }
+
   /**
+   * 仕様: Core 第4.3.3節、第3.2節、第3.4節、第1.1.8節、第1.1.10節。
+   * 未設定の請求アカウントは見積保存しない。取引先の無い商談は画面で止める。
    * Step1（基本情報）: タイプと契約の特定。追加項目は見ない。
    */
   validateStep1() {
@@ -1084,11 +1232,21 @@ export default class EstimateCreateWizard extends LightningElement {
     }
 
     if (d.selectedType === "New") {
+      if (!d.accountName) {
+        return "商談に取引先が設定されていません。";
+      }
       if (!d.contractServiceName || !d.contractServiceName.trim()) {
         return "契約サービス名を入力してください。";
       }
       if (!d.contractHistoryName || !d.contractHistoryName.trim()) {
         return "契約履歴名を入力してください。";
+      }
+      if (!d.billingAccountId) {
+        return "請求アカウントを選択してください。";
+      }
+      const taxError = this.validateTaxPercent(d.taxPercent);
+      if (taxError) {
+        return taxError;
       }
       return null;
     }
@@ -1100,7 +1258,7 @@ export default class EstimateCreateWizard extends LightningElement {
       return "契約サービス名を入力してください。";
     }
     if (!d.contractHistoryId) {
-      return "選択した契約サービスに、受注済み（New／Change／Renew）の契約履歴がありません。";
+      return "選択した契約サービスに、受注済み（新規／追加変更／更新）の契約履歴がありません。";
     }
     if (!d.contractHistoryName || !d.contractHistoryName.trim()) {
       return "契約履歴名を入力してください。";
@@ -1108,11 +1266,11 @@ export default class EstimateCreateWizard extends LightningElement {
     if (!d.serviceLifecycle) {
       return "ライフサイクルが未設定です。先にバックフィルしてください。";
     }
-    if (d.selectedType === "Add") {
-      if (d.serviceLifecycle !== "Spot") {
-        return "Add は都度契約（Spot）の契約サービスのみ選択できます。";
-      }
-      return null;
+    if (!d.billingAccountId) {
+      return "請求アカウントを選択してください。";
+    }
+    if (d.selectedType === "Change" && d.serviceLifecycle === "Spot") {
+      return this.validateTaxPercent(d.taxPercent);
     }
     if (
       (d.selectedType === "Change" ||
@@ -1123,14 +1281,12 @@ export default class EstimateCreateWizard extends LightningElement {
       return this.renewEligibleFalseMessage(d.selectedType);
     }
     if (
-      (d.selectedType === "Change" ||
-        d.selectedType === "Renew" ||
-        d.selectedType === "Cancel") &&
+      (d.selectedType === "Renew" || d.selectedType === "Cancel") &&
       d.serviceLifecycle === "Spot"
     ) {
-      return "都度契約では Change / Renew / Cancel は使えません。Add を選んでください。";
+      return "都度契約では更新／解約は使えません。一回課金だけの追加変更を使ってください。";
     }
-    return null;
+    return this.validateTaxPercent(d.taxPercent);
   }
 
   /**
@@ -1144,20 +1300,26 @@ export default class EstimateCreateWizard extends LightningElement {
       return this.validateOrderedCustomFieldsOnly(d);
     }
 
+    const taxError = this.validateTaxPercent(d.taxPercent);
+    if (taxError) {
+      return taxError;
+    }
+
     if (!d.contractHistoryName || !d.contractHistoryName.trim()) {
       return "契約履歴名を入力してください。";
     }
 
-    // 表示中かつ Required のカスタムは種別問わず必須（Cancel 含む。備考 UI のみ Cancel 非表示）
-    const serviceCustomError = validateCustomFieldMaps(
-      this.serviceFieldDefinitions,
-      d.contractServiceCustomFields,
-      "契約サービス",
-      undefined,
-      d.selectedType
-    );
-    if (serviceCustomError) {
-      return serviceCustomError;
+    if (type === "New") {
+      const serviceCustomError = validateCustomFieldMaps(
+        this.serviceFieldDefinitions,
+        d.contractServiceCustomFields,
+        "契約サービス",
+        undefined,
+        d.selectedType
+      );
+      if (serviceCustomError) {
+        return serviceCustomError;
+      }
     }
     const historyCustomError = validateCustomFieldMaps(
       this.historyFieldDefinitions,
@@ -1182,8 +1344,9 @@ export default class EstimateCreateWizard extends LightningElement {
         row.billingType === "継続課金"
     );
     const isNewSpotOnly = type === "New" && !hasRecurringLines;
+    const isSpotChange = type === "Change" && d.serviceLifecycle === "Spot";
 
-    if (type === "Add" || isNewSpotOnly) {
+    if (isNewSpotOnly || isSpotChange) {
       // 契約期間・切替日は不要
     } else {
       if (!d.contractStartDate) {
@@ -1210,12 +1373,6 @@ export default class EstimateCreateWizard extends LightningElement {
       }
     }
 
-    if (type === "Add") {
-      if (hasRecurringLines) {
-        return "Add では一回課金商品のみ指定できます。";
-      }
-    }
-
     if (type === "Renew") {
       const effectiveDateError = validateRenewEffectiveDate(
         d.contractStartDate,
@@ -1227,7 +1384,7 @@ export default class EstimateCreateWizard extends LightningElement {
       }
     }
 
-    if (type === "Change") {
+    if (type === "Change" && !isSpotChange) {
       if (d.renewEligible === false) {
         return this.renewEligibleFalseMessage("Change");
       }
@@ -1280,7 +1437,7 @@ export default class EstimateCreateWizard extends LightningElement {
     if (
       (type === "New" && !isNewSpotOnly) ||
       type === "Renew" ||
-      type === "Change"
+      (type === "Change" && !isSpotChange)
     ) {
       if (!d.contractEndDate) {
         return `${periodEndLabel}を入力してください。`;
@@ -1289,7 +1446,8 @@ export default class EstimateCreateWizard extends LightningElement {
 
     if (
       (type === "Change" || type === "Renew" || type === "New") &&
-      !isNewSpotOnly
+      !isNewSpotOnly &&
+      !isSpotChange
     ) {
       if (
         d.contractStartDate &&
@@ -1307,14 +1465,25 @@ export default class EstimateCreateWizard extends LightningElement {
       return amountEntryError;
     }
 
-    if (type === "New" || type === "Add") {
+    if (type === "New") {
+      // 仕様: Core 第4.3.5節、第4.5.2節、第1.1.8節。
       const newError = validateNewProducts(
         products,
-        isNewSpotOnly || type === "Add" ? "" : d.contractStartDate,
-        isNewSpotOnly || type === "Add" ? "" : d.contractEndDate
+        isNewSpotOnly ? "" : d.contractStartDate,
+        isNewSpotOnly ? "" : d.contractEndDate
       );
       if (newError) {
         return newError;
+      }
+      return this.validateProductCustomFields(products);
+    }
+
+    if (isSpotChange) {
+      // 仕様: Core 第5.1節、第3.4.2節、第1.1.10節、第1.1.8節。
+      // 一回課金 Type=New 限定は画面で止める。共通明細規則は validateNewProducts。
+      const spotError = validateSpotChangeProducts(products);
+      if (spotError) {
+        return spotError;
       }
       return this.validateProductCustomFields(products);
     }
@@ -1335,7 +1504,7 @@ export default class EstimateCreateWizard extends LightningElement {
       return this.validateProductCustomFields(products);
     }
 
-    if (type === "Change") {
+    if (type === "Change" && !isSpotChange) {
       if (d.renewEligible === false) {
         return this.renewEligibleFalseMessage("Change");
       }
@@ -1358,13 +1527,13 @@ export default class EstimateCreateWizard extends LightningElement {
       const line = products[i];
       const periodError = validateBillingPeriod(line);
       if (periodError) {
-        const label = line.typeLabel || `${i + 1}行目`;
+        const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
         return `商品明細（${label}）: ${periodError}`;
       }
       if (line.amount == null && line.productId) {
         const qty = Number(line.quantity);
         if (Number.isNaN(qty) || qty !== 0) {
-          const label = line.typeLabel || `${i + 1}行目`;
+          const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
           return `商品明細（${label}）: 金額を計算できません。期間を確認してください。`;
         }
       }
@@ -1385,7 +1554,7 @@ export default class EstimateCreateWizard extends LightningElement {
       return serviceCustomError;
     }
     const historyCustomError = validateCustomFieldMaps(
-      this.historyFieldDefinitions,
+      this.displayedHistoryFieldDefinitions,
       d.contractHistoryCustomFields,
       "契約履歴",
       undefined,
@@ -1416,7 +1585,7 @@ export default class EstimateCreateWizard extends LightningElement {
       const error = validateCustomFieldMaps(
         this.productFieldDefinitions,
         line.customFields,
-        `商品明細（${line.typeLabel || `${i + 1}行目`}）`,
+        `商品明細（${productTypeDisplayLabel(line.recordType, line.typeLabel)}）`,
         line.productVisibilityContext,
         wizardType
       );
@@ -1447,12 +1616,11 @@ export default class EstimateCreateWizard extends LightningElement {
         type !== "New" &&
         type !== "Change" &&
         type !== "Renew" &&
-        type !== "Cancel" &&
-        type !== "Add"
+        type !== "Cancel"
       ) {
         this.showToast(
           "情報",
-          "New、Change、Renew、Cancel、Addタイプのみ保存できます。",
+          "新規、追加変更、更新、解約のみ保存できます。",
           "info"
         );
         return;
@@ -1467,6 +1635,9 @@ export default class EstimateCreateWizard extends LightningElement {
 
       this.dispatch({ type: WIZARD_ACTIONS.SAVE_START });
       try {
+        if (!this._pendingOperationKey) {
+          this._pendingOperationKey = await issueEstimateOperationKey();
+        }
         const result = await saveEstimate({
           opportunityId: this.effectiveRecordId,
           selectedType: type,
@@ -1477,9 +1648,7 @@ export default class EstimateCreateWizard extends LightningElement {
           contractStartDate: this.wizardData.contractStartDate,
           contractEndDate: this.wizardData.contractEndDate,
           effectiveDate: this.wizardData.contractEffectiveDate,
-          // Apex mergeApplicationDateIntoHistoryCustomFields 用。
-          // 通常は contractHistoryCustomFieldsJson.ApplicationDate__c が正。
-          applicationDate: this.resolveApplicationDateForSave(),
+          applicationDate: null,
           productsJson: JSON.stringify(this.wizardData.selectedProducts || []),
           estimateRemarkMasterId:
             this.wizardData.estimateRemarkMasterId || null,
@@ -1490,14 +1659,25 @@ export default class EstimateCreateWizard extends LightningElement {
             : this.copyFromHistoryId || null,
           editHistoryId: this.isEditMode ? this.editHistoryId || null : null,
           contractServiceCustomFieldsJson: JSON.stringify(
-            this.wizardData.contractServiceCustomFields || {}
+            type === "New"
+              ? this.wizardData.contractServiceCustomFields || {}
+              : {}
           ),
           contractHistoryCustomFieldsJson: JSON.stringify(
             this.wizardData.contractHistoryCustomFields || {}
           ),
           expectedLastModifiedToken: this.isEditMode
             ? this.wizardData.lastModifiedToken || null
-            : null
+            : null,
+          taxPercent:
+            this.wizardData.taxPercent == null ||
+            this.wizardData.taxPercent === ""
+              ? null
+              : Number(this.wizardData.taxPercent),
+          estimateDate: this.wizardData.estimateDate || null,
+          estimateValidDate: this.wizardData.estimateValidDate || null,
+          estimateSendContactId: this.wizardData.estimateSendContactId || null,
+          businessOperationKey: this._pendingOperationKey
         });
         // 連続保存用に楽観ロックトークンを更新
         if (result?.lastModifiedToken) {
@@ -1506,7 +1686,11 @@ export default class EstimateCreateWizard extends LightningElement {
             fields: { lastModifiedToken: result.lastModifiedToken }
           });
         }
+        if (result?.businessOperationKey) {
+          this._pendingOperationKey = result.businessOperationKey;
+        }
         this._saveSucceededThisSession = true;
+        this._pendingOperationKey = "";
         this.showToast(
           "成功",
           this.isEditMode

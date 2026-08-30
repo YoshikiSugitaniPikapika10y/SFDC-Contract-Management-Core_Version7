@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>仕様: Core 第11.3.2節。見積・請求の送付メール候補。1行が候補1つ。同梱行は Contract_Standard_Estimate_Email / Contract_Standard_Invoice_Email。</description>
+    <label>契約送付メールカタログ</label>
+    <pluralLabel>契約送付メールカタログ</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

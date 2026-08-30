@@ -16,7 +16,6 @@ public without sharing class ContractDomainConstants {
   public static final String HISTORY_TYPE_CHANGE = 'Change';
   public static final String HISTORY_TYPE_RENEW = 'Renew';
   public static final String HISTORY_TYPE_CANCEL = 'Cancel';
-  public static final String HISTORY_TYPE_ADD = 'Add';
 
   public static final String LIFECYCLE_TERM = 'Term';
   public static final String LIFECYCLE_SPOT = 'Spot';

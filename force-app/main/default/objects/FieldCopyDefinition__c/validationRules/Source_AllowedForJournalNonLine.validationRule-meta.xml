@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Source_AllowedForJournalNonLine</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。明細外仕訳だけのFrom。</description>
+    <errorConditionFormula>AND(
+        ISPICKVAL(TargetObject__c, "GlJournal__c"),
+        INCLUDES(Context__c, "NonLineJournal"),
+        NOT(INCLUDES(Context__c, "LineJournal")),
+        NOT(
+            OR(
+                ISPICKVAL(SourceObject__c, "Invoice__c"),
+                ISPICKVAL(SourceObject__c, "BillingAccount__c"),
+                ISPICKVAL(SourceObject__c, "ContractHistory__c"),
+                ISPICKVAL(SourceObject__c, "Opportunity"),
+                ISPICKVAL(SourceObject__c, "Account"),
+                ISPICKVAL(SourceObject__c, "InvoicePayment__c")
+            )
+        )
+    )</errorConditionFormula>
+    <errorDisplayField>SourceObject__c</errorDisplayField>
+    <errorMessage>明細外仕訳のFromにこのオブジェクトは選べません。</errorMessage>
+</ValidationRule>

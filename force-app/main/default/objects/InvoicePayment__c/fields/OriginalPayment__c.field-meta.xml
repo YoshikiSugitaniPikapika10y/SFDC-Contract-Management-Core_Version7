@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>OriginalPayment__c</fullName>
+    <description>取消入金が参照する元入金。システムが自動設定。</description>
+    <label>取消元入金</label>
+    <referenceTo>InvoicePayment__c</referenceTo>
+    <relationshipLabel>取消入金</relationshipLabel>
+    <relationshipName>CancellationPayments</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

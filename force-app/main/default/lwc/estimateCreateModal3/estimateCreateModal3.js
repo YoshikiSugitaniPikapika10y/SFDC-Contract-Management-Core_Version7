@@ -1,3 +1,4 @@
+// 仕様: Core 第4.10節、第11.3節
 import { LightningElement, api, track, wire } from "lwc";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import {
@@ -14,6 +15,7 @@ import getContractHistoryInfo from "@salesforce/apex/EstimateCreateController.ge
 import getEstimateRemarkMasterText from "@salesforce/apex/EstimateCreateController.getEstimateRemarkMasterText";
 import getInvoiceSettingOptions from "@salesforce/apex/EstimateCreateController.getInvoiceSettingOptions";
 import getDefaultInvoiceSettingLabel from "@salesforce/apex/EstimateCreateController.getDefaultInvoiceSettingLabel";
+import isAccountingEnabled from "@salesforce/apex/EstimateCreateController.isAccountingEnabled";
 import {
   BILLING_TYPE_RECURRING,
   BILLING_TYPE_ONE_TIME,
@@ -45,6 +47,7 @@ import {
   isChangeRemakeLine,
   resolveChangePairAmountsFromSource,
   isRenewProductLine,
+  isBillingTypeLockedLine,
   resolveProductTypeBadge,
   isChangeContinuationLine,
   canDuplicateProductLine,
@@ -70,7 +73,10 @@ import {
   syncCustomFieldsForVisibility,
   shallowEqualFieldMaps
 } from "c/estimateWizardCustomFields";
-import { createRowId } from "c/estimateWizardState";
+import {
+  createRowId,
+  followEstimateValidDate
+} from "c/estimateWizardState";
 import {
   UI_ONLY_PRODUCT_FIELDS,
   stripUiFields,
@@ -222,6 +228,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   @track changeLoadError = "";
   /** Global open/close for all product line custom fields (default open). 親へは送らない。 */
   @track productCustomFieldsExpanded = true;
+  productCustomRowExpanded = {};
   /** セクション開閉（ローカル表示のみ）。 */
   @track recurringPeriodExpanded = true;
   @track productLinesExpanded = true;
@@ -229,11 +236,15 @@ export default class EstimateCreateModal3 extends LightningElement {
   @track cancelLoadError = "";
   /** Renew/Cancel の有効日自動設定用（UI派生。親には持たない）。 */
   @track fixedEffectiveDate = "";
-  @track isStartDateReadonly = false;
-  @track isEndDateReadonly = false;
   @track isLoadingDates = false;
   @track remarkMasterPickerKey = "remark-master-0";
   @track invoiceSettingOptions = [];
+  /** 仕様: Core 第4.3.4節・第4.3.8節。会計方針の読込完了まで列出し分けと保存を確定しない。 */
+  accountingEnabled = false;
+  accountingPolicyResolved = false;
+  /** 仕様: Core 第4.3.11節。読込失敗時はOFF扱いにせずエラー表示する（BUG-075）。 */
+  @track accountingPolicyLoadError = "";
+  _wiredAccountingEnabled;
   defaultInvoiceType = "";
   @track productModalRowId = null;
   @track productModalProductId = "";
@@ -251,6 +262,11 @@ export default class EstimateCreateModal3 extends LightningElement {
   /** 初期化中フラグ。再入防止・表示同期抑止・commitItemList の emit 抑止。 */
   _bootstrapInFlight = false;
   _bootstrapQueued = false;
+  /**
+   * Change 前回明細カタログのローカル正本。
+   * 仕様: Core 第4.4.3節。bootstrap の emit:false 中も破棄しない（BUG-080）。
+   */
+  _changeSourceProductsLocal = null;
   /** 商品選択の getProductDefaults 待ち件数。0 以外は保存・flush 不可。 */
   _productDefaultsInFlight = 0;
   /** 直近で親へ伝えた準備状態。変化したときだけ通知する。 */
@@ -287,6 +303,10 @@ export default class EstimateCreateModal3 extends LightningElement {
     return (this._wizardData && this._wizardData.estimateRemarks) || "";
   }
   get changeSourceProducts() {
+    // 仕様: Core 第4.4.3節。読込直後は親へ届く前のローカルカタログを使う。
+    if (this._changeSourceProductsLocal != null) {
+      return this._changeSourceProductsLocal;
+    }
     return (this._wizardData && this._wizardData.changeSourceProducts) || [];
   }
   get contractServiceId() {
@@ -316,7 +336,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   };
 
   // Apex 側の getProductDefaults と同じ条件で候補を絞り、選択できない商品を出さない。
-  // Add は一回課金のみ（検索時点で継続課金を出さない）。
+  // Spot Change は一回課金のみ（検索時点で継続課金を出さない）。
   get productPickerFilter() {
     const criteria = [
       {
@@ -325,7 +345,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         value: true
       }
     ];
-    if (this.isAddType) {
+    if (this.isSpotChange) {
       criteria.push({
         fieldPath: "BillingType__c",
         operator: "eq",
@@ -363,6 +383,47 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
   }
 
+  // 仕様: Core 第4.3.4節、第4.3.8節、第4.5.2節、第7.6節、Accounting 第3.2節
+  @wire(isAccountingEnabled)
+  wiredAccountingEnabled(result) {
+    this._wiredAccountingEnabled = result;
+    const { data, error } = result || {};
+    if (data !== undefined) {
+      this.accountingEnabled = data === true;
+      this.accountingPolicyResolved = true;
+      this.accountingPolicyLoadError = "";
+      this.notifyStepReadyChange();
+      return;
+    }
+    if (error) {
+      // 仕様: Core 第4.3.4節、第4.3.11節。失敗をOFF扱いにせず、エラーと再読み込み。
+      this.accountingEnabled = false;
+      this.accountingPolicyResolved = false;
+      this.accountingPolicyLoadError =
+        "会計方針の読込に失敗しました。再読み込みしてください。";
+      this.notifyStepReadyChange();
+    }
+  }
+
+  handleReloadAccountingPolicy() {
+    this.accountingPolicyLoadError = "";
+    this.accountingPolicyResolved = false;
+    this.notifyStepReadyChange();
+    if (this._wiredAccountingEnabled) {
+      refreshApex(this._wiredAccountingEnabled);
+    }
+  }
+
+  get showRevenueRecognitionColumn() {
+    return (
+      this.accountingPolicyResolved === true && this.accountingEnabled === true
+    );
+  }
+
+  get productTableColspan() {
+    return this.showRevenueRecognitionColumn ? 12 : 11;
+  }
+
   get resolvedDefaultInvoiceType() {
     return this.defaultInvoiceType || INVOICE_SETTING_PREPAID_START;
   }
@@ -375,11 +436,11 @@ export default class EstimateCreateModal3 extends LightningElement {
     let firstInvoiceSettingError = null;
     const next = this.itemList.map((item) => {
       const billingType = item.billingType || "";
-      const invoiceType = resolveInvoiceTypeForBillingType(
+      // 仕様: Core 第4.5.2節、第1.1.10節。Original／Remake／Renew 継承の空請求設定を組織既定で埋めない。
+      const invoiceType = this.resolveRowInvoiceType(
         item.invoiceType,
         billingType,
-        this.invoiceSettingOptions,
-        this.resolvedDefaultInvoiceType
+        item
       );
       const invoiceSettingError = validateInvoiceSettingForBillingType(
         billingType,
@@ -402,6 +463,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   @api
   get isStepReady() {
     return (
+      this.accountingPolicyResolved === true &&
       !this._bootstrapInFlight &&
       !this.isLoadingChangeProducts &&
       !this.isLoadingRenewProducts &&
@@ -411,10 +473,16 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   get showStepBusyBanner() {
+    if (this.accountingPolicyLoadError) {
+      return false;
+    }
     return !this.isStepReady;
   }
 
   get stepBusyBannerMessage() {
+    if (this.accountingPolicyResolved !== true) {
+      return "会計方針を読み込んでいます。完了するまで『次へ』『保存』はできません。";
+    }
     if (this.isLoadingDates) {
       return "契約期間を読み込んでいます。完了するまで内容は確定しません。";
     }
@@ -458,7 +526,10 @@ export default class EstimateCreateModal3 extends LightningElement {
       previousTermStartDate: this.previousTermStartDate,
       previousTermEndDate: this.previousTermEndDate,
       estimateRemarkMasterId: this.estimateRemarkMasterId,
-      estimateRemarks: this.estimateRemarks
+      estimateRemarks: this.estimateRemarks,
+      estimateDate: this.estimateDate,
+      estimateValidDate: this.estimateValidDate,
+      estimateValidDateTouched: this._wizardData?.estimateValidDateTouched === true
     });
     this.emitProductsFromItemList();
     return true;
@@ -517,12 +588,55 @@ export default class EstimateCreateModal3 extends LightningElement {
     return options;
   }
 
-  resolveRowInvoiceType(invoiceType, billingType) {
+  resolveRevenueRecognitionBasis(value) {
+    if (value === "月次計上" || value === "一括計上") {
+      return value;
+    }
+    return value || "";
+  }
+
+  // 仕様: Core 第4.3.4節、第0.1節。計上方法の表示は一括計上／月次計上。保存値は変えない。
+  revenueRecognitionBasisLabel(value) {
+    if (value === "一括計上") {
+      return "一括計上";
+    }
+    if (value === "月次計上") {
+      return "月次計上";
+    }
+    return "";
+  }
+
+  // 仕様: Core 第4.3.4節、第0.1節。選択肢ラベルは保存値と同じ正名。
+  buildRevenueRecognitionBasisOptions(selectedValue) {
+    return [
+      {
+        label: "月次計上",
+        value: "月次計上",
+        isSelected: selectedValue === "月次計上"
+      },
+      {
+        label: "一括計上",
+        value: "一括計上",
+        isSelected: selectedValue === "一括計上"
+      }
+    ];
+  }
+
+  resolveRowInvoiceType(invoiceType, billingType, row = null) {
+    // 仕様: Core 第4.5.2節、第4.4.3節、第1.1.10節。
+    // Original／Remake は前回の請求設定。Renew 継承は継承元の請求設定。空を組織既定で埋めない。
+    const fillBlankWithDefault = !(
+      row &&
+      (isChangeOriginalLine(row) ||
+        isChangeRemakeLine(row) ||
+        isRenewProductLine(row))
+    );
     return resolveInvoiceTypeForBillingType(
       invoiceType,
       billingType,
       this.invoiceSettingOptions,
-      this.resolvedDefaultInvoiceType
+      this.resolvedDefaultInvoiceType,
+      { fillBlankWithDefault }
     );
   }
 
@@ -534,8 +648,11 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.effectiveSelectedType === "New";
   }
 
-  get isAddType() {
-    return this.effectiveSelectedType === "Add";
+  get isSpotChange() {
+    return (
+      this.isChangeType &&
+      (this._wizardData?.serviceLifecycle || "") === "Spot"
+    );
   }
 
   get isChangeType() {
@@ -553,16 +670,15 @@ export default class EstimateCreateModal3 extends LightningElement {
     );
   }
 
-  /** 継続課金の契約期間パネル（1回のみ New/Add では出さない） */
+  /** 継続課金の契約期間パネル。一回課金だけの New と Spot Change では出さない。 */
   get showRecurringPeriodPanel() {
-    if (this.isAddType) {
+    if (this.isSpotChange) {
       return false;
     }
     if (this.isNewType) {
       return this.hasRecurringProductLines;
     }
     if (this.isChangeType) {
-      // 一回追加のみでもヘッダ（継続期間）は前回継承で表示
       return true;
     }
     return this.isRenewType || this.isCancelType;
@@ -570,16 +686,6 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   get isCancelType() {
     return this.effectiveSelectedType === "Cancel";
-  }
-
-  get isEffectiveDateReadonly() {
-    return (
-      this.orderedCustomFieldsOnly === true ||
-      this.isNewType ||
-      this.isRenewType ||
-      this.isCancelType ||
-      this.isChangeType
-    );
   }
 
   get isHistoryNameReadonly() {
@@ -596,20 +702,32 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   get showProductTable() {
     const type = this.effectiveSelectedType;
-    return (
-      type === "New" || type === "Change" || type === "Renew" || type === "Add"
-    );
+    return type === "New" || type === "Change" || type === "Renew";
   }
 
   get showAddRowButton() {
     return (
       this.showProductTable &&
       this.canEditProducts &&
-      !this.isChangeType &&
+      (!this.isChangeType || this.isSpotChange) &&
       this.orderedCustomFieldsOnly !== true
     );
   }
 
+  // 仕様: Core 第4.3.5節
+  get addRowButtonLabel() {
+    return this.isSpotChange ? "新しい商品を追加" : "行を追加";
+  }
+
+  get changeNewProductButtonLabel() {
+    return "新しい商品を追加";
+  }
+
+  get addRemakeButtonLabel() {
+    return "変更後行を追加";
+  }
+
+  // 仕様: Core 第4.5.2節、第4.4.1節。New／Renew は継続マスタの一回切替可。
   buildBillingTypeFlipView(row, billingType, forceReadonly) {
     const masterBillingType =
       row.productMasterBillingType ||
@@ -617,19 +735,20 @@ export default class EstimateCreateModal3 extends LightningElement {
       billingType === BILLING_TYPE_ONE_TIME
         ? billingType
         : "");
-    const canFlipOnNew =
-      this.isNewType &&
+    const canFlipBillingType =
+      (this.isNewType || this.isRenewType) &&
+      !isBillingTypeLockedLine(row) &&
       !forceReadonly &&
       !!billingType &&
       masterBillingType === BILLING_TYPE_RECURRING;
-    if (canFlipOnNew && billingType === BILLING_TYPE_RECURRING) {
+    if (canFlipBillingType && billingType === BILLING_TYPE_RECURRING) {
       return {
         showBillingTypeFlipLink: true,
         billingTypeFlipTarget: BILLING_TYPE_ONE_TIME,
-        billingTypeFlipTitle: "1回課金に切り替え"
+        billingTypeFlipTitle: "一回課金に切り替え"
       };
     }
-    if (canFlipOnNew && billingType === BILLING_TYPE_ONE_TIME) {
+    if (canFlipBillingType && billingType === BILLING_TYPE_ONE_TIME) {
       return {
         showBillingTypeFlipLink: true,
         billingTypeFlipTarget: BILLING_TYPE_RECURRING,
@@ -703,7 +822,12 @@ export default class EstimateCreateModal3 extends LightningElement {
     const openId = this.productModalRowId;
     const amountOpenId = this.amountModalRowId;
     return withDetails.map((row) => {
-      if (!row || row.isGroupHeader || row.isCustomDetailRow) {
+      if (
+        !row ||
+        row.isGroupHeader ||
+        row.isCustomDetailRow ||
+        row.isCustomToggleRow
+      ) {
         return row;
       }
       const isProductPickerOpen = openId != null && row.id === openId;
@@ -824,6 +948,17 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.productCustomFieldsExpanded ? "true" : "false";
   }
 
+  /** 仕様: Core 第4.3.4節 */
+  isProductCustomRowExpanded(rowId) {
+    if (
+      rowId &&
+      Object.prototype.hasOwnProperty.call(this.productCustomRowExpanded, rowId)
+    ) {
+      return this.productCustomRowExpanded[rowId] === true;
+    }
+    return this.productCustomFieldsExpanded === true;
+  }
+
   get contractServiceCustomFields() {
     return this._wizardData?.contractServiceCustomFields || {};
   }
@@ -849,7 +984,11 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.contractCustomFieldsExpanded ? "true" : "false";
   }
 
+  /** 仕様: Core 第4.3節、第4.3.1節。Ordered編集は契約サービス追加項目を出さない。 */
   get hasServiceCustomFields() {
+    if (!this.isNewType || this.orderedCustomFieldsOnly === true) {
+      return false;
+    }
     return (
       filterVisibleCustomFieldDefinitions(
         this.serviceFieldDefinitions,
@@ -873,12 +1012,43 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.hasServiceCustomFields || this.hasHistoryCustomFields;
   }
 
+  // 仕様: Core 第4.3.4節、第4.3節
+  get contractCustomFieldCount() {
+    const serviceCount =
+      this.isNewType && this.orderedCustomFieldsOnly !== true
+        ? filterVisibleCustomFieldDefinitions(
+            this.serviceFieldDefinitions,
+            undefined,
+            this.effectiveSelectedType
+          ).length
+        : 0;
+    const historyCount = filterVisibleCustomFieldDefinitions(
+      this.historyFieldDefinitions,
+      undefined,
+      this.effectiveSelectedType
+    ).length;
+    return serviceCount + historyCount;
+  }
+
+  get contractCustomSectionTitle() {
+    return `契約のカスタム項目（${this.contractCustomFieldCount}）`;
+  }
+
   /**
    * 契約サービス／履歴の追加項目があるときは常に表示する。
    * 必須項目（申込日など）を備考・商品明細の表示条件に縛ると入力できない。
    */
   get showContractCustomSection() {
-    return this.hasContractCustomFields;
+    if (!this.hasContractCustomFields) {
+      return false;
+    }
+    if (this.isCancelType) {
+      return this.hasHistoryCustomFields;
+    }
+    if (this.showRecurringPeriodPanel) {
+      return this.isHeaderDatesReady && this.itemList.length > 0;
+    }
+    return this.itemList.length > 0;
   }
 
   get contractCustomToggleClass() {
@@ -988,7 +1158,12 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   withSyncedProductCustomFields(row) {
-    if (!row || row.isGroupHeader || row.isCustomDetailRow) {
+    if (
+      !row ||
+      row.isGroupHeader ||
+      row.isCustomDetailRow ||
+      row.isCustomToggleRow
+    ) {
       return row;
     }
     if (isChangeOriginalLine(row)) {
@@ -1006,23 +1181,20 @@ export default class EstimateCreateModal3 extends LightningElement {
     };
   }
 
+  /** 仕様: Core 第4.3.4節 */
   withCustomDetailRows(rows) {
-    if (
-      !this.hasProductCustomFields ||
-      !this.productCustomFieldsExpanded ||
-      !rows ||
-      rows.length === 0
-    ) {
+    if (!this.hasProductCustomFields || !rows || rows.length === 0) {
       return rows;
     }
     const result = [];
     for (const row of rows) {
-      result.push(row);
-      if (row.isGroupHeader || row.isCustomDetailRow) {
+      if (row.isGroupHeader || row.isCustomDetailRow || row.isCustomToggleRow) {
+        result.push(row);
         continue;
       }
       // Change の Original は追加項目 UI を出さない
       if (isChangeOriginalLine(row)) {
+        result.push(row);
         continue;
       }
       const customFieldsReadonly =
@@ -1036,11 +1208,35 @@ export default class EstimateCreateModal3 extends LightningElement {
         this.effectiveSelectedType
       );
       if (customFieldInputs.length === 0) {
+        result.push(row);
+        continue;
+      }
+      const expanded = this.isProductCustomRowExpanded(row.id);
+      result.push(row);
+      result.push({
+        id: `custom-toggle-${row.id}`,
+        isCustomToggleRow: true,
+        isCustomChromeRow: true,
+        isGroupHeader: false,
+        parentRowId: row.id,
+        tableRowClass: "est-detail-toggle-row",
+        productCustomRowToggleClass: expanded
+          ? "est-btn-custom est-btn-custom_active est-btn-custom_row"
+          : "est-btn-custom est-btn-custom_row",
+        productCustomRowChevronClass: expanded
+          ? "est-custom-chevron est-custom-chevron_open"
+          : "est-custom-chevron",
+        productCustomRowExpandedAria: expanded ? "true" : "false",
+        changeGroupBoundary: row.changeGroupBoundary || null,
+        changeGroupTone: row.changeGroupTone || null
+      });
+      if (!expanded) {
         continue;
       }
       result.push({
         id: `custom-detail-${row.id}`,
         isCustomDetailRow: true,
+        isCustomChromeRow: true,
         isGroupHeader: false,
         parentRowId: row.id,
         isCustomReadonly: customFieldsReadonly,
@@ -1138,7 +1334,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         this.itemList.length > 0
       );
     }
-    // New / Add: 明細を先に入力（ヘッダは継続から自動）
+    // New / Spot Change: 明細を先に入力（ヘッダは継続から自動）
     return true;
   }
 
@@ -1167,7 +1363,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   get amountEntryRoundingAlertMessage() {
-    return "見積金額と請求再計算（単価×数量を月ごと四捨五入）が異なる明細があります。請求作成時に端数が出ることがあり、受注後の請求プレビューで調整できます。";
+    return "見積金額と請求再計算（単価×数量を月ごと四捨五入）が異なる明細があります。請求作成時に端数が出ることがあり、受注後の請求ボードで調整できます。";
   }
 
   get productTableScrollClass() {
@@ -1195,16 +1391,35 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.isAmountModalOpen;
   }
 
+  get estimateSendMode() {
+    return this._wizardData?.estimateSendMode || "";
+  }
+
+  // 仕様: Core 第4.10節
+  get showEstimateDocumentSection() {
+    const mode = this.estimateSendMode;
+    return Boolean(mode) && mode !== "Unused";
+  }
+
+  get estimateDate() {
+    return this._wizardData?.estimateDate || "";
+  }
+
+  get estimateValidDate() {
+    return this._wizardData?.estimateValidDate || "";
+  }
+
+  get isEstimateDocumentReadonly() {
+    return this.orderedCustomFieldsOnly === true;
+  }
+
   get showRemarksSection() {
-    return (
-      this.showProductTable &&
-      this.isHeaderDatesReady &&
-      this.itemList.length > 0
-    );
+    // 仕様: Core 第4.10節。備考は見積書セクションに出す。単独備考は出さない。
+    return false;
   }
 
   get showTotalSummary() {
-    return this.showRemarksSection;
+    return this.showProductTable && this.itemList.length > 0;
   }
 
   get totalAmount() {
@@ -1233,9 +1448,20 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   /**
-   * 表示％。CS 未作成は 10%。既存 CS は TaxPercent（未入力は 0%。TaxCalculationUtil と同じ）。
+   * 表示％。Step1 の税率。空は 0 にしない。
    */
   get resolvedTaxPercent() {
+    const fromWizard = this._wizardData?.taxPercent;
+    if (fromWizard !== "" && fromWizard != null) {
+      const numeric = Number(fromWizard);
+      if (!Number.isFinite(numeric)) {
+        return null;
+      }
+      if (numeric > 0 && numeric < 1) {
+        return numeric * 100;
+      }
+      return numeric;
+    }
     if (!this.contractServiceId) {
       return DEFAULT_TAX_PERCENT_WHEN_NO_SERVICE;
     }
@@ -1245,13 +1471,12 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
     const raw = getFieldValue(wired.data, CS_TAX_PERCENT_FIELD);
     if (raw == null || raw === "") {
-      return 0;
+      return null;
     }
     const numeric = Number(raw);
     if (!Number.isFinite(numeric)) {
-      return 0;
+      return null;
     }
-    // Apex と同様: 0<x<1 は小数表記（0.1＝10%）、それ以外は表示％
     if (numeric > 0 && numeric < 1) {
       return numeric * 100;
     }
@@ -1268,8 +1493,29 @@ export default class EstimateCreateModal3 extends LightningElement {
     ) {
       return Number.NaN;
     }
-    // Apex RoundingMode.DOWN（0 方向）と同じ
-    return Math.trunc((excl * taxPercent) / 100);
+    if (excl === 0) {
+      return 0;
+    }
+    // 仕様: Core 第11.9節、第1.1.10節。DOWN / HALF_UP / UP。無い・空・未知は 0方向へ落とさない。
+    return this.roundTaxRaw((excl * taxPercent) / 100);
+  }
+
+  roundTaxRaw(raw) {
+    const mode = this._wizardData?.taxRoundingMode;
+    if (mode === "DOWN") {
+      return Math.trunc(raw);
+    }
+    if (mode === "UP") {
+      if (raw === 0) {
+        return 0;
+      }
+      return raw > 0 ? Math.ceil(raw) : Math.floor(raw);
+    }
+    if (mode === "HALF_UP") {
+      const sign = raw < 0 ? -1 : 1;
+      return sign * Math.floor(Math.abs(raw) + 0.5);
+    }
+    return Number.NaN;
   }
 
   get totalAmountInclTax() {
@@ -1282,6 +1528,9 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   get formattedTotalTax() {
+    if (this.isTaxPercentMissing) {
+      return "消費税率が空です。";
+    }
     if (!Number.isFinite(this.totalTax)) {
       return "—";
     }
@@ -1292,6 +1541,9 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   get formattedTotalAmountInclTax() {
+    if (this.isTaxPercentMissing) {
+      return "消費税率が空です。";
+    }
     if (!Number.isFinite(this.totalAmountInclTax)) {
       return "—";
     }
@@ -1299,6 +1551,11 @@ export default class EstimateCreateModal3 extends LightningElement {
       style: "currency",
       currency: "JPY"
     }).format(this.totalAmountInclTax);
+  }
+
+  /** 仕様: Core 第4.3.4節、第4.6節 */
+  get isTaxPercentMissing() {
+    return this.resolvedTaxPercent == null;
   }
 
   get totalLineCount() {
@@ -1317,7 +1574,18 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   addOneYearEndDate(isoStartDate) {
-    return endDateForMonthlyCycles(isoStartDate, 12);
+    const cycles = Number(this.defaultMonthlyCycles);
+    if (!Number.isInteger(cycles) || cycles < 1) {
+      throw new Error("既定サイクル数がありません。");
+    }
+    return endDateForMonthlyCycles(isoStartDate, cycles);
+  }
+
+  get defaultMonthlyCycles() {
+    return (
+      (this._wizardData && this._wizardData.defaultMonthlyCycles) ||
+      null
+    );
   }
 
   addOneMonthEndDate(isoStartDate) {
@@ -1358,14 +1626,6 @@ export default class EstimateCreateModal3 extends LightningElement {
     return alignMonthlyEndDate(startDate, endDate) || endDate;
   }
 
-  get showContractEndDateShortcuts() {
-    return (
-      this.orderedCustomFieldsOnly !== true &&
-      !this.isEndDateReadonly &&
-      !!(this.contractEndDate || this.contractStartDate)
-    );
-  }
-
   ensureCancelDates() {
     if (!this.isCancelType) {
       return;
@@ -1392,8 +1652,6 @@ export default class EstimateCreateModal3 extends LightningElement {
     const savedEnd = resolveSavedContractEndDate(this._wizardData);
 
     if (this.orderedCustomFieldsOnly === true) {
-      this.isStartDateReadonly = true;
-      this.isEndDateReadonly = true;
       this.applyBusinessFields({
         contractStartDate: savedStart,
         contractEndDate: savedEnd
@@ -1403,8 +1661,6 @@ export default class EstimateCreateModal3 extends LightningElement {
 
     if (this.isNewType) {
       // 継続課金の契約期間は明細から自動（編集不可）
-      this.isStartDateReadonly = true;
-      this.isEndDateReadonly = true;
       this.applyBusinessFields({
         contractStartDate: savedStart,
         contractEndDate: savedEnd
@@ -1412,9 +1668,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       return;
     }
 
-    if (this.isAddType) {
-      this.isStartDateReadonly = true;
-      this.isEndDateReadonly = true;
+    if (this.isSpotChange) {
       this.applyBusinessFields({
         contractStartDate: "",
         contractEndDate: "",
@@ -1425,9 +1679,6 @@ export default class EstimateCreateModal3 extends LightningElement {
 
     if (this.isRenewType) {
       // 継続課金の契約期間は明細から自動（編集不可）
-      this.isStartDateReadonly = true;
-      this.isEndDateReadonly = true;
-
       if (savedStart && savedEnd) {
         this.applyBusinessFields({
           contractStartDate: savedStart,
@@ -1446,9 +1697,6 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
 
     if (this.isCancelType) {
-      this.isStartDateReadonly = true;
-      this.isEndDateReadonly = true;
-
       if (savedStart && savedEnd) {
         this.applyBusinessFields({
           contractStartDate: savedStart,
@@ -1460,12 +1708,6 @@ export default class EstimateCreateModal3 extends LightningElement {
       await this.loadHistoryDates();
       this.ensureCancelDates();
       return;
-    }
-
-    if (this.isChangeType) {
-      // 継続課金の契約期間は明細から自動（編集不可）
-      this.isStartDateReadonly = true;
-      this.isEndDateReadonly = true;
     }
 
     if (savedStart || savedEnd) {
@@ -1555,98 +1797,14 @@ export default class EstimateCreateModal3 extends LightningElement {
     );
   }
 
-  handleContractStartDateChange(event) {
-    const contractStartDate = this.readDateInputValue(event);
-    const fields = { contractStartDate };
-    // New/Renew: 終了が空／不正のときだけ 12 サイクル終了日を埋める（手入力終了は上書きしない）
-    if (
-      contractStartDate &&
-      (this.isRenewType || this.isNewType) &&
-      isValidIsoDate(contractStartDate) &&
-      (!this.contractEndDate || !isValidIsoDate(this.contractEndDate))
-    ) {
-      fields.contractEndDate = this.addOneYearEndDate(contractStartDate);
-    }
-    // New: 有効日＝期間開始。親未反映の this.contractStartDate に依存しないよう同梱する
-    if (this.isNewType) {
-      fields.contractEffectiveDate = contractStartDate || "";
-    }
-    this.applyBusinessFields(fields);
-    if (!this.isNewType) {
-      this.syncFixedEffectiveDate(contractStartDate);
-    }
-    this.ensureNewInitialRow();
-  }
-
-  handleContractEndDateChange(event) {
-    const raw = this.readDateInputValue(event);
-    this.applyBusinessFields({
-      contractEndDate: this.alignContractEndDate(raw)
-    });
-    this.ensureNewInitialRow();
-  }
-
-  handleEffectiveDateChange(event) {
-    this.applyBusinessFields({
-      contractEffectiveDate: this.readDateInputValue(event)
-    });
-  }
-
-  handleFillContractEndOneYear() {
-    this.adjustContractEndDate({ years: 1 });
-  }
-
-  handleFillContractEndOneMonth() {
-    this.adjustContractEndDate({ months: 1 });
-  }
-
-  handleFillContractEndMinusOneYear() {
-    this.adjustContractEndDate({ years: -1 });
-  }
-
-  handleFillContractEndMinusOneMonth() {
-    this.adjustContractEndDate({ months: -1 });
-  }
-
-  adjustContractEndDate({ years = 0, months = 0 }) {
-    const start = this.contractStartDate;
-    if (!start || !isValidIsoDate(start)) {
-      return;
-    }
-    const delta = Number(years || 0) * 12 + Number(months || 0);
-    if (!delta) {
-      return;
-    }
-    const next = adjustMonthlyEndByCycles(
-      start,
-      this.contractEndDate || "",
-      delta
-    );
-    if (!next) {
-      return;
-    }
-    this.applyBusinessFields({ contractEndDate: next });
-    this.ensureNewInitialRow();
-  }
-
+  /** 仕様: Core 第4.3.10節。対象欄が空なら動かさない。反対側やヘッダーを探して埋めない。 */
   resolveLineStartAdjustBase(row) {
-    return (
-      row.startDate ||
-      row.endDate ||
-      this.contractStartDate ||
-      this.contractEndDate ||
-      ""
-    );
+    return row.startDate || "";
   }
 
+  /** 仕様: Core 第4.3.10節。対象欄が空なら動かさない。反対側やヘッダーを探して埋めない。 */
   resolveLineEndAdjustBase(row) {
-    return (
-      row.endDate ||
-      row.startDate ||
-      this.contractEndDate ||
-      this.contractStartDate ||
-      ""
-    );
+    return row.endDate || "";
   }
 
   adjustLineStartDate(rowId, { years = 0, months = 0 }) {
@@ -1676,10 +1834,10 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (!row) {
       return;
     }
-    const start =
-      row.startDate ||
-      this.contractStartDate ||
-      this.resolveLineEndAdjustBase(row);
+    if (!row.endDate) {
+      return;
+    }
+    const start = row.startDate;
     if (!start || !isValidIsoDate(start)) {
       return;
     }
@@ -1687,7 +1845,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (!delta) {
       return;
     }
-    const next = adjustMonthlyEndByCycles(start, row.endDate || "", delta);
+    const next = adjustMonthlyEndByCycles(start, row.endDate, delta);
     if (!next) {
       return;
     }
@@ -1695,7 +1853,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   ensureNewInitialRow() {
-    if (!this.isNewType) {
+    if (!this.isNewType && !this.isSpotChange) {
       return;
     }
 
@@ -1719,6 +1877,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
   }
 
+  // 仕様: Core 第1.1.10節、第4.7節。コピー・編集の切替日は元の内容。空を開始日で埋めない。
   initHistoryMetaDates() {
     const savedEffective =
       (this._wizardData && this._wizardData.contractEffectiveDate) || "";
@@ -1735,8 +1894,9 @@ export default class EstimateCreateModal3 extends LightningElement {
 
     if (savedEffective) {
       fields.contractEffectiveDate = savedEffective;
-    } else if (this.isChangeType || this.isRenewType || this.isCancelType) {
-      fields.contractEffectiveDate = this.contractStartDate || "";
+    } else {
+      // 仕様: Core 第1.1.10節、第4.7節。空の切替日を開始日で埋めない。
+      fields.contractEffectiveDate = "";
     }
 
     this.applyBusinessFields(fields);
@@ -1895,7 +2055,11 @@ export default class EstimateCreateModal3 extends LightningElement {
       } else if (type === "New") {
         this.ensureNewInitialRow();
       } else if (type === "Change") {
-        await this.loadChangeProducts(generation);
+        if (this.isSpotChange) {
+          this.ensureNewInitialRow();
+        } else {
+          await this.loadChangeProducts(generation);
+        }
       } else if (type === "Cancel") {
         this.commitItemList([], { emit: false });
         this.initCancelEligibility();
@@ -2026,6 +2190,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   buildChangeSourceProductsFromOriginals(rows) {
+    // 仕様: Core 第4.4.3節、第4.5.2節。FE前回一致に請求・売上・税抜が必要。
     return (rows || [])
       .filter((row) => isChangeOriginalLine(row))
       .map((row) => ({
@@ -2033,22 +2198,35 @@ export default class EstimateCreateModal3 extends LightningElement {
         productId: row.productId,
         quantity: row.quantity,
         unitPrice: row.unitPrice,
+        // Original は -(前回)。カタログには前回 Amount を載せる。
+        amount:
+          row.amount == null || row.amount === undefined
+            ? null
+            : -Number(row.amount),
         startDate: row.startDate || "",
         endDate: row.endDate || "",
-        invoiceType: row.invoiceType || ""
+        invoiceType: row.invoiceType || "",
+        billingType: row.billingType || "",
+        revenueRecognitionBasis: row.revenueRecognitionBasis || "",
+        customFields: { ...(row.customFields || {}) }
       }))
       .filter((source) => source.contractProductId);
   }
 
   buildChangeSourceProductsFromLoaded(products) {
+    // 仕様: Core 第4.4.3節、第4.5.2節。前回CPの売上・税抜・追加項目をカタログへ載せる。
     return (products || []).map((product) => ({
       contractProductId: product.contractProductId,
       productId: product.productId,
       quantity: product.quantity,
       unitPrice: product.unitPrice,
+      amount: product.amount,
       startDate: product.startDate || "",
       endDate: product.endDate || "",
-      invoiceType: product.invoiceType || ""
+      invoiceType: product.invoiceType || "",
+      billingType: product.billingType || "",
+      revenueRecognitionBasis: product.revenueRecognitionBasis || "",
+      customFields: { ...(product.customFields || {}) }
     }));
   }
 
@@ -2058,7 +2236,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
     if (this._wizardData && this._wizardData.renewEligible === false) {
       this.cancelLoadError =
-        "前回Versionの期間終了日と一致する継続課金商品がありません。Cancelできません。Newで作成してください。";
+        "前回の版の期間終了日と一致する継続課金商品がありません。解約できません。新規で作成してください。";
     }
   }
 
@@ -2095,7 +2273,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       let nextList = this.buildRenewItemList(products || []);
       if (nextList.length === 0) {
         this.renewLoadError =
-          "前回Versionの期間終了日と一致する継続課金商品がありません。Renewできません。Newで作成してください。";
+          "前回の版の期間終了日と一致する継続課金商品がありません。更新できません。新規で作成してください。";
         nextList = [];
       } else {
         this.renewLoadError = "";
@@ -2127,31 +2305,35 @@ export default class EstimateCreateModal3 extends LightningElement {
     const { startDate, endDate } = this.getDefaultDates();
     const items = [];
     products.forEach((product) => {
-      const unitPrice = product.unitPrice != null ? product.unitPrice : 0;
-      const quantity = product.quantity != null ? product.quantity : 1;
+      // 仕様: Core 第1.1.10節、第4.5節、第4.5.2節。数量・単価の null を黙埋めしない。
+      const unitPrice = product.unitPrice;
+      const quantity = product.quantity;
       items.push(
         this.applyAmount({
           id: createRowId(),
           productId: product.productId,
           productName: product.productName || "",
           unitName: product.unitName || "",
-          unit:
-            product.unit ||
-            buildDisplayUnit(
-              product.unitName,
-              product.billingType || BILLING_TYPE_RECURRING,
-              product.billingCycle
-            ),
+          // 仕様: Core 第4.5.2節、第1.1.10節。継承元の単位を商品マスタから埋めない。
+          unit: product.unit || "",
           billingType: product.billingType || BILLING_TYPE_RECURRING,
+          productMasterBillingType:
+            product.productMasterBillingType ||
+            product.billingType ||
+            BILLING_TYPE_RECURRING,
           billingCycle:
             product.billingType === BILLING_TYPE_RECURRING
               ? MONTHLY_BILLING_CYCLE
               : product.billingCycle || "",
+          revenueRecognitionBasis: product.revenueRecognitionBasis || "",
           unitPrice,
           quantity,
           startDate,
           endDate,
-          invoiceType: product.invoiceType || this.resolvedDefaultInvoiceType,
+          // 仕様: Core 第4.5.2節、第1.1.10節。継承元の請求設定を組織既定で埋めない。
+          invoiceType: product.invoiceType || "",
+          // 仕様: Core 第4.3.5節、第4.5.2節。継承元を PreviousContractProduct へ載せる。
+          sourceContractProductId: product.contractProductId || null,
           recordType: PRODUCT_TYPE_RENEW,
           typeLabel: "Renew",
           isReadonly: false,
@@ -2183,13 +2365,17 @@ export default class EstimateCreateModal3 extends LightningElement {
       return;
     }
 
-    if (this._wizardData && this._wizardData.renewEligible === false) {
+    if (
+      this._wizardData &&
+      this._wizardData.renewEligible === false &&
+      !this.isSpotChange
+    ) {
       this.commitItemList([], {
         changeSourceProducts: [],
         emit: false
       });
       this.changeLoadError =
-        "前回Versionの期間終了日と一致する継続課金商品がありません。Changeできません。Newで作成してください。";
+        "前回の版の期間終了日と一致する継続課金商品がありません。追加変更できません。新規で作成してください。";
       return;
     }
 
@@ -2218,7 +2404,7 @@ export default class EstimateCreateModal3 extends LightningElement {
           emit: false
         });
         this.changeLoadError =
-          "前回Versionの期間終了日と一致する継続課金商品がありません。Changeできません。Newで作成してください。";
+          "前回の版の期間終了日と一致する継続課金商品がありません。追加変更できません。新規で作成してください。";
       } else {
         this.commitItemList(nextList, {
           changeSourceProducts,
@@ -2254,29 +2440,28 @@ export default class EstimateCreateModal3 extends LightningElement {
     const items = [];
     products.forEach((product, index) => {
       const pairId = `pair-${index + 1}`;
-      const unitPrice = product.unitPrice != null ? product.unitPrice : 0;
-      const positiveQuantity = product.quantity != null ? product.quantity : 1;
+      // 仕様: Core 第4.5.2節、第4.3.9節、第1.1.10節。前回単価 null を 0 で埋めない。
+      const unitPrice = product.unitPrice;
+      // 仕様: Core 第1.1.10節、第4.5節。数量 null を 1 で埋めない。
+      const quantity = product.quantity;
       const baseRow = {
         productId: product.productId,
         productName: product.productName || "",
         unitName: product.unitName || "",
-        unit:
-          product.unit ||
-          buildDisplayUnit(
-            product.unitName,
-            product.billingType || BILLING_TYPE_RECURRING,
-            product.billingCycle
-          ),
+        // 仕様: Core 第4.5.2節、第1.1.10節。前回の単位を商品マスタから埋めない。
+        unit: product.unit || "",
         billingType: product.billingType || BILLING_TYPE_RECURRING,
         billingCycle:
           product.billingType === BILLING_TYPE_RECURRING
             ? MONTHLY_BILLING_CYCLE
             : product.billingCycle || "",
+        revenueRecognitionBasis: product.revenueRecognitionBasis || "",
         unitPrice,
-        quantity: positiveQuantity,
+        quantity,
         startDate: product.startDate || "",
         endDate: product.endDate || "",
-        invoiceType: product.invoiceType || this.resolvedDefaultInvoiceType,
+        // 仕様: Core 第4.5.2節、第1.1.10節。前回の請求設定を組織既定で埋めない。
+        invoiceType: product.invoiceType || "",
         sourceContractProductId: product.contractProductId,
         pairId,
         productVisibilityContext: {
@@ -2329,14 +2514,18 @@ export default class EstimateCreateModal3 extends LightningElement {
     const billingType = row.billingType || "";
     const invoiceType = this.resolveRowInvoiceType(
       row.invoiceType,
-      billingType
+      billingType,
+      row
     );
     const invoiceTypeOptions = this.buildInvoiceTypeOptions(
       invoiceType,
       billingType
     );
-    const canCopyDatesFromAbove =
-      this.orderedCustomFieldsOnly !== true && !row.isReadonly && rowIndex > 0;
+    const revenueRecognitionBasis = this.resolveRevenueRecognitionBasis(
+      row.revenueRecognitionBasis
+    );
+    const revenueRecognitionBasisOptions =
+      this.buildRevenueRecognitionBasisOptions(revenueRecognitionBasis);
     const canDuplicate = canDuplicateProductLine(row, {
       orderedCustomFieldsOnly: this.orderedCustomFieldsOnly === true,
       wizardType: this.effectiveSelectedType
@@ -2376,9 +2565,21 @@ export default class EstimateCreateModal3 extends LightningElement {
       rowIndex,
       invoiceType,
       invoiceTypeOptions,
+      // 仕様: Core 第4.5.2節、第4.4.3節
       isInvoiceTypeDisabled:
-        forceReadonly || !billingType || invoiceTypeOptions.length === 0,
-      canCopyDatesFromAbove,
+        forceReadonly ||
+        isChangeRemakeLine(row) ||
+        !billingType ||
+        invoiceTypeOptions.length === 0,
+      revenueRecognitionBasis,
+      revenueRecognitionBasisOptions,
+      revenueRecognitionBasisLabel: this.revenueRecognitionBasisLabel(
+        revenueRecognitionBasis
+      ),
+      isRevenueBasisDisabled:
+        forceReadonly || isChangeRemakeLine(row) || !billingType,
+      isInvoiceSettingReadonly: forceReadonly || isChangeRemakeLine(row),
+      isRevenueBasisReadonly: forceReadonly || isChangeRemakeLine(row),
       gridRowClass: `est-line ${rowClass}`.trim(),
       tableRowClass: `est-table-row ${rowClass} ${boundaryClass}`.trim(),
       isReadonly: forceReadonly,
@@ -2399,7 +2600,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       // New: 通常は読取表示。マスタが継続のときだけリンクで一回へ（／戻す）
       ...this.buildBillingTypeFlipView(row, billingType, forceReadonly),
       showPriceCycle: billingType === BILLING_TYPE_RECURRING,
-      priceCycleLabel: "/ month",
+      priceCycleLabel: this.unitPriceCycleLabel,
       showPriceMeta: billingType === BILLING_TYPE_RECURRING,
       showQuantityUnit: !!resolveDisplayUnit(
         row.unit,
@@ -2454,10 +2655,16 @@ export default class EstimateCreateModal3 extends LightningElement {
       amountEntryBillingTotalLabel: formatAmountYen(diff.billingTotal),
       amountEntryRoundingDiffLabel: `${sign}${formatAmountYen(diff.delta)}`,
       amountEntryRoundingTitle:
-        "見積金額と請求再計算（単価×数量を月ごと四捨五入）が異なります。請求作成時に端数が出ることがあり、請求プレビューで調整できます。"
+        "見積金額と請求再計算（単価×数量を月ごと四捨五入）が異なります。請求作成時に端数が出ることがあり、請求ボードで調整できます。"
     };
   }
 
+  // 仕様: Core 第0.1節
+  get unitPriceCycleLabel() {
+    return "/月";
+  }
+
+  // 仕様: Core 第0.1節
   resolveCycleCountDisplay(row) {
     const billingType = row && row.billingType ? row.billingType : "";
     if (billingType !== BILLING_TYPE_RECURRING) {
@@ -2470,7 +2677,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (cycles == null || cycles < 1) {
       return "—";
     }
-    return `${cycles} month`;
+    return `${cycles}ヶ月`;
   }
 
   decorateAllRows(items) {
@@ -2499,6 +2706,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         !item ||
         item.isGroupHeader ||
         item.isCustomDetailRow ||
+        item.isCustomToggleRow ||
         item.isSectionHeader
       ) {
         return {
@@ -2598,19 +2806,6 @@ export default class EstimateCreateModal3 extends LightningElement {
       ],
       { emit: shouldEmit !== false }
     );
-  }
-
-  findPreviousEditableRow(rowIndex) {
-    for (let index = rowIndex - 1; index >= 0; index--) {
-      const row = this.itemList[index];
-      if (!row) {
-        continue;
-      }
-      if (this.orderedCustomFieldsOnly === true || !row.isReadonly) {
-        return row;
-      }
-    }
-    return null;
   }
 
   buildCopiedRow(source, options = {}) {
@@ -2738,23 +2933,45 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   applyAmount(row) {
-    const rawPrice = Number(row.unitPrice);
-    const unitPrice = Number.isFinite(rawPrice)
-      ? roundUnitPrice(rawPrice)
-      : Number.isNaN(rawPrice)
-        ? Number.NaN
-        : 0;
+    // 仕様: Core 第4.5.2節、第4.3.9節。単価 null を 0 扱いしない（BUG-076 / BUG-077）。
+    let unitPrice;
+    if (
+      row.unitPrice === null ||
+      row.unitPrice === undefined ||
+      row.unitPrice === ""
+    ) {
+      unitPrice = null;
+    } else {
+      const rawPrice = Number(row.unitPrice);
+      unitPrice = Number.isFinite(rawPrice)
+        ? roundUnitPrice(rawPrice)
+        : Number.isNaN(rawPrice)
+          ? Number.NaN
+          : 0;
+    }
     const manualAmount =
       row.amountEntryMode === true && row.manualAmount != null
         ? roundAmountYen(row.manualAmount)
         : row.manualAmount;
-    const rawQty = Number(row.quantity);
-    const quantity = Number.isFinite(rawQty)
-      ? roundQuantity(rawQty)
-      : Number(row.quantity) || 0;
+    // 仕様: Core 第1.1.10節、第4.5節。数量 null／空を 0 で埋めない（BUG-093）。
+    let quantity;
+    if (
+      row.quantity === null ||
+      row.quantity === undefined ||
+      row.quantity === ""
+    ) {
+      quantity = null;
+    } else {
+      const rawQty = Number(row.quantity);
+      quantity = Number.isFinite(rawQty)
+        ? roundQuantity(rawQty)
+        : Number.isNaN(rawQty)
+          ? Number.NaN
+          : 0;
+    }
     const normalized = {
       ...row,
-      quantity: quantity == null ? 0 : quantity,
+      quantity,
       unitPrice,
       manualAmount,
       billingCycle:
@@ -2763,13 +2980,36 @@ export default class EstimateCreateModal3 extends LightningElement {
           : row.billingCycle
     };
 
-    const amount = resolveLineAmount({ ...normalized, ...row, manualAmount });
+    if (quantity === null) {
+      return {
+        ...normalized,
+        quantity: null,
+        amount: null,
+        amountInvalid: false,
+        unitPriceInvalid: false
+      };
+    }
+
+    const amount =
+      unitPrice === null && row.amountEntryMode !== true
+        ? null
+        : resolveLineAmount({ ...normalized, ...row, manualAmount });
     const amountInvalid =
       amount == null &&
       row.amountEntryMode !== true &&
       normalized.billingType === BILLING_TYPE_RECURRING &&
       !!normalized.startDate &&
       !!normalized.endDate;
+
+    if (unitPrice === null && row.amountEntryMode !== true) {
+      return {
+        ...normalized,
+        unitPrice: null,
+        amount: null,
+        amountInvalid,
+        unitPriceInvalid: false
+      };
+    }
 
     if (!Number.isFinite(unitPrice) && row.amountEntryMode !== true) {
       return {
@@ -2806,12 +3046,21 @@ export default class EstimateCreateModal3 extends LightningElement {
       }
     }
     if ("unitPrice" in numericUpdates) {
-      const raw = Number(numericUpdates.unitPrice);
-      numericUpdates.unitPrice = Number.isFinite(raw)
-        ? roundUnitPrice(raw)
-        : Number.isNaN(raw)
-          ? Number.NaN
-          : 0;
+      // 仕様: Core 第4.5.2節、第4.3.9節。単価 null を 0 に落とさない。
+      if (
+        numericUpdates.unitPrice === null ||
+        numericUpdates.unitPrice === undefined ||
+        numericUpdates.unitPrice === ""
+      ) {
+        numericUpdates.unitPrice = null;
+      } else {
+        const raw = Number(numericUpdates.unitPrice);
+        numericUpdates.unitPrice = Number.isFinite(raw)
+          ? roundUnitPrice(raw)
+          : Number.isNaN(raw)
+            ? Number.NaN
+            : 0;
+      }
     }
     if (
       "manualAmount" in numericUpdates &&
@@ -2933,36 +3182,6 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
   }
 
-  handleCopyDateFromAbove(event) {
-    const rowId = event.currentTarget.dataset.id;
-    const field = event.currentTarget.dataset.field;
-    const rowIndex = this.itemList.findIndex((item) => item.id === rowId);
-    if (rowIndex <= 0) {
-      return;
-    }
-    const previous = this.findPreviousEditableRow(rowIndex);
-    if (!previous) {
-      return;
-    }
-    if (field === "startDate") {
-      this.updateRow(rowId, { startDate: previous.startDate || "" });
-      return;
-    }
-    if (field === "endDate") {
-      this.updateRow(rowId, { endDate: previous.endDate || "" });
-      return;
-    }
-    this.updateRow(rowId, {
-      startDate: previous.startDate || "",
-      endDate: previous.endDate || ""
-    });
-  }
-
-  handleFillLineStartFromContract(event) {
-    const rowId = event.currentTarget.dataset.id;
-    this.updateRow(rowId, { startDate: this.contractStartDate || "" });
-  }
-
   handleFillLineStartOneYear(event) {
     this.adjustLineStartDate(event.currentTarget.dataset.id, { years: 1 });
   }
@@ -2977,11 +3196,6 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   handleFillLineStartMinusOneMonth(event) {
     this.adjustLineStartDate(event.currentTarget.dataset.id, { months: -1 });
-  }
-
-  handleFillLineEndFromContract(event) {
-    const rowId = event.currentTarget.dataset.id;
-    this.updateRow(rowId, { endDate: this.contractEndDate || "" });
   }
 
   handleFillLineEndOneYear(event) {
@@ -3262,8 +3476,11 @@ export default class EstimateCreateModal3 extends LightningElement {
             : defaults && defaults.billingCycle
               ? defaults.billingCycle
               : "",
+        revenueRecognitionBasis:
+          (defaults && defaults.revenueRecognitionBasis) || "",
+        // 仕様: Core 第4.5.2節、第4.3.9節。マスタ単価 null を 0 円に埋めない。
         unitPrice:
-          defaults && defaults.unitPrice != null ? defaults.unitPrice : 0,
+          defaults && defaults.unitPrice != null ? defaults.unitPrice : null,
         invoiceType,
         // 商品差し替え時は金額入力を解除し、新単価から金額を再計算する
         amountEntryMode: false,
@@ -3490,6 +3707,16 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (!row) {
       return;
     }
+    // 仕様: Core 第4.5.2節、第4.4.3節
+    if (isChangeRemakeLine(row)) {
+      event.target.value = row.invoiceType;
+      this.showToast(
+        "請求設定を変更できません",
+        "変更後の行の請求設定は前回の版と同じにしてください。",
+        "error"
+      );
+      return;
+    }
     const validationError = validateInvoiceSettingForBillingType(
       row.billingType,
       value,
@@ -3506,14 +3733,43 @@ export default class EstimateCreateModal3 extends LightningElement {
     });
   }
 
+  handleRevenueRecognitionBasisChange(event) {
+    if (!this.showRevenueRecognitionColumn) {
+      return;
+    }
+    const rowId = event.currentTarget.dataset.id;
+    const value = event.target.value;
+    const row = this.itemList.find((item) => item.id === rowId);
+    if (!row) {
+      return;
+    }
+    // 仕様: Core 第4.5.2節、第4.4.3節
+    if (isChangeRemakeLine(row)) {
+      event.target.value = row.revenueRecognitionBasis;
+      this.showToast(
+        "売上計上基準を変更できません",
+        "変更後の行の売上計上基準は前回の版と同じにしてください。",
+        "error"
+      );
+      return;
+    }
+    if (value !== "月次計上" && value !== "一括計上") {
+      return;
+    }
+    this.updateRow(rowId, {
+      revenueRecognitionBasis: value
+    });
+  }
+
+  // 仕様: Core 第4.5.2節、第4.4.1節、第1.1.10節。New／Renew は継続マスタの一回切替可。Renew継承の単位は継承元。
   handleBillingTypeFlip(event) {
-    if (!this.isNewType) {
+    if (!this.isNewType && !this.isRenewType) {
       return;
     }
     const rowId = event.currentTarget.dataset.rowId;
     const value = event.currentTarget.dataset.nextBillingType;
     const row = this.itemList.find((item) => item.id === rowId);
-    if (!row) {
+    if (!row || isBillingTypeLockedLine(row)) {
       return;
     }
     const masterBillingType =
@@ -3532,16 +3788,27 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (value === row.billingType) {
       return;
     }
-    const nextInvoiceType = this.resolveRowInvoiceType(row.invoiceType, value);
+    const nextInvoiceType = this.resolveRowInvoiceType(
+      row.invoiceType,
+      value,
+      row
+    );
     const billingCycle =
       value === BILLING_TYPE_ONE_TIME ? "" : MONTHLY_BILLING_CYCLE;
-    this.updateRow(rowId, {
+    const patch = {
       billingType: value,
       invoiceType: nextInvoiceType,
       productMasterBillingType: masterBillingType,
-      billingCycle,
-      unit: buildDisplayUnit(row.unitName || "", value, billingCycle)
-    });
+      billingCycle
+    };
+    // 仕様: Core 第4.5.2節、第1.1.10節。Renew継承の単位は継承元。商品マスタから作り直さない。
+    const keepInheritedUnit =
+      row.recordType === PRODUCT_TYPE_RENEW &&
+      row.sourceContractProductId != null;
+    if (!keepInheritedUnit) {
+      patch.unit = buildDisplayUnit(row.unitName || "", value, billingCycle);
+    }
+    this.updateRow(rowId, patch);
   }
 
   applyRemarkPresetFromWizardData() {
@@ -3672,6 +3939,28 @@ export default class EstimateCreateModal3 extends LightningElement {
     });
   }
 
+  handleEstimateDateChange(event) {
+    const estimateDate = event.target.value || "";
+    const months = this._wizardData?.estimateValidMonths;
+    const touched = this._wizardData?.estimateValidDateTouched === true;
+    this.applyBusinessFields({
+      estimateDate,
+      estimateValidDate: followEstimateValidDate(
+        estimateDate,
+        months,
+        touched,
+        this.estimateValidDate
+      )
+    });
+  }
+
+  handleEstimateValidDateChange(event) {
+    this.applyBusinessFields({
+      estimateValidDate: event.target.value || "",
+      estimateValidDateTouched: true
+    });
+  }
+
   /**
    * 日付・備考・履歴名などの業務項目を親へ送る。
    * ローカルには持たない（fixedEffectiveDate のみ UI 派生として例外）。
@@ -3715,6 +4004,15 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (fields.estimateRemarks !== undefined) {
       detail.estimateRemarks = fields.estimateRemarks;
     }
+    if (fields.estimateDate !== undefined) {
+      detail.estimateDate = fields.estimateDate;
+    }
+    if (fields.estimateValidDate !== undefined) {
+      detail.estimateValidDate = fields.estimateValidDate;
+    }
+    if (fields.estimateValidDateTouched !== undefined) {
+      detail.estimateValidDateTouched = fields.estimateValidDateTouched;
+    }
     if (options.emit === false) {
       return;
     }
@@ -3731,6 +4029,10 @@ export default class EstimateCreateModal3 extends LightningElement {
   commitItemList(nextList, options = {}) {
     const decorated = this.decorateAllRows(nextList || []);
     this.itemList = decorated;
+    // 仕様: Core 第4.4.3節。emit:false でもカタログを残し、最終 emit で親へ載せる。
+    if (options.changeSourceProducts !== undefined) {
+      this._changeSourceProductsLocal = options.changeSourceProducts || [];
+    }
     const headerDates = this.computeHeaderDatesFromRecurringProducts();
     const shouldEmit = options.emit !== false && !this._bootstrapInFlight;
     if (!shouldEmit) {
@@ -3769,7 +4071,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         detail.contractEffectiveDate = "";
       }
     }
-    if (this.isAddType) {
+    if (this.isSpotChange) {
       detail.contractStartDate = "";
       detail.contractEndDate = "";
       detail.contractEffectiveDate = "";
@@ -3783,7 +4085,13 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   serializeProducts(rows) {
     return (rows || [])
-      .filter((item) => item && !item.isGroupHeader && !item.isCustomDetailRow)
+      .filter(
+        (item) =>
+          item &&
+          !item.isGroupHeader &&
+          !item.isCustomDetailRow &&
+          !item.isCustomToggleRow
+      )
       .map((item) => serializeBusinessProduct(item))
       .filter((item) => item != null);
   }
@@ -3868,9 +4176,23 @@ export default class EstimateCreateModal3 extends LightningElement {
     );
   }
 
+  /** 仕様: Core 第4.3.4節 */
   handleToggleAllProductCustomFields() {
     this.productCustomFieldsExpanded = !this.productCustomFieldsExpanded;
-    // expand はローカル表示のみ。親へは送らない。
+    this.productCustomRowExpanded = {};
+    this.itemList = this.decorateAllRows(this.itemList);
+  }
+
+  /** 仕様: Core 第4.3.4節 */
+  handleToggleRowProductCustomFields(event) {
+    const rowId = event.currentTarget?.dataset?.id;
+    if (!rowId) {
+      return;
+    }
+    this.productCustomRowExpanded = {
+      ...this.productCustomRowExpanded,
+      [rowId]: !this.isProductCustomRowExpanded(rowId)
+    };
     this.itemList = this.decorateAllRows(this.itemList);
   }
 
@@ -3957,6 +4279,10 @@ export default class EstimateCreateModal3 extends LightningElement {
       return;
     }
     this.productCustomFieldsExpanded = true;
+    this.productCustomRowExpanded = {
+      ...this.productCustomRowExpanded,
+      [fieldTarget]: true
+    };
     this.commitItemList(
       this.itemList.map((item) => {
         if (item.id !== fieldTarget) {

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>15 操作。確定済み請求の取消。閲覧を含む。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>15 契約 確定済み請求を取り消す</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_15_Can_CancelInvoice</name>
+    </customPermissions>
+</PermissionSet>

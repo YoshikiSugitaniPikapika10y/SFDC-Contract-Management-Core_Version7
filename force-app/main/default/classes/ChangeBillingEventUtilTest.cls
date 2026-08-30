@@ -386,7 +386,8 @@ private class ChangeBillingEventUtilTest {
   }
 
   @IsTest
-  static void doesBillingContentDiffer_detectsProductQuantityAndInvoiceChanges() {
+  static void doesBillingContentDiffer_detectsProductQuantity_notInvoiceSetting() {
+    // Core 第4.4.1節: 請求設定の差は継続課金イベントではない（BUG-095）
     Id productA = fakeId(Product2.SObjectType, 1);
     Id productB = fakeId(Product2.SObjectType, 2);
     ContractProduct__c original = new ContractProduct__c(
@@ -416,7 +417,7 @@ private class ChangeBillingEventUtilTest {
       )
     );
     System.assertEquals(
-      true,
+      false,
       ChangeBillingEventUtil.doesBillingContentDiffer(
         new ContractProduct__c(
           Product__c = productA,
@@ -425,7 +426,8 @@ private class ChangeBillingEventUtilTest {
           InvoiceSetting__c = '月次後払'
         ),
         original
-      )
+      ),
+      '請求設定だけの差は課金イベントの内容差にしない'
     );
   }
 

@@ -4,7 +4,10 @@
  * EstimateDocumentService.loadContext からグループ化済み表示値を供給する。
  */
 public with sharing class EstimateDocumentPdfController {
-  public EstimateSetting__c estimateSetting { get; private set; }
+  public EstimateDocumentService.EstimateDocumentTextDto documentText {
+    get;
+    private set;
+  }
   public String toCompanyNameDisplay { get; private set; }
   public String ownerNameDisplay { get; private set; }
   public String estimateDateDisplay { get; private set; }
@@ -20,6 +23,25 @@ public with sharing class EstimateDocumentPdfController {
   public Decimal otherTotalIncTax { get; private set; }
   public Decimal totalAmount { get; private set; }
   public Boolean hasContext { get; private set; }
+  public String companyBlockedReason { get; private set; }
+  public String sendModeBlockedReason { get; private set; }
+
+  /** 仕様: Core 第4.8節、第4.10節、第11.3.1節、第1.1.10節、共通基盤 第1.4節・第3.3節・第10.4節。使わない／必須会社情報空／04なしなら発行を出さない。 */
+  public Boolean canIssuePdf {
+    get {
+      return hasContext == true &&
+        String.isBlank(companyBlockedReason) &&
+        String.isBlank(sendModeBlockedReason) &&
+        ContractPermissionUtil.has(ContractPermissionUtil.ISSUE_ESTIMATE);
+    }
+  }
+  public String selectedTemplateKey { get; set; }
+  public List<SelectOption> templateOptions { get; private set; }
+  public Boolean issueSucceeded { get; private set; }
+  public Id issuedContentDocumentId { get; private set; }
+  public Boolean showSendThisFile { get; private set; }
+  public String filesPreviewUrl { get; private set; }
+  public Id historyId { get; private set; }
 
   public class GroupView {
     public String productName { get; set; }
@@ -37,14 +59,33 @@ public with sharing class EstimateDocumentPdfController {
     public String period { get; set; }
   }
 
+  public String issueFileName { get; private set; }
+  private ContractHistory__c issueHistory;
+
   public EstimateDocumentPdfController() {
+    try {
+      initializeTemplateOptions();
+    } catch (
+      ContractDocumentTemplateService.DocumentTemplateException ex
+    ) {
+      initEmpty();
+      ApexPages.addMessage(
+        new ApexPages.Message(ApexPages.Severity.ERROR, ex.getMessage())
+      );
+      return;
+    }
     Id recordId = parseRecordId();
+    historyId = recordId;
+    issueSucceeded = false;
+    showSendThisFile = false;
     if (recordId == null) {
       initEmpty();
       return;
     }
     try {
       bindContext(EstimateDocumentService.loadContext(recordId));
+      applyCompanyFieldGate();
+      applySendModeGate();
     } catch (EstimateDocumentService.EstimateDocumentException ex) {
       initEmpty();
       ApexPages.addMessage(
@@ -55,6 +96,7 @@ public with sharing class EstimateDocumentPdfController {
 
   public PageReference issuePdf() {
     Id recordId = parseRecordId();
+    historyId = recordId;
     if (recordId == null) {
       ApexPages.addMessage(
         new ApexPages.Message(
@@ -67,7 +109,7 @@ public with sharing class EstimateDocumentPdfController {
 
     if (
       !ContractPermissionUtil.has(
-        ContractPermissionUtil.ISSUE_ESTIMATE_DOCUMENT
+        ContractPermissionUtil.ISSUE_ESTIMATE
       )
     ) {
       ApexPages.addMessage(
@@ -80,11 +122,27 @@ public with sharing class EstimateDocumentPdfController {
     }
 
     try {
-      EstimateDocumentService.issueEstimateDocument(recordId);
-      PageReference pdfPage = Page.EstimateDocumentPdf;
-      pdfPage.getParameters().put('id', recordId);
-      pdfPage.setRedirect(true);
-      return pdfPage;
+      EstimateDocumentService.IssueResult issueResult = EstimateDocumentService.issueEstimateDocument(
+        recordId,
+        selectedTemplateKey
+      );
+      issuedContentDocumentId = issueResult.contentDocumentId;
+      issueSucceeded = true;
+      filesPreviewUrl =
+        '/lightning/r/ContentDocument/' +
+        String.valueOf(issuedContentDocumentId) +
+        '/view';
+      showSendThisFile =
+        ContractDocumentSettingService.requireSendMode('Estimate') ==
+        ContractDocumentSettingService.MODE_PDF_AND_EMAIL &&
+        ContractPermissionUtil.has(ContractPermissionUtil.SEND_ESTIMATE);
+      ApexPages.addMessage(
+        new ApexPages.Message(
+          ApexPages.Severity.CONFIRM,
+          '見積書を発行しました。'
+        )
+      );
+      return null;
     } catch (Exception ex) {
       ApexPages.addMessage(
         new ApexPages.Message(ApexPages.Severity.ERROR, ex.getMessage())
@@ -100,7 +158,7 @@ public with sharing class EstimateDocumentPdfController {
       return;
     }
 
-    estimateSetting = context.estimateSetting;
+    documentText = context.documentText;
     toCompanyNameDisplay = context.toCompanyNameDisplay;
     ownerNameDisplay = context.ownerNameDisplay;
     estimateDateDisplay = context.estimateDateDisplay;
@@ -115,8 +173,34 @@ public with sharing class EstimateDocumentPdfController {
     trainingTotalIncTax = context.trainingTotalIncTax;
     otherTotalIncTax = context.otherTotalIncTax;
     totalAmount = context.totalAmount;
+    issueHistory = context.history;
+    refreshIssueFileName();
   }
 
+  /** 仕様: Core 第4.8節、第7.10節。発行するときにファイル名を見せる。この画面では直さない。 */
+  public PageReference refreshIssueFileName() {
+    issueFileName = '';
+    if (issueHistory == null || String.isBlank(selectedTemplateKey)) {
+      return null;
+    }
+    try {
+      ContractDocumentTemplateService.TemplateDefinition template =
+        ContractDocumentTemplateService.resolveTemplate(
+          ContractDocumentTemplateService.TYPE_ESTIMATE,
+          selectedTemplateKey
+        );
+      issueFileName = EstimateDocumentService.buildFileName(
+        issueHistory,
+        issueHistory.EstimateIssueDate__c,
+        template
+      );
+    } catch (Exception ex) {
+      issueFileName = '';
+    }
+    return null;
+  }
+
+  /** 仕様: Core 第4.8節、第11.9節。数量・金額は OrgDefault。HALF_UP 直書きしない。 */
   private List<GroupView> toGroupViews(
     List<EstimateDocumentService.GroupDto> sourceGroups
   ) {
@@ -140,10 +224,12 @@ public with sharing class EstimateDocumentPdfController {
           itemView.unit = sourceItem.unit;
           itemView.quantity = sourceItem.quantity == null
             ? 0
-            : sourceItem.quantity.setScale(2, RoundingMode.HALF_UP);
+            : AmountCalculationSettingService.roundQuantityUnitPrice(
+                sourceItem.quantity
+              );
           itemView.amount = sourceItem.amount == null
             ? 0
-            : sourceItem.amount.setScale(0, RoundingMode.HALF_UP);
+            : AmountCalculationSettingService.roundAmount(sourceItem.amount);
           itemView.period = sourceItem.period;
           view.items.add(itemView);
         }
@@ -155,7 +241,7 @@ public with sharing class EstimateDocumentPdfController {
 
   private void initEmpty() {
     hasContext = false;
-    estimateSetting = null;
+    documentText = null;
     toCompanyNameDisplay = '';
     ownerNameDisplay = '';
     estimateDateDisplay = '';
@@ -170,6 +256,79 @@ public with sharing class EstimateDocumentPdfController {
     trainingTotalIncTax = 0;
     otherTotalIncTax = 0;
     totalAmount = 0;
+    issueSucceeded = false;
+    showSendThisFile = false;
+    issuedContentDocumentId = null;
+    filesPreviewUrl = '';
+    issueFileName = '';
+    issueHistory = null;
+    companyBlockedReason = '';
+    sendModeBlockedReason = '';
+  }
+
+  /** 仕様: Core 第4.8節、第11.3.1節、第1.1.10節。必須会社情報が空なら発行を止める。 */
+  private void applyCompanyFieldGate() {
+    companyBlockedReason = '';
+    if (hasContext != true) {
+      return;
+    }
+    try {
+      ContractDocumentSettingService.assertRequiredCompanyFields();
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      companyBlockedReason = ex.getMessage();
+      ApexPages.addMessage(
+        new ApexPages.Message(ApexPages.Severity.ERROR, ex.getMessage())
+      );
+    }
+  }
+
+  /** 仕様: Core 第4.8節、第4.10節、第1.1.10節。使わないなら発行しない。 */
+  private void applySendModeGate() {
+    sendModeBlockedReason = '';
+    if (hasContext != true) {
+      return;
+    }
+    try {
+      if (
+        ContractDocumentSettingService.requireSendMode('Estimate') ==
+        ContractDocumentSettingService.MODE_UNUSED
+      ) {
+        sendModeBlockedReason = '見積書設定が使わないのため、発行も送付もできません。';
+        ApexPages.addMessage(
+          new ApexPages.Message(
+            ApexPages.Severity.ERROR,
+            sendModeBlockedReason
+          )
+        );
+      }
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      sendModeBlockedReason = ex.getMessage();
+      ApexPages.addMessage(
+        new ApexPages.Message(ApexPages.Severity.ERROR, ex.getMessage())
+      );
+    }
+  }
+
+  private void initializeTemplateOptions() {
+    templateOptions = new List<SelectOption>();
+    List<ContractDocumentTemplateService.TemplateDefinition> templates = ContractDocumentTemplateService.getActiveTemplates(
+      ContractDocumentTemplateService.TYPE_ESTIMATE
+    );
+    // 仕様: Core 第4.8節、第11.3.2節。発行画面は組織の既定帳票を最初に選ぶ。
+    String requestedKey = ContractDocumentSettingService.requireOrgSetting()
+      .EstimateDefaultDocumentTemplateKey__c;
+    ContractDocumentTemplateService.TemplateDefinition selected = ContractDocumentTemplateService.resolveTemplate(
+      ContractDocumentTemplateService.TYPE_ESTIMATE,
+      requestedKey
+    );
+    selectedTemplateKey = selected.templateKey;
+    for (
+      ContractDocumentTemplateService.TemplateDefinition template : templates
+    ) {
+      templateOptions.add(
+        new SelectOption(template.templateKey, template.label)
+      );
+    }
   }
 
   private Id parseRecordId() {

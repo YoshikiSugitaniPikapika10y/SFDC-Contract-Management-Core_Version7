@@ -4,12 +4,20 @@
         <headerColor>#1B5297</headerColor>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
-    <description>見積の横断一覧と複数受注</description>
+    <description>契約・見積・請求・入金・仕訳を取引先横断で処理する契約管理アプリ</description>
     <formFactors>Large</formFactors>
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
     <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
-    <label>契約見積</label>
+    <label>契約管理設定</label>
     <navType>Standard</navType>
-    <tabs>Estimate_Order_Board</tabs>
+    <tabs>Contract_Document_Settings</tabs>
+    <tabs>standard-Product2</tabs>
+    <tabs>FieldCopyDefinition__c</tabs>
+    <tabs>EstimateNoteMaster__c</tabs>
+    <tabs>GlAccount__c</tabs>
+    <tabs>GlConditionSet__c</tabs>
+    <tabs>GlAccountMap__c</tabs>
+    <tabs>GlAccountingTagRule__c</tabs>
+    <tabs>GlManualJournalSetting__c</tabs>
     <uiType>Lightning</uiType>
 </CustomApplication>

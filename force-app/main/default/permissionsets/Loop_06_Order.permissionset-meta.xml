@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>06 操作。受注。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>06 契約 受注する</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_06_Can_Order</name>
+    </customPermissions>
+</PermissionSet>

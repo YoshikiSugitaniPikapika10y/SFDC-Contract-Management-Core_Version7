@@ -1,8 +1,8 @@
 <template>
-  <div class={pageClass}>
+  <div class={pageClass} onwheel={handlePreviewWheel}>
     <header class="preview-header">
       <div>
-        <h1 class="preview-title">請求プレビュー</h1>
+        <h1 class="preview-title">請求ボード</h1>
       </div>
       <button
         type="button"
@@ -15,7 +15,20 @@
     </header>
 
     <template if:true={errorMessage}>
-      <div class="alert alert_error">{errorMessage}</div>
+      <div class="alert alert_error">
+        <div>{errorMessage}</div>
+        <template if:true={contentLoadFailed}>
+          <div class="alert-reload">
+            <button
+              type="button"
+              class="btn btn_secondary"
+              onclick={handleContentReload}
+            >
+              再読み込み
+            </button>
+          </div>
+        </template>
+      </div>
     </template>
 
     <main class="preview-body">
@@ -35,12 +48,19 @@
               preview={invoicePreview}
               billing-account-options={billingAccountOptions}
               is-saving={isSaving}
+              initial-version={tableInitialVersion}
+              initial-invoice-id={tableInitialInvoiceId}
+              contract-history-id={previewHistoryId}
               onsavelineamounts={handleSaveLineAmounts}
+              onsaveacceptanceenddate={handleSaveAcceptanceEndDate}
               onsavebillingheader={handleSaveBillingHeader}
+              onapplybillingaccountcontent={handleApplyBillingAccountContent}
               onsplitinvoice={handleSplitInvoice}
               onmovelines={handleMoveLines}
               onsplitlinesinplace={handleSplitLinesInPlace}
               onresetpostorder={handleResetPostOrder}
+              oncancelconfirmed={handleCancelConfirmed}
+              oninvoiceopscomplete={handleInvoiceOpsComplete}
             >
             </c-order-invoice-preview-table>
           </div>

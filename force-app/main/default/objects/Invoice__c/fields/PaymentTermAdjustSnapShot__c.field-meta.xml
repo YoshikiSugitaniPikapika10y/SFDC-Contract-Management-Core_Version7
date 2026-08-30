@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>PaymentTermAdjustSnapShot__c</fullName>
+    <description>仕様: Core 第7.2節、第7.5節</description>
+    <label>支払条件の補正</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>None</fullName>
+                <default>false</default>
+                <label>補正なし</label>
+            </value>
+            <value>
+                <fullName>Previous</fullName>
+                <default>false</default>
+                <label>前営業日</label>
+            </value>
+            <value>
+                <fullName>Next</fullName>
+                <default>false</default>
+                <label>翌営業日</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

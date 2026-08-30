@@ -135,6 +135,13 @@
   line-height: 1.4;
 }
 
+.confirm-history-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #181818;
+}
+
 .confirm-footer {
   display: flex;
   justify-content: flex-end;
@@ -199,6 +206,10 @@
   background: #fddde3;
   color: #8e030f;
   border: 1px solid #f9a8b4;
+}
+
+.alert-reload {
+  margin-top: 0.5rem;
 }
 
 .alert_warn {

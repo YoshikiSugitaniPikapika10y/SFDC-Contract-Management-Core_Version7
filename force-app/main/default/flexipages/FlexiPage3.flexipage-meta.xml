@@ -11,7 +11,7 @@
                             <visibilityRule>
                                 <criteria>
                                     <leftValue
-                  >{!$Permission.CustomPermission.Contract_04_Can_Create_Estimate}</leftValue>
+                  >{!$Permission.CustomPermission.Loop_03_Can_Estimate}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
@@ -387,20 +387,6 @@
         <type>Facet</type>
     </flexiPageRegions>
     <flexiPageRegions>
-        <itemInstances>
-            <componentInstance>
-                <componentName>estimateCreateWizard</componentName>
-                <identifier>c_estimateCreateWizard</identifier>
-                <visibilityRule>
-                    <criteria>
-                        <leftValue
-            >{!$Permission.CustomPermission.Contract_04_Can_Create_Estimate}</leftValue>
-                        <operator>EQUAL</operator>
-                        <rightValue>true</rightValue>
-                    </criteria>
-                </visibilityRule>
-            </componentInstance>
-        </itemInstances>
         <itemInstances>
             <componentInstance>
                 <componentInstanceProperties>

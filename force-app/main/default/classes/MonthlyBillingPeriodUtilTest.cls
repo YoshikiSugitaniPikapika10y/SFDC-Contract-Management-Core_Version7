@@ -227,6 +227,25 @@ private class MonthlyBillingPeriodUtilTest {
   }
 
   @IsTest
+  static void buildMonthlyPeriodsCoveringEnd_addsShortFinalBucket() {
+    Date startDate = Date.newInstance(2025, 1, 15);
+    Date endDate = Date.newInstance(2025, 3, 20);
+
+    List<MonthlyBillingPeriodUtil.BillingPeriod> periods = MonthlyBillingPeriodUtil.buildMonthlyPeriodsCoveringEnd(
+      startDate,
+      endDate
+    );
+
+    System.assertEquals(3, periods.size());
+    System.assertEquals(startDate, periods[0].startDate);
+    System.assertEquals(Date.newInstance(2025, 2, 14), periods[0].endDate);
+    System.assertEquals(Date.newInstance(2025, 2, 15), periods[1].startDate);
+    System.assertEquals(Date.newInstance(2025, 3, 14), periods[1].endDate);
+    System.assertEquals(Date.newInstance(2025, 3, 15), periods[2].startDate);
+    System.assertEquals(endDate, periods[2].endDate);
+  }
+
+  @IsTest
   static void leapYear_februaryPeriodEndsOn29() {
     // 月次期間: addMonths(1).addDays(-1)。1/31 起点はうるう年でも 2/28 になる
     // （addMonths が 2/29 に着地したあと -1 日するため）。

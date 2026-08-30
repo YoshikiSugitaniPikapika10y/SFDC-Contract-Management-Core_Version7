@@ -62,6 +62,10 @@ public without sharing class EstimateCreateSupport {
       line.productName = (String) item.get('productName');
       line.billingType = (String) item.get('billingType');
       line.billingCycle = (String) item.get('billingCycle');
+      // 仕様: Core 第4.3.4節、第4.5.2節、第1.1.10節。画面の売上計上基準を保存へ載せる。
+      line.revenueRecognitionBasis = (String) item.get(
+        'revenueRecognitionBasis'
+      );
       line.recordType = normalizeProductRecordType(
         (String) item.get('recordType')
       );

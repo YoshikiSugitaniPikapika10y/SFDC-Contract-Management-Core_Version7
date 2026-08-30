@@ -1,0 +1,11 @@
+{!Invoice__c.BillingAddresseeSnapShot__c} 様
+
+お世話になっております。
+請求書を添付いたしましたので、ご確認ください。
+
+請求番号: {!Invoice__c.Name}
+請求日: {!Invoice__c.InvoiceDate__c}
+お支払期限: {!Invoice__c.PaymentScheduledDate__c}
+
+振込先は請求書PDFをご覧ください。
+ご不明点がございましたら、本メールへご返信ください。

@@ -1,6 +1,6 @@
 @IsTest
 private class ContractHistoryTriggerHandlerTest {
-  /** Ordered 挿入／遷移テスト用。請求先必須検証を通す。 */
+  /** Ordered ???E??E??E????????E?E????????E*/
   private static ContractService__c insertServiceWithBillingAccount(
     Account account,
     String serviceName
@@ -11,10 +11,14 @@ private class ContractHistoryTriggerHandlerTest {
       BillingEmailTo__c = 'to@example.com',
       BillingEmailCc__c = 'cc@example.com',
       BillingEmailBcc__c = 'bcc@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 25,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     ContractService__c service = new ContractService__c(
@@ -67,13 +71,16 @@ private class ContractHistoryTriggerHandlerTest {
       );
       insert contractProduct;
 
-      insert new Invoice__c(
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new Invoice__c(
         ContractService__c = service.Id,
         ContractHistory__c = history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 96000,
         TaxAmount__c = 9600,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
+      )
       );
 
       Boolean thrown = false;
@@ -141,14 +148,18 @@ private class ContractHistoryTriggerHandlerTest {
       );
       insert contractProduct;
 
-      insert new Invoice__c(
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new Invoice__c(
         ContractService__c = service.Id,
         ContractHistory__c = history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 96000,
         TaxAmount__c = 9600,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+        CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
         SystemIntegrationDate__c = null,
         PaymentClearingCompletedDate__c = Date.newInstance(2026, 6, 1)
+      )
       );
 
       Boolean thrown = false;
@@ -227,8 +238,7 @@ private class ContractHistoryTriggerHandlerTest {
           Date.newInstance(2026, 6, 1),
           null
         ),
-        Amount__c = 96000,
-        invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        Amount__c = 96000
       );
 
       history.historystatus__c = 'Estimate';
@@ -249,7 +259,7 @@ private class ContractHistoryTriggerHandlerTest {
       Account account = ContractTestDataFactory.insertAccount(
         'Revert NonLatest Account'
       );
-      // 最新判定は Ordered の MAX(Version) のみ。confirmOrder は不要（SOQL 節約）
+      // ?????E Ordered ? MAX(Version) ???confirmOrder ???E??EOQL ??E??E
       ContractService__c service = insertServiceWithBillingAccount(
         account,
         'Revert NonLatest Service'
@@ -267,7 +277,7 @@ private class ContractHistoryTriggerHandlerTest {
       );
       insert priorHistory;
 
-      // Type は New のまま（Change の after insert 請求生成バリデーションを避ける）
+      // Type ? New ????E?Ehange ? after insert ???????E?E????????E?E
       insert new ContractHistory__c(
         Name = 'Revert NonLatest History v2',
         ContractService__c = service.Id,
@@ -298,7 +308,7 @@ private class ContractHistoryTriggerHandlerTest {
   }
 
   @IsTest
-  static void beforeUpdate_blocksRevertToEstimateWhenNewerEstimateExists() {
+  static void beforeUpdate_archivesNewerEstimateWhenReverting() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Revert Newer Estimate Account'
@@ -332,23 +342,38 @@ private class ContractHistoryTriggerHandlerTest {
         PreviousHistory__c = orderedHistory.Id
       );
 
-      Boolean thrown = false;
-      try {
-        orderedHistory.historystatus__c = 'Estimate';
-        update orderedHistory;
-      } catch (DmlException ex) {
-        thrown = true;
-        System.assertEquals(
-          EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE,
-          dmlMessage(ex)
-        );
-      }
-      System.assertEquals(true, thrown);
+      ContractHistory__c newer = [
+        SELECT Id
+        FROM ContractHistory__c
+        WHERE Name = 'Revert Newer Estimate History v2'
+        LIMIT 1
+      ];
+      orderedHistory.historystatus__c = 'Estimate';
+      update orderedHistory;
+      System.assertEquals(
+        'Estimate',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :orderedHistory.Id
+        ]
+        .historystatus__c
+      );
+      System.assertEquals(
+        'Archive',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :newer.Id
+        ]
+        .historystatus__c,
+        '?? Estimate ??????????? Archive ??'
+      );
     }
   }
 
   @IsTest
-  static void beforeDelete_cascadesUninvoicedInvoiceProductsOnEstimateDelete() {
+  static void beforeDelete_rejectsPhysicalDelete() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Estimate Delete Account'
@@ -400,25 +425,147 @@ private class ContractHistoryTriggerHandlerTest {
           Date.newInstance(2026, 6, 1),
           null
         ),
-        Amount__c = 8000,
-        invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY
+        Amount__c = 8000
       );
 
-      delete history;
-
+      Boolean thrown = false;
+      try {
+        delete history;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('契約履歴は物理削除できません'),
+          'Core 第4.11節: 契約履歴の物理削除を拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
       System.assertEquals(
-        0,
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ],
+        'Core 第4.11節: 削除されない'
+      );
+      System.assertEquals(
+        1,
         [
           SELECT COUNT()
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :history.Id
-        ]
+        ],
+        'Core 第4.11節: 前処理で期間明細を消さない'
       );
     }
   }
 
   @IsTest
-  static void beforeDelete_partialBulk_cleansUnlockedWhileBlockingLocked() {
+  static void beforeDelete_rejectsEvenWithBypassPermission() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Bypass Delete Account'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Bypass Delete Service',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Bypass Delete History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      insert history;
+
+      Boolean thrown = false;
+      try {
+        delete history;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('契約履歴は物理削除できません'),
+          'Core 第4.11節: 緊急権限でも物理削除を通さない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void beforeDelete_allowsWith103() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Delete 103 Account'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Delete 103 Service',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Delete 103 History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      insert history;
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.DELETE_RECORDS => true
+      };
+      try {
+        delete history;
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM ContractHistory__c WHERE Id = :history.Id],
+        'Core 第4.11節・共通基盤 第3.6節: 103 は契約履歴の物理削除を通す'
+      );
+    }
+  }
+
+  @IsTest
+  static void beforeDelete_allowsWith104() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Delete 104 Account'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Delete 104 Service',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Delete 104 History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      insert history;
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.MIGRATE_ALL => true
+      };
+      try {
+        delete history;
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM ContractHistory__c WHERE Id = :history.Id],
+        'Core 第4.11節・共通基盤 第3.6節: 104 は契約履歴の物理削除を通す'
+      );
+    }
+  }
+
+  @IsTest
+  static void beforeDelete_partialBulk_rejectsAll() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Bulk Delete Mixed Lock Account'
@@ -446,18 +593,20 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      // 請求は手挿入するため、受注生成を避けるよう Estimate で作り後から Ordered 相当の請求だけ付ける
+      // ???E????????????E?????? Estimate ??????EOrdered ???E???????E
       lockedHistory.historystatus__c = 'Estimate';
       openHistory.historystatus__c = 'Estimate';
       insert new List<ContractHistory__c>{ lockedHistory, openHistory };
 
-      insert new List<Invoice__c>{
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new List<Invoice__c>{
         new Invoice__c(
           ContractService__c = service.Id,
           ContractHistory__c = lockedHistory.Id,
           InvoiceDate__c = Date.newInstance(2026, 6, 1),
           Amount__c = 10000,
           TaxAmount__c = 1000,
+          InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
           SystemIntegrationDate__c = Date.today()
         ),
         new Invoice__c(
@@ -467,73 +616,43 @@ private class ContractHistoryTriggerHandlerTest {
           Amount__c = 20000,
           TaxAmount__c = 2000
         )
-      };
+        }
+      );
 
       Database.DeleteResult[] results = Database.delete(
         new List<ContractHistory__c>{ lockedHistory, openHistory },
         false
       );
 
-      Boolean lockedFailed = false;
-      Boolean openSucceeded = false;
-      String lockedMessage = null;
       for (Database.DeleteResult result : results) {
-        if (result.getId() == lockedHistory.Id) {
-          lockedFailed = !result.isSuccess();
-          if (!result.isSuccess() && !result.getErrors().isEmpty()) {
-            lockedMessage = result.getErrors()[0].getMessage();
-          }
-        }
-        if (result.getId() == openHistory.Id) {
-          openSucceeded = result.isSuccess();
-        }
+        System.assertEquals(
+          false,
+          result.isSuccess(),
+          'Core 第4.11節: 一括でも契約履歴は全件拒否'
+        );
+        System.assert(
+          result.getErrors()[0].getMessage().contains('契約履歴は物理削除できません'),
+          'Core 第4.11節: 物理削除拒否メッセージ'
+        );
       }
-      System.assertEquals(true, lockedFailed, 'ロック履歴は削除不可');
-      System.assertEquals(
-        InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
-        lockedMessage
-      );
-      System.assertEquals(true, openSucceeded, '未ロック履歴は削除可');
 
       System.assertEquals(
-        1,
+        2,
         [
           SELECT COUNT()
           FROM ContractHistory__c
-          WHERE Id = :lockedHistory.Id
+          WHERE Id IN :new List<Id>{ lockedHistory.Id, openHistory.Id }
         ],
-        'ロック履歴は残る'
+        'Core 第4.11節: どちらも残る'
       );
       System.assertEquals(
-        0,
-        [
-          SELECT COUNT()
-          FROM ContractHistory__c
-          WHERE Id = :openHistory.Id
-        ],
-        '未ロック履歴は消える'
-      );
-      System.assertEquals(
-        1,
+        2,
         [
           SELECT COUNT()
           FROM Invoice__c
-          WHERE ContractHistory__c = :lockedHistory.Id
+          WHERE ContractHistory__c IN :new List<Id>{ lockedHistory.Id, openHistory.Id }
         ],
-        'ロック側請求は残る'
-      );
-      System.assertEquals(
-        0,
-        [
-          SELECT COUNT()
-          FROM Invoice__c
-          WHERE
-            ContractHistory__c = :openHistory.Id
-            OR (ContractHistory__c = NULL
-            AND ContractService__c = :service.Id
-            AND Amount__c = 20000)
-        ],
-        '未ロック側請求は孤児にせず削除する'
+        'Core 第4.11節: 前処理で請求を消さない'
       );
     }
   }
@@ -563,13 +682,15 @@ private class ContractHistoryTriggerHandlerTest {
         Version__c = 2
       );
       insert new List<ContractHistory__c>{ h1, h2 };
-      insert new List<Invoice__c>{
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new List<Invoice__c>{
         new Invoice__c(
           ContractService__c = service.Id,
           ContractHistory__c = h1.Id,
           InvoiceDate__c = Date.newInstance(2026, 6, 1),
           Amount__c = 1000,
           TaxAmount__c = 100,
+          InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
           SystemIntegrationDate__c = Date.today()
         ),
         new Invoice__c(
@@ -578,9 +699,12 @@ private class ContractHistoryTriggerHandlerTest {
           InvoiceDate__c = Date.newInstance(2026, 7, 1),
           Amount__c = 2000,
           TaxAmount__c = 200,
+          InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+        CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
           PaymentClearingCompletedDate__c = Date.today()
         )
-      };
+        }
+      );
 
       Database.DeleteResult[] results = Database.delete(
         new List<ContractHistory__c>{ h1, h2 },
@@ -588,9 +712,9 @@ private class ContractHistoryTriggerHandlerTest {
       );
       for (Database.DeleteResult result : results) {
         System.assertEquals(false, result.isSuccess());
-        System.assertEquals(
-          InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
-          result.getErrors()[0].getMessage()
+        System.assert(
+          result.getErrors()[0].getMessage().contains('契約履歴は物理削除できません'),
+          'Core 第4.11節: 物理削除を拒否する'
         );
       }
       System.assertEquals(
@@ -608,7 +732,62 @@ private class ContractHistoryTriggerHandlerTest {
           FROM Invoice__c
           WHERE ContractHistory__c IN :new List<Id>{ h1.Id, h2.Id }
         ],
-        '全件ロック時は請求の掃除もしない'
+        '????E????E???E?E??????E
+      );
+    }
+  }
+
+  @IsTest
+  static void beforeUpdate_clearsPreviousHistoryOnArchive() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Clear Previous Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Archive Clear Previous Service'
+      );
+
+      ContractHistory__c orderedHistory = new ContractHistory__c(
+        Name = 'Archive Clear Previous Ordered',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      insert orderedHistory;
+
+      ContractHistory__c estimateHistory = new ContractHistory__c(
+        Name = 'Archive Clear Previous Estimate',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 10, 1),
+        PreviousHistory__c = orderedHistory.Id
+      );
+      insert estimateHistory;
+
+      Test.startTest();
+      estimateHistory.historystatus__c = 'Archive';
+      update estimateHistory;
+      Test.stopTest();
+
+      ContractHistory__c archived = [
+        SELECT historystatus__c, PreviousHistory__c
+        FROM ContractHistory__c
+        WHERE Id = :estimateHistory.Id
+      ];
+      System.assertEquals('Archive', archived.historystatus__c);
+      System.assertEquals(
+        null,
+        archived.PreviousHistory__c,
+        'Archive ??E????E?????E?E
       );
     }
   }
@@ -671,7 +850,7 @@ private class ContractHistoryTriggerHandlerTest {
       insert history;
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-        ContractPermissionUtil.BYPASS_INTEGRITY => true
+        ContractPermissionUtil.MIGRATE_ALL => true
       };
       Boolean thrown = false;
       try {
@@ -712,7 +891,7 @@ private class ContractHistoryTriggerHandlerTest {
       insert history;
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-        ContractPermissionUtil.BYPASS_INTEGRITY => true,
+        ContractPermissionUtil.MIGRATE_ALL => true,
         ContractPermissionUtil.ORDER => true
       };
       Boolean thrown = false;
@@ -798,7 +977,7 @@ private class ContractHistoryTriggerHandlerTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :history.Id
         ],
-        'Archive 後に期間明細は残らない'
+        'Archive ???????????E
       );
       System.assertEquals(
         0,
@@ -807,7 +986,7 @@ private class ContractHistoryTriggerHandlerTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :history.Id
         ],
-        'Archive 後に請求は残らない'
+        'Archive ?????E????E
       );
     }
   }
@@ -972,7 +1151,7 @@ private class ContractHistoryTriggerHandlerTest {
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.ORDER => false,
-        ContractPermissionUtil.BYPASS_INTEGRITY => true
+        ContractPermissionUtil.MIGRATE_ALL => true
       };
       Boolean thrown = false;
       try {
@@ -988,6 +1167,72 @@ private class ContractHistoryTriggerHandlerTest {
         ContractPermissionUtil.testOverrides = null;
       }
       System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void cancelOrdered_blocksLaterVersionInsertAndOrder() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Terminal Cancel Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Terminal Cancel Service'
+      );
+
+      // Cancel ???????????????Cancel ??E??????E??E
+      ContractHistory__c existingFutureEstimate = new ContractHistory__c(
+        Name = 'Existing Future Estimate',
+        ContractService__c = service.Id,
+        Type__c = 'Renew',
+        historystatus__c = 'Estimate',
+        Version__c = 3
+      );
+      insert existingFutureEstimate;
+
+      insert new ContractHistory__c(
+        Name = 'Terminal Cancel',
+        ContractService__c = service.Id,
+        Type__c = 'Cancel',
+        historystatus__c = 'Ordered',
+        Version__c = 2
+      );
+
+      ContractHistory__c laterEstimate = new ContractHistory__c(
+        Name = 'Later Estimate',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 4
+      );
+      Database.SaveResult insertResult = Database.insert(laterEstimate, false);
+      System.assertEquals(false, insertResult.isSuccess());
+      System.assert(
+        insertResult
+          .getErrors()[0]
+          .getMessage()
+          .contains(
+            ContractHistoryTerminalService.VERSION_AFTER_CANCEL_BLOCK_MESSAGE
+          ),
+        insertResult.getErrors()[0].getMessage()
+      );
+
+      existingFutureEstimate.historystatus__c = 'Ordered';
+      Database.SaveResult orderResult = Database.update(
+        existingFutureEstimate,
+        false
+      );
+      System.assertEquals(false, orderResult.isSuccess());
+      System.assert(
+        orderResult
+          .getErrors()[0]
+          .getMessage()
+          .contains(
+            ContractHistoryTerminalService.VERSION_AFTER_CANCEL_BLOCK_MESSAGE
+          ),
+        orderResult.getErrors()[0].getMessage()
+      );
     }
   }
 
@@ -1019,5 +1264,223 @@ private class ContractHistoryTriggerHandlerTest {
       raw = raw.substring(0, newline);
     }
     return raw.trim();
+  }
+
+  @IsTest
+  static void insert_rejectsManualAutoCreatedFlag() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('AutoFlag Acct');
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'AutoFlag Service'
+      );
+      Boolean thrown = false;
+      try {
+        insert new ContractHistory__c(
+          Name = 'Manual Auto Flag',
+          ContractService__c = service.Id,
+          Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+          Version__c = 1,
+          RenewEstimateAutoCreated__c = true
+        );
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assert(ex.getMessage().contains('??????????????????'));
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void update_rejectsAutoCreatedFlagToggle() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('AutoFlag Upd Acct');
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'AutoFlag Upd Service'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Manual Auto Flag Upd',
+        ContractService__c = service.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1
+      );
+      insert history;
+      history.RenewEstimateAutoCreated__c = true;
+      Boolean thrown = false;
+      try {
+        update history;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assert(ex.getMessage().contains('??????????????????'));
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void insert_rejectsCreateRenewWhenSwitchOff() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.RenewOpportunityEnabled__c = false;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      Account account = ContractTestDataFactory.insertAccount(
+        'Renew Req Off Acct'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Renew Req Off Service'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Renew Req Off Opp'
+      );
+      Boolean thrown = false;
+      try {
+        insert new ContractHistory__c(
+          Name = 'Renew Req Off',
+          ContractService__c = service.Id,
+          Opportunity__c = opportunity.Id,
+          Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+          Version__c = 1,
+          CreateRenewOpportunity__c = true
+        );
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assertEquals(
+          ContractHistoryTriggerHandler.RENEW_REQUEST_NOT_ALLOWED_MESSAGE,
+          dmlMessage(ex),
+          'Core 第11.5節: OFFではCreateRenewOpportunity=trueの保存を拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void update_rejectsCreateRenewWhenSwitchOff() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.RenewOpportunityEnabled__c = false;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      Account account = ContractTestDataFactory.insertAccount(
+        'Renew Req Off Upd Acct'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Renew Req Off Upd Service'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Renew Req Off Upd Opp'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Renew Req Off Upd',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1
+      );
+      insert history;
+      history.CreateRenewOpportunity__c = true;
+      Boolean thrown = false;
+      try {
+        update history;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assertEquals(
+          ContractHistoryTriggerHandler.RENEW_REQUEST_NOT_ALLOWED_MESSAGE,
+          dmlMessage(ex),
+          'Core 第11.5節: OFFではCreateRenewOpportunity=trueの更新を拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void insert_rejectsCreateRenewForCancel() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Renew Req Cancel Acct'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Renew Req Cancel Service'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Renew Req Cancel Opp'
+      );
+      Boolean thrown = false;
+      try {
+        insert new ContractHistory__c(
+          Name = 'Renew Req Cancel',
+          ContractService__c = service.Id,
+          Opportunity__c = opportunity.Id,
+          Type__c = ContractDomainConstants.HISTORY_TYPE_CANCEL,
+          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+          Version__c = 2,
+          CreateRenewOpportunity__c = true
+        );
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assertEquals(
+          ContractHistoryTriggerHandler.RENEW_REQUEST_NOT_ALLOWED_MESSAGE,
+          dmlMessage(ex),
+          'Core 第5.2節: CancelではCreateRenewOpportunity=trueの保存を拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void termDates_helpUsesIkkaiKakinNotDigitOne() {
+    List<Schema.DescribeFieldResult> fields = new List<Schema.DescribeFieldResult>{
+      ContractHistory__c.CurrentTermStartDate__c.getDescribe(),
+      ContractHistory__c.CurrentTermEndDate__c.getDescribe(),
+      ContractHistory__c.EffectiveDate__c.getDescribe()
+    };
+    for (Schema.DescribeFieldResult fieldDescribe : fields) {
+      String helpText = fieldDescribe.getInlineHelpText();
+      System.assertNotEquals(null, helpText);
+      System.assert(
+        helpText.contains('一回課金'),
+        'Core 第0章: 課金形態の用語は一回課金。項目=' + fieldDescribe.getName()
+      );
+      System.assert(
+        !helpText.contains('1回課金'),
+        'Core 第0章: ヘルプに 1回課金 と出さない。項目=' +
+        fieldDescribe.getName()
+      );
+    }
+  }
+
+  @IsTest
+  static void orderDate_helpIsNotJournalPostingBasis() {
+    String helpText = ContractHistory__c.OrderDate__c.getDescribe()
+      .getInlineHelpText();
+    System.assertNotEquals(null, helpText);
+    System.assert(
+      helpText.contains('受注済み'),
+      'Core 第11.7節・第0.1節: 受注日は社内で受注済みにした日'
+    );
+    System.assert(
+      helpText.contains('仕訳計上日には使いません'),
+      'Core 第11.7節: 受注日は仕訳計上日に使わない'
+    );
+    System.assert(
+      !helpText.contains('仕訳を受注日で計上'),
+      'Core 第11.7節: ヘルプに仕訳計上の基準と出さない'
+    );
   }
 }

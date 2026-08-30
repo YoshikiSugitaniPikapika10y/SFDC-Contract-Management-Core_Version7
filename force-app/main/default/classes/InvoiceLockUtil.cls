@@ -4,20 +4,41 @@
  * ロック中の更新許可項目は階層 CS InvoiceLockExemptFields__c（カンマ区切り API 名）。
  */
 public without sharing class InvoiceLockUtil {
-  public static final String SOQL_IS_LOCKED = '(SystemIntegrationDate__c != NULL OR PaymentClearingCompletedDate__c != NULL)';
+  /** 仕様: Core 第7.11節。行の内容変更・削除を止める。確定済みと取消済み。 */
+  public static final String SOQL_IS_LOCKED =
+    '(InvoiceTransactionStatus__c IN (\'Confirmed\',\'Cancelled\'))';
 
-  public static final String LOCKED_HISTORY_BLOCK_MESSAGE = '請求済またはエクスポート済の請求があるため、この契約履歴の請求を削除・再生成できません。';
+  /** 仕様: Core 第1.1.5節。Version再生成・差し戻しを止めるのは有効な確定済みだけ。 */
+  public static final String SOQL_IS_ACTIVE_CONFIRMED =
+    '(InvoiceTransactionStatus__c = \'Confirmed\')';
+
+  /** 仕様: Core 第1.1.5節、第5.3節、第7.9.2節。差し戻し・再生成は有効な確定済み。 */
+  public static final String LOCKED_HISTORY_BLOCK_MESSAGE = '有効な確定済み請求があるため、この契約履歴の請求を削除・再生成できません。';
 
   public static final String LOCKED_ROW_DML_BLOCK_MESSAGE = '請求済またはエクスポート済の請求は更新・削除できません。';
 
-  public static final String INVOICE_EDIT_BLOCK_MESSAGE = 'この請求は連携済または消込済のため編集できません。';
+  /** 仕様: Core 第7.8節、第7.11節。確定済みと取消済み。 */
+  public static final String INVOICE_EDIT_BLOCK_MESSAGE = '確定済み・取消済みの請求は編集できません。';
 
   /** @deprecated プレビュー編集は assertInvoiceEditable を使う。Version 全体操作向けに残置。 */
   public static final String VERSION_EDIT_BLOCK_MESSAGE = 'この Version に連携済または消込済の請求があるため、請求を編集できません。';
 
-  /** CS 未設定時の既定: 入金消込額・消込完了日のみロック除外 */
-  @TestVisible
-  private static final String DEFAULT_LOCK_EXEMPT_FIELDS = 'PaymentClearedAmount__c,PaymentClearingCompletedDate__c';
+  /** 仕様: Core 第11.6節、第7.9.2節。インストール時シード。実行時の空欄代替には使わない。 */
+  public static final String SEED_LOCK_EXEMPT_FIELDS =
+    'InvoiceTransactionStatus__c,DeliveryStatus__c,CollectionRefundStatus__c,InvoicePaymentNet__c,PaymentInclusiveTotal__c,PaymentClearingCompletedDate__c,SystemIntegrationDate__c,SentDate__c,Memo__c';
+
+  public static final String MISSING_LOCK_EXEMPT_MESSAGE = '請求ロック除外項目の組織設定が無い、または空です。';
+
+  /** 仕様: Core 第11.6節。確定後の請求日・入金予定日・税率・請求アカウントは除外一覧に書いても拒否する。 */
+  public static final String CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE =
+    '確定済み請求の請求日・入金予定日・税率・請求アカウントは変更できません。';
+
+  private static final Set<String> NEVER_EXEMPT_WHEN_LOCKED = new Set<String>{
+    'InvoiceDate__c',
+    'PaymentScheduledDate__c',
+    'TaxPercent__c',
+    'BillingAccountSnapShot__c'
+  };
 
   private static final Set<String> IGNORED_FIELD_NAMES = new Set<String>{
     'Id',
@@ -36,38 +57,69 @@ public without sharing class InvoiceLockUtil {
   @TestVisible
   private static Boolean testCanBypassLockedDml;
 
+  /**
+   * 回収ステータス再計算など、ロック中でも書いてよいエンジン更新用。
+   * 呼び出し側で true にして DML し、finally で必ず戻す。
+   */
+  public static Boolean allowLockedStatusWrite;
+
   /** テスト用。null でなければ CS より優先 */
   @TestVisible
   private static String testLockExemptFieldApiNames;
 
+  /** 仕様: Core 第7.11節。行の内容変更・削除を止める。確定済みと取消済み。 */
   public static Boolean isLocked(Invoice__c invoice) {
     if (invoice == null) {
       return false;
     }
-    return invoice.SystemIntegrationDate__c != null ||
-      invoice.PaymentClearingCompletedDate__c != null;
+    return InvoiceTransactionStatusService.isConfirmed(invoice) ||
+      InvoiceTransactionStatusService.isCancelled(invoice);
+  }
+
+  /** 仕様: Core 第1.1.5節。Version再生成・差し戻しを止めるのは有効な確定済みだけ。 */
+  public static Boolean isActiveConfirmed(Invoice__c invoice) {
+    return InvoiceTransactionStatusService.isConfirmed(invoice);
   }
 
   public static Boolean isInvoiced(Invoice__c invoice) {
-    return invoice != null && invoice.SystemIntegrationDate__c != null;
+    return isActiveConfirmed(invoice);
   }
 
   public static Boolean isExported(Invoice__c invoice) {
-    return invoice != null && invoice.PaymentClearingCompletedDate__c != null;
+    return invoice != null &&
+      invoice.CollectionRefundStatus__c ==
+      InvoiceTransactionStatusService.COLLECTION_COMPLETED;
   }
 
   public static Boolean canBypassLockedDml() {
+    if (allowLockedStatusWrite == true) {
+      return true;
+    }
     if (testCanBypassLockedDml != null) {
       return testCanBypassLockedDml;
     }
-    return ContractPermissionUtil.canBypassIntegrityGuards();
+    return ContractPermissionUtil.hasFixConfirmedInvoice();
+  }
+
+  /** 仕様: 共通基盤 第3.6節。確定済み請求の削除は 103／104。 */
+  public static Boolean canBypassLockedDelete() {
+    if (allowLockedStatusWrite == true) {
+      return true;
+    }
+    if (testCanBypassLockedDml != null) {
+      return testCanBypassLockedDml;
+    }
+    return ContractPermissionUtil.hasDeleteRecords();
   }
 
   public static void blockLockedRowDml(
     List<Invoice__c> records,
     Map<Id, Invoice__c> oldMap
   ) {
-    if (canBypassLockedDml() || records == null || records.isEmpty()) {
+    Boolean bypass = oldMap == null
+      ? canBypassLockedDelete()
+      : canBypassLockedDml();
+    if (bypass || records == null || records.isEmpty()) {
       return;
     }
     Set<String> exemptFields = resolveLockExemptFieldNames();
@@ -101,18 +153,26 @@ public without sharing class InvoiceLockUtil {
     }
   }
 
+  /** 仕様: Core 第11.6節。Accountingの内部更新に限り、有効タグルールの保存先も除外する。 */
+  public static Boolean allowAccountingTagLockExempt;
+
   /**
+   * 仕様: Core 第1.1.10節、第11.6節。
    * 階層 CS InvoiceLockExemptFields__c.FieldApiNames__c（カンマ区切り）。
-   * 空／未設定時は消込額・消込完了日。
+   * レコード無し・空はシードへ落とさずエラー。
+   * 有効な会計タグルールの保存先チェックボックスは Accounting 内部更新だけ動的に足す。
    */
   public static Set<String> resolveLockExemptFieldNames() {
     String raw = testLockExemptFieldApiNames;
     if (raw == null) {
-      InvoiceLockExemptFields__c setting = InvoiceLockExemptFields__c.getInstance();
-      raw = setting == null ? null : setting.FieldApiNames__c;
+      InvoiceLockExemptFields__c setting = InvoiceLockExemptFields__c.getOrgDefaults();
+      if (setting == null || setting.Id == null) {
+        throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
+      }
+      raw = setting.FieldApiNames__c;
     }
     if (String.isBlank(raw)) {
-      raw = DEFAULT_LOCK_EXEMPT_FIELDS;
+      throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
     }
     Set<String> names = new Set<String>();
     for (String part : raw.split(',')) {
@@ -124,7 +184,28 @@ public without sharing class InvoiceLockUtil {
         names.add(trimmed);
       }
     }
+    if (names.isEmpty()) {
+      throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
+    }
+    if (allowAccountingTagLockExempt == true) {
+      names.addAll(enabledAccountingTagTargetFields());
+    }
     return names;
+  }
+
+  private static Set<String> enabledAccountingTagTargetFields() {
+    Set<String> targets = new Set<String>();
+    for (GlAccountingTagRule__c rule : [
+      SELECT TargetFieldApiName__c
+      FROM GlAccountingTagRule__c
+      WHERE IsEnabled__c = TRUE
+      WITH SYSTEM_MODE
+    ]) {
+      if (String.isNotBlank(rule.TargetFieldApiName__c)) {
+        targets.add(rule.TargetFieldApiName__c);
+      }
+    }
+    return targets;
   }
 
   @TestVisible
@@ -159,6 +240,12 @@ public without sharing class InvoiceLockUtil {
       }
       // Describe のキーは小文字のことがあるため、正規名でも照合する
       String fieldName = token.getDescribe().getName();
+      if (
+        NEVER_EXEMPT_WHEN_LOCKED.contains(fieldName) ||
+        NEVER_EXEMPT_WHEN_LOCKED.contains(apiName)
+      ) {
+        return false;
+      }
       if (
         !exemptFields.contains(fieldName) && !exemptFields.contains(apiName)
       ) {
@@ -198,7 +285,7 @@ public without sharing class InvoiceLockUtil {
       ' FROM Invoice__c' +
       ' WHERE ContractHistory__c IN :contractHistoryIds' +
       ' AND ' +
-      SOQL_IS_LOCKED +
+      SOQL_IS_ACTIVE_CONFIRMED +
       ' WITH SYSTEM_MODE' +
       ' GROUP BY ContractHistory__c';
     for (AggregateResult result : Database.query(lockedAggSoql)) {
@@ -224,7 +311,11 @@ public without sharing class InvoiceLockUtil {
       return;
     }
     List<Invoice__c> invoices = [
-      SELECT Id, SystemIntegrationDate__c, PaymentClearingCompletedDate__c
+      SELECT
+        Id,
+        InvoiceTransactionStatus__c,
+        SystemIntegrationDate__c,
+        PaymentClearingCompletedDate__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
@@ -276,5 +367,8 @@ public without sharing class InvoiceLockUtil {
   }
 
   public class InvoiceLockException extends Exception {
+  }
+
+  public class LockExemptException extends Exception {
   }
 }

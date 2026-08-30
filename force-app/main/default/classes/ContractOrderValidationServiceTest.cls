@@ -15,10 +15,14 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -124,10 +128,14 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -171,10 +179,14 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -299,16 +311,21 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
         Name = 'Order Ready Setting Only Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       insert service;
       ContractHistory__c previous = new ContractHistory__c(
@@ -358,7 +375,7 @@ private class ContractOrderValidationServiceTest {
           Product__c = product.Id,
           Quantity__c = 1,
           UnitPrice__c = 1000,
-          Amount__c = 12000,
+          Amount__c = -12000,
           StartDate__c = Date.newInstance(2026, 6, 1),
           Enddate__c = Date.newInstance(2027, 5, 31),
           InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
@@ -387,7 +404,7 @@ private class ContractOrderValidationServiceTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          ContractOrderValidationService.INVOICE_SETTING_ONLY_CHANGE_MESSAGE,
+          EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE,
           ex.getMessage()
         );
       }
@@ -403,7 +420,7 @@ private class ContractOrderValidationServiceTest {
         System.assert(
           ex.getDmlMessage(0)
             .contains(
-              ContractOrderValidationService.INVOICE_SETTING_ONLY_CHANGE_MESSAGE
+            EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE
             ),
           ex.getDmlMessage(0)
         );
@@ -439,10 +456,14 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -513,10 +534,14 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -611,10 +636,14 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -690,10 +719,14 @@ private class ContractOrderValidationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -729,6 +762,197 @@ private class ContractOrderValidationServiceTest {
         ]
         .historystatus__c
       );
+    }
+  }
+
+  @IsTest
+  static void assertReadyForOrder_blocksTermChangeWhenOriginalAmountMismatches() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Order Ready Term Change Cover Account'
+      );
+      BillingAccount__c billingAccount = new BillingAccount__c(
+        Account__c = account.Id,
+        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+        BillingEmailTo__c = 'to@example.com',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
+      insert billingAccount;
+      ContractService__c service = new ContractService__c(
+        Name = 'Order Ready Term Change Cover Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+      );
+      insert service;
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Order Ready Term Change Cover Previous',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
+      );
+      insert previous;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Order Ready Term Change Cover Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c previousProduct = new ContractProduct__c(
+        ContractHistory__c = previous.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2027, 5, 31),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      insert previousProduct;
+
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Order Ready Term Change Cover',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        PreviousHistory__c = previous.Id,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      insert changeHistory;
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 1000,
+          Amount__c = 12000,
+          StartDate__c = Date.newInstance(2026, 6, 1),
+          Enddate__c = Date.newInstance(2027, 5, 31),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = previousProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 2,
+          UnitPrice__c = 1000,
+          Amount__c = 24000,
+          StartDate__c = Date.newInstance(2026, 6, 1),
+          Enddate__c = Date.newInstance(2027, 5, 31),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = previousProduct.Id
+        )
+      };
+
+      Boolean thrown = false;
+      try {
+        ContractOrderValidationService.assertReadyForOrder(changeHistory);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage()
+            .contains('変更前の行は前回の版の見積商品と一致している必要があります'),
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void assertReadyForOrder_blocksSpotChangeWhenRecurringPresent() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Order Ready Spot Change Account'
+      );
+      BillingAccount__c billingAccount = new BillingAccount__c(
+        Account__c = account.Id,
+        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+        BillingEmailTo__c = 'to@example.com',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
+      insert billingAccount;
+      ContractService__c service = new ContractService__c(
+        Name = 'Order Ready Spot Change Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_SPOT
+      );
+      insert service;
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Order Ready Spot Change Previous',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1
+      );
+      insert previous;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Order Ready Spot Change Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(product);
+
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Order Ready Spot Change Bad',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        PreviousHistory__c = previous.Id
+      );
+      insert changeHistory;
+      insert new ContractProduct__c(
+        ContractHistory__c = changeHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Amount__c = 5000,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2026, 6, 1),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+
+      Boolean thrown = false;
+      try {
+        ContractOrderValidationService.assertReadyForOrder(changeHistory);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown);
     }
   }
 }

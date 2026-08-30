@@ -2,7 +2,7 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>ContractService__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
-    <description>更新見積自動作成の対象契約サービス（手動設定）</description>
+    <description>更新商談に必須。受注時 Flow が設定し、Renew 見積自動作成の対象契約サービスになる。</description>
     <label>契約サービス</label>
     <referenceTo>ContractService__c</referenceTo>
     <relationshipLabel>商談</relationshipLabel>

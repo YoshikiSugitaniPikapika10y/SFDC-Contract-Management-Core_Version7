@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>見積を作成・編集・コピー・Archiveする。Ordered の追加項目編集。見積備考マスタの作成・編集・削除</description>
+    <isLicensed>false</isLicensed>
+    <label>03 契約 見積</label>
+</CustomPermission>

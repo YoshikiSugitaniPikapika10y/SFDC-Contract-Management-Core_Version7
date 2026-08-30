@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>請求書PDFの発行・再発行とメール送付・再送。閲覧を含む</description>
+    <isLicensed>false</isLicensed>
+    <label>12 契約 請求書を発行・送付する</label>
+</CustomPermission>

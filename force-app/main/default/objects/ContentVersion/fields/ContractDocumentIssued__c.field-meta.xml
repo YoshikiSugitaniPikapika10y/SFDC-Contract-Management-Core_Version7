@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ContractDocumentIssued__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>仕様: Core 第4.8節、第7.10節。発行 insert だけ true。手アップロード・過去は false。付け外ししない。</description>
+    <label>契約帳票発行</label>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

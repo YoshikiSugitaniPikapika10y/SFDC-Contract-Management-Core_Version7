@@ -115,4 +115,12 @@ private class ContractHistoryVersionUtilTest {
       );
     }
   }
+
+  @IsTest
+  static void contractService_isLookupNotMasterDetail() {
+    Schema.DescribeFieldResult describe = ContractHistory__c.ContractService__c.getDescribe();
+    System.assertEquals(Schema.DisplayType.REFERENCE, describe.getType());
+    System.assertEquals(null, describe.getRelationshipOrder());
+    System.assertEquals(false, describe.isCascadeDelete());
+  }
 }

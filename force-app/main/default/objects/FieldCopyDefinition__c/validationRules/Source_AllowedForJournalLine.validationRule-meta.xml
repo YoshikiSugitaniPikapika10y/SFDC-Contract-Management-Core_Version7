@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Source_AllowedForJournalLine</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。明細仕訳だけのFrom。</description>
+    <errorConditionFormula>AND(
+        ISPICKVAL(TargetObject__c, "GlJournal__c"),
+        INCLUDES(Context__c, "LineJournal"),
+        NOT(INCLUDES(Context__c, "NonLineJournal")),
+        NOT(
+            OR(
+                ISPICKVAL(SourceObject__c, "InvoiceLine__c"),
+                ISPICKVAL(SourceObject__c, "ContractProduct__c"),
+                ISPICKVAL(SourceObject__c, "Product2"),
+                ISPICKVAL(SourceObject__c, "InvoicePayment__c"),
+                ISPICKVAL(SourceObject__c, "InvoicePaymentAllocation__c"),
+                ISPICKVAL(SourceObject__c, "Invoice__c"),
+                ISPICKVAL(SourceObject__c, "BillingAccount__c"),
+                ISPICKVAL(SourceObject__c, "ContractHistory__c"),
+                ISPICKVAL(SourceObject__c, "Opportunity"),
+                ISPICKVAL(SourceObject__c, "Account")
+            )
+        )
+    )</errorConditionFormula>
+    <errorDisplayField>SourceObject__c</errorDisplayField>
+    <errorMessage>明細仕訳のFromにこのオブジェクトは選べません。</errorMessage>
+</ValidationRule>

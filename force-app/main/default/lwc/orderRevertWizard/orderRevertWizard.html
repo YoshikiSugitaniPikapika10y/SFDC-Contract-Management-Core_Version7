@@ -1,4 +1,5 @@
 <template>
+  <template lwc:if={canOpenRevert}>
   <div class={pageClass}>
     <header class="confirm-header">
       <div class="confirm-heading">
@@ -11,14 +12,27 @@
         </span>
         <div class="confirm-heading-text">
           <h1 class="confirm-title">差し戻し</h1>
-          <p class="confirm-subtitle">Ordered を Estimate に戻します</p>
+          <p class="confirm-subtitle">受注済みを見積に戻します</p>
         </div>
       </div>
     </header>
 
     <main class="confirm-body">
       <template if:true={errorMessage}>
-        <div class="alert alert_error" role="alert">{errorMessage}</div>
+        <div class="alert alert_error" role="alert">
+          <div>{errorMessage}</div>
+          <template if:true={contentLoadFailed}>
+            <div class="alert-reload">
+              <button
+                type="button"
+                class="btn btn_secondary"
+                onclick={handleContentReload}
+              >
+                再読み込み
+              </button>
+            </div>
+          </template>
+        </div>
       </template>
 
       <template if:true={showBootstrapLoading}>
@@ -47,13 +61,24 @@
           <template if:true={canRevert}>
             <section class="confirm-card">
               <p class="confirm-lead">
-                この契約履歴を Estimate に差し戻します。よろしいですか？
+                この契約履歴を見積に差し戻します。よろしいですか？
               </p>
               <ul class="confirm-list">
                 <li>請求正本が削除されます</li>
                 <li>契約期間明細が削除されます</li>
               </ul>
             </section>
+
+            <template if:true={showHistoryFields}>
+              <section class="option-panel">
+                <p class="confirm-history-title">追加項目</p>
+                <c-estimate-wizard-custom-field-grid
+                  fields={historyFieldInputs}
+                  field-target="history"
+                  oncustomfieldchange={handleHistoryFieldChange}
+                ></c-estimate-wizard-custom-field-grid>
+              </section>
+            </template>
 
             <template if:true={hasRenewOpportunity}>
               <section class="option-panel">
@@ -101,8 +126,9 @@
         disabled={isRevertDisabled}
         title={revertBlockedReason}
       >
-        Estimate に差し戻す
+        見積に差し戻す
       </button>
     </footer>
   </div>
+  </template>
 </template>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>CurrentTermEndDate__c</fullName>
-    <description>継続課金明細から自動設定。1回課金は含みません。</description>
-    <inlineHelpText>継続課金明細から自動。1回課金は含みません。</inlineHelpText>
+    <description>仕様: Core 第0章。継続課金明細から自動設定。一回課金は含みません。</description>
+    <inlineHelpText>継続課金明細から自動。一回課金は含みません。</inlineHelpText>
     <label>継続課金の契約終了日</label>
     <required>false</required>
     <trackHistory>false</trackHistory>

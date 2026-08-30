@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>08 操作。契約サービスを編集。標準編集では不可。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>08 契約 契約サービスを編集する</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_08_Can_EditService</name>
+    </customPermissions>
+</PermissionSet>

@@ -1,0 +1,144 @@
+<template>
+  <div class="manual-entry">
+    <p class="ops-form-title">手動仕訳を登録</p>
+    <div class="ops-form-grid">
+      <div>
+        <lightning-combobox
+          label="設定"
+          value={settingId}
+          options={settingOptions}
+          data-field="settingId"
+          onchange={handleFieldChange}
+          disabled={disabled}
+          required
+        ></lightning-combobox>
+        <template if:true={selectedSettingDescription}>
+          <p class="setting-description">{selectedSettingDescription}</p>
+        </template>
+      </div>
+      <lightning-input
+        type="date"
+        label="計上日"
+        value={postingDate}
+        data-field="postingDate"
+        onchange={handleFieldChange}
+        disabled={disabled}
+        required
+      ></lightning-input>
+      <lightning-input
+        type="number"
+        label="金額"
+        min="1"
+        step="1"
+        value={amount}
+        data-field="amount"
+        onchange={handleFieldChange}
+        disabled={disabled}
+        required
+      ></lightning-input>
+      <template if:true={registerRequiresDate}>
+        <lightning-input
+          type="date"
+          label="取消基準日"
+          value={registerCancelDate}
+          data-field="registerCancelDate"
+          onchange={handleFieldChange}
+          disabled={disabled}
+          required
+        ></lightning-input>
+      </template>
+    </div>
+    <div class="panel-actions">
+      <button
+        type="button"
+        class="solid-btn"
+        onclick={handleRegister}
+        disabled={registerDisabled}
+      >
+        登録
+      </button>
+    </div>
+
+    <template if:true={hasHeaders}>
+      <div class="ops-table-wrap">
+        <table class="ops-table">
+          <thead>
+            <tr>
+              <th scope="col">設定</th>
+              <th scope="col">計上日</th>
+              <th class="num-col" scope="col">金額</th>
+              <th scope="col">状態</th>
+              <th scope="col">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template for:each={displayHeaders} for:item="header">
+              <tr key={header.headerId}>
+                <td>{header.settingName}</td>
+                <td>{header.postingDate}</td>
+                <td class="num-col">{header.amount}</td>
+                <td>{header.transactionStatusLabel}</td>
+                <td>
+                  <template if:true={header.canCancel}>
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-header-id={header.headerId}
+                      onclick={handleStartCancel}
+                      disabled={disabled}
+                    >
+                      取消
+                    </button>
+                  </template>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <template if:true={cancelHeaderId}>
+      <div class="ops-form">
+        <p class="ops-form-title">手動仕訳の取消</p>
+        <div class="ops-form-grid">
+          <lightning-combobox
+            label="取消理由"
+            value={cancelReason}
+            options={cancelReasonOptions}
+            data-field="cancelReason"
+            onchange={handleFieldChange}
+            required
+          ></lightning-combobox>
+          <lightning-input
+            label="取消理由の内容"
+            value={cancelReasonText}
+            data-field="cancelReasonText"
+            onchange={handleFieldChange}
+            required={cancelReasonTextRequired}
+          ></lightning-input>
+          <template if:true={cancelRequiresDate}>
+            <lightning-input
+              type="date"
+              label="取消基準日"
+              value={cancelDate}
+              data-field="cancelDate"
+              onchange={handleFieldChange}
+              required
+            ></lightning-input>
+          </template>
+        </div>
+        <div class="panel-actions">
+          <button
+            type="button"
+            class="solid-btn"
+            onclick={handleCancel}
+            disabled={cancelConfirmDisabled}
+          >
+            取り消す
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>

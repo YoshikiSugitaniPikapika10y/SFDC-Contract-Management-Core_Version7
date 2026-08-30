@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>CreateRenewOpportunity__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>仕様: Core 第11.5節。受注時に更新商談を作成する要求。画面とAPIの共通入口。</description>
+    <inlineHelpText>受注と同時に更新商談を作成する場合にオンにします。</inlineHelpText>
+    <label>更新商談を作成</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InvoiceLine__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>仕様: Core 第8.1節</description>
+    <label>請求明細</label>
+    <referenceTo>InvoiceLine__c</referenceTo>
+    <relationshipLabel>入出金割当</relationshipLabel>
+    <relationshipName>PaymentAllocations</relationshipName>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

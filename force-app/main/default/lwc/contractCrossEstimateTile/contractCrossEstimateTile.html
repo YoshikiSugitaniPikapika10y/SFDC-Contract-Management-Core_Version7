@@ -1,0 +1,212 @@
+<template>
+  <article class="tile">
+    <template if:true={showEstimateContent}>
+      <header class="tile-heading">
+        <div class="heading-row">
+          <span class="type-chip">{estimateTypeLabel}</span>
+          <template if:true={showAutoRenew}>
+            <span class="renew-chip">自動Renew</span>
+          </template>
+          <h2 class="history-name">
+            <a
+              href={historyRecordUrl}
+              target="_blank"
+              rel="noreferrer"
+              >{historyName}</a
+            >
+          </h2>
+        </div>
+        <dl class="meta">
+          <div>
+            <dt>見積税抜</dt>
+            <dd class="amount">{amountLabel}</dd>
+          </div>
+          <div>
+            <dt>見積日</dt>
+            <dd>{estimateDateLabel}</dd>
+          </div>
+          <div>
+            <dt>有効期限</dt>
+            <dd>{validDateLabel}</dd>
+          </div>
+          <div>
+            <dt>見積送付先</dt>
+            <dd>{sendContactName}</dd>
+          </div>
+          <div>
+            <dt>送付</dt>
+            <dd>{sentLabel}</dd>
+          </div>
+        </dl>
+        <p class="meta-small">
+          作成日 {createdDateLabel}　作成者 {createdByName}　最終更新者
+          {lastModifiedByName}
+        </p>
+      </header>
+
+      <div class="actions">
+        <template if:true={showIssueButton}>
+          <button type="button" class="btn btn_primary" onclick={handleIssueClick}>
+            見積書発行
+          </button>
+        </template>
+        <template if:true={showSendButton}>
+          <button type="button" class="btn btn_primary" onclick={handleSendClick}>
+            {sendButtonLabel}
+          </button>
+        </template>
+        <template if:true={showOrderButton}>
+          <button type="button" class="btn btn_solid" onclick={handleOrderClick}>
+            受注する
+          </button>
+        </template>
+      </div>
+
+      <div class="table-wrap">
+        <table class="product-table">
+          <thead>
+            <tr>
+              <th scope="col">行種別</th>
+              <th scope="col">商品名</th>
+              <th class="num" scope="col">単価</th>
+              <th scope="col">単位</th>
+              <th class="num" scope="col">数量</th>
+              <th scope="col">期間</th>
+              <th class="num" scope="col">サイクル数</th>
+              <th scope="col">請求設定</th>
+              <template if:true={showAccountingColumn}>
+                <th scope="col">売上計上</th>
+              </template>
+              <th class="num" scope="col">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template if:true={hasLines}>
+              <template for:each={lines} for:item="line">
+                <tr key={line.id}>
+                  <td>{line.typeLabel}</td>
+                  <td>{line.productName}</td>
+                  <td class="num">{line.unitPrice}</td>
+                  <td>{line.unit}</td>
+                  <td class="num">{line.quantity}</td>
+                  <td>{line.periodLabel}</td>
+                  <td class="num">{line.cycleCount}</td>
+                  <td>{line.invoiceSetting}</td>
+                  <template if:true={showAccountingColumn}>
+                    <td>{line.revenueBasis}</td>
+                  </template>
+                  <td class="num">{line.amount}</td>
+                </tr>
+              </template>
+            </template>
+          </tbody>
+        </table>
+        <p class="table-footer">
+          明細数 {lineCount}　税抜 {amountLabel}　税込 {taxInclusiveLabel}
+        </p>
+      </div>
+    </template>
+
+    <template if:true={notEstimateMessage}>
+      <p class="alert" role="status">{notEstimateMessage}</p>
+    </template>
+
+    <template if:true={showIssue}>
+      <div class="issue-overlay" role="dialog" aria-label="見積書発行">
+        <div class="issue-panel">
+          <h3 class="issue-title">見積書発行</h3>
+          <template if:true={issueError}>
+            <p class="alert alert_error">{issueError}</p>
+          </template>
+          <template if:false={issueSucceeded}>
+            <lightning-combobox
+              label="帳票"
+              value={templateKey}
+              options={templateOptions}
+              required
+              disabled={issueBusy}
+              onchange={handleTemplateChange}
+            ></lightning-combobox>
+            <p class="file-name">ファイル名 {issueFileName}</p>
+            <template if:true={previewUrl}>
+              <p class="file-name">
+                <a href={previewUrl} target="_blank" rel="noreferrer"
+                  >プレビュー</a
+                >
+              </p>
+            </template>
+            <template if:true={showLatestPdfDownload}>
+              <p class="file-name">
+                <a
+                  href={latestPdfDownloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  >最新PDFをダウンロード</a
+                >
+              </p>
+            </template>
+            <div class="issue-actions">
+              <button
+                type="button"
+                class="btn btn_primary"
+                onclick={handleIssuePdf}
+                disabled={issuePdfDisabled}
+              >
+                発行する
+              </button>
+              <button
+                type="button"
+                class="btn btn_secondary"
+                onclick={handleCloseIssue}
+                disabled={issueBusy}
+              >
+                閉じる
+              </button>
+            </div>
+            <template if:true={issueBusy}>
+              <p class="busy">発行中…</p>
+            </template>
+          </template>
+          <template if:true={issueSucceeded}>
+            <p>発行したファイルは標準 Files で確認できます。</p>
+            <template if:true={previewUrl}>
+              <p>
+                <a href={previewUrl} target="_blank" rel="noreferrer"
+                  >発行したファイルをプレビュー</a
+                >
+              </p>
+            </template>
+            <template if:true={showLatestPdfDownload}>
+              <p>
+                <a
+                  href={latestPdfDownloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  >最新PDFをダウンロード</a
+                >
+              </p>
+            </template>
+            <div class="issue-actions">
+              <template if:true={showSendThisFile}>
+                <button
+                  type="button"
+                  class="btn btn_primary"
+                  onclick={handleSendThisFile}
+                >
+                  このファイルを送る
+                </button>
+              </template>
+              <button
+                type="button"
+                class="btn btn_secondary"
+                onclick={handleCloseIssue}
+              >
+                閉じる
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+  </article>
+</template>

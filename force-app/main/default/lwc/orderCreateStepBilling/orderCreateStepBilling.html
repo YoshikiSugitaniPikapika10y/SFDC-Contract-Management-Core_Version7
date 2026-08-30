@@ -2,8 +2,9 @@
   <section class="est-card">
     <div class="est-card-header">
       <h2 class="est-card-title">請求アカウント設定</h2>
+      <!-- 仕様: Core 第5.2節。参照のみ。必須不足は正規編集画面へ誘導する。 -->
       <p class="est-card-desc">
-        請求アカウントはこの画面では参照のみです。内容を直す場合は、一度この画面を閉じてください。
+        請求アカウントはこの画面では参照のみです。必須値が不足している場合は正規編集画面で設定してください。
       </p>
     </div>
 
@@ -33,6 +34,13 @@
               <div class="est-value">{field.displayValue}</div>
             </div>
           </template>
+        </div>
+
+        <div class="est-formal-edit slds-m-top_small">
+          <lightning-button
+            label="請求アカウントの正規編集画面を開く"
+            onclick={handleOpenFormalEdit}
+          ></lightning-button>
         </div>
       </template>
 

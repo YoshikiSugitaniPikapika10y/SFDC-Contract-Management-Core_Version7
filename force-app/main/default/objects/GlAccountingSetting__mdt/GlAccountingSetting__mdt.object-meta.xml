@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>仕様: Core 第11.9節。組織1件 OrgDefault の金額計算設定。</description>
+    <label>金額計算設定</label>
+    <pluralLabel>金額計算設定</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

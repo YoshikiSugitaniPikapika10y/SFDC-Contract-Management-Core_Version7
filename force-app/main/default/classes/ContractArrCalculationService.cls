@@ -3,9 +3,13 @@
  * DeltaARR__c / DeltaAveARR__c は数式項目とし、このサービスからは書き込まない。
  */
 public without sharing class ContractArrCalculationService {
+  public class ArrException extends Exception {
+  }
+
   private static final String BILLING_TYPE_RECURRING = ContractDomainConstants.BILLING_TYPE_RECURRING;
   private static final String PRODUCT_TYPE_ORIGINAL = ContractDomainConstants.PRODUCT_TYPE_ORIGINAL;
 
+  /** 仕様: Core 第1.1.10節、第10.1節 */
   public static void recalculateForHistories(Set<Id> contractHistoryIds) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
@@ -161,17 +165,7 @@ public without sharing class ContractArrCalculationService {
 
     Decimal amount = product.Amount__c;
     if (amount == null) {
-      Decimal unitPrice = product.UnitPrice__c == null
-        ? 0
-        : product.UnitPrice__c;
-      if (unitPrice == 0) {
-        return 0;
-      }
-      Decimal quantity = product.Quantity__c == null ? 0 : product.Quantity__c;
-      return ContractMetadataService.calculateMonthlyArrRunRate(
-        quantity,
-        unitPrice
-      );
+      throw new ArrException('ARR対象明細の金額が空です。');
     }
     if (amount == 0) {
       return 0;
@@ -191,7 +185,7 @@ public without sharing class ContractArrCalculationService {
 
   /**
    * AveARR 分子用の期間金額。期末到達条件は見ない。
-   * Amount null の旧データは 数量×単価×明細月数。
+   * 金額空は数量×単価で埋めずエラー。
    */
   @TestVisible
   private static Decimal calculateProductAveArrPeriodAmount(
@@ -203,21 +197,7 @@ public without sharing class ContractArrCalculationService {
 
     Decimal amount = product.Amount__c;
     if (amount == null) {
-      Decimal unitPrice = product.UnitPrice__c == null
-        ? 0
-        : product.UnitPrice__c;
-      Decimal quantity = product.Quantity__c == null ? 0 : product.Quantity__c;
-      if (unitPrice == 0 || quantity <= 0) {
-        return 0;
-      }
-      Integer cycles = ContractMetadataService.countMonthlyBillingCycles(
-        product.StartDate__c,
-        product.Enddate__c
-      );
-      if (cycles == null || cycles <= 0) {
-        return 0;
-      }
-      return quantity * unitPrice * cycles;
+      throw new ArrException('AveARR対象明細の金額が空です。');
     }
     if (amount == 0) {
       return 0;
@@ -242,9 +222,7 @@ public without sharing class ContractArrCalculationService {
       return false;
     }
 
-    String billingType = String.isNotBlank(product.BillingType__c)
-      ? product.BillingType__c
-      : product.Product__r.BillingType__c;
+    String billingType = ContractMetadataService.resolveLineBillingType(product);
     if (billingType != BILLING_TYPE_RECURRING) {
       return false;
     }

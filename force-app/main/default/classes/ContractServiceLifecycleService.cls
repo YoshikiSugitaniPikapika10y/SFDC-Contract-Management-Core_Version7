@@ -9,8 +9,9 @@ public without sharing class ContractServiceLifecycleService {
   private static final String LIFECYCLE_SPOT = ContractDomainConstants.LIFECYCLE_SPOT;
 
   /**
-   * Ordered 同期後に呼ぶ。
-   * First Ordered あり＋未設定 → 付与。First Ordered なし＋設定済 → クリア。
+   * 仕様: Core 第3.4.2節。
+   * Version 1受注で空から Term/Spot を確定する。差し戻しで Ordered 0件なら空に戻す。
+   * First Ordered が Version 1以外なのに Lifecycle が空なら推測して埋めずエラー。
    */
   public static void ensureLifecycleForServices(Set<Id> contractServiceIds) {
     if (contractServiceIds == null || contractServiceIds.isEmpty()) {
@@ -19,7 +20,11 @@ public without sharing class ContractServiceLifecycleService {
 
     Map<Id, ContractService__c> services = new Map<Id, ContractService__c>(
       [
-        SELECT Id, Lifecycle__c, FirstOrderedHistory__c
+        SELECT
+          Id,
+          Lifecycle__c,
+          FirstOrderedHistory__c,
+          FirstOrderedHistory__r.Version__c
         FROM ContractService__c
         WHERE Id IN :contractServiceIds
         WITH SYSTEM_MODE
@@ -32,6 +37,14 @@ public without sharing class ContractServiceLifecycleService {
         String.isBlank(service.Lifecycle__c) &&
         service.FirstOrderedHistory__c != null
       ) {
+        Decimal version = service.FirstOrderedHistory__r == null
+          ? null
+          : service.FirstOrderedHistory__r.Version__c;
+        if (version != 1) {
+          throw new LifecycleException(
+            'Lifecycleが空のままOrderedがある契約サービスは、推測して埋められません。'
+          );
+        }
         firstHistoryIds.add(service.FirstOrderedHistory__c);
       }
     }
@@ -70,28 +83,19 @@ public without sharing class ContractServiceLifecycleService {
     }
 
     if (!toUpdate.isEmpty()) {
-      SystemContextAccess.updateRecords(toUpdate);
+      Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      try {
+        SystemContextAccess.updateRecords(toUpdate);
+      } finally {
+        ContractServiceWriteGuard.allowPackageWrite(previousWrite);
+      }
     }
   }
 
-  /**
-   * 既存サービスの Lifecycle を一括バックフィル（匿名 Apex / 運用用）。
-   */
+  /** 仕様: Core 第3.4.2節。一括補完は持たない。 */
   public static Integer backfillAllBlankLifecycles() {
-    List<ContractService__c> blankServices = [
-      SELECT Id, Lifecycle__c, FirstOrderedHistory__c
-      FROM ContractService__c
-      WHERE Lifecycle__c = NULL AND FirstOrderedHistory__c != NULL
-      WITH SYSTEM_MODE
-      LIMIT 10000
-    ];
-    if (blankServices.isEmpty()) {
-      return 0;
-    }
-    Set<Id> serviceIds = new Map<Id, ContractService__c>(blankServices)
-      .keySet();
-    ensureLifecycleForServices(serviceIds);
-    return blankServices.size();
+    throw new LifecycleException('Lifecycleの一括補完は持たない。導入作業で直してください。');
   }
 
   private static Map<Id, Boolean> loadHasRecurringByHistoryId(
@@ -106,15 +110,14 @@ public without sharing class ContractServiceLifecycleService {
         Id,
         ContractHistory__c,
         BillingType__c,
-        Quantity__c,
-        Product__r.BillingType__c
+        Quantity__c
       FROM ContractProduct__c
       WHERE ContractHistory__c IN :historyIds AND Quantity__c > 0
       WITH SYSTEM_MODE
     ]) {
-      String billingType = String.isNotBlank(product.BillingType__c)
-        ? product.BillingType__c
-        : product.Product__r.BillingType__c;
+      String billingType = ContractMetadataService.resolveLineBillingType(
+        product
+      );
       if (ContractMetadataService.isRecurringBillingType(billingType)) {
         result.put(product.ContractHistory__c, true);
       }
@@ -148,14 +151,28 @@ public without sharing class ContractServiceLifecycleService {
     }
     Set<Id> serviceIds = new Set<Id>();
     for (ContractHistory__c history : [
-      SELECT ContractService__c
+      SELECT
+        ContractService__c,
+        ContractService__r.Lifecycle__c,
+        ContractService__r.FirstOrderedHistory__c
       FROM ContractHistory__c
       WHERE Id IN :historyIds AND ContractService__c != NULL
       WITH SYSTEM_MODE
     ]) {
-      serviceIds.add(history.ContractService__c);
+      // ContractProduct の変更経路では、Lifecycle が確定済みなら不変。
+      // 未受注（FirstOrdered なし）の Estimate 商品追加でも判定はまだ不要。
+      // Ordered 同期・差し戻しは syncForServices から直接再評価される。
+      if (
+        history.ContractService__r != null &&
+        String.isBlank(history.ContractService__r.Lifecycle__c) &&
+        history.ContractService__r.FirstOrderedHistory__c != null
+      ) {
+        serviceIds.add(history.ContractService__c);
+      }
     }
-    ensureLifecycleForServices(serviceIds);
+    if (!serviceIds.isEmpty()) {
+      ensureLifecycleForServices(serviceIds);
+    }
   }
 
   public static Boolean isSpotLifecycle(String lifecycle) {
@@ -164,5 +181,8 @@ public without sharing class ContractServiceLifecycleService {
 
   public static Boolean isTermLifecycle(String lifecycle) {
     return lifecycle == LIFECYCLE_TERM;
+  }
+
+  public class LifecycleException extends Exception {
   }
 }

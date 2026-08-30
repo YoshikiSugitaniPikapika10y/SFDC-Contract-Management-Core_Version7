@@ -2,7 +2,8 @@
  * Change の Original/Remake 系統で「課金イベント」があるかを判定する。
  *
  * Apex（本クラス・EstimateCreateController）と LWC（estimateLineItemUtils）で
- * 同じ定義を共有する前提: 内容差・途中開始・終了日延長。
+ * 同じ定義を共有する前提: 数量・単価等の内容差・途中開始・終了日延長。
+ * 請求設定の差は課金イベントに含めない（Core 第4.4.1節）。
  * 片側だけ変更すると見積書表示と保存バリデーションがずれる。
  */
 public without sharing class ChangeBillingEventUtil {
@@ -123,17 +124,15 @@ public without sharing class ChangeBillingEventUtil {
     return false;
   }
 
+  /**
+   * 仕様: Core 第4.4.1節
+   * 継続課金イベントの内容差は数量・単価等。請求設定の差は含めない。
+   */
   public static Boolean doesBillingContentDiffer(
     ContractProduct__c remake,
     ContractProduct__c original
   ) {
-    if (remake == null || original == null) {
-      return false;
-    }
-    if (doesNonInvoiceSettingBillingContentDiffer(remake, original)) {
-      return true;
-    }
-    return doesInvoiceSettingDiffer(remake, original);
+    return doesNonInvoiceSettingBillingContentDiffer(remake, original);
   }
 
   /**

@@ -6,6 +6,112 @@ private class InvoiceProductMergeServiceTest {
   }
 
   @IsTest
+  static void splitIntoContiguousGroups_splitsGapIntoSeparateGroups() {
+    List<InvoiceProduct__c> products = new List<InvoiceProduct__c>{
+      new InvoiceProduct__c(
+        StartDate__c = Date.newInstance(2026, 7, 1),
+        Enddate__c = Date.newInstance(2026, 7, 31),
+        Amount__c = 100
+      ),
+      new InvoiceProduct__c(
+        StartDate__c = Date.newInstance(2026, 8, 1),
+        Enddate__c = Date.newInstance(2026, 8, 31),
+        Amount__c = 100
+      ),
+      new InvoiceProduct__c(
+        StartDate__c = Date.newInstance(2026, 10, 1),
+        Enddate__c = Date.newInstance(2026, 10, 31),
+        Amount__c = 100
+      )
+    };
+
+    List<List<InvoiceProduct__c>> groups = InvoiceProductMergeService.splitIntoContiguousGroups(
+      products
+    );
+    System.assertEquals(2, groups.size());
+    System.assertEquals(2, groups[0].size());
+    System.assertEquals(1, groups[1].size());
+  }
+
+  @IsTest
+  static void assertPeriodIdsContiguous_throwsOnGap() {
+    Id id1 = fakeId(InvoiceProduct__c.SObjectType, 1);
+    Id id2 = fakeId(InvoiceProduct__c.SObjectType, 2);
+    Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>{
+      id1 => new InvoiceProduct__c(
+        Id = id1,
+        StartDate__c = Date.newInstance(2026, 7, 1),
+        Enddate__c = Date.newInstance(2026, 7, 31)
+      ),
+      id2 => new InvoiceProduct__c(
+        Id = id2,
+        StartDate__c = Date.newInstance(2026, 9, 1),
+        Enddate__c = Date.newInstance(2026, 9, 30)
+      )
+    };
+    Boolean thrown = false;
+    try {
+      InvoiceProductMergeService.assertPeriodIdsContiguous(
+        String.valueOf(id1) + ',' + String.valueOf(id2),
+        periodById
+      );
+    } catch (InvoiceProductMergeService.MergeKeyException ex) {
+      thrown = true;
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void buildMergedInvoices_splitsGapSameLineKeyIntoTwoLines() {
+    InvoiceProduct__c july = withServiceTax(
+      new InvoiceProduct__c(
+      StartDate__c = Date.newInstance(2026, 7, 1),
+      Enddate__c = Date.newInstance(2026, 7, 31),
+      Amount__c = 1000,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      InvoiceBucketKey__c = 'INV|BA=x|CH=y|DT=2026-07-01|PD=2026-07-31',
+      LineBucketKey__c = 'LINE|CP=z|UP=1000|Q=1'
+    ),
+      10
+    );
+    InvoiceProduct__c october = withServiceTax(
+      new InvoiceProduct__c(
+      StartDate__c = Date.newInstance(2026, 10, 1),
+      Enddate__c = Date.newInstance(2026, 10, 31),
+      Amount__c = 1000,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      InvoiceBucketKey__c = 'INV|BA=x|CH=y|DT=2026-07-01|PD=2026-07-31',
+      LineBucketKey__c = 'LINE|CP=z|UP=1000|Q=1'
+    ),
+      10
+    );
+
+    List<InvoiceProductMergeService.MergedInvoice> invoices = InvoiceProductMergeService.buildMergedInvoices(
+      new List<InvoiceProduct__c>{ july, october }
+    );
+    System.assertEquals(1, invoices.size());
+    System.assertEquals(2, invoices[0].lines.size());
+    System.assertEquals(
+      Date.newInstance(2026, 7, 1),
+      invoices[0].lines[0].servicePeriodStartDate
+    );
+    System.assertEquals(
+      Date.newInstance(2026, 7, 31),
+      invoices[0].lines[0].servicePeriodEndDate
+    );
+    System.assertEquals(
+      Date.newInstance(2026, 10, 1),
+      invoices[0].lines[1].servicePeriodStartDate
+    );
+    System.assert(
+      !invoices[0].lines[0].periodLabel.contains('、'),
+      '連続区間ラベルに歯抜け区切りを出さない'
+    );
+  }
+
+  @IsTest
   static void buildPeriodLabel_mergesContinuousRecurringRanges() {
     List<InvoiceProduct__c> products = new List<InvoiceProduct__c>{
       new InvoiceProduct__c(
@@ -63,15 +169,17 @@ private class InvoiceProductMergeServiceTest {
         .size()
     );
 
-    InvoiceProduct__c product = new InvoiceProduct__c(
+    InvoiceProduct__c product = withServiceTax(
+      new InvoiceProduct__c(
       StartDate__c = Date.newInstance(2026, 1, 1),
       Enddate__c = Date.newInstance(2026, 1, 31),
       Amount__c = 1000,
-      TaxPercent__c = 0.1,
       Quantity__c = 2,
       UnitPrice__c = 500,
       InvoiceBucketKey__c = 'INV|BA=x|CH=y|DT=2026-01-01',
       LineBucketKey__c = 'LINE|CP=z'
+    ),
+      10
     );
     List<InvoiceProductMergeService.MergedInvoice> invoices = InvoiceProductMergeService.buildMergedInvoices(
       new List<InvoiceProduct__c>{ product }
@@ -132,8 +240,9 @@ private class InvoiceProductMergeServiceTest {
       )
     );
     System.assertEquals(
-      'V3',
-      InvoiceProductMergeService.formatHistoryVersionLabel(3)
+      '版3',
+      InvoiceProductMergeService.formatHistoryVersionLabel(3),
+      '第0.1節: 画面に Version と出す箇所は「版」とする'
     );
     System.assertEquals(
       '',
@@ -144,14 +253,15 @@ private class InvoiceProductMergeServiceTest {
   @IsTest
   static void buildMergedInvoices_ignoresLegacyLineTaxAmount() {
     // 過去データに行税額があっても参照せず、税抜×税率を切り捨てる。
-    InvoiceProduct__c product = new InvoiceProduct__c(
-      StartDate__c = Date.newInstance(2026, 1, 1),
-      Enddate__c = Date.newInstance(2026, 1, 31),
-      Amount__c = 15,
-      TaxPercent__c = 0.1,
-      TaxAmount__c = 999,
-      InvoiceBucketKey__c = 'INV|BA=x|CH=y|DT=2026-01-01',
-      LineBucketKey__c = 'LINE|CP=z'
+    InvoiceProduct__c product = withServiceTax(
+      new InvoiceProduct__c(
+        StartDate__c = Date.newInstance(2026, 1, 1),
+        Enddate__c = Date.newInstance(2026, 1, 31),
+        Amount__c = 15,
+        InvoiceBucketKey__c = 'INV|BA=x|CH=y|DT=2026-01-01',
+        LineBucketKey__c = 'LINE|CP=z'
+      ),
+      10
     );
     List<InvoiceProductMergeService.MergedInvoice> invoices = InvoiceProductMergeService.buildMergedInvoices(
       new List<InvoiceProduct__c>{ product }
@@ -177,10 +287,14 @@ private class InvoiceProductMergeServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -245,8 +359,7 @@ private class InvoiceProductMergeServiceTest {
           LineBucketKey__c = lineMergeKey,
           Quantity__c = 1,
           UnitPrice__c = 10000,
-          Amount__c = 10000,
-          TaxPercent__c = 0.1
+          Amount__c = 10000
         ),
         new InvoiceProduct__c(
           ContractHistory__c = history.Id,
@@ -257,8 +370,7 @@ private class InvoiceProductMergeServiceTest {
           LineBucketKey__c = lineMergeKey,
           Quantity__c = 1,
           UnitPrice__c = 10000,
-          Amount__c = 10000,
-          TaxPercent__c = 0.1
+          Amount__c = 10000
         ),
         new InvoiceProduct__c(
           ContractHistory__c = history.Id,
@@ -269,8 +381,7 @@ private class InvoiceProductMergeServiceTest {
           LineBucketKey__c = lineMergeKey,
           Quantity__c = 1,
           UnitPrice__c = 10000,
-          Amount__c = 10000,
-          TaxPercent__c = 0.1
+          Amount__c = 10000
         )
       };
       insert invoiceProducts;
@@ -286,12 +397,14 @@ private class InvoiceProductMergeServiceTest {
           StartDate__c,
           Enddate__c,
           Amount__c,
-          TaxPercent__c,
           ContractProduct__r.Product__r.Name,
           ContractProduct__r.Product__r.BillingType__c,
+          ContractProduct__r.Product__r.RevenueRecognitionBasis__c,
           ContractProduct__r.BillingType__c,
+          ContractProduct__r.RevenueRecognitionBasis__c,
           ContractHistory__r.Version__c,
           ContractHistory__r.ContractService__r.Name,
+          ContractHistory__r.ContractService__r.TaxPercent__c,
           ContractHistory__r.ContractService__r.BiilingAcccount__r.Name
         FROM InvoiceProduct__c
         WHERE Id IN :invoiceProducts
@@ -324,11 +437,32 @@ private class InvoiceProductMergeServiceTest {
         '2026-06-01～2026-08-31',
         invoices[0].lines[0].periodLabel
       );
-      System.assertEquals('V1', invoices[0].lines[0].historyVersionLabel);
+      System.assertEquals('版1', invoices[0].lines[0].historyVersionLabel);
       System.assertEquals(
         3,
         invoices[0].lines[0].sourceInvoiceProductIds.size()
       );
     }
+  }
+
+  private static InvoiceProduct__c withServiceTax(
+    InvoiceProduct__c product,
+    Decimal taxPercent
+  ) {
+    ContractHistory__c history = new ContractHistory__c();
+    history.ContractService__r = new ContractService__c(
+      TaxPercent__c = taxPercent
+    );
+    product.ContractHistory__r = history;
+    return product;
+  }
+
+  private static Id fakeId(Schema.SObjectType typeName, Integer n) {
+    String key = String.valueOf(n);
+    return Id.valueOf(
+      String.valueOf(typeName.getDescribe().getKeyPrefix()) +
+        '0'.repeat(12 - key.length()) +
+        key
+    );
   }
 }

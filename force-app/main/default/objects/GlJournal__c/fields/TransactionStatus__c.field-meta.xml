@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TransactionStatus__c</fullName>
+    <description>仕様: Accounting 第9.1節</description>
+    <label>取引状態</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Active</fullName>
+                <default>true</default>
+                <label>有効</label>
+            </value>
+            <value>
+                <fullName>LogicallyDeleted</fullName>
+                <default>false</default>
+                <label>論理削除</label>
+            </value>
+            <value>
+                <fullName>Cancelled</fullName>
+                <default>false</default>
+                <label>取消済</label>
+            </value>
+            <value>
+                <fullName>Reversal</fullName>
+                <default>false</default>
+                <label>取消</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

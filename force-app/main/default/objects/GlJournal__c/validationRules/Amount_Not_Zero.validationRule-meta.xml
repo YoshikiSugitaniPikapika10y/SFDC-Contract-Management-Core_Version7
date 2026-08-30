@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Amount_Not_Zero</fullName>
+    <active>true</active>
+    <description>仕訳金額は常に正。負の経済事象は借貸反転で表現する。</description>
+    <errorConditionFormula>Amount__c &lt;= 0</errorConditionFormula>
+    <errorDisplayField>Amount__c</errorDisplayField>
+    <errorMessage>仕訳金額は 0 より大きい金額でなければなりません。</errorMessage>
+</ValidationRule>

@@ -1,0 +1,46 @@
+<template>
+  <div class="confirm-page">
+    <header class="confirm-header">
+      <div class="confirm-heading">
+        <span class="confirm-icon" aria-hidden="true">
+          <lightning-icon
+            icon-name="utility:list"
+            size="small"
+            alternative-text="見積操作"
+          ></lightning-icon>
+        </span>
+        <div class="confirm-heading-text">
+          <h1 class="confirm-title">見積操作</h1>
+        </div>
+      </div>
+    </header>
+
+    <main class="confirm-body">
+      <template if:true={hasVisibleActions}>
+        <ul class="action-list">
+          <template for:each={visibleActions} for:item="row">
+            <li key={row.key}>
+              <button
+                type="button"
+                class="action-row"
+                data-key={row.key}
+                onclick={handleSelect}
+              >
+                {row.label}
+              </button>
+            </li>
+          </template>
+        </ul>
+      </template>
+      <template if:false={hasVisibleActions}>
+        <p class="empty">出してよい操作がありません。</p>
+      </template>
+    </main>
+
+    <footer class="confirm-footer">
+      <button type="button" class="btn btn_secondary" onclick={handleCancel}>
+        閉じる
+      </button>
+    </footer>
+  </div>
+</template>

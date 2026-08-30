@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Context__c</fullName>
+    <description>仕様: Core 第11.4.2節</description>
+    <inlineHelpText>届かない相手へ空埋めしない。</inlineHelpText>
+    <label>コンテキスト</label>
+    <required>false</required>
+    <type>MultiselectPicklist</type>
+    <visibleLines>4</visibleLines>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>AutoRenew</fullName>
+                <default>false</default>
+                <label>自動Renew</label>
+            </value>
+            <value>
+                <fullName>NotAutoRenew</fullName>
+                <default>false</default>
+                <label>自動Renew以外</label>
+            </value>
+            <value>
+                <fullName>LineJournal</fullName>
+                <default>false</default>
+                <label>明細仕訳</label>
+            </value>
+            <value>
+                <fullName>NonLineJournal</fullName>
+                <default>false</default>
+                <label>明細外仕訳</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

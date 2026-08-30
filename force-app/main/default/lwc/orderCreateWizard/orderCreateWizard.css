@@ -277,6 +277,10 @@
   color: #1e40af;
 }
 
+.alert-reload {
+  margin-top: 0.5rem;
+}
+
 .ord-step {
   display: flex;
   flex-direction: column;
@@ -407,6 +411,27 @@
   margin: 0;
   color: #64748b;
   font-size: 0.875rem;
+}
+
+.ord-history-fields {
+  margin: 0 0 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+
+.confirm-history-fields {
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #ecebea;
+}
+
+.confirm-history-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #3e3e3c;
 }
 
 .ord-option-panel {

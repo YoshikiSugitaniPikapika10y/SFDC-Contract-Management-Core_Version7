@@ -7,7 +7,73 @@ public without sharing class EstimateRevertInvoiceService {
 
   public static final String NON_LATEST_ORDERED_REVERT_MESSAGE = '後続の受注済バージョンがあるため差し戻せません。新しい方から順に差し戻してください。';
 
-  public static final String NEWER_ESTIMATE_REVERT_MESSAGE = '後続の見積 Version があるため差し戻せません。新しい見積を Archive してから差し戻してください。';
+  public static final String DRAFT_JOURNAL_REVERT_MESSAGE = '未確定請求に仕訳が残っているため差し戻せません。';
+
+  /** 仕様: Core 第4.9節、第5.3節 */
+  public static void archiveNewerEstimates(
+    List<ContractHistory__c> revertedHistories
+  ) {
+    if (revertedHistories == null || revertedHistories.isEmpty()) {
+      return;
+    }
+    Map<Id, Decimal> minVersionByServiceId = new Map<Id, Decimal>();
+    Map<Id, String> parentKeyByServiceId = new Map<Id, String>();
+    Set<Id> revertedIds = new Set<Id>();
+    for (ContractHistory__c history : revertedHistories) {
+      if (
+        history == null ||
+        history.Id == null ||
+        history.ContractService__c == null ||
+        history.Version__c == null
+      ) {
+        continue;
+      }
+      revertedIds.add(history.Id);
+      Decimal current = minVersionByServiceId.get(history.ContractService__c);
+      if (current == null || history.Version__c < current) {
+        minVersionByServiceId.put(history.ContractService__c, history.Version__c);
+        if (String.isNotBlank(history.BusinessOperationKey__c)) {
+          parentKeyByServiceId.put(
+            history.ContractService__c,
+            history.BusinessOperationKey__c
+          );
+        }
+      }
+    }
+    if (minVersionByServiceId.isEmpty()) {
+      return;
+    }
+    List<ContractHistory__c> toArchive = new List<ContractHistory__c>();
+    for (ContractHistory__c estimate : [
+      SELECT Id, ContractService__c, Version__c
+      FROM ContractHistory__c
+      WHERE
+        ContractService__c IN :minVersionByServiceId.keySet()
+        AND historystatus__c = :HISTORY_STATUS_ESTIMATE
+        AND Id NOT IN :revertedIds
+      WITH SYSTEM_MODE
+    ]) {
+      Decimal baseline = minVersionByServiceId.get(estimate.ContractService__c);
+      if (
+        baseline != null &&
+        estimate.Version__c != null &&
+        estimate.Version__c > baseline
+      ) {
+        ContractHistory__c archived = new ContractHistory__c(
+          Id = estimate.Id,
+          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ARCHIVE
+        );
+        String parentKey = parentKeyByServiceId.get(estimate.ContractService__c);
+        if (String.isNotBlank(parentKey)) {
+          archived.BusinessOperationKey__c = parentKey;
+        }
+        toArchive.add(archived);
+      }
+    }
+    if (!toArchive.isEmpty()) {
+      SystemContextAccess.updateRecords(toArchive);
+    }
+  }
 
   public static void adjustForRevertedToEstimateHistories(
     List<ContractHistory__c> revertedHistories
@@ -26,9 +92,40 @@ public without sharing class EstimateRevertInvoiceService {
       return;
     }
 
-    // beforeUpdate で請求書ロック有無を弾いている前提。防御として再検査し、当該 Version は全削除。
     InvoiceLockUtil.assertNoLockedInvoices(revertedHistoryIds);
+    assertNoDraftJournals(revertedHistoryIds);
     InvoiceCanonicalService.purgeBillingForHistories(revertedHistoryIds);
+  }
+
+  /** 仕様: Core 第5.3節、Accounting 第1.1節、第1.8.1節。Currentは論理削除・取消済元・取消仕訳を数えない。 */
+  private static void assertNoDraftJournals(Set<Id> contractHistoryIds) {
+    Set<Id> draftInvoiceIds = new Set<Id>();
+    for (Invoice__c invoice : [
+      SELECT Id, InvoiceTransactionStatus__c
+      FROM Invoice__c
+      WHERE ContractHistory__c IN :contractHistoryIds
+      WITH SYSTEM_MODE
+    ]) {
+      if (
+        !InvoiceTransactionStatusService.isCancelled(invoice) &&
+        !InvoiceLockUtil.isActiveConfirmed(invoice)
+      ) {
+        draftInvoiceIds.add(invoice.Id);
+      }
+    }
+    if (draftInvoiceIds.isEmpty()) {
+      return;
+    }
+    for (Id invoiceId : draftInvoiceIds) {
+      for (GlJournal__c journal : AccountingCurrentService.load(invoiceId)) {
+        if (journal.TransactionStatus__c == 'Active') {
+          throw new RevertException(DRAFT_JOURNAL_REVERT_MESSAGE);
+        }
+      }
+    }
+  }
+
+  public class RevertException extends Exception {
   }
 
   public static Boolean isLatestOrderedHistory(Id contractHistoryId) {
@@ -40,15 +137,18 @@ public without sharing class EstimateRevertInvoiceService {
   }
 
   /**
-   * 同一契約サービス上、Ordered の MAX(Version) より小さい（または Version 不明の）履歴 ID。
-   * LatestOrderedHistory__c ポインタは使わない（ずれても誤差し戻し／差し戻し不能にしない）。
+   * 差し戻し beforeUpdate 用。履歴1回＋サービス単位の MAX(Version) 集計1回で
+   * 「非最新 Ordered」と「後続 Estimate」を同時に判定する（SOQL 4→2）。
    */
-  public static Set<Id> queryNonLatestOrderedHistoryIds(
-    Set<Id> contractHistoryIds
-  ) {
-    Set<Id> blockedHistoryIds = new Set<Id>();
+  public class RevertBlockSets {
+    public Set<Id> nonLatestOrderedHistoryIds = new Set<Id>();
+    public Set<Id> newerEstimateHistoryIds = new Set<Id>();
+  }
+
+  public static RevertBlockSets queryRevertBlockSets(Set<Id> contractHistoryIds) {
+    RevertBlockSets blocks = new RevertBlockSets();
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
-      return blockedHistoryIds;
+      return blocks;
     }
 
     Map<Id, ContractHistory__c> historiesById = new Map<Id, ContractHistory__c>(
@@ -60,7 +160,7 @@ public without sharing class EstimateRevertInvoiceService {
       ]
     );
     if (historiesById.isEmpty()) {
-      return blockedHistoryIds;
+      return blocks;
     }
 
     Set<Id> contractServiceIds = new Set<Id>();
@@ -70,24 +170,32 @@ public without sharing class EstimateRevertInvoiceService {
       }
     }
     if (contractServiceIds.isEmpty()) {
-      return blockedHistoryIds;
+      return blocks;
     }
 
     Map<Id, Decimal> maxOrderedVersionByServiceId = new Map<Id, Decimal>();
+    Map<Id, Decimal> maxEstimateVersionByServiceId = new Map<Id, Decimal>();
     for (AggregateResult result : [
-      SELECT ContractService__c serviceId, MAX(Version__c) maxVersion
+      SELECT
+        ContractService__c serviceId,
+        historystatus__c status,
+        MAX(Version__c) maxVersion
       FROM ContractHistory__c
       WHERE
         ContractService__c IN :contractServiceIds
-        AND historystatus__c = :HISTORY_STATUS_ORDERED
+        AND historystatus__c IN (:HISTORY_STATUS_ORDERED, :HISTORY_STATUS_ESTIMATE)
         AND Version__c != NULL
       WITH SYSTEM_MODE
-      GROUP BY ContractService__c
+      GROUP BY ContractService__c, historystatus__c
     ]) {
-      maxOrderedVersionByServiceId.put(
-        (Id) result.get('serviceId'),
-        (Decimal) result.get('maxVersion')
-      );
+      Id serviceId = (Id) result.get('serviceId');
+      String status = (String) result.get('status');
+      Decimal maxVersion = (Decimal) result.get('maxVersion');
+      if (status == HISTORY_STATUS_ORDERED) {
+        maxOrderedVersionByServiceId.put(serviceId, maxVersion);
+      } else if (status == HISTORY_STATUS_ESTIMATE) {
+        maxEstimateVersionByServiceId.put(serviceId, maxVersion);
+      }
     }
 
     for (ContractHistory__c history : historiesById.values()) {
@@ -96,81 +204,14 @@ public without sharing class EstimateRevertInvoiceService {
       }
       // Version 不明は最新と証明できないため差し戻し不可
       if (history.Version__c == null) {
-        blockedHistoryIds.add(history.Id);
-        continue;
-      }
-      if (
-        !maxOrderedVersionByServiceId.containsKey(history.ContractService__c)
-      ) {
+        blocks.nonLatestOrderedHistoryIds.add(history.Id);
         continue;
       }
       Decimal maxOrderedVersion = maxOrderedVersionByServiceId.get(
         history.ContractService__c
       );
       if (maxOrderedVersion != null && maxOrderedVersion > history.Version__c) {
-        blockedHistoryIds.add(history.Id);
-      }
-    }
-    return blockedHistoryIds;
-  }
-
-  /**
-   * 同一契約サービスに、対象より新しい Version の Estimate がある履歴 ID。
-   */
-  public static Set<Id> queryHistoryIdsWithNewerEstimates(
-    Set<Id> contractHistoryIds
-  ) {
-    Set<Id> blockedHistoryIds = new Set<Id>();
-    if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
-      return blockedHistoryIds;
-    }
-
-    Map<Id, ContractHistory__c> historiesById = new Map<Id, ContractHistory__c>(
-      [
-        SELECT Id, ContractService__c, Version__c
-        FROM ContractHistory__c
-        WHERE Id IN :contractHistoryIds
-        WITH SYSTEM_MODE
-      ]
-    );
-    if (historiesById.isEmpty()) {
-      return blockedHistoryIds;
-    }
-
-    Set<Id> contractServiceIds = new Set<Id>();
-    for (ContractHistory__c history : historiesById.values()) {
-      if (history.ContractService__c != null) {
-        contractServiceIds.add(history.ContractService__c);
-      }
-    }
-    if (contractServiceIds.isEmpty()) {
-      return blockedHistoryIds;
-    }
-
-    Map<Id, Decimal> maxEstimateVersionByServiceId = new Map<Id, Decimal>();
-    for (AggregateResult result : [
-      SELECT ContractService__c serviceId, MAX(Version__c) maxVersion
-      FROM ContractHistory__c
-      WHERE
-        ContractService__c IN :contractServiceIds
-        AND historystatus__c = :HISTORY_STATUS_ESTIMATE
-        AND Version__c != NULL
-      WITH SYSTEM_MODE
-      GROUP BY ContractService__c
-    ]) {
-      maxEstimateVersionByServiceId.put(
-        (Id) result.get('serviceId'),
-        (Decimal) result.get('maxVersion')
-      );
-    }
-
-    for (ContractHistory__c history : historiesById.values()) {
-      if (
-        history.ContractService__c == null ||
-        history.Version__c == null ||
-        !maxEstimateVersionByServiceId.containsKey(history.ContractService__c)
-      ) {
-        continue;
+        blocks.nonLatestOrderedHistoryIds.add(history.Id);
       }
       Decimal maxEstimateVersion = maxEstimateVersionByServiceId.get(
         history.ContractService__c
@@ -179,10 +220,29 @@ public without sharing class EstimateRevertInvoiceService {
         maxEstimateVersion != null &&
         maxEstimateVersion > history.Version__c
       ) {
-        blockedHistoryIds.add(history.Id);
+        blocks.newerEstimateHistoryIds.add(history.Id);
       }
     }
-    return blockedHistoryIds;
+    return blocks;
+  }
+
+  /**
+   * 同一契約サービス上、Ordered の MAX(Version) より小さい（または Version 不明の）履歴 ID。
+   * LatestOrderedHistory__c ポインタは使わない（ずれても誤差し戻し／差し戻し不能にしない）。
+   */
+  public static Set<Id> queryNonLatestOrderedHistoryIds(
+    Set<Id> contractHistoryIds
+  ) {
+    return queryRevertBlockSets(contractHistoryIds).nonLatestOrderedHistoryIds;
+  }
+
+  /**
+   * 同一契約サービスに、対象より新しい Version の Estimate がある履歴 ID。
+   */
+  public static Set<Id> queryHistoryIdsWithNewerEstimates(
+    Set<Id> contractHistoryIds
+  ) {
+    return queryRevertBlockSets(contractHistoryIds).newerEstimateHistoryIds;
   }
 
   public static Boolean hasNewerEstimateVersion(Id contractHistoryId) {

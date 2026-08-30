@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Source_AllowedForPeriodInvoiceLine</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。期間明細・請求書・請求明細のFrom。</description>
+    <errorConditionFormula>AND(
+        OR(
+            ISPICKVAL(TargetObject__c, "InvoiceProduct__c"),
+            ISPICKVAL(TargetObject__c, "Invoice__c"),
+            ISPICKVAL(TargetObject__c, "InvoiceLine__c")
+        ),
+        NOT(
+            OR(
+                ISPICKVAL(SourceObject__c, "ContractHistory__c"),
+                ISPICKVAL(SourceObject__c, "ContractProduct__c"),
+                ISPICKVAL(SourceObject__c, "Product2"),
+                ISPICKVAL(SourceObject__c, "BillingAccount__c"),
+                ISPICKVAL(SourceObject__c, "Opportunity"),
+                ISPICKVAL(SourceObject__c, "Account")
+            )
+        )
+    )</errorConditionFormula>
+    <errorDisplayField>SourceObject__c</errorDisplayField>
+    <errorMessage>このToのFromは契約履歴、見積商品、商品、請求アカウント、商談、取引先です。</errorMessage>
+</ValidationRule>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>見積書・請求書で共用する帳票テンプレート定義。帳票1種類につき1レコードを登録する。</description>
+    <label>契約帳票テンプレート</label>
+    <pluralLabel>契約帳票テンプレート</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

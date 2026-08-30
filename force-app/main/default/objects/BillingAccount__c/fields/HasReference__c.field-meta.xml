@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>HasReference__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>仕様: Core 第3.3.3節</description>
+    <inlineHelpText>契約サービスまたは請求書から1件でも参照していればON。</inlineHelpText>
+    <label>参照あり</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

@@ -5,6 +5,6 @@
     <description>見積ウィザード Type=New のときに表示する</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <label>Newで表示</label>
+    <label>新規で表示</label>
     <type>Checkbox</type>
 </CustomField>

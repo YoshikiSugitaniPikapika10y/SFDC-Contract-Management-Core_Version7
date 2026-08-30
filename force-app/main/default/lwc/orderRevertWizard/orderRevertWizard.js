@@ -17,9 +17,15 @@ import {
   scheduleRecordActionLoad,
   resetRecordActionLoadState
 } from "c/orderWizardClose";
+import hasRevert from "@salesforce/customPermission/Loop_07_Can_Revert";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import revertOrder from "@salesforce/apex/OrderCreateController.revertOrder";
+import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
 import hasManualInvoiceAdjustment from "@salesforce/apex/OrderCreateController.hasManualInvoiceAdjustment";
+import { buildCustomFieldInputs } from "c/estimateWizardCustomFields";
+
+const VERSION_CONFLICT_MESSAGE =
+  "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。";
 
 export default class OrderRevertWizard extends NavigationMixin(
   LightningElement
@@ -32,11 +38,19 @@ export default class OrderRevertWizard extends NavigationMixin(
   @track isLoading = true;
   @track isSaving = false;
   @track errorMessage = "";
+  @track contentLoadFailed = false;
   @track context;
   @track hasManualAdjustment = false;
   @track deleteRenewOpportunity = true;
+  @track historyCustomFields = {};
   /** 楽観ロック（getOrderContext.lastModifiedToken） */
   _lastModifiedToken = "";
+  /** 仕様: Core 第4.3.12節 */
+  _pendingOperationKey = "";
+
+  get canOpenRevert() {
+    return hasRevert === true;
+  }
 
   connectedCallback() {
     initializeOrderWizardFromUrl(this);
@@ -72,6 +86,7 @@ export default class OrderRevertWizard extends NavigationMixin(
 
     this.isLoading = true;
     this.errorMessage = "";
+    this.contentLoadFailed = false;
     this.context = undefined;
 
     try {
@@ -87,22 +102,31 @@ export default class OrderRevertWizard extends NavigationMixin(
 
       if (!data.isOrdered) {
         this.errorMessage =
-          "Estimate 状態の契約履歴です。「受注」ボタンをご利用ください。";
+          "見積状態の契約履歴です。「受注」ボタンをご利用ください。";
         return;
       }
 
       this.context = data;
       this._lastModifiedToken = data.lastModifiedToken || "";
+      this.historyCustomFields = { ...(data.historySavedFields || {}) };
+      delete this.historyCustomFields.OrderDate__c;
       // 表示時は常に初期 ON（ユーザが意図的に外さない限り削除）
       this.deleteRenewOpportunity = true;
       this.hasManualAdjustment = await hasManualInvoiceAdjustment({
         contractHistoryId: this.recordId
       });
     } catch (error) {
+      // 仕様: Core 第4.3.11節
       this.errorMessage = this.reduceError(error);
+      this.contentLoadFailed = true;
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /** 仕様: Core 第4.3.11節 */
+  handleContentReload() {
+    this.loadContext();
   }
 
   get canRevert() {
@@ -145,6 +169,42 @@ export default class OrderRevertWizard extends NavigationMixin(
     return this.isBusy || !this.canRevert;
   }
 
+  // 仕様: Core 第5.3節、第11.4.3節
+  get revertHistoryFieldDefinitions() {
+    return (this.context?.historyFieldDefinitions || [])
+      .filter((field) => field && field.apiName !== "OrderDate__c")
+      .map((field) => ({
+        ...field,
+        required: false
+      }));
+  }
+
+  get historyFieldInputs() {
+    return buildCustomFieldInputs(
+      this.revertHistoryFieldDefinitions,
+      this.historyCustomFields,
+      "revert-history",
+      false,
+      null,
+      this.context?.historyType
+    );
+  }
+
+  get showHistoryFields() {
+    return this.canRevert && this.historyFieldInputs.length > 0;
+  }
+
+  handleHistoryFieldChange(event) {
+    const fieldApi = event.detail?.fieldApi;
+    if (!fieldApi || fieldApi === "OrderDate__c") {
+      return;
+    }
+    this.historyCustomFields = {
+      ...this.historyCustomFields,
+      [fieldApi]: event.detail.value
+    };
+  }
+
   async handleRevert() {
     if (this.isSaving || !this.canRevert) {
       return;
@@ -154,23 +214,37 @@ export default class OrderRevertWizard extends NavigationMixin(
     try {
       const shouldDeleteRenew =
         this.hasRenewOpportunity && this.deleteRenewOpportunity;
-      await revertOrder({
+      if (!this._pendingOperationKey) {
+        this._pendingOperationKey = await issueOrderOperationKey();
+      }
+      const result = await revertOrder({
         contractHistoryId: this.recordId,
         deleteRenewOpportunity: shouldDeleteRenew,
-        expectedLastModifiedToken: this._lastModifiedToken || null
+        expectedLastModifiedToken: this._lastModifiedToken || null,
+        historyCustomFieldsJson: JSON.stringify(this.historyCustomFields || {}),
+        businessOperationKey: this._pendingOperationKey
       });
+      if (result?.businessOperationKey) {
+        this._pendingOperationKey = result.businessOperationKey;
+      }
+      this._pendingOperationKey = "";
       notifyOrderRecordStatusChanged(this, this.recordId);
       this.showToast(
         "差し戻し完了",
         shouldDeleteRenew
-          ? "ステータスを Estimate に戻し、更新商談を削除しました。"
-          : "ステータスを Estimate に戻しました。",
+          ? "ステータスを見積に戻し、更新商談を削除しました。"
+          : "ステータスを見積に戻しました。",
         "success"
       );
       this.closeAction();
     } catch (error) {
       this.errorMessage = this.reduceError(error);
       this.showToast("差し戻しエラー", this.errorMessage, "error", "sticky");
+      // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直す。
+      if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
+        this._pendingOperationKey = "";
+        await this.loadContext();
+      }
     } finally {
       this.isSaving = false;
     }

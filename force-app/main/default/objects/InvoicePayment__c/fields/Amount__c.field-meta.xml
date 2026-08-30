@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Amount__c</fullName>
+    <description>仕様: Core 第8.1節。0以外の符号付き整数。正=現預金受取、負=現預金支払。</description>
+    <inlineHelpText>正は受取、負は支払。0と小数は登録しません。</inlineHelpText>
+    <label>符号付き金額</label>
+    <precision>18</precision>
+    <required>true</required>
+    <scale>0</scale>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Currency</type>
+</CustomField>

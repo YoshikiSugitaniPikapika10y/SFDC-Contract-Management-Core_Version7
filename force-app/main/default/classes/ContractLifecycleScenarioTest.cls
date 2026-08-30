@@ -23,8 +23,7 @@ private class ContractLifecycleScenarioTest {
   private static final String INVOICE_SETTING_MONTHLY = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
   private static final String BILLING_TYPE_RECURRING = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
   private static final String BILLING_TYPE_ONE_TIME = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
-  private static final String PAYMENT_TERM_NEXT_MONTH_END = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END;
-  private static final String BILLING_DAY_OF_MONTH = ContractTestDataFactory.TENANT_BILLING_DAY_5;
+  private static final Integer BILLING_DAY_OF_MONTH = ContractTestDataFactory.TENANT_BILLING_DAY_5;
 
   private class ScenarioContext {
     public Account account;
@@ -39,6 +38,7 @@ private class ContractLifecycleScenarioTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   // -------------------------------------------------------------------------
@@ -200,67 +200,52 @@ private class ContractLifecycleScenarioTest {
       );
       Test.stopTest();
 
-      System.assertEquals(
-        3,
-        [
-          SELECT COUNT()
-          FROM InvoiceProduct__c
-          WHERE ContractHistory__c = :v1.Id
-        ],
-        'V1 3ヶ月'
-      );
-      System.assert(
-        [
-          SELECT COUNT()
-          FROM Invoice__c
-          WHERE ContractHistory__c = :v1.Id
-        ] >= 1,
-        'V1 請求あり'
-      );
-      System.assert(
-        [
-          SELECT COUNT()
-          FROM Invoice__c
-          WHERE ContractHistory__c = :v2.Id
-        ] >= 1,
-        'V2 請求あり'
-      );
-      System.assert(
-        [
-          SELECT COUNT()
-          FROM Invoice__c
-          WHERE ContractHistory__c = :v3.Id
-        ] >= 1,
-        'Renew 請求あり'
-      );
-      System.assertEquals(
-        0,
-        [
-          SELECT COUNT()
-          FROM InvoiceProduct__c
-          WHERE
-            ContractHistory__c IN (
-              SELECT Id
-              FROM ContractHistory__c
-              WHERE ContractService__c = :base.service.Id AND Type__c = 'Cancel'
-            )
-        ],
-        'Cancel に期間明細なし'
-      );
-      System.assertEquals(
-        0,
-        [
-          SELECT COUNT()
-          FROM Invoice__c
-          WHERE
-            ContractHistory__c IN (
-              SELECT Id
-              FROM ContractHistory__c
-              WHERE ContractService__c = :base.service.Id AND Type__c = 'Cancel'
-            )
-        ],
-        'Cancel に請求なし'
-      );
+      Map<Id, Integer> periodCounts = new Map<Id, Integer>();
+      Integer cancelPeriodCount = 0;
+      for (AggregateResult row : [
+        SELECT
+          ContractHistory__c historyId,
+          ContractHistory__r.Type__c historyType,
+          COUNT(Id) rowCount
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__r.ContractService__c = :base.service.Id
+        GROUP BY ContractHistory__c, ContractHistory__r.Type__c
+      ]) {
+        Integer rowCount = (Integer) row.get('rowCount');
+        periodCounts.put(
+          (Id) row.get('historyId'),
+          rowCount
+        );
+        if ((String) row.get('historyType') == 'Cancel') {
+          cancelPeriodCount += rowCount;
+        }
+      }
+      Map<Id, Integer> invoiceCounts = new Map<Id, Integer>();
+      Integer cancelInvoiceCount = 0;
+      for (AggregateResult row : [
+        SELECT
+          ContractHistory__c historyId,
+          ContractHistory__r.Type__c historyType,
+          COUNT(Id) rowCount
+        FROM Invoice__c
+        WHERE ContractHistory__r.ContractService__c = :base.service.Id
+        GROUP BY ContractHistory__c, ContractHistory__r.Type__c
+      ]) {
+        Integer rowCount = (Integer) row.get('rowCount');
+        invoiceCounts.put(
+          (Id) row.get('historyId'),
+          rowCount
+        );
+        if ((String) row.get('historyType') == 'Cancel') {
+          cancelInvoiceCount += rowCount;
+        }
+      }
+      System.assertEquals(3, periodCounts.get(v1.Id), 'V1 3ヶ月');
+      System.assert(invoiceCounts.get(v1.Id) >= 1, 'V1 請求あり');
+      System.assert(invoiceCounts.get(v2.Id) >= 1, 'V2 請求あり');
+      System.assert(invoiceCounts.get(v3.Id) >= 1, 'Renew 請求あり');
+      System.assertEquals(0, cancelPeriodCount, 'Cancel に期間明細なし');
+      System.assertEquals(0, cancelInvoiceCount, 'Cancel に請求なし');
     }
   }
 
@@ -307,11 +292,11 @@ private class ContractLifecycleScenarioTest {
 
       BillingAccount__c ba2 = new BillingAccount__c(
         Account__c = base.account.Id,
-        PaymentTerm__c = PAYMENT_TERM_NEXT_MONTH_END,
-        BillingDayOfMonth__c = BILLING_DAY_OF_MONTH,
         BillingAddressee__c = '分割先宛名 御中',
         BillingEmailTo__c = 'split-to@example.com'
       );
+      ContractTestDataFactory.applyOnOrAfterBillingDay(ba2, BILLING_DAY_OF_MONTH);
+      ContractTestDataFactory.applyPaymentMonthEnd(ba2, 1);
       ContractTestDataFactory.applyRequiredFields(ba2);
       insert ba2;
 
@@ -366,7 +351,7 @@ private class ContractLifecycleScenarioTest {
 
       // 3) BA 分割（残請求から）
       Invoice__c remainForBa = [
-        SELECT Id, Amount__c
+        SELECT Id, Amount__c, InvoiceDate__c, PaymentScheduledDate__c
         FROM Invoice__c
         WHERE Id = :source.Id
       ];
@@ -386,8 +371,8 @@ private class ContractLifecycleScenarioTest {
       Id baSplitInvoiceId = InvoiceCanonicalService.splitInvoiceByBillingAccount(
         remainForBa.Id,
         ba2.Id,
-        null,
-        null,
+        remainForBa.InvoiceDate__c,
+        remainForBa.PaymentScheduledDate__c,
         new List<InvoiceCanonicalService.SplitLineInput>{ baSplit }
       );
 
@@ -452,6 +437,7 @@ private class ContractLifecycleScenarioTest {
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
       split.lineId = line.Id;
       split.moveAmount = 10000;
+      Test.startTest();
       Id sourceInvoiceId = InvoiceCanonicalService.splitInvoiceByDate(
         target.Id,
         Date.newInstance(2026, 7, 1),
@@ -466,7 +452,6 @@ private class ContractLifecycleScenarioTest {
       ];
       System.assertEquals(10000, movedLine.Amount__c);
 
-      Test.startTest();
       InvoiceCanonicalService.moveLinesToExistingInvoice(
         sourceInvoiceId,
         target.Id,
@@ -947,6 +932,15 @@ private class ContractLifecycleScenarioTest {
         invoiceSum += inv.Amount__c == null ? 0 : inv.Amount__c;
       }
       System.assertEquals(40000, invoiceSum, '請求合計も40000');
+      System.assertEquals(
+        2,
+        [
+          SELECT COUNT()
+          FROM InvoiceLine__c
+          WHERE Invoice__r.ContractHistory__c = :history.Id
+        ],
+        '歯抜けは連続区間ごとに請求明細を分ける'
+      );
     }
   }
 
@@ -1219,12 +1213,14 @@ private class ContractLifecycleScenarioTest {
     Account account = ContractTestDataFactory.insertAccount(name + ' Account');
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = account.Id,
-      PaymentTerm__c = PAYMENT_TERM_NEXT_MONTH_END,
-      BillingDayOfMonth__c = BILLING_DAY_OF_MONTH,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      AdjustInvoiceDateToBusinessDay__c = false
+      BillingEmailTo__c = 'to@example.com'
     );
+    ContractTestDataFactory.applyOnOrAfterBillingDay(
+      billingAccount,
+      BILLING_DAY_OF_MONTH
+    );
+    ContractTestDataFactory.applyPaymentMonthEnd(billingAccount, 1);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 

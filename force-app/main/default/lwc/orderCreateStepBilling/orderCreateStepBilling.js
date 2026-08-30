@@ -1,4 +1,5 @@
 import { LightningElement, api, wire } from "lwc";
+import { NavigationMixin } from "lightning/navigation";
 import { refreshApex } from "@salesforce/apex";
 import { getRecordNotifyChange } from "lightning/uiRecordApi";
 import getOrderBillingFieldDefinitions from "@salesforce/apex/OrderWizardFieldService.getOrderBillingFieldDefinitions";
@@ -15,7 +16,10 @@ const ADDRESS_FIELD_APIS = new Set([
   "BillingEmailBcc__c"
 ]);
 
-export default class OrderCreateStepBilling extends LightningElement {
+/** 仕様: Core 第5.2節 */
+export default class OrderCreateStepBilling extends NavigationMixin(
+  LightningElement
+) {
   @api context;
 
   _billingCustomFields = {};
@@ -70,6 +74,31 @@ export default class OrderCreateStepBilling extends LightningElement {
     return this.buildCompleteBillingCustomFields();
   }
 
+  /**
+   * 仕様: Core 第5.2節。必須不足時は請求アカウントの正規編集画面へ誘導する。
+   */
+  @api
+  openBillingAccountFormalEdit() {
+    const recordId = this.billingAccountId;
+    if (!recordId) {
+      return false;
+    }
+    this[NavigationMixin.Navigate]({
+      type: "standard__recordPage",
+      attributes: {
+        recordId,
+        objectApiName: "BillingAccount__c",
+        actionName: "edit"
+      }
+    });
+    return true;
+  }
+
+  handleOpenFormalEdit() {
+    this.openBillingAccountFormalEdit();
+  }
+
+  /** 仕様: Core 第5.2節 */
   @api
   validateBillingFields() {
     const missingLabels = [];
@@ -89,7 +118,7 @@ export default class OrderCreateStepBilling extends LightningElement {
       return null;
     }
     return (
-      "請求アカウントの必須項目が未設定です。取引先の関連リストで請求アカウントを編集するか、新規作成して見積で付け替えてください: " +
+      "請求アカウントの必須項目が未設定です。請求アカウントの正規編集画面で設定してください: " +
       missingLabels.join("、")
     );
   }
@@ -168,34 +197,15 @@ export default class OrderCreateStepBilling extends LightningElement {
     );
   }
 
+  // 仕様: Core 第5.2節。正規編集後は請求アカウントの最新を載せる。
   mergeBillingCustomFields(baseValues = {}, invoiceSettings = null) {
     const merged = { ...(baseValues || {}) };
-
-    if (invoiceSettings) {
-      if (
-        this.isBlankPicklistValue(merged.PaymentTerm__c) &&
-        invoiceSettings.paymentTerm
-      ) {
-        merged.PaymentTerm__c = invoiceSettings.paymentTerm;
-      }
-      if (
-        this.isBlankPicklistValue(merged.BillingDayOfMonth__c) &&
-        invoiceSettings.billingDayOfMonthPicklistValue
-      ) {
-        merged.BillingDayOfMonth__c =
-          invoiceSettings.billingDayOfMonthPicklistValue;
-      }
-      if (
-        !Object.prototype.hasOwnProperty.call(
-          merged,
-          "AdjustInvoiceDateToBusinessDay__c"
-        )
-      ) {
-        merged.AdjustInvoiceDateToBusinessDay__c =
-          invoiceSettings.adjustInvoiceDateToBusinessDay === true;
-      }
+    const incoming = invoiceSettings?.billingCustomFields;
+    if (incoming && typeof incoming === "object") {
+      Object.keys(incoming).forEach((key) => {
+        merged[key] = incoming[key];
+      });
     }
-
     return merged;
   }
 

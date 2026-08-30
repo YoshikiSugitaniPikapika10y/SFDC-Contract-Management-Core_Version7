@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InvoiceLine__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>本体・認識の仕訳が参照する請求明細。税・入金仕訳は空。</description>
+    <label>請求明細</label>
+    <referenceTo>InvoiceLine__c</referenceTo>
+    <relationshipLabel>仕訳</relationshipLabel>
+    <relationshipName>GlJournals</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

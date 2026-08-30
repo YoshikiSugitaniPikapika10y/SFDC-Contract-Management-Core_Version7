@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description
-  >11 「請求プレビュー」を閲覧できる。コード接続は別途。</description>
-    <isLicensed>false</isLicensed>
-    <label>11 契約 請求プレビュー</label>
-</CustomPermission>

@@ -1,0 +1,728 @@
+<template>
+  <div class="cross-page">
+    <header class="cross-header">
+      <h1 class="cross-title">契約横断</h1>
+      <nav class="menu" aria-label="一覧">
+        <template if:true={showEstimateMenu}>
+          <button
+            type="button"
+            class={estimateMenuClass}
+            data-menu="estimate"
+            onclick={handleMenu}
+          >
+            見積
+          </button>
+        </template>
+        <template if:true={showInvoiceMenu}>
+          <button
+            type="button"
+            class={invoiceMenuClass}
+            data-menu="invoice"
+            onclick={handleMenu}
+          >
+            請求
+          </button>
+        </template>
+        <template if:true={showJournalMenu}>
+          <button
+            type="button"
+            class={journalMenuClass}
+            data-menu="journal"
+            onclick={handleMenu}
+          >
+            仕訳
+          </button>
+        </template>
+      </nav>
+      <button type="button" class="btn btn_secondary" onclick={handleReload}>
+        リロード
+      </button>
+    </header>
+
+    <template if:true={errorMessage}>
+      <div class="alert alert_error">{errorMessage}</div>
+    </template>
+    <template if:true={truncated}>
+      <div class="alert alert_warn">{truncatedMessage}</div>
+    </template>
+
+    <div class={splitClass}>
+      <aside class="pane pane-left">
+        <div class="filters">
+          <template if:true={isEstimateMenu}>
+            <div class="filter-grid">
+              <lightning-input
+                type="date"
+                name="estCloseFrom"
+                label="完了予定日 FROM"
+                value={estCloseFrom}
+                required
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="estCloseTo"
+                label="完了予定日 TO"
+                value={estCloseTo}
+                required
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-record-picker
+                label="取引先"
+                object-api-name="Account"
+                placeholder="取引先を検索"
+                data-name="estAccountId"
+                onchange={handleLookupChange}
+              ></lightning-record-picker>
+              <lightning-record-picker
+                label="契約サービス"
+                object-api-name="ContractService__c"
+                placeholder="契約サービスを検索"
+                data-name="estServiceId"
+                onchange={handleLookupChange}
+              ></lightning-record-picker>
+              <lightning-combobox
+                name="estType"
+                label="見積種別"
+                value={estType}
+                options={typeOptions}
+                onchange={handleFilterChange}
+              ></lightning-combobox>
+              <template if:true={showEstimateSendFilter}>
+                <lightning-combobox
+                  name="estSent"
+                  label="送付"
+                  value={estSent}
+                  options={triOptions}
+                  onchange={handleFilterChange}
+                ></lightning-combobox>
+              </template>
+              <template if:true={showEstimateIssueFilter}>
+                <lightning-combobox
+                  name="estIssued"
+                  label="発行"
+                  value={estIssued}
+                  options={triOptions}
+                  onchange={handleFilterChange}
+                ></lightning-combobox>
+              </template>
+              <lightning-combobox
+                name="estAutoRenew"
+                label="自動Renew"
+                value={estAutoRenew}
+                options={triOptions}
+                onchange={handleFilterChange}
+              ></lightning-combobox>
+              <lightning-input
+                type="date"
+                name="estValidFrom"
+                label="有効期限 FROM"
+                value={estValidFrom}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="estValidTo"
+                label="有効期限 TO"
+                value={estValidTo}
+                onchange={handleFilterChange}
+              ></lightning-input>
+            </div>
+          </template>
+
+          <template if:true={isInvoiceMenu}>
+            <div class="filter-grid">
+              <lightning-combobox
+                name="invStatus"
+                label="請求状態"
+                value={invStatus}
+                options={invoiceStatusOptions}
+                required
+                onchange={handleFilterChange}
+              ></lightning-combobox>
+              <lightning-input
+                name="invName"
+                label="請求名"
+                value={invName}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-record-picker
+                label="請求アカウント"
+                object-api-name="BillingAccount__c"
+                placeholder="請求アカウントを検索"
+                data-name="invBillingAccountId"
+                onchange={handleLookupChange}
+              ></lightning-record-picker>
+              <lightning-record-picker
+                label="取引先"
+                object-api-name="Account"
+                placeholder="取引先を検索"
+                data-name="invAccountId"
+                onchange={handleLookupChange}
+              ></lightning-record-picker>
+              <lightning-input
+                type="date"
+                name="invDateFrom"
+                label="請求日 FROM"
+                value={invDateFrom}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="invDateTo"
+                label="請求日 TO"
+                value={invDateTo}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="invCloseFrom"
+                label="完了予定日 FROM"
+                value={invCloseFrom}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="invCloseTo"
+                label="完了予定日 TO"
+                value={invCloseTo}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="checkbox"
+                name="invIncludeCancelled"
+                label="取消済みを含める"
+                checked={invIncludeCancelled}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <template if:true={showInvoiceSendFilter}>
+                <lightning-combobox
+                  name="invSent"
+                  label="送付"
+                  value={invSent}
+                  options={triOptions}
+                  onchange={handleFilterChange}
+                ></lightning-combobox>
+              </template>
+              <template if:true={showInvoiceIssueFilter}>
+                <lightning-combobox
+                  name="invIssued"
+                  label="発行"
+                  value={invIssued}
+                  options={triOptions}
+                  onchange={handleFilterChange}
+                ></lightning-combobox>
+              </template>
+              <lightning-combobox
+                name="invOverdue"
+                label="遅延"
+                value={invOverdue}
+                options={triOptions}
+                onchange={handleFilterChange}
+              ></lightning-combobox>
+              <lightning-combobox
+                name="invCollection"
+                label="回収・返金状態"
+                value={invCollection}
+                options={collectionOptions}
+                onchange={handleFilterChange}
+              ></lightning-combobox>
+              <template if:true={showAccountingInvoiceColumns}>
+                <lightning-input
+                  type="date"
+                  name="invNextFrom"
+                  label="次の検収 FROM"
+                  value={invNextFrom}
+                  onchange={handleFilterChange}
+                ></lightning-input>
+                <lightning-input
+                  type="date"
+                  name="invNextTo"
+                  label="次の検収 TO"
+                  value={invNextTo}
+                  onchange={handleFilterChange}
+                ></lightning-input>
+              </template>
+            </div>
+            <template if:true={showAccountingInvoiceColumns}>
+              <div class="tag-chips">
+                <template for:each={tagChips} for:item="chip">
+                  <button
+                    key={chip.fieldApiName}
+                    type="button"
+                    class={chip.chipClass}
+                    data-field={chip.fieldApiName}
+                    onclick={handleTagChip}
+                  >
+                    {chip.label}
+                  </button>
+                </template>
+              </div>
+            </template>
+          </template>
+
+          <template if:true={isJournalMenu}>
+            <div class="filter-grid">
+              <lightning-input
+                type="checkbox"
+                name="journalColumnMode"
+                label="列モード"
+                checked={journalColumnMode}
+                class="column-mode-toggle"
+                onchange={handleJournalColumnModeChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="jouFrom"
+                label="計上日 FROM"
+                value={jouFrom}
+                required
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="jouTo"
+                label="計上日 TO"
+                value={jouTo}
+                required
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-combobox
+                name="jouLock"
+                label="Lock"
+                value={jouLock}
+                options={lockOptions}
+                required
+                onchange={handleFilterChange}
+              ></lightning-combobox>
+              <lightning-combobox
+                name="jouEvent"
+                label="会計イベント"
+                value={jouEvent}
+                options={eventFilterOptions}
+                onchange={handleFilterChange}
+              ></lightning-combobox>
+              <lightning-record-picker
+                label="請求アカウント"
+                object-api-name="BillingAccount__c"
+                data-name="jouBillingAccountId"
+                onchange={handleLookupChange}
+              ></lightning-record-picker>
+              <lightning-record-picker
+                label="取引先"
+                object-api-name="Account"
+                data-name="jouAccountId"
+                onchange={handleLookupChange}
+              ></lightning-record-picker>
+              <lightning-record-picker
+                label="請求"
+                object-api-name="Invoice__c"
+                data-name="jouInvoiceId"
+                onchange={handleLookupChange}
+              ></lightning-record-picker>
+              <lightning-input
+                type="date"
+                name="jouCloseFrom"
+                label="完了予定日 FROM"
+                value={jouCloseFrom}
+                onchange={handleFilterChange}
+              ></lightning-input>
+              <lightning-input
+                type="date"
+                name="jouCloseTo"
+                label="完了予定日 TO"
+                value={jouCloseTo}
+                onchange={handleFilterChange}
+              ></lightning-input>
+            </div>
+          </template>
+        </div>
+
+        <div class="group-sort">
+          <template for:each={groupItems} for:item="group">
+            <div key={group.id} class="group-item">
+              <lightning-input
+                type="toggle"
+                label={group.label}
+                checked={group.on}
+                data-id={group.id}
+                onchange={handleGroupOn}
+              ></lightning-input>
+              <lightning-input
+                type="toggle"
+                label="合計"
+                checked={group.total}
+                disabled={group.totalDisabled}
+                data-id={group.id}
+                onchange={handleGroupTotal}
+              ></lightning-input>
+              <button
+                type="button"
+                class="icon-btn"
+                data-id={group.id}
+                data-dir="-1"
+                onclick={handleGroupMove}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                data-id={group.id}
+                data-dir="1"
+                onclick={handleGroupMove}
+              >
+                ↓
+              </button>
+            </div>
+          </template>
+          <div class="sort-row">
+            <lightning-combobox
+              name="sort1"
+              label="第一ソート"
+              value={sort1}
+              options={sortFieldOptions}
+              onchange={handleSortChange}
+            ></lightning-combobox>
+            <lightning-combobox
+              name="sort1Dir"
+              label="第一"
+              value={sort1Dir}
+              options={dirOptions}
+              onchange={handleSortChange}
+            ></lightning-combobox>
+            <lightning-combobox
+              name="sort2"
+              label="第二ソート"
+              value={sort2}
+              options={sortFieldOptions}
+              onchange={handleSortChange}
+            ></lightning-combobox>
+            <lightning-combobox
+              name="sort2Dir"
+              label="第二"
+              value={sort2Dir}
+              options={dirOptions}
+              onchange={handleSortChange}
+            ></lightning-combobox>
+          </div>
+        </div>
+
+        <template if:true={showJournalSave}>
+          <div class={journalActionClass}>
+            <template if:true={showJournalLockSelection}>
+              <button type="button" class="btn btn_link" onclick={handleSelectPage}>
+                一括選択
+              </button>
+              <button type="button" class="btn btn_link" onclick={handleClearPage}>
+                クリア
+              </button>
+            </template>
+            <template if:true={showUnlockReason}>
+              <lightning-input
+                name="unlockReason"
+                label="Unlock理由"
+                value={unlockReason}
+                maxlength="255"
+                required
+                onchange={handleUnlockReason}
+              ></lightning-input>
+            </template>
+            <button
+              type="button"
+              class="btn btn_save"
+              onclick={handleSaveJournals}
+              disabled={saveDisabled}
+            >
+              保存
+            </button>
+          </div>
+        </template>
+
+        <div class={tableWrapClass}>
+          <template if:true={loading}>
+            <lightning-spinner alternative-text="読み込み中" size="small"></lightning-spinner>
+          </template>
+          <table class="cross-table">
+            <thead>
+              <tr>
+                <template for:each={columnHeaders} for:item="header">
+                  <th key={header.key} class={header.className} scope="col">
+                    {header.label}
+                  </th>
+                </template>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={displayRows} for:item="row">
+                <tr
+                  key={row.key}
+                  class={row.rowClass}
+                  data-id={row.id}
+                  onclick={handleRowClick}
+                >
+                  <template if:true={row.isHeader}>
+                    <td colspan={colCount}>
+                      <template if:true={row.isLink}>
+                        <a href={row.href} target="_blank" rel="noreferrer"
+                          >{row.label}</a
+                        >
+                      </template>
+                      <template if:false={row.isLink}>{row.label}</template>
+                    </td>
+                  </template>
+                  <template if:true={row.isTotal}>
+                    <template for:each={row.cells} for:item="cell">
+                      <td key={cell.key} class={cell.className}>{cell.text}</td>
+                    </template>
+                  </template>
+                  <template if:true={row.isData}>
+                    <template if:true={showCheckColumn}>
+                      <td class="check-col no-open">
+                        <template if:true={row.canCheck}>
+                          <lightning-input
+                            class="lock-check"
+                            type="checkbox"
+                            variant="label-hidden"
+                            label="選択"
+                            checked={row.checked}
+                            data-id={row.id}
+                            onchange={handleCheck}
+                          ></lightning-input>
+                        </template>
+                      </td>
+                    </template>
+                    <template for:each={row.cells} for:item="cell">
+                      <td key={cell.key} class={cell.className}>
+                        <template if:true={cell.isText}>{cell.text}</template>
+                        <template if:true={cell.isLink}>
+                          <a href={cell.href} target="_blank" rel="noreferrer"
+                            >{cell.text}</a
+                          >
+                          <template if:true={cell.sub}>
+                            <div class="sub">{cell.sub}</div>
+                          </template>
+                        </template>
+                        <template if:true={cell.isIcon}>
+                          <template if:true={cell.on}>
+                            <template if:true={cell.href}>
+                              <a
+                                href={cell.href}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={cell.title}
+                              >
+                                <lightning-icon
+                                  icon-name={cell.icon}
+                                  size="x-small"
+                                  alternative-text={cell.title}
+                                  title={cell.title}
+                                ></lightning-icon>
+                              </a>
+                            </template>
+                            <template if:false={cell.href}>
+                              <lightning-icon
+                                icon-name={cell.icon}
+                                size="x-small"
+                                alternative-text={cell.title}
+                                title={cell.title}
+                              ></lightning-icon>
+                            </template>
+                          </template>
+                        </template>
+                        <template if:true={cell.isMemo}>
+                          <template if:true={cell.canEditMemo}>
+                            <lightning-input
+                              type="text"
+                              variant="label-hidden"
+                              label="メモ"
+                              value={cell.value}
+                              data-id={row.id}
+                              onchange={handleMemoInput}
+                            ></lightning-input>
+                          </template>
+                          <template if:false={cell.canEditMemo}>
+                            {cell.value}
+                          </template>
+                        </template>
+                        <template if:true={cell.isExtra}>
+                          <template if:true={cell.isCheckbox}>
+                            <lightning-input
+                              type="checkbox"
+                              variant="label-hidden"
+                              label={cell.label}
+                              checked={cell.checked}
+                              disabled={cell.disabled}
+                              data-id={row.id}
+                              data-field={cell.apiName}
+                              data-input-kind="checkbox"
+                              onchange={handleJournalExtraInput}
+                            ></lightning-input>
+                          </template>
+                          <template if:true={cell.isPicklist}>
+                            <lightning-combobox
+                              variant="label-hidden"
+                              label={cell.label}
+                              value={cell.value}
+                              options={cell.picklistOptions}
+                              required={cell.required}
+                              disabled={cell.disabled}
+                              data-id={row.id}
+                              data-field={cell.apiName}
+                              onchange={handleJournalExtraInput}
+                            ></lightning-combobox>
+                          </template>
+                          <template if:true={cell.isTextarea}>
+                            <lightning-textarea
+                              variant="label-hidden"
+                              label={cell.label}
+                              value={cell.value}
+                              required={cell.required}
+                              disabled={cell.disabled}
+                              data-id={row.id}
+                              data-field={cell.apiName}
+                              onchange={handleJournalExtraInput}
+                            ></lightning-textarea>
+                          </template>
+                          <template if:true={cell.isInput}>
+                            <lightning-input
+                              type={cell.inputType}
+                              variant="label-hidden"
+                              label={cell.label}
+                              value={cell.value}
+                              required={cell.required}
+                              disabled={cell.disabled}
+                              data-id={row.id}
+                              data-field={cell.apiName}
+                              onchange={handleJournalExtraInput}
+                            ></lightning-input>
+                          </template>
+                        </template>
+                      </td>
+                    </template>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pager">
+          <button
+            type="button"
+            class="page-btn"
+            onclick={handlePrevPage}
+            disabled={prevDisabled}
+          >
+            &lt;
+          </button>
+          <template for:each={pageItems} for:item="item">
+            <span key={item.key} class="page-item">
+              <template if:true={item.page}>
+                <button
+                  type="button"
+                  class={item.className}
+                  data-page={item.page}
+                  onclick={handlePageClick}
+                >
+                  {item.label}
+                </button>
+              </template>
+              <template if:false={item.page}>
+                <span class="page-ellipsis">{item.label}</span>
+              </template>
+            </span>
+          </template>
+          <button
+            type="button"
+            class="page-btn"
+            onclick={handleNextPage}
+            disabled={nextDisabled}
+          >
+            &gt;
+          </button>
+        </div>
+      </aside>
+
+      <template if:true={showRightPane}>
+      <section class="pane pane-right">
+        <template if:true={estimateTileLoading}>
+          <lightning-spinner alternative-text="読み込み中" size="small"></lightning-spinner>
+        </template>
+        <template if:true={showEstimateTile}>
+          <c-contract-cross-estimate-tile
+            tile={estimateTile}
+            accounting-enabled={accountingEnabled}
+            can-issue={canIssueEstimate}
+            can-send={canSendEstimate}
+            can-order={canOrder}
+            onsendestimate={handleSendEstimate}
+            onorderestimate={handleOrderEstimate}
+            onissuestatechange={handleIssueStateChange}
+          ></c-contract-cross-estimate-tile>
+        </template>
+        <template if:true={invoiceLoading}>
+          <lightning-spinner alternative-text="読み込み中" size="small"></lightning-spinner>
+        </template>
+        <template if:true={invoiceError}>
+          <div class="alert alert_error">{invoiceError}</div>
+        </template>
+        <template for:each={invoiceTileInstances} for:item="inst">
+          <c-order-invoice-preview-table
+            key={inst.id}
+            preview={invoicePreview}
+            billing-account-options={billingAccountOptions}
+            is-saving={isSaving}
+            initial-invoice-id={tableInitialInvoiceId}
+            initial-active-tab={tableInitialActiveTab}
+            highlight-journal-id={highlightJournalId}
+            contract-history-id={previewHistoryId}
+            hide-reset-post-order={hideResetPostOrder}
+            initial-version={tableInitialVersion}
+            onsavelineamounts={handleSaveLineAmounts}
+            onsaveacceptanceenddate={handleSaveAcceptanceEndDate}
+            onsavebillingheader={handleSaveBillingHeader}
+            onapplybillingaccountcontent={handleApplyBillingAccountContent}
+            onsplitinvoice={handleSplitInvoice}
+            onmovelines={handleMoveLines}
+            onsplitlinesinplace={handleSplitLinesInPlace}
+            oncancelconfirmed={handleCancelConfirmed}
+            oninvoiceopscomplete={handleInvoiceOpsComplete}
+            onjournalslockcomplete={handleJournalsLockComplete}
+          ></c-order-invoice-preview-table>
+        </template>
+        <template if:true={showRightEmpty}>
+          <p class="right-empty">行をクリックすると右で操作できます。</p>
+        </template>
+      </section>
+      </template>
+    </div>
+
+    <template if:true={showSendOverlay}>
+      <div class="overlay">
+        <div class="overlay-bar">
+          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose}>
+            閉じる
+          </button>
+        </div>
+        <c-estimate-send-record-action
+          record-id={overlayHistoryId}
+          onpanelclose={handleOverlayClose}
+        ></c-estimate-send-record-action>
+      </div>
+    </template>
+    <template if:true={showOrderOverlay}>
+      <div class="overlay">
+        <div class="overlay-bar">
+          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose}>
+            閉じる
+          </button>
+        </div>
+        <c-order-create-wizard
+          record-id={overlayHistoryId}
+          onpanelclose={handleOverlayClose}
+        ></c-order-create-wizard>
+      </div>
+    </template>
+  </div>
+</template>

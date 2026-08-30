@@ -7,10 +7,14 @@ private class ContractHistoryStatusPathServiceTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'path@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 25,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     ContractService__c service = new ContractService__c(
@@ -48,6 +52,16 @@ private class ContractHistoryStatusPathServiceTest {
       null,
       ContractHistoryStatusPathService.resolvePath('Archive', 5, 5, 5)
     );
+    System.assertEquals(
+      'Ordered',
+      ContractHistoryStatusPathService.resolvePath(
+        'Ordered',
+        'Cancel',
+        3,
+        3,
+        3
+      )
+    );
   }
 
   @IsTest
@@ -79,6 +93,7 @@ private class ContractHistoryStatusPathServiceTest {
   @IsTest
   static void invoiceLifecycle_advancesStatusPath() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       Account account = ContractTestDataFactory.insertAccount(
         'Path Invoice Account'
       );
@@ -128,6 +143,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals('Invoicing', history.StatusPath__c);
 
       inv1.SystemIntegrationDate__c = Date.today();
+      inv1.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       update inv1;
 
       history = [
@@ -139,6 +155,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals('Invoicing', history.StatusPath__c);
 
       inv2.SystemIntegrationDate__c = Date.today();
+      inv2.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       update inv2;
 
       history = [
@@ -150,6 +167,8 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals('Invoiced', history.StatusPath__c);
 
       inv1.PaymentClearingCompletedDate__c = Date.today();
+      inv1.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      inv1.CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
       update inv1;
 
       history = [
@@ -160,6 +179,8 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals('Invoiced', history.StatusPath__c);
 
       inv2.PaymentClearingCompletedDate__c = Date.today();
+      inv2.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      inv2.CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
       update inv2;
 
       history = [
@@ -199,7 +220,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals(
         null,
         history.StatusPath__c,
-        'Archive は Path 本線外（null）'
+        'Archive ? Path ????Eull?E?E
       );
     }
   }
@@ -249,7 +270,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals(
         'Ordered',
         history.StatusPath__c,
-        '請求削除で Path は Ordered に戻る'
+        '????? Path ? Ordered ???E
       );
     }
   }
@@ -293,7 +314,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertNotEquals(
         'Paid',
         still.StatusPath__c,
-        '手動変更拒否時は StatusPath が変わらない'
+        '????????E StatusPath ??????E
       );
     }
   }

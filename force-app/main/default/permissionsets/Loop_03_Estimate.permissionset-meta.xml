@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>03 操作。見積の作成・編集・コピー・Archive と見積備考マスタ。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>03 契約 見積</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_03_Can_Estimate</name>
+    </customPermissions>
+    <applicationVisibilities>
+        <application>Contract_Estimate</application>
+        <visible>true</visible>
+    </applicationVisibilities>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>true</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>false</modifyAllRecords>
+        <object>EstimateNoteMaster__c</object>
+        <viewAllFields>false</viewAllFields>
+        <viewAllRecords>false</viewAllRecords>
+    </objectPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>EstimateNoteMaster__c.NoteText__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <tabSettings>
+        <tab>EstimateNoteMaster__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+</PermissionSet>

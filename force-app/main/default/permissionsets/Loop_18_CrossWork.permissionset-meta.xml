@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>18 操作。契約横断画面。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>18 契約 横断を開く</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_18_Can_CrossWork</name>
+    </customPermissions>
+    <tabSettings>
+        <tab>Contract_Cross_Work</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+</PermissionSet>

@@ -8,6 +8,7 @@ public without sharing class InvoiceAnchorDateUtil {
     public Integer billingCycleCount;
   }
 
+  /** 仕様: Core 第7.2節、日付仕様 第4章 */
   public static ResolvedAnchor resolve(
     String historyType,
     Date effectiveDate,
@@ -83,6 +84,11 @@ public without sharing class InvoiceAnchorDateUtil {
       return;
     }
     ResolvedAnchor resolved = resolve(historyType, effectiveDate, product);
+    // 請求設定・期間が未解決（anchor が決まらない）ときは保存済みの値を消さない。
+    // 解決できたときは回数の null 化も含めて上書きする（月次→一括の切替を通す）。
+    if (resolved.anchorDate == null) {
+      return;
+    }
     product.InvoiceAnchorDate__c = resolved.anchorDate;
     product.InvoiceBillingCycleCount__c = resolved.billingCycleCount;
   }

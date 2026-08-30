@@ -30,6 +30,10 @@ private class EstimateCreateControllerTest {
         result.invoiceType
       );
       System.assertEquals(
+        ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+        result.revenueRecognitionBasis
+      );
+      System.assertEquals(
         ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
         result.displayUnit
       );
@@ -42,6 +46,34 @@ private class EstimateCreateControllerTest {
       System.assertEquals(
         null,
         EstimateCreateController.getProductDefaults(null)
+      );
+    }
+  }
+
+  @IsTest
+  static void parseProducts_mapsRevenueRecognitionBasis() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      String productsJson =
+        '[{' +
+        '"productId":null,' +
+        '"quantity":1,' +
+        '"unitPrice":1000,' +
+        '"amount":1000,' +
+        '"startDate":"2026-04-01",' +
+        '"endDate":"2026-04-30",' +
+        '"invoiceType":"一括前払",' +
+        '"billingType":"一回課金",' +
+        '"revenueRecognitionBasis":"月次計上",' +
+        '"recordType":"New"' +
+        '}]';
+      List<EstimateCreateController.ProductLineItem> lines = EstimateCreateSupport.parseProducts(
+        productsJson
+      );
+      System.assertEquals(1, lines.size());
+      System.assertEquals(
+        '月次計上',
+        lines[0].revenueRecognitionBasis,
+        'Core 第4.3.4節: 明細JSONの売上計上基準を捨てない'
       );
     }
   }
@@ -105,6 +137,7 @@ private class EstimateCreateControllerTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
 
@@ -233,8 +266,11 @@ private class EstimateCreateControllerTest {
 
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = opportunity.AccountId,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25
+        BillingEmailTo__c = 'to@example.com',
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE
       );
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
       Product2 product = ContractTestDataFactory.buildProduct(
@@ -257,6 +293,7 @@ private class EstimateCreateControllerTest {
       lineItem.endDate = String.valueOf(termEnd);
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.recordType = 'New';
 
@@ -301,21 +338,35 @@ private class EstimateCreateControllerTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = testAccount.Id,
-        PaymentTerm__c = '翌月15日',
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = true
-      );
+        BillingEmailTo__c = 'to@example.com',
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NEXT,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        PaymentTermDayOfMonth__c = 15,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
       EstimateCreateController.BillingAccountInvoiceSettingsDto result = EstimateCreateController.getBillingAccountInvoiceSettings(
         billingAccount.Id
       );
 
-      System.assertEquals(25, result.billingDayOfMonth);
-      System.assertEquals('25', result.billingDayOfMonthPicklistValue);
-      System.assertEquals('25日', result.billingDayOfMonthLabel);
-      System.assertEquals('翌月15日', result.paymentTerm);
-      System.assertEquals(true, result.adjustInvoiceDateToBusinessDay);
+      System.assertEquals(
+        'to@example.com',
+        (String) result.billingCustomFields.get('BillingEmailTo__c')
+      );
+      System.assertEquals(
+        Decimal.valueOf(25),
+        (Decimal) result.billingCustomFields.get('InvoiceDateDayOfMonth__c')
+      );
+      System.assertEquals(
+        BillingScheduleService.METHOD_MONTH_OFFSET,
+        result.billingCustomFields.get('PaymentTermMethod__c')
+      );
     }
   }
 
@@ -412,7 +463,7 @@ private class EstimateCreateControllerTest {
   }
 
   @IsTest
-  static void getLatestContractHistory_skipsOrderedCancelChurn() {
+  static void getLatestContractHistory_returnsOrderedCancelAsTerminal() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Churn Skip Account'
@@ -444,9 +495,10 @@ private class EstimateCreateControllerTest {
       );
 
       System.assertNotEquals(null, result);
-      System.assertEquals(activeHistory.Id, result.historyId);
-      System.assertEquals('Renew v1', result.historyName);
-      System.assertEquals(1, result.version);
+      System.assertEquals(churnHistory.Id, result.historyId);
+      System.assertEquals('Churn v2', result.historyName);
+      System.assertEquals('Cancel', result.historyType);
+      System.assertEquals(2, result.version);
     }
   }
 
@@ -522,6 +574,106 @@ private class EstimateCreateControllerTest {
       System.assertEquals(
         ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
         results[0].invoiceType
+      );
+    }
+  }
+
+  @IsTest
+  static void getRecurringContractProducts_blankUnit_doesNotFillFromProduct2() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Blank Unit Account');
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Blank Unit Service'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Blank Unit History',
+        ContractService__c = service.Id,
+        historystatus__c = 'Ordered',
+        Version__c = 1
+      );
+      insert history;
+
+      Product2 product = ContractTestDataFactory.buildProduct('Blank Unit Product');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.UnitName__c = 'ライセンス';
+      product.UnitPrice__c = 5000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      insert new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Unit__c = null,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        StartDate__c = ContractTestDataFactory.stableTermStart(),
+        Enddate__c = ContractTestDataFactory.stableTermEnd(),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+      );
+
+      List<EstimateCreateController.ContractProductLineDto> results = EstimateCreateController.getRecurringContractProducts(
+        history.Id
+      );
+
+      System.assertEquals(1, results.size());
+      System.assertEquals(
+        null,
+        results[0].unit,
+        'Core 第4.5.2節・第1.1.10節: 空の単位を商品マスタから埋めない'
+      );
+      System.assertEquals('ライセンス', results[0].unitName);
+    }
+  }
+
+  @IsTest
+  static void loadCopyProductLines_originalBlankUnit_doesNotFillFromProduct2() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Copy Unit Account');
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Copy Unit Service'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Copy Unit History',
+        ContractService__c = service.Id,
+        historystatus__c = 'Estimate',
+        Type__c = 'Change',
+        Version__c = 2
+      );
+      insert history;
+
+      Product2 product = ContractTestDataFactory.buildProduct('Copy Unit Product');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.UnitName__c = 'ライセンス';
+      product.UnitPrice__c = 5000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      insert new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Unit__c = null,
+        Type__c = 'Original',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        StartDate__c = ContractTestDataFactory.stableTermStart(),
+        Enddate__c = ContractTestDataFactory.stableTermEnd(),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+      );
+
+      List<EstimateCreateController.ProductLineItem> lines = EstimateQueryService.loadCopyProductLines(
+        history.Id,
+        'Change'
+      );
+
+      System.assertEquals(1, lines.size());
+      System.assertEquals(
+        null,
+        lines[0].unit,
+        'Core 第4.5.2節・第4.7節・第1.1.10節: Original の空単位を商品マスタから埋めない'
       );
     }
   }
@@ -890,6 +1042,7 @@ private class EstimateCreateControllerTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = '式/月';
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
 
@@ -956,6 +1109,7 @@ private class EstimateCreateControllerTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = '式/月';
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
 
@@ -1031,6 +1185,7 @@ private class EstimateCreateControllerTest {
       coreLine.endDate = String.valueOf(headerEnd);
       coreLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       coreLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      coreLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       coreLine.billingCycle = '月';
       coreLine.recordType = 'New';
 
@@ -1043,6 +1198,7 @@ private class EstimateCreateControllerTest {
       addonLine.endDate = String.valueOf(addonEnd);
       addonLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
       addonLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      addonLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       addonLine.billingCycle = '月';
       addonLine.recordType = 'New';
 
@@ -1106,6 +1262,7 @@ private class EstimateCreateControllerTest {
       firstLine.endDate = String.valueOf(headerEnd);
       firstLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       firstLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      firstLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       firstLine.billingCycle = '月';
       firstLine.recordType = 'New';
 
@@ -1117,6 +1274,7 @@ private class EstimateCreateControllerTest {
       secondLine.endDate = String.valueOf(headerEnd);
       secondLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       secondLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      secondLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       secondLine.billingCycle = '月';
       secondLine.recordType = 'New';
 
@@ -1216,6 +1374,7 @@ private class EstimateCreateControllerTest {
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.unit = '式/月';
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -1230,6 +1389,7 @@ private class EstimateCreateControllerTest {
       remakePreLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakePreLine.unit = '式/月';
       remakePreLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakePreLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakePreLine.billingCycle = '月';
       remakePreLine.recordType = 'Remake';
       remakePreLine.sourceContractProductId = sourceProduct.Id;
@@ -1244,6 +1404,7 @@ private class EstimateCreateControllerTest {
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.unit = '式/月';
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -1408,6 +1569,7 @@ private class EstimateCreateControllerTest {
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.unit = '式/月';
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -1422,6 +1584,7 @@ private class EstimateCreateControllerTest {
       remakePreLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakePreLine.unit = '式/月';
       remakePreLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakePreLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakePreLine.billingCycle = '月';
       remakePreLine.recordType = 'Remake';
       remakePreLine.sourceContractProductId = sourceProduct.Id;
@@ -1436,6 +1599,7 @@ private class EstimateCreateControllerTest {
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.unit = '式/月';
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -1450,6 +1614,7 @@ private class EstimateCreateControllerTest {
       addonLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       addonLine.unit = '式/月';
       addonLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      addonLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       addonLine.billingCycle = '月';
       addonLine.recordType = 'derivative';
       addonLine.typeLabel = 'New';
@@ -1558,6 +1723,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -1571,6 +1737,7 @@ private class EstimateCreateControllerTest {
       remakeLine.endDate = String.valueOf(termEnd);
       remakeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeLine.billingCycle = '月';
       remakeLine.recordType = 'Remake';
       remakeLine.sourceContractProductId = sourceProduct.Id;
@@ -1584,6 +1751,7 @@ private class EstimateCreateControllerTest {
       addonLine.endDate = String.valueOf(addonEnd);
       addonLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       addonLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      addonLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
       addonLine.recordType = 'New';
 
       EstimateCreateController.EstimateSaveResult result = EstimateCreateController.saveEstimate(
@@ -1683,6 +1851,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -1698,6 +1867,7 @@ private class EstimateCreateControllerTest {
       remakeEarly.endDate = String.valueOf(changeStart.addDays(-1));
       remakeEarly.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakeEarly.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeEarly.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeEarly.billingCycle = '月';
       remakeEarly.recordType = 'Remake';
       remakeEarly.sourceContractProductId = sourceProduct.Id;
@@ -1711,6 +1881,7 @@ private class EstimateCreateControllerTest {
       remakeLate.endDate = String.valueOf(termEnd);
       remakeLate.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakeLate.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeLate.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeLate.billingCycle = '月';
       remakeLate.recordType = 'Remake';
       remakeLate.sourceContractProductId = sourceProduct.Id;
@@ -1850,6 +2021,7 @@ private class EstimateCreateControllerTest {
       renewLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       renewLine.unit = 'ID/月';
       renewLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       renewLine.billingCycle = '月';
       renewLine.recordType = 'Renew';
 
@@ -1863,6 +2035,7 @@ private class EstimateCreateControllerTest {
       newLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       newLine.unit = 'ID/月';
       newLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      newLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       newLine.billingCycle = '月';
       newLine.recordType = 'New';
 
@@ -1987,6 +2160,7 @@ private class EstimateCreateControllerTest {
       renewLine.endDate = String.valueOf(renewEnd);
       renewLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       renewLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       renewLine.billingCycle = '月';
       renewLine.recordType = 'Renew';
 
@@ -1999,6 +2173,7 @@ private class EstimateCreateControllerTest {
       addonLine.endDate = String.valueOf(renewEnd);
       addonLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       addonLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      addonLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
       addonLine.recordType = 'New';
 
       EstimateCreateController.EstimateSaveResult result = EstimateCreateController.saveEstimate(
@@ -2093,6 +2268,7 @@ private class EstimateCreateControllerTest {
       oneTimeLine.endDate = String.valueOf(renewEnd);
       oneTimeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       oneTimeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      oneTimeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
       oneTimeLine.recordType = 'New';
 
       Boolean thrown = false;
@@ -2222,14 +2398,14 @@ private class EstimateCreateControllerTest {
       System.assertEquals(cancelDate, cancelHistory.CurrentTermStartDate__c);
       System.assertEquals(cancelDate, cancelHistory.CurrentTermEndDate__c);
       System.assertEquals(
-        null,
+        remarkMaster.Id,
         cancelHistory.EstimateNoteMaster__c,
-        'Cancel に備考マスタは登録されない'
+        'Core 第4.10節: 使わない以外のCancelは見積書セクションの備考マスタを残す'
       );
       System.assertEquals(
-        null,
+        'ペイロードにあっても残さない文言',
         cancelHistory.Note__c,
-        'Cancel に備考自由文は登録されない'
+        'Core 第4.10節: 使わない以外のCancelは見積書セクションの備考を残す'
       );
 
       ContractService__c updatedService = [
@@ -2476,6 +2652,7 @@ private class EstimateCreateControllerTest {
       renewLine.endDate = String.valueOf(renewEnd);
       renewLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       renewLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      renewLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
       renewLine.recordType = 'Renew';
 
       Boolean thrown = false;
@@ -2563,6 +2740,7 @@ private class EstimateCreateControllerTest {
       renewLine.endDate = String.valueOf(renewEnd);
       renewLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       renewLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       renewLine.billingCycle = '月';
       renewLine.recordType = 'Renew';
 
@@ -2653,6 +2831,7 @@ private class EstimateCreateControllerTest {
       renewLine.endDate = String.valueOf(renewEnd);
       renewLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       renewLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       renewLine.billingCycle = '月';
       renewLine.recordType = 'Renew';
 
@@ -2665,6 +2844,7 @@ private class EstimateCreateControllerTest {
       newLine.endDate = String.valueOf(renewEnd);
       newLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       newLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      newLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       newLine.billingCycle = '月';
       newLine.recordType = 'New';
 
@@ -2871,6 +3051,7 @@ private class EstimateCreateControllerTest {
       line.endDate = String.valueOf(cancelDate);
       line.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       line.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      line.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
 
       Boolean thrown = false;
       try {
@@ -3034,6 +3215,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -3047,6 +3229,7 @@ private class EstimateCreateControllerTest {
       afterLine.endDate = String.valueOf(extendedEnd);
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -3091,7 +3274,7 @@ private class EstimateCreateControllerTest {
       } catch (AuraHandledException e) {
         thrown = true;
         System.assertEquals(
-          '切替日が前回Versionの契約終了日を超えているため、ChangeではなくRenewで作成してください。',
+          '切替日が前回の版の契約終了日を超えているため、追加変更ではなく更新で作成してください。',
           e.getMessage()
         );
       }
@@ -3176,6 +3359,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -3189,6 +3373,7 @@ private class EstimateCreateControllerTest {
       afterLine.endDate = String.valueOf(termEnd);
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -3292,6 +3477,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -3305,6 +3491,7 @@ private class EstimateCreateControllerTest {
       derivativeLine.endDate = String.valueOf(preEffectiveEnd);
       derivativeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       derivativeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      derivativeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       derivativeLine.billingCycle = '月';
       derivativeLine.recordType = 'Remake';
       derivativeLine.sourceContractProductId = sourceProduct.Id;
@@ -3319,6 +3506,7 @@ private class EstimateCreateControllerTest {
       newLine.endDate = String.valueOf(termEnd);
       newLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       newLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      newLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       newLine.billingCycle = '月';
       newLine.recordType = 'New';
       newLine.typeLabel = 'New';
@@ -3356,7 +3544,7 @@ private class EstimateCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          'Remake は Originalの期間を重複や隙間なく埋める必要があります。',
+          '変更後は変更前の期間を重複や隙間なく埋める必要があります。',
           ex.getMessage()
         );
       }
@@ -3432,6 +3620,7 @@ private class EstimateCreateControllerTest {
       fakeOriginal.endDate = String.valueOf(termEnd);
       fakeOriginal.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       fakeOriginal.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      fakeOriginal.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       fakeOriginal.billingCycle = '月';
       fakeOriginal.recordType = 'Remake';
       fakeOriginal.isReadonly = true;
@@ -3446,6 +3635,7 @@ private class EstimateCreateControllerTest {
       remakeLine.endDate = String.valueOf(termEnd);
       remakeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeLine.billingCycle = '月';
       remakeLine.recordType = 'Remake';
       remakeLine.sourceContractProductId = sourceProduct.Id;
@@ -3486,7 +3676,7 @@ private class EstimateCreateControllerTest {
       }
       System.assertEquals(true, thrown);
       System.assertEquals(
-        '前回Versionの継続課金商品すべてにOriginal行が必要です。',
+        '前回の版の継続課金商品すべてに変更前の行が必要です。',
         message
       );
       System.assertEquals(
@@ -3559,6 +3749,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -3573,6 +3764,7 @@ private class EstimateCreateControllerTest {
       remakeLine.endDate = String.valueOf(termEnd);
       remakeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeLine.billingCycle = '月';
       remakeLine.recordType = 'Remake';
       remakeLine.sourceContractProductId = sourceProduct.Id;
@@ -3610,7 +3802,7 @@ private class EstimateCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '商品明細2行目: 数量を入力してください。',
+          '商品明細2行目: 数量は0.01以上を入力してください。課金を止める場合は、数量はそのままで単価を0にしてください。',
           ex.getMessage()
         );
       }
@@ -3685,6 +3877,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -3699,6 +3892,7 @@ private class EstimateCreateControllerTest {
       remakeLine.endDate = String.valueOf(termEnd);
       remakeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeLine.recordType = 'Remake';
       remakeLine.sourceContractProductId = sourceProduct.Id;
 
@@ -3788,6 +3982,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -3801,6 +3996,7 @@ private class EstimateCreateControllerTest {
       derivativeLine.endDate = String.valueOf(termEnd);
       derivativeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       derivativeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      derivativeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       derivativeLine.billingCycle = '月';
       derivativeLine.recordType = 'Remake';
       derivativeLine.sourceContractProductId = sourceProduct.Id;
@@ -3895,6 +4091,7 @@ private class EstimateCreateControllerTest {
       originalLine.endDate = String.valueOf(termEnd);
       originalLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       originalLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      originalLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       originalLine.billingCycle = '月';
       originalLine.recordType = 'Original';
       originalLine.sourceContractProductId = sourceProduct.Id;
@@ -3909,6 +4106,7 @@ private class EstimateCreateControllerTest {
       remakeLine.endDate = String.valueOf(termEnd);
       remakeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeLine.billingCycle = '月';
       remakeLine.recordType = 'Remake';
       remakeLine.sourceContractProductId = sourceProduct.Id;
@@ -4002,6 +4200,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -4015,6 +4214,7 @@ private class EstimateCreateControllerTest {
       afterLine.endDate = String.valueOf(termEnd);
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -4110,6 +4310,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -4123,6 +4324,7 @@ private class EstimateCreateControllerTest {
       afterLine.endDate = String.valueOf(termEnd);
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -4224,6 +4426,7 @@ private class EstimateCreateControllerTest {
       beforeLine.endDate = String.valueOf(termEnd);
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -4237,6 +4440,7 @@ private class EstimateCreateControllerTest {
       afterLine.endDate = String.valueOf(termEnd);
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -4250,6 +4454,7 @@ private class EstimateCreateControllerTest {
       addonLine.endDate = String.valueOf(termEnd);
       addonLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       addonLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      addonLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       addonLine.billingCycle = '月';
 
       EstimateCreateController.EstimateSaveResult result = EstimateCreateController.saveEstimate(
@@ -4318,6 +4523,7 @@ private class EstimateCreateControllerTest {
       lineItem.endDate = '2027-05-31';
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
 
       Boolean thrown = false;
       try {
@@ -4386,6 +4592,7 @@ private class EstimateCreateControllerTest {
       lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
 
@@ -4424,8 +4631,9 @@ private class EstimateCreateControllerTest {
         preset.contractServiceName
       );
       System.assertEquals(
-        'Copy Source Historyのコピー',
-        preset.contractHistoryName
+        'Copy Source History',
+        preset.contractHistoryName,
+        'Core 第4.7節: コピーの履歴名は元内容。のコピーは付けない'
       );
       System.assertEquals(null, preset.contractServiceId);
       System.assertEquals(null, preset.contractHistoryId);
@@ -4553,6 +4761,7 @@ private class EstimateCreateControllerTest {
       beforeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       beforeLine.unit = '式/月';
       beforeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      beforeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       beforeLine.billingCycle = '月';
       beforeLine.recordType = 'Original';
       beforeLine.sourceContractProductId = sourceProduct.Id;
@@ -4567,6 +4776,7 @@ private class EstimateCreateControllerTest {
       remakePreLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       remakePreLine.unit = '式/月';
       remakePreLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakePreLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakePreLine.billingCycle = '月';
       remakePreLine.recordType = 'Remake';
       remakePreLine.sourceContractProductId = sourceProduct.Id;
@@ -4581,6 +4791,7 @@ private class EstimateCreateControllerTest {
       afterLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       afterLine.unit = '式/月';
       afterLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      afterLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       afterLine.billingCycle = '月';
       afterLine.recordType = 'Remake';
       afterLine.sourceContractProductId = sourceProduct.Id;
@@ -4625,8 +4836,9 @@ private class EstimateCreateControllerTest {
       System.assertEquals(1, preset.baseHistoryVersion);
       System.assertEquals(2, preset.nextHistoryVersion);
       System.assertEquals(
-        'Change Source Estimateのコピー',
-        preset.contractHistoryName
+        '',
+        preset.contractHistoryName,
+        'Core 第4.3.3節: 追加変更のコピー履歴名初期は空。第4.7節: のコピーは付けない'
       );
       System.assertEquals(
         String.valueOf(effectiveDate),
@@ -4636,7 +4848,7 @@ private class EstimateCreateControllerTest {
   }
 
   @IsTest
-  static void getEstimateCopyPreset_presetsEffectiveDateForRenewWithoutEffectiveDate() {
+  static void getEstimateCopyPreset_leavesBlankEffectiveDateForRenew() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account testAccount = ContractTestDataFactory.insertAccount(
         'Renew Copy Account'
@@ -4688,10 +4900,76 @@ private class EstimateCreateControllerTest {
       Test.stopTest();
 
       System.assertEquals('Renew', preset.selectedType);
+      System.assertEquals(
+        '',
+        preset.contractHistoryName,
+        'Core 第4.3.3節: 更新のコピー履歴名初期は空。第4.7節: のコピーは付けない'
+      );
       System.assertEquals(String.valueOf(renewStart), preset.contractStartDate);
       System.assertEquals(
-        String.valueOf(renewStart),
-        preset.contractEffectiveDate
+        null,
+        preset.contractEffectiveDate,
+        'Core 第1.1.10節・第4.7節: 空の切替日を開始日で埋めない'
+      );
+    }
+  }
+
+  @IsTest
+  static void getEstimateCopyPreset_leavesBlankEffectiveDateForCancel() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account testAccount = ContractTestDataFactory.insertAccount(
+        'Cancel Copy Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        testAccount.Id,
+        'Cancel Copy Opportunity'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        testAccount.Id,
+        'Cancel Copy Service'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      Date cancelStart = Date.newInstance(2026, 6, 1);
+      Date cancelEnd = Date.newInstance(2026, 6, 1);
+      ContractHistory__c previousHistory = new ContractHistory__c(
+        Name = 'Cancel Copy Previous History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        Opportunity__c = opportunity.Id
+      );
+      insert previousHistory;
+      ContractHistory__c cancelHistory = new ContractHistory__c(
+        Name = 'Cancel Copy Source History',
+        ContractService__c = service.Id,
+        Type__c = 'Cancel',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        CurrentTermStartDate__c = cancelStart,
+        CurrentTermEndDate__c = cancelEnd,
+        Opportunity__c = opportunity.Id,
+        PreviousHistory__c = previousHistory.Id
+      );
+      insert cancelHistory;
+      Test.startTest();
+      EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateCopyPreset(
+        cancelHistory.Id
+      );
+      Test.stopTest();
+      System.assertEquals('Cancel', preset.selectedType);
+      System.assertEquals(
+        'Cancel Copy Previous History 解約',
+        preset.contractHistoryName,
+        'Core 第4.3.3節・第0.1節: 解約コピーの履歴名はLatest Ordered名の末尾に解約'
+      );
+      System.assertEquals(
+        null,
+        preset.contractEffectiveDate,
+        'Core 第1.1.10節・第4.7節: 空の切替日を開始日で埋めない'
       );
     }
   }
@@ -4803,13 +5081,6 @@ private class EstimateCreateControllerTest {
   static void facadeQueryMethods_areCallable() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount('Facade Account');
-      Boolean copyLaunchThrows = false;
-      try {
-        EstimateCreateController.getEstimateCopyLaunchInfo(null);
-      } catch (AuraHandledException ex) {
-        copyLaunchThrows = true;
-      }
-      System.assertEquals(true, copyLaunchThrows);
       System.assertNotEquals(
         null,
         EstimateCreateController.getDefaultInvoiceSettingLabel()
@@ -4826,15 +5097,34 @@ private class EstimateCreateControllerTest {
         0,
         EstimateCreateController.getActiveContractServicesByAccount(null).size()
       );
+      Boolean policyMissingThrown = false;
+      try {
+        EstimateCreateController.isAccountingEnabled();
+      } catch (Exception ex) {
+        policyMissingThrown = true;
+        System.assert(
+          ex.getMessage().contains('Accounting会計方針がありません'),
+          'Core 第1.1.10節: 会計方針0件はOFFと埋めずエラーにする'
+        );
+      }
+      System.assertEquals(
+        true,
+        policyMissingThrown,
+        'Core 第1.1.10節・第7.6節: 会計方針が無いときはOFFとみなさない'
+      );
 
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
         BillingAddressee__c = 'テスト御中',
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 25,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -4857,6 +5147,69 @@ private class EstimateCreateControllerTest {
       shape.name = service.Name;
       System.assertEquals(service.Id, shape.id);
       System.assertEquals(service.Name, shape.name);
+    }
+  }
+
+  @IsTest
+  static void isAccountingEnabled_followsOrgPolicyAtOpen() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean policyMissingThrown = false;
+      try {
+        EstimateCreateController.isAccountingEnabled();
+      } catch (Exception ex) {
+        policyMissingThrown = true;
+        System.assert(
+          ex.getMessage().contains('Accounting会計方針がありません'),
+          'Core 第1.1.10節: 会計方針0件はOFFと埋めずエラーにする'
+        );
+      }
+      System.assertEquals(
+        true,
+        policyMissingThrown,
+        'Core 第1.1.10節・第7.6節: 会計方針が無いときはOFFとみなさない'
+      );
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      insert policy;
+      System.assertEquals(
+        false,
+        EstimateCreateController.isAccountingEnabled(),
+        'Core 第4.5.2節・第7.6節: Accounting OFFでは計上方法列を出さない'
+      );
+      policy.AccountingEnabled__c = true;
+      update policy;
+      System.assertEquals(
+        true,
+        EstimateCreateController.isAccountingEnabled(),
+        'Core 第4.5.2節・第7.6節: Accounting ONのときだけ計上方法列を出す'
+      );
+    }
+  }
+
+  @IsTest
+  static void getDocumentDefaults_includesTaxRoundingMode() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateCreateController.DocumentDefaultsDto dto = EstimateCreateController.getDocumentDefaults();
+      System.assertEquals(
+        AmountCalculationSettingService.requireOrgDefault().TaxRoundingMode__c,
+        dto.taxRoundingMode,
+        'Core 第11.9節: 見積ウィザードは組織の税額丸めを返す'
+      );
+      System.assertEquals(
+        AmountCalculationSettingService.requireOrgDefault()
+          .QuantityUnitPriceRoundingMode__c,
+        dto.quantityUnitPriceRoundingMode,
+        'Core 第4.6節・第11.9節: 数量・単価丸め'
+      );
+      System.assertEquals(
+        AmountCalculationSettingService.requireOrgDefault().AmountRoundingMode__c,
+        dto.amountRoundingMode,
+        'Core 第4.6節・第11.9節: 税抜金額丸め'
+      );
+      System.assertEquals(
+        String.valueOf(InvoiceTransactionStatusService.organizationToday()),
+        dto.today,
+        '日付仕様 第8章: 見積日初期値の今日は組織タイムゾーン'
+      );
     }
   }
 
@@ -5009,6 +5362,58 @@ private class EstimateCreateControllerTest {
   }
 
   @IsTest
+  static void saveEditedEstimate_blankLastModifiedToken_throwsConflict() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Required Estimate Token Account'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Required Estimate Token Service',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Required Estimate Token History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      insert history;
+
+      try {
+        EstimateCreateController.saveEstimate(
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          history.Id,
+          null,
+          null,
+          null
+        );
+        System.assert(false, 'Expected required history token');
+      } catch (AuraHandledException ex) {
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage()
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void saveEstimate_shorterOverloads_delegateToService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Boolean thrown18 = false;
@@ -5125,5 +5530,72 @@ private class EstimateCreateControllerTest {
     productLine.quantity = 1;
 
     System.assertEquals('New', preset.selectedType);
+  }
+
+  @IsTest
+  static void issueEstimateOperationKey_rejectsWithout03() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.ESTIMATE => false
+    };
+    Boolean thrown = false;
+    try {
+      EstimateCreateController.issueEstimateOperationKey();
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('見積を作成・編集・コピーする権限がありません'),
+        '共通基盤 第10.4節: 見積キー発行は 03'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void getDocumentDefaults_allowsIssueOrSendWithoutEstimate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractPermissionUtil.testAllowAll = false;
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.ESTIMATE => false,
+        ContractPermissionUtil.ISSUE_ESTIMATE => true,
+        ContractPermissionUtil.SEND_ESTIMATE => false
+      };
+      try {
+        EstimateCreateController.DocumentDefaultsDto dto = EstimateCreateController.getDocumentDefaults();
+        System.assertNotEquals(
+          null,
+          dto.estimateSendMode,
+          '共通基盤 第10.4節、Core 第4.3.1節: 04だけでも送付3択を返す'
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+        ContractPermissionUtil.testAllowAll = true;
+      }
+    }
+  }
+
+  @IsTest
+  static void getDocumentDefaults_rejectsWithoutEstimateIssueOrSend() {
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.ESTIMATE => false,
+      ContractPermissionUtil.ISSUE_ESTIMATE => false,
+      ContractPermissionUtil.SEND_ESTIMATE => false
+    };
+    Boolean thrown = false;
+    try {
+      EstimateCreateController.getDocumentDefaults();
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('見積を作成・編集・コピーする権限がありません'),
+        '共通基盤 第10.4節: 03／04／05 が無ければ送付3択を読まない'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+    System.assertEquals(true, thrown);
   }
 }

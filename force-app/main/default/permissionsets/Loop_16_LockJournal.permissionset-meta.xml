@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>16 操作。仕訳 Lock。閲覧を含む。17 では代替しない。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>16 契約 仕訳をLockする</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_16_Can_LockJournal</name>
+    </customPermissions>
+</PermissionSet>

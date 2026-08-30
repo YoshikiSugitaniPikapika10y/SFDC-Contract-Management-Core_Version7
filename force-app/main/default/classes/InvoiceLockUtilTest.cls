@@ -13,29 +13,51 @@ private class InvoiceLockUtilTest {
     System.assertEquals(false, InvoiceLockUtil.isExported(unlocked));
 
     Invoice__c invoiced = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
       SystemIntegrationDate__c = Date.today()
     );
     System.assertEquals(true, InvoiceLockUtil.isInvoiced(invoiced));
     System.assertEquals(true, InvoiceLockUtil.isLocked(invoiced));
 
     Invoice__c exported = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
       PaymentClearingCompletedDate__c = Date.today()
     );
     System.assertEquals(true, InvoiceLockUtil.isExported(exported));
     System.assertEquals(true, InvoiceLockUtil.isLocked(exported));
+
+    Invoice__c cancelled = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED
+    );
+    System.assertEquals(true, InvoiceLockUtil.isLocked(cancelled));
+    System.assertEquals(false, InvoiceLockUtil.isActiveConfirmed(cancelled));
+    System.assertEquals(false, InvoiceLockUtil.isInvoiced(cancelled));
+    System.assertEquals(
+      '有効な確定済み請求があるため、この契約履歴の請求を削除・再生成できません。',
+      InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
+      'Core 第5.3節: 差し戻しは有効な確定済み請求で止める'
+    );
+    System.assertEquals(
+      false,
+      InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE.contains('請求済またはエクスポート済'),
+      'Core 第5.3節: 旧状態名では出さない'
+    );
 
     Id fakeInvoiceId =
       Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000002AAA';
     Invoice__c priorLocked = new Invoice__c(
       Id = fakeInvoiceId,
       Amount__c = 1000,
-      SystemIntegrationDate__c = Date.today(),
-      PaymentClearedAmount__c = null
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      SystemIntegrationDate__c = Date.today()
     );
     Invoice__c paymentOnly = new Invoice__c(
       Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_IN_PROGRESS,
       SystemIntegrationDate__c = Date.today(),
-      PaymentClearedAmount__c = 400
+      PaymentClearingCompletedDate__c = null
     );
     InvoiceLockUtil.testCanBypassLockedDml = false;
     InvoiceLockUtil.testLockExemptFieldApiNames = null;
@@ -46,7 +68,7 @@ private class InvoiceLockUtilTest {
     System.assertEquals(
       false,
       paymentOnly.hasErrors(),
-      'ロック中の入金消込額のみ更新は許可'
+      'ロック中の回収ステータス更新は許可'
     );
 
     Invoice__c amountChange = new Invoice__c(
@@ -89,12 +111,38 @@ private class InvoiceLockUtilTest {
       InvoiceLockUtil.hasLockedInvoices(new Set<Id>())
     );
 
+    InvoiceLockUtil.testLockExemptFieldApiNames = null;
     Set<String> defaults = InvoiceLockUtil.resolveLockExemptFieldNames();
-    System.assertEquals(true, defaults.contains('PaymentClearedAmount__c'));
+    System.assertEquals(true, defaults.contains('PaymentInclusiveTotal__c'));
     System.assertEquals(
       true,
       defaults.contains('PaymentClearingCompletedDate__c')
     );
+    System.assertEquals(true, defaults.contains('InvoiceTransactionStatus__c'));
+  }
+
+  @IsTest
+  static void canBypassLockedDelete_allows104Alone() {
+    InvoiceLockUtil.testCanBypassLockedDml = null;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.MIGRATE_ALL => true
+    };
+    try {
+      Invoice__c confirmed = new Invoice__c(
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED
+      );
+      InvoiceLockUtil.blockLockedRowDml(
+        new List<Invoice__c>{ confirmed },
+        null
+      );
+      System.assertEquals(
+        false,
+        confirmed.hasErrors(),
+        '共通基盤 第3.6節: 104 単独で確定済み請求の削除を通す'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
   }
 
   @IsTest
@@ -107,10 +155,14 @@ private class InvoiceLockUtilTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_1,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
+              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+              InvoiceDateDayOfMonth__c = 1,
+              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -139,9 +191,10 @@ private class InvoiceLockUtilTest {
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
       );
-      insert invoice;
+      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
 
       Boolean thrown = false;
       try {
@@ -231,11 +284,15 @@ private class InvoiceLockUtilTest {
       Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000003AAA';
     Invoice__c priorExportedOnly = new Invoice__c(
       Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
       SystemIntegrationDate__c = null,
       PaymentClearingCompletedDate__c = Date.today()
     );
     Invoice__c clearExport = new Invoice__c(
       Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
       SystemIntegrationDate__c = null,
       PaymentClearingCompletedDate__c = null
     );
@@ -258,11 +315,22 @@ private class InvoiceLockUtilTest {
     Set<String> names = InvoiceLockUtil.resolveLockExemptFieldNames();
     System.assertEquals(true, names.contains('Amount__c'));
     System.assertEquals(true, names.contains('TaxAmount__c'));
-    System.assertEquals(false, names.contains('PaymentClearedAmount__c'));
+    System.assertEquals(false, names.contains('PaymentInclusiveTotal__c'));
 
-    InvoiceLockUtil.testLockExemptFieldApiNames = ' , Amount__c ,  ';
+    InvoiceLockUtil.testLockExemptFieldApiNames = ' , ExtraField__c ,  ';
     names = InvoiceLockUtil.resolveLockExemptFieldNames();
-    System.assertEquals(new Set<String>{ 'Amount__c' }, names);
+    System.assertEquals(true, names.contains('ExtraField__c'));
+
+    InvoiceLockUtil.testLockExemptFieldApiNames = '';
+    try {
+      InvoiceLockUtil.resolveLockExemptFieldNames();
+      System.assert(false, '空のロック除外はシードへ落とさずエラー');
+    } catch (InvoiceLockUtil.LockExemptException ex) {
+      System.assertEquals(
+        InvoiceLockUtil.MISSING_LOCK_EXEMPT_MESSAGE,
+        ex.getMessage()
+      );
+    }
 
     InvoiceLockUtil.testLockExemptFieldApiNames = null;
   }
@@ -287,13 +355,17 @@ private class InvoiceLockUtilTest {
         CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
       );
       insert history;
-      insert new Invoice__c(
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new Invoice__c(
         ContractService__c = service.Id,
         ContractHistory__c = history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+        CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
         PaymentClearingCompletedDate__c = Date.today()
+      )
       );
 
       InvoiceLockUtil.testCanBypassLockedDml = false;
@@ -394,13 +466,16 @@ private class InvoiceLockUtilTest {
         Amount__c = 1000
       );
       insert periodLine;
-      insert new Invoice__c(
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new Invoice__c(
         ContractService__c = service.Id,
         ContractHistory__c = history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
+      )
       );
 
       periodLine.Amount__c = 1100;
@@ -417,5 +492,160 @@ private class InvoiceLockUtilTest {
         '期間明細ロック廃止: 請求ロックでも期間明細更新は拒否されない'
       );
     }
+  }
+
+  @IsTest
+  static void seedLockExemptFields_excludesAppliedTaxRoundingMode() {
+    Set<String> fields = new Set<String>(
+      InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS.split(',')
+    );
+    System.assertEquals(
+      false,
+      fields.contains('AppliedTaxRoundingMode__c'),
+      'Core 第11.6節: シードに税額丸め適用値を含めない'
+    );
+    System.assertEquals(
+      true,
+      fields.contains('Memo__c'),
+      'Core 第11.6節: シードにメモを含める'
+    );
+  }
+
+  @IsTest
+  static void resolveLockExemptFieldNames_addsEnabledTagTargetsOnlyForAccounting() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert new GlAccountingTagRule__c(
+        Name = 'Lock Tag',
+        TagKey__c = 'lock-tag-exempt',
+        TagLabel__c = 'AR残',
+        Expression__c = 'AR',
+        ComparisonOperator__c = 'NE',
+        ComparisonValue__c = 0,
+        TargetFieldApiName__c = 'IsSplitMoved__c',
+        IsEnabled__c = true
+      );
+      insert new GlAccountingTagRule__c(
+        Name = 'Lock Tag Off',
+        TagKey__c = 'lock-tag-disabled',
+        TargetFieldApiName__c = 'IsManuallyAdjusted__c',
+        IsEnabled__c = false
+      );
+      InvoiceLockUtil.testLockExemptFieldApiNames = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS;
+      InvoiceLockUtil.allowAccountingTagLockExempt = false;
+      Set<String> withoutFlag = InvoiceLockUtil.resolveLockExemptFieldNames();
+      System.assertEquals(
+        false,
+        withoutFlag.contains('IsSplitMoved__c'),
+        'Core 第11.6節: 画面・通常更新ではタグルール保存先を除外しない'
+      );
+
+      InvoiceLockUtil.allowAccountingTagLockExempt = true;
+      Set<String> withFlag = InvoiceLockUtil.resolveLockExemptFieldNames();
+      System.assertEquals(
+        true,
+        withFlag.contains('IsSplitMoved__c'),
+        'Core 第11.6節: Accounting内部更新に限り有効タグルールの保存先を動的除外する'
+      );
+      System.assertEquals(
+        false,
+        withFlag.contains('IsManuallyAdjusted__c'),
+        'Core 第11.6節: 無効ルールの保存先は除外しない'
+      );
+      InvoiceLockUtil.allowAccountingTagLockExempt = false;
+      InvoiceLockUtil.testLockExemptFieldApiNames = null;
+    }
+  }
+
+  @IsTest
+  static void blockLockedRowDml_allowsAccountingTagUpdateOnly() {
+    Id fakeInvoiceId =
+      Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000003AAA';
+    Invoice__c prior = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      SystemIntegrationDate__c = Date.today(),
+      IsSplitMoved__c = false
+    );
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert new GlAccountingTagRule__c(
+        Name = 'Lock Tag Dml',
+        TagKey__c = 'lock-tag-dml',
+        TagLabel__c = 'AR残',
+        Expression__c = 'AR',
+        ComparisonOperator__c = 'NE',
+        ComparisonValue__c = 0,
+        TargetFieldApiName__c = 'IsSplitMoved__c',
+        IsEnabled__c = true
+      );
+      InvoiceLockUtil.testCanBypassLockedDml = false;
+      InvoiceLockUtil.testLockExemptFieldApiNames = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS;
+      InvoiceLockUtil.allowAccountingTagLockExempt = false;
+      Invoice__c userChange = new Invoice__c(
+        Id = fakeInvoiceId,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+        SystemIntegrationDate__c = Date.today(),
+        IsSplitMoved__c = true
+      );
+      InvoiceLockUtil.blockLockedRowDml(
+        new List<Invoice__c>{ userChange },
+        new Map<Id, Invoice__c>{ fakeInvoiceId => prior }
+      );
+      System.assertEquals(
+        true,
+        userChange.hasErrors(),
+        'Core 第11.6節: 確定済み請求のタグチェックボックスを利用者が直接は変えられない'
+      );
+
+      InvoiceLockUtil.allowAccountingTagLockExempt = true;
+      Invoice__c accountingChange = new Invoice__c(
+        Id = fakeInvoiceId,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+        SystemIntegrationDate__c = Date.today(),
+        IsSplitMoved__c = true
+      );
+      InvoiceLockUtil.blockLockedRowDml(
+        new List<Invoice__c>{ accountingChange },
+        new Map<Id, Invoice__c>{ fakeInvoiceId => prior }
+      );
+      System.assertEquals(
+        false,
+        accountingChange.hasErrors(),
+        'Core 第11.6節: Accounting内部更新なら有効タグルールの保存先だけロック除外する'
+      );
+      InvoiceLockUtil.allowAccountingTagLockExempt = false;
+      InvoiceLockUtil.testCanBypassLockedDml = null;
+      InvoiceLockUtil.testLockExemptFieldApiNames = null;
+    }
+  }
+
+  @IsTest
+  static void blockLockedRowDml_rejectsConfirmedInvoiceDateEvenIfExempt() {
+    Id fakeInvoiceId =
+      Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000004AAA';
+    Invoice__c prior = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      InvoiceDate__c = Date.newInstance(2026, 6, 1),
+      SystemIntegrationDate__c = Date.today()
+    );
+    Invoice__c changed = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      InvoiceDate__c = Date.newInstance(2026, 7, 1),
+      SystemIntegrationDate__c = Date.today()
+    );
+    InvoiceLockUtil.testCanBypassLockedDml = false;
+    InvoiceLockUtil.testLockExemptFieldApiNames =
+      InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS + ',InvoiceDate__c';
+    InvoiceLockUtil.blockLockedRowDml(
+      new List<Invoice__c>{ changed },
+      new Map<Id, Invoice__c>{ fakeInvoiceId => prior }
+    );
+    System.assertEquals(
+      true,
+      changed.hasErrors(),
+      'Core 第11.6節: 確定後の請求日は除外一覧に書いても拒否する'
+    );
+    InvoiceLockUtil.testLockExemptFieldApiNames = null;
   }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Context_HistoryValues</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。契約履歴のコンテキストは自動Renew / 自動Renew以外だけ。</description>
+    <errorConditionFormula>AND(
+        ISPICKVAL(TargetObject__c, "ContractHistory__c"),
+        NOT(ISBLANK(Context__c)),
+        OR(
+            INCLUDES(Context__c, "LineJournal"),
+            INCLUDES(Context__c, "NonLineJournal")
+        )
+    )</errorConditionFormula>
+    <errorDisplayField>Context__c</errorDisplayField>
+    <errorMessage>契約履歴のコンテキストは自動Renew / 自動Renew以外だけです。</errorMessage>
+</ValidationRule>

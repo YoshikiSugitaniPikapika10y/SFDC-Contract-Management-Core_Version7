@@ -361,10 +361,12 @@ private class ContractServiceLifecycleServiceTest {
   }
 
   @IsTest
-  static void backfillAllBlankLifecycles_runs() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Integer processed = ContractServiceLifecycleService.backfillAllBlankLifecycles();
-      System.assert(processed >= 0);
+  static void backfillAllBlankLifecycles_isRejected() {
+    try {
+      ContractServiceLifecycleService.backfillAllBlankLifecycles();
+      System.assert(false, '一括補完は拒否する');
+    } catch (ContractServiceLifecycleService.LifecycleException ex) {
+      System.assert(ex.getMessage().contains('一括補完'), ex.getMessage());
     }
   }
 }

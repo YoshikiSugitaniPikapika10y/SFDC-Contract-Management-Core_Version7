@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>契約サービス・契約履歴・見積商品・期間明細の項目更新と公式再計算</description>
+    <isLicensed>false</isLicensed>
+    <label>102 契約 例外 契約と見積を直す</label>
+</CustomPermission>

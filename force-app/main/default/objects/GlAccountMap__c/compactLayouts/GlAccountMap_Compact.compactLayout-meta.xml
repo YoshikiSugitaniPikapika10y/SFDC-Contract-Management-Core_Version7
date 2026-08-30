@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CompactLayout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>GlAccountMap_Compact</fullName>
+    <fields>Name</fields>
+    <fields>SlotKey__c</fields>
+    <fields>Account__c</fields>
+    <label>勘定科目割当 コンパクト</label>
+</CompactLayout>

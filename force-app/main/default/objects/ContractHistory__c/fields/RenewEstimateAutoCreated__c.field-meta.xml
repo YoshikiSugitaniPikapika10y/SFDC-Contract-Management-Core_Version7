@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RenewEstimateAutoCreated__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>RenewEstimateAutoCreateService によって作成された Renew 見積であることを示すシステム管理項目。</description>
+    <inlineHelpText>更新見積自動作成によって作られた見積の場合に自動でオンになります。</inlineHelpText>
+    <label>自動Renew見積</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

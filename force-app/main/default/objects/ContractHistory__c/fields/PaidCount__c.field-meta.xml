@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>PaidCount__c</fullName>
+    <description>仕様: Core 第5.7節。取消済みを除く回収完了件数。</description>
     <label>入金完了件数</label>
     <summaryFilterItems>
-        <field>Invoice__c.PaymentClearingCompletedDate__c</field>
-        <operation>notEqual</operation>
-        <value />
+        <field>Invoice__c.CountsTowardPaidCount__c</field>
+        <operation>equals</operation>
+        <value>True</value>
     </summaryFilterItems>
     <summaryForeignKey>Invoice__c.ContractHistory__c</summaryForeignKey>
     <summaryOperation>count</summaryOperation>

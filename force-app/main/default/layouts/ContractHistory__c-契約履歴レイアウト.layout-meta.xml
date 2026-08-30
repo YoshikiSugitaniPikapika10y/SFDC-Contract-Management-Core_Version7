@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <Layout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <excludeButtons>ChangeOwnerOne</excludeButtons>
+    <excludeButtons>ChangeRecordType</excludeButtons>
+    <excludeButtons>Clone</excludeButtons>
+    <excludeButtons>Delete</excludeButtons>
+    <excludeButtons>Edit</excludeButtons>
+    <excludeButtons>OpenSlackRecordChannel</excludeButtons>
+    <excludeButtons>PrintableView</excludeButtons>
+    <excludeButtons>Share</excludeButtons>
+    <excludeButtons>Submit</excludeButtons>
     <layoutSections>
         <customLabel>true</customLabel>
         <detailHeading>true</detailHeading>
@@ -17,6 +26,10 @@
             <layoutItems>
                 <behavior>Edit</behavior>
                 <field>Opportunity__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>RenewalOpportunity__c</field>
             </layoutItems>
             <layoutItems>
                 <behavior>Edit</behavior>
@@ -62,6 +75,10 @@
             <layoutItems>
                 <behavior>Edit</behavior>
                 <field>ApplicationDate__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>OrderDate__c</field>
             </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
@@ -118,6 +135,10 @@
             <layoutItems>
                 <behavior>Edit</behavior>
                 <field>EstimateIssueDate__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>EstimateSentAt__c</field>
             </layoutItems>
         </layoutColumns>
         <layoutColumns>
@@ -211,29 +232,24 @@
             <sortOrder>3</sortOrder>
         </platformActionListItems>
         <platformActionListItems>
-            <actionName>EstimateIssuePdf</actionName>
-            <actionType>CustomButton</actionType>
-            <sortOrder>4</sortOrder>
-        </platformActionListItems>
-        <platformActionListItems>
             <actionName>ContractHistory__c.Order_Invoice_Preview</actionName>
             <actionType>QuickAction</actionType>
-            <sortOrder>5</sortOrder>
+            <sortOrder>4</sortOrder>
         </platformActionListItems>
         <platformActionListItems>
             <actionName>ContractHistory__c.Order_Revert</actionName>
             <actionType>QuickAction</actionType>
-            <sortOrder>6</sortOrder>
+            <sortOrder>5</sortOrder>
         </platformActionListItems>
         <platformActionListItems>
             <actionName>Edit</actionName>
             <actionType>StandardButton</actionType>
-            <sortOrder>7</sortOrder>
+            <sortOrder>6</sortOrder>
         </platformActionListItems>
         <platformActionListItems>
             <actionName>Delete</actionName>
             <actionType>StandardButton</actionType>
-            <sortOrder>8</sortOrder>
+            <sortOrder>7</sortOrder>
         </platformActionListItems>
     </platformActionList>
     <relatedLists>
@@ -281,7 +297,6 @@
         <fields>NAME</fields>
         <fields>Account__c</fields>
         <fields>Status__c</fields>
-        <fields>LatestARR__c</fields>
         <fields>BiilingAcccount__c</fields>
         <fields>ServiceStartDate__c</fields>
         <fields>ServiceEndDate__c</fields>
@@ -291,7 +306,6 @@
         <fields>NAME</fields>
         <fields>Account__c</fields>
         <fields>Status__c</fields>
-        <fields>LatestARR__c</fields>
         <fields>BiilingAcccount__c</fields>
         <fields>ServiceStartDate__c</fields>
         <fields>ServiceEndDate__c</fields>

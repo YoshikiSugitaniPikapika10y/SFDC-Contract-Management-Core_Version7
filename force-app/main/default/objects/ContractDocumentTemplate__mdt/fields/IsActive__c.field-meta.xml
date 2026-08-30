@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsActive__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>有効な帳票だけを発行画面の選択肢に表示する。</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>有効</label>
+    <type>Checkbox</type>
+</CustomField>

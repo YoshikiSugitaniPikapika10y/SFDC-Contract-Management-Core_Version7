@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>AcceptanceEndDate__c</fullName>
+    <description
+  >仕様: Core 第7.6節、日付仕様 第6.1節。検収が完了した日。請求明細の生成時にサービス期間終了日をプリセットする。確定後も請求プレビューから変更できる。</description>
+    <inlineHelpText
+  >検収が完了した日です。既定はサービス期間終了日で、請求確定後も請求ボードから変更できます。</inlineHelpText>
+    <label>検収終了日</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Date</type>
+</CustomField>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Inactive_Account</fullName>
+    <active>true</active>
+    <description>仕様: Accounting 第6.2節、第4.1節。無効科目を新しく割り当てない。既存割当は残す。</description>
+    <errorConditionFormula>AND(
+        NOT(ISBLANK(Account__c)),
+        Account__r.IsActive__c = FALSE,
+        OR(ISNEW(), ISCHANGED(Account__c))
+    )</errorConditionFormula>
+    <errorDisplayField>Account__c</errorDisplayField>
+    <errorMessage>無効な勘定科目を新しく割り当てることはできません。</errorMessage>
+</ValidationRule>

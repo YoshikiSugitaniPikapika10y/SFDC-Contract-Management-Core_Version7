@@ -25,7 +25,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
           BillingAccountSnapShot__c,
           BillingAddresseeSnapShot__c,
           BillingEmailToSnapShot__c,
-          PaymentTermSnapShot__c
+          PaymentTermMethodSnapShot__c
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
@@ -39,8 +39,8 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       );
       System.assertEquals('trig@example.com', loaded.BillingEmailToSnapShot__c);
       System.assertEquals(
-        ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        loaded.PaymentTermSnapShot__c
+        BillingScheduleService.METHOD_MONTH_OFFSET,
+        loaded.PaymentTermMethodSnapShot__c
       );
     }
   }
@@ -76,6 +76,37 @@ private class InvoiceFieldCopyTriggerHandlerTest {
   }
 
   @IsTest
+  static void invoiceBeforeInsert_copiesBlankMemoFromAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('CopyMemo');
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Inv_Memo_From_Account',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      Invoice__c invoice = new Invoice__c(
+        ContractHistory__c = fixture.history.Id,
+        ContractService__c = fixture.service.Id,
+        InvoiceDate__c = Date.today(),
+        Amount__c = 1000
+      );
+
+      Test.startTest();
+      insert invoice;
+      Test.stopTest();
+
+      Invoice__c loaded = [SELECT Memo__c FROM Invoice__c WHERE Id = :invoice.Id];
+      System.assertEquals(
+        'FieldCopy CopyMemo Acc',
+        loaded.Memo__c,
+        '仕様: Core 第11.4.2節 請求はinsert時だけ空欄へコピーする'
+      );
+    }
+  }
+
+  @IsTest
   static void invoiceLineBeforeInsert_fillsBlankProductUnit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Line');
@@ -95,7 +126,8 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         ProductName__c = 'テスト商品',
         Amount__c = 1000,
         Quantity__c = 1,
-        UnitPrice__c = 1000
+        UnitPrice__c = 1000,
+        RevenueRecognitionBasis__c = '月次計上'
       );
 
       Test.startTest();
@@ -174,10 +206,14 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       Account__c = account.Id,
       BillingAddressee__c = 'トリガ宛名 御中',
       BillingEmailTo__c = 'trig@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_1,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 1,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(fixture.billingAccount);
     insert fixture.billingAccount;
 
@@ -200,6 +236,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
 
     fixture.product = new Product2(
       Name = 'FieldCopy ' + suffix + ' Product',
+      ProductCode = suffix == 'Journal' ? 'FIELD-COPY-JOURNAL' : null,
       IsActive = true
     );
     ContractTestDataFactory.applyRequiredFields(fixture.product);

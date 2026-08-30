@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>契約横断画面を開く</description>
+    <isLicensed>false</isLicensed>
+    <label>18 契約 横断を開く</label>
+</CustomPermission>

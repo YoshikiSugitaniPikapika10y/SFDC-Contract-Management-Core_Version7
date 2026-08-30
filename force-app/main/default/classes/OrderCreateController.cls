@@ -6,7 +6,8 @@ public without sharing class OrderCreateController {
   private static final String HISTORY_STATUS_ESTIMATE = ContractDomainConstants.HISTORY_STATUS_ESTIMATE;
   private static final String HISTORY_STATUS_ORDERED = ContractDomainConstants.HISTORY_STATUS_ORDERED;
   private static final String HISTORY_TYPE_CANCEL = ContractDomainConstants.HISTORY_TYPE_CANCEL;
-  private static final String HISTORY_TYPE_ADD = ContractDomainConstants.HISTORY_TYPE_ADD;
+  @TestVisible
+  private static final String ORDER_TOKEN_REQUIRED_MESSAGE = '受注対象が更新された可能性があります。画面を開き直してから再度操作してください。';
   @TestVisible
   private static Boolean testHasOrderPermission = true;
   @TestVisible
@@ -74,6 +75,12 @@ public without sharing class OrderCreateController {
     public Map<String, Object> historyCustomFields;
 
     @AuraEnabled
+    public List<ContractWizardFieldService.WizardFieldDefinition> historyFieldDefinitions;
+
+    @AuraEnabled
+    public Map<String, Object> historySavedFields;
+
+    @AuraEnabled
     public Map<String, Object> billingCustomFields;
 
     @AuraEnabled
@@ -95,14 +102,18 @@ public without sharing class OrderCreateController {
     @AuraEnabled
     public Boolean showCreateRenewOpportunity;
 
-    /** 差し戻し画面で「更新商談を削除」を出すか（作成済みがある） */
+    /** 見積で保存された更新商談作成要求 */
+    @AuraEnabled
+    public Boolean createRenewOpportunity;
+
+    /** 差し戻し画面で「更新商談を削除」を出すか（スイッチONかつ作成済みがある） */
     @AuraEnabled
     public Boolean hasRenewOpportunity;
 
     @AuraEnabled
     public Id renewOpportunityId;
 
-    /** 同時編集ガード用。ContractHistory.LastModifiedDate の epoch ms */
+    /** 同時編集ガード用。契約履歴と配下見積商品の最大更新時刻 */
     @AuraEnabled
     public String lastModifiedToken;
   }
@@ -145,6 +156,9 @@ public without sharing class OrderCreateController {
 
     @AuraEnabled
     public Id renewOpportunityId;
+
+    @AuraEnabled
+    public String businessOperationKey;
   }
 
   public class InvoicePreviewDto {
@@ -199,7 +213,13 @@ public without sharing class OrderCreateController {
     public Decimal periodLineAmountTotal;
 
     @AuraEnabled
+    public Decimal periodLineTaxInclusiveTotal;
+
+    @AuraEnabled
     public Decimal invoiceAmountTotal;
+
+    @AuraEnabled
+    public Decimal invoiceTaxInclusiveTotal;
 
     @AuraEnabled
     public Decimal amountDifference;
@@ -221,6 +241,62 @@ public without sharing class OrderCreateController {
      */
     @AuraEnabled
     public String contentVersion;
+
+    @AuraEnabled
+    public String invoiceSendMode;
+
+    /** 仕様: 日付仕様 第8章。組織タイムゾーンの操作日（YYYY-MM-DD）。 */
+    @AuraEnabled
+    public Date operationDay;
+
+    /** 仕様: Core 第11.9節。DOWN / HALF_UP / UP。無い・空は既定へ落とさない。 */
+    @AuraEnabled
+    public String taxRoundingMode;
+
+    /** 仕様: Core 第11.9節。Scale2HalfUp 等。無い・空は既定へ落とさない。 */
+    @AuraEnabled
+    public String quantityUnitPriceRoundingMode;
+
+    /** 仕様: Core 第11.9節。Scale0HalfUp 等。無い・空は既定へ落とさない。 */
+    @AuraEnabled
+    public String amountRoundingMode;
+
+    /** 仕様: Core 第11.6節、第11.4.4節。確定後／登録後／Lock後の編集可否。 */
+    @AuraEnabled
+    public List<String> invoiceLockExemptFieldApiNames;
+    @AuraEnabled
+    public List<String> paymentLockExemptFieldApiNames;
+    @AuraEnabled
+    public List<String> journalLockExemptFieldApiNames;
+  }
+
+  public class PreviewScopeDto {
+    @AuraEnabled
+    public Id recordId;
+
+    @AuraEnabled
+    public String objectApiName;
+
+    @AuraEnabled
+    public Id contractHistoryId;
+
+    @AuraEnabled
+    public Id contractServiceId;
+
+    @AuraEnabled
+    public Id invoiceId;
+
+    @AuraEnabled
+    public String initialVersion;
+
+    @AuraEnabled
+    public Id initialInvoiceId;
+
+    @AuraEnabled
+    public Boolean canOpen;
+
+    @AuraEnabled
+    public String blockReason;
   }
 
   public class VersionOptionDto {
@@ -237,7 +313,13 @@ public without sharing class OrderCreateController {
     public Decimal periodLineAmountTotal;
 
     @AuraEnabled
+    public Decimal periodLineTaxInclusiveTotal;
+
+    @AuraEnabled
     public Decimal invoiceAmountTotal;
+
+    @AuraEnabled
+    public Decimal invoiceTaxInclusiveTotal;
 
     @AuraEnabled
     public Decimal amountDifference;
@@ -276,6 +358,9 @@ public without sharing class OrderCreateController {
 
     @AuraEnabled
     public String billingEmailBcc;
+
+    @AuraEnabled
+    public String invoiceDeliveryMethod;
 
     @AuraEnabled
     public String paymentTerm;
@@ -321,6 +406,64 @@ public without sharing class OrderCreateController {
     /** 連携済または消込済（請求書単位ロック）。プレビュー編集の可否に使う。 */
     @AuraEnabled
     public Boolean locked;
+
+    @AuraEnabled
+    public String invoiceTransactionStatus;
+
+    /** 仕様: Core 第7.10節、第7.11節 */
+    @AuraEnabled
+    public String deliveryStatus;
+
+    /** 仕様: Core 第7.11節 */
+    @AuraEnabled
+    public String dueStatus;
+
+    @AuraEnabled
+    public Decimal overdueDays;
+
+    @AuraEnabled
+    public String accountingStatus;
+
+    @AuraEnabled
+    public String accountingIssueName;
+
+    @AuraEnabled
+    public Date sentDate;
+
+    /** 仕様: Core 第7.7.3節、第7.10節。印付きのうち最新の発行PDF。 */
+    @AuraEnabled
+    public Id latestIssuedContentDocumentId;
+
+    @AuraEnabled
+    public Decimal paymentNetTotal;
+
+    @AuraEnabled
+    public Boolean canConfirm;
+
+    @AuraEnabled
+    public Boolean canUnconfirm;
+
+    @AuraEnabled
+    public String confirmationReason;
+
+    @AuraEnabled
+    public String lastModifiedToken;
+
+    @AuraEnabled
+    public String memo;
+
+    @AuraEnabled
+    public Boolean isCancelled;
+
+    /** 仕様: Core 第11.4.4節。請求操作追加項目の現在値。 */
+    @AuraEnabled
+    public Map<String, Object> extraFieldValues;
+
+    @AuraEnabled
+    public Decimal invoicePaymentNet;
+
+    @AuraEnabled
+    public Decimal taxInclusiveAmount;
 
     @AuraEnabled
     public List<InvoiceMergedLineDto> lines;
@@ -406,17 +549,32 @@ public without sharing class OrderCreateController {
     /** 継続課金なら true（請求プレビューの月分割候補表示用） */
     @AuraEnabled
     public Boolean isRecurring;
+
+    /** 検収終了日。確定済み請求でも編集できる（仕訳計上日の候補） */
+    @AuraEnabled
+    public Date acceptanceEndDate;
+
+    /** 仕様: Core 第7.6節 */
+    @AuraEnabled
+    public String revenueRecognitionBasis;
   }
 
+  /** 仕様: Core 第11.4.3節、第5.2節、第11.5節、共通基盤 第10.4節。受注ウィザードは 06、差し戻しは 07。 */
   @AuraEnabled
   public static OrderContextDto getOrderContext(Id contractHistoryId) {
     if (contractHistoryId == null) {
       throw toAuraHandled('契約履歴IDが指定されていません。');
     }
+    if (!hasOrderPermission() && !hasRevertPermission()) {
+      throw toAuraHandled('この操作を実行する権限がありません。');
+    }
 
-    List<ContractHistory__c> histories = queryContractHistoryForOrderContext(
-      contractHistoryId
-    );
+    List<ContractHistory__c> histories;
+    try {
+      histories = queryContractHistoryForOrderContext(contractHistoryId);
+    } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
     if (histories.isEmpty()) {
       throw toAuraHandled('契約履歴が見つかりません。');
     }
@@ -467,74 +625,132 @@ public without sharing class OrderCreateController {
       String.isBlank(dto.revertBlockedReason);
     dto.showCreateRenewOpportunity =
       history.historystatus__c == HISTORY_STATUS_ESTIMATE &&
+      ContractDocumentSettingService.requireRenewOpportunitySwitch() &&
       !shouldSkipRenewOpportunity(history);
+    // 仕様: Core 第5.2節、第11.5節。保存値ではなく画面初期状態をONにする。
+    dto.createRenewOpportunity = dto.showCreateRenewOpportunity;
     dto.renewOpportunityId = RenewOpportunityCreateService.findBySourceHistory(
       history.Id
     );
-    dto.hasRenewOpportunity = dto.renewOpportunityId != null;
-    dto.lastModifiedToken = ContractOptimisticLockUtil.toToken(
-      history.LastModifiedDate
+    // 仕様: Core 第5.6節、第11.5節。OFFなら削除選択もカウントも動かない。
+    dto.hasRenewOpportunity =
+      dto.renewOpportunityId != null &&
+      ContractDocumentSettingService.requireRenewOpportunitySwitch();
+    dto.lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+      history.Id
     );
     dto.products = loadProductLines(history.Id);
     dto.billingSettings = buildBillingSettings(
       history.ContractService__r.BiilingAcccount__r
     );
-    dto.historyCustomFields = OrderWizardFieldService.buildHistoryCustomFieldValues(
-      history
-    );
+    try {
+      dto.historyFieldDefinitions = OrderWizardFieldService.getDefinitions(
+        history.Type__c
+      );
+      dto.historyCustomFields = OrderWizardFieldService.buildHistoryFieldValuesForWizard(
+        history
+      );
+      dto.historySavedFields = OrderWizardFieldService.buildHistoryCustomFieldValues(
+        history
+      );
+    } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
     dto.billingCustomFields = buildBillingCustomFields(
       history.ContractService__r.BiilingAcccount__r
     );
     return dto;
   }
 
-  @AuraEnabled
-  public static OrderSaveResult saveOrderStep1(
-    Id contractHistoryId,
-    String historyCustomFieldsJson
-  ) {
-    assertOrderPermission();
-    ContractHistory__c history = loadEstimateHistory(contractHistoryId);
-    OrderWizardFieldService.applyHistoryFields(
-      history,
-      parseCustomFields(historyCustomFieldsJson)
-    );
-    SystemContextAccess.updateRecords(new List<ContractHistory__c>{ history });
-
-    OrderSaveResult result = new OrderSaveResult();
-    result.contractHistoryId = history.Id;
-    result.historyStatus = history.historystatus__c;
-    return result;
-  }
-
-  @AuraEnabled
-  public static OrderSaveResult saveOrderStep2(
-    Id contractHistoryId,
-    String billingCustomFieldsJson
-  ) {
-    throw toAuraHandled(
-      '受注ウィザードからの請求アカウント更新は廃止しました。取引先の関連リストで請求アカウントを編集してください。'
-    );
-  }
-
-  /** deleteRenewOpportunity は呼び出し側で明示すること（省略 overload は持たない） */
-  public static OrderSaveResult revertOrder(
+  /** Apex テスト互換。Aura 公開入口は LastModified トークン必須。 */
+  @TestVisible
+  private static OrderSaveResult revertOrder(
     Id contractHistoryId,
     Boolean deleteRenewOpportunity
   ) {
-    return revertOrder(contractHistoryId, deleteRenewOpportunity, null);
+    ContractHistory__c history = loadOrderedHistory(contractHistoryId);
+    return revertOrder(
+      contractHistoryId,
+      deleteRenewOpportunity,
+      ContractOptimisticLockUtil.toHistoryProductToken(history.Id),
+      null
+    );
   }
 
-  @AuraEnabled
-  public static OrderSaveResult revertOrder(
+  @TestVisible
+  private static OrderSaveResult revertOrder(
     Id contractHistoryId,
     Boolean deleteRenewOpportunity,
     String expectedLastModifiedToken
   ) {
+    return revertOrder(
+      contractHistoryId,
+      deleteRenewOpportunity,
+      expectedLastModifiedToken,
+      null,
+      null
+    );
+  }
+
+  public static OrderSaveResult revertOrder(
+    Id contractHistoryId,
+    Boolean deleteRenewOpportunity,
+    String expectedLastModifiedToken,
+    String historyCustomFieldsJson
+  ) {
+    return revertOrder(
+      contractHistoryId,
+      deleteRenewOpportunity,
+      expectedLastModifiedToken,
+      historyCustomFieldsJson,
+      null
+    );
+  }
+
+  /** 仕様: Core 第5.3節、第4.3.12節、第11.4.3節、第11.5節 */
+  @AuraEnabled
+  public static OrderSaveResult revertOrder(
+    Id contractHistoryId,
+    Boolean deleteRenewOpportunity,
+    String expectedLastModifiedToken,
+    String historyCustomFieldsJson,
+    String businessOperationKey
+  ) {
     assertRevertPermission();
-    ContractHistory__c history = loadOrderedHistory(contractHistoryId);
-    ContractOptimisticLockUtil.assertHistoryUnchanged(
-      history,
+    String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+      businessOperationKey
+    );
+    List<ContractHistory__c> histories;
+    try {
+      histories = queryContractHistoryForOrderContext(contractHistoryId, true);
+    } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+    if (histories.isEmpty()) {
+      throw toAuraHandled('契約履歴が見つかりません。');
+    }
+    ContractHistory__c history = histories[0];
+    if (
+      history.historystatus__c == HISTORY_STATUS_ESTIMATE &&
+      history.BusinessOperationKey__c == operationKey
+    ) {
+      OrderSaveResult existing = new OrderSaveResult();
+      existing.contractHistoryId = history.Id;
+      existing.historyStatus = HISTORY_STATUS_ESTIMATE;
+      existing.businessOperationKey = operationKey;
+      ContractOperationLogService.write(
+        'RevertOrder',
+        operationKey,
+        'ContractHistory__c',
+        String.valueOf(history.Id)
+      );
+      return existing;
+    }
+    if (history.historystatus__c != HISTORY_STATUS_ORDERED) {
+      throw toAuraHandled('受注済み状態の契約履歴のみ差し戻しできます。');
+    }
+    ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+      history.Id,
       expectedLastModifiedToken
     );
     String blockedReason = buildRevertBlockedReason(
@@ -545,19 +761,43 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(blockedReason);
     }
 
+    if (historyCustomFieldsJson != null) {
+      Map<String, Object> historyFields = parseCustomFields(
+        historyCustomFieldsJson
+      );
+      try {
+        OrderWizardFieldService.applyHistoryFields(history, historyFields);
+      } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+        throw toAuraHandled(ex.getMessage());
+      }
+    }
+    history.OrderDate__c = null;
     history.historystatus__c = HISTORY_STATUS_ESTIMATE;
+    history.BusinessOperationKey__c = operationKey;
+    // 仕様: Core 第5.3節・第5.6節。画面外は受注日以外を触らない。
+    if (historyCustomFieldsJson != null) {
+      history.CreateRenewOpportunity__c = false;
+    }
+    Savepoint revertSavepoint = Database.setSavepoint();
     try {
       SystemContextAccess.updateRecords(
         new List<ContractHistory__c>{ history }
       );
-      if (deleteRenewOpportunity == true) {
+      if (
+        historyCustomFieldsJson != null &&
+        deleteRenewOpportunity == true &&
+        ContractDocumentSettingService.requireRenewOpportunitySwitch()
+      ) {
         RenewOpportunityCreateService.deleteBySourceHistory(history.Id);
       }
     } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
+      Database.rollback(revertSavepoint);
       throw toAuraHandled(ex.getMessage());
     } catch (DmlException ex) {
+      Database.rollback(revertSavepoint);
       throw toAuraHandled(extractDmlMessage(ex));
     } catch (Exception ex) {
+      Database.rollback(revertSavepoint);
       throw toAuraHandled(
         String.isNotBlank(ex.getMessage())
           ? ex.getMessage()
@@ -568,60 +808,248 @@ public without sharing class OrderCreateController {
     OrderSaveResult result = new OrderSaveResult();
     result.contractHistoryId = history.Id;
     result.historyStatus = HISTORY_STATUS_ESTIMATE;
+    result.businessOperationKey = operationKey;
+    ContractOperationLogService.write(
+      'RevertOrder',
+      operationKey,
+      'ContractHistory__c',
+      String.valueOf(history.Id)
+    );
     return result;
   }
 
-  /** createRenewOpportunity は呼び出し側で明示すること（省略 overload は持たない） */
-  public static OrderSaveResult confirmOrder(
+  /** Apex テスト専用の互換入口。本番の Aura 入口は更新トークン必須。 */
+  @TestVisible
+  private static OrderSaveResult confirmOrder(
     Id contractHistoryId,
     String billingCustomFieldsJson,
     Boolean createRenewOpportunity
   ) {
-    return confirmOrder(
+    return confirmOrderInternal(
       contractHistoryId,
       billingCustomFieldsJson,
       createRenewOpportunity,
+      null,
+      false,
+      null,
       null
     );
   }
 
-  @AuraEnabled
+  /** 仕様: Core 第5.2節、第11.5節 */
   public static OrderSaveResult confirmOrder(
     Id contractHistoryId,
     String billingCustomFieldsJson,
     Boolean createRenewOpportunity,
     String expectedLastModifiedToken
   ) {
-    assertOrderPermission();
-    ContractHistory__c history = loadEstimateHistory(contractHistoryId);
-    ContractOptimisticLockUtil.assertHistoryUnchanged(
-      history,
-      expectedLastModifiedToken
+    return confirmOrderInternal(
+      contractHistoryId,
+      billingCustomFieldsJson,
+      createRenewOpportunity,
+      expectedLastModifiedToken,
+      true,
+      null,
+      null
     );
-    validateReadyForOrder(history);
+  }
 
-    history.historystatus__c = HISTORY_STATUS_ORDERED;
-    Id renewOpportunityId = null;
+  /** 仕様: Core 第5.2節、第11.5節 */
+  public static OrderSaveResult confirmOrder(
+    Id contractHistoryId,
+    String billingCustomFieldsJson,
+    Boolean createRenewOpportunity,
+    String expectedLastModifiedToken,
+    String historyCustomFieldsJson
+  ) {
+    return confirmOrderInternal(
+      contractHistoryId,
+      billingCustomFieldsJson,
+      createRenewOpportunity,
+      expectedLastModifiedToken,
+      true,
+      historyCustomFieldsJson,
+      null
+    );
+  }
+
+  /** 仕様: Core 第5.2節、第4.3.12節、第11.5節 */
+  @AuraEnabled
+  public static OrderSaveResult confirmOrder(
+    Id contractHistoryId,
+    String billingCustomFieldsJson,
+    Boolean createRenewOpportunity,
+    String expectedLastModifiedToken,
+    String historyCustomFieldsJson,
+    String businessOperationKey
+  ) {
+    return confirmOrderInternal(
+      contractHistoryId,
+      billingCustomFieldsJson,
+      createRenewOpportunity,
+      expectedLastModifiedToken,
+      true,
+      historyCustomFieldsJson,
+      businessOperationKey
+    );
+  }
+
+  /** 仕様: Core 第4.3.12節、共通基盤 第10.4節。受注のキー発行は 06。 */
+  @AuraEnabled
+  public static String issueOrderOperationKey() {
+    assertOrderPermission();
+    return AccountingCauseLockService.issueOperationKey();
+  }
+
+  /** 仕様: Core 第5.2節、第4.3.12節、第11.5節 */
+  private static OrderSaveResult confirmOrderInternal(
+    Id contractHistoryId,
+    String billingCustomFieldsJson,
+    Boolean createRenewOpportunity,
+    String expectedLastModifiedToken,
+    Boolean requireToken,
+    String historyCustomFieldsJson,
+    String businessOperationKey
+  ) {
+    assertOrderPermission();
+    FieldCopyDefinitionService.validateAllDefinitions();
+    if (requireToken && String.isBlank(expectedLastModifiedToken)) {
+      throw toAuraHandled(ORDER_TOKEN_REQUIRED_MESSAGE);
+    }
+    String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+      businessOperationKey
+    );
+    ContractHistory__c history;
     try {
+      List<ContractHistory__c> locked = queryEstimateHistoryForEdit(
+        contractHistoryId,
+        true
+      );
+      if (locked.isEmpty()) {
+        throw toAuraHandled('契約履歴が見つかりません。');
+      }
+      history = locked[0];
+    } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+    if (
+      history.historystatus__c == HISTORY_STATUS_ORDERED &&
+      history.BusinessOperationKey__c == operationKey
+    ) {
+      OrderSaveResult existing = new OrderSaveResult();
+      existing.contractHistoryId = history.Id;
+      existing.historyStatus = HISTORY_STATUS_ORDERED;
+      existing.businessOperationKey = operationKey;
+      existing.renewOpportunityId = history.RenewalOpportunity__c;
+      ContractOperationLogService.write(
+        'Order',
+        operationKey,
+        'ContractHistory__c',
+        String.valueOf(history.Id)
+      );
+      return existing;
+    }
+    if (history.historystatus__c != HISTORY_STATUS_ESTIMATE) {
+      if (requireToken) {
+        throw ContractOptimisticLockUtil.conflict('契約履歴');
+      }
+      throw toAuraHandled('見積状態の契約履歴のみ編集できます。');
+    }
+    if (requireToken) {
+      ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+        history.Id,
+        expectedLastModifiedToken
+      );
+    } else {
+      ContractOptimisticLockUtil.assertUnchanged(
+        ContractOptimisticLockUtil.resolveHistoryProductDatetime(history.Id),
+        expectedLastModifiedToken,
+        '契約履歴'
+      );
+    }
+    validateReadyForOrder(history);
+    if (historyCustomFieldsJson != null) {
+      Map<String, Object> historyFields = parseCustomFields(
+        historyCustomFieldsJson
+      );
+      try {
+        String requiredError = OrderWizardFieldService.validateRequiredHistoryFields(
+          historyFields,
+          history.Type__c
+        );
+        if (String.isNotBlank(requiredError)) {
+          throw toAuraHandled(requiredError);
+        }
+        OrderWizardFieldService.applyHistoryFields(history, historyFields);
+      } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+        throw toAuraHandled(ex.getMessage());
+      }
+    }
+
+    Boolean renewSwitchOn = ContractDocumentSettingService.requireRenewOpportunitySwitch();
+    if (createRenewOpportunity == true) {
+      if (
+        !renewSwitchOn ||
+        shouldSkipRenewOpportunity(history)
+      ) {
+        throw toAuraHandled(
+          ContractHistoryTriggerHandler.RENEW_REQUEST_NOT_ALLOWED_MESSAGE
+        );
+      }
+    }
+    Boolean requestRenew = createRenewOpportunity == true;
+    history.historystatus__c = HISTORY_STATUS_ORDERED;
+    history.BusinessOperationKey__c = operationKey;
+    history.CreateRenewOpportunity__c = requestRenew;
+    Id renewOpportunityId = null;
+    Savepoint orderSavepoint = Database.setSavepoint();
+    try {
+      if (requestRenew) {
+        Decimal currentCount = history.RenewOpportunityRequestCount__c;
+        history.RenewOpportunityRequestCount__c = (currentCount == null
+            ? 0
+            : currentCount) + 1;
+        /** 仕様: Core 第5.6節、第11.5節 */
+        history.RenewalOpportunity__c = null;
+      }
       SystemContextAccess.updateRecords(
         new List<ContractHistory__c>{ history }
       );
-      if (
-        createRenewOpportunity == true && !shouldSkipRenewOpportunity(history)
-      ) {
-        renewOpportunityId = RenewOpportunityCreateService.createFromOrderedHistory(
-          history.Id
+      if (requestRenew) {
+        ContractHistory__c reloaded = [
+          SELECT
+            Id,
+            ContractService__c,
+            RenewalOpportunity__c,
+            ContractService__r.Account__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+          WITH SYSTEM_MODE
+          LIMIT 1
+        ];
+        renewOpportunityId = reloaded.RenewalOpportunity__c;
+        RenewOpportunityCreateService.assertCreatedForHistory(
+          reloaded,
+          renewOpportunityId
         );
       }
     } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
+      Database.rollback(orderSavepoint);
       throw toAuraHandled(ex.getMessage());
     } catch (DmlException ex) {
+      Database.rollback(orderSavepoint);
       throw toAuraHandled(extractConfirmOrderDmlMessage(ex));
     } catch (InvoiceLockUtil.InvoiceLockException ex) {
+      Database.rollback(orderSavepoint);
       throw toAuraHandled(ex.getMessage());
     } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
+      Database.rollback(orderSavepoint);
+      throw toAuraHandled(ex.getMessage());
+    } catch (FieldCopyDefinitionService.FieldCopyException ex) {
+      Database.rollback(orderSavepoint);
       throw toAuraHandled(ex.getMessage());
     } catch (Exception ex) {
+      Database.rollback(orderSavepoint);
       throw toAuraHandled(
         String.isNotBlank(ex.getMessage())
           ? ex.getMessage()
@@ -633,6 +1061,13 @@ public without sharing class OrderCreateController {
     result.contractHistoryId = history.Id;
     result.historyStatus = HISTORY_STATUS_ORDERED;
     result.renewOpportunityId = renewOpportunityId;
+    result.businessOperationKey = operationKey;
+    ContractOperationLogService.write(
+      'Order',
+      operationKey,
+      'ContractHistory__c',
+      String.valueOf(history.Id)
+    );
     return result;
   }
 
@@ -657,6 +1092,32 @@ public without sharing class OrderCreateController {
     return ex;
   }
 
+  /** 仕様: Core 第7.7.0節 */
+  @AuraEnabled
+  public static PreviewScopeDto resolvePreviewScope(Id recordId) {
+    ContractPermissionUtil.assertViewInvoicePreview();
+    PreviewScopeDto scope = new PreviewScopeDto();
+    scope.recordId = recordId;
+    scope.canOpen = false;
+    if (recordId == null) {
+      scope.blockReason = '対象レコードが指定されていません。';
+      return scope;
+    }
+    scope.objectApiName = recordId.getSObjectType().getDescribe().getName();
+    if (scope.objectApiName == 'ContractHistory__c') {
+      return fillScopeFromHistory(scope, recordId, null);
+    }
+    if (scope.objectApiName == 'ContractService__c') {
+      return fillScopeFromService(scope, recordId);
+    }
+    if (scope.objectApiName == 'Invoice__c') {
+      return fillScopeFromInvoice(scope, recordId);
+    }
+    scope.blockReason = '請求ボードは契約履歴・契約サービス・請求書から開きます。';
+    return scope;
+  }
+
+  /** 仕様: Core 第7.7.0節、第7.6節、第11.3節、第1.1.10節 */
   @AuraEnabled
   public static InvoicePreviewDto getInvoicePreview(Id contractHistoryId) {
     ContractPermissionUtil.assertViewInvoicePreview();
@@ -672,14 +1133,18 @@ public without sharing class OrderCreateController {
     }
     Id contractServiceId = sourceHistory.ContractService__c;
 
-    // 既存受注分で請求正本が無い場合は契約期間明細からバックフィル
-    InvoiceCanonicalService.backfillMissingForContractService(
-      contractServiceId
-    );
-
+    // 請求正本の作成は受注時のみ。プレビュー open では作らない（欠けていれば空表示）。
     InvoicePreviewDto preview = buildInvoicePreviewFromCanonical(
       contractServiceId
     );
+    try {
+      InvoicePreviewIntegrityService.assertSameHistory(
+        null,
+        previewInvoicesForIntegrity(preview)
+      );
+    } catch (InvoicePreviewIntegrityService.IntegrityException ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
     preview.versionOptions = loadOrderedVersionOptions(contractServiceId);
     enrichVersionAmountSummaries(preview, contractServiceId);
     applyManualAdjustmentAmounts(preview);
@@ -692,18 +1157,17 @@ public without sharing class OrderCreateController {
     // プレビュー編集は請求書単位ロック（invoice.locked）。Version 一括ブロックは使わない。
     preview.versionEditBlocked = false;
     preview.contentVersion = resolvePreviewContentToken(contractServiceId);
+    try {
+      preview.invoiceSendMode = ContractDocumentSettingService.requireSendMode(
+        'Invoice'
+      );
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
     return preview;
   }
 
-  public static InvoicePreviewDto updateInvoiceLineAmount(
-    Id contractHistoryId,
-    Id lineId,
-    Decimal amount
-  ) {
-    return updateInvoiceLineAmount(contractHistoryId, lineId, amount, null);
-  }
-
-  @AuraEnabled
+  /** 仕様: Core 第7.9.7節、第4.3.12節。比較値未指定は拒否する。現在版で埋めない。 */
   public static InvoicePreviewDto updateInvoiceLineAmount(
     Id contractHistoryId,
     Id lineId,
@@ -716,118 +1180,88 @@ public without sharing class OrderCreateController {
     return updateInvoiceLineAmounts(
       contractHistoryId,
       new List<InvoiceCanonicalService.LineAmountEdit>{ edit },
-      expectedContentVersion
+      expectedContentVersion,
+      null
     );
   }
 
-  public static InvoicePreviewDto updateInvoiceLineAmounts(
-    Id contractHistoryId,
-    List<InvoiceCanonicalService.LineAmountEdit> edits
-  ) {
-    return updateInvoiceLineAmounts(contractHistoryId, edits, null);
-  }
-
-  @AuraEnabled
+  /** 仕様: Core 第7.9.7節、第4.3.12節。比較値未指定は拒否する。現在版で埋めない。 */
   public static InvoicePreviewDto updateInvoiceLineAmounts(
     Id contractHistoryId,
     List<InvoiceCanonicalService.LineAmountEdit> edits,
     String expectedContentVersion
   ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
+    return updateInvoiceLineAmounts(
+      contractHistoryId,
+      edits,
+      expectedContentVersion,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.9.7節、第7.8節。端数調整は操作キーと行ロックと版を共有する。 */
+  public static InvoicePreviewDto updateInvoiceLineAmounts(
+    Id contractHistoryId,
+    List<InvoiceCanonicalService.LineAmountEdit> edits,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    List<Id> lineIds = lineIdsOf(edits);
+    List<Id> invoiceIds = invoiceIdsOfLines(lineIds);
+    Map<String, String> tokenByInvoiceId = new Map<String, String>();
+    for (Id invoiceId : invoiceIds) {
+      tokenByInvoiceId.put(String.valueOf(invoiceId), expectedContentVersion);
+    }
+    return updateInvoiceLineAmounts(
+      contractHistoryId,
+      edits,
+      tokenByInvoiceId,
+      businessOperationKey
+    );
+  }
+
+  /** 仕様: Core 第7.9.7節、第7.8節。端数調整は操作キーと行ロックと版を共有する。 */
+  @AuraEnabled
+  public static InvoicePreviewDto updateInvoiceLineAmounts(
+    Id contractHistoryId,
+    List<InvoiceCanonicalService.LineAmountEdit> edits,
+    Map<String, String> expectedTokenByInvoiceId,
+    String businessOperationKey
+  ) {
+    List<Id> lineIds = lineIdsOf(edits);
+    List<Id> invoiceIds = invoiceIdsOfLines(lineIds);
+    Map<Id, String> tokens = new Map<Id, String>();
+    for (Id invoiceId : invoiceIds) {
+      String token = null;
+      if (expectedTokenByInvoiceId != null) {
+        token = expectedTokenByInvoiceId.get(String.valueOf(invoiceId));
+      }
+      tokens.put(invoiceId, token);
+    }
+    DraftEditPreparation prep = prepareDraftInvoiceEdit(
+      contractHistoryId,
+      invoiceIds,
+      lineIds,
+      tokens,
+      businessOperationKey
+    );
+    if (prep.alreadyApplied) {
+      ContractOperationLogService.write(
+        'AdjustInvoiceAmount',
+        prep.operationKey,
+        'Invoice__c',
+        invoiceIds.isEmpty() ? null : String.valueOf(invoiceIds[0])
+      );
+      return getInvoicePreview(contractHistoryId);
+    }
     try {
       InvoiceCanonicalService.updateLineAmounts(edits);
-    } catch (Exception ex) {
-      throw toAuraHandled(ex.getMessage());
-    }
-    return getInvoicePreview(contractHistoryId);
-  }
-
-  public static InvoicePreviewDto updateInvoiceDates(
-    Id contractHistoryId,
-    Id invoiceId,
-    Date invoiceDate,
-    Date paymentScheduledDate
-  ) {
-    return updateInvoiceDates(
-      contractHistoryId,
-      invoiceId,
-      invoiceDate,
-      paymentScheduledDate,
-      null
-    );
-  }
-
-  @AuraEnabled
-  public static InvoicePreviewDto updateInvoiceDates(
-    Id contractHistoryId,
-    Id invoiceId,
-    Date invoiceDate,
-    Date paymentScheduledDate,
-    String expectedContentVersion
-  ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
-    try {
-      InvoiceCanonicalService.updateInvoiceDates(
-        invoiceId,
-        invoiceDate,
-        paymentScheduledDate
-      );
-    } catch (Exception ex) {
-      throw toAuraHandled(ex.getMessage());
-    }
-    return getInvoicePreview(contractHistoryId);
-  }
-
-  public static InvoicePreviewDto updateInvoiceBillingHeader(
-    Id contractHistoryId,
-    Id invoiceId,
-    Id billingAccountId,
-    String billingAddressee,
-    String billingEmailTo,
-    String billingEmailCc,
-    String billingEmailBcc,
-    String paymentTerm,
-    Decimal taxPercent
-  ) {
-    return updateInvoiceBillingHeader(
-      contractHistoryId,
-      invoiceId,
-      billingAccountId,
-      billingAddressee,
-      billingEmailTo,
-      billingEmailCc,
-      billingEmailBcc,
-      paymentTerm,
-      taxPercent,
-      null
-    );
-  }
-
-  @AuraEnabled
-  public static InvoicePreviewDto updateInvoiceBillingHeader(
-    Id contractHistoryId,
-    Id invoiceId,
-    Id billingAccountId,
-    String billingAddressee,
-    String billingEmailTo,
-    String billingEmailCc,
-    String billingEmailBcc,
-    String paymentTerm,
-    Decimal taxPercent,
-    String expectedContentVersion
-  ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
-    try {
-      // billingAccountId / paymentTerm はサービス側で無視（SnapShot 宛名・メール・税率を更新）
-      InvoiceCanonicalService.updateInvoiceBillingHeader(
-        invoiceId,
-        billingAccountId,
-        billingAddressee,
-        billingEmailTo,
-        billingEmailCc,
-        billingEmailBcc,
-        paymentTerm,
-        taxPercent
+      stampDraftOperationKeys(invoiceIds, prep.operationKey);
+      ContractOperationLogService.write(
+        'AdjustInvoiceAmount',
+        prep.operationKey,
+        'Invoice__c',
+        invoiceIds.isEmpty() ? null : String.valueOf(invoiceIds[0])
       );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
@@ -836,9 +1270,106 @@ public without sharing class OrderCreateController {
   }
 
   /**
-   * 請求プレビュー「請求情報編集」一体保存（日付＋宛名／メール／税率を 1 DML）。
+   * 検収終了日だけを更新する。確定済み請求でも通す（金額・請求日には触れない）。
+   * 検収は請求確定より後にずれ込むため、確定取消を強制しない。
+   * 仕様: Core 第7.6節、第7.9.6節、日付仕様 第6.1節・第7.3節。
+   * 取消基準日の null 固定 overload は持たない（CHANGE-216／CHANGE-166）。
+   */
+  public static InvoicePreviewDto updateInvoiceLineAcceptanceEndDate(
+    Id contractHistoryId,
+    Id lineId,
+    Date acceptanceEndDate,
+    String expectedContentVersion,
+    Date cancellationDate
+  ) {
+    return updateInvoiceLineAcceptanceEndDate(
+      contractHistoryId,
+      lineId,
+      acceptanceEndDate,
+      expectedContentVersion,
+      cancellationDate,
+      null
+    );
+  }
+
+  /**
+   * 検収終了日だけを更新する。確定済み請求でも通す（金額・請求日には触れない）。
+   * 検収は請求確定より後にずれ込むため、確定取消を強制しない。
+   * 仕様: Core 第7.6節・第7.7.3節・第7.9.6節・第7.9.7節、日付仕様 第6.1節・第7.3節。
+   * 権限は InvoiceCanonicalService.loadAcceptanceLines → assertCanEditInvoicePreview。
    */
   @AuraEnabled
+  public static InvoicePreviewDto updateInvoiceLineAcceptanceEndDate(
+    Id contractHistoryId,
+    Id lineId,
+    Date acceptanceEndDate,
+    String expectedContentVersion,
+    Date cancellationDate,
+    String businessOperationKey
+  ) {
+    assertAcceptanceLineInPreviewScope(contractHistoryId, lineId);
+    try {
+      InvoiceCanonicalService.updateLineAcceptanceEndDates(
+        new Map<Id, Date>{ lineId => acceptanceEndDate },
+        cancellationDate,
+        businessOperationKey,
+        expectedContentVersion
+      );
+      List<InvoiceLine__c> lines = [
+        SELECT Invoice__c
+        FROM InvoiceLine__c
+        WHERE Id = :lineId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      ContractOperationLogService.write(
+        'ChangeAcceptanceEndDate',
+        businessOperationKey,
+        'Invoice__c',
+        lines.isEmpty() ? null : String.valueOf(lines[0].Invoice__c)
+      );
+    } catch (Exception ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+    return getInvoicePreview(contractHistoryId);
+  }
+
+  /** 仕様: Core 第7.7.3節、第7.6節、第7.9.6節、Accounting 第8.5節・第8.8節、日付仕様 第7.3節 */
+  @AuraEnabled
+  public static AccountingDiffService.CancelPreview previewInvoiceLineAcceptanceEndDate(
+    Id lineId,
+    Date acceptanceEndDate,
+    Date cancellationDate,
+    Id contractHistoryId
+  ) {
+    assertAcceptanceLineInPreviewScope(contractHistoryId, lineId);
+    return previewInvoiceLineAcceptanceEndDate(
+      lineId,
+      acceptanceEndDate,
+      cancellationDate
+    );
+  }
+
+  /** 仕様: Core 第7.6節、第7.9.6節、Accounting 第8.5節・第8.8節、日付仕様 第7.3節 */
+  public static AccountingDiffService.CancelPreview previewInvoiceLineAcceptanceEndDate(
+    Id lineId,
+    Date acceptanceEndDate,
+    Date cancellationDate
+  ) {
+    if (lineId == null) {
+      throw toAuraHandled('明細は必須です。');
+    }
+    try {
+      return InvoiceCanonicalService.previewLineAcceptanceEndDates(
+        new Map<Id, Date>{ lineId => acceptanceEndDate },
+        cancellationDate
+      );
+    } catch (Exception ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+  }
+
+  /** 仕様: Core 第7.8節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。 */
   public static InvoicePreviewDto updateInvoiceHeaderAndDates(
     Id contractHistoryId,
     Id invoiceId,
@@ -851,7 +1382,55 @@ public without sharing class OrderCreateController {
     Decimal taxPercent,
     String expectedContentVersion
   ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
+    return updateInvoiceHeaderAndDates(
+      contractHistoryId,
+      invoiceId,
+      invoiceDate,
+      paymentScheduledDate,
+      billingAddressee,
+      billingEmailTo,
+      billingEmailCc,
+      billingEmailBcc,
+      taxPercent,
+      expectedContentVersion,
+      null,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.8節、第7.9.7節、第11.4.4節。請求情報編集は操作キーと行ロックと版を共有する。 */
+  @AuraEnabled
+  public static InvoicePreviewDto updateInvoiceHeaderAndDates(
+    Id contractHistoryId,
+    Id invoiceId,
+    Date invoiceDate,
+    Date paymentScheduledDate,
+    String billingAddressee,
+    String billingEmailTo,
+    String billingEmailCc,
+    String billingEmailBcc,
+    Decimal taxPercent,
+    String expectedContentVersion,
+    String businessOperationKey,
+    Map<String, Object> extraFieldValues
+  ) {
+    List<Id> invoiceIds = new List<Id>{ invoiceId };
+    DraftEditPreparation prep = prepareDraftInvoiceEdit(
+      contractHistoryId,
+      invoiceIds,
+      null,
+      tokensForSingleOrShared(invoiceIds, expectedContentVersion),
+      businessOperationKey
+    );
+    if (prep.alreadyApplied) {
+      ContractOperationLogService.write(
+        'EditInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(invoiceId)
+      );
+      return getInvoicePreview(contractHistoryId);
+    }
     try {
       InvoiceCanonicalService.updateInvoiceHeaderAndDates(
         invoiceId,
@@ -863,7 +1442,15 @@ public without sharing class OrderCreateController {
         billingEmailCc,
         billingEmailBcc,
         null,
-        taxPercent
+        taxPercent,
+        extraFieldValues
+      );
+      stampDraftOperationKeys(invoiceIds, prep.operationKey);
+      ContractOperationLogService.write(
+        'EditInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(invoiceId)
       );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
@@ -871,24 +1458,61 @@ public without sharing class OrderCreateController {
     return getInvoicePreview(contractHistoryId);
   }
 
-  public static InvoicePreviewDto splitInvoiceByDate(
+  /** 仕様: Core 第7.8節、第7.9.7節 */
+  public static InvoicePreviewDto applyBillingAccountContent(
     Id contractHistoryId,
-    Id sourceInvoiceId,
-    Date newInvoiceDate,
-    Date newPaymentScheduledDate,
-    List<InvoiceCanonicalService.SplitLineInput> splitLines
+    Id invoiceId,
+    String expectedContentVersion
   ) {
-    return splitInvoiceByDate(
+    return applyBillingAccountContent(
       contractHistoryId,
-      sourceInvoiceId,
-      newInvoiceDate,
-      newPaymentScheduledDate,
-      splitLines,
+      invoiceId,
+      expectedContentVersion,
       null
     );
   }
 
+  /** 仕様: Core 第7.8節、第7.9.7節。請求アカウントの内容を反映は操作キーと行ロックと版を共有する。 */
   @AuraEnabled
+  public static InvoicePreviewDto applyBillingAccountContent(
+    Id contractHistoryId,
+    Id invoiceId,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    List<Id> invoiceIds = new List<Id>{ invoiceId };
+    DraftEditPreparation prep = prepareDraftInvoiceEdit(
+      contractHistoryId,
+      invoiceIds,
+      null,
+      tokensForSingleOrShared(invoiceIds, expectedContentVersion),
+      businessOperationKey
+    );
+    if (prep.alreadyApplied) {
+      ContractOperationLogService.write(
+        'ApplyBillingAccount',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(invoiceId)
+      );
+      return getInvoicePreview(contractHistoryId);
+    }
+    try {
+      InvoiceCanonicalService.applyBillingAccountContent(invoiceId);
+      stampDraftOperationKeys(invoiceIds, prep.operationKey);
+      ContractOperationLogService.write(
+        'ApplyBillingAccount',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(invoiceId)
+      );
+    } catch (Exception ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+    return getInvoicePreview(contractHistoryId);
+  }
+
+  /** 仕様: Core 第7.8節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。 */
   public static InvoicePreviewDto splitInvoiceByDate(
     Id contractHistoryId,
     Id sourceInvoiceId,
@@ -897,13 +1521,62 @@ public without sharing class OrderCreateController {
     List<InvoiceCanonicalService.SplitLineInput> splitLines,
     String expectedContentVersion
   ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
+    return splitInvoiceByDate(
+      contractHistoryId,
+      sourceInvoiceId,
+      newInvoiceDate,
+      newPaymentScheduledDate,
+      splitLines,
+      expectedContentVersion,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.8節、第7.9.7節。新しい請求へ分けるときは元だけをロックする。 */
+  @AuraEnabled
+  public static InvoicePreviewDto splitInvoiceByDate(
+    Id contractHistoryId,
+    Id sourceInvoiceId,
+    Date newInvoiceDate,
+    Date newPaymentScheduledDate,
+    List<InvoiceCanonicalService.SplitLineInput> splitLines,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    List<Id> invoiceIds = new List<Id>{ sourceInvoiceId };
+    DraftEditPreparation prep = prepareDraftInvoiceEdit(
+      contractHistoryId,
+      invoiceIds,
+      lineIdsOf(splitLines),
+      tokensForSingleOrShared(invoiceIds, expectedContentVersion),
+      businessOperationKey
+    );
+    if (prep.alreadyApplied) {
+      ContractOperationLogService.write(
+        'SplitToNewInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(sourceInvoiceId)
+      );
+      return getInvoicePreview(contractHistoryId);
+    }
     try {
-      InvoiceCanonicalService.splitInvoiceByDate(
+      Id createdId = InvoiceCanonicalService.splitInvoiceByDate(
         sourceInvoiceId,
         newInvoiceDate,
         newPaymentScheduledDate,
         splitLines
+      );
+      stampDraftOperationKeysAfterSplit(
+        sourceInvoiceId,
+        createdId,
+        prep.operationKey
+      );
+      ContractOperationLogService.write(
+        'SplitToNewInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(sourceInvoiceId)
       );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
@@ -911,13 +1584,15 @@ public without sharing class OrderCreateController {
     return getInvoicePreview(contractHistoryId);
   }
 
+  /** 仕様: Core 第7.8節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。 */
   public static InvoicePreviewDto splitInvoiceByBillingAccount(
     Id contractHistoryId,
     Id sourceInvoiceId,
     Id newBillingAccountId,
     Date newInvoiceDate,
     Date newPaymentScheduledDate,
-    List<InvoiceCanonicalService.SplitLineInput> splitLines
+    List<InvoiceCanonicalService.SplitLineInput> splitLines,
+    String expectedContentVersion
   ) {
     return splitInvoiceByBillingAccount(
       contractHistoryId,
@@ -926,10 +1601,12 @@ public without sharing class OrderCreateController {
       newInvoiceDate,
       newPaymentScheduledDate,
       splitLines,
+      expectedContentVersion,
       null
     );
   }
 
+  /** 仕様: Core 第7.8節、第7.9.7節。新しい請求へ分けるときは元だけをロックする。 */
   @AuraEnabled
   public static InvoicePreviewDto splitInvoiceByBillingAccount(
     Id contractHistoryId,
@@ -938,60 +1615,44 @@ public without sharing class OrderCreateController {
     Date newInvoiceDate,
     Date newPaymentScheduledDate,
     List<InvoiceCanonicalService.SplitLineInput> splitLines,
-    String expectedContentVersion
+    String expectedContentVersion,
+    String businessOperationKey
   ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
+    List<Id> invoiceIds = new List<Id>{ sourceInvoiceId };
+    DraftEditPreparation prep = prepareDraftInvoiceEdit(
+      contractHistoryId,
+      invoiceIds,
+      lineIdsOf(splitLines),
+      tokensForSingleOrShared(invoiceIds, expectedContentVersion),
+      businessOperationKey
+    );
+    if (prep.alreadyApplied) {
+      ContractOperationLogService.write(
+        'SplitToNewInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(sourceInvoiceId)
+      );
+      return getInvoicePreview(contractHistoryId);
+    }
     try {
-      InvoiceCanonicalService.splitInvoiceByBillingAccount(
+      Id createdId = InvoiceCanonicalService.splitInvoiceByBillingAccount(
         sourceInvoiceId,
         newBillingAccountId,
         newInvoiceDate,
         newPaymentScheduledDate,
         splitLines
       );
-    } catch (Exception ex) {
-      throw toAuraHandled(ex.getMessage());
-    }
-    return getInvoicePreview(contractHistoryId);
-  }
-
-  public static InvoicePreviewDto splitInvoiceByPeriod(
-    Id contractHistoryId,
-    Id sourceInvoiceId,
-    Date newInvoiceDate,
-    Date newPaymentScheduledDate,
-    List<Id> movePeriodLineIds,
-    Id newBillingAccountId
-  ) {
-    return splitInvoiceByPeriod(
-      contractHistoryId,
-      sourceInvoiceId,
-      newInvoiceDate,
-      newPaymentScheduledDate,
-      movePeriodLineIds,
-      newBillingAccountId,
-      null
-    );
-  }
-
-  @AuraEnabled
-  public static InvoicePreviewDto splitInvoiceByPeriod(
-    Id contractHistoryId,
-    Id sourceInvoiceId,
-    Date newInvoiceDate,
-    Date newPaymentScheduledDate,
-    List<Id> movePeriodLineIds,
-    Id newBillingAccountId,
-    String expectedContentVersion
-  ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
-    try {
-      InvoiceCanonicalService.splitInvoiceByPeriod(
+      stampDraftOperationKeysAfterSplit(
         sourceInvoiceId,
-        newInvoiceDate,
-        newPaymentScheduledDate,
-        movePeriodLineIds,
-        newBillingAccountId
+        createdId,
+        prep.operationKey
+      );
+      ContractOperationLogService.write(
+        'SplitToNewInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(sourceInvoiceId)
       );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
@@ -999,10 +1660,8 @@ public without sharing class OrderCreateController {
     return getInvoicePreview(contractHistoryId);
   }
 
-  /**
-   * 選択明細を既存請求へ全額移す（請求プレビュー「明細を移す」）。
-   */
-  @AuraEnabled
+
+  /** 仕様: Core 第7.8節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。 */
   public static InvoicePreviewDto moveLinesToExistingInvoice(
     Id contractHistoryId,
     Id sourceInvoiceId,
@@ -1010,40 +1669,64 @@ public without sharing class OrderCreateController {
     List<Id> lineIds,
     String expectedContentVersion
   ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
+    return moveLinesToExistingInvoice(
+      contractHistoryId,
+      sourceInvoiceId,
+      targetInvoiceId,
+      lineIds,
+      expectedContentVersion,
+      expectedContentVersion,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.8節、第7.9.7節。既存の未確定へ移すときは元と先の両方をロックする。 */
+  @AuraEnabled
+  public static InvoicePreviewDto moveLinesToExistingInvoice(
+    Id contractHistoryId,
+    Id sourceInvoiceId,
+    Id targetInvoiceId,
+    List<Id> lineIds,
+    String expectedContentVersion,
+    String expectedTargetContentVersion,
+    String businessOperationKey
+  ) {
+    List<Id> invoiceIds = new List<Id>{ sourceInvoiceId, targetInvoiceId };
+    Map<Id, String> tokens = new Map<Id, String>();
+    tokens.put(sourceInvoiceId, expectedContentVersion);
+    tokens.put(targetInvoiceId, expectedTargetContentVersion);
+    DraftEditPreparation prep = prepareDraftInvoiceEdit(
+      contractHistoryId,
+      invoiceIds,
+      lineIds,
+      tokens,
+      businessOperationKey
+    );
+    if (prep.alreadyApplied) {
+      ContractOperationLogService.write(
+        'MoveToExistingInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(sourceInvoiceId)
+      );
+      return getInvoicePreview(contractHistoryId);
+    }
     try {
       InvoiceCanonicalService.moveLinesToExistingInvoice(
         sourceInvoiceId,
         targetInvoiceId,
         lineIds
       );
-    } catch (Exception ex) {
-      throw toAuraHandled(ex.getMessage());
-    }
-    return getInvoicePreview(contractHistoryId);
-  }
-
-  /**
-   * 統一分割（明細ごと／単価／個数／月の混在）。請求プレビュー「わける」から呼ぶ。
-   */
-  @AuraEnabled
-  public static InvoicePreviewDto splitInvoiceUnified(
-    Id contractHistoryId,
-    Id sourceInvoiceId,
-    Date newInvoiceDate,
-    Date newPaymentScheduledDate,
-    Id newBillingAccountId,
-    List<InvoiceCanonicalService.SplitLineInput> splitLines,
-    String expectedContentVersion
-  ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
-    try {
-      InvoiceCanonicalService.splitInvoiceUnified(
+      stampDraftOperationKeysAfterSplit(
         sourceInvoiceId,
-        newInvoiceDate,
-        newPaymentScheduledDate,
-        newBillingAccountId,
-        splitLines
+        targetInvoiceId,
+        prep.operationKey
+      );
+      ContractOperationLogService.write(
+        'MoveToExistingInvoice',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(sourceInvoiceId)
       );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
@@ -1051,19 +1734,58 @@ public without sharing class OrderCreateController {
     return getInvoicePreview(contractHistoryId);
   }
 
-  /**
-   * 同一請求内の明細分割（単価／個数／月）。新請求は作らない。
-   */
-  @AuraEnabled
+
+  /** 仕様: Core 第7.8節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。 */
   public static InvoicePreviewDto splitLinesInPlace(
     Id contractHistoryId,
     Id invoiceId,
     List<InvoiceCanonicalService.SplitLineInput> splitLines,
     String expectedContentVersion
   ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
+    return splitLinesInPlace(
+      contractHistoryId,
+      invoiceId,
+      splitLines,
+      expectedContentVersion,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.8節、第7.9.7節。同一請求内分割は操作キーと行ロックと版を共有する。 */
+  @AuraEnabled
+  public static InvoicePreviewDto splitLinesInPlace(
+    Id contractHistoryId,
+    Id invoiceId,
+    List<InvoiceCanonicalService.SplitLineInput> splitLines,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    List<Id> invoiceIds = new List<Id>{ invoiceId };
+    DraftEditPreparation prep = prepareDraftInvoiceEdit(
+      contractHistoryId,
+      invoiceIds,
+      lineIdsOf(splitLines),
+      tokensForSingleOrShared(invoiceIds, expectedContentVersion),
+      businessOperationKey
+    );
+    if (prep.alreadyApplied) {
+      ContractOperationLogService.write(
+        'SplitLinesInPlace',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(invoiceId)
+      );
+      return getInvoicePreview(contractHistoryId);
+    }
     try {
       InvoiceCanonicalService.splitLinesInPlace(invoiceId, splitLines);
+      stampDraftOperationKeys(invoiceIds, prep.operationKey);
+      ContractOperationLogService.write(
+        'SplitLinesInPlace',
+        prep.operationKey,
+        'Invoice__c',
+        String.valueOf(invoiceId)
+      );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
@@ -1085,29 +1807,146 @@ public without sharing class OrderCreateController {
     }
   }
 
+  public static final String PREVIEW_SCOPE_MISMATCH_MESSAGE = '指定された請求／請求明細が、開いている契約サービスに属していません。画面を開き直してください。';
+
+  /** 仕様: Core 第7.7.3節、第7.6節 */
+  private static void assertAcceptanceLineInPreviewScope(
+    Id contractHistoryId,
+    Id lineId
+  ) {
+    if (lineId == null) {
+      throw toAuraHandled('明細は必須です。');
+    }
+    List<InvoiceLine__c> lines = [
+      SELECT Invoice__c
+      FROM InvoiceLine__c
+      WHERE Id = :lineId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (lines.isEmpty()) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    Id invoiceId = lines[0].Invoice__c;
+    Id contractServiceId = resolveContractServiceId(contractHistoryId);
+    if (contractServiceId == null) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    Integer inScopeInvoices = [
+      SELECT COUNT()
+      FROM Invoice__c
+      WHERE Id = :invoiceId AND ContractService__c = :contractServiceId
+      WITH SYSTEM_MODE
+    ];
+    if (inScopeInvoices != 1) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+  }
+
   public static final String RESET_POST_ORDER_NON_LATEST_MESSAGE = '最新の受注 Version 以外は受注直後の請求に戻せません。';
   public static final String RESET_POST_ORDER_VERSION_REQUIRED_MESSAGE = 'Version を指定してください。';
   public static final String RESET_POST_ORDER_VERSION_NOT_FOUND_MESSAGE = '指定の Version の受注履歴が見つかりません。';
+  /** 仕様: Core 第7.7.2節、第6.6節。拒否するのは有効な確定済みだけ。取消済みは妨げない。 */
+  public static final String RESET_POST_ORDER_ACTIVE_CONFIRMED_MESSAGE = '有効な確定済み請求がある Version は受注直後の請求に戻せません。';
+  /** @deprecated CHANGE-210。{@link #RESET_POST_ORDER_ACTIVE_CONFIRMED_MESSAGE} を使う。 */
+  public static final String RESET_POST_ORDER_CONFIRMED_OR_CANCELLED_MESSAGE = RESET_POST_ORDER_ACTIVE_CONFIRMED_MESSAGE;
 
   /**
    * 最新 Ordered Version の請求／期間明細だけを受注直後相当へ作り直す。
    * 過去 Version は触らない。ロックがある Version は generate 側で拒否。
+   * 仕様: Core 第7.7.2節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。
    */
-  @AuraEnabled
   public static InvoicePreviewDto resetLatestVersionInvoicesToPostOrder(
     Id contractHistoryId,
     String versionValue,
     String expectedContentVersion
   ) {
-    assertPreviewContentUnchanged(contractHistoryId, expectedContentVersion);
+    try {
+      Id targetHistoryId = resolveLatestOrderedHistoryIdForReset(
+        contractHistoryId,
+        versionValue
+      );
+      List<Id> draftInvoiceIds = draftInvoiceIdsOfHistory(targetHistoryId);
+      Map<String, String> tokenByInvoiceId = new Map<String, String>();
+      for (Id invoiceId : draftInvoiceIds) {
+        tokenByInvoiceId.put(String.valueOf(invoiceId), expectedContentVersion);
+      }
+      return resetLatestVersionInvoicesToPostOrder(
+        contractHistoryId,
+        versionValue,
+        tokenByInvoiceId,
+        null
+      );
+    } catch (Exception ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+  }
+
+  /**
+   * 最新 Ordered Version の請求／期間明細だけを受注直後相当へ作り直す。
+   * 仕様: Core 第7.7.2節、第7.9.7節。当該Versionの未確定請求をすべて行ロックする。
+   */
+  @AuraEnabled
+  public static InvoicePreviewDto resetLatestVersionInvoicesToPostOrder(
+    Id contractHistoryId,
+    String versionValue,
+    Map<String, String> expectedTokenByInvoiceId,
+    String businessOperationKey
+  ) {
     try {
       InvoiceCanonicalService.assertCanEditInvoicePreview();
       Id targetHistoryId = resolveLatestOrderedHistoryIdForReset(
         contractHistoryId,
         versionValue
       );
+      // 仕様: Core 第7.7.2節、第6.6節。有効確定が0件なら取消済みがあっても可。
+      assertLatestVersionHasNoActiveConfirmed(targetHistoryId);
+      List<Id> draftInvoiceIds = draftInvoiceIdsOfHistory(targetHistoryId);
+      Map<Id, String> tokens = new Map<Id, String>();
+      for (Id invoiceId : draftInvoiceIds) {
+        String token = null;
+        if (expectedTokenByInvoiceId != null) {
+          token = expectedTokenByInvoiceId.get(String.valueOf(invoiceId));
+        }
+        tokens.put(invoiceId, token);
+      }
+      // 仕様: Core 第7.7.2節・第7.9.7節。行ロックと版比較は当該Versionの未確定だけ。
+      DraftEditPreparation prep;
+      if (draftInvoiceIds.isEmpty()) {
+        prep = prepareResetPostOrderWithoutDrafts(
+          contractHistoryId,
+          businessOperationKey
+        );
+      } else {
+        prep = prepareDraftInvoiceEdit(
+          contractHistoryId,
+          draftInvoiceIds,
+          null,
+          tokens,
+          businessOperationKey
+        );
+      }
+      if (prep.alreadyApplied) {
+        ContractOperationLogService.write(
+          'ResetInvoicesToPostOrder',
+          prep.operationKey,
+          'ContractHistory__c',
+          String.valueOf(targetHistoryId)
+        );
+        return getInvoicePreview(contractHistoryId);
+      }
       InvoiceProductGenerationService.generateForHistories(
         new Set<Id>{ targetHistoryId }
+      );
+      stampDraftOperationKeys(
+        draftInvoiceIdsOfHistory(targetHistoryId),
+        prep.operationKey
+      );
+      ContractOperationLogService.write(
+        'ResetInvoicesToPostOrder',
+        prep.operationKey,
+        'ContractHistory__c',
+        String.valueOf(targetHistoryId)
       );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
@@ -1210,153 +2049,7 @@ public without sharing class OrderCreateController {
     public String name;
   }
 
-  /**
-   * 利用月で分ける UI 用。請求明細の由来期間明細を月次候補として返す（保存は別途）。
-   */
-  public class PeriodSplitCandidateDto {
-    @AuraEnabled
-    public Id periodLineId;
-    @AuraEnabled
-    public Id invoiceLineId;
-    @AuraEnabled
-    public String productName;
-    @AuraEnabled
-    public String periodLabel;
-    @AuraEnabled
-    public Date startDate;
-    @AuraEnabled
-    public Date endDate;
-    @AuraEnabled
-    public Decimal amount;
-  }
-
-  @AuraEnabled
-  public static List<PeriodSplitCandidateDto> getPeriodSplitCandidates(
-    Id invoiceId
-  ) {
-    ContractPermissionUtil.assertViewInvoicePreview();
-    List<PeriodSplitCandidateDto> rows = new List<PeriodSplitCandidateDto>();
-    if (invoiceId == null) {
-      return rows;
-    }
-
-    List<InvoiceLine__c> lines = [
-      SELECT Id, Amount__c, ProductName__c, SourcePeriodLineIds__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :invoiceId
-      WITH SYSTEM_MODE
-    ];
-    if (lines.isEmpty()) {
-      return rows;
-    }
-
-    Map<Id, Id> invoiceLineByPeriodId = new Map<Id, Id>();
-    Map<Id, String> productNameByPeriodId = new Map<Id, String>();
-    Map<Id, Decimal> lineAmountById = new Map<Id, Decimal>();
-    Set<Id> periodIds = new Set<Id>();
-    for (InvoiceLine__c line : lines) {
-      lineAmountById.put(line.Id, line.Amount__c == null ? 0 : line.Amount__c);
-      for (Id periodId : parseIdList(line.SourcePeriodLineIds__c)) {
-        periodIds.add(periodId);
-        invoiceLineByPeriodId.put(periodId, line.Id);
-        productNameByPeriodId.put(periodId, line.ProductName__c);
-      }
-    }
-    if (periodIds.isEmpty()) {
-      return rows;
-    }
-
-    List<InvoiceProduct__c> periodLines = [
-      SELECT
-        Id,
-        Amount__c,
-        StartDate__c,
-        Enddate__c,
-        ContractProduct__r.Product__r.Name
-      FROM InvoiceProduct__c
-      WHERE Id IN :periodIds
-      WITH SYSTEM_MODE
-      ORDER BY StartDate__c ASC NULLS LAST, CreatedDate ASC
-    ];
-
-    // 明細ごとに由来期間合計を取り、表示金額＝明細金額×（期間÷合計）に按分する
-    // （金額分割後も候補合計が請求明細税抜と一致するようにする）
-    Map<Id, Decimal> periodSumByLineId = new Map<Id, Decimal>();
-    for (InvoiceProduct__c periodLine : periodLines) {
-      Id lineId = invoiceLineByPeriodId.get(periodLine.Id);
-      if (lineId == null) {
-        continue;
-      }
-      Decimal periodAmount = periodLine.Amount__c == null
-        ? 0
-        : periodLine.Amount__c;
-      Decimal current = periodSumByLineId.containsKey(lineId)
-        ? periodSumByLineId.get(lineId)
-        : 0;
-      periodSumByLineId.put(lineId, current + periodAmount);
-    }
-
-    Map<Id, Decimal> allocatedByLineId = new Map<Id, Decimal>();
-    Map<Id, PeriodSplitCandidateDto> lastRowByLineId = new Map<Id, PeriodSplitCandidateDto>();
-    for (InvoiceProduct__c periodLine : periodLines) {
-      PeriodSplitCandidateDto row = new PeriodSplitCandidateDto();
-      row.periodLineId = periodLine.Id;
-      Id lineId = invoiceLineByPeriodId.get(periodLine.Id);
-      row.invoiceLineId = lineId;
-      String productName = periodLine.ContractProduct__r != null &&
-        periodLine.ContractProduct__r.Product__r != null
-        ? periodLine.ContractProduct__r.Product__r.Name
-        : null;
-      if (String.isBlank(productName)) {
-        productName = productNameByPeriodId.get(periodLine.Id);
-      }
-      row.productName = productName;
-      row.startDate = periodLine.StartDate__c;
-      row.endDate = periodLine.Enddate__c;
-      row.periodLabel = InvoiceProductMergeService.formatPeriod(
-        periodLine.StartDate__c,
-        periodLine.Enddate__c
-      );
-      Decimal periodAmount = periodLine.Amount__c == null
-        ? 0
-        : periodLine.Amount__c;
-      Decimal lineAmount = lineId != null && lineAmountById.containsKey(lineId)
-        ? lineAmountById.get(lineId)
-        : 0;
-      Decimal periodSum = lineId != null &&
-        periodSumByLineId.containsKey(lineId)
-        ? periodSumByLineId.get(lineId)
-        : 0;
-      if (periodSum == 0) {
-        row.amount = 0;
-      } else {
-        row.amount = (lineAmount *
-          periodAmount /
-          periodSum)
-          .setScale(0, RoundingMode.HALF_UP);
-      }
-      rows.add(row);
-      if (lineId != null) {
-        Decimal allocated = allocatedByLineId.containsKey(lineId)
-          ? allocatedByLineId.get(lineId)
-          : 0;
-        allocatedByLineId.put(lineId, allocated + row.amount);
-        lastRowByLineId.put(lineId, row);
-      }
-    }
-    // 按分の丸め差は最終行で吸収し、候補合計＝明細金額にする
-    for (Id lineId : lastRowByLineId.keySet()) {
-      PeriodSplitCandidateDto last = lastRowByLineId.get(lineId);
-      Decimal lineAmount = lineAmountById.get(lineId);
-      Decimal allocated = allocatedByLineId.get(lineId);
-      if (last != null && lineAmount != null && allocated != null) {
-        last.amount = last.amount + (lineAmount - allocated);
-      }
-    }
-    return rows;
-  }
-
-  // 業務データはクライアントキャッシュ禁止（差し戻し判定は常に最新）
+  // 仕様: Core 第5.3節、第7.8.3節。消すのは未確定。取消済みの手直しでは警告しない。
   @AuraEnabled
   public static Boolean hasManualInvoiceAdjustment(Id contractHistoryId) {
     if (contractHistoryId == null) {
@@ -1368,6 +2061,7 @@ public without sharing class OrderCreateController {
       WHERE
         ContractHistory__c = :contractHistoryId
         AND IsManuallyAdjusted__c = TRUE
+        AND InvoiceTransactionStatus__c = :InvoiceTransactionStatusService.TX_DRAFT
       WITH SYSTEM_MODE
     ];
     return count > 0;
@@ -1406,7 +2100,9 @@ public without sharing class OrderCreateController {
         history.Version__c
       );
       option.periodLineAmountTotal = 0;
+      option.periodLineTaxInclusiveTotal = 0;
       option.invoiceAmountTotal = 0;
+      option.invoiceTaxInclusiveTotal = 0;
       option.amountDifference = 0;
       option.manualAdjustmentAmount = 0;
       options.add(option);
@@ -1415,8 +2111,9 @@ public without sharing class OrderCreateController {
   }
 
   /**
-   * Version フィルタ用に、見積（請求月数按分）・請求・ずれを Version 別に載せる。
+   * Version フィルタ用に、見積（DeltaAmountSum）・請求・ずれを Version 別に載せる。
    * 見積側は Ordered のみ（Archive / Estimate を混ぜない）。
+   * 仕様: Core 第7.7.0節、第7.8.5節、第7.9.1節
    */
   private static void enrichVersionAmountSummaries(
     InvoicePreviewDto preview,
@@ -1437,8 +2134,14 @@ public without sharing class OrderCreateController {
       if (option.periodLineAmountTotal == null) {
         option.periodLineAmountTotal = 0;
       }
+      if (option.periodLineTaxInclusiveTotal == null) {
+        option.periodLineTaxInclusiveTotal = 0;
+      }
       if (option.invoiceAmountTotal == null) {
         option.invoiceAmountTotal = 0;
+      }
+      if (option.invoiceTaxInclusiveTotal == null) {
+        option.invoiceTaxInclusiveTotal = 0;
       }
       if (option.manualAdjustmentAmount == null) {
         option.manualAdjustmentAmount = 0;
@@ -1446,6 +2149,7 @@ public without sharing class OrderCreateController {
       optionByValue.put(option.value, option);
     }
 
+    Decimal displayTaxPercent = loadServiceDisplayTaxPercent(contractServiceId);
     ScopedEstimateSummary estimateSummary = buildScopedEstimateSummary(
       contractServiceId
     );
@@ -1457,8 +2161,16 @@ public without sharing class OrderCreateController {
       option.periodLineAmountTotal = estimateSummary.byVersion.get(value);
     }
 
-    for (InvoiceGroupDto invoice : preview.invoices) {
-      if (invoice == null || invoice.historyVersion == null) {
+    Decimal previewInvoiceIncl = 0;
+    List<InvoiceGroupDto> invoices = preview.invoices == null
+      ? new List<InvoiceGroupDto>()
+      : preview.invoices;
+    for (InvoiceGroupDto invoice : invoices) {
+      if (
+        invoice == null ||
+        invoice.historyVersion == null ||
+        invoice.isCancelled == true
+      ) {
         continue;
       }
       String value = String.valueOf(invoice.historyVersion.intValue());
@@ -1467,9 +2179,17 @@ public without sharing class OrderCreateController {
         continue;
       }
       Decimal amount = invoice.amountTotal == null ? 0 : invoice.amountTotal;
+      Decimal incl = invoice.taxInclusiveAmount == null
+        ? amount
+        : invoice.taxInclusiveAmount;
       option.invoiceAmountTotal =
         (option.invoiceAmountTotal == null ? 0 : option.invoiceAmountTotal) +
         amount;
+      option.invoiceTaxInclusiveTotal =
+        (option.invoiceTaxInclusiveTotal == null
+          ? 0
+          : option.invoiceTaxInclusiveTotal) + incl;
+      previewInvoiceIncl += incl;
     }
 
     for (VersionOptionDto option : preview.versionOptions) {
@@ -1479,11 +2199,23 @@ public without sharing class OrderCreateController {
       Decimal invoiceTotal = option.invoiceAmountTotal == null
         ? 0
         : option.invoiceAmountTotal;
+      option.periodLineTaxInclusiveTotal = inclusiveFromExcl(
+        periodTotal,
+        displayTaxPercent
+      );
+      if (option.invoiceTaxInclusiveTotal == null) {
+        option.invoiceTaxInclusiveTotal = 0;
+      }
       option.amountDifference = invoiceTotal - periodTotal;
       if (option.manualAdjustmentAmount == null) {
         option.manualAdjustmentAmount = 0;
       }
     }
+    preview.invoiceTaxInclusiveTotal = previewInvoiceIncl;
+    preview.periodLineTaxInclusiveTotal = inclusiveFromExcl(
+      preview.periodLineAmountTotal,
+      displayTaxPercent
+    );
   }
 
   private static Boolean hasOrderPermission() {
@@ -1517,10 +2249,7 @@ public without sharing class OrderCreateController {
     String historyStatus
   ) {
     if (historyStatus != HISTORY_STATUS_ORDERED) {
-      return '受注済み（Ordered）状態の契約履歴のみ差し戻しできます。';
-    }
-    if (ContractPermissionUtil.canBypassIntegrityGuards()) {
-      return null;
+      return '受注済み状態の契約履歴のみ差し戻しできます。';
     }
     String lockedReason = buildLockedRevertBlockedReason(contractHistoryId);
     if (String.isNotBlank(lockedReason)) {
@@ -1530,11 +2259,6 @@ public without sharing class OrderCreateController {
       !EstimateRevertInvoiceService.isLatestOrderedHistory(contractHistoryId)
     ) {
       return EstimateRevertInvoiceService.NON_LATEST_ORDERED_REVERT_MESSAGE;
-    }
-    if (
-      EstimateRevertInvoiceService.hasNewerEstimateVersion(contractHistoryId)
-    ) {
-      return EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE;
     }
     return null;
   }
@@ -1580,7 +2304,7 @@ public without sharing class OrderCreateController {
     ContractHistory__c history = histories[0];
     if (history.historystatus__c != HISTORY_STATUS_ORDERED) {
       throw toAuraHandled(
-        '受注済み（Ordered）状態の契約履歴のみ差し戻しできます。'
+        '受注済み状態の契約履歴のみ差し戻しできます。'
       );
     }
     return history;
@@ -1599,7 +2323,31 @@ public without sharing class OrderCreateController {
     }
     ContractHistory__c history = histories[0];
     if (history.historystatus__c != HISTORY_STATUS_ESTIMATE) {
-      throw toAuraHandled('見積（Estimate）状態の契約履歴のみ編集できます。');
+      throw toAuraHandled('見積状態の契約履歴のみ編集できます。');
+    }
+    return history;
+  }
+
+  private static ContractHistory__c loadEstimateHistoryForOrder(
+    Id contractHistoryId,
+    Boolean failAsConflict
+  ) {
+    if (contractHistoryId == null) {
+      throw toAuraHandled('契約履歴IDが指定されていません。');
+    }
+    List<ContractHistory__c> histories = queryEstimateHistoryForEdit(
+      contractHistoryId,
+      true
+    );
+    if (histories.isEmpty()) {
+      throw toAuraHandled('契約履歴が見つかりません。');
+    }
+    ContractHistory__c history = histories[0];
+    if (history.historystatus__c != HISTORY_STATUS_ESTIMATE) {
+      if (failAsConflict) {
+        throw ContractOptimisticLockUtil.conflict('契約履歴');
+      }
+      throw toAuraHandled('見積状態の契約履歴のみ編集できます。');
     }
     return history;
   }
@@ -1626,6 +2374,268 @@ public without sharing class OrderCreateController {
   private static Id resolveContractServiceId(Id contractHistoryId) {
     ContractHistory__c history = resolveHistoryForPreview(contractHistoryId);
     return history == null ? null : history.ContractService__c;
+  }
+
+  private static List<Invoice__c> previewInvoicesForIntegrity(
+    InvoicePreviewDto preview
+  ) {
+    Set<Id> invoiceIds = new Set<Id>();
+    if (preview != null && preview.invoices != null) {
+      for (InvoiceGroupDto group : preview.invoices) {
+        if (group != null && group.invoiceId != null) {
+          invoiceIds.add(group.invoiceId);
+        }
+      }
+    }
+    if (invoiceIds.isEmpty()) {
+      return new List<Invoice__c>();
+    }
+    return [
+      SELECT Id, ContractHistory__c
+      FROM Invoice__c
+      WHERE Id IN :invoiceIds
+      WITH SYSTEM_MODE
+    ];
+  }
+
+  /** 仕様: Core 第7.7.3節、第7.9.3節、第7.9.6節 */
+  @AuraEnabled
+  public static AccountingDiffService.CancelPreview previewCancelConfirmed(
+    Id invoiceId,
+    Date cancellationDate,
+    Id contractHistoryId
+  ) {
+    if (contractHistoryId == null || invoiceId == null) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    InvoiceOpsController.assertInvoicesInScope(
+      contractHistoryId,
+      new List<Id>{ invoiceId }
+    );
+    return previewCancelConfirmed(invoiceId, cancellationDate);
+  }
+
+  /** 仕様: Core 第7.9.3節 */
+  public static AccountingDiffService.CancelPreview previewCancelConfirmed(
+    Id invoiceId,
+    Date cancellationDate
+  ) {
+    try {
+      return InvoiceCancelService.previewConfirmed(invoiceId, cancellationDate);
+    } catch (Exception ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+  }
+
+  public static InvoicePreviewDto cancelConfirmedFromPreview(
+    Id contractHistoryId,
+    Id invoiceId,
+    String cancellationReason,
+    String cancellationReasonText,
+    Date cancellationDate,
+    String expectedContentVersion
+  ) {
+    return cancelConfirmedFromPreview(
+      contractHistoryId,
+      invoiceId,
+      cancellationReason,
+      cancellationReasonText,
+      cancellationDate,
+      expectedContentVersion,
+      null
+    );
+  }
+
+  /** 仕様: Core 第7.9.3節、第7.9.7節 */
+  @AuraEnabled
+  public static InvoicePreviewDto cancelConfirmedFromPreview(
+    Id contractHistoryId,
+    Id invoiceId,
+    String cancellationReason,
+    String cancellationReasonText,
+    Date cancellationDate,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    ContractPermissionUtil.assertCancelInvoice();
+    if (contractHistoryId == null || invoiceId == null) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    Id contractServiceId = resolveContractServiceId(contractHistoryId);
+    if (contractServiceId == null) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    Integer inScopeInvoices = [
+      SELECT COUNT()
+      FROM Invoice__c
+      WHERE Id = :invoiceId AND ContractService__c = :contractServiceId
+      WITH SYSTEM_MODE
+    ];
+    if (inScopeInvoices != 1) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    try {
+      InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
+      request.invoiceId = invoiceId;
+      request.cancellationReason = cancellationReason;
+      request.cancellationReasonText = cancellationReasonText;
+      request.cancellationDate = cancellationDate;
+      request.businessOperationKey = businessOperationKey;
+      request.expectedToken = expectedContentVersion;
+      InvoiceCancelService.cancelConfirmed(request);
+    } catch (Exception ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
+    return getInvoicePreview(contractHistoryId);
+  }
+
+  /**
+   * 仕様: Core 第7.7.2節、第6.6節、第1.1.5節。
+   * 有効な確定済みが1件でもあれば拒否する。取消済みだけでは拒否しない。
+   */
+  private static void assertLatestVersionHasNoActiveConfirmed(Id contractHistoryId) {
+    if (contractHistoryId == null) {
+      return;
+    }
+    for (Invoice__c invoice : [
+      SELECT InvoiceTransactionStatus__c
+      FROM Invoice__c
+      WHERE ContractHistory__c = :contractHistoryId
+      WITH SYSTEM_MODE
+    ]) {
+      if (InvoiceTransactionStatusService.isConfirmed(invoice)) {
+        throw new IllegalArgumentException(
+          RESET_POST_ORDER_ACTIVE_CONFIRMED_MESSAGE
+        );
+      }
+    }
+  }
+
+  /** @deprecated CHANGE-210。{@link #assertLatestVersionHasNoActiveConfirmed} を使う。 */
+  @TestVisible
+  private static void assertLatestVersionInvoicesAllDraft(Id contractHistoryId) {
+    assertLatestVersionHasNoActiveConfirmed(contractHistoryId);
+  }
+
+  /**
+   * 取消済みのみで未確定が無いときの受注直後戻し準備。
+   * 仕様: Core 第7.7.2節、第7.9.7節。
+   */
+  private static DraftEditPreparation prepareResetPostOrderWithoutDrafts(
+    Id contractHistoryId,
+    String businessOperationKey
+  ) {
+    Id contractServiceId = resolveContractServiceId(contractHistoryId);
+    String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+      businessOperationKey
+    );
+    DraftEditPreparation prep = new DraftEditPreparation();
+    prep.operationKey = operationKey;
+    prep.alreadyApplied = false;
+    if (String.isNotBlank(businessOperationKey) && contractServiceId != null) {
+      Integer existing = [
+        SELECT COUNT()
+        FROM Invoice__c
+        WHERE
+          ContractService__c = :contractServiceId
+          AND BusinessOperationKey__c = :operationKey
+        WITH SYSTEM_MODE
+      ];
+      if (existing > 0) {
+        prep.alreadyApplied = true;
+      }
+    }
+    return prep;
+  }
+
+  private static PreviewScopeDto fillScopeFromHistory(
+    PreviewScopeDto scope,
+    Id historyId,
+    Id invoiceId
+  ) {
+    List<ContractHistory__c> histories = [
+      SELECT Id, ContractService__c, Version__c, historystatus__c
+      FROM ContractHistory__c
+      WHERE Id = :historyId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (histories.isEmpty()) {
+      scope.blockReason = '契約履歴が見つかりません。';
+      return scope;
+    }
+    ContractHistory__c history = histories[0];
+    scope.contractHistoryId = history.Id;
+    scope.contractServiceId = history.ContractService__c;
+    scope.invoiceId = invoiceId;
+    if (history.historystatus__c == ContractDomainConstants.HISTORY_STATUS_ARCHIVE) {
+      scope.blockReason = 'アーカイブ済みの契約履歴では請求ボードは利用できません。';
+      return scope;
+    }
+    if (history.historystatus__c != HISTORY_STATUS_ORDERED) {
+      scope.blockReason = 'Estimate 状態の契約履歴です。「受注」ボタンをご利用ください。';
+      return scope;
+    }
+    scope.initialVersion = history.Version__c == null
+      ? null
+      : String.valueOf(history.Version__c.intValue());
+    scope.initialInvoiceId = invoiceId;
+    scope.canOpen = true;
+    return scope;
+  }
+
+  private static PreviewScopeDto fillScopeFromService(
+    PreviewScopeDto scope,
+    Id serviceId
+  ) {
+    List<ContractService__c> services = [
+      SELECT Id, LatestOrderedHistory__c
+      FROM ContractService__c
+      WHERE Id = :serviceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (services.isEmpty()) {
+      scope.blockReason = '契約サービスが見つかりません。';
+      return scope;
+    }
+    scope.contractServiceId = services[0].Id;
+    if (services[0].LatestOrderedHistory__c == null) {
+      scope.blockReason = 'Latest Ordered がない契約サービスでは請求ボードを開けません。';
+      return scope;
+    }
+    PreviewScopeDto filled = fillScopeFromHistory(
+      scope,
+      services[0].LatestOrderedHistory__c,
+      null
+    );
+    if (filled.canOpen == true) {
+      filled.initialVersion = 'ALL';
+      filled.initialInvoiceId = null;
+    }
+    return filled;
+  }
+
+  private static PreviewScopeDto fillScopeFromInvoice(
+    PreviewScopeDto scope,
+    Id invoiceId
+  ) {
+    List<Invoice__c> invoices = [
+      SELECT Id, ContractHistory__c
+      FROM Invoice__c
+      WHERE Id = :invoiceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (invoices.isEmpty() || invoices[0].ContractHistory__c == null) {
+      scope.blockReason = '請求書の契約履歴が見つかりません。';
+      return scope;
+    }
+    return fillScopeFromHistory(
+      scope,
+      invoices[0].ContractHistory__c,
+      invoices[0].Id
+    );
   }
 
   private static ContractHistory__c resolveHistoryForPreview(
@@ -1694,23 +2704,41 @@ public without sharing class OrderCreateController {
   private static List<ContractHistory__c> queryContractHistoryForOrderContext(
     Id contractHistoryId
   ) {
+    return queryContractHistoryForOrderContext(contractHistoryId, false);
+  }
+
+  private static List<ContractHistory__c> queryContractHistoryForOrderContext(
+    Id contractHistoryId,
+    Boolean lockForUpdate
+  ) {
     String editableFieldClause = buildOrderHistoryEditableFieldClause();
     String soql =
-      'SELECT Id, Name, Type__c, historystatus__c, Version__c, LastModifiedDate, ' +
-      'CurrentTermStartDate__c, CurrentTermEndDate__c, EffectiveDate__c' +
+      'SELECT Id, Name, Type__c, historystatus__c, Version__c, LastModifiedDate, BusinessOperationKey__c, ' +
+      'CurrentTermStartDate__c, CurrentTermEndDate__c, EffectiveDate__c, ' +
+      'Opportunity__c, CreateRenewOpportunity__c' +
       editableFieldClause +
       ', ContractService__c, ContractService__r.Name, ContractService__r.Lifecycle__c, ' +
       'ContractService__r.Account__r.Name, ContractService__r.BiilingAcccount__c, ' +
       'ContractService__r.BiilingAcccount__r.Name, ' +
-      'ContractService__r.BiilingAcccount__r.PaymentTerm__c, ' +
-      'ContractService__r.BiilingAcccount__r.BillingDayOfMonth__c, ' +
-      'ContractService__r.BiilingAcccount__r.AdjustInvoiceDateToBusinessDay__c, ' +
+      'ContractService__r.BiilingAcccount__r.InvoiceDateMethod__c, ' +
+      'ContractService__r.BiilingAcccount__r.InvoiceDateDayKind__c, ' +
+      'ContractService__r.BiilingAcccount__r.InvoiceDateDayOfMonth__c, ' +
+      'ContractService__r.BiilingAcccount__r.InvoiceDateMonthOffset__c, ' +
+      'ContractService__r.BiilingAcccount__r.InvoiceDateDayOffset__c, ' +
+      'ContractService__r.BiilingAcccount__r.InvoiceDateAdjust__c, ' +
+      'ContractService__r.BiilingAcccount__r.PaymentTermMethod__c, ' +
+      'ContractService__r.BiilingAcccount__r.PaymentTermDayKind__c, ' +
+      'ContractService__r.BiilingAcccount__r.PaymentTermDayOfMonth__c, ' +
+      'ContractService__r.BiilingAcccount__r.PaymentTermMonthOffset__c, ' +
+      'ContractService__r.BiilingAcccount__r.PaymentTermDayOffset__c, ' +
+      'ContractService__r.BiilingAcccount__r.PaymentTermAdjust__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingAddressee__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailTo__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailCc__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailBcc__c, ' +
       'ContractService__r.BiilingAcccount__r.Account__r.Name ' +
-      'FROM ContractHistory__c WHERE Id = :contractHistoryId LIMIT 1';
+      'FROM ContractHistory__c WHERE Id = :contractHistoryId LIMIT 1' +
+      (lockForUpdate ? ' FOR UPDATE' : '');
     return Database.queryWithBinds(
       soql,
       new Map<String, Object>{ 'contractHistoryId' => contractHistoryId },
@@ -1721,12 +2749,21 @@ public without sharing class OrderCreateController {
   private static List<ContractHistory__c> queryEstimateHistoryForEdit(
     Id contractHistoryId
   ) {
+    return queryEstimateHistoryForEdit(contractHistoryId, false);
+  }
+
+  private static List<ContractHistory__c> queryEstimateHistoryForEdit(
+    Id contractHistoryId,
+    Boolean lockForUpdate
+  ) {
     String editableFieldClause = buildOrderHistoryEditableFieldClause();
     String soql =
       'SELECT Id, Type__c, historystatus__c, Version__c, ContractService__c, ' +
-      'ContractService__r.Lifecycle__c, LastModifiedDate' +
+      'CreateRenewOpportunity__c, RenewOpportunityRequestCount__c, RenewalOpportunity__c, ' +
+      'ContractService__r.Lifecycle__c, ContractService__r.Account__c, LastModifiedDate, BusinessOperationKey__c' +
       editableFieldClause +
-      ' FROM ContractHistory__c WHERE Id = :contractHistoryId LIMIT 1';
+      ' FROM ContractHistory__c WHERE Id = :contractHistoryId LIMIT 1' +
+      (lockForUpdate ? ' FOR UPDATE' : '');
     return Database.queryWithBinds(
       soql,
       new Map<String, Object>{ 'contractHistoryId' => contractHistoryId },
@@ -1734,21 +2771,14 @@ public without sharing class OrderCreateController {
     );
   }
 
-  /**
-   * Spot（都度）契約では更新商談を作らない。
-   * Cancel / Add、Lifecycle=Spot、または Lifecycle 未確定かつ継続課金なし。
-   */
-  @TestVisible
-  private static Boolean shouldSkipRenewOpportunity(
+  /** 仕様: Core 第5.2節、第11.5節。Cancel、Spot、Lifecycle未確定かつ継続課金なしは作成要求の対象外。 */
+  public static Boolean shouldSkipRenewOpportunity(
     ContractHistory__c history
   ) {
     if (history == null) {
       return true;
     }
-    if (
-      history.Type__c == HISTORY_TYPE_CANCEL ||
-      history.Type__c == HISTORY_TYPE_ADD
-    ) {
+    if (history.Type__c == HISTORY_TYPE_CANCEL) {
       return true;
     }
     String lifecycle = history.ContractService__r == null
@@ -1769,14 +2799,14 @@ public without sharing class OrderCreateController {
       return false;
     }
     for (ContractProduct__c product : [
-      SELECT BillingType__c, Product__r.BillingType__c, Quantity__c
+      SELECT BillingType__c, Quantity__c
       FROM ContractProduct__c
       WHERE ContractHistory__c = :contractHistoryId AND Quantity__c > 0
       WITH SYSTEM_MODE
     ]) {
-      String billingType = String.isNotBlank(product.BillingType__c)
-        ? product.BillingType__c
-        : product.Product__r.BillingType__c;
+      String billingType = ContractMetadataService.resolveLineBillingType(
+        product
+      );
       if (ContractMetadataService.isRecurringBillingType(billingType)) {
         return true;
       }
@@ -1789,11 +2819,276 @@ public without sharing class OrderCreateController {
     String expectedContentVersion
   ) {
     Id contractServiceId = resolveContractServiceId(contractHistoryId);
-    ContractOptimisticLockUtil.assertUnchanged(
+    ContractOptimisticLockUtil.assertRequiredUnchanged(
       resolvePreviewContentDatetime(contractServiceId),
       expectedContentVersion,
-      '請求プレビュー'
+      '請求ボード'
     );
+  }
+
+  /** 仕様: Core 第7.9.7節。未確定編集の操作キー・行ロック・版比較。 */
+  private class DraftEditPreparation {
+    public String operationKey;
+    public Boolean alreadyApplied;
+  }
+
+  private static DraftEditPreparation prepareDraftInvoiceEdit(
+    Id contractHistoryId,
+    List<Id> invoiceIds,
+    List<Id> lineIds,
+    Map<Id, String> expectedTokenByInvoiceId,
+    String businessOperationKey
+  ) {
+    ContractPermissionUtil.assertEditDraftInvoice();
+    Id contractServiceId = resolveContractServiceId(contractHistoryId);
+    assertPreviewScope(
+      contractServiceId,
+      invoiceIds,
+      lineIds
+    );
+    String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+      businessOperationKey
+    );
+    DraftEditPreparation prep = new DraftEditPreparation();
+    prep.operationKey = operationKey;
+    prep.alreadyApplied = false;
+    if (String.isNotBlank(businessOperationKey) && contractServiceId != null) {
+      Integer existing = [
+        SELECT COUNT()
+        FROM Invoice__c
+        WHERE
+          ContractService__c = :contractServiceId
+          AND BusinessOperationKey__c = :operationKey
+        WITH SYSTEM_MODE
+      ];
+      if (existing > 0) {
+        prep.alreadyApplied = true;
+        return prep;
+      }
+    }
+    Set<Id> targetInvoiceIds = compactIds(invoiceIds);
+    if (targetInvoiceIds.isEmpty()) {
+      throw toAuraHandled('請求は必須です。');
+    }
+    List<Id> lockOrder = new List<Id>(targetInvoiceIds);
+    lockOrder.sort();
+    for (Id invoiceId : lockOrder) {
+      AccountingCauseLockService.lockInvoice(invoiceId);
+    }
+    for (Id invoiceId : lockOrder) {
+      String expectedToken = expectedTokenByInvoiceId == null
+        ? null
+        : expectedTokenByInvoiceId.get(invoiceId);
+      AccountingCauseLockService.assertInvoiceOperationUnchanged(
+        invoiceId,
+        expectedToken
+      );
+    }
+    return prep;
+  }
+
+  private static void assertPreviewScope(
+    Id contractServiceId,
+    List<Id> invoiceIds,
+    List<Id> lineIds
+  ) {
+    Set<Id> targetInvoiceIds = compactIds(invoiceIds);
+    Set<Id> targetLineIds = compactIds(lineIds);
+    if (targetInvoiceIds.isEmpty() && targetLineIds.isEmpty()) {
+      return;
+    }
+    if (contractServiceId == null) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    if (!targetInvoiceIds.isEmpty()) {
+      Integer inScopeInvoices = [
+        SELECT COUNT()
+        FROM Invoice__c
+        WHERE
+          Id IN :targetInvoiceIds
+          AND ContractService__c = :contractServiceId
+        WITH SYSTEM_MODE
+      ];
+      if (inScopeInvoices != targetInvoiceIds.size()) {
+        throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+      }
+    }
+    if (!targetLineIds.isEmpty()) {
+      Integer inScopeLines = [
+        SELECT COUNT()
+        FROM InvoiceLine__c
+        WHERE
+          Id IN :targetLineIds
+          AND Invoice__r.ContractService__c = :contractServiceId
+        WITH SYSTEM_MODE
+      ];
+      if (inScopeLines != targetLineIds.size()) {
+        throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+      }
+    }
+  }
+
+  private static void stampDraftOperationKeys(
+    List<Id> invoiceIds,
+    String operationKey
+  ) {
+    if (String.isBlank(operationKey)) {
+      return;
+    }
+    Set<Id> ids = compactIds(invoiceIds);
+    if (ids.isEmpty()) {
+      return;
+    }
+    List<Invoice__c> updates = new List<Invoice__c>();
+    for (Id invoiceId : ids) {
+      updates.add(
+        new Invoice__c(Id = invoiceId, BusinessOperationKey__c = operationKey)
+      );
+    }
+    Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+    InvoiceLockUtil.allowLockedStatusWrite = true;
+    try {
+      SystemContextAccess.updateRecords(updates);
+    } finally {
+      InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+    }
+  }
+
+  private static void stampDraftOperationKeysAfterSplit(
+    Id sourceInvoiceId,
+    Id createdOrTargetInvoiceId,
+    String operationKey
+  ) {
+    List<Id> surviving = new List<Id>();
+    Set<Id> candidates = new Set<Id>();
+    if (sourceInvoiceId != null) {
+      candidates.add(sourceInvoiceId);
+    }
+    if (createdOrTargetInvoiceId != null) {
+      candidates.add(createdOrTargetInvoiceId);
+    }
+    for (Invoice__c invoice : [
+      SELECT Id
+      FROM Invoice__c
+      WHERE Id IN :candidates
+      WITH SYSTEM_MODE
+    ]) {
+      surviving.add(invoice.Id);
+    }
+    stampDraftOperationKeys(surviving, operationKey);
+  }
+
+  private static List<Id> invoiceIdsOfLines(List<Id> lineIds) {
+    List<Id> invoiceIds = new List<Id>();
+    Set<Id> lineIdSet = compactIds(lineIds);
+    if (lineIdSet.isEmpty()) {
+      return invoiceIds;
+    }
+    for (InvoiceLine__c line : [
+      SELECT Invoice__c
+      FROM InvoiceLine__c
+      WHERE Id IN :lineIdSet
+      WITH SYSTEM_MODE
+    ]) {
+      if (line.Invoice__c != null) {
+        invoiceIds.add(line.Invoice__c);
+      }
+    }
+    return new List<Id>(compactIds(invoiceIds));
+  }
+
+  /** 仕様: Core 第7.7.2節・第7.9.7節。未確定だけ。取消済みは含めない。 */
+  private static List<Id> draftInvoiceIdsOfHistory(Id contractHistoryId) {
+    List<Id> invoiceIds = new List<Id>();
+    if (contractHistoryId == null) {
+      return invoiceIds;
+    }
+    for (Invoice__c invoice : [
+      SELECT Id, InvoiceTransactionStatus__c
+      FROM Invoice__c
+      WHERE ContractHistory__c = :contractHistoryId
+      WITH SYSTEM_MODE
+      ORDER BY Id
+    ]) {
+      if (InvoiceTransactionStatusService.isDraft(invoice)) {
+        invoiceIds.add(invoice.Id);
+      }
+    }
+    return invoiceIds;
+  }
+
+  private static Map<Id, String> tokensForSingleOrShared(
+    List<Id> invoiceIds,
+    String expectedContentVersion
+  ) {
+    Map<Id, String> tokens = new Map<Id, String>();
+    for (Id invoiceId : compactIds(invoiceIds)) {
+      tokens.put(invoiceId, expectedContentVersion);
+    }
+    return tokens;
+  }
+
+  /**
+   * プレビュー編集の共通前提。楽観ロックに加え、
+   * 対象請求／明細が開いている契約履歴の契約サービス配下であることを確認する。
+   * 画面から来た Id を無条件に信じない（他サービス・他顧客の書き換え防止）。
+   */
+  private static void assertPreviewRequest(
+    Id contractHistoryId,
+    String expectedContentVersion,
+    List<Id> invoiceIds,
+    List<Id> lineIds
+  ) {
+    Id contractServiceId = resolveContractServiceId(contractHistoryId);
+    ContractOptimisticLockUtil.assertRequiredUnchanged(
+      resolvePreviewContentDatetime(contractServiceId),
+      expectedContentVersion,
+      '請求ボード'
+    );
+    assertPreviewScope(contractServiceId, invoiceIds, lineIds);
+  }
+
+  private static Set<Id> compactIds(List<Id> ids) {
+    Set<Id> compacted = new Set<Id>();
+    if (ids == null) {
+      return compacted;
+    }
+    for (Id value : ids) {
+      if (value != null) {
+        compacted.add(value);
+      }
+    }
+    return compacted;
+  }
+
+  private static List<Id> lineIdsOf(
+    List<InvoiceCanonicalService.LineAmountEdit> edits
+  ) {
+    List<Id> ids = new List<Id>();
+    if (edits == null) {
+      return ids;
+    }
+    for (InvoiceCanonicalService.LineAmountEdit edit : edits) {
+      if (edit != null && edit.lineId != null) {
+        ids.add(edit.lineId);
+      }
+    }
+    return ids;
+  }
+
+  private static List<Id> lineIdsOf(
+    List<InvoiceCanonicalService.SplitLineInput> splitLines
+  ) {
+    List<Id> ids = new List<Id>();
+    if (splitLines == null) {
+      return ids;
+    }
+    for (InvoiceCanonicalService.SplitLineInput splitLine : splitLines) {
+      if (splitLine != null && splitLine.lineId != null) {
+        ids.add(splitLine.lineId);
+      }
+    }
+    return ids;
   }
 
   private static String resolvePreviewContentToken(Id contractServiceId) {
@@ -1849,9 +3144,18 @@ public without sharing class OrderCreateController {
         BillingEmailTo__c,
         BillingEmailCc__c,
         BillingEmailBcc__c,
-        PaymentTerm__c,
-        BillingDayOfMonth__c,
-        AdjustInvoiceDateToBusinessDay__c
+        InvoiceDateMethod__c,
+        InvoiceDateDayKind__c,
+        InvoiceDateDayOfMonth__c,
+        InvoiceDateMonthOffset__c,
+        InvoiceDateDayOffset__c,
+        InvoiceDateAdjust__c,
+        PaymentTermMethod__c,
+        PaymentTermDayKind__c,
+        PaymentTermDayOfMonth__c,
+        PaymentTermMonthOffset__c,
+        PaymentTermDayOffset__c,
+        PaymentTermAdjust__c
       FROM BillingAccount__c
       WHERE Id = :billingAccount.Id
       WITH SYSTEM_MODE
@@ -1866,12 +3170,9 @@ public without sharing class OrderCreateController {
     values.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
     values.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
     values.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
-    values.put('PaymentTerm__c', loaded.PaymentTerm__c);
-    values.put('BillingDayOfMonth__c', loaded.BillingDayOfMonth__c);
-    values.put(
-      'AdjustInvoiceDateToBusinessDay__c',
-      loaded.AdjustInvoiceDateToBusinessDay__c == true
-    );
+    for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
+      values.put(fieldApiName, loaded.get(fieldApiName));
+    }
     return values;
   }
 
@@ -1886,6 +3187,14 @@ public without sharing class OrderCreateController {
     if (contractServiceId == null) {
       return preview;
     }
+    /** 仕様: Core 第11.9節、第1.1.10節 */
+    GlAccountingSetting__mdt amountSetting = AmountCalculationSettingService.requireOrgDefault();
+    preview.taxRoundingMode = amountSetting.TaxRoundingMode__c;
+    preview.quantityUnitPriceRoundingMode = amountSetting.QuantityUnitPriceRoundingMode__c;
+    preview.amountRoundingMode = amountSetting.AmountRoundingMode__c;
+    preview.invoiceLockExemptFieldApiNames = tryLockExemptNames();
+    preview.paymentLockExemptFieldApiNames = tryPaymentLockExemptNames();
+    preview.journalLockExemptFieldApiNames = tryJournalLockExemptNames();
 
     List<Invoice__c> invoices = [
       SELECT
@@ -1896,10 +3205,20 @@ public without sharing class OrderCreateController {
         PaymentScheduledDate__c,
         Amount__c,
         TaxAmount__c,
+        TaxInclusiveAmount__c,
         TaxPercent__c,
+        InvoiceTransactionStatus__c,
+        DeliveryStatus__c,
+        CollectionRefundStatus__c,
+        DueStatus__c,
+        OverdueDays__c,
+        Memo__c,
+        InvoicePaymentNet__c,
+        SentDate__c,
+        PaymentInclusiveTotal__c,
         SystemIntegrationDate__c,
         PaymentClearingCompletedDate__c,
-        PaymentClearedAmount__c,
+        LastModifiedDate,
         IsManuallyAdjusted__c,
         IsAmountAdjusted__c,
         IsSplitMoved__c,
@@ -1912,7 +3231,8 @@ public without sharing class OrderCreateController {
         BillingEmailToSnapShot__c,
         BillingEmailCcSnapShot__c,
         BillingEmailBccSnapShot__c,
-        PaymentTermSnapShot__c,
+        InvoiceDeliveryMethodSnapShot__c,
+        PaymentTermMethodSnapShot__c,
         (
           SELECT
             Id,
@@ -1928,6 +3248,8 @@ public without sharing class OrderCreateController {
             IsAmountAdjusted__c,
             IsSplitMoved__c,
             SourcePeriodLineIds__c,
+            AcceptanceEndDate__c,
+            RevenueRecognitionBasis__c,
             ContractProduct__c,
             ContractProduct__r.Amount__c,
             ContractProduct__r.Unit__c,
@@ -1940,6 +3262,15 @@ public without sharing class OrderCreateController {
       WITH SYSTEM_MODE
       ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC
     ];
+    Set<Id> previewInvoiceIds = new Set<Id>();
+    for (Invoice__c invoiceRecord : invoices) {
+      previewInvoiceIds.add(invoiceRecord.Id);
+    }
+    Map<Id, Datetime> operationDatetimes = AccountingCauseLockService.resolveInvoiceOperationDatetimes(
+      previewInvoiceIds
+    );
+    Map<Id, Map<String, Object>> invoiceExtraById =
+      InvoiceOpsFieldService.readValuesById('Invoice__c', previewInvoiceIds);
 
     // 見積バーは Ordered CP.Amount を請求月数で按分した値（InvoiceProduct 金額合算ではない）。
     Decimal periodTotal = buildScopedEstimateSummary(contractServiceId).total;
@@ -1963,7 +3294,8 @@ public without sharing class OrderCreateController {
       invoice.billingEmailTo = invoiceRecord.BillingEmailToSnapShot__c;
       invoice.billingEmailCc = invoiceRecord.BillingEmailCcSnapShot__c;
       invoice.billingEmailBcc = invoiceRecord.BillingEmailBccSnapShot__c;
-      invoice.paymentTerm = invoiceRecord.PaymentTermSnapShot__c;
+      invoice.invoiceDeliveryMethod = invoiceRecord.InvoiceDeliveryMethodSnapShot__c;
+      invoice.paymentTerm = invoiceRecord.PaymentTermMethodSnapShot__c;
       invoice.invoiceDate = formatDate(invoiceRecord.InvoiceDate__c);
       invoice.paymentScheduledDate = formatDate(
         invoiceRecord.PaymentScheduledDate__c
@@ -1988,6 +3320,38 @@ public without sharing class OrderCreateController {
         : invoiceRecord.ContractHistory__r.Version__c;
       Boolean locked = InvoiceLockUtil.isLocked(invoiceRecord);
       invoice.locked = locked;
+      invoice.invoiceTransactionStatus = invoiceRecord.InvoiceTransactionStatus__c;
+      invoice.deliveryStatus = invoiceRecord.DeliveryStatus__c;
+      invoice.dueStatus = invoiceRecord.DueStatus__c;
+      invoice.overdueDays = invoiceRecord.OverdueDays__c;
+      invoice.accountingStatus = null;
+      invoice.accountingIssueName = null;
+      invoice.sentDate = invoiceRecord.SentDate__c;
+      invoice.latestIssuedContentDocumentId = EstimateDocumentService.latestIssuedContentDocumentId(
+        invoiceRecord.Id
+      );
+      invoice.memo = invoiceRecord.Memo__c;
+      invoice.extraFieldValues = invoiceExtraById.get(invoiceRecord.Id);
+      invoice.invoiceTransactionStatus = invoiceRecord.InvoiceTransactionStatus__c;
+      invoice.isCancelled = InvoiceTransactionStatusService.isCancelled(
+        invoiceRecord
+      );
+      invoice.invoicePaymentNet = invoiceRecord.InvoicePaymentNet__c == null
+        ? 0
+        : invoiceRecord.InvoicePaymentNet__c;
+      invoice.taxInclusiveAmount = invoiceRecord.TaxInclusiveAmount__c == null
+        ? amountTotal + taxTotal
+        : invoiceRecord.TaxInclusiveAmount__c;
+      invoice.paymentNetTotal = invoiceRecord.PaymentInclusiveTotal__c == null
+        ? 0
+        : invoiceRecord.PaymentInclusiveTotal__c;
+      invoice.canConfirm = InvoiceTransactionStatusService.isDraft(invoiceRecord);
+      invoice.canUnconfirm = false;
+      invoice.lastModifiedToken = ContractOptimisticLockUtil.toToken(
+        operationDatetimes.containsKey(invoiceRecord.Id)
+          ? operationDatetimes.get(invoiceRecord.Id)
+          : invoiceRecord.LastModifiedDate
+      );
       InvoicePaymentStatusUtil.StatusAmounts statusAmounts = InvoicePaymentStatusUtil.resolveStatusAmounts(
         invoiceRecord,
         amountTotal
@@ -1997,7 +3361,15 @@ public without sharing class OrderCreateController {
       invoice.openAmount = statusAmounts.openAmount;
       invoice.lines = new List<InvoiceMergedLineDto>();
 
-      invoiceTotal += amountTotal;
+      if (!invoice.isCancelled) {
+        invoiceTotal += amountTotal;
+        preview.invoiceCount++;
+        preview.totalAmount += amountTotal;
+        preview.totalTaxAmount += taxTotal;
+        preview.integratedAmount += invoice.integratedAmount;
+        preview.clearedAmount += invoice.clearedAmount;
+        preview.openAmount += invoice.openAmount;
+      }
       if (invoice.isManuallyAdjusted) {
         hasManual = true;
       }
@@ -2037,6 +3409,10 @@ public without sharing class OrderCreateController {
           line.isManuallyAdjusted = lineRecord.IsManuallyAdjusted__c == true;
           line.isAmountAdjusted = lineRecord.IsAmountAdjusted__c == true;
           line.isSplitMoved = lineRecord.IsSplitMoved__c == true;
+          line.acceptanceEndDate = lineRecord.AcceptanceEndDate__c;
+          line.revenueRecognitionBasis = ContractMetadataService.normalizeRevenueRecognitionBasis(
+            lineRecord.RevenueRecognitionBasis__c
+          );
           line.contractProductId = lineRecord.ContractProduct__c;
           line.sourceInvoiceProductIds = parseIdList(
             lineRecord.SourcePeriodLineIds__c
@@ -2057,12 +3433,6 @@ public without sharing class OrderCreateController {
       }
 
       preview.invoices.add(invoice);
-      preview.invoiceCount++;
-      preview.totalAmount += amountTotal;
-      preview.totalTaxAmount += taxTotal;
-      preview.integratedAmount += invoice.integratedAmount;
-      preview.clearedAmount += invoice.clearedAmount;
-      preview.openAmount += invoice.openAmount;
     }
 
     preview.periodLineAmountTotal = periodTotal;
@@ -2354,7 +3724,6 @@ public without sharing class OrderCreateController {
     Decimal estimate,
     Map<Id, Decimal> periodAmountById
   ) {
-    Integer cpCycles = resolveCpCycles(product);
     Set<Id> uniquePeriodIds = new Set<Id>();
     Map<Id, List<InvoiceMergedLineDto>> linesByPeriodId = new Map<Id, List<InvoiceMergedLineDto>>();
     Map<Id, Decimal> weightByLineId = new Map<Id, Decimal>();
@@ -2387,11 +3756,7 @@ public without sharing class OrderCreateController {
     }
 
     Integer totalMonths = uniquePeriodIds.size();
-    Decimal scopedEstimate = prorateEstimateByMonths(
-      estimate,
-      totalMonths,
-      cpCycles
-    );
+    Decimal scopedEstimate = scopeEstimateAmount(product, estimate, totalMonths);
     if (totalMonths < 1) {
       for (InvoiceMergedLineDto line : cpLines) {
         Decimal lineAmount = line.amount == null ? 0 : line.amount;
@@ -2536,8 +3901,8 @@ public without sharing class OrderCreateController {
   }
 
   /**
-   * Ordered CP.Amount を請求生成月数で按分した見積合計。
-   * 継続: Amount × (IP件数 / CP月数)。一回: IP が1件以上あれば Amount 全額。
+   * 仕様: Core 第7.8.5節、第7.9.1節。
+   * 見積税抜は Ordered 契約履歴の DeltaAmountSum__c。件数按分は使わない。
    */
   private static ScopedEstimateSummary buildScopedEstimateSummary(
     Id contractServiceId
@@ -2547,72 +3912,85 @@ public without sharing class OrderCreateController {
       return summary;
     }
 
-    List<ContractProduct__c> products = [
-      SELECT
-        Id,
-        Amount__c,
-        BillingType__c,
-        StartDate__c,
-        Enddate__c,
-        ContractHistory__r.Version__c
-      FROM ContractProduct__c
+    Set<Decimal> seenVersions = new Set<Decimal>();
+    for (ContractHistory__c history : [
+      SELECT Version__c, DeltaAmountSum__c
+      FROM ContractHistory__c
       WHERE
-        ContractHistory__r.ContractService__c = :contractServiceId
-        AND ContractHistory__r.historystatus__c = :HISTORY_STATUS_ORDERED
+        ContractService__c = :contractServiceId
+        AND historystatus__c = :HISTORY_STATUS_ORDERED
       WITH SYSTEM_MODE
-    ];
-    if (products.isEmpty()) {
-      return summary;
-    }
-
-    Set<Id> contractProductIds = new Set<Id>();
-    for (ContractProduct__c product : products) {
-      contractProductIds.add(product.Id);
-    }
-
-    Map<Id, Integer> invoicedMonthsByCp = new Map<Id, Integer>();
-    for (AggregateResult ar : [
-      SELECT ContractProduct__c cpId, COUNT(Id) cnt
-      FROM InvoiceProduct__c
-      WHERE ContractProduct__c IN :contractProductIds
-      WITH SYSTEM_MODE
-      GROUP BY ContractProduct__c
+      ORDER BY Version__c ASC
     ]) {
-      invoicedMonthsByCp.put((Id) ar.get('cpId'), (Integer) ar.get('cnt'));
-    }
-
-    for (ContractProduct__c product : products) {
-      Decimal amount = product.Amount__c == null ? 0 : product.Amount__c;
-      Integer invoicedMonths = invoicedMonthsByCp.containsKey(product.Id)
-        ? invoicedMonthsByCp.get(product.Id)
-        : 0;
-      Decimal scoped;
-      if (
-        ContractMetadataService.isRecurringBillingType(product.BillingType__c)
-      ) {
-        scoped = prorateEstimateByMonths(
-          amount,
-          invoicedMonths,
-          resolveCpCycles(product)
-        );
-      } else {
-        scoped = invoicedMonths > 0 ? amount : 0;
-      }
-      summary.total += scoped;
-
-      Decimal version = product.ContractHistory__r == null
-        ? null
-        : product.ContractHistory__r.Version__c;
-      if (version == null) {
+      if (history.Version__c == null || seenVersions.contains(history.Version__c)) {
         continue;
       }
-      String value = String.valueOf(version.intValue());
-      Decimal current = summary.byVersion.containsKey(value)
-        ? summary.byVersion.get(value)
-        : 0;
-      summary.byVersion.put(value, current + scoped);
+      seenVersions.add(history.Version__c);
+      Decimal amount = history.DeltaAmountSum__c == null
+        ? 0
+        : history.DeltaAmountSum__c;
+      summary.total += amount;
+      String value = String.valueOf(history.Version__c.intValue());
+      summary.byVersion.put(value, amount);
     }
     return summary;
+  }
+
+  /** 仕様: Core 第7.8.5節。明細側の参照用。見積税抜合計の正本は buildScopedEstimateSummary。 */
+  private static Decimal scopeEstimateAmount(
+    ContractProduct__c product,
+    Decimal amount,
+    Integer invoicedMonths
+  ) {
+    if (amount == null || invoicedMonths == null || invoicedMonths < 1) {
+      return 0;
+    }
+    if (
+      product == null ||
+      !ContractMetadataService.isRecurringBillingType(product.BillingType__c)
+    ) {
+      return amount;
+    }
+    Integer cycles = resolveCpCycles(product);
+    if (cycles < 1) {
+      return amount;
+    }
+    return (amount * invoicedMonths / cycles)
+      .setScale(0, RoundingMode.HALF_UP);
+  }
+
+  private static Decimal loadServiceDisplayTaxPercent(Id contractServiceId) {
+    if (contractServiceId == null) {
+      return null;
+    }
+    List<ContractService__c> services = [
+      SELECT TaxPercent__c
+      FROM ContractService__c
+      WHERE Id = :contractServiceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (services.isEmpty()) {
+      return null;
+    }
+    return TaxCalculationUtil.fromPercentFieldStorage(
+      services[0].TaxPercent__c
+    );
+  }
+
+  private static Decimal inclusiveFromExcl(
+    Decimal excl,
+    Decimal displayPercent
+  ) {
+    Decimal amount = excl == null ? 0 : excl;
+    if (displayPercent == null) {
+      return amount;
+    }
+    try {
+      return TaxCalculationUtil.calculateAmountInclTax(amount, displayPercent);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      return amount;
+    }
   }
 
   private static Integer resolveCpCycles(ContractProduct__c product) {
@@ -2630,23 +4008,6 @@ public without sharing class OrderCreateController {
       product.Enddate__c
     );
     return cycles == null || cycles < 1 ? 1 : cycles;
-  }
-
-  private static Decimal prorateEstimateByMonths(
-    Decimal amount,
-    Integer months,
-    Integer cpCycles
-  ) {
-    Decimal estimate = amount == null ? 0 : amount;
-    Integer cycles = cpCycles == null || cpCycles < 1 ? 1 : cpCycles;
-    Integer monthCount = months == null || months < 0 ? 0 : months;
-    if (monthCount < 1) {
-      return 0;
-    }
-    return (estimate *
-      monthCount /
-      cycles)
-      .setScale(0, System.RoundingMode.HALF_UP);
   }
 
   private static Integer countLineMonths(
@@ -2697,6 +4058,32 @@ public without sharing class OrderCreateController {
     return ids;
   }
 
+  private static List<String> tryLockExemptNames() {
+    try {
+      return new List<String>(InvoiceLockUtil.resolveLockExemptFieldNames());
+    } catch (InvoiceLockUtil.LockExemptException ex) {
+      return new List<String>();
+    }
+  }
+
+  private static List<String> tryPaymentLockExemptNames() {
+    try {
+      return new List<String>(
+        InvoicePaymentLockUtil.resolveLockExemptFieldNames()
+      );
+    } catch (InvoicePaymentLockUtil.LockExemptException ex) {
+      return new List<String>();
+    }
+  }
+
+  private static List<String> tryJournalLockExemptNames() {
+    try {
+      return new List<String>(JournalLockService.resolveLockExemptFieldNames());
+    } catch (JournalLockService.LockException ex) {
+      return new List<String>();
+    }
+  }
+
   private static InvoicePreviewDto emptyPreview() {
     InvoicePreviewDto preview = new InvoicePreviewDto();
     preview.totalAmount = 0;
@@ -2712,10 +4099,13 @@ public without sharing class OrderCreateController {
     preview.canEdit = false;
     preview.versionEditBlocked = false;
     preview.periodLineAmountTotal = 0;
+    preview.periodLineTaxInclusiveTotal = 0;
     preview.invoiceAmountTotal = 0;
+    preview.invoiceTaxInclusiveTotal = 0;
     preview.amountDifference = 0;
     preview.manualAdjustmentAmount = 0;
     preview.hasManualAdjustment = false;
+    preview.operationDay = InvoiceTransactionStatusService.organizationToday();
     return preview;
   }
 

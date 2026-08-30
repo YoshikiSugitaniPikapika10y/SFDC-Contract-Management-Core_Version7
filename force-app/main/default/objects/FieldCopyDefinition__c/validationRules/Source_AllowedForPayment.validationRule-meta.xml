@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Source_AllowedForPayment</fullName>
+    <active>true</active>
+    <description>仕様: Core 第11.4.2節。入出金のFrom。</description>
+    <errorConditionFormula>AND(
+        ISPICKVAL(TargetObject__c, "InvoicePayment__c"),
+        NOT(
+            OR(
+                ISPICKVAL(SourceObject__c, "Invoice__c"),
+                ISPICKVAL(SourceObject__c, "BillingAccount__c"),
+                ISPICKVAL(SourceObject__c, "ContractHistory__c"),
+                ISPICKVAL(SourceObject__c, "Opportunity"),
+                ISPICKVAL(SourceObject__c, "Account")
+            )
+        )
+    )</errorConditionFormula>
+    <errorDisplayField>SourceObject__c</errorDisplayField>
+    <errorMessage>入出金のFromは請求書、請求アカウント、契約履歴、商談、取引先です。</errorMessage>
+</ValidationRule>

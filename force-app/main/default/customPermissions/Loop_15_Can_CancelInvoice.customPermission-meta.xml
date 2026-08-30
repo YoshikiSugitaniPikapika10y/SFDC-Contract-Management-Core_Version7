@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>確定済み請求を取り消す。閲覧を含む。11・13・14・101〜104 では代替しない</description>
+    <isLicensed>false</isLicensed>
+    <label>15 契約 確定済み請求を取り消す</label>
+</CustomPermission>

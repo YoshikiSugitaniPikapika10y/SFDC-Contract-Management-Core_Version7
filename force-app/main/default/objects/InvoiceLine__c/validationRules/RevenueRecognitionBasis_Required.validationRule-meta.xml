@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>RevenueRecognitionBasis_Required</fullName>
+    <active>true</active>
+    <description>請求明細の認識正本は月次計上／一括計上の2択必須。</description>
+    <errorConditionFormula>ISBLANK(TEXT(RevenueRecognitionBasis__c))</errorConditionFormula>
+    <errorDisplayField>RevenueRecognitionBasis__c</errorDisplayField>
+    <errorMessage>売上計上基準は月次計上または一括計上を指定してください。</errorMessage>
+</ValidationRule>

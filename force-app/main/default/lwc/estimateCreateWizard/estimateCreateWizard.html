@@ -125,6 +125,7 @@
                 </button>
               </template>
               <template if:true={isStep2}>
+                <template lwc:if={canSaveEstimate}>
                 <button
                   type="button"
                   class="est-btn est-btn_header-primary"
@@ -133,6 +134,7 @@
                 >
                   保存
                 </button>
+                </template>
               </template>
             </nav>
           </div>
@@ -215,7 +217,7 @@
               loading-contract-history={loadingContractHistory}
               opportunity-default-context={opportunityDefaultContext}
               service-field-definitions={serviceFieldDefinitions}
-              history-field-definitions={historyFieldDefinitions}
+              history-field-definitions={displayedHistoryFieldDefinitions}
               product-field-definitions={productFieldDefinitions}
               onchangefield={handleStep3Change}
               onloadingchange={handleStep3Loading}

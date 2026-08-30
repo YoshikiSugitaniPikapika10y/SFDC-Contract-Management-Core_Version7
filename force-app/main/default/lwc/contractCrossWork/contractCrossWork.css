@@ -1,0 +1,363 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: calc(100vh - 9rem);
+  color: #0f172a;
+  font-family: "Salesforce Sans", Arial, sans-serif;
+}
+
+.cross-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: inherit;
+  background: #f8fafc;
+  box-sizing: border-box;
+}
+
+.cross-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.cross-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.menu {
+  display: flex;
+  gap: 0.25rem;
+  flex: 1 1 auto;
+}
+
+.menu-btn,
+.btn,
+.icon-btn,
+.page-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.menu-btn {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.5rem;
+  color: #475569;
+}
+
+.menu-btn.is-active {
+  background: #eef4ff;
+  color: #0b5cab;
+}
+
+.btn {
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.btn_secondary {
+  background: #ffffff;
+  border-color: #dddbda;
+  color: #181818;
+}
+
+.btn_link {
+  color: #0b5cab;
+}
+
+/* 仕様: 横断画面.md 第2.4節、第5節 */
+.btn_save {
+  background: #0b5cab;
+  color: #ffffff;
+}
+
+.lock-locked .btn_save {
+  background: #ba0517;
+}
+
+.btn:disabled,
+.page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.alert {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+}
+
+.alert_error {
+  background: #fdecea;
+  color: #ba0517;
+}
+
+.alert_warn {
+  background: #fff4e5;
+  color: #8a4b08;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(20rem, 46%) minmax(0, 54%);
+  gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.split.split_column-mode {
+  grid-template-columns: 1fr;
+}
+
+.split.split_column-mode .pane-left {
+  border-right: 0;
+}
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.pane-left {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e2e8f0;
+}
+
+.pane-right {
+  padding: 0.75rem 1rem 1rem;
+  overflow: auto;
+}
+
+.filters,
+.group-sort,
+.journal-bar {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.35rem 0.6rem;
+}
+
+.column-mode-toggle {
+  max-width: 6.5rem;
+  align-self: end;
+}
+
+.extra-cell {
+  min-width: 8rem;
+}
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.tag-chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tag-chip.is-true {
+  background: #0b5cab;
+  border-color: #0b5cab;
+  color: #ffffff;
+}
+
+.tag-chip.is-false {
+  background: #e2e8f0;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.group-item,
+.sort-row,
+.journal-bar,
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.4rem 0.6rem;
+}
+
+.icon-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid #dddbda;
+  border-radius: 0.35rem;
+  background: #ffffff;
+}
+
+/* 仕様: 横断画面.md 第2.4節、第5節。チェックは選択済みの塗り。未選択の枠は既定色。 */
+.lock-unlocked lightning-input.lock-check {
+  --slds-c-checkbox-color-background-checked: #0b5cab;
+  --slds-c-checkbox-color-border-checked: #0b5cab;
+}
+
+.lock-locked lightning-input.lock-check {
+  --slds-c-checkbox-color-background-checked: #ba0517;
+  --slds-c-checkbox-color-border-checked: #ba0517;
+}
+
+.table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+.cross-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.cross-table th,
+.cross-table td {
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.cross-table th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+  color: #475569;
+}
+
+/* 仕様: 横断画面.md 第5節 */
+.confirm-cell,
+.memo-cell {
+  white-space: normal;
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.memo-cell lightning-input {
+  min-width: 12rem;
+  width: 100%;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-row {
+  cursor: pointer;
+}
+
+.data-row:hover {
+  background: #f8fafc;
+}
+
+.data-row.is-selected {
+  background: #eef4ff;
+}
+
+.group-header td {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.group-total td {
+  background: #f4f6f7;
+  font-weight: 700;
+}
+
+.row-cancel td {
+  background: #fdecea;
+}
+
+.row-locked td {
+  background: #eef4ff;
+}
+
+.sub {
+  font-size: 0.6875rem;
+  color: #64748b;
+}
+
+.pager {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.page-btn {
+  min-width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid #dddbda;
+  border-radius: 0.35rem;
+  background: #ffffff;
+}
+
+.page-btn.is-active {
+  background: #0b5cab;
+  border-color: #0b5cab;
+  color: #ffffff;
+}
+
+.page-ellipsis {
+  color: #94a3b8;
+}
+
+.right-empty {
+  margin: 2rem 0 0;
+  color: #64748b;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: #ffffff;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+@media (max-width: 64rem) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .pane-left {
+    border-right: 0;
+    border-bottom: 1px solid #e2e8f0;
+    max-height: 55vh;
+  }
+}

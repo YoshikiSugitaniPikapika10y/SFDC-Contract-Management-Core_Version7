@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ComparisonOperator__c</fullName>
+    <description>仕様: Accounting 第7.2節。保存値 EQ／NE／GT／GTE／LT／LTE。画面表示は =／!=／&gt;／&gt;=／&lt;／&lt;=</description>
+    <label>比較演算子</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>EQ</fullName>
+                <default>false</default>
+                <label>=</label>
+            </value>
+            <value>
+                <fullName>NE</fullName>
+                <default>false</default>
+                <label>!=</label>
+            </value>
+            <value>
+                <fullName>GT</fullName>
+                <default>false</default>
+                <label>&gt;</label>
+            </value>
+            <value>
+                <fullName>GTE</fullName>
+                <default>false</default>
+                <label>&gt;=</label>
+            </value>
+            <value>
+                <fullName>LT</fullName>
+                <default>false</default>
+                <label>&lt;</label>
+            </value>
+            <value>
+                <fullName>LTE</fullName>
+                <default>false</default>
+                <label>&lt;=</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

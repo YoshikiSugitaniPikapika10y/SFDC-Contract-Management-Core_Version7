@@ -1,4 +1,5 @@
 <template>
+  <template lwc:if={canOrder}>
   <template if:true={isCancelConfirm}>
     <div class={cancelPageClass}>
       <header class="confirm-header">
@@ -12,14 +13,27 @@
           </span>
           <div class="confirm-heading-text">
             <h1 class="confirm-title">受注</h1>
-            <p class="confirm-subtitle">Cancel を Ordered にします</p>
+            <p class="confirm-subtitle">解約を受注済みにします</p>
           </div>
         </div>
       </header>
 
       <main class="confirm-body">
         <template if:true={errorMessage}>
-          <div class="alert alert_error" role="alert">{errorMessage}</div>
+          <div class="alert alert_error" role="alert">
+            <div>{errorMessage}</div>
+            <template if:true={contentLoadFailed}>
+              <div class="alert-reload">
+                <button
+                  type="button"
+                  class="btn btn_secondary"
+                  onclick={handleContentReload}
+                >
+                  再読み込み
+                </button>
+              </div>
+            </template>
+          </div>
         </template>
 
         <template if:true={showBootstrapLoading}>
@@ -35,13 +49,28 @@
           <template if:true={hasContext}>
             <section class="confirm-card">
               <p class="confirm-lead">
-                この Cancel 見積を受注します。よろしいですか？
+                この解約見積を受注します。よろしいですか？
               </p>
               <ul class="confirm-list">
-                <li>契約ステータスが解約（Churn）として確定します</li>
+                <li>契約ステータスが解約として確定します</li>
                 <li>請求・契約期間明細は作成されません</li>
                 <li>更新商談は作成されません</li>
               </ul>
+              <template if:true={showHistoryFields}>
+                <div class="confirm-history-fields">
+                  <p class="confirm-history-title">追加項目</p>
+                  <c-estimate-wizard-custom-field-grid
+                    fields={historyFieldInputs}
+                    field-target="history"
+                    oncustomfieldchange={handleHistoryFieldChange}
+                  ></c-estimate-wizard-custom-field-grid>
+                </div>
+              </template>
+              <c-order-create-step-billing
+                class="slds-hide"
+                context={context}
+                billing-custom-fields={billingCustomFields}
+              ></c-order-create-step-billing>
             </section>
           </template>
 
@@ -115,7 +144,18 @@
 
         <template if:true={errorMessage}>
           <div class="ord-alert ord-alert_error ord-alert_banner">
-            {errorMessage}
+            <div>{errorMessage}</div>
+            <template if:true={contentLoadFailed}>
+              <div class="alert-reload">
+                <button
+                  type="button"
+                  class="ord-btn ord-btn_secondary"
+                  onclick={handleContentReload}
+                >
+                  再読み込み
+                </button>
+              </div>
+            </template>
           </div>
         </template>
 
@@ -130,6 +170,17 @@
           </template>
 
           <template if:false={showBootstrapLoading}>
+            <template if:true={showHistoryFields}>
+              <section class="ord-history-fields">
+                <h2 class="ord-section-title">追加項目</h2>
+                <c-estimate-wizard-custom-field-grid
+                  fields={historyFieldInputs}
+                  field-target="history"
+                  oncustomfieldchange={handleHistoryFieldChange}
+                ></c-estimate-wizard-custom-field-grid>
+              </section>
+            </template>
+
             <template if:true={showBillingStep}>
               <c-order-create-step-billing
                 context={context}
@@ -158,5 +209,6 @@
         </main>
       </template>
     </div>
+  </template>
   </template>
 </template>

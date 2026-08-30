@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ShowOnNonInvoicePurpose__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>仕様: Core 第11.4.4節。入出金の請求金額以外目的で表示。明示trueだけ。請求書・仕訳でtrueなら設定エラー。</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>請求金額以外目的で表示</label>
+    <type>Checkbox</type>
+</CustomField>

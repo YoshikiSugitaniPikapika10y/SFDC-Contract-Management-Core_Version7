@@ -6,7 +6,9 @@ import {
   buildWizardDataFromPreset,
   canLeaveCurrentStep,
   shouldLoadPreset,
-  createRowId
+  createRowId,
+  applyEstimateDocumentDefaults,
+  followEstimateValidDate
 } from "c/estimateWizardState";
 
 const dispatch = (state, action) => reduceWizardState(state, action);
@@ -27,6 +29,7 @@ function filledState() {
       contractServiceId: "svcA",
       contractHistoryId: "hisA",
       billingAccountId: "acc1",
+      estimateSendContactId: "003SENDCONTACT",
       contractServiceCustomFields: { Memo__c: "S" },
       contractHistoryCustomFields: { Memo__c: "H" }
     }
@@ -116,8 +119,24 @@ describe("SET_TYPE", () => {
     expect(after.data.changeSourceProducts).toEqual([]);
     expect(after.data.estimateRemarks).toBe("");
     expect(after.data.billingAccountId).toBe("");
+    expect(after.data.estimateSendContactId).toBe("");
     expect(after.data.contractServiceCustomFields).toEqual({});
     expect(after.data.contractHistoryCustomFields).toEqual({});
+  });
+
+  it("Newの見積送付先初期値は商談の主責任者", () => {
+    let state = createInitialWizardState();
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SET_OPPORTUNITY,
+      opportunityName: "商談X",
+      accountName: "取引先Y",
+      opportunityContactId: "003CONTACT"
+    });
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SET_TYPE,
+      selectedType: "New"
+    });
+    expect(state.data.estimateSendContactId).toBe("003CONTACT");
   });
 
   it("商談由来の情報はタイプ変更でも保持する", () => {
@@ -207,7 +226,38 @@ describe("SET_TYPE", () => {
       selectedType: "Renew"
     });
     expect(state.data.selectedType).toBe("Renew");
-    expect(state.data.contractServiceId).toBe("svc1");
+    expect(state.data.contractServiceId).toBe("");
+    expect(state.data.serviceLifecycle).toBe("");
+  });
+
+  it("Cancel は Latest Ordered の履歴名末尾に解約を付ける", () => {
+    let state = createInitialWizardState();
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SET_ENTRY_MODE,
+      entryMode: "continuation"
+    });
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SELECT_CONTRACT_SERVICE_START,
+      contractServiceId: "svc1",
+      contractServiceName: "継続サービス",
+      serviceLifecycle: "Term"
+    });
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SELECT_CONTRACT_SERVICE_SUCCESS,
+      requestId: state.async.serviceRequestId,
+      result: {
+        historyId: "hisA",
+        historyName: "2026年度 契約",
+        version: 1,
+        nextVersion: 2,
+        renewEligible: true
+      }
+    });
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SET_TYPE,
+      selectedType: "Cancel"
+    });
+    expect(state.data.contractHistoryName).toBe("2026年度 契約 解約");
   });
 });
 
@@ -730,6 +780,51 @@ describe("商品明細行の ID", () => {
     for (let i = 0; i < 100; i++) {
       expect(existing.has(createRowId())).toBe(false);
     }
+  });
+});
+
+describe("見積日・有効期限の初期値", () => {
+  const defaults = {
+    today: "2026-08-28",
+    estimateValidMonths: 1,
+    defaultMonthlyCycles: 12,
+    estimateSendMode: "PdfOnly",
+    taxRoundingMode: "DOWN",
+    quantityUnitPriceRoundingMode: "Scale2HalfUp",
+    amountRoundingMode: "Scale0HalfUp"
+  };
+
+  it("未入力なら見積日＝今日、有効期限＝暦月N後", () => {
+    const next = applyEstimateDocumentDefaults(createInitialWizardState(), defaults);
+    expect(next.data.estimateDate).toBe("2026-08-28");
+    expect(next.data.estimateValidDate).toBe("2026-09-28");
+    expect(next.data.taxRoundingMode).toBe("DOWN");
+    expect(next.data.quantityUnitPriceRoundingMode).toBe("Scale2HalfUp");
+    expect(next.data.amountRoundingMode).toBe("Scale0HalfUp");
+  });
+
+  it("使わないなら日付を付けない", () => {
+    const next = applyEstimateDocumentDefaults(createInitialWizardState(), {
+      ...defaults,
+      estimateSendMode: "Unused"
+    });
+    expect(next.data.estimateDate).toBe("");
+    expect(next.data.estimateValidDate).toBe("");
+  });
+
+  it("触った有効期限は見積日に追従しない", () => {
+    expect(
+      followEstimateValidDate("2026-08-28", 1, true, "2026-12-01")
+    ).toBe("2026-12-01");
+    expect(followEstimateValidDate("2026-08-28", 1, false, "")).toBe(
+      "2026-09-28"
+    );
+  });
+
+  it("1月31日の1か月後は2月28日", () => {
+    expect(followEstimateValidDate("2026-01-31", 1, false, "")).toBe(
+      "2026-02-28"
+    );
   });
 });
 

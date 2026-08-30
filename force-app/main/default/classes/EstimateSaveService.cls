@@ -9,7 +9,6 @@ public without sharing class EstimateSaveService {
   private static final String HISTORY_TYPE_CHANGE = ContractDomainConstants.HISTORY_TYPE_CHANGE;
   private static final String HISTORY_TYPE_RENEW = ContractDomainConstants.HISTORY_TYPE_RENEW;
   private static final String HISTORY_TYPE_CANCEL = ContractDomainConstants.HISTORY_TYPE_CANCEL;
-  private static final String HISTORY_TYPE_ADD = ContractDomainConstants.HISTORY_TYPE_ADD;
   private static final String BILLING_TYPE_RECURRING = ContractDomainConstants.BILLING_TYPE_RECURRING;
   private static final String BILLING_TYPE_ONE_TIME = ContractDomainConstants.BILLING_TYPE_ONE_TIME;
   private static final String MONTHLY_BILLING_CYCLE = ContractDomainConstants.MONTHLY_BILLING_CYCLE;
@@ -138,7 +137,9 @@ public without sharing class EstimateSaveService {
       editHistoryId,
       contractServiceCustomFieldsJson,
       contractHistoryCustomFieldsJson,
-      null
+      editHistoryId == null
+        ? null
+        : ContractOptimisticLockUtil.toHistoryProductToken(editHistoryId)
     );
   }
 
@@ -162,6 +163,114 @@ public without sharing class EstimateSaveService {
     String contractServiceCustomFieldsJson,
     String contractHistoryCustomFieldsJson,
     String expectedLastModifiedToken
+  ) {
+    return saveEstimate(
+      opportunityId,
+      selectedType,
+      contractServiceName,
+      contractHistoryName,
+      contractServiceId,
+      previousHistoryId,
+      contractStartDate,
+      contractEndDate,
+      effectiveDate,
+      applicationDate,
+      productsJson,
+      estimateRemarkMasterId,
+      remarksText,
+      billingAccountId,
+      copyFromHistoryId,
+      editHistoryId,
+      contractServiceCustomFieldsJson,
+      contractHistoryCustomFieldsJson,
+      expectedLastModifiedToken,
+      // Apex テスト互換。画面初期値は Core 第4.6節の10%。Auraの taxPercent 付き経路は null を埋めない。
+      selectedType == HISTORY_TYPE_NEW ? 10 : null,
+      null,
+      null,
+      null
+    );
+  }
+
+  public static EstimateCreateController.EstimateSaveResult saveEstimate(
+    Id opportunityId,
+    String selectedType,
+    String contractServiceName,
+    String contractHistoryName,
+    Id contractServiceId,
+    Id previousHistoryId,
+    String contractStartDate,
+    String contractEndDate,
+    String effectiveDate,
+    String applicationDate,
+    String productsJson,
+    Id estimateRemarkMasterId,
+    String remarksText,
+    Id billingAccountId,
+    Id copyFromHistoryId,
+    Id editHistoryId,
+    String contractServiceCustomFieldsJson,
+    String contractHistoryCustomFieldsJson,
+    String expectedLastModifiedToken,
+    Decimal taxPercent,
+    String estimateDate,
+    String estimateValidDate,
+    Id estimateSendContactId
+  ) {
+    return saveEstimate(
+      opportunityId,
+      selectedType,
+      contractServiceName,
+      contractHistoryName,
+      contractServiceId,
+      previousHistoryId,
+      contractStartDate,
+      contractEndDate,
+      effectiveDate,
+      applicationDate,
+      productsJson,
+      estimateRemarkMasterId,
+      remarksText,
+      billingAccountId,
+      copyFromHistoryId,
+      editHistoryId,
+      contractServiceCustomFieldsJson,
+      contractHistoryCustomFieldsJson,
+      expectedLastModifiedToken,
+      taxPercent,
+      estimateDate,
+      estimateValidDate,
+      estimateSendContactId,
+      null
+    );
+  }
+
+  /** 仕様: Core 第4.3.12節 */
+  public static EstimateCreateController.EstimateSaveResult saveEstimate(
+    Id opportunityId,
+    String selectedType,
+    String contractServiceName,
+    String contractHistoryName,
+    Id contractServiceId,
+    Id previousHistoryId,
+    String contractStartDate,
+    String contractEndDate,
+    String effectiveDate,
+    String applicationDate,
+    String productsJson,
+    Id estimateRemarkMasterId,
+    String remarksText,
+    Id billingAccountId,
+    Id copyFromHistoryId,
+    Id editHistoryId,
+    String contractServiceCustomFieldsJson,
+    String contractHistoryCustomFieldsJson,
+    String expectedLastModifiedToken,
+    Decimal taxPercent,
+    String estimateDate,
+    String estimateValidDate,
+    Id estimateSendContactId,
+    String businessOperationKey
   ) {
     EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
     request.opportunityId = opportunityId;
@@ -187,7 +296,14 @@ public without sharing class EstimateSaveService {
       contractHistoryCustomFieldsJson
     );
     request.contractHistoryName = contractHistoryName;
-    mergeApplicationDateIntoHistoryCustomFields(request);
+    // 仕様: Core 第1.1.10節、第4.6節。Newの税率nullは10で埋めない。初期値10%は画面入力。
+    request.taxPercent = taxPercent;
+    request.estimateDate = estimateDate;
+    request.estimateValidDate = estimateValidDate;
+    request.estimateSendContactId = estimateSendContactId;
+    request.businessOperationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+      businessOperationKey
+    );
 
     if (
       request.opportunityId == null &&
@@ -208,7 +324,17 @@ public without sharing class EstimateSaveService {
     }
 
     if (request.editHistoryId != null) {
-      return saveEditedEstimate(request, contractHistoryName);
+      return writeEstimateLog(
+        request,
+        saveEditedEstimate(request, contractHistoryName)
+      );
+    }
+
+    EstimateCreateController.EstimateSaveResult existingByKey = findExistingByOperationKey(
+      request.businessOperationKey
+    );
+    if (existingByKey != null) {
+      return writeEstimateLog(request, existingByKey);
     }
 
     EstimateValidationService.validateWizardCustomFields(request, false);
@@ -218,7 +344,10 @@ public without sharing class EstimateSaveService {
         request,
         contractHistoryName
       );
-      return saveNewEstimate(request, contractHistoryName);
+      return writeEstimateLog(
+        request,
+        saveNewEstimate(request, contractHistoryName)
+      );
     }
 
     if (request.selectedType == 'Change') {
@@ -226,7 +355,10 @@ public without sharing class EstimateSaveService {
         request,
         contractHistoryName
       );
-      return saveChangeEstimate(request, contractHistoryName);
+      return writeEstimateLog(
+        request,
+        saveChangeEstimate(request, contractHistoryName)
+      );
     }
 
     if (request.selectedType == 'Renew') {
@@ -234,7 +366,10 @@ public without sharing class EstimateSaveService {
         request,
         contractHistoryName
       );
-      return saveChangeEstimate(request, contractHistoryName);
+      return writeEstimateLog(
+        request,
+        saveChangeEstimate(request, contractHistoryName)
+      );
     }
 
     if (request.selectedType == 'Cancel') {
@@ -242,32 +377,40 @@ public without sharing class EstimateSaveService {
         request,
         contractHistoryName
       );
-      return saveCancelEstimate(request, contractHistoryName);
-    }
-
-    if (request.selectedType == HISTORY_TYPE_ADD) {
-      EstimateValidationService.validateAddSaveRequest(
+      return writeEstimateLog(
         request,
-        contractHistoryName
+        saveCancelEstimate(request, contractHistoryName)
       );
-      return saveChangeEstimate(request, contractHistoryName);
     }
 
     throw EstimateValidationService.estSaveException(
       '002',
-      'New、Change、Renew、Cancel、Addタイプのみ保存できます。'
+      'New、Change、Renew、Cancelタイプのみ保存できます。'
     );
   }
 
+  /** 仕様: Core 第4.3.12節 */
   public static EstimateCreateController.EstimateSaveResult saveEditedEstimate(
     EstimateCreateController.EstimateSaveRequest request,
     String contractHistoryName
   ) {
+    if (request != null) {
+      request.businessOperationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
+        request.businessOperationKey
+      );
+    }
     ContractHistory__c existing = loadEditableEstimateHistory(
       request.editHistoryId
     );
-    ContractOptimisticLockUtil.assertHistoryUnchanged(
-      existing,
+    if (existing.BusinessOperationKey__c == request.businessOperationKey) {
+      return buildSaveResult(
+        existing.ContractService__c,
+        existing.Id,
+        existing.Id
+      );
+    }
+    ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+      existing.Id,
       request.expectedLastModifiedToken
     );
     if (existing.Opportunity__c != request.opportunityId) {
@@ -289,8 +432,7 @@ public without sharing class EstimateSaveService {
     if (
       existing.Type__c == 'Change' ||
       existing.Type__c == 'Renew' ||
-      existing.Type__c == 'Cancel' ||
-      existing.Type__c == HISTORY_TYPE_ADD
+      existing.Type__c == 'Cancel'
     ) {
       request.previousHistoryId = existing.PreviousHistory__c;
       request.contractServiceId = existing.ContractService__c;
@@ -334,23 +476,20 @@ public without sharing class EstimateSaveService {
       );
       return updateCancelEstimate(existing, request, contractHistoryName);
     }
-    if (request.selectedType == HISTORY_TYPE_ADD) {
-      EstimateValidationService.validateAddSaveRequest(
-        request,
-        contractHistoryName
-      );
-      return updateChangeEstimate(existing, request, contractHistoryName);
-    }
-
     throw EstimateValidationService.estSaveException(
       '002',
-      'New、Change、Renew、Cancel、Addタイプのみ保存できます。'
+      'New、Change、Renew、Cancelタイプのみ保存できます。'
     );
   }
 
   public static ContractHistory__c loadEditableEstimateHistory(
     Id editHistoryId
   ) {
+    if (editHistoryId == null) {
+      throw EstimateValidationService.wrapAura(
+        '編集対象の契約履歴が見つかりません。'
+      );
+    }
     List<ContractHistory__c> histories = [
       SELECT
         Id,
@@ -361,11 +500,12 @@ public without sharing class EstimateSaveService {
         Opportunity__c,
         ContractService__c,
         PreviousHistory__c,
-        LastModifiedDate
+        LastModifiedDate,
+        BusinessOperationKey__c
       FROM ContractHistory__c
       WHERE Id = :editHistoryId
       WITH SYSTEM_MODE
-      LIMIT 1
+      FOR UPDATE
     ];
     if (histories.isEmpty()) {
       throw EstimateValidationService.wrapAura(
@@ -384,6 +524,7 @@ public without sharing class EstimateSaveService {
     return history;
   }
 
+  /** 仕様: Core 第4.3節、第4.3.1節、第11.4.3節。Ordered編集は見積追加項目と受注追加項目だけを保存する。 */
   public static EstimateCreateController.EstimateSaveResult updateOrderedEstimateCustomFieldsOnly(
     ContractHistory__c existing,
     EstimateCreateController.EstimateSaveRequest request
@@ -394,12 +535,26 @@ public without sharing class EstimateSaveService {
         '契約サービスが見つかりません。'
       );
     }
-    ContractService__c contractService = new ContractService__c(Id = serviceId);
-    applyContractServiceCustomFields(contractService, request);
-    SystemContextAccess.updateRecords(new List<SObject>{ contractService });
 
     ContractHistory__c historyUpdate = new ContractHistory__c(Id = existing.Id);
+    historyUpdate.Type__c = existing.Type__c;
+    applyOperationKey(historyUpdate, request);
     applyContractHistoryCustomFields(historyUpdate, request);
+    try {
+      String requiredError = OrderWizardFieldService.validateRequiredHistoryFields(
+        request.contractHistoryCustomFields,
+        existing.Type__c
+      );
+      if (String.isNotBlank(requiredError)) {
+        throw EstimateValidationService.wrapAura(requiredError);
+      }
+      OrderWizardFieldService.applyHistoryFields(
+        historyUpdate,
+        request.contractHistoryCustomFields
+      );
+    } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+      throw EstimateValidationService.wrapAura(ex.getMessage());
+    }
     SystemContextAccess.updateRecords(new List<SObject>{ historyUpdate });
 
     updateOrderedProductCustomFieldsOnly(existing.Id, request);
@@ -528,10 +683,19 @@ public without sharing class EstimateSaveService {
     ContractService__c contractService = new ContractService__c(
       Id = serviceId,
       Name = request.contractServiceName,
-      BiilingAcccount__c = request.billingAccountId
+      BiilingAcccount__c = request.billingAccountId,
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(
+        request.taxPercent
+      )
     );
     applyContractServiceCustomFields(contractService, request);
-    SystemContextAccess.updateRecords(new List<SObject>{ contractService });
+    Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
+    ContractServiceWriteGuard.allowPackageWrite(true);
+    try {
+      SystemContextAccess.updateRecords(new List<SObject>{ contractService });
+    } finally {
+      ContractServiceWriteGuard.allowPackageWrite(previousWrite);
+    }
 
     Date serviceStartDate = EstimateCreateSupport.parseDate(
       request.contractStartDate
@@ -545,9 +709,10 @@ public without sharing class EstimateSaveService {
     existing.EffectiveDate__c = EstimateCreateSupport.parseDate(
       request.effectiveDate
     );
-    existing.EstimateNoteMaster__c = request.estimateRemarkMasterId;
-    applyRemarks(existing, request.remarksText);
+    applyEstimateDocumentIfEnabled(existing, request);
+    applyEstimateSendContact(existing, request);
     applyContractHistoryCustomFields(existing, request);
+    applyOperationKey(existing, request);
     SystemContextAccess.updateRecords(new List<SObject>{ existing });
 
     replaceEstimateProducts(existing.Id, opportunity.AccountId, request);
@@ -555,6 +720,7 @@ public without sharing class EstimateSaveService {
     return buildSaveResult(serviceId, existing.Id, existing.Id);
   }
 
+  /** 仕様: Core 第3.4.2節、第4.9節 */
   public static EstimateCreateController.EstimateSaveResult updateChangeEstimate(
     ContractHistory__c existing,
     EstimateCreateController.EstimateSaveRequest request,
@@ -579,14 +745,6 @@ public without sharing class EstimateSaveService {
       );
     }
 
-    ContractService__c contractService = new ContractService__c(
-      Id = serviceId,
-      Name = request.contractServiceName,
-      BiilingAcccount__c = request.billingAccountId
-    );
-    applyContractServiceCustomFields(contractService, request);
-    SystemContextAccess.updateRecords(new List<SObject>{ contractService });
-
     Date serviceStartDate = EstimateCreateSupport.parseDate(
       request.contractStartDate
     );
@@ -599,9 +757,10 @@ public without sharing class EstimateSaveService {
     existing.EffectiveDate__c = EstimateCreateSupport.parseDate(
       request.effectiveDate
     );
-    existing.EstimateNoteMaster__c = request.estimateRemarkMasterId;
-    applyRemarks(existing, request.remarksText);
+    applyEstimateDocumentIfEnabled(existing, request);
+    applyEstimateSendContact(existing, request);
     applyContractHistoryCustomFields(existing, request);
+    applyOperationKey(existing, request);
     SystemContextAccess.updateRecords(new List<SObject>{ existing });
 
     if (request.selectedType == 'Change') {
@@ -621,16 +780,6 @@ public without sharing class EstimateSaveService {
     String contractHistoryName
   ) {
     Id serviceId = existing.ContractService__c;
-    if (serviceId != null) {
-      ContractService__c contractService = new ContractService__c(
-        Id = serviceId,
-        Name = request.contractServiceName,
-        BiilingAcccount__c = request.billingAccountId
-      );
-      applyContractServiceCustomFields(contractService, request);
-      SystemContextAccess.updateRecords(new List<SObject>{ contractService });
-    }
-
     Date cancelDate = EstimateCreateSupport.parseDate(
       request.contractStartDate
     );
@@ -644,9 +793,10 @@ public without sharing class EstimateSaveService {
     existing.EffectiveDate__c = EstimateCreateSupport.parseDate(
       request.effectiveDate
     );
-    // Cancel は備考マスタ／自由文を登録しない（ペイロードがあっても常にクリア）。
-    applyCancelRemarks(existing);
+    applyEstimateDocumentIfEnabled(existing, request);
+    applyEstimateSendContact(existing, request);
     applyContractHistoryCustomFields(existing, request);
+    applyOperationKey(existing, request);
     SystemContextAccess.updateRecords(new List<SObject>{ existing });
 
     replaceEstimateProducts(existing.Id, null, request);
@@ -682,10 +832,13 @@ public without sharing class EstimateSaveService {
     );
   }
 
+  /** 仕様: Core 第3.4.2節、第4.9節 */
   public static EstimateCreateController.EstimateSaveResult saveNewEstimate(
     EstimateCreateController.EstimateSaveRequest request,
     String contractHistoryName
   ) {
+    // 仕様: Core 第11.4.2節
+    FieldCopyDefinitionService.validateAllDefinitions();
     Opportunity opportunity = [
       SELECT Id, AccountId
       FROM Opportunity
@@ -711,10 +864,19 @@ public without sharing class EstimateSaveService {
     ContractService__c contractService = new ContractService__c(
       Name = request.contractServiceName,
       Account__c = opportunity.AccountId,
-      BiilingAcccount__c = request.billingAccountId
+      BiilingAcccount__c = request.billingAccountId,
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(
+        request.taxPercent
+      )
     );
     applyContractServiceCustomFields(contractService, request);
-    SystemContextAccess.insertRecords(new List<SObject>{ contractService });
+    Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
+    ContractServiceWriteGuard.allowPackageWrite(true);
+    try {
+      SystemContextAccess.insertRecords(new List<SObject>{ contractService });
+    } finally {
+      ContractServiceWriteGuard.allowPackageWrite(previousWrite);
+    }
 
     ContractHistory__c contractHistory = new ContractHistory__c(
       Name = contractHistoryName,
@@ -725,11 +887,13 @@ public without sharing class EstimateSaveService {
       CurrentTermStartDate__c = serviceStartDate,
       CurrentTermEndDate__c = serviceEndDate,
       EffectiveDate__c = EstimateCreateSupport.parseDate(request.effectiveDate),
-      Opportunity__c = opportunity.Id,
-      EstimateNoteMaster__c = request.estimateRemarkMasterId
+      Opportunity__c = opportunity.Id
     );
-    applyRemarks(contractHistory, request.remarksText);
+    applyEstimateDocumentIfEnabled(contractHistory, request);
+    applyEstimateSendContact(contractHistory, request);
     applyContractHistoryCustomFields(contractHistory, request);
+    applyNotAutoRenewFieldCopy(contractHistory, request);
+    applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
 
     SystemContextAccess.insertRecords(
@@ -747,6 +911,8 @@ public without sharing class EstimateSaveService {
     EstimateCreateController.EstimateSaveRequest request,
     String contractHistoryName
   ) {
+    // 仕様: Core 第11.4.2節
+    FieldCopyDefinitionService.validateAllDefinitions();
     Opportunity opportunity = [
       SELECT Id
       FROM Opportunity
@@ -768,14 +934,6 @@ public without sharing class EstimateSaveService {
       );
     }
 
-    ContractService__c contractService = new ContractService__c(
-      Id = request.contractServiceId,
-      Name = request.contractServiceName,
-      BiilingAcccount__c = request.billingAccountId
-    );
-    applyContractServiceCustomFields(contractService, request);
-    SystemContextAccess.updateRecords(new List<SObject>{ contractService });
-
     Date serviceStartDate = EstimateCreateSupport.parseDate(
       request.contractStartDate
     );
@@ -796,11 +954,13 @@ public without sharing class EstimateSaveService {
       CurrentTermEndDate__c = serviceEndDate,
       EffectiveDate__c = EstimateCreateSupport.parseDate(request.effectiveDate),
       Opportunity__c = opportunity.Id,
-      PreviousHistory__c = request.previousHistoryId,
-      EstimateNoteMaster__c = request.estimateRemarkMasterId
+      PreviousHistory__c = request.previousHistoryId
     );
-    applyRemarks(contractHistory, request.remarksText);
+    applyEstimateDocumentIfEnabled(contractHistory, request);
+    applyEstimateSendContact(contractHistory, request);
     applyContractHistoryCustomFields(contractHistory, request);
+    applyNotAutoRenewFieldCopy(contractHistory, request);
+    applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
 
     if (request.selectedType == 'Change') {
@@ -824,6 +984,8 @@ public without sharing class EstimateSaveService {
     EstimateCreateController.EstimateSaveRequest request,
     String contractHistoryName
   ) {
+    // 仕様: Core 第11.4.2節
+    FieldCopyDefinitionService.validateAllDefinitions();
     Opportunity opportunity = [
       SELECT Id
       FROM Opportunity
@@ -844,14 +1006,6 @@ public without sharing class EstimateSaveService {
         '契約サービスが見つかりません。'
       );
     }
-
-    ContractService__c contractService = new ContractService__c(
-      Id = request.contractServiceId,
-      Name = request.contractServiceName,
-      BiilingAcccount__c = request.billingAccountId
-    );
-    applyContractServiceCustomFields(contractService, request);
-    SystemContextAccess.updateRecords(new List<SObject>{ contractService });
 
     Date cancelDate = EstimateCreateSupport.parseDate(
       request.contractStartDate
@@ -875,9 +1029,11 @@ public without sharing class EstimateSaveService {
       Opportunity__c = opportunity.Id,
       PreviousHistory__c = request.previousHistoryId
     );
-    // Cancel は備考マスタ／自由文を登録しない（ペイロードがあっても常にクリア）。
-    applyCancelRemarks(contractHistory);
+    applyEstimateDocumentIfEnabled(contractHistory, request);
+    applyEstimateSendContact(contractHistory, request);
     applyContractHistoryCustomFields(contractHistory, request);
+    applyNotAutoRenewFieldCopy(contractHistory, request);
+    applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
 
     return buildSaveResult(
@@ -936,31 +1092,58 @@ public without sharing class EstimateSaveService {
     String billingType = String.isNotBlank(line.billingType)
       ? line.billingType
       : (product != null ? product.BillingType__c : null);
-    String unitName = product != null ? product.UnitName__c : null;
+    // 仕様: Core 第4.5.2節、第1.1.10節。Change の Original／Remake と Renew 継承は画面 unit（継承元 Unit__c）を優先。
+    // 空でも商品マスタから埋めない。Type=New（手追加）は商品マスタから生成する。
+    String unitValue;
+    Boolean useInheritedUnitSnapshot =
+      (selectedType == HISTORY_TYPE_CHANGE &&
+        (EstimateCreateSupport.isChangeOriginalLine(line) ||
+         EstimateCreateSupport.isChangeRemakeLine(line))) ||
+      (selectedType == HISTORY_TYPE_RENEW &&
+        line.sourceContractProductId != null);
+    if (useInheritedUnitSnapshot) {
+      unitValue = line.unit;
+    } else {
+      unitValue = EstimateCreateSupport.buildDisplayUnit(
+        product != null ? product.UnitName__c : null,
+        billingType
+      );
+    }
+    // 仕様: Core 第1.1.10節、Accounting 第1.16節
+    String revenueBasis;
+    try {
+      revenueBasis = ContractMetadataService.resolveRevenueRecognitionBasis(
+        line.revenueRecognitionBasis
+      );
+    } catch (ContractMetadataService.RevenueRecognitionBasisException ex) {
+      throw EstimateValidationService.wrapAura(ex.getMessage());
+    }
     ContractProduct__c contractProduct = new ContractProduct__c(
       ContractHistory__c = contractHistoryId,
       Account__c = accountId,
       Product__c = line.productId,
-      Quantity__c = line.quantity == null
-        ? null
-        : line.quantity.setScale(2, RoundingMode.HALF_UP),
-      UnitPrice__c = line.unitPrice == null
-        ? null
-        : line.unitPrice.setScale(2, RoundingMode.HALF_UP),
-      Unit__c = EstimateCreateSupport.buildDisplayUnit(unitName, billingType),
+      Quantity__c = AmountCalculationSettingService.roundQuantityUnitPrice(
+        line.quantity
+      ),
+      UnitPrice__c = AmountCalculationSettingService.roundQuantityUnitPrice(
+        line.unitPrice
+      ),
+      Unit__c = unitValue,
       StartDate__c = EstimateCreateSupport.parseDate(line.startDate),
       Enddate__c = EstimateCreateSupport.parseDate(line.endDate),
       InvoiceSetting__c = ContractMetadataService.normalizeInvoiceSettingLabel(
         line.invoiceType
       ),
       BillingType__c = billingType,
+      RevenueRecognitionBasis__c = revenueBasis,
       Type__c = resolveProductType(line, selectedType),
       PreviousContractProduct__c = line.sourceContractProductId
     );
-    // 画面で確認した金額を保存（整数円）。Trigger／Apex で数量×単価へ再計算しない。
-    contractProduct.Amount__c = line.amount == null
-      ? null
-      : line.amount.setScale(0, RoundingMode.HALF_UP);
+    // 画面で確認した金額を保存。Trigger／Apex で数量×単価へ再計算しない。
+    // 仕様: Core 第4.6節、第11.9節
+    contractProduct.Amount__c = AmountCalculationSettingService.roundAmount(
+      line.amount
+    );
     InvoiceAnchorDateUtil.applyToContractProduct(
       contractProduct,
       selectedType,
@@ -1010,6 +1193,7 @@ public without sharing class EstimateSaveService {
     Set<String> selectFields = new Set<String>{
       'Id',
       'BillingType__c',
+      'RevenueRecognitionBasis__c',
       'UnitName__c',
       'AvailableForContract__c'
     };
@@ -1045,8 +1229,13 @@ public without sharing class EstimateSaveService {
     if (selectedType == 'New') {
       return PRODUCT_TYPE_NEW;
     }
+    // 仕様: Core 第4.3.5節。Renewは継承だけ Type=Renew、手追加は Type=New。
+    // recordType 空を一律 Renew にしない。継承は sourceContractProductId で区別する。
     if (selectedType == 'Renew') {
-      return PRODUCT_TYPE_RENEW;
+      if (line.sourceContractProductId != null) {
+        return PRODUCT_TYPE_RENEW;
+      }
+      return PRODUCT_TYPE_NEW;
     }
     return selectedType;
   }
@@ -1074,19 +1263,78 @@ public without sharing class EstimateSaveService {
     result.contractProductIds = productIds;
     if (contractHistoryId != null) {
       List<ContractHistory__c> stamped = [
-        SELECT LastModifiedDate
+        SELECT LastModifiedDate, BusinessOperationKey__c
         FROM ContractHistory__c
         WHERE Id = :contractHistoryId
         WITH SYSTEM_MODE
         LIMIT 1
       ];
       if (!stamped.isEmpty()) {
-        result.lastModifiedToken = ContractOptimisticLockUtil.toToken(
-          stamped[0].LastModifiedDate
+        result.lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+          contractHistoryId
         );
+        result.businessOperationKey = stamped[0].BusinessOperationKey__c;
       }
     }
     return result;
+  }
+
+  /** 仕様: 共通基盤.md 第12章 */
+  private static EstimateCreateController.EstimateSaveResult writeEstimateLog(
+    EstimateCreateController.EstimateSaveRequest request,
+    EstimateCreateController.EstimateSaveResult result
+  ) {
+    if (request == null || result == null) {
+      return result;
+    }
+    String operationType = 'EstimateCreate';
+    if (request.editHistoryId != null) {
+      operationType = 'EstimateEdit';
+    } else if (request.copyFromHistoryId != null) {
+      operationType = 'EstimateCopy';
+    }
+    ContractOperationLogService.write(
+      operationType,
+      request.businessOperationKey,
+      'ContractHistory__c',
+      result.contractHistoryId == null
+        ? null
+        : String.valueOf(result.contractHistoryId)
+    );
+    return result;
+  }
+
+  /** 仕様: Core 第4.3.12節 */
+  private static void applyOperationKey(
+    ContractHistory__c history,
+    EstimateCreateController.EstimateSaveRequest request
+  ) {
+    if (history == null || request == null) {
+      return;
+    }
+    if (String.isNotBlank(request.businessOperationKey)) {
+      history.BusinessOperationKey__c = request.businessOperationKey;
+    }
+  }
+
+  /** 仕様: Core 第4.3.12節。同じキーの再試行は1件のまま返す。 */
+  private static EstimateCreateController.EstimateSaveResult findExistingByOperationKey(
+    String operationKey
+  ) {
+    if (String.isBlank(operationKey)) {
+      return null;
+    }
+    List<ContractHistory__c> found = [
+      SELECT Id, ContractService__c
+      FROM ContractHistory__c
+      WHERE BusinessOperationKey__c = :operationKey
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (found.isEmpty()) {
+      return null;
+    }
+    return buildSaveResult(found[0].ContractService__c, found[0].Id, found[0].Id);
   }
 
   public static void applyContractServiceCustomFields(
@@ -1146,6 +1394,7 @@ public without sharing class EstimateSaveService {
     }
   }
 
+  /** 仕様: Core 第4.10節。セクション表示中は空なら Note__c をクリアする。 */
   public static void applyRemarks(
     ContractHistory__c contractHistory,
     String remarksText
@@ -1158,20 +1407,197 @@ public without sharing class EstimateSaveService {
       contractHistory.Note__c = null;
       return;
     }
-    contractHistory.Note__c = remarksText.length() > NOTE_MAX_LENGTH
-      ? remarksText.substring(0, NOTE_MAX_LENGTH)
-      : remarksText;
+    if (remarksText.length() > NOTE_MAX_LENGTH) {
+      throw EstimateValidationService.wrapAura(
+        '見積備考が最大長（' + NOTE_MAX_LENGTH + '文字）を超えています。'
+      );
+    }
+    contractHistory.Note__c = remarksText;
   }
 
-  /**
-   * Cancel は備考 UI なし。ペイロードにマスタ／文言があっても
-   * EstimateNoteMaster__c / Note__c は登録・残存させない。
-   */
+  /** 仕様: Core 第4.10節。空欄は埋めない。送られた値だけ書く。 */
+  public static void applyEstimateDocumentDates(
+    ContractHistory__c contractHistory,
+    EstimateCreateController.EstimateSaveRequest request
+  ) {
+    if (contractHistory == null || request == null) {
+      return;
+    }
+    contractHistory.EstimateDate__c = EstimateCreateSupport.parseDate(
+      request.estimateDate
+    );
+    contractHistory.EstimateValidDate__c = EstimateCreateSupport.parseDate(
+      request.estimateValidDate
+    );
+  }
+
+  /** 仕様: Core 第4.10節。Cancelも見積書セクションの備考を使う。ここではクリアしない。 */
   public static void applyCancelRemarks(ContractHistory__c contractHistory) {
     if (contractHistory == null) {
       return;
     }
-    contractHistory.EstimateNoteMaster__c = null;
-    contractHistory.Note__c = null;
+  }
+
+  /** 仕様: Core 第4.10節。`使わない`では見積日・有効期限・備考を保存対象にせず既存を維持する。 */
+  @TestVisible
+  private static void applyEstimateDocumentIfEnabled(
+    ContractHistory__c history,
+    EstimateCreateController.EstimateSaveRequest request
+  ) {
+    if (history == null || request == null) {
+      return;
+    }
+    if (
+      ContractDocumentSettingService.requireSendMode('Estimate') ==
+      ContractDocumentSettingService.MODE_UNUSED
+    ) {
+      return;
+    }
+    history.EstimateNoteMaster__c = request.estimateRemarkMasterId;
+    applyRemarks(history, request.remarksText);
+    applyEstimateDocumentDates(history, request);
+  }
+
+  /** 仕様: Core 第4.3.3節。見積送付先は契約履歴へ保存する。必須にしない。見積書3択には依存しない。 */
+  @TestVisible
+  private static void applyEstimateSendContact(
+    ContractHistory__c history,
+    EstimateCreateController.EstimateSaveRequest request
+  ) {
+    if (history == null || request == null) {
+      return;
+    }
+    history.EstimateSendContact__c = request.estimateSendContactId;
+  }
+
+  /** 仕様: Core 第11.4.2節、第4.9節、第4.10節 */
+  @TestVisible
+  private static void applyNotAutoRenewFieldCopy(
+    ContractHistory__c history,
+    EstimateCreateController.EstimateSaveRequest request
+  ) {
+    if (history == null) {
+      return;
+    }
+    Map<String, Object> displayedValues = snapshotDisplayedHistoryFields(
+      history,
+      request
+    );
+    Map<String, SObject> sources = new Map<String, SObject>();
+    putSource(
+      sources,
+      'Opportunity',
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+        history.Opportunity__c
+      )
+    );
+    SObject opportunity = sources.get('Opportunity');
+    if (opportunity != null) {
+      putSource(
+        sources,
+        'Account',
+        InvoiceProductFieldCopyService.querySourceRecord(
+          InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
+          (Id) opportunity.get('AccountId')
+        )
+      );
+    }
+    putSource(
+      sources,
+      'ContractHistory__c',
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+        history.PreviousHistory__c
+      )
+    );
+    SObject service = InvoiceProductFieldCopyService.querySourceRecord(
+      InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
+      history.ContractService__c
+    );
+    putSource(sources, 'ContractService__c', service);
+    if (service != null) {
+      putSource(
+        sources,
+        'BillingAccount__c',
+        InvoiceProductFieldCopyService.querySourceRecord(
+          InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+          (Id) service.get('BiilingAcccount__c')
+        )
+      );
+      if (!sources.containsKey('Account')) {
+        putSource(
+          sources,
+          'Account',
+          InvoiceProductFieldCopyService.querySourceRecord(
+            InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
+            (Id) service.get('Account__c')
+          )
+        );
+      }
+    }
+    FieldCopyDefinitionService.apply(
+      history,
+      'ContractHistory__c',
+      FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+      sources
+    );
+    restoreDisplayedHistoryFields(history, displayedValues);
+  }
+
+  /** 仕様: Core 第11.4.2節、第4.3.3節、第4.10節 */
+  private static Map<String, Object> snapshotDisplayedHistoryFields(
+    ContractHistory__c history,
+    EstimateCreateController.EstimateSaveRequest request
+  ) {
+    Map<String, Object> snapshot = new Map<String, Object>();
+    if (history == null) {
+      return snapshot;
+    }
+    String wizardType = request == null ? null : request.selectedType;
+    Map<String, Object> displayed = ContractWizardFieldService.filterCustomFieldsByVisibility(
+      request == null ? null : request.contractHistoryCustomFields,
+      ContractWizardFieldService.WizardTarget.ContractHistory,
+      null,
+      wizardType
+    );
+    for (String apiName : displayed.keySet()) {
+      snapshot.put(apiName, history.get(apiName));
+    }
+    // 仕様: Core 第11.4.2節、第4.3.3節。見積送付先はウィザード常時。空でもコピーしない。
+    snapshot.put('EstimateSendContact__c', history.EstimateSendContact__c);
+    if (
+      request != null &&
+      ContractDocumentSettingService.requireSendMode('Estimate') !=
+        ContractDocumentSettingService.MODE_UNUSED
+    ) {
+      snapshot.put('EstimateDate__c', history.EstimateDate__c);
+      snapshot.put('EstimateValidDate__c', history.EstimateValidDate__c);
+      snapshot.put('Note__c', history.Note__c);
+      snapshot.put('EstimateNoteMaster__c', history.EstimateNoteMaster__c);
+    }
+    return snapshot;
+  }
+
+  private static void restoreDisplayedHistoryFields(
+    ContractHistory__c history,
+    Map<String, Object> displayedValues
+  ) {
+    if (history == null || displayedValues == null || displayedValues.isEmpty()) {
+      return;
+    }
+    for (String apiName : displayedValues.keySet()) {
+      history.put(apiName, displayedValues.get(apiName));
+    }
+  }
+
+  private static void putSource(
+    Map<String, SObject> sources,
+    String objectApiName,
+    SObject record
+  ) {
+    if (record != null) {
+      sources.put(objectApiName, record);
+    }
   }
 }

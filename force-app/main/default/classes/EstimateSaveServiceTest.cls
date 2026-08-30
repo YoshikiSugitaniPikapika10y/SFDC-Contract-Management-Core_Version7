@@ -41,6 +41,46 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void buildContractProduct_rejectsBlankRevenueRecognitionBasis() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Blank Revenue'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2027, 3, 31)
+      );
+      line.revenueRecognitionBasis = null;
+
+      Exception blankEx = null;
+      try {
+        EstimateSaveService.buildContractProduct(
+          null,
+          null,
+          line,
+          product,
+          'New',
+          Date.newInstance(2026, 4, 1)
+        );
+      } catch (Exception ex) {
+        blankEx = ex;
+      }
+      System.assertNotEquals(null, blankEx);
+      System.assert(
+        blankEx.getMessage().contains('売上計上基準が空です。'),
+        blankEx.getMessage()
+      );
+    }
+  }
+
+  @IsTest
   static void buildContractProduct_roundsUnitPriceAndAmountScale() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Product2 product = ContractTestDataFactory.buildProduct(
@@ -139,6 +179,222 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void buildContractProduct_changeOriginalRemakePrefersLineUnit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Change Unit Snapshot'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.UnitName__c = 'ライセンス';
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem originalLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'Original',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2027, 3, 31)
+      );
+      originalLine.unit = '式';
+      originalLine.amount = -120000;
+
+      ContractProduct__c savedOriginal = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        originalLine,
+        product,
+        'Change',
+        Date.newInstance(2026, 7, 1)
+      );
+      System.assertEquals(
+        '式',
+        savedOriginal.Unit__c,
+        'Core 第4.5.2節: Change Original は前回 unit を保存する'
+      );
+
+      EstimateCreateController.ProductLineItem remakeLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'Remake',
+        Date.newInstance(2026, 7, 1),
+        Date.newInstance(2027, 3, 31)
+      );
+      remakeLine.unit = '式';
+      remakeLine.sourceContractProductId = Id.valueOf(
+        ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
+          '000000000001'
+      );
+
+      ContractProduct__c savedRemake = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        remakeLine,
+        product,
+        'Change',
+        Date.newInstance(2026, 7, 1)
+      );
+      System.assertEquals(
+        '式',
+        savedRemake.Unit__c,
+        'Core 第4.5.2節: Change Remake は前回 unit を保存する'
+      );
+    }
+  }
+
+  @IsTest
+  static void buildContractProduct_renewInheritedPrefersLineUnit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Renew Unit Snapshot'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.UnitName__c = 'ライセンス';
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem renewLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'Renew',
+        Date.newInstance(2027, 4, 1),
+        Date.newInstance(2028, 3, 31)
+      );
+      renewLine.unit = '式';
+      renewLine.sourceContractProductId = Id.valueOf(
+        ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
+          '000000000001'
+      );
+
+      ContractProduct__c savedRenew = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        renewLine,
+        product,
+        'Renew',
+        Date.newInstance(2027, 4, 1)
+      );
+      System.assertEquals(
+        '式',
+        savedRenew.Unit__c,
+        'Core 第4.5.2節: Renew 継承は継承元 unit を保存する'
+      );
+
+      EstimateCreateController.ProductLineItem handAdded = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2027, 4, 1),
+        Date.newInstance(2028, 3, 31)
+      );
+      handAdded.unit = '式';
+      handAdded.sourceContractProductId = null;
+
+      ContractProduct__c savedNew = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        handAdded,
+        product,
+        'Renew',
+        Date.newInstance(2027, 4, 1)
+      );
+      System.assertEquals(
+        'ライセンス',
+        savedNew.Unit__c,
+        'Renew 手追加 Type=New は商品マスタ単位'
+      );
+    }
+  }
+
+  @IsTest
+  static void buildContractProduct_inheritedBlankUnit_doesNotFillFromProduct2() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Blank Inherited Unit'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.UnitName__c = 'ライセンス';
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem originalLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'Original',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2027, 3, 31)
+      );
+      originalLine.unit = '';
+      originalLine.amount = -120000;
+
+      ContractProduct__c savedOriginal = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        originalLine,
+        product,
+        'Change',
+        Date.newInstance(2026, 7, 1)
+      );
+      System.assertEquals(
+        '',
+        savedOriginal.Unit__c,
+        'Core 第4.5.2節・第1.1.10節: Change Original の空単位を商品マスタから埋めない'
+      );
+
+      EstimateCreateController.ProductLineItem remakeLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'Remake',
+        Date.newInstance(2026, 7, 1),
+        Date.newInstance(2027, 3, 31)
+      );
+      remakeLine.unit = '';
+      remakeLine.sourceContractProductId = Id.valueOf(
+        ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
+          '000000000001'
+      );
+
+      ContractProduct__c savedRemake = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        remakeLine,
+        product,
+        'Change',
+        Date.newInstance(2026, 7, 1)
+      );
+      System.assertEquals(
+        '',
+        savedRemake.Unit__c,
+        'Core 第4.5.2節・第1.1.10節: Change Remake の空単位を商品マスタから埋めない'
+      );
+
+      EstimateCreateController.ProductLineItem renewLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'Renew',
+        Date.newInstance(2027, 4, 1),
+        Date.newInstance(2028, 3, 31)
+      );
+      renewLine.unit = '';
+      renewLine.sourceContractProductId = Id.valueOf(
+        ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
+          '000000000001'
+      );
+
+      ContractProduct__c savedRenew = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        renewLine,
+        product,
+        'Renew',
+        Date.newInstance(2027, 4, 1)
+      );
+      System.assertEquals(
+        '',
+        savedRenew.Unit__c,
+        'Core 第4.5.2節・第1.1.10節: Renew 継承の空単位を商品マスタから埋めない'
+      );
+    }
+  }
+
+  @IsTest
   static void buildContractProduct_postpaidUsesEndPlusOne() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Product2 product = ContractTestDataFactory.buildProduct(
@@ -189,12 +445,25 @@ private class EstimateSaveServiceTest {
       'New',
       EstimateSaveService.resolveProductType(newLine, 'New')
     );
+    // 仕様: Core 第4.3.5節。recordType 空の Renew は手追加＝New。継承は source あり。
     System.assertEquals(
-      'Renew',
+      'New',
       EstimateSaveService.resolveProductType(
         new EstimateCreateController.ProductLineItem(),
         'Renew'
       )
+    );
+    EstimateCreateController.ProductLineItem renewInherited = new EstimateCreateController.ProductLineItem();
+    renewInherited.sourceContractProductId = UserInfo.getUserId();
+    System.assertEquals(
+      'Renew',
+      EstimateSaveService.resolveProductType(renewInherited, 'Renew')
+    );
+    EstimateCreateController.ProductLineItem renewExplicit = new EstimateCreateController.ProductLineItem();
+    renewExplicit.recordType = 'Renew';
+    System.assertEquals(
+      'Renew',
+      EstimateSaveService.resolveProductType(renewExplicit, 'Renew')
     );
   }
 
@@ -275,21 +544,316 @@ private class EstimateSaveServiceTest {
 
     history.Note__c = 'note';
     EstimateSaveService.applyCancelRemarks(history);
-    System.assertEquals(null, history.EstimateNoteMaster__c);
-    System.assertEquals(null, history.Note__c);
+    System.assertEquals(
+      'note',
+      history.Note__c,
+      'Core 第4.10節: Cancelは備考をクリアしない'
+    );
 
     Integer maxLen = ContractDomainConstants.NOTE_MAX_LENGTH;
     String longText = 'あ'.repeat(maxLen + 20);
-    EstimateSaveService.applyRemarks(history, longText);
-    System.assertEquals(
-      maxLen,
-      history.Note__c.length(),
-      '備考は最大長で切り詰める'
-    );
-    System.assertEquals(longText.substring(0, maxLen), history.Note__c);
+    Boolean thrown = false;
+    try {
+      EstimateSaveService.applyRemarks(history, longText);
+    } catch (Exception e) {
+      thrown = true;
+    }
+    System.assertEquals(true, thrown, '備考は切り詰めずエラーにする');
 
     EstimateSaveService.applyRemarks(null, 'ignored');
     EstimateSaveService.applyCancelRemarks(null);
+  }
+
+  @IsTest
+  static void applyEstimateDocumentIfEnabled_unusedKeepsExisting() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      ContractHistory__c history = new ContractHistory__c(
+        Note__c = '既存備考',
+        EstimateDate__c = Date.newInstance(2026, 1, 15),
+        EstimateValidDate__c = Date.newInstance(2026, 2, 15)
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.remarksText = '新しい備考';
+      request.estimateDate = '2026-08-01';
+      request.estimateValidDate = '2026-09-01';
+
+      EstimateSaveService.applyEstimateDocumentIfEnabled(history, request);
+
+      System.assertEquals(
+        '既存備考',
+        history.Note__c,
+        'Core 第4.10節: 使わないでは備考を保存対象にせず既存を維持する'
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 1, 15),
+        history.EstimateDate__c,
+        'Core 第4.10節: 使わないでは見積日を保存対象にせず既存を維持する'
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 2, 15),
+        history.EstimateValidDate__c,
+        'Core 第4.10節: 使わないでは有効期限を保存対象にせず既存を維持する'
+      );
+    }
+  }
+
+  @IsTest
+  static void applyEstimateDocumentIfEnabled_writesWhenSectionShown() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.ensureOrgDocumentSetting();
+      ContractDocumentSettingService.clearCache();
+
+      ContractHistory__c history = new ContractHistory__c();
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.remarksText = '見積書備考';
+      request.estimateDate = '2026-08-01';
+      request.estimateValidDate = '2026-09-01';
+
+      EstimateSaveService.applyEstimateDocumentIfEnabled(history, request);
+
+      System.assertEquals('見積書備考', history.Note__c);
+      System.assertEquals(
+        Date.newInstance(2026, 8, 1),
+        history.EstimateDate__c
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 9, 1),
+        history.EstimateValidDate__c
+      );
+    }
+  }
+
+  @IsTest
+  static void applyNotAutoRenewFieldCopy_doesNotFillDisplayedBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.ensureOrgDocumentSetting();
+      ContractDocumentSettingService.clearCache();
+      Account account = ContractTestDataFactory.insertAccount('コピー元取引先');
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'コピー元商談'
+      );
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Skip_Displayed_Note',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Note__c'
+      );
+
+      ContractHistory__c history = new ContractHistory__c(
+        Opportunity__c = opportunity.Id
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      request.remarksText = null;
+      EstimateSaveService.applyEstimateDocumentIfEnabled(history, request);
+      EstimateSaveService.applyContractHistoryCustomFields(history, request);
+      EstimateSaveService.applyNotAutoRenewFieldCopy(history, request);
+
+      System.assertEquals(
+        null,
+        history.Note__c,
+        'Core 第11.4.2節: ウィザードで画面に出して保存した項目は空でもコピーしない'
+      );
+    }
+  }
+
+  @IsTest
+  static void applyNotAutoRenewFieldCopy_doesNotFillDisplayedSendContact() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.ensureOrgDocumentSetting();
+      ContractDocumentSettingService.clearCache();
+      Account account = ContractTestDataFactory.insertAccount('送付先コピー元');
+      Contact sourceContact = ContractTestDataFactory.insertContact(
+        account.Id,
+        'コピー元責任者'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        '送付先コピー商談'
+      );
+      opportunity.ContactId = sourceContact.Id;
+      update opportunity;
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Skip_Displayed_SendContact',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+        SourceObject__c = 'Opportunity',
+        SourceFieldApiName__c = 'ContactId',
+        TargetFieldApiName__c = 'EstimateSendContact__c'
+      );
+
+      ContractHistory__c history = new ContractHistory__c(
+        Opportunity__c = opportunity.Id
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      request.estimateSendContactId = null;
+      EstimateSaveService.applyEstimateSendContact(history, request);
+      EstimateSaveService.applyNotAutoRenewFieldCopy(history, request);
+
+      System.assertEquals(
+        null,
+        history.EstimateSendContact__c,
+        'Core 第11.4.2節・第4.3.3節: ウィザードで出した見積送付先は空でもコピーしない'
+      );
+    }
+  }
+
+  @IsTest
+  static void applyNotAutoRenewFieldCopy_fillsHiddenBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Account account = ContractTestDataFactory.insertAccount('非表示コピー元');
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        '非表示コピー商談'
+      );
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Fill_Hidden_Note',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Note__c'
+      );
+
+      ContractHistory__c history = new ContractHistory__c(
+        Opportunity__c = opportunity.Id
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      EstimateSaveService.applyEstimateDocumentIfEnabled(history, request);
+      EstimateSaveService.applyContractHistoryCustomFields(history, request);
+      EstimateSaveService.applyNotAutoRenewFieldCopy(history, request);
+
+      System.assertEquals(
+        '非表示コピー元',
+        history.Note__c,
+        'Core 第11.4.2節: 出していない項目の空欄はコピーしてよい'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveNewEstimate_stopsWhenCopyDefinitionBroken() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = new Set<String>{
+        'Memo__c'
+      };
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Journal_Memo_LineOnly_Save',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = UserInfo.getUserId();
+      Boolean rejected = false;
+      try {
+        EstimateSaveService.saveNewEstimate(request, 'Broken Def');
+      } catch (FieldCopyDefinitionService.FieldCopyException ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('Memo__c') ||
+            ex.getMessage().contains('Test_Journal_Memo_LineOnly_Save'),
+          ex.getMessage()
+        );
+      } finally {
+        FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = null;
+      }
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第11.4.2節: 定義が壊れていたら見積の新規作成を止め、一意キーを出す'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveChangeEstimate_stopsWhenCopyDefinitionBroken() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = new Set<String>{
+        'Memo__c'
+      };
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Journal_Memo_LineOnly_Change',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = UserInfo.getUserId();
+      Boolean rejected = false;
+      try {
+        EstimateSaveService.saveChangeEstimate(request, 'Broken Def Change');
+      } catch (FieldCopyDefinitionService.FieldCopyException ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('Memo__c') ||
+            ex.getMessage().contains('Test_Journal_Memo_LineOnly_Change'),
+          ex.getMessage()
+        );
+      } finally {
+        FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = null;
+      }
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第11.4.2節: 定義が壊れていたら見積の新規作成を止め、一意キーを出す'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveCancelEstimate_stopsWhenCopyDefinitionBroken() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = new Set<String>{
+        'Memo__c'
+      };
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Journal_Memo_LineOnly_Cancel',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = UserInfo.getUserId();
+      Boolean rejected = false;
+      try {
+        EstimateSaveService.saveCancelEstimate(request, 'Broken Def Cancel');
+      } catch (FieldCopyDefinitionService.FieldCopyException ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('Memo__c') ||
+            ex.getMessage().contains('Test_Journal_Memo_LineOnly_Cancel'),
+          ex.getMessage()
+        );
+      } finally {
+        FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = null;
+      }
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第11.4.2節: 定義が壊れていたら見積の新規作成を止め、一意キーを出す'
+      );
+    }
   }
 
   @IsTest
@@ -389,6 +953,9 @@ private class EstimateSaveServiceTest {
       );
       insert productRow;
 
+      service.CustomerMemo__c = 'keep-ordered-memo';
+      update service;
+
       EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
       request.opportunityId = opportunity.Id;
       request.selectedType = 'New';
@@ -399,6 +966,13 @@ private class EstimateSaveServiceTest {
       request.effectiveDate = String.valueOf(termStart);
       request.applicationDate = String.valueOf(termStart);
       request.products = new List<EstimateCreateController.ProductLineItem>();
+      request.contractHistoryCustomFields = new Map<String, Object>{
+        'ApplicationDate__c' => String.valueOf(termStart.addDays(1)),
+        'OrderDate__c' => String.valueOf(termStart.addDays(2))
+      };
+      request.contractServiceCustomFields = new Map<String, Object>{
+        'CustomerMemo__c' => 'tampered-from-ordered-edit'
+      };
 
       // 受注済みはカスタム項目更新専用 API（ウィザード必須項目の組織差分を避ける）
       EstimateCreateController.EstimateSaveResult result = EstimateSaveService.updateOrderedEstimateCustomFieldsOnly(
@@ -406,6 +980,36 @@ private class EstimateSaveServiceTest {
         request
       );
       System.assertEquals(ordered.Id, result.contractHistoryId);
+
+      ContractHistory__c stored = [
+        SELECT ApplicationDate__c, OrderDate__c
+        FROM ContractHistory__c
+        WHERE Id = :ordered.Id
+      ];
+      System.assertEquals(
+        termStart.addDays(1),
+        stored.ApplicationDate__c,
+        'Core 第11.4.3節: Ordered見積編集は受注追加項目を保存する'
+      );
+      System.assertEquals(
+        termStart.addDays(2),
+        stored.OrderDate__c,
+        'Core 第11.4.3節: Ordered見積編集は受注日を保存する'
+      );
+
+      EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
+        ordered.Id
+      );
+      System.assertEquals(
+        String.valueOf(termStart.addDays(1)),
+        String.valueOf(preset.contractHistoryCustomFields.get('ApplicationDate__c')),
+        'Core 第11.4.3節: Ordered見積編集の初期値は保存済みの受注追加項目'
+      );
+      System.assertEquals(
+        String.valueOf(termStart.addDays(2)),
+        String.valueOf(preset.contractHistoryCustomFields.get('OrderDate__c')),
+        'Core 第11.4.3節: Ordered見積編集の初期値は保存済みの受注日'
+      );
 
       ContractProduct__c still = [
         SELECT Quantity__c, UnitPrice__c, Amount__c
@@ -427,6 +1031,17 @@ private class EstimateSaveServiceTest {
       ];
       System.assertEquals('Ordered', stillHistory.historystatus__c);
       System.assertEquals('New', stillHistory.Type__c);
+
+      ContractService__c stillService = [
+        SELECT CustomerMemo__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      System.assertEquals(
+        'keep-ordered-memo',
+        stillService.CustomerMemo__c,
+        'Core 第4.3節: Ordered見積編集は契約サービス追加項目を更新しない'
+      );
     }
   }
 
@@ -494,6 +1109,7 @@ private class EstimateSaveServiceTest {
       lineItem.amount = 20000;
       lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
       lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       String productsJson = JSON.serialize(
         new List<EstimateCreateController.ProductLineItem>{ lineItem }
@@ -697,6 +1313,7 @@ private class EstimateSaveServiceTest {
       originalLine.sourceContractProductId = sourceProduct.Id;
       originalLine.unit = '式/月';
       originalLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      originalLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       originalLine.billingCycle = '月';
 
       EstimateCreateController.ProductLineItem remakePreLine = buildLine(
@@ -712,6 +1329,7 @@ private class EstimateSaveServiceTest {
       remakePreLine.sourceContractProductId = sourceProduct.Id;
       remakePreLine.unit = '式/月';
       remakePreLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakePreLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakePreLine.billingCycle = '月';
 
       EstimateCreateController.ProductLineItem remakeLine = buildLine(
@@ -727,6 +1345,7 @@ private class EstimateSaveServiceTest {
       remakeLine.sourceContractProductId = sourceProduct.Id;
       remakeLine.unit = '式/月';
       remakeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      remakeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeLine.billingCycle = '月';
 
       String productsJson = JSON.serialize(
@@ -871,6 +1490,7 @@ private class EstimateSaveServiceTest {
       renewLine.amount = 96000;
       renewLine.unit = '式/月';
       renewLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       renewLine.billingCycle = '月';
 
       EstimateCreateController.EstimateSaveResult renewResult = EstimateSaveService.saveEstimate(
@@ -1183,10 +1803,20 @@ private class EstimateSaveServiceTest {
       );
       insert estimate;
 
+      String currentToken = ContractOptimisticLockUtil.toToken(
+        [
+          SELECT LastModifiedDate
+          FROM ContractHistory__c
+          WHERE Id = :estimate.Id
+        ]
+        .LastModifiedDate
+      );
+
       EstimateCreateController.EstimateSaveRequest typeChangeReq = new EstimateCreateController.EstimateSaveRequest();
       typeChangeReq.opportunityId = opportunity.Id;
       typeChangeReq.selectedType = 'New';
       typeChangeReq.editHistoryId = estimate.Id;
+      typeChangeReq.expectedLastModifiedToken = currentToken;
       Boolean typeThrown = false;
       try {
         EstimateSaveService.saveEditedEstimate(typeChangeReq, estimate.Name);
@@ -1203,6 +1833,7 @@ private class EstimateSaveServiceTest {
       oppMismatchReq.opportunityId = otherOpp.Id;
       oppMismatchReq.selectedType = 'Change';
       oppMismatchReq.editHistoryId = estimate.Id;
+      oppMismatchReq.expectedLastModifiedToken = currentToken;
       Boolean oppThrown = false;
       try {
         EstimateSaveService.saveEditedEstimate(oppMismatchReq, estimate.Name);
@@ -1301,6 +1932,14 @@ private class EstimateSaveServiceTest {
       request.effectiveDate = String.valueOf(termStart);
       request.applicationDate = String.valueOf(termStart);
       request.products = new List<EstimateCreateController.ProductLineItem>();
+      request.expectedLastModifiedToken = ContractOptimisticLockUtil.toToken(
+        [
+          SELECT LastModifiedDate
+          FROM ContractHistory__c
+          WHERE Id = :estimate.Id
+        ]
+        .LastModifiedDate
+      );
 
       try {
         EstimateSaveService.saveEditedEstimate(request, estimate.Name);
@@ -1369,15 +2008,141 @@ private class EstimateSaveServiceTest {
     }
   }
 
+  @IsTest
+  static void saveEditedEstimate_blankLastModifiedToken_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Blank Edit Token Acc'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Blank Edit Token Opp'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Blank Edit Token Service',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Blank Edit Token History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      insert history;
+
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = opportunity.Id;
+      request.selectedType = 'New';
+      request.editHistoryId = history.Id;
+
+      try {
+        EstimateSaveService.saveEditedEstimate(request, history.Name);
+        System.assert(false, 'Expected blank token to reject');
+      } catch (AuraHandledException ex) {
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage(),
+          'Core 第4.3.12節: 見積編集保存は比較値未指定なら拒否する'
+        );
+      }
+    }
+  }
+
+  @IsTest
+  static void saveEstimate_new_savesEstimateSendContact() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Send Contact Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Send Contact Opportunity'
+      );
+      BillingAccount__c billing = insertBillingAccount(account.Id);
+      Contact sendContact = new Contact(
+        LastName = '見積送付先',
+        AccountId = account.Id,
+        Email = 'send-contact@example.com'
+      );
+      insert sendContact;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Send Contact Product'
+      );
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 10000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem lineItem = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      lineItem.billingCycle = '月';
+      String productsJson = JSON.serialize(
+        new List<EstimateCreateController.ProductLineItem>{ lineItem }
+      );
+
+      EstimateCreateController.EstimateSaveResult created = EstimateSaveService.saveEstimate(
+        opportunity.Id,
+        'New',
+        'Send Contact CS',
+        'Send Contact History',
+        null,
+        null,
+        String.valueOf(termStart),
+        String.valueOf(termEnd),
+        String.valueOf(termStart),
+        String.valueOf(termStart),
+        productsJson,
+        null,
+        null,
+        billing.Id,
+        null,
+        null,
+        '{}',
+        '{}',
+        null,
+        10,
+        null,
+        null,
+        sendContact.Id
+      );
+
+      ContractHistory__c saved = [
+        SELECT EstimateSendContact__c
+        FROM ContractHistory__c
+        WHERE Id = :created.contractHistoryId
+      ];
+      System.assertEquals(
+        sendContact.Id,
+        saved.EstimateSendContact__c,
+        'Core 第4.3.3節: 見積送付先は契約履歴へ保存する'
+      );
+    }
+  }
+
   private static BillingAccount__c insertBillingAccount(Id accountId) {
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = accountId,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 25,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     return billingAccount;
@@ -1397,8 +2162,275 @@ private class EstimateSaveServiceTest {
     line.amount = 10000;
     line.invoiceType = invoiceType;
     line.recordType = recordType;
+    line.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    line.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
     line.startDate = String.valueOf(startDate);
     line.endDate = String.valueOf(endDate);
     return line;
+  }
+
+  @IsTest
+  static void saveEstimate_sameKeyRetry_keepsOneHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Key Retry Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Key Retry Opportunity'
+      );
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Key Retry Product'
+      );
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 10000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem lineItem = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      lineItem.quantity = 1;
+      lineItem.unitPrice = 10000;
+      lineItem.amount = 10000;
+      lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      lineItem.billingCycle = '月';
+      String productsJson = JSON.serialize(
+        new List<EstimateCreateController.ProductLineItem>{ lineItem }
+      );
+      String operationKey = 'estimate-new-retry-key';
+
+      EstimateCreateController.EstimateSaveResult first = EstimateCreateController.saveEstimate(
+        opportunity.Id,
+        'New',
+        'Key Retry CS',
+        'Key Retry History',
+        null,
+        null,
+        String.valueOf(termStart),
+        String.valueOf(termEnd),
+        String.valueOf(termStart),
+        String.valueOf(termStart),
+        productsJson,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        operationKey
+      );
+      EstimateCreateController.EstimateSaveResult retry = EstimateCreateController.saveEstimate(
+        opportunity.Id,
+        'New',
+        'Key Retry CS 2',
+        'Key Retry History 2',
+        null,
+        null,
+        String.valueOf(termStart),
+        String.valueOf(termEnd),
+        String.valueOf(termStart),
+        String.valueOf(termStart),
+        productsJson,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        operationKey
+      );
+
+      System.assertEquals(
+        first.contractHistoryId,
+        retry.contractHistoryId,
+        'Core 第4.3.12節: 同じキーの再試行は1件のままにする'
+      );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Opportunity__c = :opportunity.Id
+        ]
+      );
+    }
+  }
+
+  @IsTest
+  static void saveEditedEstimate_staleAfterProductUpdate_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Product Token Acc'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Product Token Opp'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Product Token Service',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Product Token History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 4, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 3, 31),
+        EffectiveDate__c = Date.newInstance(2026, 4, 1)
+      );
+      insert history;
+      String historyOnlyToken = ContractOptimisticLockUtil.toToken(
+        [
+          SELECT LastModifiedDate
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .LastModifiedDate
+      );
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Product Token Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      insert new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 10000,
+        Amount__c = 10000,
+        StartDate__c = Date.newInstance(2026, 4, 1),
+        Enddate__c = Date.newInstance(2027, 3, 31),
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = opportunity.Id;
+      request.selectedType = 'New';
+      request.editHistoryId = history.Id;
+      request.expectedLastModifiedToken = historyOnlyToken;
+
+      try {
+        EstimateSaveService.saveEditedEstimate(request, history.Name);
+        Datetime productMax = ContractOptimisticLockUtil.resolveHistoryProductDatetime(
+          history.Id
+        );
+        Datetime historyLm = [
+          SELECT LastModifiedDate
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .LastModifiedDate;
+        if (productMax != null && historyLm != null && productMax.getTime() != historyLm.getTime()) {
+          System.assert(
+            false,
+            'Core 第4.3.12節: 見積編集の版は契約履歴と配下見積商品。商品追加後の履歴だけのトークンは拒否する'
+          );
+        }
+      } catch (AuraHandledException ex) {
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage()
+        );
+      }
+    }
+  }
+
+  @IsTest
+  static void saveEstimate_newBlankTaxPercent_doesNotFillTen() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account testAccount = ContractTestDataFactory.insertAccount(
+        'Blank Tax Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        testAccount.Id,
+        'Blank Tax Opportunity'
+      );
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Blank Tax Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem lineItem = new EstimateCreateController.ProductLineItem();
+      lineItem.productId = product.Id;
+      lineItem.quantity = 1;
+      lineItem.unitPrice = 10000;
+      lineItem.amount = 10000;
+      lineItem.startDate = String.valueOf(termStart);
+      lineItem.endDate = String.valueOf(termEnd);
+      lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      lineItem.billingCycle = '月';
+      lineItem.recordType = 'New';
+
+      Boolean rejected = false;
+      try {
+        EstimateSaveService.saveEstimate(
+          opportunity.Id,
+          'New',
+          'Blank Tax Service',
+          'Blank Tax History',
+          null,
+          null,
+          String.valueOf(termStart),
+          String.valueOf(termEnd),
+          String.valueOf(termStart),
+          String.valueOf(termStart),
+          JSON.serialize(
+            new List<EstimateCreateController.ProductLineItem>{ lineItem }
+          ),
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        );
+      } catch (Exception ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('消費税率が空です'),
+          'Core 第1.1.10節・第4.6節: Newの税率nullは10で埋めない: ' +
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, rejected);
+    }
   }
 }

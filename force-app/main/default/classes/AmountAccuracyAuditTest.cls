@@ -1,21 +1,22 @@
 /**
- * 金額優先バグトリ: 見積→期間明細→請求→プレビュー→差し戻し→ARR/PDF の円単位回帰。
+ * ????????: ???E????????E???????????EARR/PDF ??E??????E
  *
- * 境界（仕様）:
- * - 見積 ContractProduct.Amount = 画面確認値（保存正）。Trigger は再計算しない。
- * - 期間明細 = 常に数量×単価（月次行ごと HALF_UP）。見積 Amount と一致しなくてよい。
- * - 請求明細/ヘッダ = 期間明細集約。税はヘッダ税抜合計×税率を1回切り捨て。
- * - amountEntry / 単価小数による見積≠期間明細合計は仕様（請求正は単価側）。
- * - プレビュー端数調整は意図的な請求側差分。単価／数量／期間の同一請求内分割時は端数を由来期間合計へリセットしてから分割。
+ * ?E???E????E
+ * - ??EContractProduct.Amount = ??????E?????E??Trigger ???????E??E
+ * - ???? = ????�???E?????? HALF_UP?E????EAmount ??????????E
+ * - ???E?/??? = ?????E??E????E???????�???E??E????E
+ * - amountEntry / ?????????????????E???????????E??E
+ * - ?????????????E?????E??E?????E???????E?????E?E????E?????????????E???????E???E
  */
 @IsTest
 private class AmountAccuracyAuditTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
-  // --- Chunk1: 見積金額保存正本 ---
+  // --- Chunk1: ????????? ---
 
   @IsTest
   static void chunk1_buildContractProduct_preservesScreenAmountAndOriginalSign() {
@@ -32,6 +33,8 @@ private class AmountAccuracyAuditTest {
       newLine.unitPrice = 100.455;
       newLine.amount = 1234.4;
       newLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      newLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      newLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       newLine.recordType = 'New';
       newLine.startDate = '2026-04-01';
       newLine.endDate = '2027-03-31';
@@ -44,18 +47,18 @@ private class AmountAccuracyAuditTest {
         'New',
         Date.newInstance(2026, 4, 1)
       );
-      System.assertEquals(1.5, savedNew.Quantity__c, '数量はそのまま保持');
+      System.assertEquals(1.5, savedNew.Quantity__c, '???E??E????');
       System.assertEquals(
         100.46,
         savedNew.UnitPrice__c,
-        '単価 scale=2 HALF_UP'
+        '?? scale=2 HALF_UP'
       );
       System.assertEquals(
         1234,
         savedNew.Amount__c,
-        '画面金額を整数円で保存（再計算しない）'
+        '????????E??????E?????E??E
       );
-      // 画面金額 ≠ qty×単価でも再計算で上書きしない
+      // ????E? qty�?????E?????????E
       System.assertNotEquals(
         (1.5 * 100.46).setScale(0, RoundingMode.HALF_UP),
         savedNew.Amount__c
@@ -67,6 +70,8 @@ private class AmountAccuracyAuditTest {
       originalLine.unitPrice = 5000;
       originalLine.amount = -120000;
       originalLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      originalLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      originalLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       originalLine.recordType = 'Original';
       originalLine.startDate = '2026-04-01';
       originalLine.endDate = '2027-03-31';
@@ -83,14 +88,14 @@ private class AmountAccuracyAuditTest {
       System.assertEquals(
         -120000,
         savedOriginal.Amount__c,
-        'Original は画面の符号付き金額をそのまま保存'
+        'Original ?????????????E????E
       );
     }
   }
 
   @IsTest
   static void chunk1_contractProductAmountUtil_matchesWizardRounding() {
-    // 継続: qty×price×cycles 一括 HALF_UP。Original は符号反転。
+    // ??E qty�price�cycles ?? HALF_UP?Original ??????E
     Decimal recurring = ContractProductAmountUtil.calculateUnsignedAmount(
       1300,
       742.85,
@@ -115,7 +120,7 @@ private class AmountAccuracyAuditTest {
     );
   }
 
-  // --- Chunk2: 契約商品→期間明細（月次行ごと丸め） ---
+  // --- Chunk2: ??E????E?????E????????E??E---
 
   @IsTest
   static void chunk2_monthlyPeriodLines_useQtyTimesUnitPriceNotContractAmount() {
@@ -123,7 +128,7 @@ private class AmountAccuracyAuditTest {
       Fixture fixture = createMonthlyEstimate(
         1,
         33.33,
-        400, // 一括丸めなら 33.33×12=399.96→400。月次積み上げは 33×12=396
+        400, // ??????E33.33�E2=399.96?E00???????? 33�E2=396
         ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY
       );
 
@@ -144,7 +149,7 @@ private class AmountAccuracyAuditTest {
         System.assertEquals(
           33,
           line.Amount__c,
-          '月次行は qty×unitPrice を行ごと四捨五入'
+          '????E qty�unitPrice ????????E'
         );
         periodSum += line.Amount__c;
       }
@@ -159,22 +164,22 @@ private class AmountAccuracyAuditTest {
       System.assertEquals(
         400,
         cp.Amount__c,
-        '見積 Amount は一括丸めのまま残る'
+        '??EAmount ??????E????'
       );
       System.assertNotEquals(
         cp.Amount__c,
         periodSum,
-        'SPEC: 見積一括丸めと月次行積み上げは一致しなくてよい'
+        'SPEC: ???????????????????????'
       );
     }
   }
 
-  // --- Chunk3: amountEntry / 単価小数 ---
+  // --- Chunk3: amountEntry / ???? ---
 
   @IsTest
   static void chunk3_amountEntry_contractAmountDiffersFromPeriodSum_billingUsesUnitPrice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      // 画面手入力 9657000、単価逆算 742.85 → 請求側は 1300×742.85×10=9657050
+      // ????E?E9657000????E??E742.85 ?E???E? 1300�E42.85�E0=9657050
       Fixture fixture = createMonthlyEstimate(
         1300,
         742.85,
@@ -214,7 +219,7 @@ private class AmountAccuracyAuditTest {
       System.assertEquals(
         9657050,
         periodSum,
-        '請求素材は単価×数量の月次積み上げ（見積手入力額ではない）'
+        '?????E??�???E???????E???????????E??E
       );
       ContractProduct__c saved = [
         SELECT Amount__c
@@ -224,13 +229,13 @@ private class AmountAccuracyAuditTest {
       System.assertEquals(
         9657000,
         saved.Amount__c,
-        '見積 Amount は手入力のまま'
+        '??EAmount ???E??E??'
       );
-      System.assertEquals(50, periodSum - saved.Amount__c, 'SPEC 許容端数');
+      System.assertEquals(50, periodSum - saved.Amount__c, 'SPEC ????');
     }
   }
 
-  // --- Chunk4: Change 差分金額 ---
+  // --- Chunk4: Change ??E???E---
 
   @IsTest
   static void chunk4_changeQuantityUp_diffAmountEqualsDeltaOnly() {
@@ -359,11 +364,11 @@ private class AmountAccuracyAuditTest {
       ]) {
         changeSum += line.Amount__c == null ? 0 : line.Amount__c;
       }
-      // 有効日以降 9ヶ月: 数量+1 → +10000×9
+      // ?????E9??E ??E1 ?E+10000�E
       System.assertEquals(
         90000,
         changeSum,
-        'Change 差分は有効日以降の増分のみ'
+        'Change ??E?E??????E??E??'
       );
     }
   }
@@ -495,19 +500,19 @@ private class AmountAccuracyAuditTest {
         changeSum += line.Amount__c == null ? 0 : line.Amount__c;
         System.assert(
           line.StartDate__c >= effectiveDate,
-          '金額0 Remake の差分は有効日以降のみ'
+          '??E Remake ???E?E??????E?'
         );
       }
-      // 有効日以降6ヶ月を 8000→0 にする打消し = -48000
+      // ?????E??? 8000?E ?????? = -48000
       System.assertEquals(
         -48000,
         changeSum,
-        '期中停止（金額0 Remake）の差分合計'
+        '?????E????E Remake?E??E??E???E
       );
     }
   }
 
-  // --- Chunk5: マージ・税 ---
+  // --- Chunk5: ??E???E---
 
   @IsTest
   static void chunk5_mergeTax_truncatesOnceOnHeaderExclTotal() {
@@ -523,7 +528,7 @@ private class AmountAccuracyAuditTest {
       Amount__c = 15,
       TaxPercent__c = 0.1
     );
-    // 同一バケットに寄せる
+    // ?????E????E???E
     String invoiceKey = 'BA_HIST_2026-01-01_PAY';
     String lineKey = 'CP_100_1_unit_P';
     a.InvoiceBucketKey__c = invoiceKey;
@@ -539,7 +544,7 @@ private class AmountAccuracyAuditTest {
     System.assertEquals(
       3,
       invoices[0].taxTotal,
-      '行ごと切捨て(1+1=2)ではなくヘッダ税抜30に対し1回切り捨てで3'
+      '????E???(1+1=2)?????E?E????30???E??E????3'
     );
     System.assertEquals(
       TaxCalculationUtil.calculateTaxAmount(30, 10),
@@ -547,7 +552,7 @@ private class AmountAccuracyAuditTest {
     );
   }
 
-  // --- Chunk6: プレビュー端数調整 ---
+  // --- Chunk6: ????????? ---
 
   @IsTest
   static void chunk6_previewAmountAdjust_isIdempotentAndRecalculatesTax() {
@@ -586,7 +591,7 @@ private class AmountAccuracyAuditTest {
       System.assertEquals(
         baseAmount + 1,
         invoice.Amount__c,
-        '再適用で二重加算しない'
+        '???????????E
       );
       System.assertEquals(true, invoice.IsManuallyAdjusted__c);
       System.assertEquals(
@@ -596,7 +601,7 @@ private class AmountAccuracyAuditTest {
     }
   }
 
-  // --- Chunk7: 差し戻し再受注・Cancel ---
+  // --- Chunk7: ?????E???Cancel ---
 
   @IsTest
   static void chunk7_revertAndReorder_doesNotDuplicatePeriodAmounts() {
@@ -630,7 +635,7 @@ private class AmountAccuracyAuditTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        '差し戻しで期間明細・請求を削除'
+        '???????????????'
       );
       System.assertEquals(
         0,
@@ -674,7 +679,10 @@ private class AmountAccuracyAuditTest {
         LIMIT 1
       ];
       invoice.SystemIntegrationDate__c = Date.today();
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
 
       Boolean blocked = false;
       try {
@@ -686,7 +694,7 @@ private class AmountAccuracyAuditTest {
       System.assertEquals(
         true,
         blocked,
-        'ロック請求がある Version の差し戻しは拒否（§6.9）'
+        '??E??????? Version ??????E???E?�6.9?E?E
       );
       System.assertEquals(
         'Ordered',
@@ -704,7 +712,7 @@ private class AmountAccuracyAuditTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :fixture.history.Id
         ],
-        '拒否時は期間明細が残る'
+        '????E???????'
       );
     }
   }
@@ -762,24 +770,24 @@ private class AmountAccuracyAuditTest {
     }
   }
 
-  // --- Chunk8: ARR / 見積PDF税 ---
+  // --- Chunk8: ARR / ??PDF?E---
 
   @IsTest
   static void chunk8_arr_usesContractProductAmountNotPeriodSum() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Date termStart = ContractTestDataFactory.stableTermStart();
-      Date termEnd = ContractTestDataFactory.stableTermEnd(); // 12ヶ月
+      Date termEnd = ContractTestDataFactory.stableTermEnd(); // 12??E
       ContractProduct__c line = new ContractProduct__c(
         Quantity__c = 1300,
         UnitPrice__c = 742.85,
-        Amount__c = 9657000, // 期間明細側なら 9657050
+        Amount__c = 9657000, // ???????E9657050
         StartDate__c = termStart,
         Enddate__c = termEnd,
         BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
         Type__c = 'New',
         ContractHistory__c = null
       );
-      // history Id が無いと 0 になるのでダミー履歴を付ける
+      // history Id ???E?? 0 ????E????E??????E
       Account account = ContractTestDataFactory.insertAccount('Audit ARR');
       ContractService__c service = new ContractService__c(
         Name = 'Audit ARR Service',
@@ -806,12 +814,12 @@ private class AmountAccuracyAuditTest {
         line,
         termEnd
       );
-      // Amount÷12×12 = Amount（見積正）。単価積み上げ 9657050 ではない。
-      System.assertEquals(9657000, arr, 'ARR は契約商品 Amount ベース');
+      // Amount�12�E2 = Amount?E?????E???????? 9657050 ????E??E
+      System.assertEquals(9657000, arr, 'ARR ???E???EAmount ??E?');
       System.assertNotEquals(
         9657050,
         arr,
-        'SPEC: amountEntry 端数（単価積み上げ）は ARR に載せない'
+        'SPEC: amountEntry ???E????????E??E ARR ?????E
       );
     }
   }
@@ -822,7 +830,7 @@ private class AmountAccuracyAuditTest {
     System.assertEquals(
       1,
       TaxCalculationUtil.calculateTaxAmount(15, 10),
-      'カテゴリ別に切ると 1+1 になり得るが、正は税抜合計への1回切り捨て'
+      '??E??????E??? 1+1 ???????????????1??E???'
     );
     System.assertEquals(33, TaxCalculationUtil.calculateAmountInclTax(30, 10));
   }
@@ -836,11 +844,10 @@ private class AmountAccuracyAuditTest {
   private static BillingAccount__c insertBillingAccount(Id accountId) {
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = accountId,
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_NEXT_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_1,
-      BillingAddressee__c = '監査宛名',
-      BillingEmailTo__c = 'to@example.com',
-      AdjustInvoiceDateToBusinessDay__c = false
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 1, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      BillingAddressee__c = '????',
+      BillingEmailTo__c = 'to@example.com'
     );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;

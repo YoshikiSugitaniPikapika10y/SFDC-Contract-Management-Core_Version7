@@ -2,9 +2,11 @@
 <CompactLayout xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>BillingAccount_Compact</fullName>
     <fields>Name</fields>
+    <fields>BillingAccountKey__c</fields>
+    <fields>HasReference__c</fields>
     <fields>Account__c</fields>
-    <fields>BillingDayOfMonth__c</fields>
-    <fields>PaymentTerm__c</fields>
+    <fields>InvoiceDateMethod__c</fields>
+    <fields>PaymentTermMethod__c</fields>
     <fields>BillingAddressee__c</fields>
     <label>請求アカウント コンパクト</label>
 </CompactLayout>

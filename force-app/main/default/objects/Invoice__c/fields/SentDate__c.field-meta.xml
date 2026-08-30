@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SentDate__c</fullName>
+    <description
+  >請求を送付した日。回収が Confirmed かつ入金0なら Sent へ。すでに入金中／消込完了ならステータスは変えず送付日だけ付ける。</description>
+    <inlineHelpText>送付した日。再送時は更新します。</inlineHelpText>
+    <label>送付日</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Date</type>
+</CustomField>

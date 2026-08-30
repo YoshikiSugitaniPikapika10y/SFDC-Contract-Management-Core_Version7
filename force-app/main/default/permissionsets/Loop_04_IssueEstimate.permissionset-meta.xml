@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>04 操作。見積書PDF発行。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>04 契約 見積書を発行する</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_04_Can_IssueEstimate</name>
+    </customPermissions>
+</PermissionSet>

@@ -37,6 +37,9 @@ public without sharing class InvoiceProductMergeService {
     public List<Id> sourceInvoiceProductIds;
     public List<InvoiceProduct__c> sourceProducts;
     public Boolean isRecurring;
+    public Date servicePeriodStartDate;
+    public Date servicePeriodEndDate;
+    public String revenueRecognitionBasis;
   }
 
   public static List<MergedInvoice> buildMergedInvoices(
@@ -124,13 +127,15 @@ public without sharing class InvoiceProductMergeService {
     return value == null ? '' : String.valueOf(value);
   }
 
+  /** 仕様: Core 第0.1節 */
   public static String formatHistoryVersionLabel(Decimal version) {
     if (version == null) {
       return '';
     }
-    return 'V' + String.valueOf(version.intValue());
+    return '版' + String.valueOf(version.intValue());
   }
 
+  /** 仕様: Core 第1.1.10節 */
   public static String resolveInvoiceMergeKey(InvoiceProduct__c product) {
     if (product == null) {
       return null;
@@ -144,6 +149,7 @@ public without sharing class InvoiceProductMergeService {
     );
   }
 
+  /** 仕様: Core 第1.1.10節 */
   public static String resolveLineMergeKey(InvoiceProduct__c product) {
     if (product == null) {
       return null;
@@ -151,11 +157,9 @@ public without sharing class InvoiceProductMergeService {
     if (String.isNotBlank(product.LineBucketKey__c)) {
       return product.LineBucketKey__c;
     }
-    // 旧データ互換: 生成時キーが無い行は現行 CMDT で組み立てる
-    if (product.ContractProduct__c == null && product.Id != null) {
-      return 'LINE|FALLBACK=' + String.valueOf(product.Id);
-    }
-    return InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(product);
+    throw new MergeKeyException(
+      '請求明細マージキー（LineBucketKey）がありません。請求生成をやり直してください。'
+    );
   }
 
   private static MergedInvoice buildMergedInvoice(
@@ -210,14 +214,16 @@ public without sharing class InvoiceProductMergeService {
     }
 
     for (String lineKey : productsByLineKey.keySet()) {
-      MergedLine line = buildMergedLine(
-        lineKey,
+      List<List<InvoiceProduct__c>> contiguousGroups = splitIntoContiguousGroups(
         productsByLineKey.get(lineKey)
       );
-      invoice.lines.add(line);
-      invoice.amountTotal += line.amount;
-      invoice.integratedAmount += line.integratedAmount;
-      invoice.clearedAmount += line.clearedAmount;
+      for (List<InvoiceProduct__c> groupProducts : contiguousGroups) {
+        MergedLine line = buildMergedLine(lineKey, groupProducts);
+        invoice.lines.add(line);
+        invoice.amountTotal += line.amount;
+        invoice.integratedAmount += line.integratedAmount;
+        invoice.clearedAmount += line.clearedAmount;
+      }
     }
     invoice.taxPercent = resolveTaxPercent(products);
     // 行税額の合算はしない。請求マージ単位の税抜合計に対して1回切り捨て。
@@ -231,17 +237,25 @@ public without sharing class InvoiceProductMergeService {
   }
 
   private static Decimal resolveTaxPercent(List<InvoiceProduct__c> products) {
-    if (products == null) {
-      return TaxCalculationUtil.DEFAULT_TAX_PERCENT;
+    if (products == null || products.isEmpty()) {
+      throw new TaxCalculationUtil.TaxPercentException('消費税率が空です。');
     }
     for (InvoiceProduct__c product : products) {
-      if (product != null && product.TaxPercent__c != null) {
+      if (
+        product == null ||
+        product.ContractHistory__r == null ||
+        product.ContractHistory__r.ContractService__r == null
+      ) {
+        continue;
+      }
+      Decimal stored = product.ContractHistory__r.ContractService__r.TaxPercent__c;
+      if (stored != null) {
         return TaxCalculationUtil.resolveTaxPercent(
-          TaxCalculationUtil.fromPercentFieldStorage(product.TaxPercent__c)
+          TaxCalculationUtil.fromPercentFieldStorage(stored)
         );
       }
     }
-    return TaxCalculationUtil.DEFAULT_TAX_PERCENT;
+    throw new TaxCalculationUtil.TaxPercentException('消費税率が空です。');
   }
 
   private static MergedLine buildMergedLine(
@@ -300,7 +314,10 @@ public without sharing class InvoiceProductMergeService {
       ','
     );
     line.openAmount = calculateOpenAmount(products);
-    line.periodLabel = buildPeriodLabel(products, line.isRecurring);
+    // 連続区間保証後は常に単一区間ラベル
+    line.periodLabel = buildPeriodLabel(products, true);
+    applyServicePeriodBounds(line, products);
+    line.revenueRecognitionBasis = resolveRevenueRecognitionBasis(representative);
     if (line.unitPrice == null) {
       line.unitPrice = representative.UnitPrice__c;
     }
@@ -311,6 +328,165 @@ public without sharing class InvoiceProductMergeService {
       line.productName = resolveProductName(representative);
     }
     return line;
+  }
+
+  /**
+   * 同一明細キー内の期間明細を開始日順に並べ、隣接／重複だけを1区間にまとめる。
+   * ギャップがあれば別グループ（別請求明細）にする。
+   */
+  @TestVisible
+  static List<List<InvoiceProduct__c>> splitIntoContiguousGroups(
+    List<InvoiceProduct__c> products
+  ) {
+    List<List<InvoiceProduct__c>> groups = new List<List<InvoiceProduct__c>>();
+    if (products == null || products.isEmpty()) {
+      return groups;
+    }
+    List<InvoiceProduct__c> sorted = new List<InvoiceProduct__c>(products);
+    sorted.sort(new InvoiceProductStartDateComparator());
+
+    List<InvoiceProduct__c> current = new List<InvoiceProduct__c>();
+    Date currentEnd;
+    for (InvoiceProduct__c product : sorted) {
+      if (product == null) {
+        continue;
+      }
+      if (current.isEmpty()) {
+        current.add(product);
+        currentEnd = product.Enddate__c;
+        continue;
+      }
+      if (
+        isContiguousOrOverlappingPeriod(
+          currentEnd,
+          product.StartDate__c,
+          product.Enddate__c
+        )
+      ) {
+        current.add(product);
+        if (
+          product.Enddate__c != null &&
+          (currentEnd == null || product.Enddate__c > currentEnd)
+        ) {
+          currentEnd = product.Enddate__c;
+        }
+      } else {
+        groups.add(current);
+        current = new List<InvoiceProduct__c>{ product };
+        currentEnd = product.Enddate__c;
+      }
+    }
+    if (!current.isEmpty()) {
+      groups.add(current);
+    }
+    return groups;
+  }
+
+  private static Boolean isContiguousOrOverlappingPeriod(
+    Date previousEnd,
+    Date nextStart,
+    Date nextEnd
+  ) {
+    if (previousEnd == null || nextStart == null) {
+      return false;
+    }
+    // 重複または隣接（前日終了 + 1日 == 次開始）
+    return nextStart <= previousEnd.addDays(1);
+  }
+
+  private static void applyServicePeriodBounds(
+    MergedLine line,
+    List<InvoiceProduct__c> products
+  ) {
+    Date minStart;
+    Date maxEnd;
+    for (InvoiceProduct__c product : products) {
+      if (product == null) {
+        continue;
+      }
+      if (
+        product.StartDate__c != null &&
+        (minStart == null || product.StartDate__c < minStart)
+      ) {
+        minStart = product.StartDate__c;
+      }
+      if (
+        product.Enddate__c != null &&
+        (maxEnd == null || product.Enddate__c > maxEnd)
+      ) {
+        maxEnd = product.Enddate__c;
+      }
+    }
+    if (minStart == null || maxEnd == null || maxEnd < minStart) {
+      throw new MergeKeyException(
+        '請求明細のサービス期間が不正です（開始・終了が揃いません）。'
+      );
+    }
+    line.servicePeriodStartDate = minStart;
+    line.servicePeriodEndDate = maxEnd;
+  }
+
+  private static String resolveRevenueRecognitionBasis(
+    InvoiceProduct__c representative
+  ) {
+    if (
+      representative != null &&
+      representative.ContractProduct__r != null &&
+      String.isNotBlank(
+        representative.ContractProduct__r.RevenueRecognitionBasis__c
+      )
+    ) {
+      return ContractMetadataService.normalizeRevenueRecognitionBasis(
+        representative.ContractProduct__r.RevenueRecognitionBasis__c
+      );
+    }
+    if (
+      representative != null &&
+      representative.ContractProduct__r != null &&
+      representative.ContractProduct__r.Product__r != null &&
+      String.isNotBlank(
+        representative.ContractProduct__r.Product__r.RevenueRecognitionBasis__c
+      )
+    ) {
+      return ContractMetadataService.normalizeRevenueRecognitionBasis(
+        representative.ContractProduct__r.Product__r.RevenueRecognitionBasis__c
+      );
+    }
+    // フォールバック: 継続課金は期間、それ以外は一時点
+    if (isRecurringProduct(representative)) {
+      return ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+    }
+    return ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+  }
+
+  /** 請求明細に紐づく SourcePeriodLineIds が連続区間か検証する。 */
+  public static void assertPeriodIdsContiguous(
+    String sourcePeriodLineIds,
+    Map<Id, InvoiceProduct__c> periodById
+  ) {
+    if (String.isBlank(sourcePeriodLineIds) || periodById == null) {
+      return;
+    }
+    List<InvoiceProduct__c> periods = new List<InvoiceProduct__c>();
+    for (String token : sourcePeriodLineIds.split(',')) {
+      if (String.isBlank(token)) {
+        continue;
+      }
+      Id periodId = Id.valueOf(token.trim());
+      InvoiceProduct__c period = periodById.get(periodId);
+      if (period != null) {
+        periods.add(period);
+      }
+    }
+    if (periods.size() <= 1) {
+      return;
+    }
+    List<List<InvoiceProduct__c>> groups = splitIntoContiguousGroups(periods);
+    if (groups.size() != 1) {
+      throw new MergeKeyException(
+        '請求明細の由来期間が連続していません。連続区間ごとに明細を分けてください。'
+      );
+    }
   }
 
   private static Decimal calculateOpenAmount(List<InvoiceProduct__c> products) {
@@ -325,14 +501,9 @@ public without sharing class InvoiceProductMergeService {
     if (product == null || product.ContractProduct__r == null) {
       return false;
     }
-    String billingType = product.ContractProduct__r.BillingType__c;
-    if (
-      String.isBlank(billingType) &&
-      product.ContractProduct__r.Product__r != null
-    ) {
-      billingType = product.ContractProduct__r.Product__r.BillingType__c;
-    }
-    return ContractMetadataService.isRecurringBillingType(billingType);
+    return ContractMetadataService.isRecurringBillingType(
+      ContractMetadataService.resolveLineBillingType(product.ContractProduct__r)
+    );
   }
 
   private static String resolveProductName(InvoiceProduct__c product) {

@@ -14,3 +14,15 @@
     background: #ffffff;
     box-sizing: border-box;
 }
+
+/*
+ * ウィザードの高さが確定しないと内側の height:100% が auto に落ち、
+ * モーダル内にスクローラが1つも成立しなくなる（ホイールが効く位置と効かない位置が出る）
+ */
+.action-frame c-order-invoice-preview-wizard {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+}

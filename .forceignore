@@ -30,11 +30,5 @@ force-app/main/default/profiles/Admin.profile-meta.xml
 # Sample CMDT (Zeroboard test data — must not deploy to U-ZERO prod)
 **/customMetadata/EstimateWizardField.Sample_*
 
-# Opportunity trigger: prod already has equivalent handler; skip overwrite
-**/triggers/OpportunityTrigger.trigger
-**/triggers/OpportunityTrigger.trigger-meta.xml
-**/classes/OpportunityTriggerHandler.cls
-**/classes/OpportunityTriggerHandler.cls-meta.xml
-
 # Optional draft flow — activate separately after tenant review
 **/flows/SetEstimateRelateFields.flow-meta.xml

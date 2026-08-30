@@ -26,6 +26,8 @@ export default class EstimateWizardCustomFieldGrid extends LightningElement {
     let value;
     if (fieldDef.fieldType === "BOOLEAN") {
       value = event.target.checked;
+    } else if (fieldDef.fieldType === "REFERENCE") {
+      value = event.detail?.recordId || "";
     } else if (
       event.detail &&
       Object.prototype.hasOwnProperty.call(event.detail, "value")

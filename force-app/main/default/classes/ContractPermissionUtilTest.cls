@@ -6,25 +6,23 @@ private class ContractPermissionUtilTest {
   }
 
   @IsTest
-  static void has_defaultsAllowInTests_andHonorsOverrides() {
+  static void has_defaultsAllowOperations_andDeniesIrregular() {
     System.assertEquals(
       true,
       ContractPermissionUtil.has(ContractPermissionUtil.ORDER)
     );
-    // #99 はテスト既定 OFF
     System.assertEquals(
       false,
-      ContractPermissionUtil.canBypassIntegrityGuards()
+      ContractPermissionUtil.hasFixConfirmedInvoice()
     );
-    // #13 請求Opsはテスト既定 ON（04〜13）
     System.assertEquals(
       true,
-      ContractPermissionUtil.has(ContractPermissionUtil.MANAGE_INVOICE_OPS)
+      ContractPermissionUtil.has(ContractPermissionUtil.CONFIRM_INVOICE)
     );
 
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.ORDER => false,
-      ContractPermissionUtil.BYPASS_INTEGRITY => true
+      ContractPermissionUtil.FIX_CONFIRMED_INVOICE => true
     };
     System.assertEquals(
       false,
@@ -32,7 +30,7 @@ private class ContractPermissionUtilTest {
     );
     System.assertEquals(
       true,
-      ContractPermissionUtil.canBypassIntegrityGuards()
+      ContractPermissionUtil.hasFixConfirmedInvoice()
     );
 
     ContractPermissionUtil.testOverrides = null;
@@ -45,11 +43,9 @@ private class ContractPermissionUtilTest {
   }
 
   @IsTest
-  static void assertEstimateSave_routesByIds() {
+  static void assertEstimateSave_uses03ForCreateEditCopy() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-      ContractPermissionUtil.CREATE_ESTIMATE => false,
-      ContractPermissionUtil.EDIT_ESTIMATE => false,
-      ContractPermissionUtil.COPY_ESTIMATE => false
+      ContractPermissionUtil.ESTIMATE => false
     };
 
     Boolean createBlocked = false;
@@ -82,7 +78,7 @@ private class ContractPermissionUtilTest {
   @IsTest
   static void issuePdf_blocksWithoutPermission() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-      ContractPermissionUtil.ISSUE_ESTIMATE_DOCUMENT => false
+      ContractPermissionUtil.ISSUE_ESTIMATE => false
     };
     PageReference issuePage = Page.EstimateDocumentIssue;
     issuePage.getParameters().put('id', UserInfo.getUserId());
@@ -95,23 +91,23 @@ private class ContractPermissionUtilTest {
   }
 
   @IsTest
-  static void assertManageInvoiceOps_andSiblingAsserts() {
-    ContractPermissionUtil.assertManageInvoiceOps();
+  static void assertConfirmInvoice_andSiblingAsserts() {
+    ContractPermissionUtil.assertConfirmInvoice();
     ContractPermissionUtil.assertOrder();
     ContractPermissionUtil.assertRevert();
     ContractPermissionUtil.assertViewInvoicePreview();
     ContractPermissionUtil.assertArchiveEstimate();
 
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-      ContractPermissionUtil.MANAGE_INVOICE_OPS => false
+      ContractPermissionUtil.CONFIRM_INVOICE => false
     };
     Boolean blocked = false;
     try {
-      ContractPermissionUtil.assertManageInvoiceOps();
+      ContractPermissionUtil.assertConfirmInvoice();
     } catch (AuraHandledException ex) {
       blocked = true;
       System.assertEquals(
-        '請求の連携・消込操作を実行する権限がありません。',
+        '請求を確定する権限がありません。',
         ex.getMessage()
       );
     } finally {
@@ -120,7 +116,7 @@ private class ContractPermissionUtilTest {
     System.assertEquals(true, blocked);
 
     ContractPermissionUtil.assertHas(
-      ContractPermissionUtil.MANAGE_INVOICE_OPS,
+      ContractPermissionUtil.CONFIRM_INVOICE,
       null
     );
   }
@@ -166,7 +162,7 @@ private class ContractPermissionUtilTest {
     }
 
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-      ContractPermissionUtil.ARCHIVE_ESTIMATE => false
+      ContractPermissionUtil.ESTIMATE => false
     };
     try {
       Boolean blocked = false;
@@ -184,9 +180,7 @@ private class ContractPermissionUtilTest {
       ContractPermissionUtil.testOverrides = null;
     }
 
-    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-      ContractPermissionUtil.VIEW_INVOICE_PREVIEW => false
-    };
+    ContractPermissionUtil.testAllowAll = false;
     try {
       Boolean blocked = false;
       try {
@@ -194,21 +188,31 @@ private class ContractPermissionUtilTest {
       } catch (AuraHandledException ex) {
         blocked = true;
         System.assertEquals(
-          '請求プレビューを表示する権限がありません。',
+          '請求ボードを表示する権限がありません。',
           ex.getMessage()
         );
       }
       System.assertEquals(true, blocked);
     } finally {
+      ContractPermissionUtil.testAllowAll = true;
+    }
+
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.EDIT_DRAFT_INVOICE => true
+    };
+    try {
+      ContractPermissionUtil.assertViewInvoicePreview();
+    } finally {
       ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
     }
   }
 
   @IsTest
   static void estimatePresets_blockWithoutPermission() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-      ContractPermissionUtil.EDIT_ESTIMATE => false,
-      ContractPermissionUtil.COPY_ESTIMATE => false
+      ContractPermissionUtil.ESTIMATE => false
     };
     Boolean editBlocked = false;
     try {
@@ -226,5 +230,46 @@ private class ContractPermissionUtilTest {
     }
     System.assertEquals(true, editBlocked);
     System.assertEquals(true, copyBlocked);
+  }
+
+  @IsTest
+  static void viewInvoice_allowsTenThroughSeventeenWithout09() {
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CANCEL_INVOICE => true
+    };
+    try {
+      ContractPermissionUtil.assertViewInvoicePreview();
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+  }
+
+  @IsTest
+  static void hasDeleteRecords_includes104Alone() {
+    System.assertEquals(
+      false,
+      ContractPermissionUtil.hasDeleteRecords(),
+      '共通基盤 第3.6節: テスト既定は 103／104 とも拒否'
+    );
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.MIGRATE_ALL => true
+    };
+    try {
+      System.assertEquals(
+        true,
+        ContractPermissionUtil.hasDeleteRecords(),
+        '共通基盤 第3.6節: 104 は 103 を含む'
+      );
+      System.assertEquals(true, ContractPermissionUtil.hasMigrateAll());
+      System.assertEquals(
+        false,
+        ContractPermissionUtil.has(ContractPermissionUtil.DELETE_RECORDS),
+        '共通基盤 第3.6節: 104 単独では 103 カスタム権限は不要'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
   }
 }

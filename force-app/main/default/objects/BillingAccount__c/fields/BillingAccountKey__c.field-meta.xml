@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>BillingAccountKey__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>仕様: Core 第3.3.1節</description>
+    <externalId>true</externalId>
+    <inlineHelpText>作成時に決まり、以後変えません。空ならレコードIdが入ります。</inlineHelpText>
+    <label>請求アカウントキー</label>
+    <length>80</length>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

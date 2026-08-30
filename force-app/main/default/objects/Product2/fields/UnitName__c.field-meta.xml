@@ -28,6 +28,21 @@
                 <default>false</default>
                 <label>セット</label>
             </value>
+            <value>
+                <fullName>件</fullName>
+                <default>false</default>
+                <label>件</label>
+            </value>
+            <value>
+                <fullName>社</fullName>
+                <default>false</default>
+                <label>社</label>
+            </value>
+            <value>
+                <fullName>枚数</fullName>
+                <default>false</default>
+                <label>枚数</label>
+            </value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>

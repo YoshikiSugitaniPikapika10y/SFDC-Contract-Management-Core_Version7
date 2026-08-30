@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue><fullName>AccountsReceivable</fullName><default>false</default><label>売掛債権</label></customValue>
+    <customValue><fullName>ContractAsset</fullName><default>false</default><label>契約資産</label></customValue>
+    <customValue><fullName>Cash</fullName><default>false</default><label>現金・預金</label></customValue>
+    <customValue><fullName>DeferredRevenue</fullName><default>false</default><label>前受収益</label></customValue>
+    <customValue><fullName>TaxPayable</fullName><default>false</default><label>仮受消費税</label></customValue>
+    <customValue><fullName>UnappliedCash</fullName><default>false</default><label>仮受金</label></customValue>
+    <customValue><fullName>SuspensePayment</fullName><default>false</default><label>未解決支払</label></customValue>
+    <customValue><fullName>Revenue</fullName><default>false</default><label>売上収益</label></customValue>
+    <customValue><fullName>FxGain</fullName><default>false</default><label>為替差益</label></customValue>
+    <customValue><fullName>FxLoss</fullName><default>false</default><label>為替差損</label></customValue>
+    <customValue><fullName>OtherIncome</fullName><default>false</default><label>雑収入</label></customValue>
+    <customValue><fullName>OtherExpense</fullName><default>false</default><label>その他費用</label></customValue>
+    <description>仕様: Accounting 第2.3節、第4.3節</description>
+    <masterLabel>仕訳スロットキー</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

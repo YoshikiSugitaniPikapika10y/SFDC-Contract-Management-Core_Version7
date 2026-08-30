@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customSettingsType>Hierarchy</customSettingsType>
+    <description
+  >仕様: Core 第11.6節。登録後も更新を許可する InvoicePayment__c 項目 API 名（カンマ区切り）。定義CMDTから自動では書かない。</description>
+    <enableFeeds>false</enableFeeds>
+    <label>入出金ロック除外項目</label>
+    <visibility>Public</visibility>
+</CustomObject>

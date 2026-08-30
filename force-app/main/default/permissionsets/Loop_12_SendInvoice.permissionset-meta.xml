@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>12 操作。請求書発行・送付。閲覧を含む。通常は 01 または 02 と併用。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>12 契約 請求書を発行・送付する</label>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Loop_12_Can_SendInvoice</name>
+    </customPermissions>
+</PermissionSet>

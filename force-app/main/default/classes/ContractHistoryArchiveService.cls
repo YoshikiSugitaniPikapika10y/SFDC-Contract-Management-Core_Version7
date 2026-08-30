@@ -13,6 +13,7 @@ public without sharing class ContractHistoryArchiveService {
     }
 
     Map<Id, Decimal> maxOrderedVersionByServiceId = new Map<Id, Decimal>();
+    Map<Id, String> parentKeyByServiceId = new Map<Id, String>();
     Set<Id> orderedHistoryIds = new Set<Id>();
     for (ContractHistory__c orderedHistory : newlyOrderedHistories) {
       if (
@@ -31,6 +32,12 @@ public without sharing class ContractHistoryArchiveService {
         version > maxOrderedVersionByServiceId.get(serviceId)
       ) {
         maxOrderedVersionByServiceId.put(serviceId, version);
+        if (String.isNotBlank(orderedHistory.BusinessOperationKey__c)) {
+          parentKeyByServiceId.put(
+            serviceId,
+            orderedHistory.BusinessOperationKey__c
+          );
+        }
       }
     }
     if (maxOrderedVersionByServiceId.isEmpty()) {
@@ -66,12 +73,17 @@ public without sharing class ContractHistoryArchiveService {
       ) {
         continue;
       }
-      historiesToArchive.add(
-        new ContractHistory__c(
-          Id = estimateHistory.Id,
-          historystatus__c = HISTORY_STATUS_ARCHIVE
-        )
+      ContractHistory__c archived = new ContractHistory__c(
+        Id = estimateHistory.Id,
+        historystatus__c = HISTORY_STATUS_ARCHIVE
       );
+      String parentKey = parentKeyByServiceId.get(
+        estimateHistory.ContractService__c
+      );
+      if (String.isNotBlank(parentKey)) {
+        archived.BusinessOperationKey__c = parentKey;
+      }
+      historiesToArchive.add(archived);
     }
 
     if (!historiesToArchive.isEmpty()) {

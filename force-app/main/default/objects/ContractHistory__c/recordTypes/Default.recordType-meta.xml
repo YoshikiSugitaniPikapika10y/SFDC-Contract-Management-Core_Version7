@@ -46,10 +46,6 @@
             <fullName>Cancel</fullName>
             <default>false</default>
         </values>
-        <values>
-            <fullName>Add</fullName>
-            <default>false</default>
-        </values>
     </picklistValues>
     <picklistValues>
         <picklist>historystatus__c</picklist>

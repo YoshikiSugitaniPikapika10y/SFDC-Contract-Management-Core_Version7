@@ -2,10 +2,10 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Lifecycle__c</fullName>
     <description
-  >V1 受注時に確定。Term=継続課金あり / Spot=1回課金のみ。V1 差し戻しでクリアし再受注で再判定。Term↔Spot の直接切替は不可。</description>
+  >仕様: Core 第0.1節。V1 受注時に確定。Term=継続課金あり / Spot=一回課金のみ。V1 差し戻しでクリアし再受注で再判定。Term↔Spot の直接切替は不可。</description>
     <externalId>false</externalId>
     <inlineHelpText
-  >V1 受注時に自動設定されます。期間契約（Term）か都度契約（Spot）か。編集できません。</inlineHelpText>
+  >V1 受注時に自動設定されます。期間契約か都度契約か。編集できません。</inlineHelpText>
     <label>ライフサイクル</label>
     <required>false</required>
     <trackHistory>false</trackHistory>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue><fullName>PAY_INVOICE_CURRENT</fullName><default>false</default><label>通常日Invoice</label></customValue>
+    <customValue><fullName>PAY_NON_INVOICE_POSITIVE</fullName><default>false</default><label>NonInvoice正額</label></customValue>
+    <customValue><fullName>PAY_NON_INVOICE_NEGATIVE</fullName><default>false</default><label>NonInvoice負額</label></customValue>
+    <customValue><fullName>PAY_INVOICE_HISTORICAL_POSITIVE_CASH</fullName><default>false</default><label>過去日Invoice正額現預金</label></customValue>
+    <customValue><fullName>PAY_INVOICE_HISTORICAL_NEGATIVE_CASH</fullName><default>false</default><label>過去日Invoice負額現預金</label></customValue>
+    <customValue><fullName>PAY_INVOICE_HISTORICAL_UAC_TRANSFER</fullName><default>false</default><label>過去日Invoice UAC振替</label></customValue>
+    <customValue><fullName>PAY_INVOICE_HISTORICAL_SP_TRANSFER</fullName><default>false</default><label>過去日Invoice SP振替</label></customValue>
+    <description>仕様: Accounting 第2.3節、第4.7節</description>
+    <masterLabel>固定条件セットキー</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

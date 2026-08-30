@@ -44,11 +44,11 @@
             </template>
           </div>
           <div class="est-field est-field_version">
-            <span class="est-label">作成 Version</span>
+            <span class="est-label">作成 版</span>
             <div class="est-value">{displayNewHistoryVersion}</div>
           </div>
           <div class="est-field">
-            <span class="est-label">請求アカウント</span>
+            <span class="est-label est-label_required">請求アカウント</span>
             <template if:true={showBillingAccountReadonly}>
               <div class="est-value">{billingAccountDisplayValue}</div>
               <template if:false={isStandardFieldsReadonly}>
@@ -105,16 +105,54 @@
                 >
                 </lightning-record-picker>
               </template>
+              <template if:true={canSearchOtherAccountBilling}>
+                <lightning-input
+                  class="est-billing-other-toggle"
+                  type="checkbox"
+                  label="他の取引先の請求アカウントも検索する"
+                  checked={allowOtherAccountBilling}
+                  onchange={handleAllowOtherAccountBillingChange}
+                >
+                </lightning-input>
+              </template>
+            </template>
+          </div>
+          <div class="est-field">
+            <span class="est-label est-label_required">税率</span>
+            <template if:true={isStandardFieldsReadonly}>
+              <div class="est-value">{taxPercentDisplayValue}</div>
+            </template>
+            <template if:false={isStandardFieldsReadonly}>
               <lightning-input
-                class="est-billing-other-toggle"
-                type="checkbox"
-                label="他の取引先の請求アカウントも検索する"
-                checked={allowOtherAccountBilling}
-                onchange={handleAllowOtherAccountBillingChange}
+                type="number"
+                label="税率"
+                variant="label-hidden"
+                value={taxPercent}
+                min="0"
+                max="100"
+                step="1"
+                onchange={handleTaxPercentChange}
               >
               </lightning-input>
             </template>
           </div>
+          <template if:true={showEstimateSendContact}>
+            <div class="est-field">
+              <span class="est-label">見積送付先</span>
+              <lightning-record-picker
+                label="見積送付先"
+                object-api-name="Contact"
+                value={estimateSendContactId}
+                variant="label-hidden"
+                placeholder="取引先責任者を検索..."
+                matching-info={sendContactMatchingInfo}
+                filter={sendContactFilter}
+                disabled={isSendContactPickerDisabled}
+                onchange={handleEstimateSendContactChange}
+              >
+              </lightning-record-picker>
+            </div>
+          </template>
         </div>
       </template>
 
@@ -169,6 +207,11 @@
                       <template if:true={selectedServiceCard.billingLabel}>
                         <span class="est-service-picker-billing"
                           >{selectedServiceCard.billingLabel}</span
+                        >
+                      </template>
+                      <template if:true={selectedServiceCard.taxLabel}>
+                        <span class="est-service-picker-tax"
+                          >{selectedServiceCard.taxLabel}</span
                         >
                       </template>
                     </span>
@@ -240,6 +283,11 @@
                               >{option.billingLabel}</span
                             >
                           </template>
+                          <template if:true={option.taxLabel}>
+                            <span class="est-service-picker-tax"
+                              >{option.taxLabel}</span
+                            >
+                          </template>
                         </span>
                       </button>
                     </template>
@@ -254,21 +302,7 @@
           <div class="est-field-grid est-field-grid_continuation">
             <div class="est-field">
               <span class="est-label est-label_required">契約サービス名</span>
-              <template if:true={isStandardFieldsReadonly}>
-                <div class="est-value">{contractServiceName}</div>
-              </template>
-              <template if:false={isStandardFieldsReadonly}>
-                <div class="est-control">
-                  <input
-                    type="text"
-                    class="est-text-input"
-                    value={contractServiceName}
-                    aria-label="契約サービス名"
-                    onchange={handleServiceNameChange}
-                    required
-                  />
-                </div>
-              </template>
+              <div class="est-value">{contractServiceName}</div>
             </div>
             <div class="est-field">
               <span class="est-label est-label_required">契約履歴名</span>
@@ -290,72 +324,29 @@
             </div>
             <div class="est-field est-field_billing">
               <span class="est-label">請求アカウント</span>
-              <template if:true={showBillingAccountReadonly}>
-                <div class="est-value">{billingAccountDisplayValue}</div>
-                <template if:false={isStandardFieldsReadonly}>
-                  <button
-                    type="button"
-                    class="est-billing-reselect"
-                    onclick={handleReselectBillingAccount}
-                  >
-                    選び直す
-                  </button>
-                </template>
-              </template>
-              <template if:false={showBillingAccountReadonly}>
-                <template if:true={showRelatedBillingCombobox}>
-                  <div class="est-control">
-                    <select
-                      class="est-select"
-                      aria-label="請求アカウント"
-                      disabled={isBillingAccountComboboxDisabled}
-                      onchange={handleBillingAccountComboboxChange}
-                    >
-                      <template
-                        for:each={billingAccountComboboxOptions}
-                        for:item="option"
-                      >
-                        <option
-                          key={option.key}
-                          value={option.value}
-                          selected={option.selected}
-                        >
-                          {option.label}
-                        </option>
-                      </template>
-                    </select>
-                  </div>
-                  <template if:true={showBillingAccountsLoadError}>
-                    <p class="est-billing-hint est-billing-hint_error">
-                      {billingAccountsLoadError}
-                    </p>
-                  </template>
-                  <template if:true={showRelatedBillingEmptyMessage}>
-                    <p class="est-billing-hint">{relatedBillingEmptyMessage}</p>
-                  </template>
-                </template>
-                <template if:true={showOtherBillingPicker}>
-                  <lightning-record-picker
-                    label="請求アカウント"
-                    object-api-name="BillingAccount__c"
-                    value={billingAccountId}
-                    variant="label-hidden"
-                    placeholder="請求アカウントを検索..."
-                    matching-info={billingAccountMatchingInfo}
-                    onchange={handleBillingAccountChange}
-                  >
-                  </lightning-record-picker>
-                </template>
-                <lightning-input
-                  class="est-billing-other-toggle"
-                  type="checkbox"
-                  label="他の取引先の請求アカウントも検索する"
-                  checked={allowOtherAccountBilling}
-                  onchange={handleAllowOtherAccountBillingChange}
-                >
-                </lightning-input>
-              </template>
+              <div class="est-value">{billingAccountDisplayValue}</div>
             </div>
+            <div class="est-field">
+              <span class="est-label">税率</span>
+              <div class="est-value">{taxPercentDisplayValue}</div>
+            </div>
+            <template if:true={showEstimateSendContact}>
+              <div class="est-field">
+                <span class="est-label">見積送付先</span>
+                <lightning-record-picker
+                  label="見積送付先"
+                  object-api-name="Contact"
+                  value={estimateSendContactId}
+                  variant="label-hidden"
+                  placeholder="取引先責任者を検索..."
+                  matching-info={sendContactMatchingInfo}
+                  filter={sendContactFilter}
+                  disabled={isSendContactPickerDisabled}
+                  onchange={handleEstimateSendContactChange}
+                >
+                </lightning-record-picker>
+              </div>
+            </template>
           </div>
         </template>
 

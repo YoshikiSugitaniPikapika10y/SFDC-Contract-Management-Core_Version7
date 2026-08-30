@@ -18,6 +18,54 @@ export const INVOICE_SETTING_PREPAID_START = "一括前払";
 export const INVOICE_SETTING_POSTPAID_NEXT_DAY = "一括後払";
 export const INVOICE_SETTING_SPLIT_MONTHLY = "月次分割";
 
+// 仕様: Core 第4.5.2節、ContractMetadataService.REVENUE_BASIS_*
+export const REVENUE_BASIS_OVER_TIME = "月次計上";
+export const REVENUE_BASIS_POINT_IN_TIME = "一括計上";
+export const REVENUE_BASIS_BLANK_MESSAGE = "売上計上基準を選択してください。";
+export const REVENUE_BASIS_INVALID_MESSAGE =
+  "売上計上基準は月次計上または一括計上です。";
+
+/** 仕様: Core 第11.9節。数量・単価の丸め API 値。 */
+export const QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP = "Scale2HalfUp";
+/** 仕様: Core 第11.9節。税抜金額の丸め API 値。 */
+export const AMOUNT_ROUNDING_SCALE0_HALF_UP = "Scale0HalfUp";
+
+/**
+ * 見積ウィザード等で OrgDefault から渡す丸め方式。
+ * 未設定のまま丸めると NaN（既定へ落とさない）。
+ */
+let quantityUnitPriceRoundingMode = null;
+let amountRoundingMode = null;
+
+/**
+ * 仕様: Core 第4.6節、第11.9節。
+ * getDocumentDefaults 等の OrgDefault を画面計算へ載せる。
+ */
+export function setAmountCalculationRoundingModes(modes) {
+  quantityUnitPriceRoundingMode =
+    modes && modes.quantityUnitPriceRoundingMode != null
+      ? modes.quantityUnitPriceRoundingMode
+      : null;
+  amountRoundingMode =
+    modes && modes.amountRoundingMode != null ? modes.amountRoundingMode : null;
+}
+
+/** @returns {{ scale: number } | null} */
+function resolveQuantityUnitPriceRounding(mode) {
+  if (mode === QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP) {
+    return { scale: 2 };
+  }
+  return null;
+}
+
+/** @returns {{ scale: number } | null} */
+function resolveAmountRounding(mode) {
+  if (mode === AMOUNT_ROUNDING_SCALE0_HALF_UP) {
+    return { scale: 0 };
+  }
+  return null;
+}
+
 const RECURRING_INVOICE_SETTING_LABELS = [
   INVOICE_SETTING_PREPAID_START,
   INVOICE_SETTING_POSTPAID_NEXT_DAY,
@@ -111,15 +159,45 @@ export function isRenewProductLine(line) {
   return normalizeProductRecordType(line.recordType) === PRODUCT_TYPE_RENEW;
 }
 
+/** 仕様: Core 第4.5.2節、第4.4.1節。Remake／Original は課金形態を変えない。 */
+export function isBillingTypeLockedLine(line) {
+  if (!line) {
+    return false;
+  }
+  const recordType = normalizeProductRecordType(line.recordType);
+  return (
+    recordType === PRODUCT_TYPE_REMAKE ||
+    recordType === PRODUCT_TYPE_ORIGINAL
+  );
+}
+
+export function historyTypeDisplayLabel(historyType) {
+  const labels = {
+    New: "新規",
+    Change: "追加変更",
+    Renew: "更新",
+    Cancel: "解約",
+    Estimate: "見積",
+    Ordered: "受注済み",
+    Archive: "不採用"
+  };
+  return labels[historyType] || historyType || "";
+}
+
+export function productTypeDisplayLabel(recordType, typeLabel) {
+  const normalized = normalizeProductRecordType(recordType || typeLabel);
+  const displayByType = {
+    [PRODUCT_TYPE_ORIGINAL]: "変更前",
+    [PRODUCT_TYPE_REMAKE]: "変更後",
+    [PRODUCT_TYPE_RENEW]: "更新",
+    [PRODUCT_TYPE_NEW]: "追加"
+  };
+  return displayByType[normalized] || typeLabel || "追加";
+}
+
 export function resolveProductTypeBadge(recordType, typeLabel) {
   const normalized = normalizeProductRecordType(recordType);
-  const displayByType = {
-    [PRODUCT_TYPE_ORIGINAL]: "Original",
-    [PRODUCT_TYPE_REMAKE]: "Remake",
-    [PRODUCT_TYPE_RENEW]: "Renew",
-    [PRODUCT_TYPE_NEW]: "New"
-  };
-  const label = displayByType[normalized] || typeLabel || "New";
+  const label = productTypeDisplayLabel(normalized, typeLabel);
   const badgeClassByType = {
     [PRODUCT_TYPE_ORIGINAL]: "est-type-badge_original",
     [PRODUCT_TYPE_REMAKE]: "est-type-badge_remake",
@@ -224,6 +302,7 @@ export function addDaysToIsoDate(isoDate, days) {
   return formatLocalDate(addDays(date, days));
 }
 
+// 仕様: 日付仕様 第1.3節
 export function addYearsToIsoDate(isoDate, years) {
   const date = parseLocalDate(isoDate);
 
@@ -236,6 +315,7 @@ export function addYearsToIsoDate(isoDate, years) {
   );
 }
 
+// 仕様: 日付仕様 第1.3節
 export function addMonthsToIsoDate(isoDate, months) {
   const date = parseLocalDate(isoDate);
 
@@ -249,8 +329,8 @@ export function addMonthsToIsoDate(isoDate, months) {
 }
 
 /**
+ * 仕様: 日付仕様 第1.2節、第2.5節。
  * 開始日から cycles 回分の月次期間を積んだ終了日。
- * 月次課金の「Nヶ月」「1年(=12サイクル)」の正。
  */
 export function endDateForMonthlyCycles(isoStartDate, cycles) {
   const start = parseLocalDate(isoStartDate);
@@ -335,6 +415,7 @@ export function addDays(date, days) {
   return result;
 }
 
+// 仕様: 日付仕様 第1.1節、第1.2節
 export function endOfMonthlyPeriod(periodStart) {
   const end = addMonthsToDate(new Date(periodStart), 1);
 
@@ -450,6 +531,7 @@ export function filterInvoiceSettingOptions(options, billingType) {
   });
 }
 
+// 仕様: Core 第1.1.10節
 export function resolveInvoiceTypeForBillingType(
   invoiceType,
 
@@ -457,7 +539,9 @@ export function resolveInvoiceTypeForBillingType(
 
   allOptions,
 
-  fallbackLabel
+  fallbackLabel,
+
+  options = {}
 ) {
   const category = resolveInvoiceSettingBillingCategory(billingType);
 
@@ -481,7 +565,12 @@ export function resolveInvoiceTypeForBillingType(
     return normalizedInvoiceType;
   }
 
-  // 空のときだけ、課金種別に合うデフォルトを埋める。
+  // Change の Original／Remake 等は空を組織既定で埋めない（BUG-094）。
+  if (options.fillBlankWithDefault === false) {
+    return "";
+  }
+
+  // 空のときだけ、課金種別に合うデフォルトを埋める（New 等の初期値）。
   const optionsLoaded = Array.isArray(allOptions) && allOptions.length > 0;
   if (optionsLoaded) {
     const normalizedFallback = normalizeInvoiceSettingLabel(fallbackLabel);
@@ -495,6 +584,7 @@ export function resolveInvoiceTypeForBillingType(
   return "";
 }
 
+// 仕様: 日付仕様 第1.2節
 export function countBillingCycles(startDate, endDate) {
   if (!startDate || !endDate) {
     return null;
@@ -1085,45 +1175,67 @@ function divideIntHalfUp(numerator, denominator) {
 }
 
 /**
- * 数量×単価×回数を整数円 HALF_UP。
- * 数量・単価は小数第2位前提（×100 整数化してから乗算）。
+ * 数量×単価×回数を整数円。数量・単価・税抜は第11.9節の OrgDefault。
  */
 function yenFromQuantityUnitPrice(quantity, unitPrice, cycles = 1) {
-  const q = toScaledInt(quantity, 2);
-  const p = toScaledInt(unitPrice, 2);
+  const qtyResolved = resolveQuantityUnitPriceRounding(
+    quantityUnitPriceRoundingMode
+  );
+  const amountResolved = resolveAmountRounding(amountRoundingMode);
+  if (!qtyResolved || !amountResolved) {
+    return Number.NaN;
+  }
+  const q = toScaledInt(quantity, qtyResolved.scale);
+  const p = toScaledInt(unitPrice, qtyResolved.scale);
   const c = Number(cycles);
   if (!Number.isFinite(q) || !Number.isFinite(p) || !Number.isFinite(c)) {
     return Number.NaN;
   }
-  // cycles は請求回数（整数）。10^-4 円単位の積を整数円へ HALF_UP。
-  return divideIntHalfUp(q * p * c, 10000);
+  const denom = 10 ** (qtyResolved.scale * 2);
+  return divideIntHalfUp(q * p * c, denom);
 }
 
-/** 単価: 小数第2位まで四捨五入。null/NaN はそのまま。 */
+/** 単価: OrgDefault の数量・単価丸め。null/NaN はそのまま。未設定は NaN。 */
 export function roundUnitPrice(value) {
   if (value === null || value === undefined || value === "") {
     return null;
   }
-  return roundHalfUp(value, 2);
+  const resolved = resolveQuantityUnitPriceRounding(
+    quantityUnitPriceRoundingMode
+  );
+  if (!resolved) {
+    return Number.NaN;
+  }
+  return roundHalfUp(value, resolved.scale);
 }
 
-/** 数量: 小数第2位まで四捨五入（時間単位などの小数数量用）。null/NaN はそのまま。 */
+/** 数量: OrgDefault の数量・単価丸め。null/NaN はそのまま。未設定は NaN。 */
 export function roundQuantity(value) {
   if (value === null || value === undefined || value === "") {
     return null;
   }
-  return roundHalfUp(value, 2);
+  const resolved = resolveQuantityUnitPriceRounding(
+    quantityUnitPriceRoundingMode
+  );
+  if (!resolved) {
+    return Number.NaN;
+  }
+  return roundHalfUp(value, resolved.scale);
 }
 
-/** 金額: 整数円に四捨五入。null/NaN はそのまま。 */
+/** 金額: OrgDefault の税抜丸め。null/NaN はそのまま。未設定は NaN。 */
 export function roundAmountYen(value) {
   if (value === null || value === undefined || value === "") {
     return null;
   }
-  return roundHalfUp(value, 0);
+  const resolved = resolveAmountRounding(amountRoundingMode);
+  if (!resolved) {
+    return Number.NaN;
+  }
+  return roundHalfUp(value, resolved.scale);
 }
 
-/** 単価入力のパース（小数第2位四捨五入）。文字列桁を優先して丸める。 */
+/** 単価入力のパース（OrgDefault の数量・単価丸め）。文字列桁を優先して丸める。 */
 export function parseUnitPriceInput(raw) {
   if (raw === null || raw === undefined) {
     return null;
@@ -1132,11 +1244,17 @@ export function parseUnitPriceInput(raw) {
   if (cleaned === "") {
     return null;
   }
-  const rounded = roundHalfUp(cleaned, 2);
+  const resolved = resolveQuantityUnitPriceRounding(
+    quantityUnitPriceRoundingMode
+  );
+  if (!resolved) {
+    return Number.NaN;
+  }
+  const rounded = roundHalfUp(cleaned, resolved.scale);
   return Number.isFinite(rounded) ? rounded : Number.NaN;
 }
 
-/** 数量入力のパース（小数第2位四捨五入）。文字列桁を優先して丸める。 */
+/** 数量入力のパース（OrgDefault の数量・単価丸め）。文字列桁を優先して丸める。 */
 export function parseQuantityInput(raw) {
   if (raw === null || raw === undefined) {
     return null;
@@ -1145,11 +1263,17 @@ export function parseQuantityInput(raw) {
   if (cleaned === "") {
     return null;
   }
-  const rounded = roundHalfUp(cleaned, 2);
+  const resolved = resolveQuantityUnitPriceRounding(
+    quantityUnitPriceRoundingMode
+  );
+  if (!resolved) {
+    return Number.NaN;
+  }
+  const rounded = roundHalfUp(cleaned, resolved.scale);
   return Number.isFinite(rounded) ? rounded : Number.NaN;
 }
 
-/** 金額入力のパース（整数円四捨五入）。文字列桁を優先して丸める。 */
+/** 金額入力のパース（OrgDefault の税抜丸め）。文字列桁を優先して丸める。 */
 export function parseAmountYenInput(raw) {
   if (raw === null || raw === undefined) {
     return null;
@@ -1158,7 +1282,11 @@ export function parseAmountYenInput(raw) {
   if (cleaned === "") {
     return null;
   }
-  const rounded = roundHalfUp(cleaned, 0);
+  const resolved = resolveAmountRounding(amountRoundingMode);
+  if (!resolved) {
+    return Number.NaN;
+  }
+  const rounded = roundHalfUp(cleaned, resolved.scale);
   return Number.isFinite(rounded) ? rounded : Number.NaN;
 }
 
@@ -1359,11 +1487,18 @@ export function resolveAmountInputDraft(raw, options = {}) {
     if (!evaluated.ok) {
       return evaluated;
     }
-    const asMoney2 = roundHalfUp(evaluated.value, 2);
+    const qtyResolved = resolveQuantityUnitPriceRounding(
+      quantityUnitPriceRoundingMode
+    );
+    const amountResolved = resolveAmountRounding(amountRoundingMode);
+    if (!qtyResolved || !amountResolved) {
+      return { ok: false, message: AMOUNT_FORMULA_RANGE };
+    }
+    const asMoney2 = roundHalfUp(evaluated.value, qtyResolved.scale);
     if (!Number.isFinite(asMoney2)) {
       return { ok: false, message: AMOUNT_FORMULA_RANGE };
     }
-    const asYen = roundHalfUp(asMoney2, 0);
+    const asYen = roundHalfUp(asMoney2, amountResolved.scale);
     if (asMoney2 === asYen) {
       return {
         ok: true,
@@ -1385,11 +1520,18 @@ export function resolveAmountInputDraft(raw, options = {}) {
     if (cleaned === "" || !/^[+-]?\d+(\.\d+)?$/.test(cleaned)) {
       return { ok: false, message: AMOUNT_FORMULA_ERROR };
     }
-    const asMoney2 = roundHalfUp(cleaned, 2);
+    const qtyResolved = resolveQuantityUnitPriceRounding(
+      quantityUnitPriceRoundingMode
+    );
+    const amountResolved = resolveAmountRounding(amountRoundingMode);
+    if (!qtyResolved || !amountResolved) {
+      return { ok: false, message: AMOUNT_FORMULA_RANGE };
+    }
+    const asMoney2 = roundHalfUp(cleaned, qtyResolved.scale);
     if (!Number.isFinite(asMoney2)) {
       return { ok: false, message: AMOUNT_FORMULA_RANGE };
     }
-    const asYen = roundHalfUp(asMoney2, 0);
+    const asYen = roundHalfUp(asMoney2, amountResolved.scale);
     if (asMoney2 !== asYen) {
       return {
         ok: true,
@@ -1523,11 +1665,11 @@ export function validateAmountEntryUnitPrices(products) {
     }
     const price = Number(line.unitPrice);
     if (line.amountEntryMode === true && !Number.isFinite(price)) {
-      const label = line.typeLabel || `${i + 1}行目`;
+      const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
       return `商品明細（${label}）: 金額から単価を計算できません（数量またはサイクル数が0です）。`;
     }
     if (Number.isNaN(price)) {
-      const label = line.typeLabel || `${i + 1}行目`;
+      const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
       return `商品明細（${label}）: 単価が不正です（NaN）。`;
     }
   }
@@ -1707,7 +1849,9 @@ export function validateChangeRecurringEndEndpointCoverage(
 }
 
 export function validateNewProductPeriodOverlap(products) {
-  const activeLines = (products || []).filter(isActiveLine);
+  const activeLines = (products || []).filter(
+    (line) => isActiveLine(line) && !isChangeOriginalLine(line)
+  );
 
   for (let i = 0; i < activeLines.length; i++) {
     const left = activeLines[i];
@@ -1728,7 +1872,10 @@ export function validateNewProductPeriodOverlap(products) {
       }
 
       if (left.startDate <= right.endDate && left.endDate >= right.startDate) {
-        return "同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください。";
+        // 仕様: Core 第4.5.1節。一回×一回は許可。継続どうしと継続×一回だけ不可。
+        if (isRecurringLine(left) || isRecurringLine(right)) {
+          return "同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください。";
+        }
       }
     }
   }
@@ -1738,6 +1885,25 @@ export function validateNewProductPeriodOverlap(products) {
 
 export function isBlankProductLine(row) {
   return !row.productId && (row.quantity == null || Number(row.quantity) <= 0);
+}
+
+/** 仕様: Core 第4.3.9節 */
+export const QUANTITY_MIN = 0.01;
+
+export const QUANTITY_MIN_MESSAGE =
+  "数量は0.01以上を入力してください。課金を止める場合は、数量はそのままで単価を0にしてください。";
+
+function validateQuantityMin(row) {
+  const quantity = row == null ? null : Number(row.quantity);
+  if (
+    row == null ||
+    row.quantity == null ||
+    !Number.isFinite(quantity) ||
+    quantity < QUANTITY_MIN
+  ) {
+    return QUANTITY_MIN_MESSAGE;
+  }
+  return null;
 }
 
 export function validateNewEffectiveDate(periodStartDate, effectiveDate) {
@@ -1760,7 +1926,7 @@ export function validateRenewEffectiveDate(
   if (previousTermEndDate && periodStartDate) {
     const expectedStart = addDaysToIsoDate(previousTermEndDate, 1);
     if (periodStartDate !== expectedStart) {
-      return "期間開始日は前回Versionの期間終了日の翌日である必要があります。";
+      return "期間開始日は前回の版の期間終了日の翌日である必要があります。";
     }
   }
 
@@ -1775,7 +1941,7 @@ export function validateCancelEffectiveDate(
   if (previousTermEndDate && cancelDate) {
     const expectedCancelDate = addDaysToIsoDate(previousTermEndDate, 1);
     if (cancelDate !== expectedCancelDate) {
-      return "解約日は前回Versionの期間終了日の翌日である必要があります。";
+      return "解約日は前回の版の期間終了日の翌日である必要があります。";
     }
   }
 
@@ -1786,10 +1952,11 @@ export function validateCancelEffectiveDate(
   return null;
 }
 
+/** 仕様: Core 第0.1節、第4.3節 */
 export function validateCancelProducts(products) {
   const activeLines = (products || []).filter(isActiveLine);
   if (activeLines.length > 0) {
-    return "Cancelでは商品明細を入力できません。";
+    return "解約では商品明細を入力できません。";
   }
   return null;
 }
@@ -1924,17 +2091,18 @@ function buildRemakeReconstitutionSegments(derivatives) {
   return segments;
 }
 
+/** 仕様: Core 第0.1節、第1.3節、第4.3.13節 */
 export function validateChangeReconstitutionCoverage(original, derivatives) {
   const coverageError =
-    "Remake は Originalの期間を重複や隙間なく埋める必要があります。";
+    "変更後は変更前の期間を重複や隙間なく埋める必要があります。";
 
   if (!original || !derivatives || !derivatives.length) {
-    return "相殺後の商品明細を1行以上入力してください。";
+    return "変更後の商品明細を1行以上入力してください。";
   }
 
   const segments = buildRemakeReconstitutionSegments(derivatives);
   if (!segments.length) {
-    return "相殺後の商品明細を1行以上入力してください。";
+    return "変更後の商品明細を1行以上入力してください。";
   }
 
   // Remake 先頭は Original 開始日と一致必須（遅延開始・前倒し開始ともに不可）。
@@ -1944,7 +2112,7 @@ export function validateChangeReconstitutionCoverage(original, derivatives) {
     segments[0].startDate !== original.startDate
   ) {
     if (segments[0].startDate < original.startDate) {
-      return "Remake の開始日は Original 開始日より前にできません。";
+      return "変更後の開始日は変更前の開始日より前にできません。";
     }
     return coverageError;
   }
@@ -1970,6 +2138,58 @@ export function validateChangeReconstitutionCoverage(original, derivatives) {
 }
 
 /**
+ * 仕様: Core 第0.1節、第1.3節、第1.6.2節、第1.6.3節、第4.4節、第7.8.5節。
+ * 期中切替（内容差分の開始が Original 開始より後）では、
+ * 切替日前は Original 同条件の Remake、切替日以降の Remake が必要。
+ * 全期間1本の洗替（差分開始＝Original開始）は対象外。
+ */
+export const CHANGE_MID_TERM_REMAKE_SPLIT_MESSAGE =
+  "期中切替では、切替日前は変更前と同条件の変更後と、切替日以降の変更後に分けてください。";
+
+export function validateChangeMidTermRemakeSplit(original, derivatives) {
+  if (!original || !derivatives || !derivatives.length) {
+    return null;
+  }
+  if (original.billingType === BILLING_TYPE_ONE_TIME) {
+    return null;
+  }
+  const remakes = (derivatives || [])
+    .filter((line) => isChangeRemakeLine(line) && line.startDate)
+    .slice()
+    .sort((left, right) =>
+      (left.startDate || "").localeCompare(right.startDate || "")
+    );
+  if (!remakes.length || !original.startDate) {
+    return null;
+  }
+  let firstDiffering = null;
+  for (const remake of remakes) {
+    if (doesChangeBillingContentDiffer(remake, original)) {
+      firstDiffering = remake;
+      break;
+    }
+  }
+  if (!firstDiffering || !firstDiffering.startDate) {
+    return null;
+  }
+  if (firstDiffering.startDate <= original.startDate) {
+    return null;
+  }
+  const dayBefore = addDaysToIsoDate(firstDiffering.startDate, -1);
+  if (!dayBefore) {
+    return CHANGE_MID_TERM_REMAKE_SPLIT_MESSAGE;
+  }
+  const pre = remakes.find((line) => line && line.endDate === dayBefore);
+  if (!pre || doesChangeBillingContentDiffer(pre, original)) {
+    return CHANGE_MID_TERM_REMAKE_SPLIT_MESSAGE;
+  }
+  if (firstDiffering.startDate !== addDaysToIsoDate(pre.endDate, 1)) {
+    return CHANGE_MID_TERM_REMAKE_SPLIT_MESSAGE;
+  }
+  return null;
+}
+
+/**
  * Change保存時は Step3 明細を加工せず 1:1 で返す。
  * （以前は Remake を有効日以降へ再構成し、数量0化や New へのマージをしていた）
  */
@@ -1990,6 +2210,10 @@ export function normalizeChangeProductsForSave(products) {
     });
 }
 
+/**
+ * Change の課金イベント用の内容差（Apex ChangeBillingEventUtil.doesBillingContentDiffer と同定義）。
+ * 仕様: Core 第4.4.1節 — 請求設定の差は継続課金イベントではない。
+ */
 function doesChangeBillingContentDiffer(line, original) {
   if (!line || !original) {
     return false;
@@ -2003,7 +2227,7 @@ function doesChangeBillingContentDiffer(line, original) {
   if (!decimalsEqual(line.unitPrice, original.unitPrice)) {
     return true;
   }
-  return (line.invoiceType || "") !== (original.invoiceType || "");
+  return false;
 }
 
 /**
@@ -2017,8 +2241,8 @@ export function collectChangeBillingEventDates(products) {
 }
 
 /**
- * Change の課金イベント（日付＋一回課金由来かどうか）。
- * 有効日の請求期間開始日チェック免除判定に使う。
+ * Change の課金イベント（日付＋一回課金由来か＋元明細開始日）。
+ * 仕様: Core 第4.4節、日付仕様 第2.3節。サイクル境界は元明細開始日起点。
  */
 export function collectChangeBillingEventEntries(products) {
   const entries = [];
@@ -2046,7 +2270,8 @@ export function collectChangeBillingEventEntries(products) {
     ) {
       entries.push({
         date: line.startDate,
-        isOneTimeOnly: line.billingType === BILLING_TYPE_ONE_TIME
+        isOneTimeOnly: line.billingType === BILLING_TYPE_ONE_TIME,
+        sourceStartDate: line.startDate
       });
     }
   }
@@ -2074,7 +2299,8 @@ export function collectChangeBillingEventEntries(products) {
       // Original/Remake 系統の途中開始。一回課金系統は切替日計算から除外。
       entries.push({
         date: first.startDate,
-        isOneTimeOnly: pairIsOneTimeOnly
+        isOneTimeOnly: pairIsOneTimeOnly,
+        sourceStartDate: original.startDate
       });
     }
 
@@ -2085,7 +2311,8 @@ export function collectChangeBillingEventEntries(products) {
       if (doesChangeBillingContentDiffer(remake, original)) {
         entries.push({
           date: remake.startDate,
-          isOneTimeOnly: remakeIsOneTimeOnly
+          isOneTimeOnly: remakeIsOneTimeOnly,
+          sourceStartDate: original.startDate
         });
       }
       // 終了日延長のみ（内容同一）も課金イベント。延長開始日 = Original終了翌日。
@@ -2098,7 +2325,8 @@ export function collectChangeBillingEventEntries(products) {
         if (extensionStart) {
           entries.push({
             date: extensionStart,
-            isOneTimeOnly: remakeIsOneTimeOnly
+            isOneTimeOnly: remakeIsOneTimeOnly,
+            sourceStartDate: original.startDate
           });
         }
       }
@@ -2109,16 +2337,27 @@ export function collectChangeBillingEventEntries(products) {
 }
 
 /**
+ * 仕様: Core 第4.4節、日付仕様 第2.2節。
  * 継続課金由来の課金イベントがあるときだけ、有効日を請求期間開始日に縛る。
- * 一回課金 New 追加のみの Change は日割り対象外のため免除する。
+ * イベント0件や一回課金 New 追加のみは切替日必須にしない。
  */
 export function requiresChangeEffectiveDateOnBillingPeriodStart(products) {
   const entries = collectChangeBillingEventEntries(products);
   if (!entries.length) {
-    // イベント未確定時は安全側（従来どおり請求境界を要求）。
-    return true;
+    return false;
   }
   return entries.some((entry) => entry && entry.isOneTimeOnly !== true);
+}
+
+/**
+ * 仕様: Core 第4.3.5節、第4.4節。Change の課金イベントがすべて一回課金 New 追加のみか。
+ */
+export function isChangeOneTimeAddOnly(products) {
+  const entries = collectChangeBillingEventEntries(products);
+  if (!entries.length) {
+    return false;
+  }
+  return entries.every((entry) => entry && entry.isOneTimeOnly === true);
 }
 
 export function hasChangeBillingEventWithinPreviousTerm(
@@ -2138,7 +2377,11 @@ export function hasChangeBillingEventWithinPreviousTerm(
 }
 
 export const CHANGE_REQUIRES_BILLING_EVENT_MESSAGE =
-  "前回Versionの期間内に課金変更（新規・変更・相殺）がないため、ChangeではなくRenewで作成してください。";
+  "前回の版の期間内に課金変更（追加・変更後・相殺）がないため、追加変更ではなく更新で作成してください。";
+
+/** 仕様: Core 第4.5.2節※7、第4.4.2節#8。BE `CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE` と同文。 */
+export const CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE =
+  "カスタム項目だけを変えた追加変更は成立しません。数量・単価などと同時に変更してください。";
 
 export function validateChangeHasBillingEventInPreviousTerm(
   products,
@@ -2148,8 +2391,8 @@ export function validateChangeHasBillingEventInPreviousTerm(
   if (!previousTermStartDate || !previousTermEndDate) {
     return null;
   }
-  // 一回課金の追加・変更のみなら継続切替イベントは不要
-  if (!requiresChangeEffectiveDateOnBillingPeriodStart(products)) {
+  // 仕様: Core 第4.4節。BE と同じく一回課金 New 追加のみだけ免除（イベント0件は Renew 誘導へ）。
+  if (isChangeOneTimeAddOnly(products)) {
     return null;
   }
   if (
@@ -2162,6 +2405,69 @@ export function validateChangeHasBillingEventInPreviousTerm(
     return null;
   }
   return CHANGE_REQUIRES_BILLING_EVENT_MESSAGE;
+}
+
+/**
+ * 仕様: Core 第4.5.2節※7、第4.4.2節#8。
+ * BE `assertChangeIsNotCustomFieldOnly` と同型。画面保存前に同文で止める。
+ */
+export function validateChangeIsNotCustomFieldOnly(products, sourceProducts) {
+  if (isChangeOneTimeAddOnly(products)) {
+    return null;
+  }
+  if (collectChangeBillingEventEntries(products).length) {
+    return null;
+  }
+  if (!hasRemakeCustomFieldDiffFromSource(products, sourceProducts)) {
+    return null;
+  }
+  return CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE;
+}
+
+function customFieldValuesEqual(left, right) {
+  if (left == null && right == null) {
+    return true;
+  }
+  if (left == null || right == null) {
+    return false;
+  }
+  if (typeof left === "boolean" || typeof right === "boolean") {
+    return Boolean(left) === Boolean(right);
+  }
+  return String(left) === String(right);
+}
+
+function hasRemakeCustomFieldDiffFromSource(products, sourceProducts) {
+  const sourceById = buildSourceProductMap(sourceProducts);
+  if (!sourceById.size) {
+    return false;
+  }
+  for (const line of products || []) {
+    if (!isChangeRemakeLine(line) || !line.sourceContractProductId) {
+      continue;
+    }
+    const source = sourceById.get(line.sourceContractProductId);
+    if (!source) {
+      continue;
+    }
+    const previousFields = source.customFields || {};
+    const remakeFields = line.customFields || {};
+    const apiNames = new Set([
+      ...Object.keys(previousFields),
+      ...Object.keys(remakeFields)
+    ]);
+    for (const apiName of apiNames) {
+      if (
+        !customFieldValuesEqual(
+          previousFields[apiName],
+          remakeFields[apiName]
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -2179,6 +2485,10 @@ export function getEarliestChangeBillingThresholdDate(products) {
   dates.sort();
   return dates[0];
 }
+
+/** 仕様: Core 第4.4節、日付仕様 第2.3節。BE `CHANGE_EFFECTIVE_DATE_BILLING_PERIOD_START_MESSAGE` と同文。 */
+export const CHANGE_EFFECTIVE_DATE_BILLING_PERIOD_START_MESSAGE =
+  "切替日および課金イベント日は元明細開始日起点の請求期間開始日である必要があります（日割りはできません）。";
 
 export function validateChangeEffectiveDate(
   effectiveDate,
@@ -2199,22 +2509,18 @@ export function validateChangeEffectiveDate(
     effectiveDate &&
     effectiveDate < previousTermStartDate
   ) {
-    return "切替日は前回Versionの契約開始日から契約終了日の間で入力してください。";
+    return "切替日は前回の版の契約開始日から契約終了日の間で入力してください。";
   }
   if (
     previousTermEndDate &&
     effectiveDate &&
     effectiveDate > previousTermEndDate
   ) {
-    return "切替日が前回Versionの契約終了日を超えているため、ChangeではなくRenewで作成してください。";
+    return "切替日が前回の版の契約終了日を超えているため、追加変更ではなく更新で作成してください。";
   }
-  if (
-    contractStartDate &&
-    effectiveDate &&
-    contractStartDate !== effectiveDate &&
-    !isMonthlyPeriodStartDate(contractStartDate, effectiveDate)
-  ) {
-    return "切替日は契約開始日基準の請求期間開始日である必要があります（日割りはできません）。";
+  const sourceCycleError = validateChangeBillingEventsOnSourceCycle(products);
+  if (sourceCycleError) {
+    return sourceCycleError;
   }
   if (products && effectiveDate) {
     const expected = getEarliestChangeBillingThresholdDate(
@@ -2223,6 +2529,28 @@ export function validateChangeEffectiveDate(
     );
     if (expected && effectiveDate !== expected) {
       return `切替日は課金内容が変更された最も古い日付（${expected}）と一致している必要があります。`;
+    }
+  }
+  return null;
+}
+
+/**
+ * 仕様: Core 第4.4節、日付仕様 第2.3節。
+ * 継続課金の課金イベント日は元明細開始日起点のサイクル境界に置く。ヘッダー開始日は使わない。
+ */
+export function validateChangeBillingEventsOnSourceCycle(products) {
+  if (!requiresChangeEffectiveDateOnBillingPeriodStart(products)) {
+    return null;
+  }
+  for (const entry of collectChangeBillingEventEntries(products)) {
+    if (!entry || entry.isOneTimeOnly === true) {
+      continue;
+    }
+    if (!entry.date || !entry.sourceStartDate) {
+      continue;
+    }
+    if (!isMonthlyPeriodStartDate(entry.sourceStartDate, entry.date)) {
+      return CHANGE_EFFECTIVE_DATE_BILLING_PERIOD_START_MESSAGE;
     }
   }
   return null;
@@ -2239,14 +2567,14 @@ export function validateChangePeriodDates(
     contractStartDate &&
     contractStartDate !== previousTermStartDate
   ) {
-    return "期間開始日は前回Versionの期間開始日と一致している必要があります。";
+    return "期間開始日は前回の版の期間開始日と一致している必要があります。";
   }
   if (
     previousTermEndDate &&
     contractEndDate &&
     contractEndDate < previousTermEndDate
   ) {
-    return "期間終了日は前回Versionの期間終了日以降の日付を入力してください。";
+    return "期間終了日は前回の版の期間終了日以降の日付を入力してください。";
   }
   if (contractStartDate && contractEndDate) {
     const headerPeriodError = validateNewHeaderMonthlyPeriod(
@@ -2279,7 +2607,10 @@ export function validateChangeProductPeriodOverlap(products) {
         continue;
       }
       if (left.startDate <= right.endDate && left.endDate >= right.startDate) {
-        return "同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください。";
+        // 仕様: Core 第4.5.1節。一回×一回は許可。継続どうしと継続×一回だけ不可。
+        if (isRecurringLine(left) || isRecurringLine(right)) {
+          return "同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください。";
+        }
       }
     }
   }
@@ -2291,9 +2622,10 @@ function validateChangeEditableLine(row, headerStart, headerEnd) {
     return null;
   }
 
-  // Remake も数量1以上必須（途中終了は数量維持＋単価0）。Apex validateProductLines と揃える。
-  if (row.quantity == null || Number(row.quantity) <= 0) {
-    return "数量を入力してください。";
+  // 仕様: Core 第4.3.9節
+  const quantityError = validateQuantityMin(row);
+  if (quantityError) {
+    return quantityError;
   }
 
   if (
@@ -2334,11 +2666,17 @@ function validateChangeEditableLine(row, headerStart, headerEnd) {
     return invoiceSettingError;
   }
 
+  // 仕様: Core 第1.1.10節、第4.5.2節。保存時の必須はAccounting ON/OFFで変えない。
+  const revenueError = validateRevenueRecognitionBasisRequired(row);
+  if (revenueError) {
+    return revenueError;
+  }
+
   return validateBillingPeriod(row);
 }
 
 function validateOriginalMatchesSource(line, source, label) {
-  const message = `商品明細（${label}）: Original行は前回Versionの見積商品と一致している必要があります。`;
+  const message = `商品明細（${label}）: 変更前の行は前回の版の見積商品と一致している必要があります。`;
   if (!source) {
     return message;
   }
@@ -2351,6 +2689,10 @@ function validateOriginalMatchesSource(line, source, label) {
   if (!decimalsEqual(line.unitPrice, source.unitPrice)) {
     return message;
   }
+  // 仕様: Core 第4.4.1節、第4.5.2節。Original の課金形態の正は前回見積商品。
+  if ((line.billingType || "") !== (source.billingType || "")) {
+    return message;
+  }
   const lineInvoice = normalizeInvoiceSettingLabel(line.invoiceType) || "";
   const sourceInvoice = normalizeInvoiceSettingLabel(source.invoiceType) || "";
   if (lineInvoice !== sourceInvoice) {
@@ -2360,6 +2702,20 @@ function validateOriginalMatchesSource(line, source, label) {
     return message;
   }
   if ((line.endDate || "") !== (source.endDate || "")) {
+    return message;
+  }
+  // 仕様: Core 第4.4節、第4.4.3節。Original と元明細は売上計上基準も一致必須。
+  const lineRevenue = line.revenueRecognitionBasis || "";
+  const sourceRevenue = source.revenueRecognitionBasis || "";
+  if (lineRevenue !== sourceRevenue) {
+    return message;
+  }
+  // 仕様: Core 第4.4節、第4.5.2節。Original 税抜は -(前回 Amount)。
+  const expectedOriginalAmount =
+    source.amount == null || source.amount === undefined
+      ? null
+      : -Number(source.amount);
+  if (!decimalsEqual(line.amount, expectedOriginalAmount)) {
     return message;
   }
   return null;
@@ -2377,14 +2733,18 @@ function buildSourceProductMap(sourceProducts) {
       productId: source.productId,
       quantity: source.quantity,
       unitPrice: source.unitPrice,
+      amount: source.amount,
       startDate: source.startDate || "",
       endDate: source.endDate || "",
-      invoiceType: source.invoiceType || ""
+      invoiceType: source.invoiceType || "",
+      billingType: source.billingType || "",
+      revenueRecognitionBasis: source.revenueRecognitionBasis || ""
     });
   });
   return sourceById;
 }
 
+// 仕様: Core 第4.3.5節、第4.3.9節
 export function validateChangeProducts(
   products,
   contractStartDate,
@@ -2403,19 +2763,26 @@ export function validateChangeProducts(
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const label = line.typeLabel || `${i + 1}行目`;
+    const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
+
+    if (!isBlankProductLine(line)) {
+      const quantityError = validateQuantityMin(line);
+      if (quantityError) {
+        return `商品明細（${label}）: ${quantityError}`;
+      }
+    }
 
     if (isChangeOriginalLine(line)) {
       if (!line.sourceContractProductId) {
-        return `商品明細（${label}）: Original行に元の見積商品が指定されていません。`;
+        return `商品明細（${label}）: 変更前の行に元の見積商品が指定されていません。`;
       }
       if (originalBySourceId.has(line.sourceContractProductId)) {
-        return "Original行が重複しています。";
+        return "変更前の行が重複しています。";
       }
       if (hasSourceCatalog) {
         const source = sourceById.get(line.sourceContractProductId);
         if (!source) {
-          return "Original行は前回Versionの見積商品と一致している必要があります。";
+          return "変更前の行は前回の版の見積商品と一致している必要があります。";
         }
         const matchError = validateOriginalMatchesSource(line, source, label);
         if (matchError) {
@@ -2428,15 +2795,32 @@ export function validateChangeProducts(
 
     if (isChangeRemakeLine(line)) {
       if (!line.sourceContractProductId) {
-        return `商品明細（${label}）: Remake行に元の見積商品が指定されていません。`;
+        return `商品明細（${label}）: 変更後の行に元の見積商品が指定されていません。`;
       }
       if (hasSourceCatalog) {
         const remakeSource = sourceById.get(line.sourceContractProductId);
         if (!remakeSource) {
-          return `商品明細（${label}）: Remake行の元見積商品が見つかりません。`;
+          return `商品明細（${label}）: 変更後の行の元見積商品が見つかりません。`;
         }
         if (line.productId && line.productId !== remakeSource.productId) {
-          return `商品明細（${label}）: Remake行の商品はOriginal（前回Version）と同じ商品にしてください。`;
+          return `商品明細（${label}）: 変更後の行の商品は変更前（前回の版）と同じ商品にしてください。`;
+        }
+        // 仕様: Core 第4.4.1節、第4.5.2節。Remake の課金形態の正は前回見積商品。
+        if ((line.billingType || "") !== (remakeSource.billingType || "")) {
+          return `商品明細（${label}）: 変更後の行の課金形態は前回の版と同じにしてください。`;
+        }
+        // 仕様: Core 第4.5.2節、第4.4.3節
+        const lineInvoice =
+          normalizeInvoiceSettingLabel(line.invoiceType) || "";
+        const sourceInvoice =
+          normalizeInvoiceSettingLabel(remakeSource.invoiceType) || "";
+        if (lineInvoice !== sourceInvoice) {
+          return `商品明細（${label}）: 変更後の行の請求設定は前回の版と同じにしてください。`;
+        }
+        const lineRevenue = line.revenueRecognitionBasis || "";
+        const sourceRevenue = remakeSource.revenueRecognitionBasis || "";
+        if (lineRevenue !== sourceRevenue) {
+          return `商品明細（${label}）: 変更後の行の売上計上基準は前回の版と同じにしてください。`;
         }
       }
       if (!remakesBySourceId.has(line.sourceContractProductId)) {
@@ -2490,11 +2874,11 @@ export function validateChangeProducts(
   if (hasSourceCatalog) {
     for (const sourceId of sourceById.keys()) {
       if (!originalBySourceId.has(sourceId)) {
-        return "前回Versionの継続課金商品すべてにOriginal行が必要です。";
+        return "前回の版の継続課金商品すべてに変更前の行が必要です。";
       }
       const derivatives = remakesBySourceId.get(sourceId) || [];
       if (!derivatives.length) {
-        return "前回Versionの継続課金商品すべてにRemake行を1件以上入力してください。";
+        return "前回の版の継続課金商品すべてに変更後の行を1件以上入力してください。";
       }
       const reconError = validateChangeReconstitutionCoverage(
         originalBySourceId.get(sourceId),
@@ -2502,6 +2886,13 @@ export function validateChangeProducts(
       );
       if (reconError) {
         return reconError;
+      }
+      const midTermError = validateChangeMidTermRemakeSplit(
+        originalBySourceId.get(sourceId),
+        derivatives
+      );
+      if (midTermError) {
+        return midTermError;
       }
     }
   } else {
@@ -2511,7 +2902,7 @@ export function validateChangeProducts(
     for (const [sourceId, original] of originalBySourceId.entries()) {
       const derivatives = remakesBySourceId.get(sourceId) || [];
       if (!derivatives.length) {
-        return "前回Versionの継続課金商品すべてにRemake行を1件以上入力してください。";
+        return "前回の版の継続課金商品すべてに変更後の行を1件以上入力してください。";
       }
       const reconError = validateChangeReconstitutionCoverage(
         original,
@@ -2520,7 +2911,22 @@ export function validateChangeProducts(
       if (reconError) {
         return reconError;
       }
+      const midTermError = validateChangeMidTermRemakeSplit(
+        original,
+        derivatives
+      );
+      if (midTermError) {
+        return midTermError;
+      }
     }
+  }
+
+  const customOnlyError = validateChangeIsNotCustomFieldOnly(
+    lines,
+    sourceProducts
+  );
+  if (customOnlyError) {
+    return customOnlyError;
   }
 
   const renewForceError = validateChangeHasBillingEventInPreviousTerm(
@@ -2550,7 +2956,7 @@ export function validateChangeProducts(
     if (isBlankProductLine(line)) {
       continue;
     }
-    const label = line.typeLabel || `${i + 1}行目`;
+    const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
     if (line.amount == null && line.productId) {
       const qty = Number(line.quantity);
       if (Number.isNaN(qty) || qty !== 0) {
@@ -2562,6 +2968,7 @@ export function validateChangeProducts(
   return null;
 }
 
+/** 仕様: Core 第0.1節、第4.5節 */
 export function validateRenewProducts(
   products,
   periodStart,
@@ -2576,19 +2983,20 @@ export function validateRenewProducts(
 
   const hasRecurring = activeLines.some((line) => isRecurringLine(line));
   if (!hasRecurring) {
-    return "Renewでは継続課金商品を1行以上指定してください。一回課金のみのRenewはできません。";
+    return "更新では継続課金商品を1行以上指定してください。一回課金のみの更新はできません。";
   }
 
   if (previousTermEnd && periodStart) {
     const expectedStart = addDaysToIsoDate(previousTermEnd, 1);
     if (periodStart !== expectedStart) {
-      return "期間開始日は前回Versionの期間終了日の翌日である必要があります。";
+      return "期間開始日は前回の版の期間終了日の翌日である必要があります。";
     }
   }
 
   return validateNewProducts(products, periodStart, periodEnd, true);
 }
 
+// 仕様: Core 第4.3.5節、第4.3.9節
 export function validateNewLineItem(row, headerStart, headerEnd) {
   if (isBlankProductLine(row)) {
     return null;
@@ -2598,8 +3006,10 @@ export function validateNewLineItem(row, headerStart, headerEnd) {
     return "開始日と終了日を入力してください。";
   }
 
-  if (row.quantity == null || Number(row.quantity) <= 0) {
-    return "数量を入力してください。";
+  // 仕様: Core 第4.3.9節
+  const quantityError = validateQuantityMin(row);
+  if (quantityError) {
+    return quantityError;
   }
 
   if (row.unitPrice === null || row.unitPrice === undefined) {
@@ -2635,15 +3045,84 @@ export function validateNewLineItem(row, headerStart, headerEnd) {
     return invoiceSettingError;
   }
 
+  // 仕様: Core 第1.1.10節、第4.3.8節、第4.5.2節。ON列編集・OFFマスタ初期値のどちらの空も画面で止める。
+  const revenueError = validateRevenueRecognitionBasisRequired(row);
+  if (revenueError) {
+    return revenueError;
+  }
+
   return validateBillingPeriod(row);
 }
 
+/** 仕様: Core 第1.1.10節、第4.5.2節。保存時の必須はAccounting ON/OFFで変えない。 */
+export function validateRevenueRecognitionBasisRequired(row) {
+  if (!isActiveLine(row)) {
+    return null;
+  }
+  const value = row.revenueRecognitionBasis;
+  if (value == null || String(value).trim() === "") {
+    return REVENUE_BASIS_BLANK_MESSAGE;
+  }
+  if (
+    value !== REVENUE_BASIS_OVER_TIME &&
+    value !== REVENUE_BASIS_POINT_IN_TIME
+  ) {
+    return REVENUE_BASIS_INVALID_MESSAGE;
+  }
+  return null;
+}
+
+export const SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE =
+  "都度契約の Change は一回課金だけです。";
+export const SPOT_CHANGE_NO_PREVIOUS_PRODUCT_MESSAGE =
+  "都度契約の Change は過去の見積商品を引き継ぎません。";
+
+/**
+ * 仕様: Core 第5.1節、第3.4.2節、第1.1.10節、第1.1.8節。
+ * Spot Change は一回課金 Type=New のみ。継続・Original・Remake・過去明細継承は画面で止める。
+ * 共通明細規則は validateNewProducts。
+ */
+export function validateSpotChangeProducts(products) {
+  for (const line of products || []) {
+    if (!line || !line.productId) {
+      continue;
+    }
+    if (isChangeOriginalLine(line) || isChangeRemakeLine(line)) {
+      return SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE;
+    }
+    if (line.billingType === BILLING_TYPE_RECURRING) {
+      return SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE;
+    }
+    if (line.sourceContractProductId) {
+      return SPOT_CHANGE_NO_PREVIOUS_PRODUCT_MESSAGE;
+    }
+    const recordType = normalizeProductRecordType(line.recordType);
+    if (recordType && recordType !== PRODUCT_TYPE_NEW) {
+      return SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE;
+    }
+  }
+  return validateNewProducts(products, "", "");
+}
+
+// 仕様: Core 第4.3.9節
 export function validateNewProducts(
   products,
   headerStart,
   headerEnd,
   includeProductOverlap = true
 ) {
+  for (let i = 0; i < (products || []).length; i++) {
+    const line = products[i];
+    if (isBlankProductLine(line)) {
+      continue;
+    }
+    const quantityError = validateQuantityMin(line);
+    if (quantityError) {
+      const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
+      return `商品明細（${label}）: ${quantityError}`;
+    }
+  }
+
   const activeLines = (products || []).filter(isActiveLine);
 
   if (!activeLines.length) {
@@ -2691,7 +3170,7 @@ export function validateNewProducts(
       continue;
     }
 
-    const label = line.typeLabel || `${i + 1}行目`;
+    const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
 
     const lineError = validateNewLineItem(line, headerStart, headerEnd);
 

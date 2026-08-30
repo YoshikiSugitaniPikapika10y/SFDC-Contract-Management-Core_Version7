@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CompactLayout xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>GlAccountingTagRule_Compact</fullName>
+    <fields>Name</fields>
+    <fields>TagLabel__c</fields>
+    <fields>TargetFieldApiName__c</fields>
+    <label>会計タグルール コンパクト</label>
+</CompactLayout>

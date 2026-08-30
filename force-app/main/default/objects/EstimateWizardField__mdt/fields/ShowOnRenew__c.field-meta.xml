@@ -5,6 +5,6 @@
     <description>見積ウィザード Type=Renew のときに表示する</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <label>Renewで表示</label>
+    <label>更新で表示</label>
     <type>Checkbox</type>
 </CustomField>

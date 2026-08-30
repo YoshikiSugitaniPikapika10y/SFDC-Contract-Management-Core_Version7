@@ -1,6 +1,6 @@
 <template>
   <div class="action-frame">
-    <template if:true={hasPermission}>
+    <template if:true={canOpenWizard}>
       <c-estimate-create-wizard
         edit-source-history-id={recordId}
         modal-mode

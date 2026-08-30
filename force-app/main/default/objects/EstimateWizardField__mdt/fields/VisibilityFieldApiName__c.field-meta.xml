@@ -3,6 +3,7 @@
     <fullName>VisibilityFieldApiName__c</fullName>
     <description
   >見積商品の動的表示用。Product2 上の判定項目 API 名。空欄は常時表示。Service/History では未使用。</description>
+    <inlineHelpText>Visibilityは見積商品だけである。</inlineHelpText>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <label>表示条件 項目API名(Product2)</label>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>TaxInclusiveAmount__c</fullName>
+    <description>仕様: Core 第7.1節・第8.6節、Accounting 第9.1.1節。税抜＋明細配分税。ヘッダ税込ではない。</description>
+    <formula>BLANKVALUE(Amount__c, 0) + BLANKVALUE(AllocatedTaxAmount__c, 0)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <inlineHelpText>税抜金額＋明細配分税</inlineHelpText>
+    <label>明細税込</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Currency</type>
+</CustomField>

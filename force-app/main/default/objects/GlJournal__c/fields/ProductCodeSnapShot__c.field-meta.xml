@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ProductCodeSnapShot__c</fullName>
+    <description
+  >仕様: Core 第11.4.2節、Accounting 第9.1節。明細仕訳のコピー見本。正規処理・Goal・キーに使わない。エンジンは書かない。拒否リストに入れない。</description>
+    <externalId>false</externalId>
+    <inlineHelpText
+  >商品コードのスナップショット（明細仕訳のコピー見本）。正規処理・Goal・キーには使わない。</inlineHelpText>
+    <label>商品コード SnapShot</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

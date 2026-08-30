@@ -39,6 +39,10 @@ public without sharing class ContractWizardFieldService {
     @AuraEnabled
     public List<PicklistOptionDefinition> picklistOptions;
 
+    /** Lookup target object API name for REFERENCE fields. */
+    @AuraEnabled
+    public String referenceObjectApiName;
+
     /** Wizard help text from EstimateWizardField__mdt.HelpText__c */
     @AuraEnabled
     public String helpText;
@@ -202,7 +206,7 @@ public without sharing class ContractWizardFieldService {
 
     validateActiveDefinitions();
 
-    Set<String> opportunityFields = new Set<String>{ 'Id' };
+    Set<String> opportunityFields = new Set<String>{ 'Id', 'ContactId' };
     Set<String> accountFields = new Set<String>();
     Map<String, Schema.SObjectField> opportunityDescribe = Opportunity.SObjectType.getDescribe()
       .fields.getMap();
@@ -366,6 +370,7 @@ public without sharing class ContractWizardFieldService {
       definition.precision = describe.getPrecision();
       definition.scale = describe.getScale();
       definition.picklistOptions = buildPicklistOptions(describe);
+      definition.referenceObjectApiName = getReferenceObjectApiName(describe);
       definition.helpText = config.helpText;
       definition.defaultValue = config.defaultValue;
       definition.defaultSource = config.defaultSource;
@@ -1340,6 +1345,15 @@ public without sharing class ContractWizardFieldService {
 
     String text = String.valueOf(rawValue).trim();
 
+    if (fieldType == Schema.DisplayType.REFERENCE) {
+      try {
+        Id.valueOf(text);
+        return null;
+      } catch (Exception e) {
+        return '有効なレコードを選択してください';
+      }
+    }
+
     if (fieldType == Schema.DisplayType.DATE) {
       if (!isValidIsoDateText(text)) {
         return 'YYYY-MM-DD 形式で入力してください';
@@ -1411,7 +1425,20 @@ public without sharing class ContractWizardFieldService {
       fieldType == Schema.DisplayType.LONG ||
       fieldType == Schema.DisplayType.DATE ||
       fieldType == Schema.DisplayType.BOOLEAN ||
-      fieldType == Schema.DisplayType.PICKLIST;
+      fieldType == Schema.DisplayType.PICKLIST ||
+      fieldType == Schema.DisplayType.REFERENCE;
+  }
+
+  private static String getReferenceObjectApiName(
+    Schema.DescribeFieldResult describe
+  ) {
+    if (describe.getType() != Schema.DisplayType.REFERENCE) {
+      return null;
+    }
+    List<Schema.SObjectType> referenceTypes = describe.getReferenceTo();
+    return referenceTypes.isEmpty()
+      ? null
+      : referenceTypes[0].getDescribe().getName();
   }
 
   public static List<PicklistOptionDefinition> buildPicklistOptions(
@@ -1457,6 +1484,14 @@ public without sharing class ContractWizardFieldService {
     String text = String.valueOf(rawValue).trim();
     if (String.isBlank(text)) {
       return null;
+    }
+
+    if (fieldType == Schema.DisplayType.REFERENCE) {
+      try {
+        return Id.valueOf(text);
+      } catch (Exception e) {
+        return null;
+      }
     }
 
     if (fieldType == Schema.DisplayType.DATE) {

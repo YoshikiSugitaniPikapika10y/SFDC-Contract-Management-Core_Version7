@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+    <flexiPage>Contract_Cross_Work</flexiPage>
+    <label>契約横断</label>
+    <motif>Custom57: Hands</motif>
+</CustomTab>

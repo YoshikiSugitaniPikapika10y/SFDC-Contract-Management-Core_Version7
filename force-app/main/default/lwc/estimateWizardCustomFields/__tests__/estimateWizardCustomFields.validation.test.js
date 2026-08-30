@@ -8,7 +8,8 @@ import {
   syncCustomFieldsForVisibility,
   filterCustomFieldDefinitionsForWizardType,
   filterVisibleCustomFieldDefinitions,
-  shallowEqualFieldMaps
+  shallowEqualFieldMaps,
+  buildCustomFieldInputs
 } from "c/estimateWizardCustomFields";
 
 describe("getCustomFieldTypeError", () => {
@@ -43,6 +44,15 @@ describe("getCustomFieldTypeError", () => {
     expect(getCustomFieldTypeError("CURRENCY", 100)).toBeNull();
     expect(getCustomFieldTypeError("PERCENT", "10%")).toContain("数値");
     expect(getCustomFieldTypeError("DOUBLE", "abc")).toContain("数値");
+  });
+
+  it("validates record references", () => {
+    expect(
+      getCustomFieldTypeError("REFERENCE", "005000000000001AAA")
+    ).toBeNull();
+    expect(getCustomFieldTypeError("REFERENCE", "not-an-id")).toContain(
+      "レコード"
+    );
   });
 });
 
@@ -319,6 +329,17 @@ describe("default custom fields", () => {
     expect(resolveCustomFieldDefault(staticField, undefined, undefined)).toBe(
       "固定メモ"
     );
+    const today = resolveCustomFieldDefault(
+      {
+        apiName: "OrderDate__c",
+        fieldType: "DATE",
+        defaultSource: "Today",
+        showOnNew: true
+      },
+      undefined,
+      undefined
+    );
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(
       resolveCustomFieldDefault(oppField, undefined, undefined)
     ).toBeUndefined();
@@ -375,5 +396,41 @@ describe("shallowEqualFieldMaps", () => {
     expect(shallowEqualFieldMaps({ a: "1" }, { a: "2" })).toBe(false);
     expect(shallowEqualFieldMaps({ a: "1" }, { a: "1", b: "2" })).toBe(false);
     expect(shallowEqualFieldMaps(null, {})).toBe(true);
+  });
+});
+
+describe("buildCustomFieldInputs picklist display (Core 第0.1節・第7.2節・第7.5節)", () => {
+  it("shows Japanese picklist labels while keeping API values", () => {
+    const inputs = buildCustomFieldInputs(
+      [
+        {
+          apiName: "InvoiceDateMethod__c",
+          label: "請求日の計算方式",
+          fieldType: "PICKLIST",
+          picklistOptions: [
+            { label: "基準日と同日", value: "SameDay" },
+            { label: "基準日以後の指定日", value: "OnOrAfterSpecifiedDay" }
+          ]
+        },
+        {
+          apiName: "PaymentTermMethod__c",
+          label: "支払条件の計算方式",
+          fieldType: "PICKLIST",
+          picklistOptions: [
+            { label: "請求月から指定月数後", value: "MonthOffset" }
+          ]
+        }
+      ],
+      {
+        InvoiceDateMethod__c: "SameDay",
+        PaymentTermMethod__c: "MonthOffset"
+      },
+      "order-billing",
+      true
+    );
+    expect(inputs[0].value).toBe("SameDay");
+    expect(inputs[0].displayValue).toBe("基準日と同日");
+    expect(inputs[1].value).toBe("MonthOffset");
+    expect(inputs[1].displayValue).toBe("請求月から指定月数後");
   });
 });

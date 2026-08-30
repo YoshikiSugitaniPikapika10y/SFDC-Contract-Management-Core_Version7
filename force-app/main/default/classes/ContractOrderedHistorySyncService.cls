@@ -19,6 +19,7 @@ public without sharing class ContractOrderedHistorySyncService {
     syncForServices(serviceIds);
   }
 
+  /** 仕様: Core 第3.4.2節 */
   public static void syncForServices(Set<Id> contractServiceIds) {
     if (contractServiceIds == null || contractServiceIds.isEmpty()) {
       return;
@@ -78,7 +79,13 @@ public without sharing class ContractOrderedHistorySyncService {
     }
 
     if (!servicesToUpdate.isEmpty()) {
-      SystemContextAccess.updateRecords(servicesToUpdate);
+      Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      try {
+        SystemContextAccess.updateRecords(servicesToUpdate);
+      } finally {
+        ContractServiceWriteGuard.allowPackageWrite(previousWrite);
+      }
     }
 
     ContractServiceLifecycleService.ensureLifecycleForServices(

@@ -13,17 +13,17 @@
             <value>
                 <fullName>Estimate</fullName>
                 <default>false</default>
-                <label>Estimate</label>
+                <label>見積</label>
             </value>
             <value>
                 <fullName>Ordered</fullName>
                 <default>false</default>
-                <label>Ordered</label>
+                <label>受注済み</label>
             </value>
             <value>
                 <fullName>Archive</fullName>
                 <default>false</default>
-                <label>Archive</label>
+                <label>不採用</label>
             </value>
         </valueSetDefinition>
     </valueSet>

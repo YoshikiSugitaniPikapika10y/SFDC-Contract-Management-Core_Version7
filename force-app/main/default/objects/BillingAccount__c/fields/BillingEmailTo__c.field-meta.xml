@@ -3,8 +3,8 @@
     <fullName>BillingEmailTo__c</fullName>
     <externalId>false</externalId>
     <label>請求アドレス To</label>
-    <length>100</length>
-    <required>false</required>
+    <length>255</length>
+    <required>true</required>
     <trackHistory>false</trackHistory>
     <trackTrending>false</trackTrending>
     <type>Text</type>

@@ -32,6 +32,38 @@ private class ContractProductAmountUtilTest {
   }
 
   @IsTest
+  static void yenFromQuantityUnitPrice_matchesIntegerScaleHalfUp() {
+    // FE: toScaledInt(1.15,2)=115, toScaledInt(1.15,2)=115 → 13225/10000 → 1
+    System.assertEquals(
+      1,
+      ContractProductAmountUtil.yenFromQuantityUnitPrice(1.15, 1.15, 1)
+    );
+    // FE: 3333*3333*12 / 10000 = 13330.6668 → 13331
+    System.assertEquals(
+      13331,
+      ContractProductAmountUtil.yenFromQuantityUnitPrice(33.33, 33.33, 12)
+    );
+    // FE: 123*568*7 / 10000 = 48.9288 → 49（入力は第2位へ丸めてから）
+    System.assertEquals(
+      49,
+      ContractProductAmountUtil.yenFromQuantityUnitPrice(1.234, 5.678, 7)
+    );
+  }
+
+  @IsTest
+  static void calculateUnsignedAmount_recurringUsesIntegerScaleNotBulkDecimal() {
+    Decimal amount = ContractProductAmountUtil.calculateUnsignedAmount(
+      33.33,
+      33.33,
+      ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      Date.newInstance(2026, 4, 1),
+      Date.newInstance(2027, 3, 31)
+    );
+
+    System.assertEquals(13331, amount);
+  }
+
+  @IsTest
   static void applyProductTypeSign_originalIsNegative() {
     System.assertEquals(
       -144000,

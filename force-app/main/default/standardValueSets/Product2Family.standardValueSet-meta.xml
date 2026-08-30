@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<StandardValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <sorted>false</sorted>
+    <standardValue>
+        <fullName>Zeroboard</fullName>
+        <default>false</default>
+        <label>Zeroboard</label>
+    </standardValue>
+    <standardValue>
+        <fullName>Zeroboard Construction</fullName>
+        <default>false</default>
+        <label>Zeroboard Construction</label>
+    </standardValue>
+    <standardValue>
+        <fullName>なし</fullName>
+        <default>false</default>
+        <label>なし</label>
+    </standardValue>
+    <standardValue>
+        <fullName>その他費用</fullName>
+        <default>false</default>
+        <label>その他費用</label>
+    </standardValue>
+    <standardValue>
+        <fullName>旧プラン Zeroboard利用料</fullName>
+        <default>false</default>
+        <label>旧プラン Zeroboard利用料</label>
+    </standardValue>
+    <standardValue>
+        <fullName>旧プラン オプション</fullName>
+        <default>false</default>
+        <label>旧プラン オプション</label>
+    </standardValue>
+    <standardValue>
+        <fullName>旧プラン 機能追加</fullName>
+        <default>false</default>
+        <label>旧プラン 機能追加</label>
+    </standardValue>
+    <standardValue>
+        <fullName>新プラン Zeroboard利用料</fullName>
+        <default>false</default>
+        <label>新プラン Zeroboard利用料</label>
+    </standardValue>
+    <standardValue>
+        <fullName>新プラン 機能追加</fullName>
+        <default>false</default>
+        <label>新プラン 機能追加</label>
+    </standardValue>
+    <standardValue>
+        <fullName>新プランオプション</fullName>
+        <default>false</default>
+        <label>新プランオプション</label>
+    </standardValue>
+</StandardValueSet>

@@ -34,90 +34,73 @@ private class ContractMetadataServiceTest {
   }
 
   @IsTest
-  static void resolveInvoiceDate_monthlySplitSnapsToBillingDay() {
+  static void resolveInvoiceDate_monthlySplitUsesPeriodStart() {
     Date periodStart = Date.newInstance(2026, 6, 5);
     Date periodEnd = Date.newInstance(2026, 7, 4);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      '25',
-      false
-    );
 
     System.assertEquals(
-      Date.newInstance(2026, 6, 25),
+      periodStart,
       ContractMetadataService.resolveInvoiceDate(
         ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY,
         periodStart,
         periodEnd,
         periodStart,
-        periodEnd,
-        context
-      )
+        periodEnd
+      ),
+      'Core 第7.2節: 月次分割の請求基準日は各請求サイクルの開始日。請求日ルールは BillingScheduleService'
     );
   }
 
   @IsTest
-  static void resolveInvoiceDate_monthlySplitUsesImmediateBillingDay() {
+  static void resolveInvoiceDate_monthlySplitKeepsAnchorWithoutBillingDaySnap() {
     Date periodStart = Date.newInstance(2026, 6, 10);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      'IMMEDIATE',
-      false
-    );
 
     System.assertEquals(
-      Date.newInstance(2026, 6, 10),
+      periodStart,
       ContractMetadataService.resolveInvoiceDate(
         ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY,
         periodStart,
         periodStart,
         periodStart,
-        periodStart,
-        context
+        periodStart
       )
     );
   }
 
   @IsTest
-  static void resolveInvoiceDate_bulkPrepaidSnapsContractStartToBillingDay() {
+  static void resolveInvoiceDate_bulkPrepaidUsesContractStart() {
     Date termStart = Date.newInstance(2026, 6, 1);
     Date termEnd = Date.newInstance(2027, 5, 31);
     Date julyPeriodStart = Date.newInstance(2026, 7, 1);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      '25',
-      false
-    );
 
     System.assertEquals(
-      Date.newInstance(2026, 6, 25),
+      termStart,
       ContractMetadataService.resolveInvoiceDate(
         ContractMetadataService.INVOICE_SETTING_PREPAID_START,
         julyPeriodStart,
         julyPeriodStart,
         termStart,
-        termEnd,
-        context
-      )
+        termEnd
+      ),
+      'Core 第7.2節: 一括前払の請求基準日は見積商品の開始日'
     );
   }
 
   @IsTest
-  static void resolveInvoiceDate_bulkPostpaidSnapsContractEndPlusOneToBillingDay() {
+  static void resolveInvoiceDate_bulkPostpaidUsesContractEndPlusOne() {
     Date termStart = Date.newInstance(2026, 6, 1);
     Date termEnd = Date.newInstance(2027, 5, 31);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      '25',
-      false
-    );
 
     System.assertEquals(
-      Date.newInstance(2027, 6, 25),
+      Date.newInstance(2027, 6, 1),
       ContractMetadataService.resolveInvoiceDate(
         ContractMetadataService.INVOICE_SETTING_POSTPAID_NEXT_DAY,
         termStart,
         termEnd,
         termStart,
-        termEnd,
-        context
-      )
+        termEnd
+      ),
+      'Core 第7.2節: 一括後払の請求基準日は見積商品の終了日の翌日'
     );
   }
 
@@ -133,104 +116,8 @@ private class ContractMetadataServiceTest {
         startDate,
         endDate,
         startDate,
-        endDate,
-        null
+        endDate
       )
-    );
-  }
-
-  @IsTest
-  static void resolveInvoiceDate_endOfMonthBillingDayUsesLastDayOfMonth() {
-    Date periodStart = Date.newInstance(2026, 2, 1);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      '31',
-      false
-    );
-
-    System.assertEquals(
-      Date.newInstance(2026, 2, 28),
-      ContractMetadataService.resolveInvoiceDate(
-        ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY,
-        periodStart,
-        periodStart,
-        periodStart,
-        periodStart,
-        context
-      )
-    );
-  }
-
-  @IsTest
-  static void resolveInvoiceDate_adjustsWeekendToBusinessDay() {
-    Date saturday = Date.newInstance(2026, 6, 6);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      'IMMEDIATE',
-      true
-    );
-
-    System.assertEquals(
-      Date.newInstance(2026, 6, 8),
-      ContractMetadataService.resolveInvoiceDate(
-        ContractMetadataService.INVOICE_SETTING_PREPAID_START,
-        saturday,
-        saturday,
-        saturday,
-        saturday,
-        context
-      )
-    );
-  }
-
-  @IsTest
-  static void parseBillingDayOfMonth_mapsPicklistValues() {
-    System.assertEquals(1, ContractMetadataService.parseBillingDayOfMonth('1'));
-    System.assertEquals(
-      25,
-      ContractMetadataService.parseBillingDayOfMonth('25')
-    );
-    System.assertEquals(
-      ContractMetadataService.BILLING_DAY_END_OF_MONTH,
-      ContractMetadataService.parseBillingDayOfMonth('31')
-    );
-    System.assertEquals(
-      null,
-      ContractMetadataService.parseBillingDayOfMonth(
-        ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY
-      )
-    );
-    System.assertEquals(
-      null,
-      ContractMetadataService.parseBillingDayOfMonth('IMMEDIATE')
-    );
-    System.assertEquals(
-      null,
-      ContractMetadataService.parseBillingDayOfMonth(null)
-    );
-  }
-
-  @IsTest
-  static void formatBillingDayPicklistLabel_returnsDisplayLabels() {
-    System.assertEquals(
-      '月初',
-      ContractMetadataService.formatBillingDayPicklistLabel('1')
-    );
-    System.assertEquals(
-      ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
-      ContractMetadataService.formatBillingDayPicklistLabel(
-        ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY
-      )
-    );
-    System.assertEquals(
-      ContractTestDataFactory.TENANT_BILLING_DAY_SAME_DAY,
-      ContractMetadataService.formatBillingDayPicklistLabel('IMMEDIATE')
-    );
-    System.assertEquals(
-      '25日',
-      ContractMetadataService.formatBillingDayPicklistLabel('25')
-    );
-    System.assertEquals(
-      '月末日',
-      ContractMetadataService.formatBillingDayPicklistLabel('31')
     );
   }
 
@@ -274,77 +161,12 @@ private class ContractMetadataServiceTest {
   }
 
   @IsTest
-  static void resolvePaymentScheduledDate_usesConfiguredPaymentTermRules() {
-    Date invoiceDate = Date.newInstance(2026, 6, 1);
-
-    System.assertEquals(
-      Date.newInstance(2026, 6, 30),
-      ContractMetadataService.resolvePaymentScheduledDate(
-        ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        invoiceDate
-      )
-    );
-    System.assertEquals(
-      Date.newInstance(2026, 7, 15),
-      ContractMetadataService.resolvePaymentScheduledDate(
-        '翌月15日',
-        invoiceDate
-      )
-    );
-  }
-
-  @IsTest
   static void validateInvoiceSettingForBillingType_rejectsSplitMonthlyForOneTime() {
     System.assertEquals(
       '一回課金では月次分割は選択できません。',
       ContractMetadataService.validateInvoiceSettingForBillingType(
         ContractMetadataService.ONE_TIME_BILLING_TYPE_LABEL,
         ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY
-      )
-    );
-  }
-
-  @IsTest
-  static void resolveInvoiceDateFromStoredAnchor_snapsToBillingDay() {
-    Date anchorDate = Date.newInstance(2026, 6, 15);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      '25',
-      false
-    );
-
-    System.assertEquals(
-      Date.newInstance(2026, 6, 25),
-      ContractMetadataService.resolveInvoiceDateFromStoredAnchor(
-        anchorDate,
-        context
-      )
-    );
-  }
-
-  @IsTest
-  static void resolveInvoiceDateFromStoredAnchor_returnsNullForNullAnchor() {
-    System.assertEquals(
-      null,
-      ContractMetadataService.resolveInvoiceDateFromStoredAnchor(
-        null,
-        ContractMetadataService.buildInvoiceDateContext('1', false)
-      )
-    );
-  }
-
-  @IsTest
-  static void resolveInvoiceDateFromStoredAnchor_adjustsWeekendToBusinessDay() {
-    Date saturday = Date.newInstance(2026, 6, 6);
-    ContractMetadataService.InvoiceDateContext context = ContractMetadataService.buildInvoiceDateContext(
-      'IMMEDIATE',
-      true
-    );
-
-    System.assertEquals(
-      Date.newInstance(2026, 6, 8),
-      ContractMetadataService.resolveInvoiceDateFromStoredAnchor(
-        saturday,
-        context
       )
     );
   }
@@ -384,9 +206,58 @@ private class ContractMetadataServiceTest {
     blankLine.Product__r = new Product2(
       BillingType__c = ContractMetadataService.RECURRING_BILLING_TYPE_LABEL
     );
+    try {
+      ContractMetadataService.resolveLineBillingType(blankLine);
+      System.assert(false, '課金形態空は商品マスタへ戻さずエラー');
+    } catch (ContractMetadataService.BillingTypeException ex) {
+      System.assert(ex.getMessage().contains('課金形態が空です。'));
+    }
+  }
+
+  @IsTest
+  static void resolveRevenueRecognitionBasis_rejectsBlankAndInvalid() {
     System.assertEquals(
-      ContractMetadataService.RECURRING_BILLING_TYPE_LABEL,
-      ContractMetadataService.resolveLineBillingType(blankLine)
+      ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      ContractMetadataService.resolveRevenueRecognitionBasis(
+        ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+      )
+    );
+    System.assertEquals(
+      ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ContractMetadataService.resolveRevenueRecognitionBasis(
+        ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      )
+    );
+    try {
+      ContractMetadataService.resolveRevenueRecognitionBasis(null);
+      System.assert(false, '空は商品マスタへ落とさずエラー');
+    } catch (ContractMetadataService.RevenueRecognitionBasisException ex) {
+      System.assert(ex.getMessage().contains('売上計上基準が空です。'));
+    }
+    try {
+      ContractMetadataService.resolveRevenueRecognitionBasis('不正');
+      System.assert(false, '不正値は課金形態へ落とさずエラー');
+    } catch (ContractMetadataService.RevenueRecognitionBasisException ex) {
+      System.assert(
+        ex.getMessage().contains('売上計上基準は月次計上または一括計上です。')
+      );
+    }
+
+    ContractProduct__c line = new ContractProduct__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      BillingType__c = ContractMetadataService.RECURRING_BILLING_TYPE_LABEL
+    );
+    line.Product__r = new Product2(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+    );
+    System.assertEquals(
+      ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      ContractMetadataService.resolveLineRevenueRecognitionBasis(line)
+    );
+    ContractProduct__c blankLine = new ContractProduct__c();
+    System.assertEquals(
+      null,
+      ContractMetadataService.resolveLineRevenueRecognitionBasis(blankLine)
     );
   }
 }

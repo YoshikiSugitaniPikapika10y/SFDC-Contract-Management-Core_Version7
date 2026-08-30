@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>InvoicePayment__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>仕様: Accounting 第9.1節。入出金起因の仕訳が参照する請求入出金。</description>
+    <label>請求入出金</label>
+    <referenceTo>InvoicePayment__c</referenceTo>
+    <relationshipLabel>仕訳</relationshipLabel>
+    <relationshipName>GlJournals</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

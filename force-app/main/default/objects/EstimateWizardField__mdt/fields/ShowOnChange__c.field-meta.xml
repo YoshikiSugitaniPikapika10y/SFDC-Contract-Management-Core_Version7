@@ -5,6 +5,6 @@
     <description>見積ウィザード Type=Change のときに表示する</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <label>Changeで表示</label>
+    <label>追加変更で表示</label>
     <type>Checkbox</type>
 </CustomField>

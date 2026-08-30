@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>BusinessOperationKey__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>仕様: Core 第7.9.3節、第7.9.7節</description>
+    <externalId>false</externalId>
+    <label>業務操作キー</label>
+    <length>255</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

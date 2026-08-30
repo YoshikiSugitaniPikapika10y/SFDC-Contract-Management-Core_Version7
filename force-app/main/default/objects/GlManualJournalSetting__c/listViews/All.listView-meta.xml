@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>All</fullName>
+    <columns>NAME</columns>
+    <columns>IsActive__c</columns>
+    <columns>DebitSlotKey__c</columns>
+    <columns>DebitAccount__c</columns>
+    <columns>CreditSlotKey__c</columns>
+    <columns>CreditAccount__c</columns>
+    <filterScope>Everything</filterScope>
+    <label>すべて</label>
+</ListView>

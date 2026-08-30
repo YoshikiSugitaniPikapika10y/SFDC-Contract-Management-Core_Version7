@@ -6,8 +6,18 @@ private class TaxCalculationUtilTest {
   }
 
   @IsTest
-  static void resolveTaxPercent_nullIsZeroPercent() {
-    System.assertEquals(0, TaxCalculationUtil.resolveTaxPercent(null));
+  static void resolveTaxPercent_nullIsError() {
+    Boolean thrown = false;
+    try {
+      TaxCalculationUtil.resolveTaxPercent(null);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('空'),
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, thrown, '税率空はエラー');
     System.assertEquals(8, TaxCalculationUtil.resolveTaxPercent(8));
     System.assertEquals(0, TaxCalculationUtil.resolveTaxPercent(0));
     System.assertEquals(1, TaxCalculationUtil.resolveTaxPercent(1));

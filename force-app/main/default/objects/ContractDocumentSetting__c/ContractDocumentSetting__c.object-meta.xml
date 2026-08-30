@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customSettingsType>Hierarchy</customSettingsType>
+    <description>契約帳票、メール送付、会社情報を一元管理する。組織の既定値のみ使用する。</description>
+    <enableFeeds>false</enableFeeds>
+    <label>組織設定</label>
+    <visibility>Public</visibility>
+</CustomObject>

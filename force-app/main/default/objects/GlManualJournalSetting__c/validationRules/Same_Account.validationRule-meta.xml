@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Same_Account</fullName>
+    <active>true</active>
+    <description>仕様: Accounting 第10.2節。借方と貸方に同じ科目を指定しない。</description>
+    <errorConditionFormula>AND(
+        NOT(ISBLANK(DebitAccount__c)),
+        DebitAccount__c = CreditAccount__c
+    )</errorConditionFormula>
+    <errorDisplayField>CreditAccount__c</errorDisplayField>
+    <errorMessage>借方と貸方に同じ科目は指定できません。</errorMessage>
+</ValidationRule>

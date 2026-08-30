@@ -1,0 +1,364 @@
+<apex:page
+  controller="InvoiceDocumentPdfController"
+  renderAs="pdf"
+  contentType="application/pdf; charset=UTF-8"
+  showHeader="false"
+  applyHtmlTag="false"
+  language="ja"
+  cache="false"
+>
+  <html>
+    <head>
+      <meta charset="UTF-8" />
+      <style type="text/css">
+        @page {
+          size: A4;
+          margin: 13mm 14mm 15mm;
+          @bottom-center {
+            content: counter(page) " / " counter(pages);
+            font-size: 8pt;
+            color: #777;
+          }
+        }
+        body {
+          margin: 0;
+          font-family: "Arial Unicode MS", sans-serif;
+          font-size: 9.5pt;
+          color: #222;
+          line-height: 1.45;
+        }
+        h1 {
+          margin: 0 0 10mm;
+          text-align: center;
+          font-size: 22pt;
+          letter-spacing: 5px;
+          border-bottom: 2px solid #333;
+          padding-bottom: 3mm;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .header {
+          margin-bottom: 8mm;
+        }
+        .header td {
+          vertical-align: top;
+        }
+        .recipient {
+          width: 55%;
+          padding-right: 8mm;
+        }
+        .recipient-name {
+          font-size: 14pt;
+          font-weight: bold;
+          border-bottom: 1px solid #222;
+          padding: 2mm 0;
+          margin-bottom: 4mm;
+        }
+        .issuer {
+          width: 45%;
+          padding-left: 5mm;
+        }
+        .issuer-name {
+          font-size: 11pt;
+          font-weight: bold;
+          margin-bottom: 1mm;
+        }
+        .pre-line {
+          white-space: pre-line;
+        }
+        .meta {
+          margin-top: 3mm;
+        }
+        .meta th,
+        .meta td {
+          border-bottom: 1px solid #bbb;
+          padding: 1.2mm;
+          font-size: 9pt;
+        }
+        .meta th {
+          width: 28mm;
+          text-align: left;
+          font-weight: normal;
+          background: #f2f2f2;
+        }
+        .grand-total {
+          margin: 6mm 0;
+          border: 2px solid #333;
+          background: #f3f6f8;
+        }
+        .grand-total th,
+        .grand-total td {
+          padding: 3mm 5mm;
+        }
+        .grand-total th {
+          font-size: 12pt;
+          text-align: left;
+        }
+        .grand-total td {
+          font-size: 17pt;
+          font-weight: bold;
+          text-align: right;
+        }
+        .lines {
+          table-layout: fixed;
+          margin-top: 4mm;
+        }
+        .lines th,
+        .lines td {
+          border: 1px solid #555;
+          padding: 2mm 1.5mm;
+          word-wrap: break-word;
+        }
+        .lines th {
+          background: #e8ecef;
+          text-align: center;
+          font-weight: bold;
+        }
+        .lines tr {
+          page-break-inside: avoid;
+        }
+        .product {
+          width: 30%;
+        }
+        .period {
+          width: 18%;
+        }
+        .unit {
+          width: 9%;
+        }
+        .quantity {
+          width: 10%;
+          text-align: right;
+        }
+        .price,
+        .amount {
+          width: 16.5%;
+          text-align: right;
+        }
+        .summary {
+          width: 78mm;
+          margin: 5mm 0 6mm auto;
+          page-break-inside: avoid;
+        }
+        .summary th,
+        .summary td {
+          border: 1px solid #555;
+          padding: 2mm 3mm;
+        }
+        .summary th {
+          background: #f2f2f2;
+          text-align: left;
+        }
+        .summary td {
+          text-align: right;
+        }
+        .summary .total th,
+        .summary .total td {
+          font-weight: bold;
+          border-top: 2px solid #333;
+        }
+        .payment {
+          border: 1px solid #777;
+          padding: 3mm;
+          margin-top: 5mm;
+          page-break-inside: avoid;
+        }
+        .payment-title {
+          font-weight: bold;
+          margin-bottom: 1mm;
+        }
+        .footer {
+          border-top: 1px solid #999;
+          margin-top: 7mm;
+          padding-top: 3mm;
+          font-size: 8.5pt;
+          white-space: pre-line;
+          page-break-inside: avoid;
+        }
+      </style>
+    </head>
+    <body>
+      <apex:outputPanel layout="none" rendered="{!hasContext}">
+        <h1>請 求 書</h1>
+
+        <table class="header">
+          <tr>
+            <td class="recipient">
+              <div class="recipient-name">
+                <apex:outputText value="{!context.addressee}" />
+                <apex:outputText
+                  value=" 御中"
+                  rendered="{!NOT(CONTAINS(context.addressee, '御中'))}"
+                />
+              </div>
+              <p>下記の通りご請求申し上げます。</p>
+              <table class="meta">
+                <tr>
+                  <th>支払期限</th>
+                  <td>
+                    <apex:outputText value="{!context.paymentDueDateLabel}" />
+                  </td>
+                </tr>
+                <tr>
+                  <th>支払条件</th>
+                  <td>
+                    <apex:outputField
+                      value="{!context.invoice.PaymentTermMethodSnapShot__c}"
+                    />
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td class="issuer">
+              <table class="meta">
+                <tr>
+                  <th>請求番号</th>
+                  <td><apex:outputText value="{!context.invoice.Name}" /></td>
+                </tr>
+                <tr>
+                  <th>請求日</th>
+                  <td><apex:outputText value="{!context.invoiceDateLabel}" /></td>
+                </tr>
+              </table>
+              <div style="margin-top: 4mm">
+                <div class="issuer-name">
+                  <apex:outputText
+                    value="{!context.documentSetting.CompanyName__c}"
+                  />
+                </div>
+                <div class="pre-line">
+                  <apex:outputText value="{!context.documentSetting.Address__c}" />
+                </div>
+                <div>
+                  登録番号:
+                  <apex:outputText
+                    value="{!context.documentSetting.InvoiceRegistrationNumber__c}"
+                  />
+                </div>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <table class="grand-total">
+          <tr>
+            <th>ご請求金額（税込）</th>
+            <td>
+              ¥
+              <apex:outputText value="{0, number, ###,###,###,##0}">
+                <apex:param value="{!context.amountIncludingTax}" />
+              </apex:outputText>
+            </td>
+          </tr>
+        </table>
+
+        <table class="lines">
+          <thead>
+            <tr>
+              <th class="product">品名 / 商品コード</th>
+              <th class="period">対象期間</th>
+              <th class="unit">単位</th>
+              <th class="quantity">数量</th>
+              <th class="price">単価</th>
+              <th class="amount">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <apex:repeat value="{!context.lines}" var="line">
+              <tr>
+                <td class="product">
+                  <apex:outputText value="{!line.ProductName__c}" />
+                  <apex:outputPanel
+                    layout="block"
+                    rendered="{!NOT(ISBLANK(line.ProductCodeSnapShot__c))}"
+                    style="font-size: 8pt; color: #666"
+                  >
+                    <apex:outputText
+                      value="Code: {!line.ProductCodeSnapShot__c}"
+                    />
+                  </apex:outputPanel>
+                </td>
+                <td class="period">
+                  <apex:outputText value="{!line.PeriodLabel__c}" />
+                </td>
+                <td class="unit">
+                  <apex:outputText value="{!line.Unit__c}" />
+                </td>
+                <td class="quantity">
+                  <apex:outputText value="{0, number, ###,##0.##}">
+                    <apex:param value="{!line.Quantity__c}" />
+                  </apex:outputText>
+                </td>
+                <td class="price">
+                  <apex:outputText value="{0, number, ###,###,##0}">
+                    <apex:param value="{!line.UnitPrice__c}" />
+                  </apex:outputText>
+                </td>
+                <td class="amount">
+                  <apex:outputText value="{0, number, ###,###,##0}">
+                    <apex:param value="{!line.Amount__c}" />
+                  </apex:outputText>
+                </td>
+              </tr>
+            </apex:repeat>
+          </tbody>
+        </table>
+
+        <table class="summary">
+          <tr>
+            <th>税抜金額</th>
+            <td>
+              <apex:outputText value="{0, number, ###,###,###,##0}">
+                <apex:param value="{!context.amountExcludingTax}" />
+              </apex:outputText>
+            </td>
+          </tr>
+          <tr>
+            <th>消費税</th>
+            <td>
+              <apex:outputText value="{0, number, ###,###,###,##0}">
+                <apex:param value="{!context.taxAmount}" />
+              </apex:outputText>
+            </td>
+          </tr>
+          <tr class="total">
+            <th>税込金額</th>
+            <td>
+              <apex:outputText value="{0, number, ###,###,###,##0}">
+                <apex:param value="{!context.amountIncludingTax}" />
+              </apex:outputText>
+            </td>
+          </tr>
+        </table>
+
+        <div class="payment">
+          <div class="payment-title">お振込先</div>
+          <div class="pre-line">
+            <apex:outputText
+              value="{!context.documentSetting.BankTransferInfo__c}"
+            />
+          </div>
+        </div>
+
+        <apex:outputPanel
+          layout="block"
+          styleClass="footer"
+          rendered="{!NOT(ISBLANK(context.documentSetting.DocumentFooter__c))}"
+        >
+          <apex:outputText value="{!context.documentSetting.DocumentFooter__c}" />
+        </apex:outputPanel>
+        <apex:outputPanel
+          layout="block"
+          styleClass="footer"
+          rendered="{!NOT(ISBLANK(context.documentSetting.PrivacyPolicyUrl__c))}"
+        >
+          <apex:outputText
+            value="{!context.documentSetting.PrivacyPolicyUrl__c}"
+          />
+        </apex:outputPanel>
+      </apex:outputPanel>
+    </body>
+  </html>
+</apex:page>

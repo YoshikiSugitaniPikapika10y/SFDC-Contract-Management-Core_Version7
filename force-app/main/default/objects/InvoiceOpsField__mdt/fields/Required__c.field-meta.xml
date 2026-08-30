@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Required__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>仕様: Core 第11.4.4節。画面に表示されている場合だけ必須。</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>画面必須</label>
+    <type>Checkbox</type>
+</CustomField>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account__c</fullName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <description>仕様: Accounting 第6章。割り当てる勘定科目。</description>
+    <label>勘定科目</label>
+    <referenceTo>GlAccount__c</referenceTo>
+    <relationshipLabel>科目マップ</relationshipLabel>
+    <relationshipName>AccountMaps</relationshipName>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

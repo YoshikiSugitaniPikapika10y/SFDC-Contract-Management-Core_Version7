@@ -6,309 +6,224 @@ private class RenewEstimateAutoCreateServiceTest {
   }
 
   @IsTest
-  static void insertWithCheckboxOn_doesNotCreateRenewEstimate() {
+  static void renewalOpportunityInsert_createsLinkedRenewEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createSourceData(true, true);
-
-      System.assertEquals(
-        true,
-        [
-            SELECT RenewEstimateAutoCreateCheck__c
-            FROM ContractService__c
-            WHERE Id = :data.service.Id
-          ]
-          .RenewEstimateAutoCreateCheck__c
-      );
-      System.assertEquals(
-        0,
-        countRenewEstimates(data.service.Id),
-        '作成時点から ON では Renew 見積を作らないこと'
-      );
-    }
-  }
-
-  @IsTest
-  static void updateCheckboxOffToOn_createsRenewEstimateHistoryAndProducts() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createSourceData();
+      TestData data = createSourceData(true);
 
       Test.startTest();
-      ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
+      Opportunity renewal = insertRenewalOpportunity(data);
+      Test.stopTest();
 
-      List<ContractHistory__c> createdHistories = [
+      ContractHistory__c created = [
         SELECT
-          Name,
+          Opportunity__c,
+          ContractService__c,
+          PreviousHistory__c,
           Type__c,
           historystatus__c,
-          ContractService__c,
-          Opportunity__c,
-          PreviousHistory__c,
+          RenewEstimateAutoCreated__c,
           CurrentTermStartDate__c,
-          CurrentTermEndDate__c,
-          EffectiveDate__c,
-          Version__c,
-          ApplicationDate__c
+          CurrentTermEndDate__c
         FROM ContractHistory__c
-        WHERE ContractService__c = :data.service.Id AND Type__c = 'Renew'
-      ];
-      System.assertEquals(1, createdHistories.size());
-      ContractHistory__c createdHistory = createdHistories[0];
-      List<ContractProduct__c> createdProducts = [
-        SELECT
-          Product__c,
-          Type__c,
-          BillingType__c,
-          Quantity__c,
-          UnitPrice__c,
-          Amount__c,
-          PreviousContractProduct__c,
-          StartDate__c,
-          Enddate__c,
-          InvoiceAnchorDate__c,
-          InvoiceBillingCycleCount__c
-        FROM ContractProduct__c
-        WHERE ContractHistory__c = :createdHistory.Id
-      ];
-
-      OrderCreateController.confirmOrder(createdHistory.Id, null, false);
-      AggregateResult periodSum = [
-        SELECT SUM(Amount__c) totalAmount
-        FROM InvoiceProduct__c
-        WHERE ContractHistory__c = :createdHistory.Id
-      ];
-      Test.stopTest();
-
-      System.assertEquals(data.service.Name, createdHistory.Name);
-      System.assertEquals('Renew', createdHistory.Type__c);
-      System.assertEquals('Estimate', createdHistory.historystatus__c);
-      System.assertEquals(data.service.Id, createdHistory.ContractService__c);
-      System.assertEquals(null, createdHistory.Opportunity__c);
-      System.assertEquals(
-        Date.today(),
-        createdHistory.ApplicationDate__c,
-        '前回申込日が空なら作成日を入れること'
-      );
-      System.assertEquals(
-        data.sourceHistory.Id,
-        createdHistory.PreviousHistory__c
-      );
-      System.assertEquals(
-        Date.newInstance(2026, 6, 1),
-        createdHistory.CurrentTermStartDate__c
-      );
-      System.assertEquals(
-        Date.newInstance(2027, 5, 31),
-        createdHistory.CurrentTermEndDate__c
-      );
-      System.assertEquals(
-        Date.newInstance(2026, 6, 1),
-        createdHistory.EffectiveDate__c
-      );
-      System.assertEquals(2, createdHistory.Version__c);
-
-      System.assertEquals(1, createdProducts.size());
-      System.assertEquals(
-        data.sourceProduct.Id,
-        createdProducts[0].PreviousContractProduct__c
-      );
-      System.assertEquals('Renew', createdProducts[0].Type__c);
-      System.assertEquals(
-        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        createdProducts[0].BillingType__c
-      );
-      System.assertEquals(1, createdProducts[0].Quantity__c);
-      System.assertEquals(8000, createdProducts[0].UnitPrice__c);
-      System.assertEquals(
-        96000,
-        createdProducts[0].Amount__c,
-        '自動 Renew でも見積金額正本（数量×単価×月数）をセットすること'
-      );
-      System.assertEquals(
-        Date.newInstance(2026, 6, 1),
-        createdProducts[0].StartDate__c
-      );
-      System.assertEquals(
-        Date.newInstance(2027, 5, 31),
-        createdProducts[0].Enddate__c
-      );
-      System.assertEquals(
-        Date.newInstance(2026, 6, 1),
-        createdProducts[0].InvoiceAnchorDate__c,
-        'Renew 継続×一括前払の請求基準日は開始日'
-      );
-      System.assertEquals(null, createdProducts[0].InvoiceBillingCycleCount__c);
-      System.assertEquals(
-        96000,
-        (Decimal) periodSum.get('totalAmount'),
-        '自動 Renew 未編集受注でも見積バーは Amount 合計'
-      );
-    }
-  }
-
-  @IsTest
-  static void updateCheckboxToTrueWithoutOrderedHistory_blocksSave() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Test Account');
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-        PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-        BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-        AdjustInvoiceDateToBusinessDay__c = false
-      );
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      ContractService__c service = new ContractService__c(
-        Name = 'No Ordered Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
-      );
-      insert service;
-
-      Boolean thrown = false;
-      String message = null;
-      try {
-        ContractTestDataFactory.prepareRenewEstimateAutoCreate(service.Id);
-      } catch (DmlException ex) {
-        thrown = true;
-        message = dmlMessage(ex);
-      }
-      System.assertEquals(true, thrown, 'Ordered 未設定時は保存できないこと');
-      System.assertEquals(
-        RenewEstimateAutoCreateService.ORDERED_REQUIRED_MESSAGE,
-        message
-      );
-    }
-  }
-
-  @IsTest
-  static void updateCheckboxOffToOn_fromChange_excludesOriginalLines() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createChangeSourceWithOriginalAndRemake();
-      Id remakeProductId = data.sourceProduct.Id;
-      Id originalProductId = data.originalProduct.Id;
-
-      Test.startTest();
-      ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
-
-      ContractHistory__c renewHistory = [
-        SELECT Id
-        FROM ContractHistory__c
-        WHERE ContractService__c = :data.service.Id AND Type__c = 'Renew'
+        WHERE Opportunity__c = :renewal.Id
         LIMIT 1
       ];
-      List<ContractProduct__c> renewProducts = [
+      System.assertEquals(data.service.Id, created.ContractService__c);
+      System.assertEquals(data.sourceHistory.Id, created.PreviousHistory__c);
+      System.assertEquals('Renew', created.Type__c);
+      System.assertEquals('Estimate', created.historystatus__c);
+      System.assertEquals(true, created.RenewEstimateAutoCreated__c);
+      System.assertEquals(
+        data.sourceHistory.CurrentTermEndDate__c.addDays(1),
+        created.CurrentTermStartDate__c
+      );
+
+      ContractProduct__c createdProduct = [
         SELECT
-          Id,
+          PreviousContractProduct__c,
           Quantity__c,
           UnitPrice__c,
           Amount__c,
-          PreviousContractProduct__c,
           Type__c
         FROM ContractProduct__c
-        WHERE ContractHistory__c = :renewHistory.Id
+        WHERE ContractHistory__c = :created.Id
+        LIMIT 1
       ];
-      Integer originalLinkedCount = [
-        SELECT COUNT()
-        FROM ContractProduct__c
-        WHERE
-          ContractHistory__c = :renewHistory.Id
-          AND PreviousContractProduct__c = :originalProductId
-      ];
-      Test.stopTest();
-
       System.assertEquals(
-        1,
-        renewProducts.size(),
-        'Original を除き Remake 1行だけ引き継ぐこと'
+        data.sourceProduct.Id,
+        createdProduct.PreviousContractProduct__c
       );
-      System.assertEquals('Renew', renewProducts[0].Type__c);
-      System.assertEquals(
-        remakeProductId,
-        renewProducts[0].PreviousContractProduct__c,
-        'Previous は Remake（現行条件）であること'
-      );
-      System.assertEquals(2, renewProducts[0].Quantity__c);
-      System.assertEquals(10000, renewProducts[0].UnitPrice__c);
-      System.assertEquals(
-        240000,
-        renewProducts[0].Amount__c,
-        '金額は Remake 条件のみ（2×10000×12）。Original 分を足さない'
-      );
-      System.assertEquals(
-        0,
-        originalLinkedCount,
-        'Original を Previous にした Renew 行が無いこと'
-      );
+      System.assertEquals(1, createdProduct.Quantity__c);
+      System.assertEquals(8000, createdProduct.UnitPrice__c);
+      System.assertEquals(96000, createdProduct.Amount__c);
+      System.assertEquals('Renew', createdProduct.Type__c);
     }
   }
 
   @IsTest
-  static void updateCheckboxAlreadyTrue_doesNotDuplicate() {
+  static void autoRenew_quantityUnitPriceUsesOrgDefaultRounding() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createSourceData();
-      ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
-
-      Test.startTest();
-      update new ContractService__c(
-        Id = data.service.Id,
-        Name = 'Renew Source Service Updated'
-      );
-      Test.stopTest();
-
-      System.assertEquals(1, countRenewEstimates(data.service.Id));
-    }
-  }
-
-  @IsTest
-  static void updateCheckboxOffToOn_spotSource_blocksSave() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createSpotSourceData();
-
-      DmlException thrown;
-      Test.startTest();
-      try {
-        ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
-      } catch (DmlException ex) {
-        thrown = ex;
-      }
-      Test.stopTest();
-
-      System.assertNotEquals(null, thrown);
-      System.assert(
-        dmlMessage(thrown)
-          .contains(RenewEstimateAutoCreateService.SPOT_NOT_ALLOWED_MESSAGE),
-        dmlMessage(thrown)
-      );
-      System.assertEquals(0, countRenewEstimates(data.service.Id));
-    }
-  }
-
-  @IsTest
-  static void updateCheckboxOffToOn_lineOneTime_blocksSave() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestData data = createSourceData();
-      data.sourceProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      TestData data = createSourceData(true);
+      data.sourceProduct.Quantity__c = 1.234;
+      data.sourceProduct.UnitPrice__c = 10.345;
       update data.sourceProduct;
 
-      DmlException thrown;
       Test.startTest();
-      try {
-        ContractTestDataFactory.prepareRenewEstimateAutoCreate(data.service.Id);
-      } catch (DmlException ex) {
-        thrown = ex;
-      }
+      Opportunity renewal = insertRenewalOpportunity(data);
       Test.stopTest();
 
-      System.assertNotEquals(null, thrown);
+      ContractHistory__c created = [
+        SELECT Id
+        FROM ContractHistory__c
+        WHERE Opportunity__c = :renewal.Id
+        LIMIT 1
+      ];
+      ContractProduct__c createdProduct = [
+        SELECT Quantity__c, UnitPrice__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :created.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        AmountCalculationSettingService.roundQuantityUnitPrice(1.234),
+        createdProduct.Quantity__c,
+        'Core 第11.9節・第4.6節・第4.9節: 自動Renewの数量は OrgDefault。HALF_UP 直書きしない'
+      );
+      System.assertEquals(
+        AmountCalculationSettingService.roundQuantityUnitPrice(10.345),
+        createdProduct.UnitPrice__c,
+        'Core 第11.9節・第4.6節・第4.9節: 自動Renewの単価は OrgDefault。HALF_UP 直書きしない'
+      );
+    }
+  }
+
+  @IsTest
+  static void autoRenew_appliesAutoRenewCopyOnly() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Renew_AccountName',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_AUTO_RENEW,
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Note__c'
+      );
+      TestData data = createSourceData(true);
+
+      Test.startTest();
+      Opportunity renewal = insertRenewalOpportunity(data);
+      Test.stopTest();
+
+      ContractHistory__c created = [
+        SELECT Note__c
+        FROM ContractHistory__c
+        WHERE Opportunity__c = :renewal.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        data.account.Name,
+        created.Note__c,
+        '仕様: Core 第4.9節・第11.4.2節 自動Renew'
+      );
+    }
+  }
+
+  @IsTest
+  static void switchOff_doesNotCreateRenewEstimate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting =
+        ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.RenewOpportunityEnabled__c = false;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      TestData data = createSourceData(true);
+
+      Test.startTest();
+      Opportunity renewal = insertRenewalOpportunity(data);
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Opportunity__c = :renewal.Id
+        ],
+        'Core 第4.9節・第11.5節: 更新商談スイッチOFFでは自動Renew見積を作らない'
+      );
+    }
+  }
+
+  @IsTest
+  static void regularOpportunity_doesNotCreateRenewEstimate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestData data = createSourceData(true);
+
+      Test.startTest();
+      ContractTestDataFactory.insertOpportunity(
+        data.account.Id,
+        'Regular Opportunity'
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE
+            ContractService__c = :data.service.Id
+            AND RenewEstimateAutoCreated__c = TRUE
+        ]
+      );
+    }
+  }
+
+  @IsTest
+  static void renewalOpportunity_requiresMatchingContractService() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestData data = createSourceData(true);
+      ContractService__c otherService = ContractTestDataFactory.insertContractService(
+        data.account.Id,
+        'Other Service'
+      );
+      Opportunity renewal = buildRenewalOpportunity(data);
+      renewal.ContractService__c = otherService.Id;
+
+      Database.SaveResult result = Database.insert(renewal, false);
+
+      System.assertEquals(false, result.isSuccess());
       System.assert(
-        dmlMessage(thrown)
+        result
+          .getErrors()[0]
+          .getMessage()
+          .contains(
+            RenewEstimateAutoCreateService.CONTRACT_SERVICE_MISMATCH_MESSAGE
+          ),
+        result.getErrors()[0].getMessage()
+      );
+    }
+  }
+
+  @IsTest
+  static void renewalOpportunity_requiresRecurringSourceProduct() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestData data = createSourceData(false);
+
+      Database.SaveResult result = Database.insert(
+        buildRenewalOpportunity(data),
+        false
+      );
+
+      System.assertEquals(false, result.isSuccess());
+      System.assert(
+        result
+          .getErrors()[0]
+          .getMessage()
           .contains(
             RenewEstimateAutoCreateService.RENEW_SOURCE_REQUIRED_MESSAGE
           ),
-        dmlMessage(thrown)
+        result.getErrors()[0].getMessage()
       );
     }
   }
@@ -319,228 +234,78 @@ private class RenewEstimateAutoCreateServiceTest {
     public ContractService__c service;
     public ContractHistory__c sourceHistory;
     public ContractProduct__c sourceProduct;
-    public ContractProduct__c originalProduct;
   }
 
-  private static Integer countRenewEstimates(Id serviceId) {
-    return [
-      SELECT COUNT()
-      FROM ContractHistory__c
-      WHERE ContractService__c = :serviceId AND Type__c = 'Renew'
-    ];
-  }
-
-  /** Change Ordered: Original(旧) + Remake(新) が同じ期末に並ぶソース。 */
-  private static TestData createChangeSourceWithOriginalAndRemake() {
-    TestData data = createSourceData(false, false);
-    Date termStart = data.sourceHistory.CurrentTermStartDate__c;
-    Date termEnd = data.sourceHistory.CurrentTermEndDate__c;
-
-    ContractHistory__c changeHistory = new ContractHistory__c(
-      Name = 'Change Source History',
-      ContractService__c = data.service.Id,
-      Type__c = 'Change',
-      historystatus__c = 'Estimate',
-      Version__c = 2,
-      CurrentTermStartDate__c = termStart,
-      CurrentTermEndDate__c = termEnd,
-      EffectiveDate__c = termStart,
-      Opportunity__c = data.previousOpportunity.Id,
-      PreviousHistory__c = data.sourceHistory.Id
-    );
-    insert changeHistory;
-
-    ContractProduct__c original = new ContractProduct__c(
-      ContractHistory__c = changeHistory.Id,
-      Product__c = data.sourceProduct.Product__c,
-      Account__c = data.account.Id,
-      Quantity__c = 1,
-      UnitPrice__c = 8000,
-      Amount__c = -96000,
-      Unit__c = 'ID/月',
-      StartDate__c = termStart,
-      Enddate__c = termEnd,
-      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-      Type__c = 'Original',
-      PreviousContractProduct__c = data.sourceProduct.Id
-    );
-    ContractProduct__c remake = new ContractProduct__c(
-      ContractHistory__c = changeHistory.Id,
-      Product__c = data.sourceProduct.Product__c,
-      Account__c = data.account.Id,
-      Quantity__c = 2,
-      UnitPrice__c = 10000,
-      Amount__c = 240000,
-      Unit__c = 'ID/月',
-      StartDate__c = termStart,
-      Enddate__c = termEnd,
-      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-      Type__c = 'Remake',
-      PreviousContractProduct__c = data.sourceProduct.Id
-    );
-    insert new List<ContractProduct__c>{ original, remake };
-
-    changeHistory.historystatus__c = 'Ordered';
-    update changeHistory;
-
-    data.sourceHistory = changeHistory;
-    data.originalProduct = original;
-    data.sourceProduct = remake;
-    return data;
-  }
-
-  private static TestData createSourceData() {
-    return createSourceData(true, false);
-  }
-
-  private static TestData createSourceData(
-    Boolean insertAsOrdered,
-    Boolean checkboxOnAtInsert
-  ) {
+  private static TestData createSourceData(Boolean withProduct) {
     TestData data = new TestData();
-    data.account = ContractTestDataFactory.insertAccount('Test Account');
+    data.account = ContractTestDataFactory.insertAccount('Auto Renew Account');
     data.previousOpportunity = ContractTestDataFactory.insertOpportunity(
       data.account.Id,
       'Previous Opportunity'
     );
-
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = data.account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
+    data.service = ContractTestDataFactory.insertContractService(
+      data.account.Id,
+      'Auto Renew Service'
     );
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-
-    data.service = new ContractService__c(
-      Name = 'Renew Source Service',
-      Account__c = data.account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      RenewEstimateAutoCreateCheck__c = checkboxOnAtInsert == true
-    );
-    insert data.service;
 
     Date termStart = Date.newInstance(2025, 6, 1);
     Date termEnd = Date.newInstance(2026, 5, 31);
     data.sourceHistory = new ContractHistory__c(
-      Name = 'Source History',
-      ContractService__c = data.service.Id,
-      Type__c = 'New',
-      historystatus__c = insertAsOrdered == true ? 'Ordered' : 'Estimate',
-      Version__c = 1,
-      CurrentTermStartDate__c = termStart,
-      CurrentTermEndDate__c = termEnd,
-      Opportunity__c = data.previousOpportunity.Id
-    );
-    insert data.sourceHistory;
-
-    Product2 product = ContractTestDataFactory.buildProduct('Renew Product');
-    product.UnitName__c = 'ID';
-    product.UnitPrice__c = 8000;
-    product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
-    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-    ContractTestDataFactory.insertProduct(product);
-
-    data.sourceProduct = new ContractProduct__c(
-      ContractHistory__c = data.sourceHistory.Id,
-      Product__c = product.Id,
-      Quantity__c = 1,
-      UnitPrice__c = 8000,
-      Unit__c = 'ID/月',
-      StartDate__c = termStart,
-      Enddate__c = termEnd,
-      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-      Type__c = 'New'
-    );
-    insert data.sourceProduct;
-    return data;
-  }
-
-  private static TestData createSpotSourceData() {
-    TestData data = new TestData();
-    data.account = ContractTestDataFactory.insertAccount('Spot Test Account');
-    data.previousOpportunity = ContractTestDataFactory.insertOpportunity(
-      data.account.Id,
-      'Spot Previous Opportunity'
-    );
-
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = data.account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25,
-      AdjustInvoiceDateToBusinessDay__c = false
-    );
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-
-    data.service = new ContractService__c(
-      Name = 'Spot Source Service',
-      Account__c = data.account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = 'Spot'
-    );
-    insert data.service;
-
-    Date termStart = Date.newInstance(2025, 6, 1);
-    data.sourceHistory = new ContractHistory__c(
-      Name = 'Spot Source History',
+      Name = 'Source Ordered History',
       ContractService__c = data.service.Id,
       Type__c = 'New',
       historystatus__c = 'Ordered',
       Version__c = 1,
       CurrentTermStartDate__c = termStart,
-      CurrentTermEndDate__c = termStart,
+      CurrentTermEndDate__c = termEnd,
       Opportunity__c = data.previousOpportunity.Id
     );
     insert data.sourceHistory;
 
-    Product2 product = ContractTestDataFactory.buildProduct('Spot Product');
-    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
-    product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
-    ContractTestDataFactory.insertProduct(product, false);
+    if (withProduct) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Auto Renew Product'
+      );
+      product.UnitName__c = 'ID';
+      product.UnitPrice__c = 8000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
 
-    data.sourceProduct = new ContractProduct__c(
-      ContractHistory__c = data.sourceHistory.Id,
-      Product__c = product.Id,
-      Quantity__c = 1,
-      UnitPrice__c = 8000,
-      Amount__c = 8000,
-      StartDate__c = termStart,
-      Enddate__c = termStart,
-      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
-      Type__c = 'New'
-    );
-    insert data.sourceProduct;
+      data.sourceProduct = new ContractProduct__c(
+        ContractHistory__c = data.sourceHistory.Id,
+        Product__c = product.Id,
+        Account__c = data.account.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Unit__c = 'ID/月',
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      insert data.sourceProduct;
+    }
     return data;
   }
 
-  private static String dmlMessage(DmlException ex) {
-    if (ex == null) {
-      return null;
-    }
-    String raw = ex.getNumDml() > 0 ? ex.getDmlMessage(0) : ex.getMessage();
-    if (String.isBlank(raw)) {
-      return raw;
-    }
-    Integer causedBy = raw.indexOf('caused by: ');
-    if (causedBy >= 0) {
-      raw = raw.substring(causedBy + 'caused by: '.length());
-    }
-    Integer newline = raw.indexOf('\n');
-    if (newline >= 0) {
-      raw = raw.substring(0, newline);
-    }
-    return raw.trim();
+  private static Opportunity buildRenewalOpportunity(TestData data) {
+    Opportunity renewal = ContractTestDataFactory.buildOpportunity(
+      data.account.Id,
+      'Renewal Opportunity',
+      data.previousOpportunity.Id,
+      false,
+      data.service.Id
+    );
+    renewal.SourceContractHistory__c = data.sourceHistory.Id;
+    ContractTestDataFactory.applyOpportunityDefaults(renewal);
+    return renewal;
+  }
+
+  private static Opportunity insertRenewalOpportunity(TestData data) {
+    Opportunity renewal = buildRenewalOpportunity(data);
+    insert renewal;
+    return renewal;
   }
 }

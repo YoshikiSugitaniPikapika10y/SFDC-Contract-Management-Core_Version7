@@ -26,6 +26,7 @@ export default class EstimateValidationAlert extends LightningElement {
     return css;
   }
 
+  /** 仕様: Core 第4.3.6節 */
   get isConfirmVariant() {
     return this.variant === VARIANT_CONFIRM && this.showActions;
   }

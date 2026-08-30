@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>手動仕訳を登録する・取り消す。閲覧を含む</description>
+    <isLicensed>false</isLicensed>
+    <label>14 契約 手動仕訳</label>
+</CustomPermission>

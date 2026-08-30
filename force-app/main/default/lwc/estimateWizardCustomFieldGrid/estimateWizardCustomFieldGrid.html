@@ -71,6 +71,17 @@
               required={field.required}
             ></lightning-input>
           </template>
+          <template if:true={field.isReference}>
+            <lightning-record-picker
+              label={field.label}
+              variant="label-hidden"
+              object-api-name={field.referenceObjectApiName}
+              value={field.value}
+              data-field={field.apiName}
+              onchange={handleFieldChange}
+              required={field.required}
+            ></lightning-record-picker>
+          </template>
           <template if:true={field.isTextarea}>
             <textarea
               class="est-textarea-input"

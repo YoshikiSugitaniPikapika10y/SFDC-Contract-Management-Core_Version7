@@ -1,0 +1,218 @@
+:host {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  color: #0f172a;
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 0.5rem;
+}
+
+.tile-heading {
+  padding: 0.25rem 0 0.75rem;
+}
+
+.heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.type-chip,
+.renew-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.type-chip {
+  background: #eef4ff;
+  color: #0b5cab;
+}
+
+.renew-chip {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.history-name {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.history-name a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0 0;
+}
+
+.meta dt {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.meta dd {
+  margin: 0.125rem 0 0;
+  font-size: 0.875rem;
+}
+
+.amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #0b5cab;
+}
+
+.meta-small {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.75rem;
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn_primary {
+  background: #0b5cab;
+  color: #ffffff;
+}
+
+.btn_solid {
+  background: #059669;
+  color: #ffffff;
+}
+
+.btn_secondary {
+  background: #ffffff;
+  color: #181818;
+  border-color: #dddbda;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #ecebea;
+  border-radius: 0.5rem;
+}
+
+.product-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.product-table th,
+.product-table td {
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.product-table th {
+  background: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-footer {
+  margin: 0;
+  padding: 0.5rem 0.625rem;
+  background: #f4f6f7;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-top: 1px solid #e2e8f0;
+}
+
+.alert {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: #f4f6f7;
+}
+
+.alert_error {
+  background: #fdecea;
+  color: #ba0517;
+}
+
+.issue-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: rgba(15, 23, 42, 0.28);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+}
+
+.issue-panel {
+  width: min(32rem, 100%);
+  background: #ffffff;
+  border-radius: 0.5rem;
+  padding: 1rem 1.125rem 1.125rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+}
+
+.issue-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.file-name,
+.busy {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.issue-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}

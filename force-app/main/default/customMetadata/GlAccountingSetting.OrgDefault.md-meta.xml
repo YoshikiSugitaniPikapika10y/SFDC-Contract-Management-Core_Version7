@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>OrgDefault</label>
+    <protected>false</protected>
+    <values>
+        <field>TaxRoundingMode__c</field>
+        <value xsi:type="xsd:string">DOWN</value>
+    </values>
+    <values>
+        <field>QuantityUnitPriceRoundingMode__c</field>
+        <value xsi:type="xsd:string">Scale2HalfUp</value>
+    </values>
+    <values>
+        <field>AmountRoundingMode__c</field>
+        <value xsi:type="xsd:string">Scale0HalfUp</value>
+    </values>
+    <values>
+        <field>TaxLineAllocationMethod__c</field>
+        <value xsi:type="xsd:string">SignedLargestRemainder</value>
+    </values>
+    <values>
+        <field>AllocationTieBreak__c</field>
+        <value xsi:type="xsd:string">InvoiceLineStableOrder</value>
+    </values>
+    <values>
+        <field>MonthlyBucketAmountMethod__c</field>
+        <value xsi:type="xsd:string">EqualSplit</value>
+    </values>
+    <values>
+        <field>TaxScheduleAllocationMethod__c</field>
+        <value xsi:type="xsd:string">SignedRevenueRatio</value>
+    </values>
+    <values>
+        <field>PaymentLineAllocationMethod__c</field>
+        <value xsi:type="xsd:string">OpenInclusiveRatio</value>
+    </values>
+    <values>
+        <field>AccountBalanceAllocationMethod__c</field>
+        <value xsi:type="xsd:string">SameRate</value>
+    </values>
+    <values>
+        <field>DocumentGroupTaxAllocationMethod__c</field>
+        <value xsi:type="xsd:string">ExclusiveRatioLastAbsorbs</value>
+    </values>
+</CustomMetadata>
