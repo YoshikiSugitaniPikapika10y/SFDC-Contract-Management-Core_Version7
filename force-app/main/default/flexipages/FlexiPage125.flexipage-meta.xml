@@ -86,9 +86,6 @@
                         <valueListItems>
                             <value>Amount__c</value>
                         </valueListItems>
-                        <valueListItems>
-                            <value>invoicetype__c</value>
-                        </valueListItems>
                     </valueList>
                 </componentInstanceProperties>
                 <componentInstanceProperties>

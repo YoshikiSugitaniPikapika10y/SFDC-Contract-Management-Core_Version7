@@ -109,37 +109,6 @@
                 <behavior>Edit</behavior>
                 <field>InvoiceBillingCycleCount__c</field>
             </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>EstimatePeriodUnfix__c</field>
-            </layoutItems>
-        </layoutColumns>
-        <style>TwoColumnsTopToBottom</style>
-    </layoutSections>
-    <layoutSections>
-        <customLabel>true</customLabel>
-        <detailHeading>true</detailHeading>
-        <editHeading>true</editHeading>
-        <label>追加属性</label>
-        <layoutColumns>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>CoachingTargetSize__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>DECMidCancelOK__c</field>
-            </layoutItems>
-        </layoutColumns>
-        <layoutColumns>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>CustomerMemo__c</field>
-            </layoutItems>
-            <layoutItems>
-                <behavior>Edit</behavior>
-                <field>SampleNote__c</field>
-            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>
@@ -179,7 +148,6 @@
         <fields>Quantity__c</fields>
         <fields>UnitPrice__c</fields>
         <fields>Amount__c</fields>
-        <fields>invoicetype__c</fields>
         <relatedList>InvoiceProduct__c.ContractProduct__c</relatedList>
         <sortField>StartDate__c</sortField>
         <sortOrder>Asc</sortOrder>

@@ -9,6 +9,7 @@ private class InvoiceProductGenerationHardeningTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
@@ -126,8 +127,14 @@ private class InvoiceProductGenerationHardeningTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
-      PaymentTerm__c = ContractTestDataFactory.TENANT_PAYMENT_TERM_MONTH_END,
-      BillingDayOfMonth__c = ContractTestDataFactory.TENANT_BILLING_DAY_25
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 25,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE
     );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
@@ -139,5 +146,16 @@ private class InvoiceProductGenerationHardeningTest {
     );
     insert service;
     return service;
+  }
+
+  @IsTest
+  static void invoiceProduct_hasNoInvoiceTypeField() {
+    System.assertEquals(
+      false,
+      InvoiceProduct__c.SObjectType.getDescribe()
+        .fields.getMap()
+        .containsKey('invoicetype__c'),
+      'Core 第0章・第3章: 請求設定は商品マスタ。契約期間明細には invoicetype__c を持たない'
+    );
   }
 }

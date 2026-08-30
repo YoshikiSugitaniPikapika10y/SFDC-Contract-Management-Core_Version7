@@ -4,16 +4,119 @@
         <itemInstances>
             <componentInstance>
                 <componentInstanceProperties>
+                    <name>actionNames</name>
+                    <valueList>
+                        <valueListItems>
+                            <value>Edit</value>
+                            <visibilityRule>
+                                <booleanFilter>1 OR 2</booleanFilter>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_102_Can_FixContract}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_104_Can_MigrateAll}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                            </visibilityRule>
+                        </valueListItems>
+                        <valueListItems>
+                            <value
+              >ContractService__c.Order_Invoice_Preview</value>
+                            <visibilityRule>
+                                <booleanFilter
+                >NOT 1 AND (2 OR 3 OR 4 OR 5 OR 6 OR 7 OR 8 OR 9 OR 10)</booleanFilter>
+                                <criteria>
+                                    <leftValue
+                  >{!Record.LatestOrderedHistory__c}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue />
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_09_Can_ViewInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_10_Can_EditDraftInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_11_Can_ConfirmInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_12_Can_SendInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_13_Can_InvoicePayment}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_14_Can_ManualJournal}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_15_Can_CancelInvoice}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_16_Can_LockJournal}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_17_Can_UnlockJournal}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                            </visibilityRule>
+                        </valueListItems>
+                        <valueListItems>
+                            <value
+              >ContractService__c.Edit_Contract_Service</value>
+                            <visibilityRule>
+                                <criteria>
+                                    <leftValue
+                  >{!$Permission.CustomPermission.Loop_08_Can_EditService}</leftValue>
+                                    <operator>EQUAL</operator>
+                                    <rightValue>true</rightValue>
+                                </criteria>
+                            </visibilityRule>
+                        </valueListItems>
+                    </valueList>
+                </componentInstanceProperties>
+                <componentInstanceProperties>
                     <name>collapsed</name>
                     <value>false</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>enableActionsConfiguration</name>
-                    <value>false</value>
+                    <value>true</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>enableActionsInNative</name>
-                    <value>false</value>
+                    <value>true</value>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>hideChatterActions</name>
@@ -50,7 +153,7 @@
                 <componentInstanceProperties>
                     <name>richTextValue</name>
                     <value
-          >&lt;p&gt;この契約の Version 一覧です。見積・受注・請求の操作は各契約履歴から行います。&lt;/p&gt;</value>
+          >&lt;p&gt;この契約の版一覧です。見積・受注・請求の操作は各契約履歴から行います。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_histories</identifier>
@@ -68,6 +171,12 @@
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>adminFilters</name>
+                    <valueList>
+                        <valueListItems>
+                            <value
+              >historystatus__c|NOT_EQUAL|["Archive"]</value>
+                        </valueListItems>
+                    </valueList>
                 </componentInstanceProperties>
                 <componentInstanceProperties>
                     <name>maxRecordsToDisplay</name>
