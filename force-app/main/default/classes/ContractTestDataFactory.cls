@@ -31,6 +31,20 @@ public class ContractTestDataFactory {
     'contact_oportunity'
   };
 
+  /**
+   * 商談 Product__c の導入先値。先頭から、組織のアクティブな選択リストにある最初を採用。
+   */
+  public static final List<String> TENANT_OPPORTUNITY_PRODUCT_CANDIDATES = new List<String>{
+    'ZB',
+    'ZB_ESG',
+    'Zbfb',
+    'PCAF',
+    'SAQ',
+    'LCA/CFP',
+    'Optionのみ',
+    'Other'
+  };
+
   // ---- 導入先で差し替える選択リスト値（テスト共通）。顧客展開時はここだけ変更する ----
   public static final Integer TENANT_BILLING_DAY_1 = 1;
   public static final Integer TENANT_BILLING_DAY_5 = 5;
@@ -789,7 +803,13 @@ public class ContractTestDataFactory {
       }
     }
     if (fieldMap.containsKey('Product__c')) {
-      opportunity.put('Product__c', 'Zeroboard');
+      String productValue = firstActivePicklistValue(
+        fieldMap.get('Product__c'),
+        TENANT_OPPORTUNITY_PRODUCT_CANDIDATES
+      );
+      if (String.isNotBlank(productValue)) {
+        opportunity.put('Product__c', productValue);
+      }
     }
     if (fieldMap.containsKey('AccountingDepartment__c')) {
       opportunity.put('AccountingDepartment__c', 'ES');
@@ -853,6 +873,36 @@ public class ContractTestDataFactory {
       }
     }
     cachedOpportunityRecordTypeId = null;
+    return null;
+  }
+
+  private static String firstActivePicklistValue(
+    Schema.SObjectField fieldToken,
+    List<String> candidates
+  ) {
+    if (fieldToken == null) {
+      return null;
+    }
+    Set<String> activeValues = new Set<String>();
+    for (
+      Schema.PicklistEntry entry : fieldToken.getDescribe().getPicklistValues()
+    ) {
+      if (entry.isActive() && String.isNotBlank(entry.getValue())) {
+        activeValues.add(entry.getValue());
+      }
+    }
+    if (candidates != null) {
+      for (String candidate : candidates) {
+        if (
+          String.isNotBlank(candidate) && activeValues.contains(candidate)
+        ) {
+          return candidate;
+        }
+      }
+    }
+    for (String activeValue : activeValues) {
+      return activeValue;
+    }
     return null;
   }
 
