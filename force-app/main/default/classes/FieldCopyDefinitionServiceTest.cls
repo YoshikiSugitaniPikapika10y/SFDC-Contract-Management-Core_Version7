@@ -132,11 +132,9 @@ private class FieldCopyDefinitionServiceTest {
         TargetFieldApiName__c = 'Memo__c'
       );
       Account account = ContractTestDataFactory.insertAccount('コピー元取引先');
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
       );
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
       ContractService__c service = new ContractService__c(
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
@@ -147,8 +145,12 @@ private class FieldCopyDefinitionServiceTest {
       ContractHistory__c history = new ContractHistory__c(
         ContractService__c = service.Id,
         Name = 'ApplyOnInsert History',
-        historystatus__c = 'Ordered',
+        historystatus__c = 'Estimate',
         Type__c = 'New'
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
       );
       ContractTestDataFactory.applyRequiredFields(history);
       insert history;

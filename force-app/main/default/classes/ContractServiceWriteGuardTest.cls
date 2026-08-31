@@ -56,24 +56,31 @@ private class ContractServiceWriteGuardTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount('Delete 104 Acct');
       ContractServiceWriteGuard.allowPackageWrite(true);
-      ContractService__c service = new ContractService__c(
-        Name = 'Delete 104 Ordered',
-        Account__c = account.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Delete 104 Ordered'
       );
-      insert service;
-      insert new ContractHistory__c(
+      service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
+      update service;
+      ContractHistory__c history = new ContractHistory__c(
         Name = 'Delete 104 Ordered History',
         ContractService__c = service.Id,
         Type__c = 'New',
         historystatus__c = 'Ordered',
         Version__c = 1
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
       ContractServiceWriteGuard.allowPackageWrite(false);
       ContractServiceWriteGuard.enforceInTest = true;
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MIGRATE_ALL => true
       };
       try {
+        delete history;
         delete service;
       } finally {
         ContractPermissionUtil.testOverrides = null;

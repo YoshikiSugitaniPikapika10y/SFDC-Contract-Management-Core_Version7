@@ -30,10 +30,17 @@ private class TaxCalculationUtilTest {
     System.assertEquals(1200, TaxCalculationUtil.calculateTaxAmount(12000, 10));
     System.assertEquals(800, TaxCalculationUtil.calculateTaxAmount(8000, 10));
     System.assertEquals(-100, TaxCalculationUtil.calculateTaxAmount(-1000, 10));
+    Boolean thrown = false;
+    try {
+      TaxCalculationUtil.calculateTaxAmount(12000, null);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      thrown = true;
+      System.assert(ex.getMessage().contains('空'), ex.getMessage());
+    }
     System.assertEquals(
-      0,
-      TaxCalculationUtil.calculateTaxAmount(12000, null),
-      '未入力税率は 0% のため税額は 0'
+      true,
+      thrown,
+      'Core 第1.4節・第1.1.10節: 税率の空欄は 0% にせずエラー'
     );
   }
 
@@ -43,10 +50,17 @@ private class TaxCalculationUtilTest {
       13200,
       TaxCalculationUtil.calculateAmountInclTax(12000, 10)
     );
+    Boolean thrown = false;
+    try {
+      TaxCalculationUtil.calculateAmountInclTax(12000, null);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      thrown = true;
+      System.assert(ex.getMessage().contains('空'), ex.getMessage());
+    }
     System.assertEquals(
-      12000,
-      TaxCalculationUtil.calculateAmountInclTax(12000, null),
-      '未入力税率は 0% のため税込＝税抜'
+      true,
+      thrown,
+      'Core 第1.4節・第1.1.10節: 税率の空欄は 0% にせずエラー'
     );
   }
 
@@ -54,7 +68,18 @@ private class TaxCalculationUtilTest {
   static void toPercentFieldStorage_writesDisplayPercent() {
     System.assertEquals(10, TaxCalculationUtil.toPercentFieldStorage(10));
     System.assertEquals(8, TaxCalculationUtil.toPercentFieldStorage(8));
-    System.assertEquals(0, TaxCalculationUtil.toPercentFieldStorage(null));
+    Boolean thrown = false;
+    try {
+      TaxCalculationUtil.toPercentFieldStorage(null);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      thrown = true;
+      System.assert(ex.getMessage().contains('空'), ex.getMessage());
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第1.1.10節: Percent 未入力は 0% にせずエラー'
+    );
   }
 
   @IsTest
@@ -92,12 +117,19 @@ private class TaxCalculationUtilTest {
         TaxCalculationUtil.fromPercentFieldStorage(10)
       )
     );
-    System.assertEquals(
-      0,
+    Boolean thrown = false;
+    try {
       TaxCalculationUtil.resolveTaxPercent(
         TaxCalculationUtil.fromPercentFieldStorage(null)
-      ),
-      'Percent 未入力は 0%'
+      );
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      thrown = true;
+      System.assert(ex.getMessage().contains('空'), ex.getMessage());
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第1.1.10節: Percent 未入力は 0% にせずエラー'
     );
   }
 
@@ -140,8 +172,20 @@ private class TaxCalculationUtilTest {
 
   @IsTest
   static void formatTaxPercentLabel_formatsResolvedPercent() {
-    System.assertEquals('0', TaxCalculationUtil.formatTaxPercentLabel(null));
+    Boolean thrown = false;
+    try {
+      TaxCalculationUtil.formatTaxPercentLabel(null);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      thrown = true;
+      System.assert(ex.getMessage().contains('空'), ex.getMessage());
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第1.1.10節: 税率空のラベルは 0 にせずエラー'
+    );
     System.assertEquals('8', TaxCalculationUtil.formatTaxPercentLabel(8));
     System.assertEquals('10', TaxCalculationUtil.formatTaxPercentLabel(10));
+    System.assertEquals('0', TaxCalculationUtil.formatTaxPercentLabel(0));
   }
 }

@@ -74,19 +74,26 @@ private class ContractOperationLogServiceTest {
 
   @IsTest
   static void writeMasters_skipsWhenSkipMasterWrites() {
+    Account account = ContractTestDataFactory.insertAccount('OpLog Skip BA');
+    BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+      account.Id
+    );
+    Integer beforeCount = [
+      SELECT COUNT()
+      FROM ContractOperationLog__c
+      WHERE OperationType__c = 'SaveBillingAccount'
+    ];
     ContractOperationLogService.skipMasterWrites = true;
     try {
       ContractOperationLogService.writeMasters(
         'SaveBillingAccount',
-        new List<SObject>{
-          new BillingAccount__c(Id = UserInfo.getUserId())
-        }
+        new List<SObject>{ billingAccount }
       );
     } finally {
       ContractOperationLogService.skipMasterWrites = false;
     }
     System.assertEquals(
-      0,
+      beforeCount,
       [
         SELECT COUNT()
         FROM ContractOperationLog__c
@@ -98,12 +105,21 @@ private class ContractOperationLogServiceTest {
 
   @IsTest
   static void irregularCreate_isNotWrittenWithout104() {
-    System.assertEquals(false, ContractPermissionUtil.hasMigrateAll());
-    ContractIrregularOperationLog.logCreate(
-      new List<SObject>{
-        new Invoice__c(Id = UserInfo.getUserId())
-      }
-    );
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.MIGRATE_ALL => false
+    };
+    try {
+      System.assertEquals(false, ContractPermissionUtil.hasMigrateAll());
+      Account account = ContractTestDataFactory.insertAccount('OpLog No104');
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractIrregularOperationLog.logCreate(
+        new List<SObject>{ billingAccount }
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
     System.assertEquals(
       0,
       [

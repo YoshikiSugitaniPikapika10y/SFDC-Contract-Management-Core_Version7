@@ -18,42 +18,41 @@ private class AccountingCurrentServiceTest {
     }
   }
 
+  @IsTest
+  static void load_nullInvoiceId_returnsEmpty() {
+    List<GlJournal__c> current = AccountingCurrentService.load(null);
+    System.assertEquals(
+      0,
+      current.size(),
+      'Accounting 第8.2節: 請求Idが無いCurrentは空'
+    );
+  }
+
   private static Invoice__c insertDraftInvoice() {
     Account account = ContractTestDataFactory.insertAccount(
       'Current ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'current@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+    ContractService__c service = ContractTestDataFactory.insertContractService(
       account.Id,
-      'Current Opp'
+      'Current Service'
     );
-    ContractService__c service = new ContractService__c(
-      Name = 'Current Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
-    );
-    insert service;
+    ContractServiceWriteGuard.allowPackageWrite(true);
+    try {
+      service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
+      update service;
+    } finally {
+      ContractServiceWriteGuard.allowPackageWrite(false);
+    }
     ContractHistory__c history = new ContractHistory__c(
       Name = 'Current History',
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
       historystatus__c = 'Ordered',
       Version__c = 1
+    );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
     );
     insert history;
     Invoice__c invoice = new Invoice__c(
@@ -62,10 +61,14 @@ private class AccountingCurrentServiceTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      BillingAccountSnapShot__c = billingAccount.Id,
-      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+      BillingAccountSnapShot__c = service.BiilingAcccount__c
     );
-    insert invoice;
+    InvoiceTransactionStatusService.allowStatusWrite = true;
+    try {
+      insert invoice;
+    } finally {
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+    }
     return invoice;
   }
 }
