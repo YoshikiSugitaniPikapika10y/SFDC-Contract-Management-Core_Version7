@@ -671,16 +671,10 @@ private class EstimateSaveServiceTest {
       ContractTestDataFactory.ensureOrgDocumentSetting();
       ContractDocumentSettingService.clearCache();
       Account account = ContractTestDataFactory.insertAccount('送付先コピー元');
-      Contact sourceContact = ContractTestDataFactory.insertContact(
-        account.Id,
-        'コピー元責任者'
-      );
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         '送付先コピー商談'
       );
-      opportunity.ContactId = sourceContact.Id;
-      update opportunity;
       insert new FieldCopyDefinition__c(
         Name = 'Test_Skip_Displayed_SendContact',
         TargetObject__c = 'ContractHistory__c',
@@ -1254,10 +1248,11 @@ private class EstimateSaveServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Version Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
-      insert new ContractHistory__c(
+      ContractHistory__c versionHistory = new ContractHistory__c(
         Name = 'Version History',
         ContractService__c = service.Id,
         Type__c = 'New',
@@ -1266,6 +1261,11 @@ private class EstimateSaveServiceTest {
         CurrentTermStartDate__c = ContractTestDataFactory.stableTermStart(),
         CurrentTermEndDate__c = ContractTestDataFactory.stableTermEnd()
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        versionHistory,
+        account.Id
+      );
+      insert versionHistory;
 
       System.assertEquals(
         2,
@@ -1289,7 +1289,8 @@ private class EstimateSaveServiceTest {
         Name = 'Change Save Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
 
@@ -1322,10 +1323,13 @@ private class EstimateSaveServiceTest {
         Product__c = product.Id,
         Quantity__c = 2,
         UnitPrice__c = 5000,
+        Amount__c = 120000,
         StartDate__c = termStart,
         Enddate__c = termEnd,
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
       );
       insert sourceProduct;
 
@@ -1461,7 +1465,8 @@ private class EstimateSaveServiceTest {
         Name = 'Renew Save Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
 
@@ -1499,6 +1504,7 @@ private class EstimateSaveServiceTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 8000,
+        Amount__c = 96000,
         Unit__c = '式/月',
         StartDate__c = termStart,
         Enddate__c = termEnd,
@@ -1600,7 +1606,8 @@ private class EstimateSaveServiceTest {
         Name = 'Cancel Save Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
 
@@ -1631,6 +1638,7 @@ private class EstimateSaveServiceTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 8000,
+        Amount__c = 96000,
         StartDate__c = termStart,
         Enddate__c = termEnd,
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -1678,9 +1686,9 @@ private class EstimateSaveServiceTest {
       System.assertEquals(cancelDate, cancelHistory.CurrentTermEndDate__c);
       System.assertEquals(cancelDate, cancelHistory.EffectiveDate__c);
       System.assertEquals(
-        null,
+        'should-clear',
         cancelHistory.Note__c,
-        '解約では備考を残さない'
+        'Core 第4.10節: 解約の申出文も見積書の備考欄に保存する'
       );
       System.assertEquals(
         0,
@@ -1898,7 +1906,8 @@ private class EstimateSaveServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Pin Prev Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
 
@@ -1927,6 +1936,7 @@ private class EstimateSaveServiceTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 1000,
+        Amount__c = 12000,
         StartDate__c = termStart,
         Enddate__c = termEnd,
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -2208,6 +2218,7 @@ private class EstimateSaveServiceTest {
         account.Id,
         'Key Retry Opportunity'
       );
+      BillingAccount__c billingAccount = insertBillingAccount(account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Key Retry Product'
       );
@@ -2252,13 +2263,13 @@ private class EstimateSaveServiceTest {
         productsJson,
         null,
         null,
+        billingAccount.Id,
         null,
         null,
         null,
         null,
         null,
-        null,
-        null,
+        10,
         null,
         null,
         null,
@@ -2278,13 +2289,13 @@ private class EstimateSaveServiceTest {
         productsJson,
         null,
         null,
+        billingAccount.Id,
         null,
         null,
         null,
         null,
         null,
-        null,
-        null,
+        10,
         null,
         null,
         null,
@@ -2317,9 +2328,12 @@ private class EstimateSaveServiceTest {
         account.Id,
         'Product Token Opp'
       );
+      BillingAccount__c billingAccount = insertBillingAccount(account.Id);
       ContractService__c service = new ContractService__c(
         Name = 'Product Token Service',
-        Account__c = account.Id
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
       ContractHistory__c history = new ContractHistory__c(
@@ -2359,10 +2373,27 @@ private class EstimateSaveServiceTest {
         Type__c = 'New'
       );
 
+      EstimateCreateController.ProductLineItem lineItem = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2027, 3, 31)
+      );
       EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
       request.opportunityId = opportunity.Id;
       request.selectedType = 'New';
       request.editHistoryId = history.Id;
+      request.contractServiceId = service.Id;
+      request.contractServiceName = service.Name;
+      request.contractStartDate = '2026-04-01';
+      request.contractEndDate = '2027-03-31';
+      request.effectiveDate = '2026-04-01';
+      request.taxPercent = 10;
+      request.billingAccountId = billingAccount.Id;
+      request.products = new List<EstimateCreateController.ProductLineItem>{
+        lineItem
+      };
       request.expectedLastModifiedToken = historyOnlyToken;
 
       try {
