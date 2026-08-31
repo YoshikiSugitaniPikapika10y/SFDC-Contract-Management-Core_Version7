@@ -184,8 +184,8 @@ public without sharing class EstimateSaveService {
       contractServiceCustomFieldsJson,
       contractHistoryCustomFieldsJson,
       expectedLastModifiedToken,
-      // Apex テスト互換。画面初期値は Core 第4.6節の10%。Auraの taxPercent 付き経路は null を埋めない。
-      selectedType == HISTORY_TYPE_NEW ? 10 : null,
+      // 仕様: Core 第1.1.10節、第4.6節。税率未指定は埋めない。初期値10%は画面入力。
+      null,
       null,
       null,
       null

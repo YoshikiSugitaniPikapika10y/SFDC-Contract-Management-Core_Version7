@@ -1086,6 +1086,9 @@ private class EstimateSaveServiceTest {
         account.Id,
         'Save Service Opportunity'
       );
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
       Product2 product = ContractTestDataFactory.buildProduct(
         'Save Service Product'
       );
@@ -1129,6 +1132,14 @@ private class EstimateSaveServiceTest {
         productsJson,
         null,
         '初回備考',
+        billingAccount.Id,
+        null,
+        null,
+        '{}',
+        '{}',
+        null,
+        10,
+        null,
         null,
         null
       );
@@ -1154,9 +1165,18 @@ private class EstimateSaveServiceTest {
         productsJson,
         null,
         '更新備考',
+        billingAccount.Id,
+        null,
+        created.contractHistoryId,
+        '{}',
+        '{}',
+        ContractOptimisticLockUtil.toHistoryProductToken(
+          created.contractHistoryId
+        ),
+        10,
         null,
         null,
-        created.contractHistoryId
+        null
       );
 
       EstimateSaveService.saveEstimate(
@@ -1173,9 +1193,18 @@ private class EstimateSaveServiceTest {
         productsJson,
         null,
         null,
+        billingAccount.Id,
+        null,
+        created.contractHistoryId,
+        '{}',
+        '{}',
+        ContractOptimisticLockUtil.toHistoryProductToken(
+          created.contractHistoryId
+        ),
+        10,
         null,
         null,
-        created.contractHistoryId
+        null
       );
       Test.stopTest();
 
@@ -2428,6 +2457,64 @@ private class EstimateSaveServiceTest {
           ex.getMessage().contains('消費税率が空です'),
           'Core 第1.1.10節・第4.6節: Newの税率nullは10で埋めない: ' +
           ex.getMessage()
+        );
+      }
+      System.assertEquals(true, rejected);
+    }
+  }
+
+  @IsTest
+  static void saveEstimate_newWithoutTaxOverload_rejectsBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account testAccount = ContractTestDataFactory.insertAccount(
+        'No Tax Overload Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        testAccount.Id,
+        'No Tax Overload Opportunity'
+      );
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'No Tax Overload Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem lineItem = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      lineItem.billingCycle = '月';
+      Boolean rejected = false;
+      try {
+        EstimateSaveService.saveEstimate(
+          opportunity.Id,
+          'New',
+          'No Tax Overload CS',
+          'No Tax Overload History',
+          null,
+          null,
+          String.valueOf(termStart),
+          String.valueOf(termEnd),
+          String.valueOf(termStart),
+          String.valueOf(termStart),
+          JSON.serialize(
+            new List<EstimateCreateController.ProductLineItem>{ lineItem }
+          ),
+          null,
+          null,
+          null,
+          null
+        );
+      } catch (Exception ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('消費税率が空です'),
+          'Core 第1.1.10節: 税なしoverloadはNewでも10で埋めない: ' +
+            ex.getMessage()
         );
       }
       System.assertEquals(true, rejected);
