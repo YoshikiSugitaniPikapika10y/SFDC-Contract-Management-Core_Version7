@@ -7,7 +7,7 @@ private class InvoiceSendBoardControllerTest {
     setting.InvoiceSendMode__c = 'PdfAndEmail';
     setting.InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice';
     setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
-    setting.InvoiceOrgWideEmailAddress__c = 'noreply@example.com';
+    setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
     update setting;
     ContractDocumentSettingService.clearCache();
     insert GlAccountingPolicyService.newOrgDefault();

@@ -7,7 +7,7 @@ private class EstimateSendBoardControllerTest {
     setting.EstimateSendMode__c = 'PdfAndEmail';
     setting.EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate';
     setting.EstimateDefaultEmailTemplateApiName__c = 'EstimateMail';
-    setting.EstimateOrgWideEmailAddress__c = 'noreply@example.com';
+    setting.EstimateOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
     update setting;
     ContractDocumentSettingService.clearCache();
   }

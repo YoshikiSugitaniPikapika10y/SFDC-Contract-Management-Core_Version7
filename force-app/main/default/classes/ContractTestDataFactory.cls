@@ -320,6 +320,26 @@ public class ContractTestDataFactory {
     return setting;
   }
 
+  /**
+   * Core 第11.3.2節。検証済み組織ワイドメールのアドレス文字列。レコード Id は返さない。
+   */
+  public static String requireVerifiedOrgWideAddress() {
+    List<OrgWideEmailAddress> rows = [
+      SELECT Address
+      FROM OrgWideEmailAddress
+      WHERE IsVerified = true
+      WITH SYSTEM_MODE
+      ORDER BY Address
+      LIMIT 1
+    ];
+    if (rows.isEmpty() || String.isBlank(rows[0].Address)) {
+      throw new IllegalArgumentException(
+        '検証済みの組織ワイドメールがありません。'
+      );
+    }
+    return rows[0].Address.trim();
+  }
+
   /** 顧客 VR 強制を OFF。組織既定だけを書く（第11.6節。ユーザー階層は使わない）。 */
   public static void ensureCustomerValidationEnforceOff() {
     ensureCustomerValidationEnforceOff(UserInfo.getOrganizationId());

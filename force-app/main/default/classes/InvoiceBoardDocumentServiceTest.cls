@@ -138,7 +138,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = 'noreply@example.com';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       update setting;
       ContractDocumentSettingService.clearCache();
       ContractEmailTemplateService.clearTestState();
@@ -171,7 +171,7 @@ private class InvoiceBoardDocumentServiceTest {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
       setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
-      setting.InvoiceOrgWideEmailAddress__c = 'noreply@example.com';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       update setting;
       ContractDocumentSettingService.clearCache();
       ContractEmailTemplateService.seedActiveRowForTest(
@@ -225,7 +225,7 @@ private class InvoiceBoardDocumentServiceTest {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
       setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
-      setting.InvoiceOrgWideEmailAddress__c = 'noreply@example.com';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       update setting;
       ContractDocumentSettingService.clearCache();
       ContractEmailTemplateService.seedActiveRowForTest(
@@ -329,7 +329,8 @@ private class InvoiceBoardDocumentServiceTest {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
       setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
-      setting.InvoiceOrgWideEmailAddress__c = 'noreply@example.com';
+      String orgSender = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+      setting.InvoiceOrgWideEmailAddress__c = orgSender;
       update setting;
       ContractDocumentSettingService.clearCache();
       ContractEmailTemplateService.seedActiveRowForTest(
@@ -343,9 +344,8 @@ private class InvoiceBoardDocumentServiceTest {
         'StandardInvoice',
         'InvoiceMail'
       );
-      System.assertEquals(
-        'noreply@example.com',
-        preview.fromLabel,
+      System.assert(
+        preview.fromLabel != null && preview.fromLabel.contains(orgSender),
         'Core 第7.10節: Fromは組織送信元の参照'
       );
       System.assertEquals(
@@ -374,7 +374,7 @@ private class InvoiceBoardDocumentServiceTest {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
       setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
-      setting.InvoiceOrgWideEmailAddress__c = 'noreply@example.com';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       update setting;
       ContractDocumentSettingService.clearCache();
       ContractEmailTemplateService.seedActiveRowForTest(

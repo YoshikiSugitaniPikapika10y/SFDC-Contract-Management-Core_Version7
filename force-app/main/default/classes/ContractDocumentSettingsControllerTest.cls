@@ -56,7 +56,11 @@ private class ContractDocumentSettingsControllerTest {
     );
     System.assertEquals(false, result.settings.validationEnforce);
     System.assertEquals(null, result.settings.lockExemptFieldApiNames);
-    System.assertEquals(false, result.settings.policyFrozen);
+    System.assertEquals(
+      null,
+      result.settings.policyFrozen,
+      'Core 第1.1.10節: 会計方針0件はOFFと埋めない'
+    );
     System.assertEquals(
       null,
       result.settings.accountingEnabled,
@@ -267,7 +271,9 @@ private class ContractDocumentSettingsControllerTest {
       EstimateSendMode__c = 'PdfOnly',
       InvoiceSendMode__c = 'PdfOnly',
       EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate',
-      InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice'
+      InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice',
+      EstimateValidMonths__c = 1,
+      DefaultMonthlyCycles__c = 12
     );
     ContractDocumentSettingsController.SettingsDto input =
       ContractDocumentSettingsController.getSettings().settings;
@@ -427,7 +433,9 @@ private class ContractDocumentSettingsControllerTest {
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.estimateDefaultEmailTemplateApiName = 'EstimateMail';
-    input.estimateOrgWideEmailAddress = 'noreply@example.com';
+    input.estimateOrgWideEmailAddress = null;
+    ContractEmailTemplateService.testRecords =
+      new List<ContractEmailTemplate__mdt>();
 
     Boolean thrown = false;
     Test.startTest();
@@ -458,7 +466,6 @@ private class ContractDocumentSettingsControllerTest {
       ContractEmailTemplateService.TYPE_ESTIMATE,
       'EstimateMail'
     );
-    ContractEmailTemplateService.skipOrgWideLookup = false;
 
     Boolean thrown = false;
     Test.startTest();
@@ -713,8 +720,9 @@ private class ContractDocumentSettingsControllerTest {
     input.invoiceSendMode = 'PdfAndEmail';
     input.estimateDefaultEmailTemplateApiName = 'EstimateMail';
     input.invoiceDefaultEmailTemplateApiName = 'InvoiceMail';
-    input.estimateOrgWideEmailAddress = 'estimate-from@example.com';
-    input.invoiceOrgWideEmailAddress = 'invoice-from@example.com';
+    String orgSender = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+    input.estimateOrgWideEmailAddress = orgSender;
+    input.invoiceOrgWideEmailAddress = orgSender;
     ContractEmailTemplateService.seedActiveRowForTest(
       ContractEmailTemplateService.TYPE_ESTIMATE,
       'EstimateMail'
@@ -730,12 +738,12 @@ private class ContractDocumentSettingsControllerTest {
     Test.stopTest();
 
     System.assertEquals(
-      'estimate-from@example.com',
+      orgSender,
       saved.estimateOrgWideEmailAddress,
       'Core 第11.3.2節: 見積用組織送信元は見積の項目へ保存する'
     );
     System.assertEquals(
-      'invoice-from@example.com',
+      orgSender,
       saved.invoiceOrgWideEmailAddress,
       'Core 第11.3.2節: 請求用組織送信元は請求の項目へ保存する'
     );
@@ -748,7 +756,7 @@ private class ContractDocumentSettingsControllerTest {
     applyPdfOnlyRequired(input);
     input.invoiceSendMode = 'PdfAndEmail';
     input.invoiceDefaultEmailTemplateApiName = 'InvoiceMail';
-    input.estimateOrgWideEmailAddress = 'estimate-from@example.com';
+    input.estimateOrgWideEmailAddress = null;
     ContractEmailTemplateService.seedActiveRowForTest(
       ContractEmailTemplateService.TYPE_INVOICE,
       'InvoiceMail'
