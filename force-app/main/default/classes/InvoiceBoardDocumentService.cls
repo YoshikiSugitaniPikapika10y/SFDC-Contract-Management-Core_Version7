@@ -565,8 +565,8 @@ public without sharing class InvoiceBoardDocumentService {
           FROM Invoice__c
           WHERE Id = :invoiceId
           WITH SYSTEM_MODE
-          FOR UPDATE
           LIMIT 1
+          FOR UPDATE
         ]
       : [
           SELECT

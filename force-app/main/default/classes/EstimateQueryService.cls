@@ -1105,12 +1105,14 @@ public without sharing class EstimateQueryService {
         ContractHistory__c IN :historyIds
         AND BillingType__c = :BILLING_TYPE_RECURRING
         AND Quantity__c > 0
-        AND (Type__c = NULL)
-        OR Type__c IN (
-          :PRODUCT_TYPE_REMAKE,
-          :PRODUCT_TYPE_NEW,
-          :PRODUCT_TYPE_RENEW
-        ))
+        AND (
+          Type__c = NULL
+          OR Type__c IN (
+            :PRODUCT_TYPE_REMAKE,
+            :PRODUCT_TYPE_NEW,
+            :PRODUCT_TYPE_RENEW
+          )
+        )
       WITH SYSTEM_MODE
       ORDER BY Product__r.Name ASC
     ]) {

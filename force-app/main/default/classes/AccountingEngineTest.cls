@@ -1145,7 +1145,6 @@ private class AccountingEngineTest {
       Fixture fixture = createPaymentFixture();
       fixture.invoice.Amount__c = -100000;
       fixture.invoice.TaxAmount__c = 0;
-      fixture.invoice.TaxInclusiveAmount__c = -100000;
       update fixture.invoice;
       fixture.line.Amount__c = -100000;
       fixture.line.UnitPrice__c = -100000;
@@ -1962,7 +1961,6 @@ private class AccountingEngineTest {
       delete fixture.line;
       fixture.invoice.Amount__c = 3000;
       fixture.invoice.TaxAmount__c = 0;
-      fixture.invoice.TaxInclusiveAmount__c = 3000;
       fixture.invoice.InvoiceDate__c = Date.newInstance(2026, 5, 15);
       update fixture.invoice;
 
@@ -2025,7 +2023,6 @@ private class AccountingEngineTest {
       update fixture.line;
       fixture.invoice.Amount__c = 1000;
       fixture.invoice.TaxAmount__c = 100;
-      fixture.invoice.TaxInclusiveAmount__c = 1100;
       fixture.invoice.InvoiceDate__c = Date.newInstance(2026, 6, 1);
       update fixture.invoice;
 
@@ -2132,7 +2129,6 @@ private class AccountingEngineTest {
       delete fixture.line;
       fixture.invoice.Amount__c = 9000;
       fixture.invoice.TaxAmount__c = 900;
-      fixture.invoice.TaxInclusiveAmount__c = 9900;
       fixture.invoice.InvoiceDate__c = Date.newInstance(2026, 5, 15);
       update fixture.invoice;
 
@@ -2273,7 +2269,6 @@ private class AccountingEngineTest {
       delete fixture.line;
       fixture.invoice.Amount__c = 9000;
       fixture.invoice.TaxAmount__c = 900;
-      fixture.invoice.TaxInclusiveAmount__c = 9900;
       fixture.invoice.InvoiceDate__c = Date.newInstance(2026, 5, 15);
       update fixture.invoice;
 
@@ -2430,7 +2425,6 @@ private class AccountingEngineTest {
     fixture.invoice.InvoiceDate__c = Date.newInstance(2026, 6, 15);
     fixture.invoice.Amount__c = 100000;
     fixture.invoice.TaxAmount__c = 0;
-    fixture.invoice.TaxInclusiveAmount__c = 100000;
     update fixture.invoice;
     fixture.line.Amount__c = 100000;
     fixture.line.UnitPrice__c = 100000;
@@ -2551,7 +2545,6 @@ private class AccountingEngineTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      TaxInclusiveAmount__c = 1100,
       BillingAccountSnapShot__c = billingAccount.Id,
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
     );

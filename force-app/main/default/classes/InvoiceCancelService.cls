@@ -143,7 +143,6 @@ public without sharing class InvoiceCancelService {
     Invoice__c correction = original.clone(false, true, false, false);
     // 仕様: Core 第7.9.3節。MergeKeyはコピー対象に無い。Nameは自動採番。
     correction.MergeKey__c = null;
-    correction.Name = null;
     correction.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
     correction.CollectionRefundStatus__c = null;
     correction.DeliveryStatus__c = null;

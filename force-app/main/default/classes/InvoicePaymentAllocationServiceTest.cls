@@ -655,7 +655,6 @@ private class InvoicePaymentAllocationServiceTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = amount,
       TaxAmount__c = tax,
-      TaxInclusiveAmount__c = taxInclusive,
       BillingAccountSnapShot__c = billingAccount.Id,
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
       SystemIntegrationDate__c = Date.today()

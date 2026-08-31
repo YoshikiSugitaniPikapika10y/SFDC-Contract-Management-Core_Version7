@@ -200,7 +200,7 @@ public without sharing class InvoicePaymentAllocationService {
           InvoiceLine__c = line.invoiceLineId,
           Amount__c = line.amount,
           HistoricalUacAmount__c = 0,
-          HistoricalSpAmount__c = 0)
+          HistoricalSpAmount__c = 0
         )
       );
     }

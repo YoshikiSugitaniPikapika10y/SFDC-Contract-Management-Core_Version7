@@ -214,10 +214,7 @@ private class ContractCrossControllerTest {
       }
       System.assertEquals(true, ids.contains(draft.invoice.Id));
       System.assertEquals(1, result.invoices.size());
-      System.assertEquals(
-        false,
-        ids.contains(cancelled.invoice.Id),
-      );
+      System.assertEquals(false, ids.contains(cancelled.invoice.Id));
     }
   }
 
@@ -980,7 +977,6 @@ private class ContractCrossControllerTest {
       InvoiceDate__c = invoiceDate,
       Amount__c = 1000,
       TaxAmount__c = 100,
-      TaxInclusiveAmount__c = 1100,
       BillingAccountSnapShot__c = historyFixture.billingAccount.Id,
       InvoiceTransactionStatus__c = 'Draft'
     );
@@ -1084,7 +1080,6 @@ private class ContractCrossControllerTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      TaxInclusiveAmount__c = 1100,
       BillingAccountSnapShot__c = historyFixture.billingAccount.Id,
       InvoiceTransactionStatus__c = status,
       SystemIntegrationDate__c = status == 'Confirmed'

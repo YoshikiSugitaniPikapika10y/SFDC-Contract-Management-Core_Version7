@@ -574,7 +574,6 @@ private class InvoiceBoardDocumentServiceTest {
       Amount__c = 1000,
       TaxAmount__c = 100,
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-      InvoiceTransactionStatus__c = 'Confirmed',
       BillingEmailToSnapShot__c = 'board-doc@example.com',
       InvoiceDeliveryMethodSnapShot__c = deliveryMethod
     );

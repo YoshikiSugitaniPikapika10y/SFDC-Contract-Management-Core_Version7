@@ -220,7 +220,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals(
         null,
         history.StatusPath__c,
-        'Archive ? Path ????Eull?E?E
+        'Archive ? Path ????Eull?E?E'
       );
     }
   }
@@ -270,7 +270,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertEquals(
         'Ordered',
         history.StatusPath__c,
-        '????? Path ? Ordered ???E
+        '????? Path ? Ordered ???E'
       );
     }
   }
@@ -314,7 +314,7 @@ private class ContractHistoryStatusPathServiceTest {
       System.assertNotEquals(
         'Paid',
         still.StatusPath__c,
-        '????????E StatusPath ??????E
+        '????????E StatusPath ??????E'
       );
     }
   }

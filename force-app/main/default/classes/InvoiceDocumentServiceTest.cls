@@ -81,7 +81,7 @@ private class InvoiceDocumentServiceTest {
       String.valueOf(orgToday.year()) +
       String.valueOf(orgToday.month()).leftPad(2, '0') +
       String.valueOf(orgToday.day()).leftPad(2, '0');
-    Invoice__c invoice = new Invoice__c(Name = 'INV-1');
+    Invoice__c invoice = new Invoice__c();
 
     String fileName = InvoiceDocumentService.buildFileName(invoice, null);
 

@@ -68,7 +68,6 @@ private class InvoiceOpsControllerTest {
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
-        TaxInclusiveAmount__c = 1100,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert invoice;
@@ -415,7 +414,7 @@ private class InvoiceOpsControllerTest {
           markBlocked = true;
           System.assertEquals(denied, ex.getMessage());
         }
-        System.assertEquals(true, markBlocked, 'markInvoiced ? 13 ?E??E);
+        System.assertEquals(true, markBlocked, 'markInvoiced ? 13 ?E??E');
 
         Invoice__c unchanged = [
           SELECT SystemIntegrationDate__c, PaymentClearingCompletedDate__c
@@ -425,12 +424,12 @@ private class InvoiceOpsControllerTest {
         System.assertEquals(
           null,
           unchanged.SystemIntegrationDate__c,
-          '??????????????E
+          '??????????????E'
         );
         System.assertEquals(
           Date.today(),
           unchanged.PaymentClearingCompletedDate__c,
-          '??????????????E
+          '??????????????E'
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;

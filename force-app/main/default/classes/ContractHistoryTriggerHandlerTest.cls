@@ -732,7 +732,7 @@ private class ContractHistoryTriggerHandlerTest {
           FROM Invoice__c
           WHERE ContractHistory__c IN :new List<Id>{ h1.Id, h2.Id }
         ],
-        '????E????E???E?E??????E
+        '????E????E???E?E??????E'
       );
     }
   }
@@ -787,7 +787,7 @@ private class ContractHistoryTriggerHandlerTest {
       System.assertEquals(
         null,
         archived.PreviousHistory__c,
-        'Archive ??E????E?????E?E
+        'Archive ??E????E?????E?E'
       );
     }
   }
@@ -977,7 +977,7 @@ private class ContractHistoryTriggerHandlerTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :history.Id
         ],
-        'Archive ???????????E
+        'Archive ???????????E'
       );
       System.assertEquals(
         0,
@@ -986,7 +986,7 @@ private class ContractHistoryTriggerHandlerTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :history.Id
         ],
-        'Archive ?????E????E
+        'Archive ?????E????E'
       );
     }
   }

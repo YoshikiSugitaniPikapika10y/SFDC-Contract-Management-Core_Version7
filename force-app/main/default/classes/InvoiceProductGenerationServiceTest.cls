@@ -298,7 +298,7 @@ private class InvoiceProductGenerationServiceTest {
   static void estimateToOrdered_copiesQuantityUnitPriceAndUnit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createHistoryWithProducts(false);
-      data.recurringProduct.Unit__c = 'ID/?E;
+      data.recurringProduct.Unit__c = 'ID';
       update data.recurringProduct;
       Test.startTest();
       data.history.historystatus__c = 'Ordered';
@@ -317,7 +317,7 @@ private class InvoiceProductGenerationServiceTest {
       ];
       System.assertEquals(1, invoiceProduct.ContractProduct__r.Quantity__c);
       System.assertEquals(8000, invoiceProduct.ContractProduct__r.UnitPrice__c);
-      System.assertEquals('ID/?E, invoiceProduct.Unit__c);
+      System.assertEquals('ID', invoiceProduct.Unit__c);
       System.assertEquals(8000, invoiceProduct.Amount__c);
     }
   }
@@ -325,7 +325,7 @@ private class InvoiceProductGenerationServiceTest {
   static void estimateToOrdered_createsSeparateLinesForDifferentUnit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createHistoryWithProducts(false);
-      data.recurringProduct.Unit__c = 'ID/?E;
+      data.recurringProduct.Unit__c = 'ID';
       update data.recurringProduct;
       insert new ContractProduct__c(
         ContractHistory__c = data.history.Id,
@@ -333,7 +333,7 @@ private class InvoiceProductGenerationServiceTest {
         Quantity__c = 1,
         UnitPrice__c = 8000,
         Amount__c = 1,
-        Unit__c = '?E?E,
+        Unit__c = '?E?E',
         StartDate__c = data.recurringProduct.StartDate__c,
         Enddate__c = data.recurringProduct.Enddate__c,
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -353,9 +353,9 @@ private class InvoiceProductGenerationServiceTest {
         ORDER BY Unit__c ASC
       ];
       System.assertEquals(2, juneLines.size());
-      System.assertEquals('ID/?E, juneLines[0].Unit__c);
+      System.assertEquals('ID', juneLines[0].Unit__c);
       System.assertEquals(8000, juneLines[0].Amount__c);
-      System.assertEquals('?E?E, juneLines[1].Unit__c);
+      System.assertEquals('?E?E', juneLines[1].Unit__c);
       System.assertEquals(8000, juneLines[1].Amount__c);
     }
   }
@@ -797,8 +797,8 @@ private class InvoiceProductGenerationServiceTest {
         '??????E????????????'
       );
       for (Invoice__c invoice : lockedInvoices) {
-        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-        CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+        invoice.CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
         invoice.PaymentClearingCompletedDate__c = Date.today();
       }
       update lockedInvoices;
@@ -1429,7 +1429,7 @@ private class InvoiceProductGenerationServiceTest {
         WHERE ContractHistory__c = :changeHistory.Id
         ORDER BY StartDate__c ASC, Amount__c ASC
       ];
-      System.assertEquals(16, changeInvoices.size(), '?2??E??E);
+      System.assertEquals(16, changeInvoices.size(), '?2??E??E');
       System.assertEquals(-8000, changeInvoices[0].Amount__c);
       System.assertEquals(1, changeInvoices[0].Quantity__c);
       System.assertEquals(8000, changeInvoices[0].UnitPrice__c);
@@ -1593,7 +1593,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :changeHistory.Id
         ] > 0,
-        'prior ????E????EChange ?????????E???E
+        'prior ????E????EChange ?????????E???E'
       );
       System.assertEquals(
         priorInvoices.size(),
@@ -1725,7 +1725,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         1,
         addonInvoices.size(),
-        'Change????????E????????1???E???E
+        'Change????????E????????1???E???E'
       );
       System.assertEquals(50000, addonInvoices[0].Amount__c);
       System.assertEquals(addonStart, addonInvoices[0].StartDate__c);
@@ -1869,7 +1869,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         0,
         changeRecurring.size(),
-        '?????????E???????Eperiod key ???E??????E
+        '?????????E???????Eperiod key ???E??????E'
       );
 
       List<InvoiceProduct__c> addonInvoices = [
@@ -2000,7 +2000,7 @@ private class InvoiceProductGenerationServiceTest {
       } catch (Exception ex) {
         thrown = true;
         System.assertEquals(
-          '?????E????E????????????????E?????????????E,
+          '?????E????E????????????????E?????????????E',
           dmlMessage(ex)
         );
       }
@@ -2008,7 +2008,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         true,
         thrown,
-        '?????E??EChange ????????????E
+        '?????E??EChange ????????????E'
       );
       System.assertEquals(
         'Estimate',
@@ -2130,12 +2130,12 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         true,
         thrown,
-        '?????????????EFail closed ?????E??????????????E??E
+        '?????????????EFail closed ?????E??????????????E??E'
       );
       System.assert(
         message != null &&
         message.startsWith(
-          'Change ?????? Original ?????????????E
+          'Change ?????? Original ?????????????E'
         ),
         'Fail closed ??E????: ' + message
       );
@@ -2155,7 +2155,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :changeHistory.Id
         ],
-        'Fail closed ??E?????E??????E
+        'Fail closed ??E?????E??????E'
       );
     }
   }
@@ -2239,7 +2239,7 @@ private class InvoiceProductGenerationServiceTest {
       } catch (Exception ex) {
         thrown = true;
         System.assertEquals(
-          '?????E??????????????E???E?????E,
+          '?????E??????????????E???E?????E',
           dmlMessage(ex)
         );
       }
@@ -2247,7 +2247,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         true,
         thrown,
-        'Original ???E Change ????????????E
+        'Original ???E Change ????????????E'
       );
       System.assertEquals(
         'Estimate',
@@ -2328,22 +2328,22 @@ private class InvoiceProductGenerationServiceTest {
     System.assertEquals(
       true,
       InvoiceProductGenerationService.isPreferredPastSample(positive, negative),
-      '????E???????E
+      '????E???????E'
     );
     System.assertEquals(
       true,
       InvoiceProductGenerationService.isPreferredPastSample(positive, zero),
-      '????E0????E
+      '????E0????E'
     );
     System.assertEquals(
       false,
       InvoiceProductGenerationService.isPreferredPastSample(negative, positive),
-      '??????????????E
+      '??????????????E'
     );
     System.assertEquals(
       false,
       InvoiceProductGenerationService.isPreferredPastSample(positive, positive),
-      '????????E?????E??E
+      '????????E?????E??E'
     );
   }
 
@@ -2557,7 +2557,7 @@ private class InvoiceProductGenerationServiceTest {
         System.assertEquals(
           9000,
           reversal.ContractProduct__r.UnitPrice__c,
-          '???? V2 ???E?E000?E??E Original ????E
+          '???? V2 ???E?E000?E??E Original ????E'
         );
       }
     }
@@ -2571,7 +2571,7 @@ private class InvoiceProductGenerationServiceTest {
         FROM InvoiceProduct__c
         WHERE ContractHistory__c = :contractHistoryId AND Amount__c < 0
       ],
-      '????E??E????E
+      '????E??E????E'
     );
   }
   private static void assertReversalInvoiceProductsUseOriginalContractProduct(
@@ -2585,7 +2585,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         'Original',
         invoiceProduct.ContractProduct__r.Type__c,
-        '????E Original ??E???????E
+        '????E Original ??E???????E'
       );
     }
   }
@@ -2677,7 +2677,7 @@ private class InvoiceProductGenerationServiceTest {
         'Renew ??????????E2??E???E'
       );
       for (InvoiceProduct__c invoiceProduct : renewInvoices) {
-        System.assert(invoiceProduct.Amount__c > 0, 'Renew ??????E);
+        System.assert(invoiceProduct.Amount__c > 0, 'Renew ??????E');
         System.assertNotEquals(null, invoiceProduct.Quantity__c);
         System.assertNotEquals(null, invoiceProduct.UnitPrice__c);
         System.assertEquals(8000, invoiceProduct.Amount__c);
@@ -2961,7 +2961,7 @@ private class InvoiceProductGenerationServiceTest {
           AND StartDate__c >= :effectiveDate
         ORDER BY StartDate__c ASC, Amount__c ASC
       ];
-      System.assertEquals(6, changeInvoices.size(), '4?E??E ?2 ?E?E3 ??E);
+      System.assertEquals(6, changeInvoices.size(), '4?E??E ?2 ?E?E3 ??E');
       Invoice__c changeInvoiceHeader = [
         SELECT InvoiceDate__c, PaymentScheduledDate__c
         FROM Invoice__c
@@ -2990,7 +2990,7 @@ private class InvoiceProductGenerationServiceTest {
           break;
         }
       }
-      System.assertNotEquals(null, juneCharge, '6??E???E);
+      System.assertNotEquals(null, juneCharge, '6??E???E');
     }
   }
   @IsTest
@@ -3136,7 +3136,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         expectedInvoiceDate,
         addonHeader.InvoiceDate__c,
-        'Change ?E??E?E?????New??E???????E
+        'Change ?E??E?E?????New??E???????E'
       );
       System.assertEquals(
         expectedPaymentScheduledDate,
@@ -3153,7 +3153,7 @@ private class InvoiceProductGenerationServiceTest {
       System.assertEquals(
         0,
         recurringChangeCount,
-        '??????????????E???????????E??????E
+        '??????????????E???????????E??????E'
       );
     }
   }
@@ -3414,7 +3414,7 @@ private class InvoiceProductGenerationServiceTest {
         thrown = true;
         message = dmlMessage(ex);
       }
-      System.assertEquals(true, thrown, '?? Remake ? Change ???????E);
+      System.assertEquals(true, thrown, '?? Remake ? Change ???????E');
       System.assertEquals(
         EstimateValidationService.CHANGE_REMAKE_COVERAGE_MESSAGE,
         message
@@ -3435,7 +3435,7 @@ private class InvoiceProductGenerationServiceTest {
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :changeHistory.Id
         ],
-        '????E??????????E
+        '????E??????????E'
       );
     }
   }
@@ -3615,14 +3615,14 @@ private class InvoiceProductGenerationServiceTest {
         );
         System.assert(
           changeInvoice.Enddate__c <= firstEnd,
-          '??1????E?????E
+          '??1????E?????E'
         );
       }
       Decimal totalAmount = 0;
       for (InvoiceProduct__c changeInvoice : changeInvoices) {
         totalAmount += changeInvoice.Amount__c;
       }
-      System.assertEquals(30000, totalAmount, '??E?E???E10000?E??E);
+      System.assertEquals(30000, totalAmount, '??E?E???E10000?E??E');
     }
   }
 
@@ -3803,7 +3803,7 @@ private class InvoiceProductGenerationServiceTest {
           System.assertEquals(
             2,
             changeInvoice.ContractProduct__r.Quantity__c,
-            '??????E???E??ERemake ????????E????ERemake?????E?E
+            '??????E???E??ERemake ????????E????ERemake?????E?E'
           );
         }
       }
@@ -3820,7 +3820,7 @@ private class InvoiceProductGenerationServiceTest {
         totalAmount,
         '6???????? reversal ????E???E???E??'
       );
-      System.assertEquals(18, changeInvoices.size(), '?2??E??E);
+      System.assertEquals(18, changeInvoices.size(), '?2??E??E');
     }
   }
 

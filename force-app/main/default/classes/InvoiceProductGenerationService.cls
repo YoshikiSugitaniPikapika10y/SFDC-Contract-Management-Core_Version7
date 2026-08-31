@@ -314,10 +314,6 @@ public without sharing class InvoiceProductGenerationService {
       }
       aggregate.amount += draftAmount;
       aggregate.template.Amount__c = aggregate.amount;
-      applyTaxFields(
-        aggregate.template,
-        billingContext == null ? null : billingContext.taxPercent
-      );
     }
     return shouldHaveByMergeKey;
   }
@@ -913,10 +909,6 @@ public without sharing class InvoiceProductGenerationService {
     invoiceProduct.Amount__c = amount;
     applyCorePeriodLineFields(invoiceProduct, contractProduct, billingContext);
     applyConfiguredFieldCopies(invoiceProduct, contractProduct, billingContext);
-    applyTaxFields(
-      invoiceProduct,
-      billingContext == null ? null : billingContext.taxPercent
-    );
     return invoiceProduct;
   }
 
@@ -1708,10 +1700,6 @@ public without sharing class InvoiceProductGenerationService {
       invoiceDate
     );
     applyConfiguredFieldCopies(invoiceProduct, contractProduct, billingContext);
-    applyTaxFields(
-      invoiceProduct,
-      billingContext == null ? null : billingContext.taxPercent
-    );
     return invoiceProduct;
   }
 

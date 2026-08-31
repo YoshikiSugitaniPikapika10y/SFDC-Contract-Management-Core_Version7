@@ -227,7 +227,7 @@ private class ContractHistoryArchiveServiceTest {
   }
 
   @IsTest
-  static void archiveSupersededEstimates_copiesParentOperationKey() {
+  static void archiveSupersededEstimates_copiesParentOperationKeyOnSiblingInsert() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Archive Key Account'

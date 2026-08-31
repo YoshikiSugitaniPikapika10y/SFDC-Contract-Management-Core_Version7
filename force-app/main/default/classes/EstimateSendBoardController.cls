@@ -743,8 +743,8 @@ public without sharing class EstimateSendBoardController {
           FROM ContractHistory__c
           WHERE Id = :historyId
           WITH SYSTEM_MODE
-          FOR UPDATE
           LIMIT 1
+          FOR UPDATE
         ]
       : [
       SELECT

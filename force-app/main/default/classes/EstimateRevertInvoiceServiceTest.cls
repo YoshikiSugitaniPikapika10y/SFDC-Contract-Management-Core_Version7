@@ -7,8 +7,6 @@ private class EstimateRevertInvoiceServiceTest {
 
   private static final String BILLING_TYPE_RECURRING = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
   private static final String INVOICE_SETTING_MONTHLY = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
-  private static final String CREDIT_NOTE_INVOICE_TYPE =
-    INVOICE_SETTING_MONTHLY + '?E????E;
 
   @IsTest
   static void revertToEstimate_deletesUninvoicedProductsOnOwnHistory() {
@@ -270,7 +268,7 @@ private class EstimateRevertInvoiceServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :context.history.Id
         ],
-        '????E??????????E
+        '????E??????????E'
       );
     }
   }
@@ -391,7 +389,7 @@ private class EstimateRevertInvoiceServiceTest {
         EstimateRevertInvoiceService.isLatestOrderedHistory(
           context.priorHistory.Id
         ),
-        'Version ????EV1 ???????E?E???E??????????E
+        'Version ????EV1 ???????E?E???E??????????E'
       );
       System.assertEquals(
         true,

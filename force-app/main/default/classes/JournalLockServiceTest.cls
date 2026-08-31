@@ -474,7 +474,6 @@ private class JournalLockServiceTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      TaxInclusiveAmount__c = 1100,
       BillingAccountSnapShot__c = billingAccount.Id,
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
     );
@@ -523,13 +522,11 @@ private class JournalLockServiceTest {
     GlJournal__c prior = new GlJournal__c(
       Amount__c = 100,
       Memo__c = 'a',
-      ConfirmationText__c = 'old',
       IsLocked__c = false
     );
     GlJournal__c changed = new GlJournal__c(
       Amount__c = 100,
-      Memo__c = 'a',
-      ConfirmationText__c = 'new',
+      Memo__c = 'b',
       IsLocked__c = false
     );
     InvoiceOpsFieldService.setCachedRowsForTest(new List<InvoiceOpsField__mdt>());

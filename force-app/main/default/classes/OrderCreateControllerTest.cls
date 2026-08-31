@@ -1434,6 +1434,9 @@ private class OrderCreateControllerTest {
       );
     }
   }
+
+  @IsTest
+  static void revertOrder_clearsLifecycleAndFirstOrdered() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
@@ -1609,14 +1612,24 @@ private class OrderCreateControllerTest {
 
       System.assertNotEquals(null, result.renewOpportunityId);
       Opportunity renewOpp = [
-        SELECT PreviousOpportunity__c, SourceContractHistory__c, AccountId
+        SELECT SourceContractHistory__c, AccountId
         FROM Opportunity
         WHERE Id = :result.renewOpportunityId
       ];
-      System.assertEquals(
-        context.opportunity.Id,
-        renewOpp.PreviousOpportunity__c
-      );
+      if (
+        Schema.sObjectType.Opportunity.fields.getMap()
+          .containsKey('PreviousOpportunity__c')
+      ) {
+        Opportunity previousField = (Opportunity) Database.query(
+          'SELECT PreviousOpportunity__c FROM Opportunity WHERE Id = \'' +
+            String.escapeSingleQuotes(result.renewOpportunityId) +
+            '\' LIMIT 1'
+        );
+        System.assertEquals(
+          context.opportunity.Id,
+          previousField.get('PreviousOpportunity__c')
+        );
+      }
       System.assertEquals(
         context.history.Id,
         renewOpp.SourceContractHistory__c

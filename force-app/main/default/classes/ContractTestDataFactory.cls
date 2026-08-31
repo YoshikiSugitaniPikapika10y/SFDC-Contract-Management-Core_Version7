@@ -704,9 +704,15 @@ public class ContractTestDataFactory {
       Name = name,
       AccountId = accountId,
       OwnerId = currentUserId(),
-      CloseDate = Date.today().addMonths(1),
-      PreviousOpportunity__c = previousOpportunityId
+      CloseDate = Date.today().addMonths(1)
     );
+    Map<String, Schema.SObjectField> opportunityFields = Schema.sObjectType.Opportunity.fields.getMap();
+    if (
+      previousOpportunityId != null &&
+      opportunityFields.containsKey('PreviousOpportunity__c')
+    ) {
+      opportunity.put('PreviousOpportunity__c', previousOpportunityId);
+    }
     applyContractServiceIfPresent(opportunity, contractServiceId);
     applyOpportunityDefaults(opportunity);
     return opportunity;

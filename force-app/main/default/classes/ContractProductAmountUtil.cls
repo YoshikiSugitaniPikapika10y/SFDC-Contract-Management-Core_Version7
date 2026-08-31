@@ -58,13 +58,15 @@ public without sharing class ContractProductAmountUtil {
     RoundingMode amountMode = AmountCalculationSettingService.amountRoundingMode();
     Decimal qScaled = quantity.setScale(qtyScale, qtyMode);
     Decimal pScaled = unitPrice.setScale(qtyScale, qtyMode);
-    Long qInt = qScaled.movePointRight(qtyScale).longValue();
-    Long pInt = pScaled.movePointRight(qtyScale).longValue();
-    Decimal scaleFactor = Decimal.valueOf(10).pow(qtyScale * 2);
-    Decimal numerator = Decimal.valueOf(qInt)
-      .multiply(Decimal.valueOf(pInt))
-      .multiply(Decimal.valueOf(cycles));
-    return numerator.divide(scaleFactor, amountScale, amountMode);
+    Decimal scaleFactor = Decimal.valueOf(10).pow(qtyScale);
+    Long qInt = (qScaled * scaleFactor).longValue();
+    Long pInt = (pScaled * scaleFactor).longValue();
+    Decimal scaleFactorSq = Decimal.valueOf(10).pow(qtyScale * 2);
+    Decimal numerator =
+      Decimal.valueOf(qInt) *
+      Decimal.valueOf(pInt) *
+      Decimal.valueOf(cycles);
+    return numerator.divide(scaleFactorSq, amountScale, amountMode);
   }
 
   public static Decimal calculateUnsignedAmount(

@@ -2216,6 +2216,7 @@ public without sharing class EstimateValidationService {
         String.valueOf(opportunityAccountId) +
         '）。'
     );
+    }
   }
 
   public static void validatePreviousHistory(

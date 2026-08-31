@@ -11,6 +11,16 @@ package.xml
 # LWC Jest
 **/__tests__/**
 
+# Deleted LWC leftovers (folder + Jest only; no bundle meta)
+**/lwc/contractCrossOperations/**
+**/lwc/estimateOrderBoard/**
+**/lwc/estimateSendBoard/**
+**/lwc/glMasterGuide/**
+**/lwc/invoiceSendBoard/**
+**/lwc/journalReviewBoard/**
+**/lwc/paymentDifferenceBoard/**
+**/lwc/recordFilesPanel/**
+
 node_modules/
 
 # Admin profile must never ship with this package (customer impact / liability)

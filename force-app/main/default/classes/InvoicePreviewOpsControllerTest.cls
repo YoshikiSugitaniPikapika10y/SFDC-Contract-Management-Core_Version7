@@ -318,8 +318,8 @@ private class InvoicePreviewOpsControllerTest {
           'token',
           null,
           null,
-          null,
-          own.invoice.ContractHistory__c
+          own.invoice.ContractHistory__c,
+          null
         );
       } catch (AuraHandledException ex) {
         saveRejected = true;
@@ -678,7 +678,6 @@ private class InvoicePreviewOpsControllerTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      TaxInclusiveAmount__c = 1100,
       BillingAccountSnapShot__c = billingAccount.Id,
       InvoiceTransactionStatus__c = confirmed
         ? InvoiceTransactionStatusService.TX_CONFIRMED

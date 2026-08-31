@@ -141,7 +141,7 @@ private class InvoiceProductFieldCopyServiceTest {
         SourceFieldApiName__c = 'Name',
         TargetFieldApiName__c = 'Memo__c',
         TargetObject__c = 'Invoice__c'
-      ),
+      )
     };
 
     InvoiceProduct__c periodLine = new InvoiceProduct__c();

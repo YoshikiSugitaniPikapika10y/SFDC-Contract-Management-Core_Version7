@@ -131,7 +131,6 @@ private class GlAccountingPolicyServiceTest {
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 0,
-        TaxInclusiveAmount__c = 1000,
         BillingAccountSnapShot__c = billingAccount.Id,
         InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
       );

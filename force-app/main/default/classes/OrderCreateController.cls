@@ -2381,9 +2381,9 @@ public without sharing class OrderCreateController {
   ) {
     Set<Id> invoiceIds = new Set<Id>();
     if (preview != null && preview.invoices != null) {
-      for (InvoiceGroupDto group : preview.invoices) {
-        if (group != null && group.invoiceId != null) {
-          invoiceIds.add(group.invoiceId);
+      for (InvoiceGroupDto invoiceGroup : preview.invoices) {
+        if (invoiceGroup != null && invoiceGroup.invoiceId != null) {
+          invoiceIds.add(invoiceGroup.invoiceId);
         }
       }
     }

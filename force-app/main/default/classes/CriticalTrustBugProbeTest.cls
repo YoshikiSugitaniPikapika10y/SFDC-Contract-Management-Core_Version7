@@ -107,8 +107,7 @@ private class CriticalTrustBugProbeTest {
             Enddate__c = Date.newInstance(2026, 6, 30),
             Quantity__c = 1,
             UnitPrice__c = 10000,
-            Amount__c = 10000,
-            TaxPercent__c = 0.1
+            Amount__c = 10000
           )
         );
         periodLines.add(
@@ -120,8 +119,7 @@ private class CriticalTrustBugProbeTest {
             Enddate__c = Date.newInstance(2026, 7, 31),
             Quantity__c = 1,
             UnitPrice__c = 10000,
-            Amount__c = 10000,
-            TaxPercent__c = 0.1
+            Amount__c = 10000
           )
         );
         periodLines.add(
@@ -133,8 +131,7 @@ private class CriticalTrustBugProbeTest {
             Enddate__c = Date.newInstance(2026, 8, 31),
             Quantity__c = 1,
             UnitPrice__c = 10000,
-            Amount__c = 10000,
-            TaxPercent__c = 0.1
+            Amount__c = 10000
           )
         );
       }
