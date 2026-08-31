@@ -692,6 +692,34 @@ public class ContractTestDataFactory {
     return opportunity;
   }
 
+  private static Map<Id, Id> estimateOrderedOpportunityByAccount;
+
+  public static void applyEstimateOrderedOpportunity(
+    ContractHistory__c history,
+    Id accountId
+  ) {
+    if (history == null || history.Opportunity__c != null || accountId == null) {
+      return;
+    }
+    if (
+      history.historystatus__c != 'Estimate' &&
+      history.historystatus__c != 'Ordered'
+    ) {
+      return;
+    }
+    if (estimateOrderedOpportunityByAccount == null) {
+      estimateOrderedOpportunityByAccount = new Map<Id, Id>();
+    }
+    Id existing = estimateOrderedOpportunityByAccount.get(accountId);
+    if (existing != null) {
+      history.Opportunity__c = existing;
+      return;
+    }
+    Id opportunityId = insertOpportunity(accountId, 'History Opportunity').Id;
+    estimateOrderedOpportunityByAccount.put(accountId, opportunityId);
+    history.Opportunity__c = opportunityId;
+  }
+
   public static Opportunity buildOpportunity(
     Id accountId,
     String name,
@@ -1020,6 +1048,34 @@ public class ContractTestDataFactory {
         )
       }
     );
+  }
+
+  /**
+   * Core 第7.11節。未確定請求の種は Draft / 回収 NotStarted / 送付は請求書3択。
+   * 送付の項目既定は Unsent のため、PdfOnly・Unused では種（NotApplicable）を明示する。
+   */
+  public static void applyInvoiceInsertSeedStatuses(Invoice__c invoice) {
+    if (invoice == null) {
+      return;
+    }
+    invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
+    invoice.CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_NOT_STARTED;
+    invoice.DeliveryStatus__c = invoiceDeliverySeed();
+  }
+
+  private static String invoiceDeliverySeed() {
+    try {
+      String mode = ContractDocumentSettingService.requireSendMode('Invoice');
+      if (
+        mode == ContractDocumentSettingService.MODE_UNUSED ||
+        mode == ContractDocumentSettingService.MODE_PDF_ONLY
+      ) {
+        return InvoiceTransactionStatusService.DELIVERY_NOT_APPLICABLE;
+      }
+      return InvoiceTransactionStatusService.DELIVERY_UNSENT;
+    } catch (Exception ex) {
+      return InvoiceTransactionStatusService.DELIVERY_UNSENT;
+    }
   }
 
   public static void insertAllowingInvoiceStatus(Invoice__c invoice) {

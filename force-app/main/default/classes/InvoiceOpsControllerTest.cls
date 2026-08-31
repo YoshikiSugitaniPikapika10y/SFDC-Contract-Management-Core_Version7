@@ -42,6 +42,7 @@ private class InvoiceOpsControllerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
       insert history;
 
       Product2 product = ContractTestDataFactory.buildProduct('Ops Prod');
@@ -70,8 +71,14 @@ private class InvoiceOpsControllerTest {
         TaxAmount__c = 100,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
       insert invoice;
-      insert new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1000);
+      InvoiceLine__c roundTripLine = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1000
+      );
+      ContractTestDataFactory.applyRequiredFields(roundTripLine);
+      insert roundTripLine;
 
       Test.startTest();
       Integer invoiced = InvoiceOpsController.markInvoiced(
@@ -149,16 +156,16 @@ private class InvoiceOpsControllerTest {
         Version__c = 1
       );
       ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
       insert history;
       Invoice__c invoice = new Invoice__c(
         ContractService__c = service.Id,
         ContractHistory__c = history.Id,
         InvoiceDate__c = Date.today(),
         Amount__c = 1000,
-        TaxAmount__c = 100,
-        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+        TaxAmount__c = 100
       );
-      ContractTestDataFactory.applyRequiredFields(invoice);
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
       insert invoice;
 
       InvoiceOpsController.updateInvoiceMemo(invoice.Id, '??E???');
@@ -203,6 +210,7 @@ private class InvoiceOpsControllerTest {
   static void updateInvoiceMemo_rejectsInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c own = insertOpsInvoice('Memo Scope Own', null, null, null);
+      Test.startTest();
       Invoice__c other = insertOpsInvoice('Memo Scope Other', null, null, null);
 
       Boolean rejected = false;
@@ -246,7 +254,7 @@ private class InvoiceOpsControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertOpsInvoice('Wrong Tax', null, null, null);
-      insert new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1000);
+      insertOpsLine(invoice.Id);
       invoice.TaxAmount__c = 99;
       update invoice;
 
@@ -257,10 +265,15 @@ private class InvoiceOpsControllerTest {
           new List<Id>{ invoice.Id },
           Date.today()
         );
-      } catch (AuraHandledException ex) {
-        rejected = ex.getMessage().contains('??');
+      } catch (Exception ex) {
+        rejected = ex.getMessage()
+          .contains('請求書の税額が税抜と税率から計算した値と一致しないため確定できません。');
       }
-      System.assertEquals(true, rejected);
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第7.9.1節: 各請求の税がその枚の税抜から計算されていなければ確定できない'
+      );
       System.assertEquals(
         null,
         [
@@ -278,7 +291,7 @@ private class InvoiceOpsControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertOpsInvoice('Freeze First', null, null, null);
-      insert new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1000);
+      insertOpsLine(invoice.Id);
 
       Test.startTest();
       InvoiceOpsController.markInvoiced(
@@ -310,7 +323,7 @@ private class InvoiceOpsControllerTest {
   static void markInvoiced_rejectsMissingPolicyWithoutConfirming() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = insertOpsInvoice('No Policy', null, null, null);
-      insert new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1000);
+      insertOpsLine(invoice.Id);
 
       Boolean thrown = false;
       try {
@@ -359,6 +372,7 @@ private class InvoiceOpsControllerTest {
   static void opsMethods_rejectInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c own = insertOpsInvoice('Ops Scope Own', null, null, null);
+      Test.startTest();
       Invoice__c other = insertOpsInvoice('Ops Scope Other', null, null, null);
 
       Boolean rejected = false;
@@ -437,27 +451,44 @@ private class InvoiceOpsControllerTest {
     }
   }
 
+  private static Id reusedOpsAccountId;
+  private static Id reusedOpsBillingAccountId;
+  private static Id reusedOpsProductId;
+
   private static Invoice__c insertOpsInvoice(
     String label,
     Date integrationDate,
     Date clearingDate,
     Decimal clearedAmount
   ) {
-    Account account = ContractTestDataFactory.insertAccount(label + ' Account');
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
+    Account account;
+    if (reusedOpsAccountId == null) {
+      account = ContractTestDataFactory.insertAccount(label + ' Account');
+      reusedOpsAccountId = account.Id;
+    } else {
+      account = new Account(Id = reusedOpsAccountId);
+    }
+    BillingAccount__c billingAccount;
+    if (reusedOpsBillingAccountId == null) {
+      billingAccount = new BillingAccount__c(
+        Account__c = account.Id,
+        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+        BillingEmailTo__c = 'to@example.com',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 1,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
+      insert billingAccount;
+      reusedOpsBillingAccountId = billingAccount.Id;
+    } else {
+      billingAccount = new BillingAccount__c(Id = reusedOpsBillingAccountId);
+    }
 
     ContractService__c service = new ContractService__c(
       Name = label + ' Service',
@@ -476,11 +507,18 @@ private class InvoiceOpsControllerTest {
       CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
       CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
     );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
 
-    Product2 product = ContractTestDataFactory.buildProduct(label + ' Prod');
-    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
-    ContractTestDataFactory.insertProduct(product);
+    Product2 product;
+    if (reusedOpsProductId == null) {
+      product = ContractTestDataFactory.buildProduct(label + ' Prod');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(product);
+      reusedOpsProductId = product.Id;
+    } else {
+      product = new Product2(Id = reusedOpsProductId);
+    }
     ContractProduct__c contractProduct = new ContractProduct__c(
       ContractHistory__c = history.Id,
       Account__c = account.Id,
@@ -503,16 +541,27 @@ private class InvoiceOpsControllerTest {
       Amount__c = 1000,
       TaxAmount__c = 100,
       TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      InvoiceTransactionStatus__c = integrationDate != null
-        ? InvoiceTransactionStatusService.TX_CONFIRMED
-        : InvoiceTransactionStatusService.TX_DRAFT,
-      CollectionRefundStatus__c = clearingDate != null
-        ? InvoiceTransactionStatusService.COLLECTION_COMPLETED
-        : null,
-      SystemIntegrationDate__c = integrationDate,
       PaymentClearingCompletedDate__c = clearingDate
     );
-    ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    insert invoice;
+    if (integrationDate != null) {
+      insertOpsLine(invoice.Id);
+      InvoiceOpsController.markInvoiced(
+        history.Id,
+        new List<Id>{ invoice.Id },
+        integrationDate
+      );
+    }
     return invoice;
+  }
+
+  private static void insertOpsLine(Id invoiceId) {
+    InvoiceLine__c line = new InvoiceLine__c(
+      Invoice__c = invoiceId,
+      Amount__c = 1000
+    );
+    ContractTestDataFactory.applyRequiredFields(line);
+    insert line;
   }
 }
