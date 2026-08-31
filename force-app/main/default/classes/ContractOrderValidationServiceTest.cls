@@ -3,6 +3,15 @@ private class ContractOrderValidationServiceTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    insert GlAccountingPolicyService.newOrgDefault();
+  }
+
+  private static void insertWithOpportunity(
+    ContractHistory__c history,
+    Id accountId
+  ) {
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, accountId);
+    insert history;
   }
 
   @IsTest
@@ -28,7 +37,8 @@ private class ContractOrderValidationServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Order Ready New Happy Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
       Date termStart = ContractTestDataFactory.stableTermStart();
@@ -44,7 +54,7 @@ private class ContractOrderValidationServiceTest {
         EffectiveDate__c = termStart,
         ApplicationDate__c = termStart
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Ready New Happy Product'
       );
@@ -102,7 +112,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Boolean thrown = false;
       try {
@@ -141,7 +151,8 @@ private class ContractOrderValidationServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Order Ready No Product Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
       ContractHistory__c history = new ContractHistory__c(
@@ -153,7 +164,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Boolean thrown = false;
       try {
@@ -192,7 +203,8 @@ private class ContractOrderValidationServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Order Ready No Amount Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
       ContractHistory__c history = new ContractHistory__c(
@@ -204,12 +216,12 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Ready No Amount Product'
       );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-      ContractTestDataFactory.insertProduct(product);
+      ContractTestDataFactory.insertProduct(product, false);
       insert new ContractProduct__c(
         ContractHistory__c = history.Id,
         Product__c = product.Id,
@@ -257,7 +269,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Direct Order No BA Product'
       );
@@ -337,7 +349,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert previous;
+      insertWithOpportunity(previous, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Ready Setting Only Product'
       );
@@ -368,7 +380,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
-      insert changeHistory;
+      insertWithOpportunity(changeHistory, account.Id);
       insert new List<ContractProduct__c>{
         new ContractProduct__c(
           ContractHistory__c = changeHistory.Id,
@@ -403,9 +415,11 @@ private class ContractOrderValidationServiceTest {
         ContractOrderValidationService.assertReadyForOrder(changeHistory);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assertEquals(
-          EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE,
+        System.assert(
           ex.getMessage()
+            .contains(EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE),
+          'Core 第4.3節: 変更後の請求設定は前回の版と同じ。Actual=' +
+            ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -469,7 +483,8 @@ private class ContractOrderValidationServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Order Ready Dup Version Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
       ContractHistory__c ordered = new ContractHistory__c(
@@ -481,7 +496,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert ordered;
+      insertWithOpportunity(ordered, account.Id);
       ContractHistory__c rival = new ContractHistory__c(
         Name = 'Order Ready Dup Version Rival',
         ContractService__c = service.Id,
@@ -491,7 +506,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert rival;
+      insertWithOpportunity(rival, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Ready Dup Version Product'
       );
@@ -547,7 +562,8 @@ private class ContractOrderValidationServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Bulk Order Dup Version Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
       ContractHistory__c estA = new ContractHistory__c(
@@ -568,7 +584,8 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert new List<ContractHistory__c>{ estA, estB };
+      insertWithOpportunity(estA, account.Id);
+      insertWithOpportunity(estB, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Bulk Order Dup Version Product'
       );
@@ -649,10 +666,11 @@ private class ContractOrderValidationServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Order Ready Diff Version Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
-      insert new ContractHistory__c(
+      ContractHistory__c winner = new ContractHistory__c(
         Name = 'Order Ready Diff Version Winner',
         ContractService__c = service.Id,
         Type__c = 'New',
@@ -661,6 +679,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
+      insertWithOpportunity(winner, account.Id);
       ContractHistory__c next = new ContractHistory__c(
         Name = 'Order Ready Diff Version Next',
         ContractService__c = service.Id,
@@ -670,7 +689,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert next;
+      insertWithOpportunity(next, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Ready Diff Version Product'
       );
@@ -732,7 +751,8 @@ private class ContractOrderValidationServiceTest {
       ContractService__c service = new ContractService__c(
         Name = 'Cancel Order Ready Service',
         Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
       ContractHistory__c history = new ContractHistory__c(
@@ -745,7 +765,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Test.startTest();
       ContractOrderValidationService.assertReadyForOrder(history);
@@ -802,7 +822,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert previous;
+      insertWithOpportunity(previous, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Ready Term Change Cover Product'
       );
@@ -833,7 +853,7 @@ private class ContractOrderValidationServiceTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
-      insert changeHistory;
+      insertWithOpportunity(changeHistory, account.Id);
       insert new List<ContractProduct__c>{
         new ContractProduct__c(
           ContractHistory__c = changeHistory.Id,
@@ -913,7 +933,7 @@ private class ContractOrderValidationServiceTest {
         historystatus__c = 'Ordered',
         Version__c = 1
       );
-      insert previous;
+      insertWithOpportunity(previous, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Ready Spot Change Product'
       );
@@ -928,7 +948,7 @@ private class ContractOrderValidationServiceTest {
         Version__c = 2,
         PreviousHistory__c = previous.Id
       );
-      insert changeHistory;
+      insertWithOpportunity(changeHistory, account.Id);
       insert new ContractProduct__c(
         ContractHistory__c = changeHistory.Id,
         Product__c = product.Id,
