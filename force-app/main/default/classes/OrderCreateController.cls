@@ -912,6 +912,10 @@ public without sharing class OrderCreateController {
     String businessOperationKey
   ) {
     assertOrderPermission();
+    // 仕様: Core 第5.2節。確定は照会の前に空判定。空のまま照会して0件と同じ文にしない。
+    if (contractHistoryId == null) {
+      throw toAuraHandled('契約履歴IDが指定されていません。');
+    }
     FieldCopyDefinitionService.validateAllDefinitions();
     if (requireToken && String.isBlank(expectedLastModifiedToken)) {
       throw toAuraHandled(ORDER_TOKEN_REQUIRED_MESSAGE);

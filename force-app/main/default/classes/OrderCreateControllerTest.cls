@@ -50,7 +50,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '??E???ID???????E?????E',
+          '契約履歴IDが指定されていません。',
           ex.getMessage()
         );
       }
@@ -69,7 +69,7 @@ private class OrderCreateControllerTest {
         OrderCreateController.getOrderContext(missingId);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assertEquals('??E????????????E', ex.getMessage());
+        System.assertEquals('契約履歴が見つかりません。', ex.getMessage());
       }
       System.assertEquals(true, thrown);
     }
@@ -160,9 +160,26 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '??E???ID???????E?????E',
+          '契約履歴IDが指定されていません。',
           ex.getMessage()
         );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void confirmOrder_missingHistory_throwsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Id missingId =
+        ContractHistory__c.SObjectType.getDescribe().getKeyPrefix() +
+        '000000000000AAA';
+      Boolean thrown = false;
+      try {
+        OrderCreateController.confirmOrder(missingId, null, false);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals('契約履歴が見つかりません。', ex.getMessage());
       }
       System.assertEquals(true, thrown);
     }
