@@ -183,7 +183,7 @@ public without sharing class FieldCopyDefinitionService {
     }
     for (FieldCopyDefinition__c definition : definitions) {
       try {
-        validateDefinition(definition, definitions);
+        validateDefinition(definition, definitions, true);
       } catch (FieldCopyException ex) {
         definition.addError(ex.getMessage());
       }
@@ -192,28 +192,47 @@ public without sharing class FieldCopyDefinitionService {
 
   /** 仕様: Core 第11.4.2節 */
   public static void validateDefinition(FieldCopyDefinition__c definition) {
-    validateDefinition(definition, null);
-  }
-
-  /** 仕様: Accounting 第3.1節、Core 第11.4.2節 */
-  public static void validateAllDefinitions() {
-    validateAllDefinitions(
-      [
-        SELECT
-          Name,
-          TargetObject__c,
-          Context__c,
-          SourceObject__c,
-          SourceFieldApiName__c,
-          TargetFieldApiName__c
-        FROM FieldCopyDefinition__c
-        WITH SYSTEM_MODE
-      ]
-    );
+    validateDefinition(definition, null, true);
   }
 
   @TestVisible
   static Set<String> additionalRequiredJournalFieldApiNames;
+
+  /** 受注1処理（Core 第5.2節）で定義照会と検証を繰り返さない。 */
+  private static List<FieldCopyDefinition__c> cachedDefinitions;
+  private static Boolean catalogValidated;
+
+  public static void resetCache() {
+    cachedDefinitions = null;
+    catalogValidated = false;
+  }
+
+  private static List<FieldCopyDefinition__c> loadAllDefinitions() {
+    if (cachedDefinitions != null) {
+      return cachedDefinitions;
+    }
+    cachedDefinitions = [
+      SELECT
+        Name,
+        TargetObject__c,
+        Context__c,
+        SourceObject__c,
+        SourceFieldApiName__c,
+        TargetFieldApiName__c
+      FROM FieldCopyDefinition__c
+      WITH SYSTEM_MODE
+    ];
+    return cachedDefinitions;
+  }
+
+  /** 仕様: Accounting 第3.1節、Core 第11.4.2節 */
+  public static void validateAllDefinitions() {
+    if (catalogValidated == true) {
+      return;
+    }
+    validateAllDefinitions(loadAllDefinitions());
+    catalogValidated = true;
+  }
 
   /** 仕様: Accounting 第3.1節、Core 第11.4.2節 */
   @TestVisible
@@ -222,7 +241,7 @@ public without sharing class FieldCopyDefinitionService {
       definitions = new List<FieldCopyDefinition__c>();
     }
     for (FieldCopyDefinition__c definition : definitions) {
-      validateDefinition(definition, definitions);
+      validateDefinition(definition, definitions, false);
     }
     assertRequiredJournalFieldsReachable(definitions);
   }
@@ -230,7 +249,8 @@ public without sharing class FieldCopyDefinitionService {
   /** 仕様: Core 第11.4.2節 */
   private static void validateDefinition(
     FieldCopyDefinition__c definition,
-    List<FieldCopyDefinition__c> batch
+    List<FieldCopyDefinition__c> batch,
+    Boolean checkAgainstStoredRows
   ) {
     if (definition == null) {
       throw new FieldCopyException('コピー定義がありません。');
@@ -284,8 +304,8 @@ public without sharing class FieldCopyDefinitionService {
       throw new FieldCopyException('コピーできる型ではありません: ' + key);
     }
     assertReferenceMatch(sourceDescribe, targetDescribe, key);
-    assertUniqueName(definition, batch, key);
-    assertUniqueTarget(definition, batch, key);
+    assertUniqueName(definition, batch, key, checkAgainstStoredRows);
+    assertUniqueTarget(definition, batch, key, checkAgainstStoredRows);
   }
 
   /** 仕様: Core 第11.4.2節 */
@@ -301,22 +321,15 @@ public without sharing class FieldCopyDefinitionService {
     if (sourceByObject == null) {
       sourceByObject = new Map<String, SObject>();
     }
-    for (FieldCopyDefinition__c definition : [
-      SELECT
-        Name,
-        TargetObject__c,
-        Context__c,
-        SourceObject__c,
-        SourceFieldApiName__c,
-        TargetFieldApiName__c
-      FROM FieldCopyDefinition__c
-      WHERE TargetObject__c = :targetObjectApiName
-      WITH SYSTEM_MODE
-    ]) {
+    List<FieldCopyDefinition__c> catalog = loadAllDefinitions();
+    for (FieldCopyDefinition__c definition : catalog) {
+      if (definition.TargetObject__c != targetObjectApiName) {
+        continue;
+      }
       if (!contextMatches(definition.Context__c, context, targetObjectApiName)) {
         continue;
       }
-      validateDefinition(definition);
+      validateDefinition(definition, catalog, false);
       Object current = target.get(definition.TargetFieldApiName__c);
       if (current != null && String.valueOf(current) != '') {
         continue;
@@ -342,12 +355,10 @@ public without sharing class FieldCopyDefinitionService {
       return new List<String>();
     }
     Map<String, Schema.SObjectField> fields = targetType.getDescribe().fields.getMap();
-    for (FieldCopyDefinition__c definition : [
-      SELECT TargetFieldApiName__c
-      FROM FieldCopyDefinition__c
-      WHERE TargetObject__c = :targetObjectApiName
-      WITH SYSTEM_MODE
-    ]) {
+    for (FieldCopyDefinition__c definition : loadAllDefinitions()) {
+      if (definition.TargetObject__c != targetObjectApiName) {
+        continue;
+      }
       if (
         String.isNotBlank(definition.TargetFieldApiName__c) &&
         fields.containsKey(definition.TargetFieldApiName__c)
@@ -595,7 +606,8 @@ public without sharing class FieldCopyDefinitionService {
   private static void assertUniqueName(
     FieldCopyDefinition__c definition,
     List<FieldCopyDefinition__c> batch,
-    String key
+    String key,
+    Boolean checkAgainstStoredRows
   ) {
     if (String.isBlank(definition.Name)) {
       return;
@@ -610,6 +622,9 @@ public without sharing class FieldCopyDefinitionService {
       if (sameName > 1) {
         throw new FieldCopyException('一意キーが重複しています: ' + key);
       }
+    }
+    if (checkAgainstStoredRows != true) {
+      return;
     }
     List<FieldCopyDefinition__c> existing = [
       SELECT Id
@@ -626,7 +641,8 @@ public without sharing class FieldCopyDefinitionService {
   private static void assertUniqueTarget(
     FieldCopyDefinition__c definition,
     List<FieldCopyDefinition__c> batch,
-    String key
+    String key,
+    Boolean checkAgainstStoredRows
   ) {
     Set<String> ownContext = effectiveContext(definition);
     if (batch != null) {
@@ -638,6 +654,9 @@ public without sharing class FieldCopyDefinitionService {
           throw new FieldCopyException('同じTo項目の定義が重なっています: ' + key);
         }
       }
+    }
+    if (checkAgainstStoredRows != true) {
+      return;
     }
     for (FieldCopyDefinition__c other : [
       SELECT Id, Name, TargetObject__c, Context__c, TargetFieldApiName__c

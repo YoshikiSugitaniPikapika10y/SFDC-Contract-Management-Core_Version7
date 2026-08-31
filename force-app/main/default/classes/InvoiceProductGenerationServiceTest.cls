@@ -1056,6 +1056,10 @@ private class InvoiceProductGenerationServiceTest {
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
       insert service;
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Snapshot Opportunity'
+      );
       Product2 product = ContractTestDataFactory.buildProduct(
         'Snapshot Product'
       );
@@ -1065,6 +1069,7 @@ private class InvoiceProductGenerationServiceTest {
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Snapshot History',
         ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
         Type__c = 'New',
         historystatus__c = 'Estimate',
         Version__c = 1,

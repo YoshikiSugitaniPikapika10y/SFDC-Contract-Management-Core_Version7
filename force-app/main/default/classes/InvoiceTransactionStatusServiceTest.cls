@@ -223,6 +223,32 @@ private class InvoiceTransactionStatusServiceTest {
   }
 
   @IsTest
+  static void rejectDirectStatusEdits_insertUnsentDefault_seedsNotApplicableWhenPdfOnly() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.initTestContext();
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = ContractDocumentSettingService.MODE_PDF_ONLY;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      Invoice__c invoice = new Invoice__c(
+        DeliveryStatus__c = InvoiceTransactionStatusService.DELIVERY_UNSENT
+      );
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+      InvoiceTransactionStatusService.rejectDirectStatusEdits(
+        new List<Invoice__c>{ invoice },
+        null
+      );
+      System.assertEquals(false, invoice.hasErrors());
+      System.assertEquals(
+        InvoiceTransactionStatusService.DELIVERY_NOT_APPLICABLE,
+        invoice.DeliveryStatus__c,
+        '第7.11節: 項目初期値 Unsent は PDFのみの種 NotApplicable へ上書きする'
+      );
+    }
+  }
+
+  @IsTest
   static void seedDefaults_pdfOnlyAndUnusedAreNotApplicable() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.initTestContext();

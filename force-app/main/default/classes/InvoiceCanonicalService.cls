@@ -153,11 +153,22 @@ public without sharing class InvoiceCanonicalService {
     }
   }
 
+  /** 仕様: Core 第5.2節。同一処理内の Ordered 再照会を1回にする。 */
+  private static Set<Id> lastRetainInputIds;
+  private static Set<Id> lastRetainOrderedIds;
+
   /** 引数のうち historystatus = Ordered の履歴 ID だけ残す。 */
   public static Set<Id> retainOrderedHistoryIds(Set<Id> contractHistoryIds) {
     Set<Id> orderedIds = new Set<Id>();
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return orderedIds;
+    }
+    if (
+      lastRetainInputIds != null &&
+      lastRetainInputIds.equals(contractHistoryIds) &&
+      lastRetainOrderedIds != null
+    ) {
+      return lastRetainOrderedIds.clone();
     }
     String orderedStatus = ContractDomainConstants.HISTORY_STATUS_ORDERED;
     for (ContractHistory__c history : [
@@ -168,6 +179,8 @@ public without sharing class InvoiceCanonicalService {
     ]) {
       orderedIds.add(history.Id);
     }
+    lastRetainInputIds = new Set<Id>(contractHistoryIds);
+    lastRetainOrderedIds = orderedIds.clone();
     return orderedIds;
   }
 
@@ -332,6 +345,8 @@ public without sharing class InvoiceCanonicalService {
         null,
         buildCanonicalCopySources(rep, billingAccount)
       );
+      // 仕様: Core 第7.11節。受注生成の未確定は専用処理で送付状態の種を書く。
+      InvoiceTransactionStatusService.seedDefaults(invoice);
 
       invoicesToInsert.add(invoice);
       linesByInvoiceIndex.add(mi.lines);
@@ -1831,6 +1846,8 @@ public without sharing class InvoiceCanonicalService {
       created,
       loadBillingAccountForSnapshot(billingAccountId)
     );
+    // 仕様: Core 第7.11節。分割で新しく作る未確定も送付状態の種を書く。
+    InvoiceTransactionStatusService.seedDefaults(created);
     SystemContextAccess.insertRecords(new List<Invoice__c>{ created });
 
     List<InvoiceLine__c> newLines = new List<InvoiceLine__c>();
@@ -2988,7 +3005,8 @@ public without sharing class InvoiceCanonicalService {
       'BillingEmailTo__c',
       'BillingEmailCc__c',
       'BillingEmailBcc__c',
-      'BillingAccountKey__c'
+      'BillingAccountKey__c',
+      'InvoiceDeliveryMethod__c'
     };
     selectFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
     selectFields.addAll(
@@ -3075,7 +3093,7 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /**
-   * 必須の BA SnapShot（Id・キー・宛名・メール・支払条件・請求日）をコードで埋める。
+   * 必須の BA SnapShot（Id・キー・宛名・メール・届け方・支払条件・請求日）をコードで埋める。
    * Insert トリガ側と同じ空欄埋め（手入力の非空は尊重）。
    * 仕様: Core 第3.3.5節、第5.2節
    */

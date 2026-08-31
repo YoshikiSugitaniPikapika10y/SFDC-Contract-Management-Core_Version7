@@ -1277,6 +1277,13 @@ public without sharing class InvoiceProductGenerationService {
     );
     // Invoice-date / payment-date calculation fields (not necessarily copy targets).
     selectFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
+    // 仕様: Core 第3.3.5節、第3.3.7節。受注時スナップショット用。
+    selectFields.add('InvoiceDeliveryMethod__c');
+    selectFields.add('BillingAddressee__c');
+    selectFields.add('BillingEmailTo__c');
+    selectFields.add('BillingEmailCc__c');
+    selectFields.add('BillingEmailBcc__c');
+    selectFields.add('BillingAccountKey__c');
 
     Map<String, Schema.SObjectField> fieldMap = BillingAccount__c.SObjectType.getDescribe()
       .fields.getMap();

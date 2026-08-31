@@ -8,6 +8,9 @@ trigger FieldCopyDefinitionTrigger on FieldCopyDefinition__c(
   if (Trigger.isBefore && (Trigger.isInsert || Trigger.isUpdate)) {
     FieldCopyDefinitionService.validateDefinitions(Trigger.new);
   }
+  if (Trigger.isAfter) {
+    FieldCopyDefinitionService.resetCache();
+  }
   if (Trigger.isAfter && (Trigger.isInsert || Trigger.isUpdate)) {
     ContractMasterOperationLog.logFieldCopySave(Trigger.new);
   }

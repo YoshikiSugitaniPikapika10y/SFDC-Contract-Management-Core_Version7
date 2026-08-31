@@ -154,7 +154,7 @@ public without sharing class InvoiceTransactionStatusService {
       if (prior == null) {
         if (
           isNonSeedStatus(invoice.InvoiceTransactionStatus__c, TX_DRAFT) ||
-          isNonSeedStatus(invoice.DeliveryStatus__c, resolveDeliverySeed()) ||
+          isForbiddenDeliveryOnInsert(invoice.DeliveryStatus__c) ||
           isNonSeedStatus(
             invoice.CollectionRefundStatus__c,
             COLLECTION_NOT_STARTED
@@ -183,7 +183,11 @@ public without sharing class InvoiceTransactionStatusService {
     if (String.isBlank(invoice.InvoiceTransactionStatus__c)) {
       invoice.InvoiceTransactionStatus__c = TX_DRAFT;
     }
-    if (String.isBlank(invoice.DeliveryStatus__c)) {
+    // 仕様: Core 第7.11節。項目初期値 Unsent は種（3択が PDFのみ／使わないなら NotApplicable）へ上書きする。
+    if (
+      String.isBlank(invoice.DeliveryStatus__c) ||
+      invoice.DeliveryStatus__c == DELIVERY_UNSENT
+    ) {
       invoice.DeliveryStatus__c = resolveDeliverySeed();
     }
     if (String.isBlank(invoice.CollectionRefundStatus__c)) {
@@ -260,6 +264,14 @@ public without sharing class InvoiceTransactionStatusService {
       }
       throw ex;
     }
+  }
+
+  /** 仕様: Core 第7.11節。Insert の Unsent は項目初期値であり、直接編集ではない。 */
+  private static Boolean isForbiddenDeliveryOnInsert(String current) {
+    if (String.isBlank(current) || current == DELIVERY_UNSENT) {
+      return false;
+    }
+    return isNonSeedStatus(current, resolveDeliverySeed());
   }
 
   private static Boolean isNonSeedStatus(String current, String seed) {
