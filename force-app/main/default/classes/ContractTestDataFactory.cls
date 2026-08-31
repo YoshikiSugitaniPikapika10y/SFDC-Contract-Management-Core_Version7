@@ -644,7 +644,8 @@ public class ContractTestDataFactory {
       BillingAddressee__c = TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
       BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com'
+      BillingEmailBcc__c = 'bcc@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL
     );
     applyDefaultBillingSchedule(billingAccount);
     applyRequiredFields(billingAccount);

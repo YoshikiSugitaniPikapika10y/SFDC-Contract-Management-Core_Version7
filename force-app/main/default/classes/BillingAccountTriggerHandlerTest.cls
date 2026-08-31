@@ -181,6 +181,7 @@ private class BillingAccountTriggerHandlerTest {
       BillingEmailTo__c = 'to@example.com',
       BillingEmailCc__c = 'cc@example.com',
       BillingEmailBcc__c = 'bcc@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
       InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 25,
@@ -202,10 +203,11 @@ private class BillingAccountTriggerHandlerTest {
       BiilingAcccount__c = billingAccount.Id,
       TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
 
     Date cancelDate = Date.newInstance(2026, 6, 1);
-    insert new ContractHistory__c(
+    ContractHistory__c history = new ContractHistory__c(
       Name = 'Ordered BA Cancel',
       ContractService__c = service.Id,
       Type__c = ContractDomainConstants.HISTORY_TYPE_CANCEL,
@@ -216,6 +218,12 @@ private class BillingAccountTriggerHandlerTest {
       EffectiveDate__c = cancelDate,
       ApplicationDate__c = cancelDate
     );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      billingAccount.Account__c
+    );
+    ContractTestDataFactory.applyRequiredFields(history);
+    insert history;
     return billingAccount;
   }
 }

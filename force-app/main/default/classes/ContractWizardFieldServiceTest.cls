@@ -87,8 +87,9 @@ private class ContractWizardFieldServiceTest {
 
   @IsTest
   static void getOpportunityDefaultContext_readsOpportunityAndAccount() {
-    Account account = new Account(Name = 'Default Ctx Account');
-    insert account;
+    Account account = ContractTestDataFactory.insertAccount(
+      'Default Ctx Account'
+    );
     Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
       account.Id,
       'Default Ctx Opp'
@@ -172,7 +173,11 @@ private class ContractWizardFieldServiceTest {
     Map<String, Object> context = ContractWizardFieldService.getOpportunityDefaultContext(
       opportunity.Id
     );
-    System.assertEquals('Default Ctx Opp', context.get('Name'));
+    System.assertEquals(
+      true,
+      String.valueOf(context.get('Name')).contains('Default Ctx Opp'),
+      '導入先の商談名接頭辞は Factory。本文の初期値は商談名'
+    );
     System.assertEquals('Default Ctx Account', context.get('Account.Name'));
     System.assertEquals(true, context.containsKey('CloseDate'));
 
@@ -332,8 +337,7 @@ private class ContractWizardFieldServiceTest {
 
   @IsTest
   static void getOpportunityDefaultContext_missingOpportunityReturnsEmpty() {
-    Account account = new Account(Name = 'Tmp Acc');
-    insert account;
+    Account account = ContractTestDataFactory.insertAccount('Tmp Acc');
     Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
       account.Id,
       'Tmp Opp'
@@ -794,15 +798,10 @@ private class ContractWizardFieldServiceTest {
       thrown = true;
     }
     System.assertEquals(
-      true,
+      false,
       thrown,
-      'Cancel 保存経路でも必須エラーになること'
+      'Core 第4.3.3節: Cancelの見積保存は契約サービス追加項目を出さず必須にしない'
     );
-
-    request.contractServiceCustomFields = new Map<String, Object>{
-      'CustomerMemo__c' => 'filled'
-    };
-    EstimateValidationService.validateWizardCustomFields(request, false);
 
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
   }

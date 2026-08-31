@@ -283,27 +283,10 @@ private class InvoiceProductMergeServiceTest {
       Account account = ContractTestDataFactory.insertAccount(
         'Merge Service Account'
       );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-
-      ContractService__c service = new ContractService__c(
-        Name = 'Merge Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Merge Service'
       );
-      insert service;
 
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Merge History',
@@ -314,6 +297,11 @@ private class InvoiceProductMergeServiceTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2026, 8, 31)
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
       insert history;
 
       Product2 product = ContractTestDataFactory.buildProduct('Merge Product');
@@ -325,7 +313,8 @@ private class InvoiceProductMergeServiceTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 10000,
-        Unit__c = 'ID',
+        Amount__c = 30000,
+        Unit__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2026, 8, 31),
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -336,8 +325,14 @@ private class InvoiceProductMergeServiceTest {
 
       Date invoiceDate = Date.newInstance(2026, 6, 1);
       Date paymentDate = Date.newInstance(2026, 6, 30);
+      Id billingAccountId = [
+        SELECT BiilingAcccount__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ]
+      .BiilingAcccount__c;
       String exportMergeKey = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
-        billingAccount.Id,
+        billingAccountId,
         history.Id,
         invoiceDate,
         paymentDate
