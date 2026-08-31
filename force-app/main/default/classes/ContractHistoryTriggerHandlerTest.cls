@@ -1,5 +1,35 @@
 @IsTest
 private class ContractHistoryTriggerHandlerTest {
+  @TestSetup
+  static void setupAccess() {
+    ContractTestDataFactory.initTestContext();
+    insert GlAccountingPolicyService.newOrgDefault();
+  }
+
+  private static void insertWithOpportunity(
+    ContractHistory__c history,
+    Id accountId
+  ) {
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, accountId);
+    insert history;
+  }
+
+  private static void insertWithOpportunity(
+    List<ContractHistory__c> histories,
+    Id accountId
+  ) {
+    if (histories == null) {
+      return;
+    }
+    for (ContractHistory__c history : histories) {
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        accountId
+      );
+    }
+    insert histories;
+  }
+
   /** Ordered ???E??E??E????????E?E????????E*/
   private static ContractService__c insertServiceWithBillingAccount(
     Account account,
@@ -24,7 +54,8 @@ private class ContractHistoryTriggerHandlerTest {
     ContractService__c service = new ContractService__c(
       Name = serviceName,
       Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id
+      BiilingAcccount__c = billingAccount.Id,
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
     insert service;
     return service;
@@ -50,7 +81,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Revert Block Product'
@@ -63,6 +94,7 @@ private class ContractHistoryTriggerHandlerTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 8000,
+        Amount__c = 96000,
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2027, 5, 31),
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -127,7 +159,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Revert Export Block Product'
@@ -140,6 +172,7 @@ private class ContractHistoryTriggerHandlerTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 8000,
+        Amount__c = 96000,
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2027, 5, 31),
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -206,7 +239,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Revert Allow Product'
@@ -219,6 +252,7 @@ private class ContractHistoryTriggerHandlerTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 8000,
+        Amount__c = 96000,
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2027, 5, 31),
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
@@ -275,19 +309,22 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
-      insert priorHistory;
+      insertWithOpportunity(priorHistory, account.Id);
 
       // Type ? New ????E?Ehange ? after insert ???????E?E????????E?E
-      insert new ContractHistory__c(
-        Name = 'Revert NonLatest History v2',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 2,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1),
-        PreviousHistory__c = priorHistory.Id
+      insertWithOpportunity(
+        new ContractHistory__c(
+          Name = 'Revert NonLatest History v2',
+          ContractService__c = service.Id,
+          Type__c = 'New',
+          historystatus__c = 'Ordered',
+          Version__c = 2,
+          CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+          CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+          EffectiveDate__c = Date.newInstance(2026, 6, 1),
+          PreviousHistory__c = priorHistory.Id
+        ),
+        account.Id
       );
 
       Test.startTest();
@@ -328,18 +365,21 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
-      insert orderedHistory;
+      insertWithOpportunity(orderedHistory, account.Id);
 
-      insert new ContractHistory__c(
-        Name = 'Revert Newer Estimate History v2',
-        ContractService__c = service.Id,
-        Type__c = 'Change',
-        historystatus__c = 'Estimate',
-        Version__c = 2,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 10, 1),
-        PreviousHistory__c = orderedHistory.Id
+      insertWithOpportunity(
+        new ContractHistory__c(
+          Name = 'Revert Newer Estimate History v2',
+          ContractService__c = service.Id,
+          Type__c = 'Change',
+          historystatus__c = 'Estimate',
+          Version__c = 2,
+          CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+          CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+          EffectiveDate__c = Date.newInstance(2026, 10, 1),
+          PreviousHistory__c = orderedHistory.Id
+        ),
+        account.Id
       );
 
       ContractHistory__c newer = [
@@ -378,11 +418,10 @@ private class ContractHistoryTriggerHandlerTest {
       Account account = ContractTestDataFactory.insertAccount(
         'Estimate Delete Account'
       );
-      ContractService__c service = new ContractService__c(
-        Name = 'Estimate Delete Service',
-        Account__c = account.Id
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Estimate Delete Service'
       );
-      insert service;
 
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Estimate Delete History',
@@ -393,7 +432,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Estimate Delete Product'
@@ -406,6 +445,7 @@ private class ContractHistoryTriggerHandlerTest {
         Product__c = product.Id,
         Quantity__c = 1,
         UnitPrice__c = 8000,
+        Amount__c = 8000,
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2027, 5, 31),
         InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
@@ -478,7 +518,7 @@ private class ContractHistoryTriggerHandlerTest {
         historystatus__c = 'Estimate',
         Version__c = 1
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Boolean thrown = false;
       try {
@@ -512,7 +552,7 @@ private class ContractHistoryTriggerHandlerTest {
         historystatus__c = 'Estimate',
         Version__c = 1
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.DELETE_RECORDS => true
       };
@@ -547,7 +587,7 @@ private class ContractHistoryTriggerHandlerTest {
         historystatus__c = 'Estimate',
         Version__c = 1
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MIGRATE_ALL => true
       };
@@ -596,7 +636,10 @@ private class ContractHistoryTriggerHandlerTest {
       // ???E????????????E?????? Estimate ??????EOrdered ???E???????E
       lockedHistory.historystatus__c = 'Estimate';
       openHistory.historystatus__c = 'Estimate';
-      insert new List<ContractHistory__c>{ lockedHistory, openHistory };
+      insertWithOpportunity(
+        new List<ContractHistory__c>{ lockedHistory, openHistory },
+        account.Id
+      );
 
       ContractTestDataFactory.insertAllowingInvoiceStatus(
         new List<Invoice__c>{
@@ -681,7 +724,7 @@ private class ContractHistoryTriggerHandlerTest {
         historystatus__c = 'Estimate',
         Version__c = 2
       );
-      insert new List<ContractHistory__c>{ h1, h2 };
+      insertWithOpportunity(new List<ContractHistory__c>{ h1, h2 }, account.Id);
       ContractTestDataFactory.insertAllowingInvoiceStatus(
         new List<Invoice__c>{
         new Invoice__c(
@@ -758,7 +801,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
-      insert orderedHistory;
+      insertWithOpportunity(orderedHistory, account.Id);
 
       ContractHistory__c estimateHistory = new ContractHistory__c(
         Name = 'Archive Clear Previous Estimate',
@@ -771,7 +814,7 @@ private class ContractHistoryTriggerHandlerTest {
         EffectiveDate__c = Date.newInstance(2026, 10, 1),
         PreviousHistory__c = orderedHistory.Id
       );
-      insert estimateHistory;
+      insertWithOpportunity(estimateHistory, account.Id);
 
       Test.startTest();
       estimateHistory.historystatus__c = 'Archive';
@@ -811,7 +854,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       Boolean thrown = false;
       try {
@@ -847,7 +890,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MIGRATE_ALL => true
@@ -888,7 +931,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MIGRATE_ALL => true,
@@ -917,11 +960,10 @@ private class ContractHistoryTriggerHandlerTest {
       Account account = ContractTestDataFactory.insertAccount(
         'Archive Purge Billing'
       );
-      ContractService__c service = new ContractService__c(
-        Name = 'Archive Purge Service',
-        Account__c = account.Id
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Archive Purge Service'
       );
-      insert service;
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Archive Purge History',
         ContractService__c = service.Id,
@@ -931,7 +973,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
         'Archive Purge Product'
       );
@@ -1011,7 +1053,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.ORDER => false
@@ -1057,14 +1099,17 @@ private class ContractHistoryTriggerHandlerTest {
       };
       Boolean thrown = false;
       try {
-        insert new ContractHistory__c(
-          Name = 'Order Insert Perm Block History',
-          ContractService__c = service.Id,
-          Type__c = 'New',
-          historystatus__c = 'Ordered',
-          Version__c = 1,
-          CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-          CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
+        insertWithOpportunity(
+          new ContractHistory__c(
+            Name = 'Order Insert Perm Block History',
+            ContractService__c = service.Id,
+            Type__c = 'New',
+            historystatus__c = 'Ordered',
+            Version__c = 1,
+            CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+            CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
+          ),
+          account.Id
         );
       } catch (DmlException ex) {
         thrown = true;
@@ -1098,7 +1143,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.REVERT => false
@@ -1147,7 +1192,7 @@ private class ContractHistoryTriggerHandlerTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.ORDER => false,
@@ -1181,6 +1226,35 @@ private class ContractHistoryTriggerHandlerTest {
         'Terminal Cancel Service'
       );
 
+      Product2 firstProduct = ContractTestDataFactory.buildProduct(
+        'Terminal First Product'
+      );
+      firstProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(firstProduct);
+      ContractHistory__c firstOrdered = new ContractHistory__c(
+        Name = 'Terminal First Ordered',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      insertWithOpportunity(firstOrdered, account.Id);
+      insert new ContractProduct__c(
+        ContractHistory__c = firstOrdered.Id,
+        Product__c = firstProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 96000,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2027, 5, 31),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+
       // Cancel ???????????????Cancel ??E??????E??E
       ContractHistory__c existingFutureEstimate = new ContractHistory__c(
         Name = 'Existing Future Estimate',
@@ -1189,22 +1263,30 @@ private class ContractHistoryTriggerHandlerTest {
         historystatus__c = 'Estimate',
         Version__c = 3
       );
-      insert existingFutureEstimate;
+      insertWithOpportunity(existingFutureEstimate, account.Id);
 
-      insert new ContractHistory__c(
-        Name = 'Terminal Cancel',
-        ContractService__c = service.Id,
-        Type__c = 'Cancel',
-        historystatus__c = 'Ordered',
-        Version__c = 2
+      insertWithOpportunity(
+        new ContractHistory__c(
+          Name = 'Terminal Cancel',
+          ContractService__c = service.Id,
+          Type__c = 'Cancel',
+          historystatus__c = 'Ordered',
+          Version__c = 2
+        ),
+        account.Id
       );
 
+      Test.startTest();
       ContractHistory__c laterEstimate = new ContractHistory__c(
         Name = 'Later Estimate',
         ContractService__c = service.Id,
         Type__c = 'Change',
         historystatus__c = 'Estimate',
         Version__c = 4
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        laterEstimate,
+        account.Id
       );
       Database.SaveResult insertResult = Database.insert(laterEstimate, false);
       System.assertEquals(false, insertResult.isSuccess());
@@ -1233,6 +1315,7 @@ private class ContractHistoryTriggerHandlerTest {
           ),
         orderResult.getErrors()[0].getMessage()
       );
+      Test.stopTest();
     }
   }
 
@@ -1276,17 +1359,24 @@ private class ContractHistoryTriggerHandlerTest {
       );
       Boolean thrown = false;
       try {
-        insert new ContractHistory__c(
-          Name = 'Manual Auto Flag',
-          ContractService__c = service.Id,
-          Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
-          Version__c = 1,
-          RenewEstimateAutoCreated__c = true
+        insertWithOpportunity(
+          new ContractHistory__c(
+            Name = 'Manual Auto Flag',
+            ContractService__c = service.Id,
+            Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+            historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+            Version__c = 1,
+            RenewEstimateAutoCreated__c = true
+          ),
+          account.Id
         );
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(ex.getMessage().contains('??????????????????'));
+        System.assertEquals(
+          '自動作成印は利用者が変更できません。',
+          dmlMessage(ex),
+          'Core 第4.9節: 手動で自動Renew見積印をTrueにできない'
+        );
       }
       System.assertEquals(true, thrown);
     }
@@ -1307,14 +1397,18 @@ private class ContractHistoryTriggerHandlerTest {
         historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
         Version__c = 1
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       history.RenewEstimateAutoCreated__c = true;
       Boolean thrown = false;
       try {
         update history;
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(ex.getMessage().contains('??????????????????'));
+        System.assertEquals(
+          '自動作成印は利用者が変更できません。',
+          dmlMessage(ex),
+          'Core 第4.9節: 手動で自動Renew見積印をTrueにできない'
+        );
       }
       System.assertEquals(true, thrown);
     }
@@ -1341,14 +1435,17 @@ private class ContractHistoryTriggerHandlerTest {
       );
       Boolean thrown = false;
       try {
-        insert new ContractHistory__c(
-          Name = 'Renew Req Off',
-          ContractService__c = service.Id,
-          Opportunity__c = opportunity.Id,
-          Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
-          Version__c = 1,
-          CreateRenewOpportunity__c = true
+        insertWithOpportunity(
+          new ContractHistory__c(
+            Name = 'Renew Req Off',
+            ContractService__c = service.Id,
+            Opportunity__c = opportunity.Id,
+            Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+            historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+            Version__c = 1,
+            CreateRenewOpportunity__c = true
+          ),
+          account.Id
         );
       } catch (DmlException ex) {
         thrown = true;
@@ -1389,7 +1486,7 @@ private class ContractHistoryTriggerHandlerTest {
         historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
         Version__c = 1
       );
-      insert history;
+      insertWithOpportunity(history, account.Id);
       history.CreateRenewOpportunity__c = true;
       Boolean thrown = false;
       try {
@@ -1422,14 +1519,17 @@ private class ContractHistoryTriggerHandlerTest {
       );
       Boolean thrown = false;
       try {
-        insert new ContractHistory__c(
-          Name = 'Renew Req Cancel',
-          ContractService__c = service.Id,
-          Opportunity__c = opportunity.Id,
-          Type__c = ContractDomainConstants.HISTORY_TYPE_CANCEL,
-          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
-          Version__c = 2,
-          CreateRenewOpportunity__c = true
+        insertWithOpportunity(
+          new ContractHistory__c(
+            Name = 'Renew Req Cancel',
+            ContractService__c = service.Id,
+            Opportunity__c = opportunity.Id,
+            Type__c = ContractDomainConstants.HISTORY_TYPE_CANCEL,
+            historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+            Version__c = 2,
+            CreateRenewOpportunity__c = true
+          ),
+          account.Id
         );
       } catch (DmlException ex) {
         thrown = true;
