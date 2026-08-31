@@ -64,15 +64,101 @@ private class InvoiceTransactionStatusServiceTest {
   }
 
   @IsTest
-  static void collectionInProgressWhenNetDiffers() {
+  static void collectionNotStartedWhenNetDiffersAndNoInvoicePurpose() {
     Invoice__c invoice = new Invoice__c(
       InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
       InvoicePaymentNet__c = 5000
     );
     InvoiceTransactionStatusService.applyCollectionRefund(invoice);
     System.assertEquals(
+      InvoiceTransactionStatusService.COLLECTION_NOT_STARTED,
+      invoice.CollectionRefundStatus__c,
+      'Core 第7.11節: 請求金額目的の有効入出金が0件でNetと税込が不一致なら未対応'
+    );
+  }
+
+  @IsTest
+  static void collectionInProgressWhenNetDiffersAndInvoicePurposeExists() {
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      InvoicePaymentNet__c = 5000
+    );
+    InvoiceTransactionStatusService.applyCollectionRefund(invoice, 1);
+    System.assertEquals(
       InvoiceTransactionStatusService.COLLECTION_IN_PROGRESS,
-      invoice.CollectionRefundStatus__c
+      invoice.CollectionRefundStatus__c,
+      'Core 第7.11節: 請求金額目的の有効入出金が1件以上あり不一致なら対応中'
+    );
+  }
+
+  @IsTest
+  static void applyCancelled_confirmedBecomesCancelled() {
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED
+    );
+    InvoiceTransactionStatusService.applyCancelled(
+      new List<Invoice__c>{ invoice }
+    );
+    System.assertEquals(
+      InvoiceTransactionStatusService.TX_CANCELLED,
+      invoice.InvoiceTransactionStatus__c,
+      'Core 第7.11節: 確定済みから取消済みだけを許す'
+    );
+  }
+
+  @IsTest
+  static void applyCancelled_draftThrowsKnownMessage() {
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+    );
+    Boolean thrown = false;
+    try {
+      InvoiceTransactionStatusService.applyCancelled(
+        new List<Invoice__c>{ invoice }
+      );
+    } catch (InvoiceTransactionStatusService.InvoiceStatusException ex) {
+      thrown = true;
+      System.assertEquals(
+        InvoiceTransactionStatusService.INVALID_CANCEL_MESSAGE,
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void applyDelivery_cancelledThrowsKnownMessage() {
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED
+    );
+    Boolean thrown = false;
+    try {
+      InvoiceTransactionStatusService.applyDelivery(
+        invoice,
+        InvoiceTransactionStatusService.DELIVERY_SENT,
+        Date.newInstance(2026, 8, 1)
+      );
+    } catch (InvoiceTransactionStatusService.InvoiceStatusException ex) {
+      thrown = true;
+      System.assertEquals(
+        '取消済みの請求は送付状態を変えられません。',
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void applyCollectionRefund_draftIsNotStarted() {
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT,
+      InvoicePaymentNet__c = 5000
+    );
+    InvoiceTransactionStatusService.applyCollectionRefund(invoice);
+    System.assertEquals(
+      InvoiceTransactionStatusService.COLLECTION_NOT_STARTED,
+      invoice.CollectionRefundStatus__c,
+      'Core 第7.11節: 未確定は回収・返金未対応'
     );
   }
 
