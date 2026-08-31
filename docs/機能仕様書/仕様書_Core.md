@@ -1252,6 +1252,13 @@ EstimateをOrderedにできるのは、次をすべて満たす場合だけで�
 
 **実装仕様（開発者向け）:** 受注画面の接続ごとに`OrderCreateController.getOrderContext`を非cacheableで再取得する。追加項目定義は`OrderWizardField__mdt`を`OrderWizardFieldService`が読む。請求アカウント確認の必須項目は本定義に含めず、現行どおり参照確認用にハードコードする。
 
+契約履歴Idが空のときは「契約履歴IDが指定されていません。」で拒否する。照会結果が0件のときは「契約履歴が見つかりません。」で拒否する。画面を開くときと確定の両方で、空は空の文にする。空のまま照会して0件と同じ文にしない。
+
+<div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
+<strong style="color:#1a5276;">ToBe</strong>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderCreateController.getOrderContext</code> / <code>confirmOrderInternal</code>
+</div>
+
 Cancel受注は差し戻し・Archiveと同型の小さい`confirm`サイズ確認ポップアップとし、請求アカウント詳細と更新商談作成チェックを表示しない。表示対象の契約履歴追加項目は出す。サーバの請求アカウント必須検証は維持する。
 
 ### 5.3 受注の差し戻し
