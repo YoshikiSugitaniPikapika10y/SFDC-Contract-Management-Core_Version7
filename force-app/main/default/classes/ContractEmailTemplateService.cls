@@ -163,11 +163,6 @@ public without sharing class ContractEmailTemplateService {
     return result;
   }
 
-  @TestVisible
-  static Boolean skipOrgWideLookup = false;
-  @TestVisible
-  static final Id TEST_ORG_WIDE_ID = Id.valueOf('0D2000000000001AAA');
-
   public class OrgWideResolved {
     public Id orgWideId;
     public String address;
@@ -182,12 +177,6 @@ public without sharing class ContractEmailTemplateService {
       );
     }
     String trimmed = savedAddress.trim();
-    if (skipOrgWideLookup == true) {
-      OrgWideResolved skipped = new OrgWideResolved();
-      skipped.orgWideId = TEST_ORG_WIDE_ID;
-      skipped.address = trimmed;
-      return skipped;
-    }
     List<OrgWideEmailAddress> rows = [
       SELECT Id, Address, DisplayName
       FROM OrgWideEmailAddress
@@ -235,19 +224,16 @@ public without sharing class ContractEmailTemplateService {
     row.SortOrder__c = 1;
     testRecords.add(row);
     skipSalesforceTemplateLookup = true;
-    skipOrgWideLookup = true;
   }
 
   @TestVisible
   static void clearTestState() {
     testRecords = null;
     skipSalesforceTemplateLookup = false;
-    skipOrgWideLookup = false;
   }
 
   private static void applySalesforceTemplate(EmailTemplateDefinition definition) {
     if (skipSalesforceTemplateLookup == true) {
-      definition.emailTemplateId = Id.valueOf('00X000000000001AAA');
       return;
     }
     List<EmailTemplate> templates = [

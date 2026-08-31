@@ -3,6 +3,7 @@ private class ContractEmailTemplateServiceTest {
   @IsTest
   static void getActiveTemplates_emptyCatalog_returnsEmpty() {
     ContractEmailTemplateService.clearTestState();
+    ContractEmailTemplateService.testRecords = new List<ContractEmailTemplate__mdt>();
     List<ContractEmailTemplateService.EmailTemplateDefinition> rows =
       ContractEmailTemplateService.getActiveTemplates(
         ContractEmailTemplateService.TYPE_ESTIMATE
@@ -76,6 +77,38 @@ private class ContractEmailTemplateServiceTest {
         ContractEmailTemplateService.MISSING_API_NAME_MESSAGE,
         ex.getMessage(),
         'Core 第11.3.2節: PDFとメール送付でテンプレ無しの本文は作らない'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void resolveOrgWide_blank_throws() {
+    Boolean thrown = false;
+    try {
+      ContractEmailTemplateService.resolveOrgWide(null);
+    } catch (ContractEmailTemplateService.EmailTemplateException ex) {
+      thrown = true;
+      System.assertEquals(
+        ContractDocumentSettingService.MISSING_ORG_SENDER_MESSAGE,
+        ex.getMessage(),
+        'Core 第11.3.2節: 未設定はエラー'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void resolveOrgWide_unknownAddress_throws() {
+    Boolean thrown = false;
+    try {
+      ContractEmailTemplateService.resolveOrgWide('nosuch-sender@example.com');
+    } catch (ContractEmailTemplateService.EmailTemplateException ex) {
+      thrown = true;
+      System.assertEquals(
+        ContractDocumentSettingService.ORG_SENDER_NOT_FOUND_MESSAGE,
+        ex.getMessage(),
+        'Core 第11.3.2節: 検証済み組織ワイドメール0件はエラー'
       );
     }
     System.assertEquals(true, thrown);
