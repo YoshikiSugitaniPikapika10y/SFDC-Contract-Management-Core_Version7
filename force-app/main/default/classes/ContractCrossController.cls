@@ -550,8 +550,14 @@ public without sharing class ContractCrossController {
         setting.EstimateDefaultDocumentTemplateKey__c
       );
       dto.defaultDocumentTemplateKey = selected.templateKey;
+      // 仕様: Core 第11.3.2節。{Title}は見積件名→商談名→契約履歴名。
       List<ContractHistory__c> histories = [
-        SELECT Id, Name, EstimateTitleName__c, EstimateIssueDate__c
+        SELECT
+          Id,
+          Name,
+          EstimateTitleName__c,
+          EstimateIssueDate__c,
+          Opportunity__r.Name
         FROM ContractHistory__c
         WHERE Id = :historyId
         WITH USER_MODE
@@ -602,8 +608,14 @@ public without sharing class ContractCrossController {
         ContractDocumentTemplateService.TYPE_ESTIMATE,
         templateKey
       );
+      // 仕様: Core 第11.3.2節。{Title}は見積件名→商談名→契約履歴名。
       List<ContractHistory__c> histories = [
-        SELECT Id, Name, EstimateTitleName__c, EstimateIssueDate__c
+        SELECT
+          Id,
+          Name,
+          EstimateTitleName__c,
+          EstimateIssueDate__c,
+          Opportunity__r.Name
         FROM ContractHistory__c
         WHERE Id = :historyId
         WITH USER_MODE

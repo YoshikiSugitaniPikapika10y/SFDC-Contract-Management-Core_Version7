@@ -125,6 +125,26 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void getEstimateIssueContext_fileNameUsesOpportunityNameWhenTitleBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.ensureOrgDocumentSetting();
+      HistoryFixture history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Title Opp Est'
+      );
+      System.assertEquals(null, history.history.EstimateTitleName__c);
+      ContractCrossController.IssueContextDto dto = ContractCrossController.getEstimateIssueContext(
+        history.history.Id
+      );
+      System.assert(
+        dto.fileName.contains(history.opportunity.Name),
+        'Core 第11.3.2節: 見積件名が空ならファイル名のTitleは商談名'
+      );
+    }
+  }
+
+  @IsTest
   static void previewEstimateIssueFileName_rejectsWithout04() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.CROSS_WORK => true,
