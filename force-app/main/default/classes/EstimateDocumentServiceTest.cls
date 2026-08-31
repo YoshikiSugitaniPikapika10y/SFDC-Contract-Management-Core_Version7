@@ -63,19 +63,18 @@ private class EstimateDocumentServiceTest {
         TaxPercent__c = null
       );
 
-      EstimateDocumentService.DocumentContext context = EstimateDocumentService.loadContext(
-        fixture.history.Id
-      );
-
-      System.assertEquals(0, context.taxPercent, '未入力税率は 0%');
-      System.assertEquals(0, context.taxAmount);
-      System.assertEquals(144000, context.lineTotalInclTax);
-      System.assertEquals(
-        144000,
-        context.totalAmount,
-        'PDF合計も CS 未入力なら 0%'
-      );
-      System.assertEquals('0', context.taxPercentLabel);
+      Boolean thrown = false;
+      try {
+        EstimateDocumentService.loadContext(fixture.history.Id);
+      } catch (TaxCalculationUtil.TaxPercentException ex) {
+        thrown = true;
+        System.assertEquals(
+          '消費税率が空です。',
+          ex.getMessage(),
+          'Core 第4.3.4節・第1.1.10節: 契約サービスの税率が空なら税込を計算せずエラー。0%としては扱わない'
+        );
+      }
+      System.assertEquals(true, thrown, '税率空は見積書コンテキストを作らないこと');
     }
   }
 
@@ -563,6 +562,7 @@ private class EstimateDocumentServiceTest {
   static void loadContext_orderedStatus_throwsException() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();
+      insert GlAccountingPolicyService.newOrgDefault();
       update new ContractHistory__c(
         Id = fixture.history.Id,
         historystatus__c = 'Ordered'
@@ -629,7 +629,16 @@ private class EstimateDocumentServiceTest {
         fixture.history.Id
       );
 
-      System.assertEquals('Test Opportunity', context.documentTitle);
+      Opportunity opportunity = [
+        SELECT Name
+        FROM Opportunity
+        WHERE Id = :fixture.history.Opportunity__c
+      ];
+      System.assertEquals(
+        opportunity.Name,
+        context.documentTitle,
+        'Core 第4.8節: 件名空なら商談名'
+      );
     }
   }
 
@@ -792,11 +801,12 @@ private class EstimateDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();
       ContractProduct__c product = [
-        SELECT Id
+        SELECT Id, Product__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
+      update new Product2(Id = product.Product__c, IncludeInARR__c = false);
       product.Amount__c = null;
       update product;
 
@@ -1201,6 +1211,37 @@ private class EstimateDocumentServiceTest {
     public ContractHistory__c history;
   }
 
+  private static void fillContractProductRequired(ContractProduct__c product) {
+    if (product == null) {
+      return;
+    }
+    ContractTestDataFactory.applyRequiredFields(product);
+    if (product.Amount__c == null && product.UnitPrice__c != null) {
+      Decimal qty = product.Quantity__c == null ? 1 : product.Quantity__c;
+      Decimal amount = product.UnitPrice__c * qty;
+      if (product.Type__c == 'Original') {
+        amount = -amount;
+      }
+      product.Amount__c = amount;
+    }
+    if (String.isBlank(product.RevenueRecognitionBasis__c)) {
+      product.RevenueRecognitionBasis__c = product.BillingType__c ==
+        ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME
+        ? ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+        : ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+    }
+  }
+
+  private static void insertContractProducts(List<ContractProduct__c> products) {
+    if (products == null) {
+      return;
+    }
+    for (ContractProduct__c product : products) {
+      fillContractProductRequired(product);
+    }
+    insert products;
+  }
+
   private class ChangeEstimateFixture {
     public ContractHistory__c changeHistory;
   }
@@ -1301,9 +1342,7 @@ private class EstimateDocumentServiceTest {
       BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
       Type__c = 'New'
     );
-    ContractTestDataFactory.applyRequiredFields(priorUnchanged);
-    ContractTestDataFactory.applyRequiredFields(priorChanged);
-    insert new List<ContractProduct__c>{ priorUnchanged, priorChanged };
+    insertContractProducts(new List<ContractProduct__c>{ priorUnchanged, priorChanged });
 
     ContractHistory__c changeHistory = new ContractHistory__c(
       Name = 'CHANGE-EST',
@@ -1392,10 +1431,7 @@ private class EstimateDocumentServiceTest {
         Type__c = 'New'
       )
     };
-    for (ContractProduct__c product : changeProducts) {
-      ContractTestDataFactory.applyRequiredFields(product);
-    }
-    insert changeProducts;
+    insertContractProducts(changeProducts);
 
     ChangeEstimateFixture fixture = new ChangeEstimateFixture();
     fixture.changeHistory = changeHistory;
@@ -1493,7 +1529,7 @@ private class EstimateDocumentServiceTest {
       // 数量×単価×12ヶ月。PDF 合計の回帰を期間計算に依存させない
       Amount__c = 144000
     );
-    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    fillContractProductRequired(contractProduct);
     insert contractProduct;
 
     EstimateFixture fixture = new EstimateFixture();
@@ -1618,10 +1654,7 @@ private class EstimateDocumentServiceTest {
         Amount__c = 15
       )
     };
-    for (ContractProduct__c product : products) {
-      ContractTestDataFactory.applyRequiredFields(product);
-    }
-    insert products;
+    insertContractProducts(products);
 
     EstimateFixture fixture = new EstimateFixture();
     fixture.history = history;
