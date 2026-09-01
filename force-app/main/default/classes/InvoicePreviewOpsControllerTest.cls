@@ -203,20 +203,17 @@ private class InvoicePreviewOpsControllerTest {
       request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
         fixture.invoice.Id
       );
+      Test.startTest();
       Id paymentId = InvoicePaymentService.register(request);
-      InvoicePayment__c payment = [
-        SELECT LastModifiedDate
-        FROM InvoicePayment__c
-        WHERE Id = :paymentId
-      ];
-
       Id reversalId = InvoicePreviewOpsController.cancelPaymentFromPreview(
         paymentId,
         fixture.invoice.Id,
         null,
         'Duplicate',
         null,
-        ContractOptimisticLockUtil.toToken(payment.LastModifiedDate)
+        AccountingCauseLockService.resolveInvoiceOperationToken(
+          fixture.invoice.Id
+        )
       );
 
       System.assertNotEquals(null, reversalId);
@@ -263,6 +260,7 @@ private class InvoicePreviewOpsControllerTest {
         ],
         '共通基盤第12章: CancelPaymentは成功した1回'
       );
+      Test.stopTest();
     }
   }
 
@@ -281,12 +279,30 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_nullInvoice_throwsJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        InvoicePreviewOpsController.getOpsBundle(null);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求が指定されていません。',
+          ex.getMessage(),
+          'Core 第0章: 人が見る文字は日本語'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
   static void previewOps_rejectInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       InvoiceFixture own = createInvoice(true);
       InvoiceFixture other = createInvoice(true);
-
+      Test.startTest();
       Boolean bundleRejected = false;
       try {
         InvoicePreviewOpsController.getOpsBundle(
@@ -316,6 +332,7 @@ private class InvoicePreviewOpsControllerTest {
           Date.today(),
           null,
           'token',
+          null,
           null,
           null,
           own.invoice.ContractHistory__c,
@@ -405,6 +422,7 @@ private class InvoicePreviewOpsControllerTest {
         cancelPreviewRejected,
         'Core 第7.7.3節: 契約サービスをまたいで入金取消プレビューできない'
       );
+      Test.stopTest();
     }
   }
 
@@ -471,15 +489,17 @@ private class InvoicePreviewOpsControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       InvoiceFixture fixture = createInvoice(true);
-      fixture.invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
-      fixture.invoice.SystemIntegrationDate__c = Date.today();
       InvoiceTransactionStatusService.allowStatusWrite = true;
-      update fixture.invoice;
-      InvoiceTransactionStatusService.applyCancelled(
-        new List<Invoice__c>{ fixture.invoice }
-      );
-      update fixture.invoice;
-      InvoiceTransactionStatusService.allowStatusWrite = false;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        InvoiceTransactionStatusService.applyCancelled(
+          new List<Invoice__c>{ fixture.invoice }
+        );
+        update fixture.invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = false;
+        InvoiceLockUtil.allowLockedStatusWrite = false;
+      }
       insertJournal(fixture.invoice.Id, false, 'Active', 'MEMOCAN');
       GlJournal__c journal = [
         SELECT Id, Memo__c
@@ -629,6 +649,7 @@ private class InvoicePreviewOpsControllerTest {
       Quantity__c = 1,
       UnitPrice__c = 100
     );
+    ContractTestDataFactory.applyRequiredFields(second);
     insert second;
     fixture.secondLine = second;
     return fixture;
@@ -689,9 +710,11 @@ private class InvoicePreviewOpsControllerTest {
       Invoice__c = invoice.Id,
       ProductName__c = 'PayPrev Line',
       Amount__c = 1000,
+      AllocatedTaxAmount__c = 100,
       Quantity__c = 1,
       UnitPrice__c = 1000
     );
+    ContractTestDataFactory.applyRequiredFields(line);
     insert line;
     InvoiceFixture fixture = new InvoiceFixture();
     fixture.invoice = invoice;
@@ -774,6 +797,7 @@ private class InvoicePreviewOpsControllerTest {
         FROM Invoice__c
         WHERE Id = :fixture.invoice.Id
       ];
+      Test.startTest();
       Id paymentId = InvoicePreviewOpsController.savePaymentFromPreview(
         null,
         fixture.invoice.Id,
@@ -805,7 +829,7 @@ private class InvoicePreviewOpsControllerTest {
         'Core 第8.4節・第11.4.4節: 登録後はメモを直せる'
       );
       invoice = [
-        SELECT LastModifiedDate
+        SELECT LastModifiedDate, ContractHistory__c
         FROM Invoice__c
         WHERE Id = :fixture.invoice.Id
       ];
@@ -837,6 +861,7 @@ private class InvoicePreviewOpsControllerTest {
         [SELECT Amount__c FROM InvoicePayment__c WHERE Id = :paymentId]
           .Amount__c
       );
+      Test.stopTest();
       InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
       InvoiceOpsFieldService.resetCache();
     }

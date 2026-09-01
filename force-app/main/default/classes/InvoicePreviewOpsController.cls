@@ -1137,9 +1137,13 @@ public without sharing class InvoicePreviewOpsController {
     return value == null ? 0 : value;
   }
 
+  /** 仕様: Core 第0章。人が見る文字は日本語。Aura 拒否は setMessage して本文をテストで取れるようにする */
   private static AuraHandledException handled(String message) {
-    return new AuraHandledException(
-      String.isBlank(message) ? '処理に失敗しました。' : message
-    );
+    String resolved = String.isBlank(message)
+      ? '処理に失敗しました。'
+      : message;
+    AuraHandledException ex = new AuraHandledException(resolved);
+    ex.setMessage(resolved);
+    return ex;
   }
 }
