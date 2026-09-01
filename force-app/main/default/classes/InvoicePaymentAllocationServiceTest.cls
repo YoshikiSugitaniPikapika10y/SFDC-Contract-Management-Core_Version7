@@ -274,6 +274,146 @@ private class InvoicePaymentAllocationServiceTest {
   }
 
   @IsTest
+  static void allocate_writesInvoiceLinesAndRejectsNonInvoice() {
+    Exception nullPayment = null;
+    try {
+      InvoicePaymentAllocationService.allocate(
+        null,
+        new List<InvoicePaymentAllocationService.AllocationLine>()
+      );
+    } catch (Exception ex) {
+      nullPayment = ex;
+    }
+    System.assert(
+      nullPayment != null &&
+      nullPayment.getMessage().contains('請求入出金が指定されていません'),
+      'Core 第8.1節: 割当先の請求入出金は必須'
+    );
+
+    Exception proposeBlank = null;
+    try {
+      InvoicePaymentAllocationService.proposeLines(null, 1100);
+    } catch (Exception ex) {
+      proposeBlank = ex;
+    }
+    System.assert(
+      proposeBlank != null &&
+      proposeBlank.getMessage().contains('明細別割当の初期値を作れません'),
+      'Core 第8.6節: 親金額0や請求書空では初期配分できない'
+    );
+
+    InvoicePaymentAllocationService.AllocationLine fraction = new InvoicePaymentAllocationService.AllocationLine();
+    fraction.invoiceLineId = UserInfo.getUserId();
+    fraction.amount = 1.5;
+    Exception fractionEx = null;
+    try {
+      InvoicePaymentAllocationService.assertLines(
+        UserInfo.getUserId(),
+        1.5,
+        new List<InvoicePaymentAllocationService.AllocationLine>{ fraction }
+      );
+    } catch (Exception ex) {
+      fractionEx = ex;
+    }
+    System.assert(
+      fractionEx != null &&
+      fractionEx.getMessage().contains('明細別割当の金額は整数にしてください'),
+      'Core 第8.6節: 割当額は符号付き整数'
+    );
+
+    InvoicePaymentAllocationService.reverseAllocations(
+      UserInfo.getUserId(),
+      UserInfo.getUserId()
+    );
+
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceLine__c line = insertLineOnNewInvoice();
+      InvoicePayment__c payment = new InvoicePayment__c(
+        Invoice__c = line.Invoice__c,
+        Amount__c = 1000,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_INVOICE,
+        PaymentDate__c = Date.today()
+      );
+      Boolean previousWrite = InvoicePaymentService.allowLifecycleWrite;
+      InvoicePaymentService.allowLifecycleWrite = true;
+      try {
+        insert payment;
+      } finally {
+        InvoicePaymentService.allowLifecycleWrite = previousWrite;
+      }
+      InvoicePaymentAllocationService.AllocationLine row = new InvoicePaymentAllocationService.AllocationLine();
+      row.invoiceLineId = line.Id;
+      row.amount = 1000;
+      InvoicePaymentAllocationService.allocate(
+        payment.Id,
+        new List<InvoicePaymentAllocationService.AllocationLine>{ row }
+      );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM InvoicePaymentAllocation__c
+          WHERE InvoicePayment__c = :payment.Id AND Amount__c = 1000
+        ],
+        'Core 第8.6節: Invoice目的は明細別割当を保持する'
+      );
+
+      InvoicePayment__c reversal = new InvoicePayment__c(
+        Invoice__c = line.Invoice__c,
+        Amount__c = -1000,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_INVOICE,
+        PaymentDate__c = Date.today()
+      );
+      previousWrite = InvoicePaymentService.allowLifecycleWrite;
+      InvoicePaymentService.allowLifecycleWrite = true;
+      try {
+        insert reversal;
+      } finally {
+        InvoicePaymentService.allowLifecycleWrite = previousWrite;
+      }
+      InvoicePaymentAllocationService.reverseAllocations(payment.Id, reversal.Id);
+      InvoicePaymentAllocation__c reversed = [
+        SELECT Amount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoicePayment__c = :reversal.Id
+      ];
+      System.assertEquals(
+        -1000,
+        reversed.Amount__c,
+        'Core 第8.5節: 取消割当は元割当の反対符号であり再按分しない'
+      );
+
+      InvoicePayment__c nonInvoice = new InvoicePayment__c(
+        Invoice__c = line.Invoice__c,
+        Amount__c = 50,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_NON_INVOICE,
+        PaymentDate__c = Date.today()
+      );
+      previousWrite = InvoicePaymentService.allowLifecycleWrite;
+      InvoicePaymentService.allowLifecycleWrite = true;
+      try {
+        insert nonInvoice;
+      } finally {
+        InvoicePaymentService.allowLifecycleWrite = previousWrite;
+      }
+      Exception nonInvoiceEx = null;
+      try {
+        InvoicePaymentAllocationService.allocate(
+          nonInvoice.Id,
+          new List<InvoicePaymentAllocationService.AllocationLine>{ row }
+        );
+      } catch (Exception ex) {
+        nonInvoiceEx = ex;
+      }
+      System.assert(
+        nonInvoiceEx != null &&
+        nonInvoiceEx.getMessage().contains('請求金額以外の入出金に明細別割当は持てません'),
+        'Core 第8.6節: Purpose=NonInvoiceは明細別割当を持たない'
+      );
+    }
+  }
+
+  @IsTest
   static void guardHistoricalAmounts_rejectsDirectUserUpdate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       InvoiceLine__c line = insertLineOnNewInvoice();
@@ -555,8 +695,8 @@ private class InvoicePaymentAllocationServiceTest {
     Decimal taxInclusive
   ) {
     Invoice__c invoice = insertInvoiceWithoutLine(
-      firstAmount + secondAmount,
-      firstTax + secondTax,
+      taxInclusive,
+      0,
       taxInclusive
     );
     InvoiceLine__c first = new InvoiceLine__c(
@@ -567,6 +707,7 @@ private class InvoicePaymentAllocationServiceTest {
       Quantity__c = 1,
       UnitPrice__c = firstAmount
     );
+    ContractTestDataFactory.applyRequiredFields(first);
     insert first;
     InvoiceLine__c second = new InvoiceLine__c(
       Invoice__c = invoice.Id,
@@ -576,6 +717,7 @@ private class InvoicePaymentAllocationServiceTest {
       Quantity__c = 1,
       UnitPrice__c = secondAmount
     );
+    ContractTestDataFactory.applyRequiredFields(second);
     insert second;
     TwoLineInvoice fixture = new TwoLineInvoice();
     fixture.invoice = invoice;
@@ -599,6 +741,7 @@ private class InvoicePaymentAllocationServiceTest {
       Quantity__c = 1,
       UnitPrice__c = 1000
     );
+    ContractTestDataFactory.applyRequiredFields(line);
     insert line;
     return line;
   }
