@@ -71,6 +71,24 @@ private class GlAccountingPolicyServiceTest {
   }
 
   @IsTest
+  static void deriveAllowedPatternKeys_cashAtInvoice_allowsTaxAtInvoice() {
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+    policy.RevenueRecognitionBasis__c = 'CashBasis';
+    policy.TaxRecognitionTiming__c = 'AtInvoice';
+    Set<String> keys = GlAccountingPolicyService.deriveAllowedPatternKeys(policy);
+    System.assertEquals(
+      true,
+      keys.contains('BILLING_TAX_AT_INVOICE'),
+      'Accounting 第5.7節: 入金連動前受かつ請求時税は請求時税パターンを許可する'
+    );
+    System.assertEquals(
+      true,
+      keys.contains('CASH_BASIS_INVOICE_BODY_CTA_TRANSFER'),
+      'Accounting 第5.7節: 入金連動前受の本体は前受振替'
+    );
+  }
+
+  @IsTest
   static void trigger_rejectsInvalidTaxTimingOnInsert() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
@@ -93,48 +111,11 @@ private class GlAccountingPolicyServiceTest {
   static void isPolicyLocked_trueWhenConfirmedInvoiceExistsWithoutFrozenAt() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
-      Account account = new Account(Name = 'Policy Lock Acc');
-      insert account;
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'policy-lock@example.com',
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-        InvoiceDateDayOfMonth__c = 1,
-        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      Invoice__c invoice = insertDraftInvoiceOnOrdered(
+        'Policy Lock',
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31)
       );
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      ContractService__c service = new ContractService__c(
-        Name = 'Policy Lock Svc',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = 0.1
-      );
-      insert service;
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Policy Lock Hist',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1
-      );
-      insert history;
-      Invoice__c invoice = new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
-        InvoiceDate__c = Date.newInstance(2026, 6, 1),
-        Amount__c = 1000,
-        TaxAmount__c = 0,
-        BillingAccountSnapShot__c = billingAccount.Id,
-        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
-      );
-      insert invoice;
       InvoiceTransactionStatusService.applyConfirmed(
         new List<Invoice__c>{ invoice },
         Date.newInstance(2026, 6, 1)
@@ -193,51 +174,22 @@ private class GlAccountingPolicyServiceTest {
       policy.MonthlyBucketMethod__c = 'Auto';
       insert policy;
 
-      Account account = ContractTestDataFactory.insertAccount('Bucket Rewrite Acct');
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-        InvoiceDateDayOfMonth__c = 1,
-        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      Invoice__c invoice = insertDraftInvoiceOnOrdered(
+        'Bucket Rewrite',
+        Date.newInstance(2025, 4, 15),
+        Date.newInstance(2026, 4, 14)
       );
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      ContractService__c service = new ContractService__c(
-        Name = 'Bucket Rewrite Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = 0.1
-      );
-      insert service;
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Bucket Rewrite History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1
-      );
-      insert history;
-      Invoice__c invoice = new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
-        InvoiceDate__c = Date.newInstance(2025, 4, 15),
-        Amount__c = 1000
-      );
-      insert invoice;
       InvoiceLine__c line = new InvoiceLine__c(
         Invoice__c = invoice.Id,
+        ProductName__c = 'Bucket Rewrite Line',
         Amount__c = 1000,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
         RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
         ServicePeriodStartDate__c = Date.newInstance(2025, 4, 15),
         ServicePeriodEndDate__c = Date.newInstance(2026, 4, 14)
       );
+      ContractTestDataFactory.applyRequiredFields(line);
       insert line;
       line = [
         SELECT RecognitionBucketCount__c
@@ -266,5 +218,62 @@ private class GlAccountingPolicyServiceTest {
         'Accounting 第3.2節: 月次方式変更で組織内の請求明細を書き直す'
       );
     }
+  }
+
+  private static Invoice__c insertDraftInvoiceOnOrdered(
+    String prefix,
+    Date termStart,
+    Date termEnd
+  ) {
+    Account account = ContractTestDataFactory.insertAccount(prefix + ' Acc');
+    ContractService__c service = ContractTestDataFactory.insertContractService(
+      account.Id,
+      prefix + ' Svc'
+    );
+    ContractHistory__c history = new ContractHistory__c(
+      Name = prefix + ' Hist',
+      ContractService__c = service.Id,
+      Type__c = 'New',
+      historystatus__c = 'Estimate',
+      Version__c = 1,
+      CurrentTermStartDate__c = termStart,
+      CurrentTermEndDate__c = termEnd,
+      EffectiveDate__c = termStart
+    );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    insert history;
+    Product2 product = ContractTestDataFactory.buildProduct(prefix + ' Product');
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = termStart,
+      Enddate__c = termEnd,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    contractProduct.Amount__c = 1000;
+    insert contractProduct;
+    history.historystatus__c = 'Ordered';
+    update history;
+    Invoice__c invoice = new Invoice__c(
+      ContractService__c = service.Id,
+      ContractHistory__c = history.Id,
+      InvoiceDate__c = termStart,
+      Amount__c = 1000,
+      TaxAmount__c = 0,
+      BillingAccountSnapShot__c = service.BiilingAcccount__c
+    );
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    insert invoice;
+    return invoice;
   }
 }
