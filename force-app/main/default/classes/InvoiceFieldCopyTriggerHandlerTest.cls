@@ -3,6 +3,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
@@ -15,6 +16,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         InvoiceDate__c = Date.today(),
         Amount__c = 1000
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
 
       Test.startTest();
       insert invoice;
@@ -56,6 +58,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         Amount__c = 1000,
         BillingAddresseeSnapShot__c = '手入力宛名'
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
 
       Test.startTest();
       insert invoice;
@@ -86,12 +89,15 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         SourceFieldApiName__c = 'Name',
         TargetFieldApiName__c = 'Memo__c'
       );
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
       Invoice__c invoice = new Invoice__c(
         ContractHistory__c = fixture.history.Id,
         ContractService__c = fixture.service.Id,
         InvoiceDate__c = Date.today(),
         Amount__c = 1000
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
 
       Test.startTest();
       insert invoice;
@@ -118,6 +124,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         BillingAccountSnapShot__c = fixture.billingAccount.Id,
         BillingAddresseeSnapShot__c = '固定宛名'
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
       insert invoice;
 
       InvoiceLine__c line = new InvoiceLine__c(
@@ -220,7 +227,8 @@ private class InvoiceFieldCopyTriggerHandlerTest {
     fixture.service = new ContractService__c(
       Account__c = account.Id,
       BiilingAcccount__c = fixture.billingAccount.Id,
-      Name = 'FieldCopy ' + suffix + ' Service'
+      Name = 'FieldCopy ' + suffix + ' Service',
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
     ContractTestDataFactory.applyRequiredFields(fixture.service);
     insert fixture.service;
@@ -228,31 +236,49 @@ private class InvoiceFieldCopyTriggerHandlerTest {
     fixture.history = new ContractHistory__c(
       ContractService__c = fixture.service.Id,
       Name = 'FieldCopy ' + suffix + ' History',
-      historystatus__c = 'Ordered',
-      Type__c = 'New'
+      historystatus__c = 'Estimate',
+      Type__c = 'New',
+      Version__c = 1,
+      CurrentTermStartDate__c = Date.today(),
+      CurrentTermEndDate__c = Date.today().addDays(30),
+      EffectiveDate__c = Date.today()
     );
     ContractTestDataFactory.applyRequiredFields(fixture.history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      fixture.history,
+      account.Id
+    );
     insert fixture.history;
 
-    fixture.product = new Product2(
-      Name = 'FieldCopy ' + suffix + ' Product',
-      ProductCode = suffix == 'Journal' ? 'FIELD-COPY-JOURNAL' : null,
-      IsActive = true
+    fixture.product = ContractTestDataFactory.buildProduct(
+      'FieldCopy ' + suffix + ' Product ' + String.valueOf(Crypto.getRandomInteger())
     );
-    ContractTestDataFactory.applyRequiredFields(fixture.product);
-    insert fixture.product;
+    if (suffix == 'Journal') {
+      fixture.product.ProductCode = 'FIELD-COPY-JOURNAL';
+    }
+    fixture.product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(fixture.product);
 
     fixture.contractProduct = new ContractProduct__c(
       ContractHistory__c = fixture.history.Id,
+      Account__c = account.Id,
       Product__c = fixture.product.Id,
       Quantity__c = 1,
       UnitPrice__c = 1000,
+      Amount__c = 1000,
       Unit__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
       StartDate__c = Date.today(),
-      EndDate__c = Date.today().addDays(30)
+      Enddate__c = Date.today().addDays(30),
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
     );
     ContractTestDataFactory.applyRequiredFields(fixture.contractProduct);
+    fixture.contractProduct.Amount__c = 1000;
     insert fixture.contractProduct;
+    fixture.history.historystatus__c = 'Ordered';
+    update fixture.history;
     return fixture;
   }
 }
