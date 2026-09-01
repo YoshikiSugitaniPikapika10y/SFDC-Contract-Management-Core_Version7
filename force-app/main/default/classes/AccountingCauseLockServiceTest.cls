@@ -34,6 +34,127 @@ private class AccountingCauseLockServiceTest {
   }
 
   @IsTest
+  static void lockHistory_rejectsNullAndMissing() {
+    Boolean nullThrown = false;
+    try {
+      AccountingCauseLockService.lockHistory(null);
+    } catch (AccountingCauseLockService.LockException ex) {
+      nullThrown = true;
+      System.assert(
+        ex.getMessage().contains('契約履歴が指定されていません'),
+        'Core 第4.3.12節: 対象契約履歴が無ければ行ロックしない'
+      );
+    }
+    System.assertEquals(true, nullThrown);
+    Boolean missingThrown = false;
+    try {
+      AccountingCauseLockService.lockHistory(fakeId(ContractHistory__c.SObjectType));
+    } catch (AccountingCauseLockService.LockException ex) {
+      missingThrown = true;
+      System.assert(
+        ex.getMessage().contains('契約履歴をロックできませんでした'),
+        'Core 第4.3.12節: 取れなければ操作全体を失敗させる'
+      );
+    }
+    System.assertEquals(true, missingThrown);
+  }
+
+  @IsTest
+  static void lockHistoryAndService_returnTargets() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertDraftInvoice();
+      Invoice__c scoped = [
+        SELECT ContractHistory__c, ContractService__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      ContractHistory__c lockedHistory = AccountingCauseLockService.lockHistory(
+        scoped.ContractHistory__c
+      );
+      System.assertEquals(
+        scoped.ContractHistory__c,
+        lockedHistory.Id,
+        'Core 第4.3.12節: 見積編集・受注・差し戻し・手動Archiveは契約履歴を行ロックする'
+      );
+      Boolean serviceNullThrown = false;
+      try {
+        AccountingCauseLockService.lockService(null);
+      } catch (AccountingCauseLockService.LockException ex) {
+        serviceNullThrown = true;
+        System.assert(
+          ex.getMessage().contains('契約サービスが指定されていません'),
+          'Core 第3.4.1節: 対象の契約サービスを行ロックする'
+        );
+      }
+      System.assertEquals(true, serviceNullThrown);
+      ContractService__c lockedService = AccountingCauseLockService.lockService(
+        scoped.ContractService__c
+      );
+      System.assertEquals(
+        scoped.ContractService__c,
+        lockedService.Id,
+        'Core 第3.4.1節: 契約サービスを編集は対象の契約サービスを行ロックする'
+      );
+      Boolean serviceMissingThrown = false;
+      try {
+        AccountingCauseLockService.lockService(fakeId(ContractService__c.SObjectType));
+      } catch (AccountingCauseLockService.LockException ex) {
+        serviceMissingThrown = true;
+        System.assert(
+          ex.getMessage().contains('契約サービスをロックできませんでした'),
+          'Core 第4.3.12節: 短時間待っても取れなければ操作全体を失敗させる'
+        );
+      }
+      System.assertEquals(true, serviceMissingThrown);
+    }
+  }
+
+  @IsTest
+  static void resolveOrIssueOperationKey_blankIssuesAndKeepsProvided() {
+    String issued = AccountingCauseLockService.resolveOrIssueOperationKey('  ');
+    System.assertEquals(
+      true,
+      String.isNotBlank(issued),
+      'Core 第7.9.7節: サーバが業務操作キーを発行する'
+    );
+    System.assertEquals(
+      'given-key',
+      AccountingCauseLockService.resolveOrIssueOperationKey(' given-key '),
+      'Core 第7.9.7節: 画面は応答で受け取ったキーだけを再試行に使う'
+    );
+  }
+
+  @IsTest
+  static void lockInvoice_rejectsMissing() {
+    Boolean thrown = false;
+    try {
+      AccountingCauseLockService.lockInvoice(fakeId(Invoice__c.SObjectType));
+    } catch (AccountingCauseLockService.LockException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('請求をロックできませんでした'),
+        'Accounting 第8.2節: 対象請求書を行ロックする'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void resolveInvoiceOperationDatetime_nullAndEmptyStayEmpty() {
+    System.assertEquals(
+      null,
+      AccountingCauseLockService.resolveInvoiceOperationDatetime(null),
+      'Core 第7.9.7節: 対象が無ければ版を取らない'
+    );
+    System.assertEquals(
+      true,
+      AccountingCauseLockService.resolveInvoiceOperationDatetimes(new Set<Id>())
+        .isEmpty(),
+      'Core 第7.9.7節: 空の対象は版マップを空のまま返す'
+    );
+  }
+
+  @IsTest
   static void issueOperationKey_returnsDistinctKeys() {
     String first = AccountingCauseLockService.issueOperationKey();
     String second = AccountingCauseLockService.issueOperationKey();
@@ -91,6 +212,10 @@ private class AccountingCauseLockServiceTest {
     }
   }
 
+  private static Id fakeId(Schema.SObjectType objectType) {
+    return Id.valueOf(objectType.getDescribe().getKeyPrefix() + '000000000001');
+  }
+
   private static Invoice__c insertDraftInvoice() {
     Account account = ContractTestDataFactory.insertAccount(
       'Lock ' + String.valueOf(Crypto.getRandomInteger())
@@ -119,6 +244,7 @@ private class AccountingCauseLockServiceTest {
       BiilingAcccount__c = billingAccount.Id,
       TaxPercent__c = 0.1
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = 'Lock History',
