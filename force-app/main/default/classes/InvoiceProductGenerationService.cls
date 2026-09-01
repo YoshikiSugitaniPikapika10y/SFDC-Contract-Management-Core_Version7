@@ -63,9 +63,11 @@ public without sharing class InvoiceProductGenerationService {
       return;
     }
     ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       generateForHistoriesBody(contractHistoryIds);
     } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
   }

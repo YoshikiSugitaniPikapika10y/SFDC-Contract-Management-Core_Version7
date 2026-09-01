@@ -90,52 +90,125 @@ public without sharing class BillingAccountKeyService {
     }
   }
 
+  /**
+   * 請求の連続 DML 中は参照あり再計算を保留し、終了時に1回だけ流す。
+   * トリガごとの契約サービス／請求再クエリを抑えて SOQL 101 を防ぐ。
+   */
+  private static Integer referenceRefreshDeferDepth = 0;
+  private static Set<Id> deferredReferenceRefreshIds = new Set<Id>();
+  private static Set<Id> markedHasReferenceTrueIds = new Set<Id>();
+
+  public static void beginReferenceRefreshDefer() {
+    referenceRefreshDeferDepth++;
+  }
+
+  public static void endReferenceRefreshDefer() {
+    if (referenceRefreshDeferDepth > 0) {
+      referenceRefreshDeferDepth--;
+    }
+    if (referenceRefreshDeferDepth == 0 && !deferredReferenceRefreshIds.isEmpty()) {
+      Set<Id> pending = deferredReferenceRefreshIds;
+      deferredReferenceRefreshIds = new Set<Id>();
+      refreshHasReferenceNow(pending);
+    }
+  }
+
+  /**
+   * 仕様: Core 第3.3.3節。参照の増加は ON にするだけで、全件再走査しない。
+   */
+  public static void markHasReferenceTrue(Set<Id> billingAccountIds) {
+    if (billingAccountIds == null || billingAccountIds.isEmpty()) {
+      return;
+    }
+    if (referenceRefreshDeferDepth > 0) {
+      deferredReferenceRefreshIds.addAll(billingAccountIds);
+      return;
+    }
+    List<BillingAccount__c> updates = new List<BillingAccount__c>();
+    for (Id accountId : billingAccountIds) {
+      if (accountId == null || markedHasReferenceTrueIds.contains(accountId)) {
+        continue;
+      }
+      markedHasReferenceTrueIds.add(accountId);
+      updates.add(
+        new BillingAccount__c(Id = accountId, HasReference__c = true)
+      );
+    }
+    writeHasReference(updates);
+  }
+
   /** 仕様: Core 第3.3.3節 */
   public static void refreshHasReference(Set<Id> billingAccountIds) {
     if (billingAccountIds == null || billingAccountIds.isEmpty()) {
       return;
     }
+    if (referenceRefreshDeferDepth > 0) {
+      deferredReferenceRefreshIds.addAll(billingAccountIds);
+      return;
+    }
+    refreshHasReferenceNow(billingAccountIds);
+  }
+
+  private static void refreshHasReferenceNow(Set<Id> billingAccountIds) {
     Set<Id> referenced = new Set<Id>();
-    for (ContractService__c service : [
-      SELECT BiilingAcccount__c
+    for (AggregateResult row : [
+      SELECT BiilingAcccount__c accountId
       FROM ContractService__c
       WHERE BiilingAcccount__c IN :billingAccountIds
       WITH SYSTEM_MODE
+      GROUP BY BiilingAcccount__c
     ]) {
-      if (service.BiilingAcccount__c != null) {
-        referenced.add(service.BiilingAcccount__c);
+      Id accountId = (Id) row.get('accountId');
+      if (accountId != null) {
+        referenced.add(accountId);
       }
     }
-    for (Invoice__c invoice : [
-      SELECT BillingAccountSnapShot__c
+    for (AggregateResult row : [
+      SELECT BillingAccountSnapShot__c accountId
       FROM Invoice__c
       WHERE BillingAccountSnapShot__c IN :billingAccountIds
       WITH SYSTEM_MODE
+      GROUP BY BillingAccountSnapShot__c
     ]) {
-      if (invoice.BillingAccountSnapShot__c != null) {
-        referenced.add(invoice.BillingAccountSnapShot__c);
+      Id accountId = (Id) row.get('accountId');
+      if (accountId != null) {
+        referenced.add(accountId);
       }
     }
     List<BillingAccount__c> updates = new List<BillingAccount__c>();
     for (Id accountId : billingAccountIds) {
+      if (accountId == null) {
+        continue;
+      }
+      Boolean hasReference = referenced.contains(accountId);
+      if (hasReference) {
+        markedHasReferenceTrueIds.add(accountId);
+      } else {
+        markedHasReferenceTrueIds.remove(accountId);
+      }
       updates.add(
         new BillingAccount__c(
           Id = accountId,
-          HasReference__c = referenced.contains(accountId)
+          HasReference__c = hasReference
         )
       );
     }
-    if (!updates.isEmpty()) {
-      Boolean previous = allowHasReferenceWrite;
-      Boolean previousSkip = ContractOperationLogService.skipMasterWrites;
-      allowHasReferenceWrite = true;
-      ContractOperationLogService.skipMasterWrites = true;
-      try {
-        SystemContextAccess.updateRecords(updates);
-      } finally {
-        allowHasReferenceWrite = previous;
-        ContractOperationLogService.skipMasterWrites = previousSkip;
-      }
+    writeHasReference(updates);
+  }
+
+  private static void writeHasReference(List<BillingAccount__c> updates) {
+    if (updates == null || updates.isEmpty()) {
+      return;
+    }
+    Boolean previous = allowHasReferenceWrite;
+    Boolean previousSkip = ContractOperationLogService.skipMasterWrites;
+    allowHasReferenceWrite = true;
+    ContractOperationLogService.skipMasterWrites = true;
+    try {
+      SystemContextAccess.updateRecords(updates);
+    } finally {
+      allowHasReferenceWrite = previous;
+      ContractOperationLogService.skipMasterWrites = previousSkip;
     }
   }
 }

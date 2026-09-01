@@ -410,6 +410,39 @@ private class EstimateDocumentServiceTest {
   }
 
   @IsTest
+  static void latestIssuedContentDocumentIds_batchesLinkedEntities() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture first = createEstimateFixture();
+      EstimateFixture second = createEstimateFixture();
+      Id firstIssued = insertLinkedFile(first.history.Id, 'batch-one', true);
+      Id secondIssued = insertLinkedFile(second.history.Id, 'batch-two', true);
+
+      Test.startTest();
+      Integer queriesBefore = Limits.getQueries();
+      Map<Id, Id> latest = EstimateDocumentService.latestIssuedContentDocumentIds(
+        new Set<Id>{ first.history.Id, second.history.Id }
+      );
+      Integer queriesUsed = Limits.getQueries() - queriesBefore;
+      Test.stopTest();
+
+      System.assertEquals(
+        firstIssued,
+        latest.get(first.history.Id),
+        'Core 第7.10節: 印付きのうち最新の1つ'
+      );
+      System.assertEquals(
+        secondIssued,
+        latest.get(second.history.Id),
+        'Core 第7.10節: 印付きのうち最新の1つ'
+      );
+      System.assert(
+        queriesUsed <= 2,
+        'Core 第5.2節・第7.10節: 発行ファイルは一括照会。実測 ' + queriesUsed
+      );
+    }
+  }
+
+  @IsTest
   static void issueEstimateDocument_blankCompany_throws() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();

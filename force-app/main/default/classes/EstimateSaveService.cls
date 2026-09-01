@@ -323,70 +323,77 @@ public without sharing class EstimateSaveService {
       );
     }
 
-    if (request.editHistoryId != null) {
-      return writeEstimateLog(
-        request,
-        saveEditedEstimate(request, contractHistoryName)
+    ContractArrCalculationService.beginRecalcDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
+    try {
+      if (request.editHistoryId != null) {
+        return writeEstimateLog(
+          request,
+          saveEditedEstimate(request, contractHistoryName)
+        );
+      }
+
+      EstimateCreateController.EstimateSaveResult existingByKey = findExistingByOperationKey(
+        request.businessOperationKey
       );
+      if (existingByKey != null) {
+        return writeEstimateLog(request, existingByKey);
+      }
+
+      EstimateValidationService.validateWizardCustomFields(request, false);
+
+      if (request.selectedType == 'New') {
+        EstimateValidationService.validateNewSaveRequest(
+          request,
+          contractHistoryName
+        );
+        return writeEstimateLog(
+          request,
+          saveNewEstimate(request, contractHistoryName)
+        );
+      }
+
+      if (request.selectedType == 'Change') {
+        EstimateValidationService.validateChangeSaveRequest(
+          request,
+          contractHistoryName
+        );
+        return writeEstimateLog(
+          request,
+          saveChangeEstimate(request, contractHistoryName)
+        );
+      }
+
+      if (request.selectedType == 'Renew') {
+        EstimateValidationService.validateRenewSaveRequest(
+          request,
+          contractHistoryName
+        );
+        return writeEstimateLog(
+          request,
+          saveChangeEstimate(request, contractHistoryName)
+        );
+      }
+
+      if (request.selectedType == 'Cancel') {
+        EstimateValidationService.validateCancelSaveRequest(
+          request,
+          contractHistoryName
+        );
+        return writeEstimateLog(
+          request,
+          saveCancelEstimate(request, contractHistoryName)
+        );
+      }
+
+      throw EstimateValidationService.estSaveException(
+        '002',
+        'New、Change、Renew、Cancelタイプのみ保存できます。'
+      );
+    } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
+      ContractArrCalculationService.endRecalcDefer();
     }
-
-    EstimateCreateController.EstimateSaveResult existingByKey = findExistingByOperationKey(
-      request.businessOperationKey
-    );
-    if (existingByKey != null) {
-      return writeEstimateLog(request, existingByKey);
-    }
-
-    EstimateValidationService.validateWizardCustomFields(request, false);
-
-    if (request.selectedType == 'New') {
-      EstimateValidationService.validateNewSaveRequest(
-        request,
-        contractHistoryName
-      );
-      return writeEstimateLog(
-        request,
-        saveNewEstimate(request, contractHistoryName)
-      );
-    }
-
-    if (request.selectedType == 'Change') {
-      EstimateValidationService.validateChangeSaveRequest(
-        request,
-        contractHistoryName
-      );
-      return writeEstimateLog(
-        request,
-        saveChangeEstimate(request, contractHistoryName)
-      );
-    }
-
-    if (request.selectedType == 'Renew') {
-      EstimateValidationService.validateRenewSaveRequest(
-        request,
-        contractHistoryName
-      );
-      return writeEstimateLog(
-        request,
-        saveChangeEstimate(request, contractHistoryName)
-      );
-    }
-
-    if (request.selectedType == 'Cancel') {
-      EstimateValidationService.validateCancelSaveRequest(
-        request,
-        contractHistoryName
-      );
-      return writeEstimateLog(
-        request,
-        saveCancelEstimate(request, contractHistoryName)
-      );
-    }
-
-    throw EstimateValidationService.estSaveException(
-      '002',
-      'New、Change、Renew、Cancelタイプのみ保存できます。'
-    );
   }
 
   /** 仕様: Core 第4.3.12節 */

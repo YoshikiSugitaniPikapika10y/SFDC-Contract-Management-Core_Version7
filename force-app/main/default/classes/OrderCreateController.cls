@@ -3275,6 +3275,8 @@ public without sharing class OrderCreateController {
     );
     Map<Id, Map<String, Object>> invoiceExtraById =
       InvoiceOpsFieldService.readValuesById('Invoice__c', previewInvoiceIds);
+    Map<Id, Id> latestIssuedByInvoice =
+      EstimateDocumentService.latestIssuedContentDocumentIds(previewInvoiceIds);
 
     // 見積バーは Ordered CP.Amount を請求月数で按分した値（InvoiceProduct 金額合算ではない）。
     Decimal periodTotal = buildScopedEstimateSummary(contractServiceId).total;
@@ -3331,7 +3333,7 @@ public without sharing class OrderCreateController {
       invoice.accountingStatus = null;
       invoice.accountingIssueName = null;
       invoice.sentDate = invoiceRecord.SentDate__c;
-      invoice.latestIssuedContentDocumentId = EstimateDocumentService.latestIssuedContentDocumentId(
+      invoice.latestIssuedContentDocumentId = latestIssuedByInvoice.get(
         invoiceRecord.Id
       );
       invoice.memo = invoiceRecord.Memo__c;

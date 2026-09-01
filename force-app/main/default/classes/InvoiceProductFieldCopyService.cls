@@ -133,10 +133,14 @@ public without sharing class InvoiceProductFieldCopyService {
 
   @TestVisible
   private static List<FieldCopyDefinition__c> cachedDefinitions;
+  private static Map<Id, ContractHistory__c> cachedHistoriesById = new Map<Id, ContractHistory__c>();
+  private static Map<Id, ContractService__c> cachedServicesById = new Map<Id, ContractService__c>();
 
   @TestVisible
   static void resetCache() {
     cachedDefinitions = null;
+    cachedHistoriesById = new Map<Id, ContractHistory__c>();
+    cachedServicesById = new Map<Id, ContractService__c>();
   }
 
   /**
@@ -463,8 +467,16 @@ public without sharing class InvoiceProductFieldCopyService {
     }
 
     if (!contractHistoryIds.isEmpty()) {
-      maps.contractHistoryById = new Map<Id, ContractHistory__c>(
-        [
+      Set<Id> missingHistoryIds = new Set<Id>();
+      for (Id historyId : contractHistoryIds) {
+        if (cachedHistoriesById.containsKey(historyId)) {
+          maps.contractHistoryById.put(historyId, cachedHistoriesById.get(historyId));
+        } else {
+          missingHistoryIds.add(historyId);
+        }
+      }
+      if (!missingHistoryIds.isEmpty()) {
+        for (ContractHistory__c history : [
           SELECT
             Id,
             Opportunity__c,
@@ -472,10 +484,13 @@ public without sharing class InvoiceProductFieldCopyService {
             ContractService__r.BiilingAcccount__c,
             ContractService__r.Account__c
           FROM ContractHistory__c
-          WHERE Id IN :contractHistoryIds
+          WHERE Id IN :missingHistoryIds
           WITH SYSTEM_MODE
-        ]
-      );
+        ]) {
+          cachedHistoriesById.put(history.Id, history);
+          maps.contractHistoryById.put(history.Id, history);
+        }
+      }
       for (ContractHistory__c history : maps.contractHistoryById.values()) {
         if (
           history.ContractService__r != null &&
@@ -512,22 +527,41 @@ public without sharing class InvoiceProductFieldCopyService {
     }
 
     if (!contractServiceIds.isEmpty()) {
-      for (ContractService__c service : [
-        SELECT Id, BiilingAcccount__c, Account__c
-        FROM ContractService__c
-        WHERE Id IN :contractServiceIds
-        WITH SYSTEM_MODE
-      ]) {
-        if (service.BiilingAcccount__c != null) {
-          maps.billingAccountIdByServiceId.put(
-            service.Id,
-            service.BiilingAcccount__c
-          );
-          billingAccountIds.add(service.BiilingAcccount__c);
+      Set<Id> missingServiceIds = new Set<Id>();
+      for (Id serviceId : contractServiceIds) {
+        if (cachedServicesById.containsKey(serviceId)) {
+          ContractService__c cached = cachedServicesById.get(serviceId);
+          if (cached.BiilingAcccount__c != null) {
+            maps.billingAccountIdByServiceId.put(cached.Id, cached.BiilingAcccount__c);
+            billingAccountIds.add(cached.BiilingAcccount__c);
+          }
+          if (cached.Account__c != null) {
+            maps.accountIdByServiceId.put(cached.Id, cached.Account__c);
+            accountIds.add(cached.Account__c);
+          }
+        } else {
+          missingServiceIds.add(serviceId);
         }
-        if (service.Account__c != null) {
-          maps.accountIdByServiceId.put(service.Id, service.Account__c);
-          accountIds.add(service.Account__c);
+      }
+      if (!missingServiceIds.isEmpty()) {
+        for (ContractService__c service : [
+          SELECT Id, BiilingAcccount__c, Account__c
+          FROM ContractService__c
+          WHERE Id IN :missingServiceIds
+          WITH SYSTEM_MODE
+        ]) {
+          cachedServicesById.put(service.Id, service);
+          if (service.BiilingAcccount__c != null) {
+            maps.billingAccountIdByServiceId.put(
+              service.Id,
+              service.BiilingAcccount__c
+            );
+            billingAccountIds.add(service.BiilingAcccount__c);
+          }
+          if (service.Account__c != null) {
+            maps.accountIdByServiceId.put(service.Id, service.Account__c);
+            accountIds.add(service.Account__c);
+          }
         }
       }
     }

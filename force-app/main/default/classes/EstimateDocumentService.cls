@@ -476,26 +476,58 @@ public without sharing class EstimateDocumentService {
     return latest == null ? null : latest.ContentDocumentId;
   }
 
+  /**
+   * 仕様: Core 第7.10節。請求プレビュー・横断一覧は発行ファイルを一括で取る。
+   */
+  public static Map<Id, Id> latestIssuedContentDocumentIds(Set<Id> linkedEntityIds) {
+    Map<Id, Id> result = new Map<Id, Id>();
+    Map<Id, ContentVersion> latestByEntity = latestIssuedVersions(linkedEntityIds);
+    for (Id linkedId : latestByEntity.keySet()) {
+      ContentVersion latest = latestByEntity.get(linkedId);
+      if (latest != null) {
+        result.put(linkedId, latest.ContentDocumentId);
+      }
+    }
+    return result;
+  }
+
   private static ContentVersion latestIssuedVersion(Id linkedEntityId) {
     if (linkedEntityId == null) {
       return null;
     }
+    return latestIssuedVersions(new Set<Id>{ linkedEntityId }).get(linkedEntityId);
+  }
+
+  private static Map<Id, ContentVersion> latestIssuedVersions(Set<Id> linkedEntityIds) {
+    Map<Id, ContentVersion> latestByEntity = new Map<Id, ContentVersion>();
+    if (linkedEntityIds == null || linkedEntityIds.isEmpty()) {
+      return latestByEntity;
+    }
     List<ContentDocumentLink> links = [
-      SELECT ContentDocumentId
+      SELECT LinkedEntityId, ContentDocumentId
       FROM ContentDocumentLink
-      WHERE LinkedEntityId = :linkedEntityId
+      WHERE LinkedEntityId IN :linkedEntityIds
       WITH SYSTEM_MODE
     ];
+    if (links.isEmpty()) {
+      return latestByEntity;
+    }
     Set<Id> documentIds = new Set<Id>();
+    Map<Id, List<Id>> documentToEntities = new Map<Id, List<Id>>();
     for (ContentDocumentLink link : links) {
-      if (link.ContentDocumentId != null) {
-        documentIds.add(link.ContentDocumentId);
+      if (link.ContentDocumentId == null || link.LinkedEntityId == null) {
+        continue;
       }
+      documentIds.add(link.ContentDocumentId);
+      if (!documentToEntities.containsKey(link.ContentDocumentId)) {
+        documentToEntities.put(link.ContentDocumentId, new List<Id>());
+      }
+      documentToEntities.get(link.ContentDocumentId).add(link.LinkedEntityId);
     }
     if (documentIds.isEmpty()) {
-      return null;
+      return latestByEntity;
     }
-    List<ContentVersion> versions = [
+    for (ContentVersion version : [
       SELECT
         ContentDocumentId,
         Title,
@@ -509,9 +541,18 @@ public without sharing class EstimateDocumentService {
         AND ContractDocumentIssued__c = true
       WITH SYSTEM_MODE
       ORDER BY CreatedDate DESC, Id DESC
-      LIMIT 1
-    ];
-    return versions.isEmpty() ? null : versions[0];
+    ]) {
+      List<Id> entities = documentToEntities.get(version.ContentDocumentId);
+      if (entities == null) {
+        continue;
+      }
+      for (Id entityId : entities) {
+        if (!latestByEntity.containsKey(entityId)) {
+          latestByEntity.put(entityId, version);
+        }
+      }
+    }
+    return latestByEntity;
   }
 
   /** 仕様: Core 第7.10節。0件は新しく発行する、1件以上は最新の発行ファイル。 */

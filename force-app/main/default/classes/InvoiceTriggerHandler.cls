@@ -19,7 +19,7 @@ public without sharing class InvoiceTriggerHandler {
   /** 仕様: Core 第3.3.3節、第5.7節 */
   public static void handleAfterInsert(List<Invoice__c> newRecords) {
     ContractHistoryStatusPathService.syncForInvoices(newRecords);
-    BillingAccountKeyService.refreshHasReference(
+    BillingAccountKeyService.markHasReferenceTrue(
       collectBillingAccountIds(newRecords, null)
     );
     ContractIrregularOperationLog.logCreate(newRecords);
@@ -69,7 +69,9 @@ public without sharing class InvoiceTriggerHandler {
         }
       }
     }
-    BillingAccountKeyService.refreshHasReference(billingAccountIds);
+    if (!billingAccountIds.isEmpty()) {
+      BillingAccountKeyService.refreshHasReference(billingAccountIds);
+    }
     ContractIrregularOperationLog.logUpdate(newRecords);
   }
 
@@ -83,7 +85,7 @@ public without sharing class InvoiceTriggerHandler {
 
   public static void handleAfterUndelete(List<Invoice__c> newRecords) {
     ContractHistoryStatusPathService.syncForInvoices(newRecords);
-    BillingAccountKeyService.refreshHasReference(
+    BillingAccountKeyService.markHasReferenceTrue(
       collectBillingAccountIds(newRecords, null)
     );
   }

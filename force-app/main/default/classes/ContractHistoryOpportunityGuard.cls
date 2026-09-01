@@ -5,6 +5,9 @@ public without sharing class ContractHistoryOpportunityGuard {
   public static final String REQUIRED_MESSAGE = '見積・受注済みの契約履歴は商談を空にできません。';
   public static final String ACCOUNT_MISMATCH_MESSAGE = '契約サービスの取引先と商談の取引先が一致しません。';
 
+  private static Map<Id, Id> opportunityAccountById = new Map<Id, Id>();
+  private static Map<Id, Id> serviceAccountById = new Map<Id, Id>();
+
   /** 仕様: Core 第3.2節 */
   public static void assertRequired(List<ContractHistory__c> histories) {
     if (histories == null || histories.isEmpty()) {
@@ -44,33 +47,49 @@ public without sharing class ContractHistoryOpportunityGuard {
         continue;
       }
       targets.add(history);
-      opportunityIds.add(history.Opportunity__c);
-      serviceIds.add(history.ContractService__c);
+      if (!opportunityAccountById.containsKey(history.Opportunity__c)) {
+        opportunityIds.add(history.Opportunity__c);
+      }
+      if (!serviceAccountById.containsKey(history.ContractService__c)) {
+        serviceIds.add(history.ContractService__c);
+      }
     }
     if (targets.isEmpty()) {
       return;
     }
-    Map<Id, Opportunity> opportunities = new Map<Id, Opportunity>(
-      [
+    if (!opportunityIds.isEmpty()) {
+      for (Opportunity opportunity : [
         SELECT Id, AccountId
         FROM Opportunity
         WHERE Id IN :opportunityIds
         WITH SYSTEM_MODE
-      ]
-    );
-    Map<Id, ContractService__c> services = new Map<Id, ContractService__c>(
-      [
+      ]) {
+        opportunityAccountById.put(opportunity.Id, opportunity.AccountId);
+      }
+      for (Id opportunityId : opportunityIds) {
+        if (!opportunityAccountById.containsKey(opportunityId)) {
+          opportunityAccountById.put(opportunityId, null);
+        }
+      }
+    }
+    if (!serviceIds.isEmpty()) {
+      for (ContractService__c service : [
         SELECT Id, Account__c
         FROM ContractService__c
         WHERE Id IN :serviceIds
         WITH SYSTEM_MODE
-      ]
-    );
+      ]) {
+        serviceAccountById.put(service.Id, service.Account__c);
+      }
+      for (Id serviceId : serviceIds) {
+        if (!serviceAccountById.containsKey(serviceId)) {
+          serviceAccountById.put(serviceId, null);
+        }
+      }
+    }
     for (ContractHistory__c history : targets) {
-      Opportunity opportunity = opportunities.get(history.Opportunity__c);
-      ContractService__c service = services.get(history.ContractService__c);
-      Id opportunityAccountId = opportunity == null ? null : opportunity.AccountId;
-      Id serviceAccountId = service == null ? null : service.Account__c;
+      Id opportunityAccountId = opportunityAccountById.get(history.Opportunity__c);
+      Id serviceAccountId = serviceAccountById.get(history.ContractService__c);
       if (opportunityAccountId == null || serviceAccountId == null) {
         history.addError(ACCOUNT_MISMATCH_MESSAGE);
         continue;

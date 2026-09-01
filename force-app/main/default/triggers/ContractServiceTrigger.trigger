@@ -16,18 +16,23 @@ trigger ContractServiceTrigger on ContractService__c(
     ContractServiceWriteGuard.assertNoDelete(Trigger.old);
     ContractServiceTriggerHandler.handleBeforeDelete(Trigger.old);
   }
-  if (Trigger.isAfter && (Trigger.isInsert || Trigger.isUpdate)) {
+  if (Trigger.isAfter && Trigger.isInsert) {
+    BillingAccountKeyService.markHasReferenceTrue(
+      ContractServiceTriggerHandler.collectBillingAccountIds(
+        Trigger.new,
+        null
+      )
+    );
+    ContractIrregularOperationLog.logCreate(Trigger.new);
+  }
+  if (Trigger.isAfter && Trigger.isUpdate) {
     BillingAccountKeyService.refreshHasReference(
       ContractServiceTriggerHandler.collectBillingAccountIds(
         Trigger.new,
         Trigger.oldMap
       )
     );
-    if (Trigger.isInsert) {
-      ContractIrregularOperationLog.logCreate(Trigger.new);
-    } else {
-      ContractIrregularOperationLog.logUpdate(Trigger.new);
-    }
+    ContractIrregularOperationLog.logUpdate(Trigger.new);
   }
   if (Trigger.isAfter && Trigger.isDelete) {
     BillingAccountKeyService.refreshHasReference(

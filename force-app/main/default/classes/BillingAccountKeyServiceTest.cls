@@ -40,6 +40,42 @@ private class BillingAccountKeyServiceTest {
     }
   }
 
+  @IsTest
+  static void contractServiceInsert_setsHasReferenceTrue() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      BillingAccount__c stored = insertBillingAccount('HasRef BA');
+      System.assertEquals(
+        false,
+        stored.HasReference__c,
+        'Core 第3.3.3節: 参照0件なら OFF'
+      );
+      Account account = [
+        SELECT Id
+        FROM Account
+        WHERE Id = :stored.Account__c
+      ];
+      ContractService__c service = new ContractService__c(
+        Name = 'HasRef Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = stored.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      Test.startTest();
+      insert service;
+      Test.stopTest();
+      BillingAccount__c afterInsert = [
+        SELECT HasReference__c
+        FROM BillingAccount__c
+        WHERE Id = :stored.Id
+      ];
+      System.assertEquals(
+        true,
+        afterInsert.HasReference__c,
+        'Core 第3.3.3節: 契約サービスから1件でも参照していれば ON'
+      );
+    }
+  }
+
   private static BillingAccount__c insertBillingAccount(String name) {
     Account account = ContractTestDataFactory.insertAccount(name + ' Account');
     BillingAccount__c billingAccount = new BillingAccount__c(

@@ -9,8 +9,37 @@ public without sharing class ContractArrCalculationService {
   private static final String BILLING_TYPE_RECURRING = ContractDomainConstants.BILLING_TYPE_RECURRING;
   private static final String PRODUCT_TYPE_ORIGINAL = ContractDomainConstants.PRODUCT_TYPE_ORIGINAL;
 
+  private static Integer recalcDeferDepth = 0;
+  private static Set<Id> deferredRecalcHistoryIds = new Set<Id>();
+
+  public static void beginRecalcDefer() {
+    recalcDeferDepth++;
+  }
+
+  public static void endRecalcDefer() {
+    if (recalcDeferDepth > 0) {
+      recalcDeferDepth--;
+    }
+    if (recalcDeferDepth == 0 && !deferredRecalcHistoryIds.isEmpty()) {
+      Set<Id> pending = deferredRecalcHistoryIds;
+      deferredRecalcHistoryIds = new Set<Id>();
+      recalculateForHistoriesNow(pending);
+    }
+  }
+
   /** 仕様: Core 第1.1.10節、第10.1節 */
   public static void recalculateForHistories(Set<Id> contractHistoryIds) {
+    if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
+      return;
+    }
+    if (recalcDeferDepth > 0) {
+      deferredRecalcHistoryIds.addAll(contractHistoryIds);
+      return;
+    }
+    recalculateForHistoriesNow(contractHistoryIds);
+  }
+
+  private static void recalculateForHistoriesNow(Set<Id> contractHistoryIds) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }

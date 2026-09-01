@@ -224,6 +224,7 @@ public without sharing class InvoiceCanonicalService {
       return;
     }
     ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       assertHistoriesAreOrdered(contractHistoryIds);
       // ロック判定と削除を1クエリにまとめ、受注時の SOQL 消費を抑える
@@ -254,6 +255,7 @@ public without sharing class InvoiceCanonicalService {
       }
       persistFromPeriodLines(contractHistoryIds);
     } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
   }
@@ -263,6 +265,7 @@ public without sharing class InvoiceCanonicalService {
       return;
     }
     ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       List<Invoice__c> invoices = [
         SELECT Id
@@ -274,6 +277,7 @@ public without sharing class InvoiceCanonicalService {
         SystemContextAccess.deleteRecords(invoices);
       }
     } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
   }

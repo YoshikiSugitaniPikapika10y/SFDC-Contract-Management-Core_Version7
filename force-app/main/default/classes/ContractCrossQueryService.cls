@@ -686,55 +686,7 @@ public with sharing class ContractCrossQueryService {
 
   /** 仕様: 横断画面.md 操作23。印付きのうち作成日時が最も新しい1つ。 */
   private static Map<Id, Id> loadLatestIssuedDocumentIds(Set<Id> linkedIds) {
-    Map<Id, Id> latestByEntity = new Map<Id, Id>();
-    if (linkedIds == null || linkedIds.isEmpty()) {
-      return latestByEntity;
-    }
-    List<ContentDocumentLink> links = [
-      SELECT LinkedEntityId, ContentDocumentId
-      FROM ContentDocumentLink
-      WHERE LinkedEntityId IN :linkedIds
-      WITH SYSTEM_MODE
-    ];
-    if (links.isEmpty()) {
-      return latestByEntity;
-    }
-    Set<Id> documentIds = new Set<Id>();
-    Map<Id, List<Id>> documentToEntities = new Map<Id, List<Id>>();
-    for (ContentDocumentLink link : links) {
-      if (link.ContentDocumentId == null || link.LinkedEntityId == null) {
-        continue;
-      }
-      documentIds.add(link.ContentDocumentId);
-      if (!documentToEntities.containsKey(link.ContentDocumentId)) {
-        documentToEntities.put(link.ContentDocumentId, new List<Id>());
-      }
-      documentToEntities.get(link.ContentDocumentId).add(link.LinkedEntityId);
-    }
-    if (documentIds.isEmpty()) {
-      return latestByEntity;
-    }
-    for (ContentVersion version : [
-      SELECT ContentDocumentId
-      FROM ContentVersion
-      WHERE
-        ContentDocumentId IN :documentIds
-        AND IsLatest = TRUE
-        AND ContractDocumentIssued__c = TRUE
-      WITH SYSTEM_MODE
-      ORDER BY CreatedDate DESC, Id DESC
-    ]) {
-      List<Id> entities = documentToEntities.get(version.ContentDocumentId);
-      if (entities == null) {
-        continue;
-      }
-      for (Id entityId : entities) {
-        if (!latestByEntity.containsKey(entityId)) {
-          latestByEntity.put(entityId, version.ContentDocumentId);
-        }
-      }
-    }
-    return latestByEntity;
+    return EstimateDocumentService.latestIssuedContentDocumentIds(linkedIds);
   }
 
   /** 仕様: 横断画面.md 第5節取得。次の検収はフィルタ後に500件。 */

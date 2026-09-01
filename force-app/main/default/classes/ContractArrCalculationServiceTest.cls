@@ -393,6 +393,73 @@ private class ContractArrCalculationServiceTest {
     }
   }
 
+  @IsTest
+  static void recalculateForHistories_deferCoalescesToOnePass() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('ARR Defer Account');
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractService__c service = new ContractService__c(
+        Name = 'ARR Defer Service',
+        Account__c = account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'ARR Defer History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = ContractTestDataFactory.stableTermStart(),
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+      insert history;
+      Product2 product = ContractTestDataFactory.buildProduct('ARR Defer Product');
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 5000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.IncludeInARR__c = true;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c line = applyContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Account__c = account.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 5000,
+          Amount__c = 60000,
+          StartDate__c = ContractTestDataFactory.stableTermStart(),
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'New'
+        )
+      );
+      insert line;
+
+      Test.startTest();
+      ContractArrCalculationService.beginRecalcDefer();
+      ContractArrCalculationService.recalculateForHistories(new Set<Id>{ history.Id });
+      Integer queriesAfterQueue = Limits.getQueries();
+      ContractArrCalculationService.recalculateForHistories(new Set<Id>{ history.Id });
+      System.assertEquals(
+        queriesAfterQueue,
+        Limits.getQueries(),
+        'Core 第4.3節: 見積保存1処理の ARR 再計算は保留して繰り返さない'
+      );
+      ContractArrCalculationService.endRecalcDefer();
+      Test.stopTest();
+      ContractHistory__c stored = [
+        SELECT ARR__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      System.assertNotEquals(null, stored.ARR__c, 'Core 第10.1節: 保留解除後に ARR を書く');
+    }
+  }
+
   private static ContractProduct__c applyContractProduct(ContractProduct__c product) {
     if (String.isBlank(product.RevenueRecognitionBasis__c)) {
       product.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
