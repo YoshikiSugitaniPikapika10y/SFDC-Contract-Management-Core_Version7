@@ -229,6 +229,8 @@ private class InvoicePaymentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       InvoiceFixture fixture = createInvoice(true);
+      fixture.line.Amount__c = 2000;
+      update fixture.line;
       InvoicePaymentService.RegisterRequest request = invoiceRequest(
         fixture,
         1200
@@ -252,6 +254,7 @@ private class InvoicePaymentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       InvoiceFixture fixture = createInvoice(true);
+      Test.startTest();
       Id paymentId = InvoicePaymentService.register(
         invoiceRequest(fixture, 1100)
       );
@@ -314,6 +317,7 @@ private class InvoicePaymentServiceTest {
         reversal.PaymentTransactionStatus__c
       );
       System.assertEquals(paymentId, reversal.OriginalPayment__c);
+      Test.stopTest();
 
       InvoicePaymentAllocation__c reversalAllocation = [
         SELECT Amount__c
@@ -416,16 +420,26 @@ private class InvoicePaymentServiceTest {
       policy.AccountingEnabled__c = true;
       insert policy;
       InvoiceFixture fixture = createInvoice(true);
+      delete fixture.line;
+      seedPaymentMaps();
       insertLockedJournal(fixture.invoice.Id, 'REGLOCKOK');
-      InvoicePaymentService.RegisterRequest request = invoiceRequest(
-        fixture,
-        1100
-      );
+      InvoicePaymentService.RegisterRequest request = new InvoicePaymentService.RegisterRequest();
+      request.invoiceId = fixture.invoice.Id;
+      request.amount = 100;
+      request.purpose = InvoicePaymentService.PURPOSE_NON_INVOICE;
+      request.paymentDate = Date.newInstance(2026, 6, 1);
       request.cancellationDate = Date.newInstance(2026, 8, 29);
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
       Test.startTest();
       Id paymentId = InvoicePaymentService.register(request);
       Test.stopTest();
-      System.assertNotEquals(null, paymentId);
+      System.assertNotEquals(
+        null,
+        paymentId,
+        'Accounting 第8.5節: ONかつロック済みなら取消基準日を渡して登録できる'
+      );
     }
   }
 
@@ -613,6 +627,89 @@ private class InvoicePaymentServiceTest {
     InvoiceLine__c line;
   }
 
+  private static InvoiceFixture createEngineLikePaymentInvoice() {
+    Account account = ContractTestDataFactory.insertAccount('PaySvc Engine');
+    BillingAccount__c billingAccount = new BillingAccount__c(
+      Account__c = account.Id,
+      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+      BillingEmailTo__c = 'paysvc-engine@example.com',
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 1,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
+    ContractTestDataFactory.applyRequiredFields(billingAccount);
+    insert billingAccount;
+    ContractService__c service = new ContractService__c(
+      Name = 'PaySvc Engine',
+      Account__c = account.Id,
+      BiilingAcccount__c = billingAccount.Id,
+      TaxPercent__c = 0.1
+    );
+    insert service;
+    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+      account.Id,
+      'PaySvc Engine Opp'
+    );
+    ContractHistory__c history = new ContractHistory__c(
+      Name = 'PaySvc Engine History',
+      ContractService__c = service.Id,
+      Opportunity__c = opportunity.Id,
+      Type__c = 'New',
+      historystatus__c = 'Ordered',
+      Version__c = 1
+    );
+    insert history;
+    Product2 product = ContractTestDataFactory.buildProduct('PaySvc Engine Prod');
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2026, 6, 30)
+    );
+    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    insert contractProduct;
+    Invoice__c invoice = new Invoice__c(
+      ContractService__c = service.Id,
+      ContractHistory__c = history.Id,
+      InvoiceDate__c = Date.newInstance(2026, 6, 1),
+      Amount__c = 1000,
+      TaxAmount__c = 100,
+      BillingAccountSnapShot__c = billingAccount.Id,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+    );
+    insert invoice;
+    InvoiceLine__c line = new InvoiceLine__c(
+      Invoice__c = invoice.Id,
+      ContractProduct__c = contractProduct.Id,
+      ProductName__c = 'PaySvc Engine Line',
+      Amount__c = 1000,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      AcceptanceEndDate__c = Date.newInstance(2026, 6, 30),
+      ServicePeriodStartDate__c = Date.newInstance(2026, 6, 1),
+      ServicePeriodEndDate__c = Date.newInstance(2026, 6, 30)
+    );
+    insert line;
+    InvoiceFixture fixture = new InvoiceFixture();
+    fixture.invoice = invoice;
+    fixture.line = line;
+    return fixture;
+  }
+
   private static InvoicePaymentService.RegisterRequest invoiceRequest(
     InvoiceFixture fixture,
     Decimal amount
@@ -635,6 +732,10 @@ private class InvoicePaymentServiceTest {
   }
 
   private static InvoiceFixture createInvoice(Boolean confirmed) {
+    return createInvoice(confirmed, 100);
+  }
+
+  private static InvoiceFixture createInvoice(Boolean confirmed, Decimal taxAmount) {
     Account account = ContractTestDataFactory.insertAccount(
       'PaySvc ' + String.valueOf(Crypto.getRandomInteger())
     );
@@ -672,12 +773,31 @@ private class InvoicePaymentServiceTest {
       Version__c = 1
     );
     insert history;
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'PaySvc Prod ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2026, 6, 30)
+    );
+    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    insert contractProduct;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
       ContractHistory__c = history.Id,
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
-      TaxAmount__c = 100,
+      TaxAmount__c = taxAmount,
       BillingAccountSnapShot__c = billingAccount.Id,
       InvoiceTransactionStatus__c = confirmed
         ? InvoiceTransactionStatusService.TX_CONFIRMED
@@ -687,16 +807,137 @@ private class InvoicePaymentServiceTest {
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     InvoiceLine__c line = new InvoiceLine__c(
       Invoice__c = invoice.Id,
+      ContractProduct__c = contractProduct.Id,
       ProductName__c = 'PaySvc Line',
       Amount__c = 1000,
       Quantity__c = 1,
-      UnitPrice__c = 1000
+      UnitPrice__c = 1000,
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      AcceptanceEndDate__c = Date.newInstance(2026, 6, 30),
+      ServicePeriodStartDate__c = Date.newInstance(2026, 6, 1),
+      ServicePeriodEndDate__c = Date.newInstance(2026, 6, 30)
     );
+    if (taxAmount != null && taxAmount != 0) {
+      line.AllocatedTaxAmount__c = taxAmount;
+    }
     insert line;
     InvoiceFixture fixture = new InvoiceFixture();
     fixture.invoice = invoice;
     fixture.line = line;
     return fixture;
+  }
+
+  private static void markConfirmed(Invoice__c invoice) {
+    InvoiceTransactionStatusService.applyConfirmed(
+      new List<Invoice__c>{ invoice },
+      Date.newInstance(2026, 6, 1)
+    );
+    Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+    Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+    InvoiceTransactionStatusService.allowStatusWrite = true;
+    InvoiceLockUtil.allowLockedStatusWrite = true;
+    try {
+      update invoice;
+    } finally {
+      InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+      InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+    }
+  }
+
+  private static void seedMaps() {
+    Map<String, String> types = new Map<String, String>{
+      'AR' => 'Asset',
+      'CTA' => 'Asset',
+      'DEF' => 'Liability',
+      'TAX' => 'Liability',
+      'REV' => 'Revenue'
+    };
+    Map<String, Id> accountIds = new Map<String, Id>();
+    List<GlAccount__c> accounts = new List<GlAccount__c>();
+    for (String name : types.keySet()) {
+      accounts.add(
+        new GlAccount__c(
+          Name = 'PaySvc Bill ' + name,
+          AccountType__c = types.get(name),
+          IsActive__c = true
+        )
+      );
+    }
+    insert accounts;
+    for (GlAccount__c account : accounts) {
+      accountIds.put(account.Name.substringAfter('PaySvc Bill '), account.Id);
+    }
+    Map<String, String> slots = new Map<String, String>{
+      'AccountsReceivable' => 'AR',
+      'ContractAsset' => 'CTA',
+      'DeferredRevenue' => 'DEF',
+      'TaxPayable' => 'TAX',
+      'Revenue' => 'REV'
+    };
+    List<GlAccountMap__c> maps = new List<GlAccountMap__c>();
+    for (String slot : slots.keySet()) {
+      maps.add(
+        new GlAccountMap__c(
+          Name = 'PaySvc Bill ' + slot,
+          Account__c = accountIds.get(slots.get(slot)),
+          SlotKey__c = slot,
+          EvaluationContext__c = 'InvoiceLine',
+          ConditionSourceType__c = 'None',
+          Priority__c = 10,
+          IsActive__c = true
+        )
+      );
+    }
+    insert maps;
+  }
+
+  private static void seedPaymentMaps() {
+    Map<String, String> types = new Map<String, String>{
+      'CASH' => 'Asset',
+      'UAC' => 'Liability',
+      'SP' => 'Asset',
+      'AR' => 'Asset',
+      'DEF' => 'Liability'
+    };
+    Map<String, Id> accountIds = new Map<String, Id>();
+    List<GlAccount__c> accounts = new List<GlAccount__c>();
+    for (String name : types.keySet()) {
+      accounts.add(
+        new GlAccount__c(
+          Name = 'PaySvc Pay ' + name,
+          AccountType__c = types.get(name),
+          IsActive__c = true
+        )
+      );
+    }
+    insert accounts;
+    for (GlAccount__c account : accounts) {
+      accountIds.put(account.Name.substringAfter('PaySvc Pay '), account.Id);
+    }
+    Map<String, String> slots = new Map<String, String>{
+      'Cash' => 'CASH',
+      'UnappliedCash' => 'UAC',
+      'SuspensePayment' => 'SP',
+      'AccountsReceivable' => 'AR',
+      'DeferredRevenue' => 'DEF'
+    };
+    List<GlAccountMap__c> maps = new List<GlAccountMap__c>();
+    for (String context : new List<String>{ 'InvoicePaymentAllocation', 'InvoicePayment' }) {
+      for (String slot : slots.keySet()) {
+        maps.add(
+          new GlAccountMap__c(
+            Name = 'PaySvc Pay ' + context + ' ' + slot,
+            Account__c = accountIds.get(slots.get(slot)),
+            SlotKey__c = slot,
+            EvaluationContext__c = context,
+            ConditionSourceType__c = 'None',
+            Priority__c = 10,
+            IsActive__c = true
+          )
+        );
+      }
+    }
+    insert maps;
   }
 
   private static void insertLockedJournal(Id invoiceId, String keySuffix) {
