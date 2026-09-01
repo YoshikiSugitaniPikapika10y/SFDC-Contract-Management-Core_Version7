@@ -3,6 +3,7 @@ private class InvoiceLockUtilTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
@@ -148,57 +149,23 @@ private class InvoiceLockUtilTest {
   @IsTest
   static void assertVersionEditable_blocksWhenInvoiceLocked() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Lock Util Account'
-      );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-
-      ContractService__c service = new ContractService__c(
-        Name = 'Lock Util Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = 0.1
-      );
-      insert service;
-
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Lock Util History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
-      );
-      insert history;
-
+      OrderedFixture fixture = insertOrderedFixture('Lock Util');
       Invoice__c invoice = new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
+        ContractService__c = fixture.service.Id,
+        ContractHistory__c = fixture.history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
-        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-        SystemIntegrationDate__c = Date.today()
+        BillingAccountSnapShot__c = fixture.service.BiilingAcccount__c
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
       ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
 
       Boolean thrown = false;
       try {
-        InvoiceLockUtil.assertVersionEditable(history.Id);
+        InvoiceLockUtil.assertVersionEditable(fixture.history.Id);
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
         System.assertEquals(
@@ -210,7 +177,7 @@ private class InvoiceLockUtilTest {
 
       thrown = false;
       try {
-        InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ history.Id });
+        InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ fixture.history.Id });
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
         System.assertEquals(
@@ -221,7 +188,7 @@ private class InvoiceLockUtilTest {
       System.assertEquals(true, thrown);
       System.assertEquals(
         true,
-        InvoiceLockUtil.hasLockedInvoices(new Set<Id>{ history.Id })
+        InvoiceLockUtil.hasLockedInvoices(new Set<Id>{ fixture.history.Id })
       );
 
       InvoiceLockUtil.testCanBypassLockedDml = false;
@@ -254,12 +221,14 @@ private class InvoiceLockUtilTest {
       System.assertEquals(true, invoiceThrown, 'ロック請求は編集不可');
 
       Invoice__c unlockedSibling = new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
+        ContractService__c = fixture.service.Id,
+        ContractHistory__c = fixture.history.Id,
         InvoiceDate__c = Date.newInstance(2026, 7, 1),
         Amount__c = 500,
-        TaxAmount__c = 50
+        TaxAmount__c = 50,
+        BillingAccountSnapShot__c = fixture.service.BiilingAcccount__c
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(unlockedSibling);
       insert unlockedSibling;
       InvoiceLockUtil.assertInvoiceEditable(unlockedSibling.Id);
       InvoiceLockUtil.assertInvoicesEditable(new Set<Id>{ unlockedSibling.Id });
@@ -338,40 +307,25 @@ private class InvoiceLockUtilTest {
   @IsTest
   static void assertNoLockedInvoices_throwsKnownMessage() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Lock Message Account'
-      );
-      ContractService__c service = ContractTestDataFactory.insertContractService(
-        account.Id,
-        'Lock Message Service'
-      );
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Lock Message History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
-      );
-      insert history;
-      ContractTestDataFactory.insertAllowingInvoiceStatus(
-        new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
+      OrderedFixture fixture = insertOrderedFixture('Lock Message');
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = fixture.service.Id,
+        ContractHistory__c = fixture.history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
-        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-        CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
-        PaymentClearingCompletedDate__c = Date.today()
-      )
+        BillingAccountSnapShot__c = fixture.service.BiilingAcccount__c
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
+      invoice.PaymentClearingCompletedDate__c = Date.today();
+      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
 
       InvoiceLockUtil.testCanBypassLockedDml = false;
       Boolean thrown = false;
       try {
-        InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ history.Id });
+        InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ fixture.history.Id });
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
         System.assertEquals(
@@ -383,7 +337,7 @@ private class InvoiceLockUtilTest {
 
       thrown = false;
       try {
-        InvoiceLockUtil.assertVersionEditable(history.Id);
+        InvoiceLockUtil.assertVersionEditable(fixture.history.Id);
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
         System.assertEquals(
@@ -414,50 +368,16 @@ private class InvoiceLockUtilTest {
   @IsTest
   static void invoiceProductUpdate_allowedWhenParentInvoiceLocked() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Period Line Lock Abolish Account'
-      );
-      ContractService__c service = ContractTestDataFactory.insertContractService(
-        account.Id,
-        'Period Line Lock Abolish Service'
-      );
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Period Line Lock Abolish History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
-      );
-      insert history;
-      Product2 product = ContractTestDataFactory.buildProduct(
-        'Period Line Lock Abolish Product'
-      );
-      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-      ContractTestDataFactory.insertProduct(product);
-      ContractProduct__c cp = new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 1000,
-        Amount__c = 1000,
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2026, 6, 30),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'New'
-      );
-      insert cp;
+      OrderedFixture fixture = insertOrderedFixture('Period Line Lock Abolish');
       String bucket = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
         null,
-        history.Id,
+        fixture.history.Id,
         Date.newInstance(2026, 6, 1),
         null
       );
       InvoiceProduct__c periodLine = new InvoiceProduct__c(
-        ContractHistory__c = history.Id,
-        ContractProduct__c = cp.Id,
+        ContractHistory__c = fixture.history.Id,
+        ContractProduct__c = fixture.contractProduct.Id,
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2026, 6, 30),
         InvoiceBucketKey__c = bucket,
@@ -466,17 +386,18 @@ private class InvoiceLockUtilTest {
         Amount__c = 1000
       );
       insert periodLine;
-      ContractTestDataFactory.insertAllowingInvoiceStatus(
-        new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = fixture.service.Id,
+        ContractHistory__c = fixture.history.Id,
         InvoiceDate__c = Date.newInstance(2026, 6, 1),
         Amount__c = 1000,
         TaxAmount__c = 100,
-        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-        SystemIntegrationDate__c = Date.today()
-      )
+        BillingAccountSnapShot__c = fixture.service.BiilingAcccount__c
       );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
 
       periodLine.Amount__c = 1100;
       update periodLine;
@@ -647,5 +568,63 @@ private class InvoiceLockUtilTest {
       'Core 第11.6節: 確定後の請求日は除外一覧に書いても拒否する'
     );
     InvoiceLockUtil.testLockExemptFieldApiNames = null;
+  }
+
+  private class OrderedFixture {
+    ContractService__c service;
+    ContractHistory__c history;
+    ContractProduct__c contractProduct;
+  }
+
+  private static OrderedFixture insertOrderedFixture(String suffix) {
+    OrderedFixture fixture = new OrderedFixture();
+    Account account = ContractTestDataFactory.insertAccount(
+      suffix + ' Account ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    fixture.service = ContractTestDataFactory.insertContractService(
+      account.Id,
+      suffix + ' Service'
+    );
+    fixture.history = new ContractHistory__c(
+      Name = suffix + ' History',
+      ContractService__c = fixture.service.Id,
+      Type__c = 'New',
+      historystatus__c = 'Estimate',
+      Version__c = 1,
+      CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+      EffectiveDate__c = Date.newInstance(2026, 6, 1)
+    );
+    ContractTestDataFactory.applyRequiredFields(fixture.history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      fixture.history,
+      account.Id
+    );
+    insert fixture.history;
+    Product2 product = ContractTestDataFactory.buildProduct(
+      suffix + ' Product ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(product);
+    fixture.contractProduct = new ContractProduct__c(
+      ContractHistory__c = fixture.history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2026, 6, 30),
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(fixture.contractProduct);
+    fixture.contractProduct.Amount__c = 1000;
+    insert fixture.contractProduct;
+    fixture.history.historystatus__c = 'Ordered';
+    update fixture.history;
+    return fixture;
   }
 }
