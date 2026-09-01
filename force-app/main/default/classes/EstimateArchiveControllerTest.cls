@@ -3,6 +3,62 @@ private class EstimateArchiveControllerTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
+  }
+
+  @IsTest
+  static void getArchiveContext_returnsEstimateToken() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Context Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Archive Context Service'
+      );
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Context History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
+      );
+
+      Test.startTest();
+      EstimateArchiveController.ArchiveContext context = EstimateArchiveController.getArchiveContext(
+        history.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(history.Id, context.contractHistoryId);
+      System.assertEquals('Estimate', context.historyStatus);
+      System.assertEquals(
+        ContractOptimisticLockUtil.toHistoryProductToken(history.Id),
+        context.lastModifiedToken,
+        'Core 第4.3.12節: 手動Archiveの比較値は履歴と商品'
+      );
+    }
+  }
+
+  @IsTest
+  static void getArchiveContext_missingHistory_throwsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Context Missing Account'
+      );
+      Boolean thrown = false;
+      try {
+        EstimateArchiveController.getArchiveContext(account.Id);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals('契約履歴が見つかりません。', ex.getMessage());
+      }
+      System.assertEquals(true, thrown);
+    }
   }
 
   @IsTest
@@ -16,30 +72,32 @@ private class EstimateArchiveControllerTest {
         'Archive Action Service'
       );
 
-      ContractHistory__c prior = new ContractHistory__c(
-        Name = 'Archive Action Prior',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      ContractHistory__c prior = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Action Prior',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
       );
-      insert prior;
+      insertLine(prior.Id, account.Id, 'New');
+      prior.historystatus__c = 'Ordered';
+      update prior;
 
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Archive Action History',
-        ContractService__c = service.Id,
-        Type__c = 'Change',
-        historystatus__c = 'Estimate',
-        Version__c = 2,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 10, 1),
-        PreviousHistory__c = prior.Id
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Action History',
+        'Change',
+        2,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 10, 1),
+        prior.Id
       );
-      insert history;
 
       Test.startTest();
       EstimateArchiveController.ArchiveResult result = EstimateArchiveController.archiveEstimate(
@@ -76,18 +134,20 @@ private class EstimateArchiveControllerTest {
         'Archive Block Ordered Service'
       );
 
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Archive Block Ordered History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1),
-        ApplicationDate__c = Date.newInstance(2026, 6, 1)
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Block Ordered History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
       );
-      insert history;
+      insertLine(history.Id, account.Id, 'New');
+      history.historystatus__c = 'Ordered';
+      update history;
 
       Boolean thrown = false;
       try {
@@ -164,17 +224,17 @@ private class EstimateArchiveControllerTest {
         account.Id,
         'Archive Perm Deny Service'
       );
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Archive Perm Deny History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Perm Deny History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
       );
-      insert history;
 
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.ESTIMATE => false
@@ -217,17 +277,17 @@ private class EstimateArchiveControllerTest {
         account.Id,
         'Archive Blank Token Service'
       );
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Archive Blank Token History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Blank Token History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
       );
-      insert history;
 
       Boolean thrown = false;
       try {
@@ -257,17 +317,17 @@ private class EstimateArchiveControllerTest {
         account.Id,
         'Archive Retry Service'
       );
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Archive Retry History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Retry History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
       );
-      insert history;
       String token = ContractOptimisticLockUtil.toHistoryProductToken(
         history.Id
       );
@@ -301,5 +361,57 @@ private class EstimateArchiveControllerTest {
         ]
       );
     }
+  }
+
+  private static ContractHistory__c insertEstimateHistory(
+    Id serviceId,
+    Id accountId,
+    String name,
+    String historyType,
+    Decimal version,
+    Date termStart,
+    Date termEnd,
+    Date effectiveDate,
+    Id previousHistoryId
+  ) {
+    ContractHistory__c history = new ContractHistory__c(
+      Name = name,
+      ContractService__c = serviceId,
+      Type__c = historyType,
+      historystatus__c = 'Estimate',
+      Version__c = version,
+      CurrentTermStartDate__c = termStart,
+      CurrentTermEndDate__c = termEnd,
+      EffectiveDate__c = effectiveDate,
+      PreviousHistory__c = previousHistoryId
+    );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, accountId);
+    insert history;
+    return history;
+  }
+
+  private static void insertLine(Id historyId, Id accountId, String productType) {
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Archive Line ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c line = new ContractProduct__c(
+      ContractHistory__c = historyId,
+      Account__c = accountId,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 8000,
+      Amount__c = 8000,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2027, 5, 31),
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      Type__c = productType,
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(line);
+    line.Amount__c = 8000;
+    insert line;
   }
 }
