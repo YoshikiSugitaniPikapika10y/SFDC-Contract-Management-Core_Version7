@@ -163,6 +163,7 @@ public without sharing class ContractHistoryTriggerHandler {
     ContractIrregularOperationLog.logDelete(oldHistories);
   }
 
+  /** 仕様: Core 第6.1節 */
   public static void handleAfterUpdate(
     List<ContractHistory__c> newHistories,
     Map<Id, ContractHistory__c> oldMap
@@ -227,17 +228,25 @@ public without sharing class ContractHistoryTriggerHandler {
       InvoiceCanonicalService.purgeBillingForHistories(archivedHistoryIds);
     }
 
-    if (!orderedHistoryIds.isEmpty()) {
-      InvoiceProductGenerationService.generateForHistories(orderedHistoryIds);
-    }
-
-    if (!orderedTransitionHistories.isEmpty()) {
-      ContractHistoryArchiveService.archiveSupersededEstimates(
-        orderedTransitionHistories
-      );
-      ContractOrderedHistorySyncService.syncForHistories(
-        orderedTransitionHistories
-      );
+    if (!orderedHistoryIds.isEmpty() || !orderedTransitionHistories.isEmpty()) {
+      ContractArrCalculationService.beginRecalcDefer();
+      try {
+        if (!orderedHistoryIds.isEmpty()) {
+          InvoiceProductGenerationService.generateForHistories(
+            orderedHistoryIds
+          );
+        }
+        if (!orderedTransitionHistories.isEmpty()) {
+          ContractHistoryArchiveService.archiveSupersededEstimates(
+            orderedTransitionHistories
+          );
+          ContractOrderedHistorySyncService.syncForHistories(
+            orderedTransitionHistories
+          );
+        }
+      } finally {
+        ContractArrCalculationService.endRecalcDefer();
+      }
     }
     ContractIrregularOperationLog.logUpdate(newHistories);
   }

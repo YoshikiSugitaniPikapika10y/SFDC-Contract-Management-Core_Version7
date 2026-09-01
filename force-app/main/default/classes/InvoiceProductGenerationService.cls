@@ -62,6 +62,7 @@ public without sharing class InvoiceProductGenerationService {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
+    ContractArrCalculationService.beginRecalcDefer();
     ContractHistoryStatusPathService.beginPathSyncDefer();
     BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
@@ -69,6 +70,7 @@ public without sharing class InvoiceProductGenerationService {
     } finally {
       BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
+      ContractArrCalculationService.endRecalcDefer();
     }
   }
 
