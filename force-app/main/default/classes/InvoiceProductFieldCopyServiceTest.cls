@@ -183,10 +183,25 @@ private class InvoiceProductFieldCopyServiceTest {
 
   @IsTest
   static void validateActiveDefinitions_doesNotThrowForSeededRecords() {
-    InvoiceProductFieldCopyService.resetCache();
-    Test.startTest();
-    InvoiceProductFieldCopyService.validateActiveDefinitions();
-    Test.stopTest();
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+      InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+        new FieldCopyDefinition__c(
+          Name = 'Ok_Inv_AccountName',
+          SourceObject__c = 'Account',
+          SourceFieldApiName__c = 'Name',
+          TargetFieldApiName__c = 'Memo__c',
+          TargetObject__c = 'Invoice__c'
+        )
+      };
+      Test.startTest();
+      InvoiceProductFieldCopyService.validateActiveDefinitions();
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+      FieldCopyDefinitionService.validateAllDefinitions();
+      Test.stopTest();
+    }
   }
 
   @IsTest
@@ -479,5 +494,159 @@ private class InvoiceProductFieldCopyServiceTest {
     System.assert(
       !InvoiceProductFieldCopyService.getActiveDefinitions().isEmpty()
     );
+  }
+
+  @IsTest
+  static void applyOnBeforeInsert_andHardcodedSnapshot_coverBlankOnly() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<Invoice__c>(),
+        InvoiceProductFieldCopyService.TARGET_INVOICE
+      );
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<Invoice__c>{ new Invoice__c() },
+        null
+      );
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<InvoiceProduct__c>{ new InvoiceProduct__c() },
+        InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT
+      );
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<InvoiceLine__c>{ new InvoiceLine__c() },
+        InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
+      );
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<Invoice__c>{ new Invoice__c() },
+        InvoiceProductFieldCopyService.TARGET_INVOICE
+      );
+
+      InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+        new FieldCopyDefinition__c(
+          Name = 'Bad_Missing_Object',
+          SourceObject__c = 'Account',
+          SourceFieldApiName__c = 'Name',
+          TargetFieldApiName__c = 'Memo__c',
+          TargetObject__c = 'DoesNotExist__c'
+        )
+      };
+      Boolean missingTarget = false;
+      try {
+        InvoiceProductFieldCopyService.validateActiveDefinitions();
+      } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
+        missingTarget = ex.getMessage().contains('存在しません');
+      }
+      System.assertEquals(
+        true,
+        missingTarget,
+        'Core 第11.4.2節: 無いToオブジェクトは設定エラー'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+
+      Account account = ContractTestDataFactory.insertAccount('copy-insert-src');
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'copy-insert-src サービス',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'COPY-INS-H',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'copy-insert-src Prod'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c contractProduct = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = account.Id,
+        Product__c = product.Id,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        Type__c = 'New',
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 1000,
+        StartDate__c = Date.today(),
+        Enddate__c = Date.today(),
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+      );
+      ContractTestDataFactory.applyRequiredFields(contractProduct);
+      contractProduct.Amount__c = 1000;
+      insert contractProduct;
+
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<Invoice__c>{
+          new Invoice__c(
+            ContractHistory__c = history.Id,
+            ContractService__c = service.Id,
+            BillingAccountSnapShot__c = billingAccount.Id
+          )
+        },
+        InvoiceProductFieldCopyService.TARGET_INVOICE
+      );
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<InvoiceLine__c>{
+          new InvoiceLine__c(ContractProduct__c = contractProduct.Id)
+        },
+        InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
+      );
+      InvoiceProductFieldCopyService.applyOnBeforeInsert(
+        new List<InvoiceProduct__c>{
+          new InvoiceProduct__c(
+            ContractProduct__c = contractProduct.Id,
+            ContractHistory__c = history.Id
+          )
+        },
+        InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT
+      );
+      InvoiceProductFieldCopyService.applyHardcodedInvoiceLineProductFields(
+        new InvoiceLine__c(),
+        contractProduct
+      );
+      System.assertEquals(
+        false,
+        InvoiceProductFieldCopyService.isBlankTargetValue(0)
+      );
+      Invoice__c invoice = new Invoice__c();
+      BillingAccount__c billing = new BillingAccount__c(
+        BillingAddressee__c = 'コピー宛名',
+        BillingEmailTo__c = 'copy@example.com'
+      );
+      InvoiceProductFieldCopyService.applyHardcodedInvoiceBillingAccountSnapshot(
+        invoice,
+        billing
+      );
+      System.assertEquals(
+        'コピー宛名',
+        invoice.BillingAddresseeSnapShot__c,
+        'Core 第11.4.2節: 空欄だけコピーする'
+      );
+      invoice.BillingAddresseeSnapShot__c = '手入力';
+      InvoiceProductFieldCopyService.applyHardcodedInvoiceBillingAccountSnapshot(
+        invoice,
+        billing
+      );
+      System.assertEquals(
+        '手入力',
+        invoice.BillingAddresseeSnapShot__c,
+        'Core 第11.4.2節: 既にあれば上書きしない'
+      );
+    }
   }
 }
