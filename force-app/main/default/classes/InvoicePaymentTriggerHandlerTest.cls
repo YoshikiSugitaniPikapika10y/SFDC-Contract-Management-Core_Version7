@@ -3,59 +3,69 @@ private class InvoicePaymentTriggerHandlerTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   private static Invoice__c createInvoice(String collectionStatus) {
     Account account = ContractTestDataFactory.insertAccount(
       'Payment ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-
-    ContractService__c service = new ContractService__c(
-      Name = 'Payment Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
+    ContractService__c service = ContractTestDataFactory.insertContractService(
+      account.Id,
+      'Payment Service'
     );
-    insert service;
-
     ContractHistory__c history = new ContractHistory__c(
       Name = 'Payment History',
       ContractService__c = service.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1,
       CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+      EffectiveDate__c = Date.newInstance(2026, 6, 1)
     );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
-
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Payment Product ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2026, 6, 30),
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    contractProduct.Amount__c = 1000;
+    insert contractProduct;
+    history.historystatus__c = 'Ordered';
+    update history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
       ContractHistory__c = history.Id,
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      InvoiceTransactionStatus__c = collectionStatus == 'Draft'
-        ? InvoiceTransactionStatusService.TX_DRAFT
-        : InvoiceTransactionStatusService.TX_CONFIRMED,
-      SystemIntegrationDate__c = collectionStatus == 'Draft'
-        ? null
-        : Date.today()
+      BillingAccountSnapShot__c = service.BiilingAcccount__c
     );
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    if (collectionStatus == 'Draft') {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
+    } else {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+    }
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
   }
@@ -312,6 +322,11 @@ private class InvoicePaymentTriggerHandlerTest {
         );
       }
 
+      payment = [
+        SELECT Id, Memo__c, Amount__c
+        FROM InvoicePayment__c
+        WHERE Id = :payment.Id
+      ];
       payment.Memo__c = 'メモ更新';
       update payment;
       System.assertEquals(
