@@ -17,6 +17,7 @@ private class ContractArrCalculationServiceTest {
         Name = 'ARR Unit Service',
         Account__c = account.Id
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
 
       ContractHistory__c history = new ContractHistory__c(
@@ -27,6 +28,10 @@ private class ContractArrCalculationServiceTest {
         Version__c = 1,
         CurrentTermStartDate__c = Date.today(),
         CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
       );
       insert history;
 
@@ -68,6 +73,7 @@ private class ContractArrCalculationServiceTest {
         IncludeInARR__c = false,
         BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
       );
+      line.Enddate__c = termEnd;
       System.assertEquals(
         0,
         ContractArrCalculationService.calculateProductArr(line, termEnd),
@@ -99,6 +105,7 @@ private class ContractArrCalculationServiceTest {
         Name = 'ARR Filter Service',
         Account__c = account.Id
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
 
       ContractHistory__c history = new ContractHistory__c(
@@ -110,33 +117,40 @@ private class ContractArrCalculationServiceTest {
         CurrentTermStartDate__c = termStart,
         CurrentTermEndDate__c = termEnd
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
       insert history;
 
-      insert new List<ContractProduct__c>{
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = product.Id,
-          Quantity__c = 1,
-          UnitPrice__c = 5000,
-          Amount__c = 60000,
-          StartDate__c = termStart,
-          Enddate__c = termEnd,
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-          Type__c = 'New'
-        ),
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = product.Id,
-          Quantity__c = 1,
-          UnitPrice__c = 5000,
-          StartDate__c = termStart,
-          Enddate__c = ContractTestDataFactory.stableTermEnd(6),
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-          Type__c = 'Original'
-        )
-      };
+      ContractProduct__c included = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = account.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Amount__c = 60000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      ContractProduct__c original = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = account.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        StartDate__c = termStart,
+        Enddate__c = ContractTestDataFactory.stableTermEnd(6),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'Original'
+      );
+      ContractTestDataFactory.applyRequiredFields(included);
+      ContractTestDataFactory.applyRequiredFields(original);
+      insert new List<ContractProduct__c>{ included, original };
 
       history = [
         SELECT ARR__c, AveARR__c
@@ -177,6 +191,7 @@ private class ContractArrCalculationServiceTest {
         Name = 'AveARR Mid Service',
         Account__c = account.Id
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
 
       ContractHistory__c history = new ContractHistory__c(
@@ -188,35 +203,45 @@ private class ContractArrCalculationServiceTest {
         CurrentTermStartDate__c = termStart,
         CurrentTermEndDate__c = termEnd
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
       insert history;
 
       // 前半6か月 Amount=30000（月5,000）→ 期末に届かないので ARR 外
       // 後半6か月 Amount=60000（月10,000）→ ARR=120,000
       // AveARR = (30000+60000)/12*12 = 90,000
       insert new List<ContractProduct__c>{
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = product.Id,
-          Quantity__c = 1,
-          UnitPrice__c = 5000,
-          Amount__c = 30000,
-          StartDate__c = termStart,
-          Enddate__c = midEnd,
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-          Type__c = 'New'
+        applyContractProduct(
+          new ContractProduct__c(
+            ContractHistory__c = history.Id,
+            Account__c = account.Id,
+            Product__c = product.Id,
+            Quantity__c = 1,
+            UnitPrice__c = 5000,
+            Amount__c = 30000,
+            StartDate__c = termStart,
+            Enddate__c = midEnd,
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+            BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+            Type__c = 'New'
+          )
         ),
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = product.Id,
-          Quantity__c = 1,
-          UnitPrice__c = 10000,
-          Amount__c = 60000,
-          StartDate__c = secondStart,
-          Enddate__c = termEnd,
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-          Type__c = 'Remake'
+        applyContractProduct(
+          new ContractProduct__c(
+            ContractHistory__c = history.Id,
+            Account__c = account.Id,
+            Product__c = product.Id,
+            Quantity__c = 1,
+            UnitPrice__c = 10000,
+            Amount__c = 60000,
+            StartDate__c = secondStart,
+            Enddate__c = termEnd,
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+            BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+            Type__c = 'Remake'
+          )
         )
       };
 
@@ -261,6 +286,7 @@ private class ContractArrCalculationServiceTest {
         Name = 'ARR Flag Service',
         Account__c = account.Id
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
 
       ContractHistory__c history = new ContractHistory__c(
@@ -272,18 +298,25 @@ private class ContractArrCalculationServiceTest {
         CurrentTermStartDate__c = Date.today(),
         CurrentTermEndDate__c = termEnd
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
       insert history;
 
-      insert new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 10000,
-        StartDate__c = Date.today(),
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'New'
+      insert applyContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Account__c = account.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          StartDate__c = Date.today(),
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'New'
+        )
       );
 
       history = [
@@ -306,27 +339,65 @@ private class ContractArrCalculationServiceTest {
 
   @IsTest
   static void calculateProductArr_blankAmount_throws() {
-    ContractProduct__c line = new ContractProduct__c(
-      Quantity__c = 1,
-      UnitPrice__c = 5000,
-      Amount__c = null,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-      Type__c = 'New',
-      StartDate__c = ContractTestDataFactory.stableTermStart(),
-      Enddate__c = ContractTestDataFactory.stableTermEnd()
-    );
-    line.Product__r = new Product2(
-      IncludeInARR__c = true,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
-    );
-    try {
-      ContractArrCalculationService.calculateProductArr(
-        line,
-        ContractTestDataFactory.stableTermEnd()
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'ARR Blank Amount Account'
       );
-      System.assert(false, '金額空は数量×単価で埋めずエラー');
-    } catch (ContractArrCalculationService.ArrException ex) {
-      System.assert(ex.getMessage().contains('金額が空です。'));
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractService__c service = new ContractService__c(
+        Name = 'ARR Blank Amount Service',
+        Account__c = account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'ARR Blank Amount History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = ContractTestDataFactory.stableTermStart(),
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      ContractProduct__c line = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Amount__c = null,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New',
+        StartDate__c = ContractTestDataFactory.stableTermStart(),
+        Enddate__c = termEnd
+      );
+      line.Product__r = new Product2(
+        IncludeInARR__c = true,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
+      );
+      Boolean thrown = false;
+      try {
+        ContractArrCalculationService.calculateProductArr(line, termEnd);
+      } catch (ContractArrCalculationService.ArrException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('ARR対象明細の金額が空です。'),
+          'Core 第10.1節: 金額が空の明細は数量×単価で埋めずエラー。実際: ' +
+            ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown, 'Core 第10.1節: 金額空は数量×単価で埋めずエラー');
     }
+  }
+
+  private static ContractProduct__c applyContractProduct(ContractProduct__c product) {
+    if (String.isBlank(product.RevenueRecognitionBasis__c)) {
+      product.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+    }
+    ContractTestDataFactory.applyRequiredFields(product);
+    return product;
   }
 }
