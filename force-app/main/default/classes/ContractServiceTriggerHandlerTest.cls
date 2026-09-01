@@ -5,94 +5,118 @@ private class ContractServiceTriggerHandlerTest {
     ContractTestDataFactory.initTestContext();
   }
 
-  private static ContractService__c insertServiceWithBillingAccount(
-    Account account,
-    String serviceName
+  private static ContractService__c insertService(Id accountId, String name) {
+    return ContractTestDataFactory.insertContractService(accountId, name);
+  }
+
+  private static ContractHistory__c insertEstimateHistory(
+    Id serviceId,
+    Id accountId,
+    String name,
+    String historyType,
+    Decimal version,
+    Date termStart,
+    Date termEnd
   ) {
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE
+    ContractHistory__c history = new ContractHistory__c(
+      Name = name,
+      ContractService__c = serviceId,
+      Type__c = historyType,
+      historystatus__c = 'Estimate',
+      Version__c = version,
+      CurrentTermStartDate__c = termStart,
+      CurrentTermEndDate__c = termEnd,
+      EffectiveDate__c = termStart
     );
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    ContractService__c service = new ContractService__c(
-      Name = serviceName,
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, accountId);
+    insert history;
+    return history;
+  }
+
+  private static void insertRecurringLine(
+    Id historyId,
+    Id accountId,
+    String productName,
+    Date termStart,
+    Date termEnd
+  ) {
+    Product2 product = ContractTestDataFactory.buildProduct(productName);
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c line = new ContractProduct__c(
+      ContractHistory__c = historyId,
+      Account__c = accountId,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 8000,
+      Amount__c = 96000,
+      StartDate__c = termStart,
+      Enddate__c = termEnd,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
     );
-    insert service;
-    return service;
+    ContractTestDataFactory.applyRequiredFields(line);
+    insert line;
+  }
+
+  private static void orderHistory(ContractHistory__c history) {
+    history.historystatus__c = 'Ordered';
+    update history;
   }
 
   @IsTest
-  static void beforeDelete_allowsDeleteWhenNotOrderedAndNoLockedInvoices() {
+  static void beforeDelete_blocksPhysicalDeleteWhenNotOrderedAndNoLockedInvoices() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'CS Delete Allow Account'
       );
-      ContractService__c service = insertServiceWithBillingAccount(
-        account,
+      ContractService__c service = insertService(
+        account.Id,
         'CS Delete Allow Service'
       );
-
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'CS Delete Allow History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2027, 5, 31);
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'CS Delete Allow History',
+        'New',
+        1,
+        termStart,
+        termEnd
       );
-      insert history;
-
-      Product2 product = ContractTestDataFactory.buildProduct(
-        'CS Delete Allow Product'
+      insertRecurringLine(
+        history.Id,
+        account.Id,
+        'CS Delete Allow Product',
+        termStart,
+        termEnd
       );
-      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-      ContractTestDataFactory.insertProduct(product);
-
-      ContractProduct__c contractProduct = new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2027, 5, 31),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'New'
-      );
-      insert contractProduct;
-
-      insert new InvoiceProduct__c(
-        ContractHistory__c = history.Id,
-        ContractProduct__c = contractProduct.Id,
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2027, 5, 31),
-        InvoiceBucketKey__c = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
-          null,
-          history.Id,
-          Date.newInstance(2026, 6, 1),
-          null
-        ),
-        Amount__c = 96000
-      );
-
-      Test.startTest();
-      delete service;
-      Test.stopTest();
-
+      ContractServiceWriteGuard.enforceInTest = true;
+      Boolean thrown = false;
+      String message = null;
+      try {
+        Test.startTest();
+        delete service;
+        Test.stopTest();
+      } catch (DmlException ex) {
+        thrown = true;
+        message = ex.getNumDml() > 0 ? ex.getDmlMessage(0) : ex.getMessage();
+      }
       System.assertEquals(
-        0,
-        [
-          SELECT COUNT()
-          FROM ContractService__c
-          WHERE Id = :service.Id
-        ]
+        true,
+        thrown,
+        'Core 第3.4節: 契約サービスは物理削除しない'
+      );
+      System.assertEquals(
+        ContractServiceWriteGuard.DELETE_BLOCK_MESSAGE,
+        message
+      );
+      System.assertEquals(
+        1,
+        [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id]
       );
     }
   }
@@ -103,23 +127,21 @@ private class ContractServiceTriggerHandlerTest {
       Account account = ContractTestDataFactory.insertAccount(
         'CS Delete Ordered Account'
       );
-      ContractService__c service = insertServiceWithBillingAccount(
-        account,
+      ContractService__c service = insertService(
+        account.Id,
         'CS Delete Ordered Service'
       );
-
-      // Cancel Ordered ??E????? BA ???????E???????? Ordered ??????E?E
-      insert new ContractHistory__c(
-        Name = 'CS Delete Ordered History',
-        ContractService__c = service.Id,
-        Type__c = 'Cancel',
-        historystatus__c = 'Ordered',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2026, 6, 1),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      Date termStart = Date.newInstance(2026, 6, 1);
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'CS Delete Ordered History',
+        'Cancel',
+        1,
+        termStart,
+        termStart
       );
-
+      orderHistory(history);
       ContractService__c synced = [
         SELECT LatestOrderedHistory__c
         FROM ContractService__c
@@ -127,30 +149,27 @@ private class ContractServiceTriggerHandlerTest {
       ];
       System.assertNotEquals(null, synced.LatestOrderedHistory__c);
 
+      ContractServiceWriteGuard.enforceInTest = true;
       Boolean thrown = false;
+      String message = null;
       try {
         Test.startTest();
         delete service;
         Test.stopTest();
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains(
-              ContractServiceTriggerHandler.ORDERED_DELETE_BLOCK_MESSAGE
-            ),
-          ex.getMessage()
-        );
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
-
+      System.assert(
+        message.contains(
+          ContractServiceTriggerHandler.ORDERED_DELETE_BLOCK_MESSAGE
+        ),
+        message
+      );
       System.assertEquals(
         1,
-        [
-          SELECT COUNT()
-          FROM ContractService__c
-          WHERE Id = :service.Id
-        ]
+        [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id]
       );
     }
   }
@@ -161,45 +180,51 @@ private class ContractServiceTriggerHandlerTest {
       Account account = ContractTestDataFactory.insertAccount(
         'CS Delete Pointer Gap Account'
       );
-      ContractService__c service = insertServiceWithBillingAccount(
-        account,
+      ContractService__c service = insertService(
+        account.Id,
         'CS Delete Pointer Gap Service'
       );
-
-      insert new ContractHistory__c(
-        Name = 'CS Delete Pointer Gap History',
-        ContractService__c = service.Id,
-        Type__c = 'Cancel',
-        historystatus__c = 'Ordered',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2026, 6, 1),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      Date termStart = Date.newInstance(2026, 6, 1);
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'CS Delete Pointer Gap History',
+        'Cancel',
+        1,
+        termStart,
+        termStart
       );
+      orderHistory(history);
+      Boolean previous = ContractServiceWriteGuard.isPackageWriteAllowed();
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      try {
+        update new ContractService__c(
+          Id = service.Id,
+          LatestOrderedHistory__c = null,
+          FirstOrderedHistory__c = null
+        );
+      } finally {
+        ContractServiceWriteGuard.allowPackageWrite(previous);
+      }
 
-      // ??????????EOrdered ????E????
-      update new ContractService__c(
-        Id = service.Id,
-        LatestOrderedHistory__c = null,
-        FirstOrderedHistory__c = null
-      );
-
+      ContractServiceWriteGuard.enforceInTest = true;
       Boolean thrown = false;
+      String message = null;
       try {
         Test.startTest();
         delete service;
         Test.stopTest();
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains(
-              ContractServiceTriggerHandler.ORDERED_DELETE_BLOCK_MESSAGE
-            ),
-          ex.getMessage()
-        );
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assert(
+        message.contains(
+          ContractServiceTriggerHandler.ORDERED_DELETE_BLOCK_MESSAGE
+        ),
+        message
+      );
     }
   }
 
@@ -209,77 +234,63 @@ private class ContractServiceTriggerHandlerTest {
       Account account = ContractTestDataFactory.insertAccount(
         'CS Delete Locked IP Account'
       );
-      ContractService__c service = insertServiceWithBillingAccount(
-        account,
+      ContractService__c service = insertService(
+        account.Id,
         'CS Delete Locked IP Service'
       );
-
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'CS Delete Locked IP History',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31)
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2027, 5, 31);
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'CS Delete Locked IP History',
+        'New',
+        1,
+        termStart,
+        termEnd
       );
-      insert history;
-
-      Product2 product = ContractTestDataFactory.buildProduct(
-        'CS Delete Locked IP Product'
+      insertRecurringLine(
+        history.Id,
+        account.Id,
+        'CS Delete Locked IP Product',
+        termStart,
+        termEnd
       );
-      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-      ContractTestDataFactory.insertProduct(product);
-
-      ContractProduct__c contractProduct = new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2027, 5, 31),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'New'
-      );
-      insert contractProduct;
-
-      ContractTestDataFactory.insertAllowingInvoiceStatus(
-        new Invoice__c(
+      Invoice__c invoice = new Invoice__c(
         ContractService__c = service.Id,
         ContractHistory__c = history.Id,
-        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        InvoiceDate__c = termStart,
         Amount__c = 96000,
         TaxAmount__c = 9600,
+        BillingAccountSnapShot__c = service.BiilingAcccount__c,
         InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
-      )
       );
+      ContractTestDataFactory.applyRequiredFields(invoice);
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
 
+      ContractServiceWriteGuard.enforceInTest = true;
       Boolean thrown = false;
+      String message = null;
       try {
         Test.startTest();
         delete service;
         Test.stopTest();
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains(
-              ContractServiceTriggerHandler.LOCKED_INVOICE_DELETE_BLOCK_MESSAGE
-            ),
-          ex.getMessage()
-        );
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
-
+      System.assert(
+        message.contains(
+          ContractServiceTriggerHandler.LOCKED_INVOICE_DELETE_BLOCK_MESSAGE
+        ),
+        message
+      );
       System.assertEquals(
         1,
-        [
-          SELECT COUNT()
-          FROM ContractService__c
-          WHERE Id = :service.Id
-        ]
+        [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id]
       );
     }
   }
