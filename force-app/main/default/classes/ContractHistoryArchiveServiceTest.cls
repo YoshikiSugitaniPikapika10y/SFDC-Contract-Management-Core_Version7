@@ -6,6 +6,25 @@ private class ContractHistoryArchiveServiceTest {
   }
 
   @IsTest
+  static void archiveSupersededEstimates_emptyOrInvalidRowsDoNothing() {
+    ContractHistoryArchiveService.archiveSupersededEstimates(null);
+    ContractHistoryArchiveService.archiveSupersededEstimates(
+      new List<ContractHistory__c>()
+    );
+    ContractHistoryArchiveService.archiveSupersededEstimates(
+      new List<ContractHistory__c>{
+        null,
+        new ContractHistory__c(Version__c = 1)
+      }
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM ContractHistory__c],
+      'Core 第4.3節: 受注したVersion以下の他のEstimateだけをArchiveする。対象が無ければ何もしない'
+    );
+  }
+
+  @IsTest
   static void archiveSupersededEstimates_archivesSameOrLowerVersionEstimates() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
@@ -17,11 +36,11 @@ private class ContractHistoryArchiveServiceTest {
       );
 
       List<ContractHistory__c> histories = new List<ContractHistory__c>{
-        buildEstimateHistory(service.Id, 'Estimate v1', 1),
-        buildEstimateHistory(service.Id, 'Estimate v2', 2),
-        buildEstimateHistory(service.Id, 'Estimate v4 A', 4),
-        buildEstimateHistory(service.Id, 'Estimate v4 B', 4),
-        buildEstimateHistory(service.Id, 'Estimate v5', 5)
+        buildEstimateHistory(service.Id, account.Id, 'Estimate v1', 1),
+        buildEstimateHistory(service.Id, account.Id, 'Estimate v2', 2),
+        buildEstimateHistory(service.Id, account.Id, 'Estimate v4 A', 4),
+        buildEstimateHistory(service.Id, account.Id, 'Estimate v4 B', 4),
+        buildEstimateHistory(service.Id, account.Id, 'Estimate v5', 5)
       };
       insert histories;
 
@@ -102,10 +121,10 @@ private class ContractHistoryArchiveServiceTest {
         'Archive Insert Service'
       );
 
-      insert buildEstimateHistory(service.Id, 'Estimate v1', 1);
+      insert buildEstimateHistory(service.Id, account.Id, 'Estimate v1', 1);
 
       Test.startTest();
-      insert new ContractHistory__c(
+      ContractHistory__c cancelOrdered = new ContractHistory__c(
         Name = 'Cancel Ordered v2',
         ContractService__c = service.Id,
         Type__c = 'Cancel',
@@ -115,6 +134,11 @@ private class ContractHistoryArchiveServiceTest {
         CurrentTermEndDate__c = Date.newInstance(2026, 6, 1),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        cancelOrdered,
+        account.Id
+      );
+      insert cancelOrdered;
       Test.stopTest();
 
       System.assertEquals(
@@ -143,8 +167,8 @@ private class ContractHistoryArchiveServiceTest {
         account,
         'Archive Bulk B'
       );
-      ContractHistory__c estA = buildEstimateHistory(serviceA.Id, 'A-v1', 1);
-      ContractHistory__c estB = buildEstimateHistory(serviceB.Id, 'B-v1', 1);
+      ContractHistory__c estA = buildEstimateHistory(serviceA.Id, account.Id, 'A-v1', 1);
+      ContractHistory__c estB = buildEstimateHistory(serviceB.Id, account.Id, 'B-v1', 1);
       insert new List<ContractHistory__c>{ estA, estB };
 
       ContractHistoryArchiveService.archiveSupersededEstimates(
@@ -187,12 +211,14 @@ private class ContractHistoryArchiveServiceTest {
       );
       ContractHistory__c estimate = buildEstimateHistory(
         service.Id,
+        account.Id,
         'Estimate v1',
         1
       );
       insert estimate;
       ContractHistory__c ordered = buildEstimateHistory(
         service.Id,
+        account.Id,
         'Ordered v2',
         2
       );
@@ -238,11 +264,13 @@ private class ContractHistoryArchiveServiceTest {
       );
       ContractHistory__c older = buildEstimateHistory(
         service.Id,
+        account.Id,
         'Estimate older',
         1
       );
       ContractHistory__c ordered = buildEstimateHistory(
         service.Id,
+        account.Id,
         'Ordered newer',
         2
       );
@@ -288,18 +316,21 @@ private class ContractHistoryArchiveServiceTest {
     ContractService__c service = new ContractService__c(
       Name = serviceName,
       Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id
+      BiilingAcccount__c = billingAccount.Id,
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     return service;
   }
 
   private static ContractHistory__c buildEstimateHistory(
     Id serviceId,
+    Id accountId,
     String name,
     Decimal version
   ) {
-    return new ContractHistory__c(
+    ContractHistory__c history = new ContractHistory__c(
       Name = name,
       ContractService__c = serviceId,
       Type__c = 'Renew',
@@ -309,6 +340,8 @@ private class ContractHistoryArchiveServiceTest {
       CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
       EffectiveDate__c = Date.newInstance(2026, 6, 1)
     );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, accountId);
+    return history;
   }
 
   private static Id fakeId(Schema.SObjectType sobjectType, Integer n) {
