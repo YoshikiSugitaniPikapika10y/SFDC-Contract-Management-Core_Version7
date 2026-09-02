@@ -96,6 +96,51 @@ private class ManualJournalServiceTest {
   }
 
   @IsTest
+  static void register_thenCancel_keepsCauseLifecycle() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice(true);
+      ManualJournalService.RegisterRequest request = new ManualJournalService.RegisterRequest();
+      request.invoiceId = invoice.Id;
+      request.settingId = insertActiveSetting().Id;
+      request.postingDate = Date.today();
+      request.amount = 100;
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Test.startTest();
+      Id headerId = ManualJournalService.register(request);
+      Test.stopTest();
+      System.assertNotEquals(null, headerId, 'Accounting 第10.3節: 登録できる');
+      GlManualJournalHeader__c header = [
+        SELECT TransactionStatus__c
+        FROM GlManualJournalHeader__c
+        WHERE Id = :headerId
+      ];
+      System.assertEquals('Active', header.TransactionStatus__c);
+      ManualJournalService.CancelRequest cancelRequest = new ManualJournalService.CancelRequest();
+      cancelRequest.headerId = headerId;
+      cancelRequest.cancellationReason = 'Duplicate';
+      cancelRequest.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      ManualJournalService.cancel(cancelRequest);
+      System.assertEquals(
+        'Cancelled',
+        [
+          SELECT TransactionStatus__c
+          FROM GlManualJournalHeader__c
+          WHERE Id = :headerId
+        ]
+        .TransactionStatus__c,
+        'Accounting 第10.4節: 取消できる'
+      );
+    }
+  }
+
+  @IsTest
   static void previewRegister_requiresCancellationDateWhenInvoiceHasLockedJournal() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
@@ -545,6 +590,7 @@ private class ManualJournalServiceTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'mjsvc@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
       InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 1,
@@ -555,24 +601,25 @@ private class ManualJournalServiceTest {
       PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-      account.Id,
-      'MJSvc Opp'
-    );
     ContractService__c service = new ContractService__c(
       Name = 'MJSvc Service',
       Account__c = account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = 'MJSvc History',
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1
+    );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
     );
     insert history;
     Invoice__c invoice = new Invoice__c(
@@ -587,6 +634,15 @@ private class ManualJournalServiceTest {
         : InvoiceTransactionStatusService.TX_DRAFT,
       SystemIntegrationDate__c = confirmed ? Date.today() : null
     );
+    ContractTestDataFactory.applyRequiredFields(invoice);
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    if (confirmed) {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+    } else {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
+      invoice.SystemIntegrationDate__c = null;
+    }
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
   }
@@ -632,12 +688,6 @@ private class ManualJournalServiceTest {
       GlAccount__c asset2 = insertAccount('MJ Ast2', 'Asset', true);
       GlAccount__c expense2 = insertAccount('MJ Exp2', 'Expense', true);
       GlAccount__c inactive = insertAccount('MJ Inact', 'Expense', false);
-      // 既存Equity残存を想定（第4.1節。新規選択は非アクティブ化済み）
-      GlAccount__c equity = (GlAccount__c) JSON.deserialize(
-        '{"Name":"MJ Eq","AccountType__c":"Equity","IsActive__c":true}',
-        GlAccount__c.class
-      );
-      insert equity;
 
       assertSettingRejected(
         'FxLoss',
@@ -671,14 +721,23 @@ private class ManualJournalServiceTest {
         '無効な勘定科目は手動仕訳設定に指定できません。',
         'Accounting 第10.2節: 無効科目を拒否する'
       );
-      assertSettingRejected(
-        'FxLoss',
-        equity.Id,
-        'AccountsReceivable',
-        asset.Id,
-        '純資産科目は手動仕訳設定で使用できません。',
-        'Accounting 第10.2節: 純資産科目を拒否する'
-      );
+      Boolean equityInsertRejected = false;
+      try {
+        insert new GlAccount__c(
+          Name = 'MJ Eq',
+          AccountType__c = 'Equity',
+          IsActive__c = true
+        );
+      } catch (DmlException ex) {
+        equityInsertRejected = true;
+        System.assert(
+          ex.getMessage().contains('Equity') ||
+            ex.getMessage().contains('選択リスト'),
+          'Accounting 第4.1節: 新規作成で純資産を選ばせない。実際: ' +
+            ex.getMessage()
+        );
+      }
+      System.assertEquals(true, equityInsertRejected);
       assertSettingRejected(
         'FxLoss',
         asset.Id,

@@ -49,6 +49,45 @@ private class ManualJournalControllerTest {
         );
       }
       System.assertEquals(true, thrown);
+      Boolean previewThrown = false;
+      try {
+        ManualJournalController.previewRegister(
+          invoice.Id,
+          setting.Id,
+          Date.today(),
+          100,
+          null,
+          null,
+          invoice.ContractHistory__c
+        );
+      } catch (Exception ex) {
+        previewThrown = true;
+        System.assert(
+          ex.getMessage().contains('AccountingがOFFのときは手動仕訳を登録できません'),
+          'Accounting 第10.3節: OFFならプレビューもしない'
+        );
+      }
+      System.assertEquals(true, previewThrown);
+      Boolean scopedRegisterThrown = false;
+      try {
+        ManualJournalController.register(
+          invoice.Id,
+          setting.Id,
+          Date.today(),
+          100,
+          null,
+          null,
+          null,
+          invoice.ContractHistory__c
+        );
+      } catch (Exception ex) {
+        scopedRegisterThrown = true;
+        System.assert(
+          ex.getMessage().contains('AccountingがOFFのときは手動仕訳を登録できません'),
+          'Accounting 第10.3節: 契約履歴付き登録もOFFなら拒否'
+        );
+      }
+      System.assertEquals(true, scopedRegisterThrown);
     }
   }
 
@@ -278,6 +317,7 @@ private class ManualJournalControllerTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'mj@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
       InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 1,
@@ -288,24 +328,25 @@ private class ManualJournalControllerTest {
       PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-      account.Id,
-      'MJ Opp'
-    );
     ContractService__c service = new ContractService__c(
       Name = 'MJ Service',
       Account__c = account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = 'MJ History',
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1
+    );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
     );
     insert history;
     Invoice__c invoice = new Invoice__c(
@@ -320,6 +361,15 @@ private class ManualJournalControllerTest {
         : InvoiceTransactionStatusService.TX_DRAFT,
       SystemIntegrationDate__c = confirmed ? Date.today() : null
     );
+    ContractTestDataFactory.applyRequiredFields(invoice);
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    if (confirmed) {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+    } else {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
+      invoice.SystemIntegrationDate__c = null;
+    }
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
   }
