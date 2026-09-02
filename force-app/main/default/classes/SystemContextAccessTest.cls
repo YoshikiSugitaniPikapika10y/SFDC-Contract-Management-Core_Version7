@@ -74,4 +74,37 @@ private class SystemContextAccessTest {
       System.assertEquals(0, remaining.size());
     }
   }
+
+  @IsTest
+  static void upsertInsertsNewRecordInSystemMode() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Upsert Insert Account'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Upsert Insert Service',
+        Account__c = account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      Database.UpsertResult[] results = SystemContextAccess.upsertRecords(
+        new List<SObject>{ service },
+        false
+      );
+      System.assertEquals(1, results.size());
+      System.assertEquals(
+        true,
+        results[0].isSuccess(),
+        '共通基盤 第3.8節: カスタム画面の Apex はシステム権限で書き込む'
+      );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractService__c
+          WHERE Id = :results[0].getId()
+          WITH SYSTEM_MODE
+        ]
+      );
+    }
+  }
 }

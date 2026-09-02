@@ -139,4 +139,38 @@ private class InvoiceDeliveryMethodServiceTest {
     }
     System.assertEquals(true, thrown);
   }
+
+  @IsTest
+  static void confirmAndSend_emailSnapshotOnlyWhenPdfAndEmail() {
+    InvoiceDeliveryMethodService.assertRequiredOnBillingAccount(null);
+    System.assertEquals(
+      false,
+      InvoiceDeliveryMethodService.allowsEmailSend(null),
+      'Core 第7.10節: 請求が無ければ送付しない'
+    );
+
+    ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+    setting.InvoiceSendMode__c = 'PdfAndEmail';
+    update setting;
+    ContractDocumentSettingService.clearCache();
+
+    Invoice__c emailInvoice = new Invoice__c(
+      InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.EMAIL
+    );
+    InvoiceDeliveryMethodService.assertRequiredOnConfirm(emailInvoice);
+    System.assertEquals(
+      true,
+      InvoiceDeliveryMethodService.allowsEmailSend(emailInvoice)
+    );
+
+    Invoice__c noneInvoice = new Invoice__c(
+      InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.NONE
+    );
+    InvoiceDeliveryMethodService.assertRequiredOnConfirm(noneInvoice);
+    System.assertEquals(
+      false,
+      InvoiceDeliveryMethodService.allowsEmailSend(noneInvoice),
+      'Core 第7.10節: 送付なしでは送付しない'
+    );
+  }
 }

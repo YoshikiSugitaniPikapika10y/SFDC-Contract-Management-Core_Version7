@@ -220,4 +220,51 @@ private class InvoiceProductMergeKeyUtilTest {
       InvoiceProductMergeKeyUtil.buildMergeKey(withExportKey)
     );
   }
+
+  @IsTest
+  static void parseExportMergeKey_invalidDateAndTrailingZeros() {
+    System.assertEquals(
+      null,
+      InvoiceProductMergeKeyUtil.parseInvoiceDateFromExportMergeKey(
+        'INV|BA=001|CH=002|DT=not-a-date|PD=2026-07-31'
+      ),
+      'Core 第6.7節: 互換文字列の日付が読めなければ推測しない'
+    );
+    System.assertEquals(
+      Date.newInstance(2026, 7, 31),
+      InvoiceProductMergeKeyUtil.parsePaymentScheduledDateFromExportMergeKey(
+        'INV|BA=001|CH=002|DT=2026-06-05|PD=2026-07-31'
+      )
+    );
+    Id serviceId = (Id) (ContractService__c.SObjectType.getDescribe()
+      .getKeyPrefix() + '000000000005');
+    Id productId = (Id) (Product2.SObjectType.getDescribe().getKeyPrefix() +
+    '000000000005');
+    Date startDate = Date.newInstance(2026, 9, 1);
+    Date endDate = Date.newInstance(2026, 9, 30);
+    System.assertEquals(
+      String.valueOf(serviceId) +
+        '_' +
+        String.valueOf(productId) +
+        '_' +
+        String.valueOf(startDate) +
+        '_' +
+        String.valueOf(endDate) +
+        '_10_8000_',
+      InvoiceProductMergeKeyUtil.buildMergeKey(
+        serviceId,
+        productId,
+        startDate,
+        endDate,
+        10.00,
+        8000.00,
+        ''
+      ),
+      'Core 第6.7節: 数量・単価の末尾0はキーに入れない'
+    );
+    System.assertEquals(
+      null,
+      InvoiceProductMergeKeyUtil.buildMergeKeyFromContractProductReference(null)
+    );
+  }
 }
