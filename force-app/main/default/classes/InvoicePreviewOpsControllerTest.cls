@@ -13,9 +13,11 @@ private class InvoicePreviewOpsControllerTest {
       fixture.line.AllocatedTaxAmount__c = 100;
       update fixture.line;
 
+      Test.startTest();
       InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
         fixture.invoice.Id
       );
+      Test.stopTest();
 
       System.assertEquals(
         1,
@@ -39,6 +41,7 @@ private class InvoicePreviewOpsControllerTest {
         'LOCKCAN'
       );
 
+      Test.startTest();
       InvoicePreviewOpsController.OpsBundleDto cancelledOnly = InvoicePreviewOpsController.getOpsBundle(
         fixture.invoice.Id
       );
@@ -57,6 +60,7 @@ private class InvoicePreviewOpsControllerTest {
         withActive.hasLockedJournals,
         'Core 第7.9.6節: 有効かつLock済みの仕訳があるとき取消基準日を求める'
       );
+      Test.stopTest();
     }
   }
 
@@ -86,6 +90,7 @@ private class InvoicePreviewOpsControllerTest {
         IsActive__c = true
       );
 
+      Test.startTest();
       InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
         fixture.invoice.Id
       );
@@ -100,6 +105,7 @@ private class InvoicePreviewOpsControllerTest {
         bundle.manualSettings[0].description,
         'Accounting 第10.2節: Description は選択すべき事象'
       );
+      Test.stopTest();
     }
   }
 
@@ -272,9 +278,11 @@ private class InvoicePreviewOpsControllerTest {
       insert GlAccountingPolicyService.newOrgDefault();
       InvoiceFixture fixture = createInvoice(true);
 
+      Test.startTest();
       InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
         fixture.invoice.Id
       );
+      Test.stopTest();
 
       System.assertNotEquals(null, bundle.journals, 'Core 第7.7.3節: 仕訳タブは仕訳を返す');
     }
@@ -299,12 +307,457 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_unconfirmed_blocksPaymentJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(false);
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id,
+        fixture.invoice.ContractHistory__c
+      );
+      Test.stopTest();
+      System.assertEquals(false, bundle.paymentAllowed);
+      System.assertEquals(
+        '請求を確定してから入金できます。',
+        bundle.paymentBlockedReason,
+        'Core 第7.7.3節: 未確定の請求に入出金は登録できない'
+      );
+      System.assertEquals(
+        false,
+        bundle.hasUnlockedJournals,
+        'Core 第7.9.6節: 仕訳が無いときUnlock行は無い'
+      );
+    }
+  }
+
+  @IsTest
+  static void getOpsBundle_cancelled_blocksPaymentJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        InvoiceTransactionStatusService.applyCancelled(
+          new List<Invoice__c>{ fixture.invoice }
+        );
+        update fixture.invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = false;
+        InvoiceLockUtil.allowLockedStatusWrite = false;
+      }
+      insertJournal(fixture.invoice.Id, false, 'Active', 'UNLCK1');
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+      System.assertEquals(false, bundle.paymentAllowed);
+      System.assertEquals(
+        '取消済みの請求に入出金は登録できません。',
+        bundle.paymentBlockedReason,
+        'Core 第7.7.3節: 取消済みは入出金できない'
+      );
+      System.assertEquals(
+        true,
+        bundle.hasUnlockedJournals,
+        'Core 第7.9.6節: 未Lock仕訳がある'
+      );
+    }
+  }
+
+  @IsTest
+  static void issueInvoiceOperationKey_returnsDistinctKeys() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Test.startTest();
+      String first = InvoicePreviewOpsController.issueInvoiceOperationKey();
+      String second = InvoicePreviewOpsController.issueInvoiceOperationKey();
+      Test.stopTest();
+      System.assertEquals(false, String.isBlank(first));
+      System.assertEquals(false, String.isBlank(second));
+      System.assertNotEquals(
+        first,
+        second,
+        'Core 第4.3.12節・第7.9.7節: 実行のたびに別の操作キーを発行する'
+      );
+    }
+  }
+
+  @IsTest
+  static void previewRegisterFromPreview_requiresAmountAndDateJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        InvoicePreviewOpsController.previewRegisterFromPreview(
+          fixture.invoice.Id,
+          0,
+          InvoicePaymentService.PURPOSE_INVOICE,
+          null,
+          null,
+          'token',
+          null,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求、0以外の金額、入出金日を入力してください。',
+          ex.getMessage(),
+          'Core 第8.9節: 請求・0以外の金額・入出金日が無ければ登録プレビューしない'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void previewCancelPaymentFromPreview_requiresPaymentJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        InvoicePreviewOpsController.previewCancelPaymentFromPreview(
+          null,
+          null,
+          Date.today()
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '取消する入出金が指定されていません。',
+          ex.getMessage(),
+          'Core 第8.9節: 入出金未指定の取消プレビューは拒否する'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void lockJournals_accountingOff_throwsJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'LOCKOFF');
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id
+        LIMIT 1
+      ];
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        InvoicePreviewOpsController.lockJournalsForInvoice(
+          fixture.invoice.Id,
+          new List<Id>{ journal.Id }
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          'AccountingがOFFのときはLock/Unlockできません。',
+          ex.getMessage(),
+          'Accounting 第9.5節: Accounting OFF では Lock しない'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void lockThenUnlockJournals_withToken_countsSelected() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'LOCKON');
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id
+        LIMIT 1
+      ];
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      String key = InvoicePreviewOpsController.issueInvoiceOperationKey();
+      Test.startTest();
+      Integer lockedCount = InvoicePreviewOpsController.lockJournalsForInvoice(
+        fixture.invoice.Id,
+        new List<Id>{ journal.Id },
+        token,
+        key
+      );
+      System.assertEquals(1, lockedCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(
+        true,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c
+      );
+      String unlockToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      Integer unlockedCount = InvoicePreviewOpsController.unlockJournalsForInvoice(
+        fixture.invoice.Id,
+        new List<Id>{ journal.Id },
+        '監査',
+        unlockToken,
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        unlockedCount,
+        'Accounting 第9.5節: Unlockには理由が必要で、選んだ行をUnlockする'
+      );
+      System.assertEquals(
+        false,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c
+      );
+    }
+  }
+
+  @IsTest
+  static void updateJournalMemo_twoArgWritesMemo() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{
+          new InvoiceOpsField__mdt(
+            DeveloperName = 'JnlMemo2',
+            Active__c = true,
+            TargetObject__c = 'GlJournal__c',
+            FieldApiName__c = 'Memo__c'
+          )
+        }
+      );
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'MEMO2');
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id
+        LIMIT 1
+      ];
+      Test.startTest();
+      InvoicePreviewOpsController.updateJournalMemo(journal.Id, '2引数メモ');
+      Test.stopTest();
+      System.assertEquals(
+        '2引数メモ',
+        [SELECT Memo__c FROM GlJournal__c WHERE Id = :journal.Id].Memo__c,
+        'Accounting 第9.1節: 仕訳メモは後から保存した文が残る'
+      );
+      InvoiceOpsFieldService.resetCache();
+    }
+  }
+
+  @IsTest
+  static void updateJournalMemo_threeArgWritesMemo() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{
+          new InvoiceOpsField__mdt(
+            DeveloperName = 'JnlMemo3',
+            Active__c = true,
+            TargetObject__c = 'GlJournal__c',
+            FieldApiName__c = 'Memo__c'
+          )
+        }
+      );
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'MEMO3');
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id
+        LIMIT 1
+      ];
+      Test.startTest();
+      InvoicePreviewOpsController.updateJournalMemo(
+        journal.Id,
+        '3引数メモ',
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+      System.assertEquals(
+        '3引数メモ',
+        [SELECT Memo__c FROM GlJournal__c WHERE Id = :journal.Id].Memo__c,
+        'Accounting 第9.1節: 請求付きの仕訳メモ保存も後から保存した文が残る'
+      );
+      InvoiceOpsFieldService.resetCache();
+    }
+  }
+
+  @IsTest
+  static void unlockJournals_threeArgAccountingOff_throwsJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, true, 'Active', 'UNLOFF');
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id
+        LIMIT 1
+      ];
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        InvoicePreviewOpsController.unlockJournalsForInvoice(
+          fixture.invoice.Id,
+          new List<Id>{ journal.Id },
+          '監査'
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          'AccountingがOFFのときはLock/Unlockできません。',
+          ex.getMessage(),
+          'Accounting 第9.5節: Accounting OFF では Unlock しない'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void savePaymentFromPreview_rejectsDirectUpdateAndBadPurpose() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c invoice = [
+        SELECT LastModifiedDate, ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      String token = ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate);
+      Boolean updateThrown = false;
+      Test.startTest();
+      try {
+        InvoicePreviewOpsController.savePaymentFromPreview(
+          fixture.line.Id,
+          fixture.invoice.Id,
+          100,
+          InvoicePaymentService.PURPOSE_INVOICE,
+          Date.today(),
+          null,
+          token,
+          null,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        updateThrown = true;
+        System.assertEquals(
+          '入金は直接更新できません。取消して再登録してください。',
+          ex.getMessage(),
+          'Core 第8.4節: 入金の金額変更は取消して再登録'
+        );
+      }
+      Boolean purposeThrown = false;
+      try {
+        InvoicePreviewOpsController.savePaymentFromPreview(
+          null,
+          fixture.invoice.Id,
+          100,
+          'Other',
+          Date.today(),
+          null,
+          token,
+          null,
+          null,
+          'op-purpose'
+        );
+      } catch (AuraHandledException ex) {
+        purposeThrown = true;
+        System.assertEquals(
+          '入出金目的は請求金額または請求金額以外です。',
+          ex.getMessage(),
+          'Core 第8.9節: 入出金目的は2択'
+        );
+      }
+      Boolean missingThrown = false;
+      try {
+        InvoicePreviewOpsController.updatePaymentFromPreview(
+          null,
+          fixture.invoice.Id,
+          'メモ',
+          null,
+          token,
+          'op-edit',
+          invoice.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        missingThrown = true;
+        System.assertEquals(
+          '入出金が指定されていません。',
+          ex.getMessage(),
+          'Core 第8.4節: 入出金未指定の編集は拒否する'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, updateThrown);
+      System.assertEquals(true, purposeThrown);
+      System.assertEquals(true, missingThrown);
+    }
+  }
+
+  @IsTest
+  static void previewRegisterFromPreview_inScopeReturnsPreview() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c invoice = [
+        SELECT LastModifiedDate, ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      Test.startTest();
+      AccountingDiffService.CancelPreview preview = InvoicePreviewOpsController.previewRegisterFromPreview(
+        fixture.invoice.Id,
+        100,
+        InvoicePaymentService.PURPOSE_NON_INVOICE,
+        Date.today(),
+        null,
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+        null,
+        null,
+        invoice.ContractHistory__c
+      );
+      Test.stopTest();
+      System.assertNotEquals(
+        null,
+        preview,
+        'Core 第7.9.6節・第8.9節: 範囲内の入金登録プレビューは結果を返す'
+      );
+    }
+  }
+
+  @IsTest
   static void previewOps_rejectInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       InvoiceFixture own = createInvoice(true);
-      InvoiceFixture other = createInvoice(true);
       Test.startTest();
+      InvoiceFixture other = createInvoice(true);
       Boolean bundleRejected = false;
       try {
         InvoicePreviewOpsController.getOpsBundle(
@@ -432,7 +885,18 @@ private class InvoicePreviewOpsControllerTest {
   static void updateJournalMemo_rejectsJournalOutsideInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{
+          new InvoiceOpsField__mdt(
+            DeveloperName = 'JnlMemo',
+            Active__c = true,
+            TargetObject__c = 'GlJournal__c',
+            FieldApiName__c = 'Memo__c'
+          )
+        }
+      );
       InvoiceFixture own = createInvoice(true);
+      Test.startTest();
       InvoiceFixture other = createInvoice(true);
       insertJournal(other.invoice.Id, false, 'Active', 'MEMOOUT');
 
@@ -483,6 +947,8 @@ private class InvoicePreviewOpsControllerTest {
         '当該請求の仕訳',
         [SELECT Memo__c FROM GlJournal__c WHERE Id = :ownJournal.Id].Memo__c
       );
+      Test.stopTest();
+      InvoiceOpsFieldService.resetCache();
     }
   }
 
@@ -510,6 +976,7 @@ private class InvoicePreviewOpsControllerTest {
         LIMIT 1
       ];
 
+      Test.startTest();
       Boolean rejected = false;
       try {
         InvoicePreviewOpsController.updateJournalMemo(
@@ -533,6 +1000,7 @@ private class InvoicePreviewOpsControllerTest {
         null,
         [SELECT Memo__c FROM GlJournal__c WHERE Id = :journal.Id].Memo__c
       );
+      Test.stopTest();
     }
   }
 
@@ -903,6 +1371,12 @@ private class InvoicePreviewOpsControllerTest {
       InvoiceOpsFieldService.setCachedRowsForTest(
         new List<InvoiceOpsField__mdt>{
           new InvoiceOpsField__mdt(
+            DeveloperName = 'JnlMemo',
+            Active__c = true,
+            TargetObject__c = 'GlJournal__c',
+            FieldApiName__c = 'Memo__c'
+          ),
+          new InvoiceOpsField__mdt(
             DeveloperName = 'JnlUnlockReason',
             Active__c = true,
             TargetObject__c = 'GlJournal__c',
@@ -919,6 +1393,7 @@ private class InvoicePreviewOpsControllerTest {
         WHERE Invoice__c = :fixture.invoice.Id AND IsLocked__c = FALSE
         LIMIT 1
       ];
+      Test.startTest();
       InvoicePreviewOpsController.updateJournalMemo(
         unlocked.Id,
         '未Lockメモ',
@@ -958,6 +1433,7 @@ private class InvoicePreviewOpsControllerTest {
           .UnlockReason__c,
         'Core 第11.4.4節・Accounting 第9.5節: Lock後は仕訳ロック除外に無い追加項目を書かない'
       );
+      Test.stopTest();
       JournalLockService.testLockExemptFieldApiNames = null;
       InvoiceOpsFieldService.resetCache();
     }
