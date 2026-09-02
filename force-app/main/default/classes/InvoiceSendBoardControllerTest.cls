@@ -21,20 +21,22 @@ private class InvoiceSendBoardControllerTest {
         'Confirmed',
         'board@example.com'
       );
-      createInvoice('Draft取引先', 'Draft', 'draft@example.com');
-
       Test.startTest();
       InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
+      Test.stopTest();
       System.assertEquals(true, context.canSend);
       System.assertEquals(true, context.featureEnabled);
       System.assertEquals(500, context.listLimit);
       System.assertEquals('StandardInvoice', context.defaultDocumentTemplateKey);
+      System.assertEquals('InvoiceMail', context.defaultEmailTemplateApiName);
       System.assert(
         !context.documentTemplateOptions.isEmpty(),
         'Invoice帳票テンプレートが返ること'
       );
-
-      Test.stopTest();
+      System.assert(
+        !context.emailTemplateOptions.isEmpty(),
+        'Invoice送付メールテンプレートが返ること'
+      );
       System.assertNotEquals(null, confirmed.Id);
     }
   }
@@ -269,6 +271,7 @@ private class InvoiceSendBoardControllerTest {
       BillingEmailTo__c = toAddress == null ? 'source@example.com' : toAddress,
       BillingEmailCc__c = 'cc@example.com',
       BillingEmailBcc__c = 'bcc@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
       InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 25,
@@ -294,18 +297,18 @@ private class InvoiceSendBoardControllerTest {
         String.valueOf(Crypto.getRandomInteger()).replace('-', ''),
       ContractService__c = service.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1,
       CurrentTermStartDate__c = Date.today(),
-      CurrentTermEndDate__c = Date.today().addYears(1).addDays(-1)
+      CurrentTermEndDate__c = Date.today().addYears(1).addDays(-1),
+      EffectiveDate__c = Date.today()
     );
     ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
 
-    // DeltaAmountSum__c（発生金額）は契約商品 Amount のロールアップ。
-    // 確定ガードは見積合計＝請求合計（税抜）を要求するため、請求 Amount と同額を置く。
     Product2 product = ContractTestDataFactory.buildProduct(
-      accountName + ' Prod'
+      accountName + ' Prod ' + String.valueOf(Crypto.getRandomInteger())
     );
     product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
     ContractTestDataFactory.insertProduct(product);
@@ -315,29 +318,67 @@ private class InvoiceSendBoardControllerTest {
       Product__c = product.Id,
       InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
       BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
       Quantity__c = 1,
       UnitPrice__c = 1000,
       Amount__c = 1000,
       StartDate__c = Date.today(),
-      Enddate__c = Date.today().addYears(1).addDays(-1)
+      Enddate__c = Date.today().addYears(1).addDays(-1),
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
     );
     ContractTestDataFactory.applyRequiredFields(contractProduct);
+    contractProduct.Amount__c = 1000;
     insert contractProduct;
+    history.historystatus__c = 'Ordered';
+    update history;
 
-    Invoice__c invoice = new Invoice__c(
+    List<Invoice__c> generated = [
+      SELECT Id, ContractHistory__c, ContractService__c
+      FROM Invoice__c
+      WHERE
+        ContractHistory__c = :history.Id
+        AND InvoiceTransactionStatus__c != :InvoiceTransactionStatusService.TX_CANCELLED
+    ];
+    Invoice__c invoice;
+    if (!generated.isEmpty()) {
+      invoice = generated[0];
+      invoice.BillingEmailToSnapShot__c = toAddress == null
+        ? ';'
+        : toAddress;
+      invoice.InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.EMAIL;
+      if (collectionStatus == 'Draft') {
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
+        invoice.SystemIntegrationDate__c = null;
+      } else {
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+        invoice.SystemIntegrationDate__c = Date.today();
+      }
+      Boolean previous = InvoiceTransactionStatusService.allowStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      try {
+        update invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previous;
+      }
+      return invoice;
+    }
+
+    history = [
+      SELECT DeltaAmountSum__c
+      FROM ContractHistory__c
+      WHERE Id = :history.Id
+    ];
+    Decimal estimateExcl = history.DeltaAmountSum__c == null
+      ? 0
+      : history.DeltaAmountSum__c;
+    invoice = new Invoice__c(
       ContractService__c = service.Id,
       ContractHistory__c = history.Id,
       InvoiceDate__c = Date.today(),
       PaymentScheduledDate__c = Date.today().addDays(30),
-      Amount__c = 1000,
-      TaxAmount__c = 100,
+      Amount__c = estimateExcl,
+      TaxAmount__c = TaxCalculationUtil.calculateTaxAmount(estimateExcl, 10),
       TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      InvoiceTransactionStatus__c = collectionStatus == 'Draft'
-        ? InvoiceTransactionStatusService.TX_DRAFT
-        : InvoiceTransactionStatusService.TX_CONFIRMED,
-      SystemIntegrationDate__c = collectionStatus == 'Draft'
-        ? null
-        : Date.today(),
       BillingAccountSnapShot__c = billing.Id,
       BillingAddresseeSnapShot__c = accountName + ' 御中',
       BillingEmailToSnapShot__c = toAddress == null ? ';' : toAddress,
@@ -346,9 +387,49 @@ private class InvoiceSendBoardControllerTest {
       InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.EMAIL
     );
     ContractTestDataFactory.applyRequiredFields(invoice);
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    if (collectionStatus == 'Draft') {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
+    } else {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+    }
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
-    insert new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1000);
+    InvoiceLine__c invoiceLine = new InvoiceLine__c(
+      Invoice__c = invoice.Id,
+      Amount__c = estimateExcl
+    );
+    ContractTestDataFactory.applyRequiredFields(invoiceLine);
+    insert invoiceLine;
     return invoice;
+  }
+
+  @IsTest
+  static void confirmInvoiceFromPreview_rejectsConfirmedInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createInvoice(
+        '確定済拒否取引先',
+        'Confirmed',
+        'already-confirmed@example.com'
+      );
+      Boolean rejected = false;
+      Test.startTest();
+      try {
+        InvoiceSendBoardController.confirmInvoiceFromPreview(
+          invoice.Id,
+          Date.today(),
+          currentToken(invoice.Id)
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('未確定の請求のみ確定できます'),
+          'Core 第7.9節: 未確定の請求のみ確定できる'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, rejected);
+    }
   }
 
   @IsTest
@@ -360,6 +441,7 @@ private class InvoiceSendBoardControllerTest {
         'confirm-retry@example.com'
       );
       String token = currentToken(invoice.Id);
+      Test.startTest();
       InvoiceSendBoardController.ConfirmResultDto first = InvoiceSendBoardController.confirmInvoiceFromPreview(
         invoice.Id,
         Date.today(),
@@ -372,6 +454,7 @@ private class InvoiceSendBoardControllerTest {
         token,
         first.businessOperationKey
       );
+      Test.stopTest();
       System.assertEquals(
         1,
         retry.confirmedCount,
@@ -392,6 +475,7 @@ private class InvoiceSendBoardControllerTest {
         'Draft',
         'confirm-own@example.com'
       );
+      Test.startTest();
       Invoice__c other = createInvoice(
         '確定所属Other',
         'Draft',
@@ -428,6 +512,7 @@ private class InvoiceSendBoardControllerTest {
         ]
         .InvoiceTransactionStatus__c
       );
+      Test.stopTest();
     }
   }
 

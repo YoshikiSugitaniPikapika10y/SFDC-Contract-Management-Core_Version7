@@ -86,6 +86,220 @@ private class ContractDocumentSettingServiceTest {
   }
 
   @IsTest
+  static void requireSendMode_rejectsUnknownKindAndInvalidMode() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.ensureOrgDocumentSetting();
+      ContractDocumentSettingService.clearCache();
+      Boolean unknownKind = false;
+      try {
+        ContractDocumentSettingService.requireSendMode('Quote');
+      } catch (ContractDocumentSettingService.SettingException ex) {
+        unknownKind = true;
+        System.assert(
+          ex.getMessage().contains('見積書または請求書'),
+          'Core 第11.3節: 見積書または請求書を指定する'
+        );
+      }
+      System.assertEquals(true, unknownKind);
+
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'MailOnly';
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Boolean invalidMode = false;
+      try {
+        ContractDocumentSettingService.requireSendMode('Invoice');
+      } catch (ContractDocumentSettingService.SettingException ex) {
+        invalidMode = true;
+        System.assertEquals(
+          ContractDocumentSettingService.INVALID_SEND_MODE_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, invalidMode);
+    }
+  }
+
+  @IsTest
+  static void requireRenewOpportunitySwitch_readsOrgSetting() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.RenewOpportunityEnabled__c = true;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      System.assertEquals(
+        true,
+        ContractDocumentSettingService.requireRenewOpportunitySwitch(),
+        'Core 第11.5節: 更新商談スイッチは組織既定'
+      );
+      setting.RenewOpportunityEnabled__c = false;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      System.assertEquals(
+        false,
+        ContractDocumentSettingService.requireRenewOpportunitySwitch()
+      );
+    }
+  }
+
+  @IsTest
+  static void assertRequiredCompanyFields_invoiceRequiresRegistrationAndBank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = ContractDocumentSettingService.MODE_PDF_ONLY;
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      setting.CompanyName__c = '会社';
+      setting.Address__c = '住所';
+      setting.InvoiceRegistrationNumber__c = null;
+      setting.BankTransferInfo__c = '振込先';
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Boolean missingReg = false;
+      try {
+        ContractDocumentSettingService.assertRequiredCompanyFields();
+      } catch (ContractDocumentSettingService.SettingException ex) {
+        missingReg = true;
+        System.assertEquals(
+          ContractDocumentSettingService.MISSING_REGISTRATION_NUMBER_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, missingReg);
+
+      setting.InvoiceRegistrationNumber__c = 'T123';
+      setting.BankTransferInfo__c = null;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Boolean missingBank = false;
+      try {
+        ContractDocumentSettingService.assertRequiredCompanyFields();
+      } catch (ContractDocumentSettingService.SettingException ex) {
+        missingBank = true;
+        System.assertEquals(
+          ContractDocumentSettingService.MISSING_BANK_TRANSFER_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, missingBank);
+    }
+  }
+
+  @IsTest
+  static void assertRequiredCompanyFields_estimateRequiresAddress() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_PDF_ONLY;
+      setting.InvoiceSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      setting.CompanyName__c = '会社';
+      setting.Address__c = null;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Boolean thrown = false;
+      try {
+        ContractDocumentSettingService.assertRequiredCompanyFields();
+      } catch (ContractDocumentSettingService.SettingException ex) {
+        thrown = true;
+        System.assertEquals(
+          ContractDocumentSettingService.MISSING_ADDRESS_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void assertModeCatalogRequirements_followsSendModeTable() {
+    ContractDocumentSettingService.assertModeCatalogRequirements(
+      ContractDocumentSettingService.MODE_UNUSED,
+      null,
+      null,
+      0,
+      null
+    );
+    Boolean missingDoc = false;
+    try {
+      ContractDocumentSettingService.assertModeCatalogRequirements(
+        ContractDocumentSettingService.MODE_PDF_ONLY,
+        null,
+        null,
+        0,
+        null
+      );
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      missingDoc = true;
+      System.assertEquals(
+        ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE,
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, missingDoc);
+
+    Boolean missingEmail = false;
+    try {
+      ContractDocumentSettingService.assertModeCatalogRequirements(
+        ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
+        'StandardInvoice',
+        null,
+        1,
+        'sender@example.com'
+      );
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      missingEmail = true;
+      System.assertEquals(
+        ContractEmailTemplateService.MISSING_DEFAULT_EMAIL_MESSAGE,
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, missingEmail);
+
+    Boolean missingCatalog = false;
+    try {
+      ContractDocumentSettingService.assertModeCatalogRequirements(
+        ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
+        'StandardInvoice',
+        'InvoiceMail',
+        0,
+        'sender@example.com'
+      );
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      missingCatalog = true;
+      System.assertEquals(
+        ContractEmailTemplateService.MISSING_CATALOG_MESSAGE,
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, missingCatalog);
+
+    Boolean missingSender = false;
+    try {
+      ContractDocumentSettingService.assertModeCatalogRequirements(
+        ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
+        'StandardInvoice',
+        'InvoiceMail',
+        1,
+        null
+      );
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      missingSender = true;
+      System.assertEquals(
+        ContractDocumentSettingService.MISSING_ORG_SENDER_MESSAGE,
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, missingSender);
+
+    ContractDocumentSettingService.assertModeCatalogRequirements(
+      ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
+      'StandardEstimate',
+      'EstimateMail',
+      1,
+      null,
+      false
+    );
+  }
+
+  @IsTest
   static void sendModes_areTextOnHierarchySetting() {
     System.assertEquals(
       Schema.DisplayType.STRING,
