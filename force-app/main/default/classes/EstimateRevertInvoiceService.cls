@@ -9,7 +9,7 @@ public without sharing class EstimateRevertInvoiceService {
 
   public static final String DRAFT_JOURNAL_REVERT_MESSAGE = '未確定請求に仕訳が残っているため差し戻せません。';
 
-  /** 仕様: Core 第4.9節、第5.3節 */
+  /** 仕様: Core 第4.9節、第5.3節、Accounting 第2.5節。消す未確定を参照する仕訳は請求削除の前に物理削除する。 */
   public static void archiveNewerEstimates(
     List<ContractHistory__c> revertedHistories
   ) {
@@ -93,12 +93,12 @@ public without sharing class EstimateRevertInvoiceService {
     }
 
     InvoiceLockUtil.assertNoLockedInvoices(revertedHistoryIds);
-    assertNoDraftJournals(revertedHistoryIds);
+    deleteJournalsForDraftInvoices(revertedHistoryIds);
     InvoiceCanonicalService.purgeBillingForHistories(revertedHistoryIds);
   }
 
-  /** 仕様: Core 第5.3節、Accounting 第1.1節、第1.8.1節。Currentは論理削除・取消済元・取消仕訳を数えない。 */
-  private static void assertNoDraftJournals(Set<Id> contractHistoryIds) {
+  /** 仕様: Core 第5.3節、Accounting 第2.5節。消す未確定を参照する仕訳は状態を問わず請求削除の前に物理削除する。取消済み請求の仕訳は残す。 */
+  private static void deleteJournalsForDraftInvoices(Set<Id> contractHistoryIds) {
     Set<Id> draftInvoiceIds = new Set<Id>();
     for (Invoice__c invoice : [
       SELECT Id, InvoiceTransactionStatus__c
@@ -106,22 +106,29 @@ public without sharing class EstimateRevertInvoiceService {
       WHERE ContractHistory__c IN :contractHistoryIds
       WITH SYSTEM_MODE
     ]) {
-      if (
-        !InvoiceTransactionStatusService.isCancelled(invoice) &&
-        !InvoiceLockUtil.isActiveConfirmed(invoice)
-      ) {
-        draftInvoiceIds.add(invoice.Id);
+      if (InvoiceTransactionStatusService.isCancelled(invoice)) {
+        continue;
       }
+      draftInvoiceIds.add(invoice.Id);
     }
     if (draftInvoiceIds.isEmpty()) {
       return;
     }
-    for (Id invoiceId : draftInvoiceIds) {
-      for (GlJournal__c journal : AccountingCurrentService.load(invoiceId)) {
-        if (journal.TransactionStatus__c == 'Active') {
-          throw new RevertException(DRAFT_JOURNAL_REVERT_MESSAGE);
-        }
-      }
+    List<GlJournal__c> journals = [
+      SELECT Id
+      FROM GlJournal__c
+      WHERE Invoice__c IN :draftInvoiceIds
+      WITH SYSTEM_MODE
+    ];
+    if (journals.isEmpty()) {
+      return;
+    }
+    Boolean previous = GlJournalTriggerHandler.allowRevertDraftJournalDelete;
+    GlJournalTriggerHandler.allowRevertDraftJournalDelete = true;
+    try {
+      SystemContextAccess.deleteRecords(journals);
+    } finally {
+      GlJournalTriggerHandler.allowRevertDraftJournalDelete = previous;
     }
   }
 

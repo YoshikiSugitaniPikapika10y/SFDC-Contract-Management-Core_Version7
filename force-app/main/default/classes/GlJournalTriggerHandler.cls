@@ -1,5 +1,7 @@
 public without sharing class GlJournalTriggerHandler {
   public static Boolean allowEngineWrite;
+  /** 仕様: Core 第5.3節、Accounting 第2.5節。差し戻しで消す未確定の仕訳だけ物理削除する。 */
+  public static Boolean allowRevertDraftJournalDelete;
 
   /** 仕様: Accounting 第9.5節 */
   public static void beforeUpdate(
@@ -55,9 +57,12 @@ public without sharing class GlJournalTriggerHandler {
     }
   }
 
-  /** 仕様: Accounting 第2.5節、共通基盤 第3.6節。物理削除は 103／104（hasDeleteRecords。104 は 103 を含む）。 */
+  /** 仕様: Accounting 第2.5節、共通基盤 第3.6節。物理削除は 103／104。例外は Core 第5.3節の差し戻し。 */
   public static void beforeDelete(List<GlJournal__c> oldRecords) {
-    if (ContractPermissionUtil.hasDeleteRecords()) {
+    if (
+      ContractPermissionUtil.hasDeleteRecords() ||
+      allowRevertDraftJournalDelete == true
+    ) {
       return;
     }
     for (GlJournal__c row : oldRecords) {
