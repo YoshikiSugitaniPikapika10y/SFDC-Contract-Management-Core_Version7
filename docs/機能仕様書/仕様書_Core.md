@@ -335,7 +335,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 3. **取消は論理削除ではない。**  
    `Cancelled`や`取消済み`は、誤りや変更を正式に打ち消した業務上の結果である。通常処理から除外する点は似ているが、取消履歴として利用者が確認できる状態なので、単なる非表示用の論理削除とは区別する。
 4. **仕訳だけは、原因取引ではなくシステムが再構成できる会計結果として扱う。**  
-   未ロック仕訳はまだ確定保存の対象外なので論理削除し、通常残高から除外する。ロック済み仕訳は変更も論理削除もせず、元仕訳を残したまま反対仕訳で打ち消す。
+   未ロック仕訳はまだ確定保存の対象外なので論理削除し、通常残高から除外する。ロック済み仕訳は変更も論理削除もせず、元仕訳を残したまま反対仕訳で打ち消す。例外は第5.3節。差し戻しで消す未確定請求を参照する仕訳だけは、請求の物理削除の前に同じ処理で物理削除する。
 5. **削除方法を利用者に選ばせない。**  
    対象レコードの種類、取引状態および仕訳のロック状態から、物理削除、取消、論理削除または逆仕訳のいずれを使うかをシステムが一意に決める。
 
@@ -1281,17 +1281,17 @@ OrderedをEstimateへ差し戻せるのは、次をすべて満たす場合だ�
 
 1. 自分より新しいVersionのEstimateをArchiveする。自動Renew見積を含む。受注を取り消すと同じ前提の次見積は無効だからである。見積は物理削除しない。後続がすでにOrderedなら、差し戻し対象はそちらであり、本処理の対象ではない。
 2. 契約履歴をEstimateに戻す。受注日は空にする。差し戻し画面では受注と同じ`OrderWizardField__mdt`の表示対象を出す。初期値は保存済み。受注日以外は人が空にも変更にもでき、同じ処理で契約履歴へ書く。必須は差し戻しでは見ない。受注日は画面で残す操作を持たず、差し戻し後は必ず空にする。画面外の差し戻しは受注日だけ空にし、その他は触らない。再受注では受注日の初期値をまた操作日にする。保存済みがあれば初期値で上書きしない。
-3. 当該Versionの契約期間明細と未確定請求・請求明細を削除する。取消済み請求・請求明細、PDFおよび取消監査情報は元契約履歴に紐づけたまま保持する。
+3. 当該Versionの契約期間明細と未確定請求・請求明細を削除する。未確定を参照する仕訳は、請求を消す前に同じ処理で物理削除する。取消済み請求・請求明細、PDFおよび取消監査情報と、取消済み請求を参照する仕訳は元契約履歴に紐づけたまま保持する。
 4. 契約サービスのFirst Ordered、Latest Ordered、Lifecycleおよび状態を再計算する。
 5. 差し戻し画面で「更新商談を削除する」が選択され、紐づく更新商談がある場合は、手順1でArchiveした見積の`Opportunity__c`を外してから更新商談を削除する。商談だけ先に消さない。削除に失敗した場合は差し戻し全体を取り消す。差し戻し画面を通さずOrderedからEstimateへ戻した場合は、後続見積のArchiveは行うが、更新商談は削除せずカウントも変えない。
 
 端数調整、分割、移動または請求情報編集を行った未確定請求も差し戻せるが、それらの調整結果はすべて削除される。実行前にその旨を表示して確認する。有効な確定済み請求が1件でもある場合は、未確定請求だけを削除する部分的な差し戻しを行わない。差し戻しが必要な場合は、請求入出金と手動仕訳を先に個別取消し、確定済み請求を請求書単位ですべて取消してから実行する。
 
-Accountingは未確定の請求に仕訳を作成しない。差し戻し前に有効な確定済み請求の取消とAccounting処理が完了しているため、差し戻し処理自身は仕訳を削除・取消しない。未確定請求に紐づく仕訳が存在する場合はデータ不整合として差し戻し全体を拒否し、通常処理から仕訳を黙って削除しない。
+Accountingは未確定の請求に仕訳を作成しない。差し戻し可否は有効な確定済み請求の有無だけで判定し、未確定に仕訳が付いているかでは止めない。手順3で未確定請求を物理削除する前に、その未確定を参照する仕訳を取引状態を問わず同じ処理で物理削除する。取消済み請求を参照する仕訳は削除しない。`GlJournal__c.Invoice__c`は必須かつRestrictのままとする。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 入口 <code>orderRevertRecordAction</code> / <code>orderRevertWizard</code>、<code>OrderCreateController.revertOrder</code>、<code>OrderWizardFieldService.getDefinitions</code>。後続Archive <code>EstimateArchiveController.archiveEstimate</code>を差し戻しと同じTXで先に呼ぶ。請求削除 <code>EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories</code>。未確定仕訳の有無は差し戻し前に照会して全体拒否。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 入口 <code>orderRevertRecordAction</code> / <code>orderRevertWizard</code>、<code>OrderCreateController.revertOrder</code>、<code>OrderWizardFieldService.getDefinitions</code>。後続Archive <code>EstimateArchiveController.archiveEstimate</code>を差し戻しと同じTXで先に呼ぶ。請求削除 <code>EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories</code>。消す未確定を参照する仕訳は請求削除の前に同じ処理で物理削除する。仕訳の有無では差し戻しを拒否しない。<code>GlJournal__c.Invoice__c</code>は必須かつRestrict。
 </div>
 
 ### 5.4 契約状態
