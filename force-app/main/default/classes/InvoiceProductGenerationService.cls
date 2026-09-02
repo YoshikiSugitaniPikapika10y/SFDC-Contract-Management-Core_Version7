@@ -12,6 +12,10 @@ public without sharing class InvoiceProductGenerationService {
   private static final String HISTORY_TYPE_RENEW = ContractDomainConstants.HISTORY_TYPE_RENEW;
   private static final String HISTORY_TYPE_CANCEL = ContractDomainConstants.HISTORY_TYPE_CANCEL;
   private static final String HISTORY_STATUS_ORDERED = ContractDomainConstants.HISTORY_STATUS_ORDERED;
+  private static Map<Id, HistoryGenerationContext> cachedHistoryGenerationContextById = new Map<Id, HistoryGenerationContext>();
+  private static Map<Id, ContractHistory__c> cachedHistoriesForFieldCopy = new Map<Id, ContractHistory__c>();
+  private static Map<Id, BillingAccount__c> cachedBillingAccountsById = new Map<Id, BillingAccount__c>();
+  private static Map<Id, List<ContractProduct__c>> cachedContractProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
 
   private class InvoiceGenerationContext {
     public String historyType;
@@ -202,18 +206,31 @@ public without sharing class InvoiceProductGenerationService {
     Set<Id> contractHistoryIds
   ) {
     Map<Id, HistoryGenerationContext> contextByHistoryId = new Map<Id, HistoryGenerationContext>();
-    for (ContractHistory__c history : [
-      SELECT Id, Type__c, EffectiveDate__c, ContractService__c, Version__c
-      FROM ContractHistory__c
-      WHERE Id IN :contractHistoryIds
-      WITH SYSTEM_MODE
-    ]) {
+    if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
+      return contextByHistoryId;
+    }
+    Set<Id> missingIds = new Set<Id>();
+    for (Id historyId : contractHistoryIds) {
+      if (cachedHistoryGenerationContextById.containsKey(historyId)) {
+        contextByHistoryId.put(
+          historyId,
+          cachedHistoryGenerationContextById.get(historyId)
+        );
+      } else {
+        missingIds.add(historyId);
+      }
+    }
+    if (missingIds.isEmpty()) {
+      return contextByHistoryId;
+    }
+    for (ContractHistory__c history : queryContractHistoriesForFieldCopy(missingIds)) {
       HistoryGenerationContext context = new HistoryGenerationContext();
       context.historyId = history.Id;
       context.contractServiceId = history.ContractService__c;
       context.version = history.Version__c;
       context.historyType = history.Type__c;
       context.effectiveDate = history.EffectiveDate__c;
+      cachedHistoryGenerationContextById.put(history.Id, context);
       contextByHistoryId.put(history.Id, context);
     }
     return contextByHistoryId;
@@ -1255,18 +1272,41 @@ public without sharing class InvoiceProductGenerationService {
     if (selectList.isEmpty()) {
       selectList.add('Id');
     }
-    // 固定リレーション解決用（CMDT コピー元とは別）
-    selectList.add('Opportunity__c');
-    selectList.add('ContractService__r.TaxPercent__c');
-    selectList.add('ContractService__r.BiilingAcccount__c');
-    selectList.add('ContractService__r.Account__c');
+    Set<String> uniqueSelect = new Set<String>(selectList);
+    uniqueSelect.add('Opportunity__c');
+    uniqueSelect.add('Type__c');
+    uniqueSelect.add('EffectiveDate__c');
+    uniqueSelect.add('Version__c');
+    uniqueSelect.add('ContractService__c');
+    uniqueSelect.add('ContractService__r.TaxPercent__c');
+    uniqueSelect.add('ContractService__r.BiilingAcccount__c');
+    uniqueSelect.add('ContractService__r.Account__c');
+    selectList = new List<String>(uniqueSelect);
 
+    Set<Id> missingHistoryIds = new Set<Id>();
+    for (Id historyId : contractHistoryIds) {
+      if (!cachedHistoriesForFieldCopy.containsKey(historyId)) {
+        missingHistoryIds.add(historyId);
+      }
+    }
+    if (!missingHistoryIds.isEmpty()) {
     String soql =
       'SELECT ' +
       String.join(selectList, ',') +
       ' FROM ContractHistory__c' +
-      ' WHERE Id IN :contractHistoryIds WITH SYSTEM_MODE';
-    return (List<ContractHistory__c>) Database.query(soql);
+      ' WHERE Id IN :missingHistoryIds WITH SYSTEM_MODE';
+    for (ContractHistory__c history : (List<ContractHistory__c>) Database.query(soql)) {
+      cachedHistoriesForFieldCopy.put(history.Id, history);
+    }
+    }
+    List<ContractHistory__c> loaded = new List<ContractHistory__c>();
+    for (Id historyId : contractHistoryIds) {
+      if (cachedHistoriesForFieldCopy.containsKey(historyId)) {
+        loaded.add(cachedHistoriesForFieldCopy.get(historyId));
+      }
+    }
+    InvoiceProductFieldCopyService.rememberRecords(loaded);
+    return loaded;
   }
 
   private static Map<Id, BillingAccount__c> loadBillingAccountsById(
@@ -1301,14 +1341,30 @@ public without sharing class InvoiceProductGenerationService {
       selectList.add('Id');
     }
 
+    Set<Id> missingBillingAccountIds = new Set<Id>();
+    for (Id accountId : billingAccountIds) {
+      if (!cachedBillingAccountsById.containsKey(accountId)) {
+        missingBillingAccountIds.add(accountId);
+      }
+    }
     String soql =
       'SELECT ' +
       String.join(selectList, ',') +
       ' FROM BillingAccount__c' +
-      ' WHERE Id IN :billingAccountIds WITH SYSTEM_MODE';
-    return new Map<Id, BillingAccount__c>(
-      (List<BillingAccount__c>) Database.query(soql)
-    );
+      ' WHERE Id IN :missingBillingAccountIds WITH SYSTEM_MODE';
+    if (!missingBillingAccountIds.isEmpty()) {
+      for (BillingAccount__c account : (List<BillingAccount__c>) Database.query(soql)) {
+        cachedBillingAccountsById.put(account.Id, account);
+      }
+    }
+    Map<Id, BillingAccount__c> loaded = new Map<Id, BillingAccount__c>();
+    for (Id accountId : billingAccountIds) {
+      if (cachedBillingAccountsById.containsKey(accountId)) {
+        loaded.put(accountId, cachedBillingAccountsById.get(accountId));
+      }
+    }
+    InvoiceProductFieldCopyService.rememberRecords(loaded.values());
+    return loaded;
   }
 
   private static Map<Id, Opportunity> loadOpportunitiesById(
@@ -1341,7 +1397,11 @@ public without sharing class InvoiceProductGenerationService {
       String.join(selectList, ',') +
       ' FROM Opportunity' +
       ' WHERE Id IN :opportunityIds WITH SYSTEM_MODE';
-    return new Map<Id, Opportunity>((List<Opportunity>) Database.query(soql));
+    Map<Id, Opportunity> loaded = new Map<Id, Opportunity>(
+      (List<Opportunity>) Database.query(soql)
+    );
+    InvoiceProductFieldCopyService.rememberRecords(loaded.values());
+    return loaded;
   }
 
   private static Map<Id, Account> loadAccountsById(Set<Id> accountIds) {
@@ -1369,7 +1429,11 @@ public without sharing class InvoiceProductGenerationService {
       String.join(selectList, ',') +
       ' FROM Account' +
       ' WHERE Id IN :accountIds WITH SYSTEM_MODE';
-    return new Map<Id, Account>((List<Account>) Database.query(soql));
+    Map<Id, Account> loaded = new Map<Id, Account>(
+      (List<Account>) Database.query(soql)
+    );
+    InvoiceProductFieldCopyService.rememberRecords(loaded.values());
+    return loaded;
   }
 
   private static List<ContractProduct__c> queryContractProductsForGeneration(
@@ -1416,12 +1480,53 @@ public without sharing class InvoiceProductGenerationService {
       }
     }
 
-    String soql =
-      'SELECT ' +
-      String.join(selectList, ',') +
-      ' FROM ContractProduct__c' +
-      ' WHERE ContractHistory__c IN :contractHistoryIds WITH SYSTEM_MODE';
-    return (List<ContractProduct__c>) Database.query(soql);
+    Set<Id> missingHistoryIds = new Set<Id>();
+    for (Id historyId : contractHistoryIds) {
+      if (!cachedContractProductsByHistoryId.containsKey(historyId)) {
+        missingHistoryIds.add(historyId);
+      }
+    }
+    if (!missingHistoryIds.isEmpty()) {
+      String soql =
+        'SELECT ' +
+        String.join(selectList, ',') +
+        ' FROM ContractProduct__c' +
+        ' WHERE ContractHistory__c IN :missingHistoryIds WITH SYSTEM_MODE';
+      for (ContractProduct__c contractProduct : (List<ContractProduct__c>) Database.query(
+        soql
+      )) {
+        List<ContractProduct__c> bucket = cachedContractProductsByHistoryId.get(
+          contractProduct.ContractHistory__c
+        );
+        if (bucket == null) {
+          bucket = new List<ContractProduct__c>();
+          cachedContractProductsByHistoryId.put(
+            contractProduct.ContractHistory__c,
+            bucket
+          );
+        }
+        bucket.add(contractProduct);
+      }
+      for (Id historyId : missingHistoryIds) {
+        if (!cachedContractProductsByHistoryId.containsKey(historyId)) {
+          cachedContractProductsByHistoryId.put(
+            historyId,
+            new List<ContractProduct__c>()
+          );
+        }
+      }
+    }
+    List<ContractProduct__c> loaded = new List<ContractProduct__c>();
+    for (Id historyId : contractHistoryIds) {
+      List<ContractProduct__c> bucket = cachedContractProductsByHistoryId.get(
+        historyId
+      );
+      if (bucket != null) {
+        loaded.addAll(bucket);
+      }
+    }
+    InvoiceProductFieldCopyService.rememberRecords(loaded);
+    return loaded;
   }
 
   private static List<InvoiceProduct__c> queryPastOrderedInvoiceProducts(

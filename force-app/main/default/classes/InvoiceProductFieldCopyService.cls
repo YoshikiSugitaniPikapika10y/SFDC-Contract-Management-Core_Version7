@@ -135,12 +135,146 @@ public without sharing class InvoiceProductFieldCopyService {
   private static List<FieldCopyDefinition__c> cachedDefinitions;
   private static Map<Id, ContractHistory__c> cachedHistoriesById = new Map<Id, ContractHistory__c>();
   private static Map<Id, ContractService__c> cachedServicesById = new Map<Id, ContractService__c>();
+  private static Map<Id, ContractProduct__c> cachedContractProductsById = new Map<Id, ContractProduct__c>();
+  private static Map<Id, Set<String>> cachedContractProductFieldsById = new Map<Id, Set<String>>();
+  private static Map<Id, BillingAccount__c> cachedBillingAccountsById = new Map<Id, BillingAccount__c>();
+  private static Map<Id, Set<String>> cachedBillingAccountFieldsById = new Map<Id, Set<String>>();
+  private static Map<Id, Product2> cachedProductsById = new Map<Id, Product2>();
+  private static Map<Id, Set<String>> cachedProductFieldsById = new Map<Id, Set<String>>();
+  private static Map<Id, Opportunity> cachedOpportunitiesById = new Map<Id, Opportunity>();
+  private static Map<Id, Set<String>> cachedOpportunityFieldsById = new Map<Id, Set<String>>();
+  private static Map<Id, Account> cachedAccountsById = new Map<Id, Account>();
+  private static Map<Id, Set<String>> cachedAccountFieldsById = new Map<Id, Set<String>>();
 
   @TestVisible
   static void resetCache() {
     cachedDefinitions = null;
     cachedHistoriesById = new Map<Id, ContractHistory__c>();
     cachedServicesById = new Map<Id, ContractService__c>();
+    cachedContractProductsById = new Map<Id, ContractProduct__c>();
+    cachedContractProductFieldsById = new Map<Id, Set<String>>();
+    cachedBillingAccountsById = new Map<Id, BillingAccount__c>();
+    cachedBillingAccountFieldsById = new Map<Id, Set<String>>();
+    cachedProductsById = new Map<Id, Product2>();
+    cachedProductFieldsById = new Map<Id, Set<String>>();
+    cachedOpportunitiesById = new Map<Id, Opportunity>();
+    cachedOpportunityFieldsById = new Map<Id, Set<String>>();
+    cachedAccountsById = new Map<Id, Account>();
+    cachedAccountFieldsById = new Map<Id, Set<String>>();
+  }
+
+  private static Boolean cacheCovers(Set<String> have, Set<String> need) {
+    return have != null && need != null && have.containsAll(need);
+  }
+
+  /**
+   * 同一処理で先に読んだコピー元を、Insert 時の再SOQLに使わせる。
+   * 仕様: Core 第11.4.2節、第5.2節、第7.10節
+   */
+  public static void rememberRecords(List<SObject> records) {
+    if (records == null || records.isEmpty()) {
+      return;
+    }
+    for (SObject record : records) {
+      rememberRecord(record);
+    }
+  }
+
+  private static void rememberRecord(SObject record) {
+    if (record == null || record.Id == null) {
+      return;
+    }
+    Set<String> populated = new Set<String>(
+      record.getPopulatedFieldsAsMap().keySet()
+    );
+    Schema.SObjectType sobjectType = record.getSObjectType();
+    if (sobjectType == ContractHistory__c.SObjectType) {
+      ContractHistory__c history = (ContractHistory__c) record;
+      cachedHistoriesById.put(history.Id, history);
+      if (history.getSObject('ContractService__r') != null) {
+        rememberRecord(history.getSObject('ContractService__r'));
+      }
+      return;
+    }
+    if (sobjectType == ContractService__c.SObjectType) {
+      cachedServicesById.put(record.Id, (ContractService__c) record);
+      return;
+    }
+    if (sobjectType == ContractProduct__c.SObjectType) {
+      ContractProduct__c contractProduct = (ContractProduct__c) record;
+      cachedContractProductsById.put(contractProduct.Id, contractProduct);
+      cachedContractProductFieldsById.put(contractProduct.Id, populated);
+      if (contractProduct.getSObject('Product__r') != null) {
+        rememberRecord(contractProduct.getSObject('Product__r'));
+      }
+      return;
+    }
+    if (sobjectType == BillingAccount__c.SObjectType) {
+      cachedBillingAccountsById.put(record.Id, (BillingAccount__c) record);
+      cachedBillingAccountFieldsById.put(record.Id, populated);
+      return;
+    }
+    if (sobjectType == Product2.SObjectType) {
+      cachedProductsById.put(record.Id, (Product2) record);
+      cachedProductFieldsById.put(record.Id, populated);
+      return;
+    }
+    if (sobjectType == Opportunity.SObjectType) {
+      cachedOpportunitiesById.put(record.Id, (Opportunity) record);
+      cachedOpportunityFieldsById.put(record.Id, populated);
+      return;
+    }
+    if (sobjectType == Account.SObjectType) {
+      cachedAccountsById.put(record.Id, (Account) record);
+      cachedAccountFieldsById.put(record.Id, populated);
+    }
+  }
+
+  private static SObject findCachedSource(
+    String objectApiName,
+    Id recordId,
+    Set<String> neededFields
+  ) {
+    if (recordId == null || String.isBlank(objectApiName)) {
+      return null;
+    }
+    if (objectApiName == OBJECT_CONTRACT_HISTORY) {
+      return cachedHistoriesById.get(recordId);
+    }
+    if (objectApiName == OBJECT_CONTRACT_SERVICE) {
+      return cachedServicesById.get(recordId);
+    }
+    if (
+      objectApiName == OBJECT_CONTRACT_PRODUCT &&
+      cacheCovers(cachedContractProductFieldsById.get(recordId), neededFields)
+    ) {
+      return cachedContractProductsById.get(recordId);
+    }
+    if (
+      objectApiName == OBJECT_BILLING_ACCOUNT &&
+      cacheCovers(cachedBillingAccountFieldsById.get(recordId), neededFields)
+    ) {
+      return cachedBillingAccountsById.get(recordId);
+    }
+    if (
+      objectApiName == OBJECT_PRODUCT &&
+      cacheCovers(cachedProductFieldsById.get(recordId), neededFields)
+    ) {
+      return cachedProductsById.get(recordId);
+    }
+    if (
+      objectApiName == OBJECT_OPPORTUNITY &&
+      cacheCovers(cachedOpportunityFieldsById.get(recordId), neededFields)
+    ) {
+      return cachedOpportunitiesById.get(recordId);
+    }
+    if (
+      objectApiName == OBJECT_ACCOUNT &&
+      cacheCovers(cachedAccountFieldsById.get(recordId), neededFields)
+    ) {
+      return cachedAccountsById.get(recordId);
+    }
+    return null;
   }
 
   /**
@@ -573,19 +707,31 @@ public without sharing class InvoiceProductFieldCopyService {
     cpFields.add('Id');
     cpFields.add('Product__c');
     cpFields.add('ContractHistory__c');
-    if (targetObjectApiName == TARGET_INVOICE_LINE) {
-      cpFields.add('Unit__c');
-    }
+    cpFields.add('Unit__c');
     if (!contractProductIds.isEmpty()) {
-      String cpSoql =
-        'SELECT ' +
-        String.join(new List<String>(cpFields), ',') +
-        ' FROM ContractProduct__c WHERE Id IN :contractProductIds WITH SYSTEM_MODE';
-      for (ContractProduct__c cp : Database.query(cpSoql)) {
-        maps.contractProductById.put(cp.Id, cp);
-        if (cp.Product__c != null) {
-          // collect below
+      Set<Id> missingCpIds = new Set<Id>();
+      for (Id cpId : contractProductIds) {
+        if (
+          cachedContractProductsById.containsKey(cpId) &&
+          cacheCovers(cachedContractProductFieldsById.get(cpId), cpFields)
+        ) {
+          maps.contractProductById.put(cpId, cachedContractProductsById.get(cpId));
+        } else {
+          missingCpIds.add(cpId);
         }
+      }
+      if (!missingCpIds.isEmpty()) {
+        String cpSoql =
+          'SELECT ' +
+          String.join(new List<String>(cpFields), ',') +
+          ' FROM ContractProduct__c WHERE Id IN :missingCpIds WITH SYSTEM_MODE';
+        for (ContractProduct__c cp : Database.query(cpSoql)) {
+          cachedContractProductsById.put(cp.Id, cp);
+          cachedContractProductFieldsById.put(cp.Id, new Set<String>(cpFields));
+          maps.contractProductById.put(cp.Id, cp);
+        }
+      }
+      for (ContractProduct__c cp : maps.contractProductById.values()) {
         if (
           cp.ContractHistory__c != null &&
           !maps.contractHistoryById.containsKey(cp.ContractHistory__c)
@@ -614,6 +760,7 @@ public without sharing class InvoiceProductFieldCopyService {
         WHERE Id IN :missingHistoryIds
         WITH SYSTEM_MODE
       ]) {
+        cachedHistoriesById.put(history.Id, history);
         maps.contractHistoryById.put(history.Id, history);
         if (
           history.ContractService__r != null &&
@@ -652,23 +799,35 @@ public without sharing class InvoiceProductFieldCopyService {
       targetObjectApiName
     );
     baFields.add('Id');
-    // 請求 Insert 時ハードコード SnapShot 用（コピー定義に BA 行が無くても読む）
-    if (targetObjectApiName == TARGET_INVOICE) {
-      baFields.add('BillingAddressee__c');
-      baFields.add('BillingEmailTo__c');
-      baFields.add('BillingEmailCc__c');
-      baFields.add('BillingEmailBcc__c');
-      baFields.add('InvoiceDeliveryMethod__c');
-      baFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
-      baFields.add('BillingAccountKey__c');
-    }
+    baFields.add('BillingAddressee__c');
+    baFields.add('BillingEmailTo__c');
+    baFields.add('BillingEmailCc__c');
+    baFields.add('BillingEmailBcc__c');
+    baFields.add('InvoiceDeliveryMethod__c');
+    baFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
+    baFields.add('BillingAccountKey__c');
     if (!billingAccountIds.isEmpty()) {
-      String baSoql =
-        'SELECT ' +
-        String.join(new List<String>(baFields), ',') +
-        ' FROM BillingAccount__c WHERE Id IN :billingAccountIds WITH SYSTEM_MODE';
-      for (BillingAccount__c ba : Database.query(baSoql)) {
-        maps.billingAccountById.put(ba.Id, ba);
+      Set<Id> missingBaIds = new Set<Id>();
+      for (Id baId : billingAccountIds) {
+        if (
+          cachedBillingAccountsById.containsKey(baId) &&
+          cacheCovers(cachedBillingAccountFieldsById.get(baId), baFields)
+        ) {
+          maps.billingAccountById.put(baId, cachedBillingAccountsById.get(baId));
+        } else {
+          missingBaIds.add(baId);
+        }
+      }
+      if (!missingBaIds.isEmpty()) {
+        String baSoql =
+          'SELECT ' +
+          String.join(new List<String>(baFields), ',') +
+          ' FROM BillingAccount__c WHERE Id IN :missingBaIds WITH SYSTEM_MODE';
+        for (BillingAccount__c ba : Database.query(baSoql)) {
+          cachedBillingAccountsById.put(ba.Id, ba);
+          cachedBillingAccountFieldsById.put(ba.Id, new Set<String>(baFields));
+          maps.billingAccountById.put(ba.Id, ba);
+        }
       }
     }
 
@@ -678,12 +837,27 @@ public without sharing class InvoiceProductFieldCopyService {
     );
     productFields.add('Id');
     if (!productIds.isEmpty() && !productFields.isEmpty()) {
-      String productSoql =
-        'SELECT ' +
-        String.join(new List<String>(productFields), ',') +
-        ' FROM Product2 WHERE Id IN :productIds WITH SYSTEM_MODE';
-      for (Product2 product : Database.query(productSoql)) {
-        maps.productById.put(product.Id, product);
+      Set<Id> missingProductIds = new Set<Id>();
+      for (Id productId : productIds) {
+        if (
+          cachedProductsById.containsKey(productId) &&
+          cacheCovers(cachedProductFieldsById.get(productId), productFields)
+        ) {
+          maps.productById.put(productId, cachedProductsById.get(productId));
+        } else {
+          missingProductIds.add(productId);
+        }
+      }
+      if (!missingProductIds.isEmpty()) {
+        String productSoql =
+          'SELECT ' +
+          String.join(new List<String>(productFields), ',') +
+          ' FROM Product2 WHERE Id IN :missingProductIds WITH SYSTEM_MODE';
+        for (Product2 product : Database.query(productSoql)) {
+          cachedProductsById.put(product.Id, product);
+          cachedProductFieldsById.put(product.Id, new Set<String>(productFields));
+          maps.productById.put(product.Id, product);
+        }
       }
     }
 
@@ -693,12 +867,30 @@ public without sharing class InvoiceProductFieldCopyService {
     );
     oppFields.add('Id');
     if (!opportunityIds.isEmpty() && oppFields.size() > 1) {
-      String oppSoql =
-        'SELECT ' +
-        String.join(new List<String>(oppFields), ',') +
-        ' FROM Opportunity WHERE Id IN :opportunityIds WITH SYSTEM_MODE';
-      for (Opportunity opp : Database.query(oppSoql)) {
-        maps.opportunityById.put(opp.Id, opp);
+      Set<Id> missingOppIds = new Set<Id>();
+      for (Id opportunityId : opportunityIds) {
+        if (
+          cachedOpportunitiesById.containsKey(opportunityId) &&
+          cacheCovers(cachedOpportunityFieldsById.get(opportunityId), oppFields)
+        ) {
+          maps.opportunityById.put(
+            opportunityId,
+            cachedOpportunitiesById.get(opportunityId)
+          );
+        } else {
+          missingOppIds.add(opportunityId);
+        }
+      }
+      if (!missingOppIds.isEmpty()) {
+        String oppSoql =
+          'SELECT ' +
+          String.join(new List<String>(oppFields), ',') +
+          ' FROM Opportunity WHERE Id IN :missingOppIds WITH SYSTEM_MODE';
+        for (Opportunity opp : Database.query(oppSoql)) {
+          cachedOpportunitiesById.put(opp.Id, opp);
+          cachedOpportunityFieldsById.put(opp.Id, new Set<String>(oppFields));
+          maps.opportunityById.put(opp.Id, opp);
+        }
       }
     }
 
@@ -708,12 +900,27 @@ public without sharing class InvoiceProductFieldCopyService {
     );
     accountFields.add('Id');
     if (!accountIds.isEmpty() && accountFields.size() > 1) {
-      String accountSoql =
-        'SELECT ' +
-        String.join(new List<String>(accountFields), ',') +
-        ' FROM Account WHERE Id IN :accountIds WITH SYSTEM_MODE';
-      for (Account account : Database.query(accountSoql)) {
-        maps.accountById.put(account.Id, account);
+      Set<Id> missingAccountIds = new Set<Id>();
+      for (Id accountId : accountIds) {
+        if (
+          cachedAccountsById.containsKey(accountId) &&
+          cacheCovers(cachedAccountFieldsById.get(accountId), accountFields)
+        ) {
+          maps.accountById.put(accountId, cachedAccountsById.get(accountId));
+        } else {
+          missingAccountIds.add(accountId);
+        }
+      }
+      if (!missingAccountIds.isEmpty()) {
+        String accountSoql =
+          'SELECT ' +
+          String.join(new List<String>(accountFields), ',') +
+          ' FROM Account WHERE Id IN :missingAccountIds WITH SYSTEM_MODE';
+        for (Account account : Database.query(accountSoql)) {
+          cachedAccountsById.put(account.Id, account);
+          cachedAccountFieldsById.put(account.Id, new Set<String>(accountFields));
+          maps.accountById.put(account.Id, account);
+        }
       }
     }
 
@@ -1089,6 +1296,12 @@ public without sharing class InvoiceProductFieldCopyService {
       return null;
     }
 
+    Set<String> neededFields = getSourceFieldApiNames(objectApiName);
+    SObject cached = findCachedSource(objectApiName, recordId, neededFields);
+    if (cached != null) {
+      return cached;
+    }
+
     Schema.SObjectType sobjectType = Schema.getGlobalDescribe()
       .get(objectApiName);
     if (sobjectType == null) {
@@ -1145,7 +1358,11 @@ public without sharing class InvoiceProductFieldCopyService {
       objectApiName +
       ' WHERE Id = :recordId WITH SYSTEM_MODE LIMIT 1';
     List<SObject> rows = Database.query(soql);
-    return rows.isEmpty() ? null : rows[0];
+    if (rows.isEmpty()) {
+      return null;
+    }
+    rememberRecord(rows[0]);
+    return rows[0];
   }
 
   /** 仕様: Core 第11.4.2節 */
