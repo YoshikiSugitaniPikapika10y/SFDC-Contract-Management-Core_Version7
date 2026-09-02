@@ -649,4 +649,49 @@ private class InvoiceProductFieldCopyServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void rememberRecords_nullQueriedFields_coverInsertSourceWithoutReselect() {
+    ContractTestDataFactory.initTestContext();
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account acc = ContractTestDataFactory.insertAccount('BA Cover');
+      BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+        acc.Id
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      Set<String> queried = InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT
+      );
+      queried.add('BillingEmailTo__c');
+      queried.add('BillingAccountKey__c');
+      Map<String, Schema.SObjectField> fieldMap = BillingAccount__c.SObjectType.getDescribe()
+        .fields.getMap();
+      List<String> selectList = new List<String>();
+      for (String fieldApiName : queried) {
+        if (fieldMap.containsKey(fieldApiName)) {
+          selectList.add(fieldApiName);
+        }
+      }
+      Id billingId = billing.Id;
+      BillingAccount__c loaded = (BillingAccount__c) Database.query(
+        'SELECT ' +
+          String.join(selectList, ',') +
+          ' FROM BillingAccount__c WHERE Id = :billingId WITH SYSTEM_MODE'
+      );
+      InvoiceProductFieldCopyService.rememberRecords(
+        new List<SObject>{ loaded },
+        new Set<String>(selectList)
+      );
+      Integer beforeQueries = Limits.getQueries();
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+        loaded.Id
+      );
+      System.assertEquals(
+        beforeQueries,
+        Limits.getQueries(),
+        '仕様: Core 第11.4.2節・第6.1節。SELECTした請求アカウント（null含む）をInsertで再SOQLしない'
+      );
+    }
+  }
 }

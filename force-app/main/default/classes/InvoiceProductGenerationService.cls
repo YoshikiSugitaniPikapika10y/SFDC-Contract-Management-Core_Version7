@@ -81,6 +81,8 @@ public without sharing class InvoiceProductGenerationService {
   }
 
   private static void generateForHistoriesBody(Set<Id> contractHistoryIds) {
+    // 対象履歴の見積商品だけを取り直す。請求アカウント照会は残す（同一処理の Change 連続で 101 にしない）。
+    invalidateGenerationCache(contractHistoryIds);
     // 期間明細・請求は Ordered のみ（Estimate / Archive には作らない）
     InvoiceCanonicalService.assertHistoriesAreOrdered(contractHistoryIds);
 
@@ -204,6 +206,17 @@ public without sharing class InvoiceProductGenerationService {
     }
     // 契約期間明細を集約し、請求／請求明細正本を生成する（Cancel 含む全 ID で空 rebuild）
     InvoiceCanonicalService.rebuildForHistories(contractHistoryIds);
+  }
+
+  private static void invalidateGenerationCache(Set<Id> contractHistoryIds) {
+    if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
+      return;
+    }
+    for (Id historyId : contractHistoryIds) {
+      cachedHistoryGenerationContextById.remove(historyId);
+      cachedHistoriesForFieldCopy.remove(historyId);
+      cachedContractProductsByHistoryId.remove(historyId);
+    }
   }
 
   private static Map<Id, HistoryGenerationContext> loadHistoryGenerationContextById(
@@ -1309,7 +1322,10 @@ public without sharing class InvoiceProductGenerationService {
         loaded.add(cachedHistoriesForFieldCopy.get(historyId));
       }
     }
-    InvoiceProductFieldCopyService.rememberRecords(loaded);
+    InvoiceProductFieldCopyService.rememberRecords(
+      loaded,
+      new Set<String>(selectList)
+    );
     return loaded;
   }
 
@@ -1322,6 +1338,18 @@ public without sharing class InvoiceProductGenerationService {
 
     Set<String> selectFields = InvoiceProductFieldCopyService.getSourceFieldApiNames(
       InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT
+    );
+    selectFields.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+        InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT
+      )
+    );
+    selectFields.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+        InvoiceProductFieldCopyService.TARGET_INVOICE
+      )
     );
     // Invoice-date / payment-date calculation fields (not necessarily copy targets).
     selectFields.addAll(BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS);
@@ -1367,7 +1395,10 @@ public without sharing class InvoiceProductGenerationService {
         loaded.put(accountId, cachedBillingAccountsById.get(accountId));
       }
     }
-    InvoiceProductFieldCopyService.rememberRecords(loaded.values());
+    InvoiceProductFieldCopyService.rememberRecords(
+      loaded.values(),
+      new Set<String>(selectList)
+    );
     return loaded;
   }
 
@@ -1404,7 +1435,10 @@ public without sharing class InvoiceProductGenerationService {
     Map<Id, Opportunity> loaded = new Map<Id, Opportunity>(
       (List<Opportunity>) Database.query(soql)
     );
-    InvoiceProductFieldCopyService.rememberRecords(loaded.values());
+    InvoiceProductFieldCopyService.rememberRecords(
+      loaded.values(),
+      new Set<String>(selectList)
+    );
     return loaded;
   }
 
@@ -1436,7 +1470,10 @@ public without sharing class InvoiceProductGenerationService {
     Map<Id, Account> loaded = new Map<Id, Account>(
       (List<Account>) Database.query(soql)
     );
-    InvoiceProductFieldCopyService.rememberRecords(loaded.values());
+    InvoiceProductFieldCopyService.rememberRecords(
+      loaded.values(),
+      new Set<String>(selectList)
+    );
     return loaded;
   }
 
@@ -1530,7 +1567,23 @@ public without sharing class InvoiceProductGenerationService {
         loaded.addAll(bucket);
       }
     }
-    InvoiceProductFieldCopyService.rememberRecords(loaded);
+    Set<String> cpCovered = new Set<String>();
+    Set<String> productCovered = new Set<String>(productSelectFields);
+    for (String fieldApiName : selectList) {
+      if (fieldApiName.startsWith('Product__r.')) {
+        productCovered.add(fieldApiName.substringAfter('Product__r.'));
+      } else {
+        cpCovered.add(fieldApiName);
+      }
+    }
+    InvoiceProductFieldCopyService.rememberRecords(loaded, cpCovered);
+    List<SObject> products = new List<SObject>();
+    for (ContractProduct__c contractProduct : loaded) {
+      if (contractProduct.getSObject('Product__r') != null) {
+        products.add(contractProduct.getSObject('Product__r'));
+      }
+    }
+    InvoiceProductFieldCopyService.rememberRecords(products, productCovered);
     return loaded;
   }
 

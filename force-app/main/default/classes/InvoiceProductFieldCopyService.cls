@@ -172,21 +172,45 @@ public without sharing class InvoiceProductFieldCopyService {
    * 仕様: Core 第11.4.2節、第5.2節、第7.10節
    */
   public static void rememberRecords(List<SObject> records) {
+    rememberRecords(records, null);
+  }
+
+  /**
+   * SELECT した項目（値が null でも）をカバーに残す。populated だけだと Insert が再SOQLする。
+   * 仕様: Core 第11.4.2節、第6.1節
+   */
+  public static void rememberRecords(List<SObject> records, Set<String> queriedFields) {
     if (records == null || records.isEmpty()) {
       return;
     }
     for (SObject record : records) {
-      rememberRecord(record);
+      rememberRecord(record, queriedFields);
     }
   }
 
   private static void rememberRecord(SObject record) {
+    rememberRecord(record, null);
+  }
+
+  private static Set<String> coverageFields(
+    SObject record,
+    Set<String> queriedFields,
+    Set<String> previous
+  ) {
+    Set<String> covered = previous == null
+      ? new Set<String>()
+      : new Set<String>(previous);
+    covered.addAll(record.getPopulatedFieldsAsMap().keySet());
+    if (queriedFields != null) {
+      covered.addAll(queriedFields);
+    }
+    return covered;
+  }
+
+  private static void rememberRecord(SObject record, Set<String> queriedFields) {
     if (record == null || record.Id == null) {
       return;
     }
-    Set<String> populated = new Set<String>(
-      record.getPopulatedFieldsAsMap().keySet()
-    );
     Schema.SObjectType sobjectType = record.getSObjectType();
     if (sobjectType == ContractHistory__c.SObjectType) {
       ContractHistory__c history = (ContractHistory__c) record;
@@ -203,7 +227,14 @@ public without sharing class InvoiceProductFieldCopyService {
     if (sobjectType == ContractProduct__c.SObjectType) {
       ContractProduct__c contractProduct = (ContractProduct__c) record;
       cachedContractProductsById.put(contractProduct.Id, contractProduct);
-      cachedContractProductFieldsById.put(contractProduct.Id, populated);
+      cachedContractProductFieldsById.put(
+        contractProduct.Id,
+        coverageFields(
+          record,
+          queriedFields,
+          cachedContractProductFieldsById.get(contractProduct.Id)
+        )
+      );
       if (contractProduct.getSObject('Product__r') != null) {
         rememberRecord(contractProduct.getSObject('Product__r'));
       }
@@ -211,22 +242,50 @@ public without sharing class InvoiceProductFieldCopyService {
     }
     if (sobjectType == BillingAccount__c.SObjectType) {
       cachedBillingAccountsById.put(record.Id, (BillingAccount__c) record);
-      cachedBillingAccountFieldsById.put(record.Id, populated);
+      cachedBillingAccountFieldsById.put(
+        record.Id,
+        coverageFields(
+          record,
+          queriedFields,
+          cachedBillingAccountFieldsById.get(record.Id)
+        )
+      );
       return;
     }
     if (sobjectType == Product2.SObjectType) {
       cachedProductsById.put(record.Id, (Product2) record);
-      cachedProductFieldsById.put(record.Id, populated);
+      cachedProductFieldsById.put(
+        record.Id,
+        coverageFields(
+          record,
+          queriedFields,
+          cachedProductFieldsById.get(record.Id)
+        )
+      );
       return;
     }
     if (sobjectType == Opportunity.SObjectType) {
       cachedOpportunitiesById.put(record.Id, (Opportunity) record);
-      cachedOpportunityFieldsById.put(record.Id, populated);
+      cachedOpportunityFieldsById.put(
+        record.Id,
+        coverageFields(
+          record,
+          queriedFields,
+          cachedOpportunityFieldsById.get(record.Id)
+        )
+      );
       return;
     }
     if (sobjectType == Account.SObjectType) {
       cachedAccountsById.put(record.Id, (Account) record);
-      cachedAccountFieldsById.put(record.Id, populated);
+      cachedAccountFieldsById.put(
+        record.Id,
+        coverageFields(
+          record,
+          queriedFields,
+          cachedAccountFieldsById.get(record.Id)
+        )
+      );
     }
   }
 
