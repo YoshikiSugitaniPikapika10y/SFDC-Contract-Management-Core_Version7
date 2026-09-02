@@ -241,6 +241,47 @@ private class GlAccountMapResolveServiceTest {
     }
   }
 
+  @IsTest
+  static void resolve_rejectsBlankSlotOrContext() {
+    Boolean thrown = false;
+    try {
+      GlAccountMapResolveService.resolve(
+        null,
+        'InvoiceLine',
+        new ConditionEvaluationService.Context()
+      );
+    } catch (GlAccountMapResolveService.ResolveException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('スロットまたは評価コンテキストがありません'),
+        'Accounting 第6.2節: スロットと評価コンテキストが要る'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void resolve_ignoresInactiveMaps() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccount__c inactiveHigh = insertAccount('Map Inactive High');
+      GlAccount__c activeLow = insertAccount('Map Active Low');
+      GlAccountMap__c inactiveMap = insertMap(inactiveHigh.Id, 20, 'Inactive High');
+      inactiveMap.IsActive__c = false;
+      update inactiveMap;
+      GlAccountMap__c chosen = insertMap(activeLow.Id, 10, 'Active Low');
+      GlAccountMapResolveService.ResolvedAccount resolved = GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        'InvoiceLine',
+        new ConditionEvaluationService.Context()
+      );
+      System.assertEquals(
+        chosen.Id,
+        resolved.assignmentId,
+        'Accounting 第6.3節: Trueだけを新規解決に使用する'
+      );
+    }
+  }
+
   private static GlAccount__c insertAccount(String name) {
     return insertAccount(name, 'Asset');
   }

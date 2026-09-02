@@ -40,4 +40,29 @@ private class AmountCalculationSettingServiceTest {
       AmountCalculationSettingService.roundAmount(100.4)
     );
   }
+
+  @IsTest
+  static void requireOrgDefault_missingIsErrorAndNullRoundStaysNull() {
+    AmountCalculationSettingService.clearCache();
+    AmountCalculationSettingService.testMissingOrgDefault = true;
+    Boolean thrown = false;
+    try {
+      AmountCalculationSettingService.requireOrgDefault();
+    } catch (AmountCalculationSettingService.SettingException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('OrgDefault'),
+        'Core 第11.9節・第1.1.10節: レコードが無いなら四捨五入へ落とさない'
+      );
+    } finally {
+      AmountCalculationSettingService.testMissingOrgDefault = false;
+      AmountCalculationSettingService.clearCache();
+    }
+    System.assertEquals(true, thrown);
+    System.assertEquals(
+      null,
+      AmountCalculationSettingService.roundQuantityUnitPrice(null)
+    );
+    System.assertEquals(null, AmountCalculationSettingService.roundAmount(null));
+  }
 }

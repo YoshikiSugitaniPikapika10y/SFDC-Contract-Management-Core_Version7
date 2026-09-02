@@ -414,4 +414,91 @@ private class ContractServiceEditControllerTest {
     }
     System.assertEquals(true, thrown);
   }
+
+  @IsTest
+  static void getContext_rejectsBlankId() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        ContractServiceEditController.getContext(null);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('契約サービスが指定されていません'),
+          'Core 第3.4.1節: 契約サービスが無い入口は拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void save_rejectsMissingBillingAccountRow() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+      Account account = ContractTestDataFactory.insertAccount('Missing BA Acct');
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Missing BA Name'
+      );
+      ContractServiceEditController.ContextDto context = ContractServiceEditController.getContext(
+        service.Id
+      );
+      Boolean thrown = false;
+      try {
+        ContractServiceEditController.save(
+          service.Id,
+          'Missing BA Name',
+          UserInfo.getUserId(),
+          10,
+          null,
+          '{}',
+          context.lastModifiedToken,
+          'missing-ba'
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('請求アカウントが見つかりません'),
+          'Core 第3.4.1節: 無い請求アカウントは拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void issueKey_andSaveWithout08_followEditServicePermission() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      String key = ContractServiceEditController.issueContractServiceOperationKey();
+      System.assertEquals(
+        true,
+        String.isNotBlank(key),
+        'Core 第4.3.12節: 実行ボタンでサーバが操作キーを発行する'
+      );
+    }
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.EDIT_SERVICE => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractServiceEditController.save(
+        UserInfo.getUserId(),
+        'Name',
+        UserInfo.getUserId(),
+        10,
+        null,
+        '{}'
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('契約サービスを編集する権限がありません'),
+        '共通基盤 第10.4節: 08 なしは保存入口で拒否する'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(true, thrown);
+  }
 }
