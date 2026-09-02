@@ -148,4 +148,58 @@ private class ContractProductAmountUtilTest {
       '値引き Remake は Amount が負でも符号を強制しない'
     );
   }
+
+  @IsTest
+  static void unsignedAndSigned_rejectUncomputableAndFlipOriginal() {
+    System.assertEquals(
+      null,
+      ContractProductAmountUtil.calculateSignedAmount(null, null),
+      'Core 第4.6節: 行が無ければ金額を計算できない'
+    );
+    System.assertEquals(
+      null,
+      ContractProductAmountUtil.yenFromQuantityUnitPrice(1, null, 1)
+    );
+    System.assertEquals(
+      0,
+      ContractProductAmountUtil.calculateUnsignedAmount(
+        0,
+        12000,
+        ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2027, 3, 31)
+      ),
+      'Core 第4.6節: 数量が0なら税抜は0'
+    );
+    System.assertEquals(
+      null,
+      ContractProductAmountUtil.calculateUnsignedAmount(
+        1,
+        12000,
+        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Date.newInstance(2026, 4, 1),
+        null
+      ),
+      'Core 第4.6節: 継続課金は期間からサイクル数を取る。期間が無ければ計算できない'
+    );
+    System.assertEquals(
+      null,
+      ContractProductAmountUtil.applyProductTypeSign(null, 'Original')
+    );
+    ContractProduct__c product = new ContractProduct__c(
+      Quantity__c = 2,
+      UnitPrice__c = 5000,
+      StartDate__c = Date.newInstance(2026, 4, 1),
+      Enddate__c = Date.newInstance(2027, 3, 31),
+      Type__c = 'New'
+    );
+    System.assertEquals(
+      10000,
+      ContractProductAmountUtil.calculateSignedAmount(
+        product,
+        ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME
+      ),
+      'Core 第4.6節: 一回課金は数量×単価。行の課金形態が空なら引数を使う'
+    );
+  }
 }

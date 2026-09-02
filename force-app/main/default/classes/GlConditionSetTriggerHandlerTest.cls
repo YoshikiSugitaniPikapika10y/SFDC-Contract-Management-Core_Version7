@@ -112,6 +112,57 @@ private class GlConditionSetTriggerHandlerTest {
     System.assertEquals(true, thrown);
   }
 
+  @IsTest
+  static void evaluationContextChange_allowedWhenNoChildOrReference() {
+    GlConditionSetTriggerHandler.beforeInsertUpdate(null);
+    GlConditionSetTriggerHandler.assertTenantSetsHaveRules(null);
+    GlConditionSetTriggerHandler.assertTenantSetsHaveRules(
+      new List<GlAccountMap__c>()
+    );
+    GlConditionSet__c conditionSet = insertConditionSet('InvoiceLine');
+    conditionSet.EvaluationContext__c = 'Invoice';
+    update conditionSet;
+    GlConditionSet__c stored = [
+      SELECT EvaluationContext__c
+      FROM GlConditionSet__c
+      WHERE Id = :conditionSet.Id
+    ];
+    System.assertEquals(
+      'Invoice',
+      stored.EvaluationContext__c,
+      'Accounting 第4.7節: 子条件も参照元も無い間は評価コンテキストを変えられる'
+    );
+  }
+
+  @IsTest
+  static void evaluationContextChange_rejectedWhenAccountMapReferences() {
+    GlConditionSet__c conditionSet = insertConditionSet('InvoiceLine');
+    insertRule(conditionSet.Id, 1);
+    GlAccount__c account = new GlAccount__c(
+      Name = 'Tenant Ref Asset',
+      AccountType__c = 'Asset',
+      IsActive__c = true
+    );
+    insert account;
+    insert new GlAccountMap__c(
+      Name = 'Tenant Ref Map',
+      Account__c = account.Id,
+      SlotKey__c = 'AccountsReceivable',
+      EvaluationContext__c = 'InvoiceLine',
+      ConditionSourceType__c = 'Tenant',
+      TenantConditionSet__c = conditionSet.Id,
+      Priority__c = 10,
+      IsActive__c = true
+    );
+    conditionSet.EvaluationContext__c = 'Invoice';
+    Database.SaveResult result = Database.update(conditionSet, false);
+    System.assertEquals(false, result.isSuccess());
+    System.assert(
+      result.getErrors()[0].getMessage().contains('評価コンテキストは変更できません'),
+      'Accounting 第4.7節: 参照元がある間は評価コンテキストを変えない'
+    );
+  }
+
   private static GlConditionSet__c insertConditionSet(String context) {
     GlConditionSet__c conditionSet = new GlConditionSet__c(
       Name = 'Tenant Set',
