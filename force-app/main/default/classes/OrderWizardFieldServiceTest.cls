@@ -225,91 +225,335 @@ private class OrderWizardFieldServiceTest {
 
   @IsTest
   static void applyBillingFields_andHistoryHelpers_coverApplyPath() {
-    System.assert(
-      OrderWizardFieldService.getActiveOrderHistoryFieldApiNames()
-        .contains('ApplicationDate__c')
-    );
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderWizardFieldService.resetCache();
+      System.assert(
+        OrderWizardFieldService.getActiveOrderHistoryFieldApiNames()
+          .contains('ApplicationDate__c')
+      );
 
-    Account account = ContractTestDataFactory.insertAccount(
-      'Order Wizard Field Label Account'
-    );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = '旧宛名',
-      BillingEmailTo__c = 'old@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
+      Account account = ContractTestDataFactory.insertAccount(
+        'Order Wizard Field Label Account'
+      );
+      BillingAccount__c billingAccount = new BillingAccount__c(
+        Account__c = account.Id,
+        BillingAddressee__c = '旧宛名',
+        BillingEmailTo__c = 'old@example.com',
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 1,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
+      insert billingAccount;
 
-    OrderWizardFieldService.applyBillingFields(
-      billingAccount,
-      new Map<String, Object>{
-        'BillingAddressee__c' => '新宛名',
-        'BillingEmailTo__c' => 'new@example.com',
-        'BillingEmailCc__c' => 'cc@example.com',
-        'InvoiceDateDayOfMonth__c' => 25,
-        'InvoiceDateAdjust__c' => BillingScheduleService.ADJUST_NEXT,
-        'Name' => 'ignored'
+      OrderWizardFieldService.applyBillingFields(
+        billingAccount,
+        new Map<String, Object>{
+          'BillingAddressee__c' => '新宛名',
+          'BillingEmailTo__c' => 'new@example.com',
+          'BillingEmailCc__c' => 'cc@example.com',
+          'InvoiceDateDayOfMonth__c' => 25,
+          'InvoiceDateAdjust__c' => BillingScheduleService.ADJUST_NEXT,
+          'Name' => 'ignored'
+        }
+      );
+      System.assertEquals(
+        '新宛名',
+        billingAccount.BillingAddressee__c,
+        'Core 第5.2節: 請求アカウント確認の必須はハードコード'
+      );
+      System.assertEquals('new@example.com', billingAccount.BillingEmailTo__c);
+      System.assertEquals('cc@example.com', billingAccount.BillingEmailCc__c);
+      System.assertEquals(25, billingAccount.InvoiceDateDayOfMonth__c);
+      System.assertEquals(
+        BillingScheduleService.ADJUST_NEXT,
+        billingAccount.InvoiceDateAdjust__c
+      );
+      System.assertNotEquals(
+        'ignored',
+        billingAccount.Name,
+        'Core 第11.4.3節: 請求アカウントは受注追加項目の対象外'
+      );
+
+      ContractService__c service = new ContractService__c(
+        Name = 'Order Wizard Field Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Order Wizard Field History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+
+      Map<String, Object> historyValues = OrderWizardFieldService.buildHistoryFieldValuesForWizard(
+        history
+      );
+      System.assertEquals(
+        String.valueOf(InvoiceTransactionStatusService.organizationToday()),
+        historyValues.get('OrderDate__c'),
+        'Core 第11.4.3節: 受注日の初期値は操作日'
+      );
+      System.assertEquals(
+        null,
+        historyValues.get('ApplicationDate__c'),
+        'Core 第11.4.3節: 申込日は初期値なし。前Versionからもコピーしない'
+      );
+      OrderWizardFieldService.applyHistoryFields(
+        history,
+        new Map<String, Object>{
+          'ApplicationDate__c' => '2026-06-15',
+          'Note__c' => 'ignored'
+        }
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 6, 15),
+        history.ApplicationDate__c
+      );
+      System.assertEquals(
+        null,
+        history.Note__c,
+        'Core 第11.4.3節: 定義に無い項目は保存対象にしない'
+      );
+
+      Map<String, Object> saved = OrderWizardFieldService.querySavedHistoryFieldValues(
+        history.Id
+      );
+      System.assertEquals(
+        null,
+        saved.get('ApplicationDate__c'),
+        'Core 第11.4.3節: 保存済みだけ。未保存の申込日へ初期値は載せない'
+      );
+      System.assertEquals(
+        null,
+        saved.get('OrderDate__c'),
+        'Core 第11.4.3節: 保存済みだけ。空の受注日へ操作日は載せない'
+      );
+      history.ApplicationDate__c = Date.newInstance(2026, 6, 15);
+      update history;
+      saved = OrderWizardFieldService.querySavedHistoryFieldValues(history.Id);
+      System.assertEquals(
+        String.valueOf(Date.newInstance(2026, 6, 15)),
+        saved.get('ApplicationDate__c'),
+        'Core 第11.4.3節: 既に契約履歴へ保存済みの値がある場合はそれを表示し、初期値で上書きしない'
+      );
+
+      OrderWizardFieldService.applyHistoryFields(
+        history,
+        new Map<String, Object>{ 'ApplicationDate__c' => '' }
+      );
+      System.assertEquals(
+        null,
+        history.ApplicationDate__c,
+        'Core 第11.4.3節: 表示中の項目を空欄で受注した場合は空を保存する'
+      );
+    }
+  }
+
+  @IsTest
+  static void querySavedHistoryFieldValues_nullId_returnsEmpty() {
+    Map<String, Object> saved = OrderWizardFieldService.querySavedHistoryFieldValues(
+      null
+    );
+    System.assertEquals(true, saved.isEmpty());
+  }
+
+  @IsTest
+  static void getDefinitions_changeAndCancel_includeApplicationDate() {
+    OrderWizardFieldService.resetCache();
+    Set<String> changeApis = new Set<String>();
+    for (
+      ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
+        'Change'
+      )
+    ) {
+      changeApis.add(definition.apiName);
+    }
+    Set<String> cancelApis = new Set<String>();
+    for (
+      ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
+        'Cancel'
+      )
+    ) {
+      cancelApis.add(definition.apiName);
+    }
+    System.assertEquals(
+      true,
+      changeApis.contains('ApplicationDate__c'),
+      'Core 第11.4.3節: 標準定義は全種別'
+    );
+    System.assertEquals(
+      true,
+      cancelApis.contains('ApplicationDate__c'),
+      'Core 第11.4.3節: Cancelでも表示対象の項目を出す'
+    );
+  }
+
+  @IsTest
+  static void applyHistoryFields_hiddenType_keepsExisting() {
+    OrderWizardFieldService.setCachedDefinitionsForTest(
+      new List<OrderWizardField__mdt>{
+        new OrderWizardField__mdt(
+          DeveloperName = 'Order_ApplicationDate',
+          MasterLabel = '申込日',
+          FieldApiName__c = 'ApplicationDate__c',
+          Required__c = true,
+          Active__c = true,
+          ShowOnNew__c = true,
+          ShowOnChange__c = false
+        )
       }
     );
-    System.assertEquals('新宛名', billingAccount.BillingAddressee__c);
-    System.assertEquals('new@example.com', billingAccount.BillingEmailTo__c);
-    System.assertEquals('cc@example.com', billingAccount.BillingEmailCc__c);
-    System.assertEquals(25, billingAccount.InvoiceDateDayOfMonth__c);
-    System.assertEquals(
-      BillingScheduleService.ADJUST_NEXT,
-      billingAccount.InvoiceDateAdjust__c
-    );
-
-    ContractService__c service = new ContractService__c(
-      Name = 'Order Wizard Field Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id
-    );
-    insert service;
     ContractHistory__c history = new ContractHistory__c(
-      Name = 'Order Wizard Field History',
-      ContractService__c = service.Id,
-      Type__c = 'New',
-      historystatus__c = 'Estimate',
-      Version__c = 1,
-      CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-      CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-      EffectiveDate__c = Date.newInstance(2026, 6, 1)
-    );
-    insert history;
-
-    Map<String, Object> historyValues = OrderWizardFieldService.buildHistoryFieldValuesForWizard(
-      history
-    );
-    System.assertEquals(
-      String.valueOf(Date.today()),
-      historyValues.get('OrderDate__c'),
-      '受注日の初期値は操作日'
-    );
-    System.assertEquals(
-      null,
-      historyValues.get('ApplicationDate__c'),
-      '申込日は黙って埋めない'
+      Type__c = 'Change',
+      ApplicationDate__c = Date.newInstance(2026, 1, 10)
     );
     OrderWizardFieldService.applyHistoryFields(
       history,
-      new Map<String, Object>{
-        'ApplicationDate__c' => '2026-06-15',
-        'Note__c' => 'ignored'
-      }
+      new Map<String, Object>{ 'ApplicationDate__c' => '2026-06-15' }
     );
     System.assertEquals(
-      Date.newInstance(2026, 6, 15),
-      history.ApplicationDate__c
+      Date.newInstance(2026, 1, 10),
+      history.ApplicationDate__c,
+      'Core 第11.4.3節: 見積種別により非表示となった項目は保存対象にせず既存値を維持する'
     );
-    System.assertEquals(null, history.Note__c);
+    String requiredError = OrderWizardFieldService.validateRequiredHistoryFields(
+      new Map<String, Object>(),
+      'Change'
+    );
+    System.assertEquals(
+      null,
+      requiredError,
+      'Core 第11.4.3節: 必須は画面に表示されている場合だけ'
+    );
+    OrderWizardFieldService.resetCache();
+  }
+
+  @IsTest
+  static void buildHistoryFieldValuesForWizard_usesOpportunityDefaultWhenBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderWizardFieldService.setCachedDefinitionsForTest(
+        new List<OrderWizardField__mdt>{
+          new OrderWizardField__mdt(
+            DeveloperName = 'Order_EstimateTitle',
+            MasterLabel = '見積件名',
+            FieldApiName__c = 'EstimateTitleName__c',
+            Active__c = true,
+            DefaultSource__c = 'Opportunity',
+            DefaultValue__c = 'Name',
+            ShowOnNew__c = true
+          )
+        }
+      );
+      Account account = ContractTestDataFactory.insertAccount(
+        'Order Wizard Opportunity Default Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        '商談件名の初期値'
+      );
+      opportunity = [SELECT Id, Name FROM Opportunity WHERE Id = :opportunity.Id];
+      ContractService__c service = new ContractService__c(
+        Name = 'Order Wizard Opportunity Default Service',
+        Account__c = account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Order Wizard Opportunity Default History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        Opportunity__c = opportunity.Id,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      insert history;
+      history = [
+        SELECT Id, Type__c, Opportunity__c, EstimateTitleName__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      Map<String, Object> values = OrderWizardFieldService.buildHistoryFieldValuesForWizard(
+        history
+      );
+      System.assertEquals(
+        opportunity.Name,
+        values.get('EstimateTitleName__c'),
+        'Core 第11.4.3節: 初期値 Opportunity は商談の項目。保存済みが空のときだけ'
+      );
+      OrderWizardFieldService.resetCache();
+    }
+  }
+
+  @IsTest
+  static void validateActiveDefinitions_unknownSource_includesDeveloperName() {
+    OrderWizardFieldService.setCachedDefinitionsForTest(
+      new List<OrderWizardField__mdt>{
+        new OrderWizardField__mdt(
+          DeveloperName = 'Bad_Source',
+          MasterLabel = '不正',
+          FieldApiName__c = 'ApplicationDate__c',
+          Active__c = true,
+          DefaultSource__c = 'Unknown',
+          ShowOnNew__c = true
+        )
+      }
+    );
+    Boolean failed = false;
+    try {
+      OrderWizardFieldService.getDefinitions('New');
+    } catch (AuraHandledException ex) {
+      failed = true;
+      System.assert(ex.getMessage().contains('Bad_Source'), ex.getMessage());
+    }
+    System.assertEquals(true, failed);
+    OrderWizardFieldService.resetCache();
+  }
+
+  @IsTest
+  static void validateRequiredHistoryFields_nullMap_requiresApplicationDate() {
+    OrderWizardFieldService.resetCache();
+    String error = OrderWizardFieldService.validateRequiredHistoryFields(
+      null,
+      'New'
+    );
+    System.assertNotEquals(null, error);
+    System.assert(error.contains('申込日'), error);
+  }
+
+  @IsTest
+  static void applyHistoryFields_nullHistory_doesNotThrow() {
+    OrderWizardFieldService.applyHistoryFields(null, new Map<String, Object>());
+    OrderWizardFieldService.applyBillingFields(
+      null,
+      new Map<String, Object>{ 'BillingAddressee__c' => 'x' }
+    );
+    String billingError = OrderWizardFieldService.validateBillingCustomFields(
+      null
+    );
+    System.assertNotEquals(null, billingError);
+    System.assert(billingError.contains('請求先宛名'), billingError);
   }
 }
