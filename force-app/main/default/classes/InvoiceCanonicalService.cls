@@ -1767,6 +1767,7 @@ public without sharing class InvoiceCanonicalService {
       LIMIT 1
     ];
     InvoiceLockUtil.assertInvoiceEditable(source);
+    InvoiceProductFieldCopyService.rememberRecords(new List<SObject>{ source });
     Decimal sourceAmountBefore = source.Amount__c == null
       ? 0
       : source.Amount__c;

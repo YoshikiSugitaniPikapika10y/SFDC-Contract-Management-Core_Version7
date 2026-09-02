@@ -2684,6 +2684,7 @@ private class OrderCreateControllerTest {
       ];
       Decimal originalAmount = line.Amount__c;
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
@@ -2705,7 +2706,6 @@ private class OrderCreateControllerTest {
         ]
       );
 
-      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.resetLatestVersionInvoicesToPostOrder(
         context.history.Id,
         '1',
@@ -3678,6 +3678,11 @@ private class OrderCreateControllerTest {
       CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
       EffectiveDate__c = Date.newInstance(2026, 6, 1),
       ApplicationDate__c = Date.newInstance(2026, 6, 1)
+    );
+    ContractTestDataFactory.applyRequiredFields(context.history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      context.history,
+      context.account.Id
     );
     insert context.history;
 

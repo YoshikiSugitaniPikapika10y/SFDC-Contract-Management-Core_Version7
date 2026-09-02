@@ -69,6 +69,28 @@ public without sharing class AccountingCauseLockService {
     if (invoiceId == null) {
       throw new LockException('請求が指定されていません。');
     }
+    Map<Id, Invoice__c> locked = lockInvoices(new Set<Id>{ invoiceId });
+    return locked.get(invoiceId);
+  }
+
+  /**
+   * 仕様: Core 第7.9.7節。書き換える請求を行ロックする。
+   * 複数枚は1回の FOR UPDATE で取り、ロック順は Id 昇順。
+   */
+  public static Map<Id, Invoice__c> lockInvoices(Set<Id> invoiceIds) {
+    Map<Id, Invoice__c> locked = new Map<Id, Invoice__c>();
+    if (invoiceIds == null || invoiceIds.isEmpty()) {
+      throw new LockException('請求が指定されていません。');
+    }
+    Set<Id> compact = new Set<Id>();
+    for (Id invoiceId : invoiceIds) {
+      if (invoiceId != null) {
+        compact.add(invoiceId);
+      }
+    }
+    if (compact.isEmpty()) {
+      throw new LockException('請求が指定されていません。');
+    }
     List<Invoice__c> invoices = [
       SELECT
         Id,
@@ -81,16 +103,20 @@ public without sharing class AccountingCauseLockService {
         ContractHistory__c,
         ContractService__c,
         BusinessOperationKey__c,
-        DeliveryStatus__c
+        DeliveryStatus__c,
+        LastModifiedDate
       FROM Invoice__c
-      WHERE Id = :invoiceId
+      WHERE Id IN :compact
       WITH SYSTEM_MODE
       FOR UPDATE
     ];
-    if (invoices.isEmpty()) {
+    if (invoices.size() != compact.size()) {
       throw new LockException('請求をロックできませんでした。');
     }
-    return invoices[0];
+    for (Invoice__c invoice : invoices) {
+      locked.put(invoice.Id, invoice);
+    }
+    return locked;
   }
 
   /** 仕様: Core 第7.9.7節 */
@@ -113,17 +139,29 @@ public without sharing class AccountingCauseLockService {
   public static Map<Id, Datetime> resolveInvoiceOperationDatetimes(
     Set<Id> invoiceIds
   ) {
+    return resolveInvoiceOperationDatetimes(invoiceIds, null);
+  }
+
+  /** 仕様: Core 第7.9.7節。請求の LastModified は呼び出し側で渡して再照会しない。 */
+  public static Map<Id, Datetime> resolveInvoiceOperationDatetimes(
+    Set<Id> invoiceIds,
+    Map<Id, Datetime> knownInvoiceModified
+  ) {
     Map<Id, Datetime> result = new Map<Id, Datetime>();
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return result;
     }
-    for (Invoice__c invoice : [
-      SELECT Id, LastModifiedDate
-      FROM Invoice__c
-      WHERE Id IN :invoiceIds
-      WITH SYSTEM_MODE
-    ]) {
-      result.put(invoice.Id, invoice.LastModifiedDate);
+    if (knownInvoiceModified != null) {
+      result.putAll(knownInvoiceModified);
+    } else {
+      for (Invoice__c invoice : [
+        SELECT Id, LastModifiedDate
+        FROM Invoice__c
+        WHERE Id IN :invoiceIds
+        WITH SYSTEM_MODE
+      ]) {
+        result.put(invoice.Id, invoice.LastModifiedDate);
+      }
     }
     bumpMax(
       result,
@@ -163,11 +201,41 @@ public without sharing class AccountingCauseLockService {
     Id invoiceId,
     String expectedToken
   ) {
-    ContractOptimisticLockUtil.assertRequiredUnchanged(
-      resolveInvoiceOperationDatetime(invoiceId),
-      expectedToken,
-      '請求'
+    Map<Id, String> tokens = new Map<Id, String>();
+    tokens.put(invoiceId, expectedToken);
+    assertInvoiceOperationsUnchanged(tokens, null);
+  }
+
+  /**
+   * 仕様: Core 第7.9.7節。版比較の請求・入出金・手動仕訳・仕訳は1回の集合照会。
+   */
+  public static void assertInvoiceOperationsUnchanged(
+    Map<Id, String> expectedTokenByInvoiceId,
+    Map<Id, Datetime> knownInvoiceModified
+  ) {
+    if (expectedTokenByInvoiceId == null || expectedTokenByInvoiceId.isEmpty()) {
+      throw ContractOptimisticLockUtil.conflict('請求');
+    }
+    Set<Id> invoiceIds = new Set<Id>();
+    for (Id invoiceId : expectedTokenByInvoiceId.keySet()) {
+      if (invoiceId != null) {
+        invoiceIds.add(invoiceId);
+      }
+    }
+    if (invoiceIds.isEmpty()) {
+      throw ContractOptimisticLockUtil.conflict('請求');
+    }
+    Map<Id, Datetime> actuals = resolveInvoiceOperationDatetimes(
+      invoiceIds,
+      knownInvoiceModified
     );
+    for (Id invoiceId : invoiceIds) {
+      ContractOptimisticLockUtil.assertRequiredUnchanged(
+        actuals.get(invoiceId),
+        expectedTokenByInvoiceId.get(invoiceId),
+        '請求'
+      );
+    }
   }
 
   private static void bumpMax(

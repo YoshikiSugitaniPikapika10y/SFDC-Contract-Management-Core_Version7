@@ -30,21 +30,55 @@ public without sharing class InvoicePreviewIntegrityService {
     if (invoiceIds.isEmpty()) {
       return;
     }
+    Boolean allHaveEmbeddedLines = true;
+    for (Invoice__c invoice : invoices) {
+      if (invoice == null || invoice.Id == null) {
+        continue;
+      }
+      if (!invoice.getPopulatedFieldsAsMap().containsKey('InvoiceLines__r')) {
+        allHaveEmbeddedLines = false;
+        break;
+      }
+    }
+    List<InvoiceLine__c> lines = new List<InvoiceLine__c>();
+    Map<Id, Id> lineInvoiceId = new Map<Id, Id>();
+    if (allHaveEmbeddedLines) {
+      for (Invoice__c invoice : invoices) {
+        if (invoice == null || invoice.InvoiceLines__r == null) {
+          continue;
+        }
+        for (InvoiceLine__c line : invoice.InvoiceLines__r) {
+          if (line == null) {
+            continue;
+          }
+          lines.add(line);
+          lineInvoiceId.put(line.Id, invoice.Id);
+        }
+      }
+    } else {
+      lines = [
+        SELECT
+          Invoice__c,
+          Invoice__r.ContractHistory__c,
+          ContractProduct__r.ContractHistory__c,
+          SourcePeriodLineIds__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c IN :invoiceIds
+        WITH SYSTEM_MODE
+      ];
+    }
     Set<Id> periodIds = new Set<Id>();
     Map<Id, Id> historyByPeriodId = new Map<Id, Id>();
-    for (InvoiceLine__c line : [
-      SELECT
-        Invoice__c,
-        Invoice__r.ContractHistory__c,
-        ContractProduct__r.ContractHistory__c,
-        SourcePeriodLineIds__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c IN :invoiceIds
-      WITH SYSTEM_MODE
-    ]) {
-      Id invoiceHistoryId = line.Invoice__r == null
-        ? historyByInvoiceId.get(line.Invoice__c)
-        : line.Invoice__r.ContractHistory__c;
+    for (InvoiceLine__c line : lines) {
+      Id parentInvoiceId = lineInvoiceId.containsKey(line.Id)
+        ? lineInvoiceId.get(line.Id)
+        : line.Invoice__c;
+      Id invoiceHistoryId = historyByInvoiceId.get(parentInvoiceId);
+      if (invoiceHistoryId == null && !allHaveEmbeddedLines) {
+        invoiceHistoryId = line.Invoice__r == null
+          ? null
+          : line.Invoice__r.ContractHistory__c;
+      }
       if (
         line.ContractProduct__r != null &&
         line.ContractProduct__r.ContractHistory__c != null &&

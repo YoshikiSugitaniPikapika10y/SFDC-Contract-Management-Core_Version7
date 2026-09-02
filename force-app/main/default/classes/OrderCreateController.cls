@@ -12,6 +12,8 @@ public without sharing class OrderCreateController {
   private static Boolean testHasOrderPermission = true;
   @TestVisible
   private static Boolean testHasRevertPermission = true;
+  private static Map<Id, Decimal> previewPeriodAmountById;
+  private static Map<Id, Id> previewPeriodContractProductById;
 
   public class OrderContextDto {
     @AuraEnabled
@@ -1138,19 +1140,24 @@ public without sharing class OrderCreateController {
     Id contractServiceId = sourceHistory.ContractService__c;
 
     // 請求正本の作成は受注時のみ。プレビュー open では作らない（欠けていれば空表示）。
-    InvoicePreviewDto preview = buildInvoicePreviewFromCanonical(
+    ScopedEstimateSummary estimateSummary = buildScopedEstimateSummary(
       contractServiceId
     );
-    try {
-      InvoicePreviewIntegrityService.assertSameHistory(
-        null,
-        previewInvoicesForIntegrity(preview)
-      );
-    } catch (InvoicePreviewIntegrityService.IntegrityException ex) {
-      throw toAuraHandled(ex.getMessage());
-    }
-    preview.versionOptions = loadOrderedVersionOptions(contractServiceId);
-    enrichVersionAmountSummaries(preview, contractServiceId);
+    InvoicePreviewDto preview = buildInvoicePreviewFromCanonical(
+      contractServiceId,
+      estimateSummary
+    );
+    Decimal displayTaxPercent = sourceHistory.ContractService__r == null
+      ? loadServiceDisplayTaxPercent(contractServiceId)
+      : TaxCalculationUtil.fromPercentFieldStorage(
+          sourceHistory.ContractService__r.TaxPercent__c
+        );
+    preview.versionOptions = loadOrderedVersionOptions(estimateSummary);
+    enrichVersionAmountSummaries(
+      preview,
+      displayTaxPercent,
+      estimateSummary
+    );
     applyManualAdjustmentAmounts(preview);
     applyEstimateDriftToLines(preview);
     preview.sourceHistoryVersion = sourceHistory.Version__c == null
@@ -1160,7 +1167,6 @@ public without sharing class OrderCreateController {
     preview.canEdit = InvoiceCanonicalService.canEditInvoicePreview();
     // プレビュー編集は請求書単位ロック（invoice.locked）。Version 一括ブロックは使わない。
     preview.versionEditBlocked = false;
-    preview.contentVersion = resolvePreviewContentToken(contractServiceId);
     try {
       preview.invoiceSendMode = ContractDocumentSettingService.requireSendMode(
         'Invoice'
@@ -1232,6 +1238,8 @@ public without sharing class OrderCreateController {
     Map<String, String> expectedTokenByInvoiceId,
     String businessOperationKey
   ) {
+    beginInvoicePreviewWriteDefer();
+    try {
     List<Id> lineIds = lineIdsOf(edits);
     List<Id> invoiceIds = invoiceIdsOfLines(lineIds);
     Map<Id, String> tokens = new Map<Id, String>();
@@ -1271,6 +1279,9 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     return getInvoicePreview(contractHistoryId);
+    } finally {
+      endInvoicePreviewWriteDefer();
+    }
   }
 
   /**
@@ -1418,6 +1429,8 @@ public without sharing class OrderCreateController {
     String businessOperationKey,
     Map<String, Object> extraFieldValues
   ) {
+    beginInvoicePreviewWriteDefer();
+    try {
     List<Id> invoiceIds = new List<Id>{ invoiceId };
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
@@ -1460,6 +1473,9 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     return getInvoicePreview(contractHistoryId);
+    } finally {
+      endInvoicePreviewWriteDefer();
+    }
   }
 
   /** 仕様: Core 第7.8節、第7.9.7節 */
@@ -1484,6 +1500,8 @@ public without sharing class OrderCreateController {
     String expectedContentVersion,
     String businessOperationKey
   ) {
+    beginInvoicePreviewWriteDefer();
+    try {
     List<Id> invoiceIds = new List<Id>{ invoiceId };
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
@@ -1514,6 +1532,9 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     return getInvoicePreview(contractHistoryId);
+    } finally {
+      endInvoicePreviewWriteDefer();
+    }
   }
 
   /** 仕様: Core 第7.8節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。 */
@@ -1547,6 +1568,8 @@ public without sharing class OrderCreateController {
     String expectedContentVersion,
     String businessOperationKey
   ) {
+    beginInvoicePreviewWriteDefer();
+    try {
     List<Id> invoiceIds = new List<Id>{ sourceInvoiceId };
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
@@ -1586,6 +1609,9 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     return getInvoicePreview(contractHistoryId);
+    } finally {
+      endInvoicePreviewWriteDefer();
+    }
   }
 
   /** 仕様: Core 第7.8節、第7.9.7節。比較値未指定は拒否する。現在版で埋めない。 */
@@ -1622,6 +1648,8 @@ public without sharing class OrderCreateController {
     String expectedContentVersion,
     String businessOperationKey
   ) {
+    beginInvoicePreviewWriteDefer();
+    try {
     List<Id> invoiceIds = new List<Id>{ sourceInvoiceId };
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
@@ -1662,6 +1690,9 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     return getInvoicePreview(contractHistoryId);
+    } finally {
+      endInvoicePreviewWriteDefer();
+    }
   }
 
 
@@ -1695,6 +1726,8 @@ public without sharing class OrderCreateController {
     String expectedTargetContentVersion,
     String businessOperationKey
   ) {
+    beginInvoicePreviewWriteDefer();
+    try {
     List<Id> invoiceIds = new List<Id>{ sourceInvoiceId, targetInvoiceId };
     Map<Id, String> tokens = new Map<Id, String>();
     tokens.put(sourceInvoiceId, expectedContentVersion);
@@ -1736,6 +1769,9 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     return getInvoicePreview(contractHistoryId);
+    } finally {
+      endInvoicePreviewWriteDefer();
+    }
   }
 
 
@@ -1764,6 +1800,8 @@ public without sharing class OrderCreateController {
     String expectedContentVersion,
     String businessOperationKey
   ) {
+    beginInvoicePreviewWriteDefer();
+    try {
     List<Id> invoiceIds = new List<Id>{ invoiceId };
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
@@ -1794,6 +1832,9 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     return getInvoicePreview(contractHistoryId);
+    } finally {
+      endInvoicePreviewWriteDefer();
+    }
   }
 
   /**
@@ -1897,6 +1938,7 @@ public without sharing class OrderCreateController {
     Map<String, String> expectedTokenByInvoiceId,
     String businessOperationKey
   ) {
+    beginInvoicePreviewWriteDefer();
     try {
       InvoiceCanonicalService.assertCanEditInvoicePreview();
       Id targetHistoryId = resolveLatestOrderedHistoryIdForReset(
@@ -1952,10 +1994,12 @@ public without sharing class OrderCreateController {
         'ContractHistory__c',
         String.valueOf(targetHistoryId)
       );
+      return getInvoicePreview(contractHistoryId);
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
+    } finally {
+      endInvoicePreviewWriteDefer();
     }
-    return getInvoicePreview(contractHistoryId);
   }
 
   @TestVisible
@@ -2072,36 +2116,19 @@ public without sharing class OrderCreateController {
   }
 
   private static List<VersionOptionDto> loadOrderedVersionOptions(
-    Id contractServiceId
+    ScopedEstimateSummary estimateSummary
   ) {
     List<VersionOptionDto> options = new List<VersionOptionDto>();
-    if (contractServiceId == null) {
+    if (estimateSummary == null || estimateSummary.orderedVersions == null) {
       return options;
     }
 
-    List<ContractHistory__c> histories = [
-      SELECT Version__c
-      FROM ContractHistory__c
-      WHERE
-        ContractService__c = :contractServiceId
-        AND historystatus__c = :HISTORY_STATUS_ORDERED
-        AND Version__c != NULL
-      WITH SYSTEM_MODE
-      ORDER BY Version__c ASC
-    ];
-
-    Set<Decimal> seenVersions = new Set<Decimal>();
-    for (ContractHistory__c history : histories) {
-      if (seenVersions.contains(history.Version__c)) {
-        continue;
-      }
-      seenVersions.add(history.Version__c);
-
+    for (Decimal version : estimateSummary.orderedVersions) {
       VersionOptionDto option = new VersionOptionDto();
-      option.version = history.Version__c;
-      option.value = String.valueOf(history.Version__c.intValue());
+      option.version = version;
+      option.value = String.valueOf(version.intValue());
       option.label = InvoiceProductMergeService.formatHistoryVersionLabel(
-        history.Version__c
+        version
       );
       option.periodLineAmountTotal = 0;
       option.periodLineTaxInclusiveTotal = 0;
@@ -2121,9 +2148,10 @@ public without sharing class OrderCreateController {
    */
   private static void enrichVersionAmountSummaries(
     InvoicePreviewDto preview,
-    Id contractServiceId
+    Decimal displayTaxPercent,
+    ScopedEstimateSummary estimateSummary
   ) {
-    if (preview == null || contractServiceId == null) {
+    if (preview == null) {
       return;
     }
     if (preview.versionOptions == null) {
@@ -2153,10 +2181,9 @@ public without sharing class OrderCreateController {
       optionByValue.put(option.value, option);
     }
 
-    Decimal displayTaxPercent = loadServiceDisplayTaxPercent(contractServiceId);
-    ScopedEstimateSummary estimateSummary = buildScopedEstimateSummary(
-      contractServiceId
-    );
+    if (estimateSummary == null) {
+      estimateSummary = new ScopedEstimateSummary();
+    }
     for (String value : estimateSummary.byVersion.keySet()) {
       VersionOptionDto option = optionByValue.get(value);
       if (option == null) {
@@ -2649,7 +2676,7 @@ public without sharing class OrderCreateController {
       return null;
     }
     List<ContractHistory__c> histories = [
-      SELECT ContractService__c, Version__c
+      SELECT ContractService__c, Version__c, ContractService__r.TaxPercent__c
       FROM ContractHistory__c
       WHERE Id = :contractHistoryId
       WITH SYSTEM_MODE
@@ -2874,20 +2901,25 @@ public without sharing class OrderCreateController {
     if (targetInvoiceIds.isEmpty()) {
       throw toAuraHandled('請求は必須です。');
     }
-    List<Id> lockOrder = new List<Id>(targetInvoiceIds);
-    lockOrder.sort();
-    for (Id invoiceId : lockOrder) {
-      AccountingCauseLockService.lockInvoice(invoiceId);
-    }
-    for (Id invoiceId : lockOrder) {
-      String expectedToken = expectedTokenByInvoiceId == null
-        ? null
-        : expectedTokenByInvoiceId.get(invoiceId);
-      AccountingCauseLockService.assertInvoiceOperationUnchanged(
+    Map<Id, Invoice__c> locked = AccountingCauseLockService.lockInvoices(
+      targetInvoiceIds
+    );
+    Map<Id, Datetime> knownModified = new Map<Id, Datetime>();
+    Map<Id, String> tokens = new Map<Id, String>();
+    for (Id invoiceId : locked.keySet()) {
+      Invoice__c lockedInvoice = locked.get(invoiceId);
+      knownModified.put(invoiceId, lockedInvoice.LastModifiedDate);
+      tokens.put(
         invoiceId,
-        expectedToken
+        expectedTokenByInvoiceId == null
+          ? null
+          : expectedTokenByInvoiceId.get(invoiceId)
       );
     }
+    AccountingCauseLockService.assertInvoiceOperationsUnchanged(
+      tokens,
+      knownModified
+    );
     return prep;
   }
 
@@ -3180,12 +3212,25 @@ public without sharing class OrderCreateController {
     return values;
   }
 
+  private static void beginInvoicePreviewWriteDefer() {
+    ContractArrCalculationService.beginRecalcDefer();
+    ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
+  }
+
+  private static void endInvoicePreviewWriteDefer() {
+    BillingAccountKeyService.endReferenceRefreshDefer();
+    ContractHistoryStatusPathService.endPathSyncDefer();
+    ContractArrCalculationService.endRecalcDefer();
+  }
+
   private static String formatDate(Date value) {
     return InvoiceProductMergeService.formatDate(value);
   }
 
   private static InvoicePreviewDto buildInvoicePreviewFromCanonical(
-    Id contractServiceId
+    Id contractServiceId,
+    ScopedEstimateSummary estimateSummary
   ) {
     InvoicePreviewDto preview = emptyPreview();
     if (contractServiceId == null) {
@@ -3227,6 +3272,7 @@ public without sharing class OrderCreateController {
         IsAmountAdjusted__c,
         IsSplitMoved__c,
         PeriodLineAmountTotal__c,
+        ContractHistory__c,
         ContractHistory__r.Version__c,
         ContractService__r.Name,
         BillingAccountSnapShot__c,
@@ -3252,12 +3298,14 @@ public without sharing class OrderCreateController {
             IsAmountAdjusted__c,
             IsSplitMoved__c,
             SourcePeriodLineIds__c,
+            Invoice__c,
             AcceptanceEndDate__c,
             RevenueRecognitionBasis__c,
             ContractProduct__c,
             ContractProduct__r.Amount__c,
             ContractProduct__r.Unit__c,
-            ContractProduct__r.BillingType__c
+            ContractProduct__r.BillingType__c,
+            ContractProduct__r.ContractHistory__c
           FROM InvoiceLines__r
           ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC
         )
@@ -3267,11 +3315,19 @@ public without sharing class OrderCreateController {
       ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC
     ];
     Set<Id> previewInvoiceIds = new Set<Id>();
+    Map<Id, Datetime> knownModified = new Map<Id, Datetime>();
     for (Invoice__c invoiceRecord : invoices) {
       previewInvoiceIds.add(invoiceRecord.Id);
+      knownModified.put(invoiceRecord.Id, invoiceRecord.LastModifiedDate);
+    }
+    try {
+      InvoicePreviewIntegrityService.assertSameHistory(null, invoices);
+    } catch (InvoicePreviewIntegrityService.IntegrityException ex) {
+      throw toAuraHandled(ex.getMessage());
     }
     Map<Id, Datetime> operationDatetimes = AccountingCauseLockService.resolveInvoiceOperationDatetimes(
-      previewInvoiceIds
+      previewInvoiceIds,
+      knownModified
     );
     Map<Id, Map<String, Object>> invoiceExtraById =
       InvoiceOpsFieldService.readValuesById('Invoice__c', previewInvoiceIds);
@@ -3279,7 +3335,9 @@ public without sharing class OrderCreateController {
       EstimateDocumentService.latestIssuedContentDocumentIds(previewInvoiceIds);
 
     // 見積バーは Ordered CP.Amount を請求月数で按分した値（InvoiceProduct 金額合算ではない）。
-    Decimal periodTotal = buildScopedEstimateSummary(contractServiceId).total;
+    Decimal periodTotal = estimateSummary == null
+      ? 0
+      : estimateSummary.total;
     Decimal invoiceTotal = 0;
     Boolean hasManual = false;
 
@@ -3445,6 +3503,18 @@ public without sharing class OrderCreateController {
     preview.invoiceAmountTotal = invoiceTotal;
     preview.amountDifference = invoiceTotal - periodTotal;
     preview.hasManualAdjustment = hasManual;
+    Datetime previewTokenDatetime = null;
+    for (Datetime value : operationDatetimes.values()) {
+      if (value == null) {
+        continue;
+      }
+      if (previewTokenDatetime == null || value > previewTokenDatetime) {
+        previewTokenDatetime = value;
+      }
+    }
+    preview.contentVersion = ContractOptimisticLockUtil.toToken(
+      previewTokenDatetime
+    );
     return preview;
   }
 
@@ -3484,9 +3554,10 @@ public without sharing class OrderCreateController {
     }
 
     Map<Id, Decimal> sourceAmountById = new Map<Id, Decimal>();
+    Map<Id, Id> contractProductBySourceId = new Map<Id, Id>();
     if (!sourceIds.isEmpty()) {
       for (InvoiceProduct__c source : [
-        SELECT Id, Amount__c
+        SELECT Id, Amount__c, ContractProduct__c
         FROM InvoiceProduct__c
         WHERE Id IN :sourceIds
         WITH SYSTEM_MODE
@@ -3495,8 +3566,13 @@ public without sharing class OrderCreateController {
           source.Id,
           source.Amount__c == null ? 0 : source.Amount__c
         );
+        if (source.ContractProduct__c != null) {
+          contractProductBySourceId.put(source.Id, source.ContractProduct__c);
+        }
       }
     }
+    previewPeriodAmountById = sourceAmountById;
+    previewPeriodContractProductById = contractProductBySourceId;
 
     Map<String, VersionOptionDto> optionByValue = new Map<String, VersionOptionDto>();
     if (preview.versionOptions != null) {
@@ -3620,13 +3696,27 @@ public without sharing class OrderCreateController {
     }
 
     // InvoiceLine.ContractProduct が空でも、由来 InvoiceProduct から CP を復元する
-    Map<Id, Id> contractProductBySourceId = new Map<Id, Id>();
-    Map<Id, Decimal> periodAmountById = new Map<Id, Decimal>();
-    if (!sourceIds.isEmpty()) {
+    Map<Id, Id> contractProductBySourceId = previewPeriodContractProductById ==
+      null
+      ? new Map<Id, Id>()
+      : previewPeriodContractProductById;
+    Map<Id, Decimal> periodAmountById = previewPeriodAmountById == null
+      ? new Map<Id, Decimal>()
+      : previewPeriodAmountById;
+    Set<Id> missingSourceIds = new Set<Id>();
+    for (Id sourceId : sourceIds) {
+      if (
+        !periodAmountById.containsKey(sourceId) &&
+        !contractProductBySourceId.containsKey(sourceId)
+      ) {
+        missingSourceIds.add(sourceId);
+      }
+    }
+    if (!missingSourceIds.isEmpty()) {
       for (InvoiceProduct__c source : [
         SELECT Id, ContractProduct__c, Amount__c
         FROM InvoiceProduct__c
-        WHERE Id IN :sourceIds
+        WHERE Id IN :missingSourceIds
         WITH SYSTEM_MODE
       ]) {
         periodAmountById.put(
@@ -3904,6 +3994,7 @@ public without sharing class OrderCreateController {
   private class ScopedEstimateSummary {
     public Decimal total = 0;
     public Map<String, Decimal> byVersion = new Map<String, Decimal>();
+    public List<Decimal> orderedVersions = new List<Decimal>();
   }
 
   /**
@@ -3938,6 +4029,7 @@ public without sharing class OrderCreateController {
       summary.total += amount;
       String value = String.valueOf(history.Version__c.intValue());
       summary.byVersion.put(value, amount);
+      summary.orderedVersions.add(history.Version__c);
     }
     return summary;
   }
