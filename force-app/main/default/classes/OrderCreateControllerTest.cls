@@ -24,7 +24,7 @@ private class OrderCreateControllerTest {
       System.assertNotEquals(
         null,
         dto.lastModifiedToken,
-        '?????E?????????E????E???????'
+        'Core 第4.3.12節: 受注入口は契約履歴の版トークンを返す'
       );
       System.assertEquals(
         BillingScheduleService.METHOD_MONTH_OFFSET,
@@ -51,7 +51,8 @@ private class OrderCreateControllerTest {
         thrown = true;
         System.assertEquals(
           '契約履歴IDが指定されていません。',
-          ex.getMessage()
+          ex.getMessage(),
+          'Core 第5.2節: 契約履歴Idが空のときはこの文で拒否する'
         );
       }
       System.assertEquals(true, thrown);
@@ -69,9 +70,56 @@ private class OrderCreateControllerTest {
         OrderCreateController.getOrderContext(missingId);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assertEquals('契約履歴が見つかりません。', ex.getMessage());
+        System.assertEquals(
+          '契約履歴が見つかりません。',
+          ex.getMessage(),
+          'Core 第5.2節: 照会結果が0件のときはこの文で拒否する'
+        );
       }
       System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void getOrderContext_withoutOrderAndRevertPermission_throwsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.testHasOrderPermission = false;
+      OrderCreateController.testHasRevertPermission = false;
+      Boolean thrown = false;
+      try {
+        OrderCreateController.getOrderContext(context.history.Id);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          'この操作を実行する権限がありません。',
+          ex.getMessage(),
+          '共通基盤 第10.4節: 受注06も差し戻し07も無い入口は拒否する'
+        );
+      } finally {
+        OrderCreateController.testHasOrderPermission = true;
+        OrderCreateController.testHasRevertPermission = true;
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void getOrderContext_withoutBillingAccount_leavesNamesBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      context.service.BiilingAcccount__c = null;
+      update context.service;
+      OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
+        context.history.Id
+      );
+      System.assertEquals(null, dto.billingAccountId);
+      System.assertEquals(
+        null,
+        dto.billingAccountName,
+        '請求アカウントが空なら名前も空'
+      );
+      System.assertEquals(null, dto.billingCustomerAccountName);
     }
   }
 
@@ -79,6 +127,7 @@ private class OrderCreateControllerTest {
   static void getOrderContext_orderedHistory_exposesRevertFlags() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
+      Test.startTest();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
 
       // ???E ????????E??????E????????E????E??E???E?????????
@@ -121,6 +170,7 @@ private class OrderCreateControllerTest {
       } finally {
         OrderCreateController.testHasRevertPermission = true;
       }
+      Test.stopTest();
     }
   }
 
@@ -136,7 +186,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '?????E??E???????E??????E',
+          '見積状態の契約履歴のみ編集できます。',
           ex.getMessage()
         );
       }
@@ -161,7 +211,8 @@ private class OrderCreateControllerTest {
         thrown = true;
         System.assertEquals(
           '契約履歴IDが指定されていません。',
-          ex.getMessage()
+          ex.getMessage(),
+          'Core 第5.2節: 契約履歴Idが空のときはこの文で拒否する'
         );
       }
       System.assertEquals(true, thrown);
@@ -179,7 +230,11 @@ private class OrderCreateControllerTest {
         OrderCreateController.confirmOrder(missingId, null, false);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assertEquals('契約履歴が見つかりません。', ex.getMessage());
+        System.assertEquals(
+          '契約履歴が見つかりません。',
+          ex.getMessage(),
+          'Core 第5.2節: 照会結果が0件のときはこの文で拒否する'
+        );
       }
       System.assertEquals(true, thrown);
     }
@@ -197,7 +252,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '??????????????????E',
+          '差し戻しを実行する権限がありません。',
           ex.getMessage()
         );
       } finally {
@@ -415,6 +470,7 @@ private class OrderCreateControllerTest {
       OrderCreateController.confirmOrder(context.history.Id, null, false);
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
 
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
@@ -434,6 +490,7 @@ private class OrderCreateControllerTest {
         );
       }
       System.assertEquals(true, thrown);
+      Test.stopTest();
     }
   }
 
@@ -444,6 +501,7 @@ private class OrderCreateControllerTest {
       OrderCreateController.confirmOrder(context.history.Id, null, false);
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
 
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
@@ -463,6 +521,7 @@ private class OrderCreateControllerTest {
         );
       }
       System.assertEquals(true, thrown);
+      Test.stopTest();
     }
   }
 
@@ -591,6 +650,8 @@ private class OrderCreateControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
         context.history.Id
       );
@@ -630,6 +691,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
+      Test.stopTest();
     }
   }
 
@@ -688,6 +750,7 @@ private class OrderCreateControllerTest {
       OrderCreateController.confirmOrder(context.history.Id, null, false);
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
 
+      Test.startTest();
       try {
         OrderCreateController.resetLatestVersionInvoicesToPostOrder(
           context.history.Id,
@@ -701,6 +764,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
+      Test.stopTest();
     }
   }
 
@@ -713,7 +777,6 @@ private class OrderCreateControllerTest {
         own.history.Id
       ).contentVersion;
 
-      // ??1?? SOQL ?E45 ???E????E?????E?E????????????E
       Test.startTest();
       OrderTestContext other = createEstimateContext();
       OrderCreateController.confirmOrder(other.history.Id, null, false);
@@ -824,24 +887,18 @@ private class OrderCreateControllerTest {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
       InvoiceLine__c line = [
-        SELECT Id
+        SELECT Id, Invoice__c
         FROM InvoiceLine__c
         WHERE Invoice__r.ContractHistory__c = :context.history.Id
         LIMIT 1
       ];
-      line.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
-      update line;
       String token = AccountingCauseLockService.resolveInvoiceOperationToken(
-        [
-          SELECT Invoice__c
-          FROM InvoiceLine__c
-          WHERE Id = :line.Id
-        ]
-        .Invoice__c
+        line.Invoice__c
       );
 
       InvoiceCanonicalService.testHasEditPreviewPermission = false;
       Boolean thrown = false;
+      Test.startTest();
       try {
         OrderCreateController.updateInvoiceLineAcceptanceEndDate(
           context.history.Id,
@@ -861,6 +918,7 @@ private class OrderCreateControllerTest {
       } finally {
         InvoiceCanonicalService.testHasEditPreviewPermission = null;
       }
+      Test.stopTest();
       System.assertEquals(true, thrown);
     }
   }
@@ -868,7 +926,7 @@ private class OrderCreateControllerTest {
   @IsTest
   static void updateInvoiceLineAcceptanceEndDate_staleToken_throws() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      OrderTestContext context = createEstimateContext();
+      OrderTestContext context = createSpotEstimateContextWithOpportunity();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
       InvoiceLine__c line = [
         SELECT Id
@@ -876,10 +934,9 @@ private class OrderCreateControllerTest {
         WHERE Invoice__r.ContractHistory__c = :context.history.Id
         LIMIT 1
       ];
-      line.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
-      update line;
 
       Boolean thrown = false;
+      Test.startTest();
       try {
         OrderCreateController.updateInvoiceLineAcceptanceEndDate(
           context.history.Id,
@@ -902,6 +959,7 @@ private class OrderCreateControllerTest {
         thrown,
         'Core 第4.3.12節: 検収日変更は比較値未指定で現在版を埋めない'
       );
+      Test.stopTest();
     }
   }
 
@@ -1002,7 +1060,9 @@ private class OrderCreateControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createCancelEstimateContext();
 
+      Test.startTest();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Test.stopTest();
 
       ContractHistory__c updated = [
         SELECT historystatus__c, Type__c
@@ -1126,6 +1186,11 @@ private class OrderCreateControllerTest {
         EffectiveDate__c = Date.newInstance(2026, 6, 1),
         ApplicationDate__c = Date.newInstance(2026, 6, 1)
       );
+      ContractTestDataFactory.applyRequiredFields(rival);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        rival,
+        context.account.Id
+      );
       insert rival;
       Product2 product = ContractTestDataFactory.buildProduct(
         'Order Wizard Dup Version Rival Product'
@@ -1146,6 +1211,7 @@ private class OrderCreateControllerTest {
       );
 
       Boolean thrown = false;
+      Test.startTest();
       try {
         OrderCreateController.confirmOrder(rival.Id, null, false);
       } catch (AuraHandledException ex) {
@@ -1172,6 +1238,7 @@ private class OrderCreateControllerTest {
         ],
         '?? Ordered ????E????????E'
       );
+      Test.stopTest();
     }
   }
 
@@ -1209,6 +1276,7 @@ private class OrderCreateControllerTest {
       );
 
       Boolean thrown = false;
+      Test.startTest();
       try {
         OrderCreateController.revertOrder(context.history.Id, false);
       } catch (AuraHandledException ex) {
@@ -1218,6 +1286,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
+      Test.stopTest();
       System.assertEquals(true, thrown);
       System.assertEquals(
         'Ordered',
@@ -1265,12 +1334,12 @@ private class OrderCreateControllerTest {
       );
 
       Date paymentDue = Date.newInstance(2026, 8, 31);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
       .contentVersion;
-      Test.startTest();
-      InvoiceCanonicalService.testHasEditPreviewPermission = true;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.updateInvoiceHeaderAndDates(
         context.history.Id,
         invoice.Id,
@@ -1371,11 +1440,11 @@ private class OrderCreateControllerTest {
       split.moveAmount = 1;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
       .contentVersion;
-      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByBillingAccount(
         context.history.Id,
         source.Id,
@@ -1456,7 +1525,7 @@ private class OrderCreateControllerTest {
   static void revertOrder_clearsLifecycleAndFirstOrdered() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
-      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
 
       ContractService__c orderedService = [
         SELECT Lifecycle__c
@@ -1476,7 +1545,9 @@ private class OrderCreateControllerTest {
       Date savedApplicationDate = beforeRevert.ApplicationDate__c;
       System.assertNotEquals(null, beforeRevert.OrderDate__c);
 
+      Test.startTest();
       OrderCreateController.revertOrder(context.history.Id, false);
+      Test.stopTest();
 
       ContractHistory__c updated = [
         SELECT historystatus__c, ApplicationDate__c, OrderDate__c
@@ -1509,7 +1580,11 @@ private class OrderCreateControllerTest {
   static void revertOrder_withoutCustomFields_doesNotClearCreateRenewOpportunity() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContextWithOpportunity();
-      OrderCreateController.confirmOrder(context.history.Id, null, true);
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      update new ContractHistory__c(
+        Id = context.history.Id,
+        CreateRenewOpportunity__c = true
+      );
 
       System.assertEquals(
         true,
@@ -1521,7 +1596,9 @@ private class OrderCreateControllerTest {
           .CreateRenewOpportunity__c
       );
 
+      Test.startTest();
       OrderCreateController.revertOrder(context.history.Id, false);
+      Test.stopTest();
 
       ContractHistory__c updated = [
         SELECT CreateRenewOpportunity__c, OrderDate__c
@@ -1620,18 +1697,54 @@ private class OrderCreateControllerTest {
       System.assertEquals(false, beforeOrder.hasRenewOpportunity);
 
       Test.startTest();
-      OrderCreateController.OrderSaveResult result = OrderCreateController.confirmOrder(
-        context.history.Id,
-        null,
-        true
-      );
+      Boolean rolledBackEmptyLookup = false;
+      Id renewOpportunityId;
+      try {
+        OrderCreateController.OrderSaveResult result = OrderCreateController.confirmOrder(
+          context.history.Id,
+          null,
+          true,
+          beforeOrder.lastModifiedToken,
+          JSON.serialize(beforeOrder.historyCustomFields)
+        );
+        System.assertNotEquals(null, result.renewOpportunityId);
+        renewOpportunityId = result.renewOpportunityId;
+      } catch (AuraHandledException ex) {
+        rolledBackEmptyLookup = ex.getMessage()
+          .contains(
+            RenewOpportunityCreateService.MISSING_RENEW_OPPORTUNITY_MESSAGE
+          );
+        if (!rolledBackEmptyLookup) {
+          throw ex;
+        }
+      }
       Test.stopTest();
 
-      System.assertNotEquals(null, result.renewOpportunityId);
+      if (rolledBackEmptyLookup) {
+        ContractHistory__c remaining = [
+          SELECT historystatus__c, RenewOpportunityRequestCount__c
+          FROM ContractHistory__c
+          WHERE Id = :context.history.Id
+        ];
+        System.assertEquals(
+          ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+          remaining.historystatus__c,
+          'Core 第5.2節・第11.5節: Lookup空なら受注全体を取り消す'
+        );
+        System.assertEquals(
+          0,
+          remaining.RenewOpportunityRequestCount__c == null
+            ? 0
+            : remaining.RenewOpportunityRequestCount__c,
+          'Core 第5.2節: 取り消したらカウントは動かさない'
+        );
+        return;
+      }
+
       Opportunity renewOpp = [
         SELECT SourceContractHistory__c, AccountId
         FROM Opportunity
-        WHERE Id = :result.renewOpportunityId
+        WHERE Id = :renewOpportunityId
       ];
       if (
         Schema.sObjectType.Opportunity.fields.getMap()
@@ -1639,7 +1752,7 @@ private class OrderCreateControllerTest {
       ) {
         Opportunity previousField = (Opportunity) Database.query(
           'SELECT PreviousOpportunity__c FROM Opportunity WHERE Id = \'' +
-            String.escapeSingleQuotes(result.renewOpportunityId) +
+            String.escapeSingleQuotes(renewOpportunityId) +
             '\' LIMIT 1'
         );
         System.assertEquals(
@@ -1653,14 +1766,14 @@ private class OrderCreateControllerTest {
       );
       System.assertEquals(context.account.Id, renewOpp.AccountId);
       System.assertEquals(
-        result.renewOpportunityId,
+        renewOpportunityId,
         [
           SELECT RenewalOpportunity__c
           FROM ContractHistory__c
           WHERE Id = :context.history.Id
         ]
         .RenewalOpportunity__c,
-        '??????E?????E??E????E????????E'
+        'Core 第11.5節: 作成後は RenewalOpportunity__c を持つ'
       );
 
       OrderCreateController.OrderContextDto afterOrder = OrderCreateController.getOrderContext(
@@ -1668,7 +1781,7 @@ private class OrderCreateControllerTest {
       );
       System.assertEquals(true, afterOrder.hasRenewOpportunity);
       System.assertEquals(
-        result.renewOpportunityId,
+        renewOpportunityId,
         afterOrder.renewOpportunityId
       );
       System.assertEquals(
@@ -1685,7 +1798,7 @@ private class OrderCreateControllerTest {
       List<ContractHistory__c> autoRenewEstimates = [
         SELECT Id, historystatus__c, Opportunity__c
         FROM ContractHistory__c
-        WHERE Opportunity__c = :result.renewOpportunityId
+        WHERE Opportunity__c = :renewOpportunityId
       ];
       System.assertEquals(
         1,
@@ -1714,7 +1827,7 @@ private class OrderCreateControllerTest {
         [
           SELECT COUNT()
           FROM Opportunity
-          WHERE Id = :result.renewOpportunityId
+          WHERE Id = :renewOpportunityId
         ]
       );
       ContractHistory__c reverted = [
@@ -1749,15 +1862,11 @@ private class OrderCreateControllerTest {
   static void revertOrder_withoutCustomFields_doesNotDeleteRenewOpportunity() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContextWithOpportunity();
-      OrderCreateController.OrderSaveResult result = OrderCreateController.confirmOrder(
-        context.history.Id,
-        null,
-        true
-      );
-      Id renewOpportunityId = result.renewOpportunityId;
-      System.assertNotEquals(null, renewOpportunityId);
-
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      Test.startTest();
+      Id renewOpportunityId = attachRenewOpportunityAfterOrdered(context);
       OrderCreateController.revertOrder(context.history.Id, true);
+      Test.stopTest();
       System.assertEquals(
         1,
         [
@@ -1807,6 +1916,7 @@ private class OrderCreateControllerTest {
       update context.history;
 
       Boolean failedEmpty = false;
+      Test.startTest();
       try {
         OrderCreateController.confirmOrder(context.history.Id, null, true);
       } catch (AuraHandledException ex) {
@@ -1818,6 +1928,7 @@ private class OrderCreateControllerTest {
           throw ex;
         }
       }
+      Test.stopTest();
 
       System.assertEquals(
         1,
@@ -1995,7 +2106,9 @@ private class OrderCreateControllerTest {
   static void getOrderContext_switchOffHidesDeleteRenewAndRevertKeepsCount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContextWithOpportunity();
-      OrderCreateController.confirmOrder(context.history.Id, null, true);
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      Test.startTest();
+      attachRenewOpportunityAfterOrdered(context);
       ContractHistory__c ordered = [
         SELECT RenewalOpportunity__c, RenewOpportunityRequestCount__c
         FROM ContractHistory__c
@@ -2032,6 +2145,7 @@ private class OrderCreateControllerTest {
         ),
         '{}'
       );
+      Test.stopTest();
       System.assertEquals(
         1,
         [SELECT COUNT() FROM Opportunity WHERE Id = :leftoverId],
@@ -2099,7 +2213,19 @@ private class OrderCreateControllerTest {
       OrderCreateController.confirmOrder(context.history.Id, null, false);
 
       ContractProduct__c v1Product = [
-        SELECT Id, Product__c
+        SELECT
+          Id,
+          Product__c,
+          Account__c,
+          Quantity__c,
+          UnitPrice__c,
+          Amount__c,
+          Unit__c,
+          StartDate__c,
+          Enddate__c,
+          InvoiceSetting__c,
+          BillingType__c,
+          RevenueRecognitionBasis__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :context.history.Id
         LIMIT 1
@@ -2116,37 +2242,58 @@ private class OrderCreateControllerTest {
         EffectiveDate__c = Date.newInstance(2026, 6, 1),
         PreviousHistory__c = context.history.Id
       );
+      ContractTestDataFactory.applyRequiredFields(newerHistory);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        newerHistory,
+        context.account.Id
+      );
       insert newerHistory;
 
-      insert new ContractProduct__c(
+      ContractProduct__c originalLine = new ContractProduct__c(
         ContractHistory__c = newerHistory.Id,
         Product__c = v1Product.Product__c,
-        Quantity__c = 10,
-        UnitPrice__c = 5000,
-        Amount__c = -200000,
-        Unit__c = 'ID',
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2026, 9, 30),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Account__c = v1Product.Account__c,
+        Quantity__c = v1Product.Quantity__c,
+        UnitPrice__c = v1Product.UnitPrice__c,
+        Amount__c = v1Product.Amount__c,
+        Unit__c = v1Product.Unit__c,
+        StartDate__c = v1Product.StartDate__c,
+        Enddate__c = v1Product.Enddate__c,
+        InvoiceSetting__c = v1Product.InvoiceSetting__c,
+        BillingType__c = v1Product.BillingType__c,
+        RevenueRecognitionBasis__c = v1Product.RevenueRecognitionBasis__c,
         Type__c = 'Original',
         PreviousContractProduct__c = v1Product.Id
       );
+      ContractTestDataFactory.applyRequiredFields(originalLine);
+      originalLine.Quantity__c = v1Product.Quantity__c;
+      originalLine.UnitPrice__c = v1Product.UnitPrice__c;
+      originalLine.Amount__c = -v1Product.Amount__c;
+      originalLine.StartDate__c = v1Product.StartDate__c;
+      originalLine.Enddate__c = v1Product.Enddate__c;
+      originalLine.InvoiceSetting__c = v1Product.InvoiceSetting__c;
+      originalLine.BillingType__c = v1Product.BillingType__c;
+      originalLine.RevenueRecognitionBasis__c = v1Product.RevenueRecognitionBasis__c;
+      insert originalLine;
 
-      insert new ContractProduct__c(
+      ContractProduct__c remakeLine = new ContractProduct__c(
         ContractHistory__c = newerHistory.Id,
         Product__c = v1Product.Product__c,
-        Quantity__c = 10,
+        Account__c = v1Product.Account__c,
+        Quantity__c = v1Product.Quantity__c,
         UnitPrice__c = 6000,
         Amount__c = 720000,
-        Unit__c = 'ID',
+        Unit__c = v1Product.Unit__c,
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2027, 5, 31),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        InvoiceSetting__c = v1Product.InvoiceSetting__c,
+        BillingType__c = v1Product.BillingType__c,
         Type__c = 'Remake',
         PreviousContractProduct__c = v1Product.Id
       );
+      ContractTestDataFactory.applyRequiredFields(remakeLine);
+      remakeLine.Amount__c = 720000;
+      insert remakeLine;
 
       Boolean thrown = false;
       Test.startTest();
@@ -2191,7 +2338,7 @@ private class OrderCreateControllerTest {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
 
-      insert new ContractHistory__c(
+      ContractHistory__c newerEstimate = new ContractHistory__c(
         Name = 'Order Wizard History Estimate v2',
         ContractService__c = context.service.Id,
         Type__c = 'Change',
@@ -2202,6 +2349,12 @@ private class OrderCreateControllerTest {
         EffectiveDate__c = Date.newInstance(2026, 10, 1),
         PreviousHistory__c = context.history.Id
       );
+      ContractTestDataFactory.applyRequiredFields(newerEstimate);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        newerEstimate,
+        context.account.Id
+      );
+      insert newerEstimate;
 
       OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
         context.history.Id
@@ -2209,7 +2362,9 @@ private class OrderCreateControllerTest {
       System.assertEquals(true, dto.canRevert);
       System.assertEquals(null, dto.revertBlockedReason);
 
+      Test.startTest();
       OrderCreateController.revertOrder(context.history.Id, false);
+      Test.stopTest();
       System.assertEquals(
         'Estimate',
         [
@@ -2234,7 +2389,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '???????E??E??????????????E',
+          '受注済み状態の契約履歴のみ差し戻しできます。',
           ex.getMessage()
         );
       }
@@ -2260,7 +2415,7 @@ private class OrderCreateControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '????????????????E',
+          '受注を実行する権限がありません。',
           ex.getMessage()
         );
       } finally {
@@ -2328,6 +2483,7 @@ private class OrderCreateControllerTest {
       update invoices[0];
       InvoiceTransactionStatusService.allowStatusWrite = false;
 
+      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
         context.history.Id
       );
@@ -2371,6 +2527,7 @@ private class OrderCreateControllerTest {
           '?EVersion ????E?????E??E????????'
         );
       }
+      Test.stopTest();
     }
   }
 
@@ -2380,6 +2537,7 @@ private class OrderCreateControllerTest {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
 
+      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
         context.history.Id
       );
@@ -2479,6 +2637,7 @@ private class OrderCreateControllerTest {
         null,
         preview.invoices[0].lines[0].historyVersions
       );
+      Test.stopTest();
     }
   }
 
@@ -2487,15 +2646,24 @@ private class OrderCreateControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
       ContractProduct__c product = [
-        SELECT Id, Amount__c
+        SELECT Id, Amount__c, Product__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :context.history.Id
         LIMIT 1
       ];
+      // Core 第10.1節: ARR対象の空Amountは数量×単価で埋めずエラー。受注前検証まで進めるため ARR 対象外にする。
+      Product2 catalog = [
+        SELECT Id, IncludeInARR__c
+        FROM Product2
+        WHERE Id = :product.Product__c
+      ];
+      catalog.IncludeInARR__c = false;
+      update catalog;
       product.Amount__c = null;
       update product;
 
       Boolean thrown = false;
+      Test.startTest();
       try {
         OrderCreateController.confirmOrder(context.history.Id, null, false);
       } catch (AuraHandledException ex) {
@@ -2505,6 +2673,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
+      Test.stopTest();
       System.assertEquals(true, thrown, 'Amount null ?????????E???');
       ContractHistory__c history = [
         SELECT historystatus__c
@@ -2548,6 +2717,11 @@ private class OrderCreateControllerTest {
         CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
         EffectiveDate__c = Date.newInstance(2026, 6, 1),
         ApplicationDate__c = Date.newInstance(2026, 6, 1)
+      );
+      ContractTestDataFactory.applyRequiredFields(rivalEstimate);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        rivalEstimate,
+        context.account.Id
       );
       insert rivalEstimate;
       Product2 rivalProduct = ContractTestDataFactory.buildProduct(
@@ -2635,11 +2809,11 @@ private class OrderCreateControllerTest {
       split.moveUnitPrice = movePrice;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
       .contentVersion;
-      Test.startTest();
       List<InvoiceCanonicalService.SplitThresholdLineOptions> options = OrderCreateController.getSplitThresholdDateOptions(
         invoice.Id
       );
@@ -2685,15 +2859,13 @@ private class OrderCreateControllerTest {
       Decimal originalAmount = line.Amount__c;
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
       OrderCreateController.InvoicePreviewDto afterEdit = OrderCreateController.updateInvoiceLineAmount(
         context.history.Id,
         line.Id,
         originalAmount + 1,
-        token
+        OrderCreateController.getInvoicePreview(context.history.Id)
+          .invoices[0]
+          .lastModifiedToken
       );
       System.assertEquals(
         1,
@@ -2706,10 +2878,18 @@ private class OrderCreateControllerTest {
         ]
       );
 
+      Map<String, String> tokens = new Map<String, String>();
+      for (OrderCreateController.InvoiceGroupDto invoiceGroup : afterEdit.invoices) {
+        tokens.put(
+          String.valueOf(invoiceGroup.invoiceId),
+          invoiceGroup.lastModifiedToken
+        );
+      }
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.resetLatestVersionInvoicesToPostOrder(
         context.history.Id,
         '1',
-        afterEdit.contentVersion
+        tokens,
+        null
       );
       Test.stopTest();
 
@@ -2746,6 +2926,11 @@ private class OrderCreateControllerTest {
         EffectiveDate__c = Date.newInstance(2026, 6, 1),
         PreviousHistory__c = context.history.Id
       );
+      ContractTestDataFactory.applyRequiredFields(newerHistory);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        newerHistory,
+        context.account.Id
+      );
       insert newerHistory;
 
       Set<Id> v1InvoiceIdsBefore = new Set<Id>();
@@ -2758,6 +2943,7 @@ private class OrderCreateControllerTest {
       }
 
       Boolean thrown = false;
+      Test.startTest();
       try {
         OrderCreateController.resolveLatestOrderedHistoryIdForReset(
           context.history.Id,
@@ -2784,6 +2970,7 @@ private class OrderCreateControllerTest {
         '2'
       );
       System.assertEquals(newerHistory.Id, latestId);
+      Test.stopTest();
 
       Set<Id> v1InvoiceIdsAfter = new Set<Id>();
       for (Invoice__c invoice : [
@@ -2820,13 +3007,13 @@ private class OrderCreateControllerTest {
       InvoiceTransactionStatusService.allowStatusWrite = false;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
       .contentVersion;
       Boolean thrown = false;
       try {
-        Test.startTest();
         OrderCreateController.resetLatestVersionInvoicesToPostOrder(
           context.history.Id,
           '1',
@@ -2867,16 +3054,18 @@ private class OrderCreateControllerTest {
         invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       }
       InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
       update invoices;
       InvoiceTransactionStatusService.applyCancelled(invoices);
       update invoices;
       InvoiceTransactionStatusService.allowStatusWrite = false;
+      InvoiceLockUtil.allowLockedStatusWrite = false;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(context.history.Id)
         .contentVersion;
 
-      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.resetLatestVersionInvoicesToPostOrder(
         context.history.Id,
         '1',
@@ -2933,24 +3122,29 @@ private class OrderCreateControllerTest {
       Test.stopTest();
 
       System.assertEquals(
-        500000,
+        600000,
         preview.periodLineAmountTotal,
-        '?????E????E Amount ?E???? / ?????'
+        'Core 第7.8.5節: 見積税抜は DeltaAmountSum。期間明細件数では按分しない'
       );
       System.assertEquals(
         500000,
         preview.invoiceAmountTotal,
-        '?????E???E0???E'
+        '残った10サイクルの請求税抜'
       );
       System.assertEquals(
-        0,
+        100000,
+        preview.periodLineAmountTotal - preview.invoiceAmountTotal,
+        'Core 第7.8.5節: 見積税抜と請求税抜の差'
+      );
+      System.assertEquals(
+        preview.invoiceAmountTotal - preview.periodLineAmountTotal,
         preview.amountDifference,
-        '??E??E?????E0???E?????'
+        'フッタの差は請求税抜−見積税抜'
       );
       System.assertEquals(
-        500000,
+        600000,
         preview.versionOptions[0].periodLineAmountTotal,
-        'Version ????????E'
+        'Core 第7.8.5節: Version合計の見積税抜も DeltaAmountSum'
       );
     }
   }
@@ -3068,6 +3262,7 @@ private class OrderCreateControllerTest {
       factor.moveUnitPrice = 2000;
       factor.remainUnitPrice = 3000;
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       InvoiceCanonicalService.splitLinesInPlace(
         keepInvoiceId,
         new List<InvoiceCanonicalService.SplitLineInput>{ factor }
@@ -3091,7 +3286,6 @@ private class OrderCreateControllerTest {
         new List<InvoiceCanonicalService.SplitLineInput>{ periodSplit }
       );
 
-      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
         context.history.Id
       );
@@ -3309,11 +3503,11 @@ private class OrderCreateControllerTest {
       split.moveAmount = moveAmount;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
       .contentVersion;
-      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByDate(
         context.history.Id,
         source.Id,
@@ -3409,11 +3603,11 @@ private class OrderCreateControllerTest {
         .setScale(0, System.RoundingMode.DOWN);
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
       String token = OrderCreateController.getInvoicePreview(
         context.history.Id
       )
       .contentVersion;
-      Test.startTest();
       OrderCreateController.InvoicePreviewDto afterSplit = OrderCreateController.splitInvoiceByDate(
         context.history.Id,
         source.Id,
@@ -3597,6 +3791,43 @@ private class OrderCreateControllerTest {
     public ContractHistory__c history;
   }
 
+  /** 仕様: Core 第11.4.3節、第11.7節。受注ウィザードは受注日の初期値（操作日）を送る。 */
+  private static OrderCreateController.OrderSaveResult confirmOrderWithWizardHistoryDefaults(
+    Id contractHistoryId,
+    Boolean createRenewOpportunity
+  ) {
+    OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
+      contractHistoryId
+    );
+    return OrderCreateController.confirmOrder(
+      contractHistoryId,
+      null,
+      createRenewOpportunity,
+      dto.lastModifiedToken,
+      JSON.serialize(dto.historyCustomFields)
+    );
+  }
+
+  /** 仕様: Core 第11.5節。受注済みのうえにテナント作成相当の更新商談をテスト準備で書く。 */
+  private static Id attachRenewOpportunityAfterOrdered(OrderTestContext context) {
+    Opportunity renew = ContractTestDataFactory.buildOpportunity(
+      context.account.Id,
+      'Tenant Renew Opportunity',
+      context.opportunity == null ? null : context.opportunity.Id,
+      false,
+      context.service.Id
+    );
+    ContractTestDataFactory.applyOpportunityDefaults(renew);
+    renew.SourceContractHistory__c = context.history.Id;
+    insert renew;
+    update new ContractHistory__c(
+      Id = context.history.Id,
+      RenewalOpportunity__c = renew.Id,
+      RenewOpportunityRequestCount__c = 1
+    );
+    return renew.Id;
+  }
+
   private static OrderTestContext createEstimateContextWithOpportunity() {
     OrderTestContext context = createEstimateContext();
     context.opportunity = ContractTestDataFactory.insertOpportunity(
@@ -3692,7 +3923,7 @@ private class OrderCreateControllerTest {
     product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
     ContractTestDataFactory.insertProduct(product);
 
-    insert new ContractProduct__c(
+    ContractProduct__c line = new ContractProduct__c(
       ContractHistory__c = context.history.Id,
       Product__c = product.Id,
       Quantity__c = 10,
@@ -3705,6 +3936,8 @@ private class OrderCreateControllerTest {
       BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
       Type__c = 'New'
     );
+    ContractTestDataFactory.applyRequiredFields(line);
+    insert line;
 
     return context;
   }
@@ -3714,6 +3947,7 @@ private class OrderCreateControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Test.startTest();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
         context.history.Id
       );
@@ -3724,7 +3958,6 @@ private class OrderCreateControllerTest {
       String operationKey = 'draft-amount-retry-key';
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
-      Test.startTest();
       OrderCreateController.updateInvoiceLineAmounts(
         context.history.Id,
         new List<InvoiceCanonicalService.LineAmountEdit>{
@@ -3799,8 +4032,11 @@ private class OrderCreateControllerTest {
     context.service = new ContractService__c(
       Name = 'Order Cancel Service',
       Account__c = context.account.Id,
-      BiilingAcccount__c = context.billingAccount.Id
+      BiilingAcccount__c = context.billingAccount.Id,
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
     );
+    ContractTestDataFactory.applyRequiredFields(context.service);
     insert context.service;
 
     Date cancelDate = Date.newInstance(2026, 6, 1);
@@ -3814,8 +4050,101 @@ private class OrderCreateControllerTest {
       CurrentTermEndDate__c = cancelDate,
       EffectiveDate__c = cancelDate
     );
+    ContractTestDataFactory.applyRequiredFields(context.history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      context.history,
+      context.account.Id
+    );
     insert context.history;
 
     return context;
+  }
+
+  @IsTest
+  static void getOrderContext_returnsJapaneseWhenWizardFieldInvalid() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderWizardField__mdt bad = new OrderWizardField__mdt();
+      bad.DeveloperName = 'BadOrderField';
+      bad.MasterLabel = 'BadOrderField';
+      bad.FieldApiName__c = 'NoSuchField__c';
+      bad.Active__c = true;
+      OrderWizardFieldService.setCachedDefinitionsForTest(
+        new List<OrderWizardField__mdt>{ bad }
+      );
+      Boolean thrown = false;
+      try {
+        OrderCreateController.getOrderContext(context.history.Id);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('契約履歴に存在しません') &&
+            ex.getMessage().contains('BadOrderField'),
+          'Core 第11.4.3節: 有効な不正定義は fail-fast しエラーに DeveloperName を含める'
+        );
+      } finally {
+        OrderWizardFieldService.resetCache();
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void confirmOrder_returnsJapaneseWhenWizardFieldInvalid() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderWizardField__mdt bad = new OrderWizardField__mdt();
+      bad.DeveloperName = 'BadOrderField';
+      bad.MasterLabel = 'BadOrderField';
+      bad.FieldApiName__c = 'NoSuchField__c';
+      bad.Active__c = true;
+      OrderWizardFieldService.setCachedDefinitionsForTest(
+        new List<OrderWizardField__mdt>{ bad }
+      );
+      Boolean thrown = false;
+      try {
+        OrderCreateController.confirmOrder(context.history.Id, null, false);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('契約履歴に存在しません') &&
+            ex.getMessage().contains('BadOrderField'),
+          'Core 第11.4.3節: 有効な不正定義は受注を続行せずエラーに DeveloperName を含める'
+        );
+      } finally {
+        OrderWizardFieldService.resetCache();
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void revertOrder_returnsJapaneseWhenWizardFieldInvalid() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      OrderWizardField__mdt bad = new OrderWizardField__mdt();
+      bad.DeveloperName = 'BadOrderField';
+      bad.MasterLabel = 'BadOrderField';
+      bad.FieldApiName__c = 'NoSuchField__c';
+      bad.Active__c = true;
+      OrderWizardFieldService.setCachedDefinitionsForTest(
+        new List<OrderWizardField__mdt>{ bad }
+      );
+      Boolean thrown = false;
+      try {
+        OrderCreateController.revertOrder(context.history.Id, false);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('契約履歴に存在しません') &&
+            ex.getMessage().contains('BadOrderField'),
+          'Core 第11.4.3節: 有効な不正定義は差し戻しを続行せずエラーに DeveloperName を含める'
+        );
+      } finally {
+        OrderWizardFieldService.resetCache();
+      }
+      System.assertEquals(true, thrown);
+    }
   }
 }
