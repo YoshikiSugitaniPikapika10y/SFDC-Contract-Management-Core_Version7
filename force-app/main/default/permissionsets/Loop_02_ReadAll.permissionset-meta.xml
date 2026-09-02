@@ -522,6 +522,12 @@
         <field>ContractHistory__c.CurrentTermStartDate__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <!-- 仕様: 共通基盤 第3.4節、契約横断第5節、Core 第7.8.5節。見積税抜は DeltaAmountSum__c。02 は Read のみ。 -->
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>ContractHistory__c.DeltaAmountSum__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
         <field>ContractHistory__c.DeltaARR__c</field>

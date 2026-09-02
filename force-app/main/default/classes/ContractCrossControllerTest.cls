@@ -205,6 +205,22 @@ private class ContractCrossControllerTest {
       );
       System.assertEquals(true, tile.isEstimate);
       System.assertEquals(inRange.history.Name, tile.historyName);
+      Decimal estimateExcl = [
+          SELECT DeltaAmountSum__c
+          FROM ContractHistory__c
+          WHERE Id = :inRange.history.Id
+        ]
+        .DeltaAmountSum__c;
+      System.assertEquals(
+        estimateExcl,
+        result.estimates[0].amount,
+        '横断画面.md 第5節: 見積税抜は DeltaAmountSum__c。Core 第7.8.5節'
+      );
+      System.assertEquals(
+        estimateExcl,
+        tile.amount,
+        '横断画面.md 第5節 見積書タイル: 見積税抜は DeltaAmountSum__c。Core 第7.8.5節'
+      );
     }
   }
 
@@ -340,18 +356,25 @@ private class ContractCrossControllerTest {
   @IsTest
   static void getBootstrap_zeroPoliciesDoesNotMeanOff() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      delete [SELECT Id FROM GlAccountingPolicy__c];
-      Boolean thrown = false;
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.MIGRATE_ALL => true
+      };
       try {
-        ContractCrossQueryService.isAccountingEnabled();
-      } catch (Exception ex) {
-        thrown = true;
-        System.assert(
-          ex.getMessage().contains('Accounting会計方針がありません'),
-          'Core 第1.1.10節・Accounting 第3.1節: 会計方針0件はOFFと埋めない'
-        );
+        delete [SELECT Id FROM GlAccountingPolicy__c];
+        Boolean thrown = false;
+        try {
+          ContractCrossQueryService.isAccountingEnabled();
+        } catch (Exception ex) {
+          thrown = true;
+          System.assert(
+            ex.getMessage().contains('Accounting会計方針がありません'),
+            'Core 第1.1.10節・Accounting 第3.1節: 会計方針0件はOFFと埋めない'
+          );
+        }
+        System.assertEquals(true, thrown);
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
       }
-      System.assertEquals(true, thrown);
     }
   }
 
