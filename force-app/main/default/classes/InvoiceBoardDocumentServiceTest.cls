@@ -3,6 +3,7 @@ private class InvoiceBoardDocumentServiceTest {
   @TestSetup
   static void setup() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
@@ -24,7 +25,8 @@ private class InvoiceBoardDocumentServiceTest {
       Test.startTest();
       InvoiceBoardDocumentService.DocumentResultDto preview = InvoiceBoardDocumentService.previewIssueFromPreview(
         invoice.Id,
-        'StandardInvoice'
+        null,
+        invoice.ContractHistory__c
       );
       Test.stopTest();
 
@@ -58,6 +60,20 @@ private class InvoiceBoardDocumentServiceTest {
       Invoice__c invoice = createConfirmedInvoice();
       Boolean thrown = false;
       try {
+        InvoiceBoardDocumentService.previewIssueFromPreview(
+          invoice.Id,
+          'StandardInvoice'
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          InvoiceBoardDocumentService.UNUSED_BLOCK_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown);
+      thrown = false;
+      try {
         InvoiceBoardDocumentService.issueFromPreview(
           invoice.Id,
           'StandardInvoice',
@@ -68,6 +84,36 @@ private class InvoiceBoardDocumentServiceTest {
         System.assertEquals(
           InvoiceBoardDocumentService.UNUSED_BLOCK_MESSAGE,
           ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void previewIssueFromPreview_rejectsCancelled() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createConfirmedInvoice();
+      Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED;
+        update invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+      }
+      Boolean thrown = false;
+      try {
+        InvoiceBoardDocumentService.previewIssueFromPreview(invoice.Id, 'StandardInvoice');
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          InvoiceBoardDocumentService.CANCELLED_BLOCK_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.10節: 取消済み請求は通常発行の対象にしない'
         );
       }
       System.assertEquals(true, thrown);
@@ -442,6 +488,7 @@ private class InvoiceBoardDocumentServiceTest {
       ContractDocumentSettingService.clearCache();
 
       Invoice__c own = createConfirmedInvoice();
+      Test.startTest();
       Invoice__c other = createConfirmedInvoice();
 
       Boolean issuePreviewRejected = false;
@@ -529,6 +576,7 @@ private class InvoiceBoardDocumentServiceTest {
         sendRejected,
         'Core 第7.7.3節: 契約サービスをまたいで送付できない'
       );
+      Test.stopTest();
     }
   }
 
@@ -542,6 +590,7 @@ private class InvoiceBoardDocumentServiceTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'board-doc@example.com',
+      InvoiceDeliveryMethod__c = deliveryMethod,
       InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 1,
@@ -549,42 +598,70 @@ private class InvoiceBoardDocumentServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
+    billingAccount.InvoiceDeliveryMethod__c = deliveryMethod;
     insert billingAccount;
     ContractService__c service = new ContractService__c(
       Name = 'Board Doc Service',
       Account__c = account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     ContractHistory__c history = new ContractHistory__c(
+      Name = 'Board Doc History',
       ContractService__c = service.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
-      Version__c = 1
+      historystatus__c = 'Estimate',
+      Version__c = 1,
+      CurrentTermStartDate__c = Date.today(),
+      CurrentTermEndDate__c = Date.today().addYears(1).addDays(-1),
+      EffectiveDate__c = Date.today()
     );
     ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Board Doc Product ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = history.CurrentTermStartDate__c,
+      Enddate__c = history.CurrentTermEndDate__c,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    contractProduct.Amount__c = 1000;
+    insert contractProduct;
+    history.historystatus__c = 'Ordered';
+    update history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
       ContractHistory__c = history.Id,
       InvoiceDate__c = Date.today(),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      BillingAccountSnapShot__c = billingAccount.Id,
       BillingEmailToSnapShot__c = 'board-doc@example.com',
       InvoiceDeliveryMethodSnapShot__c = deliveryMethod
     );
-    ContractTestDataFactory.applyRequiredFields(invoice);
-    Boolean previous = InvoiceTransactionStatusService.allowStatusWrite;
-    InvoiceTransactionStatusService.allowStatusWrite = true;
-    try {
-      insert invoice;
-    } finally {
-      InvoiceTransactionStatusService.allowStatusWrite = previous;
-    }
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+    invoice.SystemIntegrationDate__c = Date.today();
+    ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
   }
 
