@@ -153,6 +153,7 @@ private class InvoicePreviewOpsControllerTest {
         WHERE Id = :fixture.invoice.Id
       ];
 
+      Test.startTest();
       Id paymentId = InvoicePreviewOpsController.savePaymentFromPreview(
         null,
         fixture.invoice.Id,
@@ -164,6 +165,7 @@ private class InvoicePreviewOpsControllerTest {
         new List<InvoicePreviewOpsController.AllocationInputDto>{ first, second },
         null
       );
+      Test.stopTest();
 
       Map<Id, Decimal> byLine = new Map<Id, Decimal>();
       for (InvoicePaymentAllocation__c row : [
@@ -670,41 +672,68 @@ private class InvoicePreviewOpsControllerTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-      account.Id,
-      'PayPrev Opp'
-    );
     ContractService__c service = new ContractService__c(
       Name = 'PayPrev Service',
       Account__c = account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = 'PayPrev History',
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
-      Version__c = 1
+      historystatus__c = 'Estimate',
+      Version__c = 1,
+      CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+      EffectiveDate__c = Date.newInstance(2026, 6, 1)
     );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'PayPrev Product ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2026, 6, 30),
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    contractProduct.Amount__c = 1000;
+    insert contractProduct;
+    history.historystatus__c = 'Ordered';
+    update history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
       ContractHistory__c = history.Id,
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      BillingAccountSnapShot__c = billingAccount.Id,
-      InvoiceTransactionStatus__c = confirmed
-        ? InvoiceTransactionStatusService.TX_CONFIRMED
-        : InvoiceTransactionStatusService.TX_DRAFT,
-      SystemIntegrationDate__c = confirmed ? Date.today() : null
+      BillingAccountSnapShot__c = billingAccount.Id
     );
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    if (confirmed) {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+    }
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     InvoiceLine__c line = new InvoiceLine__c(
       Invoice__c = invoice.Id,

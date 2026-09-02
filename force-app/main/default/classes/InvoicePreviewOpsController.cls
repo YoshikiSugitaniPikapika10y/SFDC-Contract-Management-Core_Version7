@@ -265,7 +265,7 @@ public without sharing class InvoicePreviewOpsController {
         businessOperationKey
       );
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
   }
 
@@ -296,7 +296,7 @@ public without sharing class InvoicePreviewOpsController {
         businessOperationKey
       );
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
   }
 
@@ -373,7 +373,7 @@ public without sharing class InvoicePreviewOpsController {
       );
       update row;
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
     ContractOperationLogService.write(
       'JournalMemo',
@@ -430,23 +430,29 @@ public without sharing class InvoicePreviewOpsController {
     Id contractHistoryId,
     Map<String, Object> extraFieldValues
   ) {
-    InvoiceOpsController.assertInvoicesInScope(
-      contractHistoryId,
-      new List<Id>{ invoiceId }
-    );
-    return savePaymentFromPreview(
-      paymentId,
-      invoiceId,
-      amount,
-      purpose,
-      paymentDate,
-      memo,
-      expectedToken,
-      allocations,
-      cancellationDate,
-      businessOperationKey,
-      extraFieldValues
-    );
+    try {
+      InvoiceOpsController.assertInvoicesInScope(
+        contractHistoryId,
+        new List<Id>{ invoiceId }
+      );
+      return savePaymentFromPreview(
+        paymentId,
+        invoiceId,
+        amount,
+        purpose,
+        paymentDate,
+        memo,
+        expectedToken,
+        allocations,
+        cancellationDate,
+        businessOperationKey,
+        extraFieldValues
+      );
+    } catch (AuraHandledException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw handledFrom(ex);
+    }
   }
 
   /** 仕様: Core 第8.1節、第8.2節、第8.9節、第7.9.6節、第7.9.7節、第11.4.4節、日付仕様 第7.3節 */
@@ -527,7 +533,7 @@ public without sharing class InvoicePreviewOpsController {
     try {
       return InvoicePaymentService.register(request);
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
   }
 
@@ -613,7 +619,7 @@ public without sharing class InvoicePreviewOpsController {
         InvoicePaymentService.allowLifecycleWrite = previousLifecycle;
       }
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
     ContractOperationLogService.write(
       'EditPayment',
@@ -711,7 +717,7 @@ public without sharing class InvoicePreviewOpsController {
     try {
       return InvoicePaymentService.previewRegister(request);
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
   }
 
@@ -753,7 +759,7 @@ public without sharing class InvoicePreviewOpsController {
     try {
       return InvoicePaymentService.previewCancel(paymentId, cancelDate);
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
   }
 
@@ -835,7 +841,7 @@ public without sharing class InvoicePreviewOpsController {
     try {
       return InvoicePaymentService.cancel(request);
     } catch (Exception ex) {
-      throw handled(ex.getMessage());
+      throw handledFrom(ex);
     }
   }
 
@@ -1001,16 +1007,21 @@ public without sharing class InvoicePreviewOpsController {
     return rows;
   }
 
+  private static List<GlAccountingTagRule__c> cachedEnabledTagRules;
+
   /** 仕様: Accounting 第7.6節、第11.2節 */
   private static List<TagResultRowDto> loadTagResults(Id invoiceId) {
     List<TagResultRowDto> rows = new List<TagResultRowDto>();
-    List<GlAccountingTagRule__c> rules = [
-      SELECT TagLabel__c, TargetFieldApiName__c
-      FROM GlAccountingTagRule__c
-      WHERE IsEnabled__c = TRUE
-      WITH SYSTEM_MODE
-      ORDER BY TagLabel__c ASC
-    ];
+    if (cachedEnabledTagRules == null) {
+      cachedEnabledTagRules = [
+        SELECT TagLabel__c, TargetFieldApiName__c
+        FROM GlAccountingTagRule__c
+        WHERE IsEnabled__c = TRUE
+        WITH SYSTEM_MODE
+        ORDER BY TagLabel__c ASC
+      ];
+    }
+    List<GlAccountingTagRule__c> rules = cachedEnabledTagRules;
     if (rules.isEmpty()) {
       return rows;
     }
@@ -1135,6 +1146,17 @@ public without sharing class InvoicePreviewOpsController {
 
   private static Decimal nvl(Decimal value) {
     return value == null ? 0 : value;
+  }
+
+  /** 仕様: Core 第0章。DML 拒否は項目検証の日本語本文を返す。 */
+  private static AuraHandledException handledFrom(Exception ex) {
+    if (ex instanceof DmlException) {
+      DmlException dml = (DmlException) ex;
+      if (dml.getNumDml() > 0 && String.isNotBlank(dml.getDmlMessage(0))) {
+        return handled(dml.getDmlMessage(0));
+      }
+    }
+    return handled(ex == null ? null : ex.getMessage());
   }
 
   /** 仕様: Core 第0章。人が見る文字は日本語。Aura 拒否は setMessage して本文をテストで取れるようにする */

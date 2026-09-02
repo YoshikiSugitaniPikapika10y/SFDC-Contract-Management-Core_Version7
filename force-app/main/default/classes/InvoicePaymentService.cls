@@ -36,6 +36,19 @@ public without sharing class InvoicePaymentService {
 
   /** 仕様: Core 第8.1節、第8.2節、第8.4節、第8.6節、第11.9節、第1.1.7節、第7.9.6節、第8.9節、Accounting 第1.8.1節、第8.2節、第8.5節、第8.8節、日付仕様 第7.3節 */
   public static Id register(RegisterRequest request) {
+    ContractArrCalculationService.beginRecalcDefer();
+    ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
+    try {
+      return registerNow(request);
+    } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
+      ContractHistoryStatusPathService.endPathSyncDefer();
+      ContractArrCalculationService.endRecalcDefer();
+    }
+  }
+
+  private static Id registerNow(RegisterRequest request) {
     // 仕様: Core 第8.4節。登録は請求入出金操作権限。画面・APIその他の経路でサーバ側検証。権限API名は既存13。
     ContractPermissionUtil.assertInvoicePayment();
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
@@ -67,9 +80,9 @@ public without sharing class InvoicePaymentService {
       }
     }
     // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
-    AccountingCauseLockService.assertInvoiceOperationUnchanged(
-      invoice.Id,
-      request.expectedToken
+    AccountingCauseLockService.assertInvoiceOperationsUnchanged(
+      new Map<Id, String>{ invoice.Id => request.expectedToken },
+      new Map<Id, Datetime>{ invoice.Id => invoice.LastModifiedDate }
     );
     request.businessOperationKey = operationKey;
     Savepoint savepoint = Database.setSavepoint();
@@ -94,6 +107,21 @@ public without sharing class InvoicePaymentService {
 
   /** 仕様: Core 第7.9.6節、第8.9節、Accounting 第8.5節・第8.8節、日付仕様 第7.3節 */
   public static AccountingDiffService.CancelPreview previewRegister(
+    RegisterRequest request
+  ) {
+    ContractArrCalculationService.beginRecalcDefer();
+    ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
+    try {
+      return previewRegisterNow(request);
+    } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
+      ContractHistoryStatusPathService.endPathSyncDefer();
+      ContractArrCalculationService.endRecalcDefer();
+    }
+  }
+
+  private static AccountingDiffService.CancelPreview previewRegisterNow(
     RegisterRequest request
   ) {
     Invoice__c invoice = prepareRegister(request);
@@ -144,6 +172,7 @@ public without sharing class InvoicePaymentService {
     }
     // 仕様: Core 第7.9.7節・第11.8節、Accounting 第8.2節。行ロックで直列化してから残額検証。
     Invoice__c invoice = AccountingCauseLockService.lockInvoice(request.invoiceId);
+    InvoiceProductFieldCopyService.rememberRecords(new List<SObject>{ invoice });
     if (request.purpose == PURPOSE_INVOICE) {
       InvoicePaymentAllocationService.assertLines(
         request.invoiceId,
