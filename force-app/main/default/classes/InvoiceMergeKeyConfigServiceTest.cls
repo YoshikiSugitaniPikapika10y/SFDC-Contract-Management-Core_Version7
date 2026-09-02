@@ -63,6 +63,65 @@ private class InvoiceMergeKeyConfigServiceTest {
     );
   }
 
+  @IsTest
+  static void buildInvoiceBucketKey_doesNotCrossVersion() {
+    Id billingAccountId = fakeId(BillingAccount__c.SObjectType, 1);
+    Id historyA = fakeId(ContractHistory__c.SObjectType, 2);
+    Id historyB = fakeId(ContractHistory__c.SObjectType, 3);
+    Date invoiceDate = Date.newInstance(2026, 4, 1);
+    Date paymentDate = Date.newInstance(2026, 4, 30);
+    String keyA = InvoiceMergeKeyConfigService.buildInvoiceBucketKey(
+      billingAccountId,
+      historyA,
+      invoiceDate,
+      paymentDate
+    );
+    String keyB = InvoiceMergeKeyConfigService.buildInvoiceBucketKey(
+      billingAccountId,
+      historyB,
+      invoiceDate,
+      paymentDate
+    );
+    System.assertEquals(
+      false,
+      keyA == keyB,
+      'Core 第7.3節: 契約履歴、すなわち Version をまたいで集約しない'
+    );
+    System.assertEquals(
+      keyA,
+      InvoiceMergeKeyConfigService.buildInvoiceBucketKey(
+        billingAccountId,
+        historyA,
+        invoiceDate,
+        paymentDate
+      ),
+      'Core 第7.3節: 請求アカウント・契約履歴・請求日・入金予定日が同じなら1枚へ集約する'
+    );
+  }
+
+  @IsTest
+  static void buildLineBucketKey_ignoresUnitAndTrailingZeros() {
+    Id contractProductId = fakeId(ContractProduct__c.SObjectType, 3);
+    Id productId = fakeId(Product2.SObjectType, 4);
+    System.assertEquals(
+      InvoiceMergeKeyConfigService.buildLineBucketKey(
+        contractProductId,
+        1000,
+        2,
+        'ID',
+        productId
+      ),
+      InvoiceMergeKeyConfigService.buildLineBucketKey(
+        contractProductId,
+        1000.00,
+        2,
+        '式',
+        null
+      ),
+      'Core 第7.3節: 同じ見積商品・単価・数量。コピー定義の顧客項目では分けない'
+    );
+  }
+
   private static Id fakeId(Schema.SObjectType typeName, Integer n) {
     String key = String.valueOf(n);
     return Id.valueOf(
