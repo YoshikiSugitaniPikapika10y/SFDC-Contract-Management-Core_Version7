@@ -703,7 +703,7 @@ public without sharing class EstimateSendBoardController {
     return loadActionHistory(historyId, false);
   }
 
-  /** 仕様: Core 第7.10節。送付開始時に行ロックし、同時送付の後着を失敗させる。 */
+  /** 仕様: Core 第7.10節・第4.8節・第11.3.2節。送付開始時に行ロックし、同時送付の後着を失敗させる。プレビューのファイル名は発行日。 */
   private static ContractHistory__c loadActionHistory(
     Id historyId,
     Boolean lockForUpdate
@@ -721,6 +721,7 @@ public without sharing class EstimateSendBoardController {
             Type__c,
             Version__c,
             EstimateDate__c,
+            EstimateIssueDate__c,
             EstimateValidDate__c,
             DeltaAmountSum__c,
             EstimateSentAt__c,
@@ -755,6 +756,7 @@ public without sharing class EstimateSendBoardController {
         Type__c,
         Version__c,
         EstimateDate__c,
+        EstimateIssueDate__c,
         EstimateValidDate__c,
         DeltaAmountSum__c,
         EstimateSentAt__c,

@@ -3,6 +3,7 @@ private class EstimateSendBoardControllerTest {
   @TestSetup
   static void setup() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
     ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
     setting.EstimateSendMode__c = 'PdfAndEmail';
     setting.EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate';
@@ -45,10 +46,9 @@ private class EstimateSendBoardControllerTest {
   static void getRecordActionEstimate_rejectsNonEstimateWithJapaneseStatus() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractHistory__c history = createEstimate('ordered@example.com');
-      update new ContractHistory__c(
-        Id = history.Id,
-        historystatus__c = 'Ordered'
-      );
+      insertLine(history);
+      history.historystatus__c = 'Ordered';
+      update history;
 
       Boolean thrown = false;
       try {
@@ -195,6 +195,8 @@ private class EstimateSendBoardControllerTest {
   static void previewEstimateFromRecordPage_returnsSendContactAndSelfFrom() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractHistory__c history = createEstimate('preview@example.com');
+      history.EstimateIssueDate__c = Date.newInstance(2026, 3, 15);
+      update history;
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_ESTIMATE,
         'EstimateMail'
@@ -234,6 +236,10 @@ private class EstimateSendBoardControllerTest {
         'テストは差し込みを飛ばす。本文を定数で埋めない'
       );
       System.assertNotEquals(null, preview.fileName);
+      System.assert(
+        preview.fileName.contains('20260315'),
+        'Core 第11.3.2節: 見積のファイル名日付は発行日'
+      );
       System.assert(preview.fileName.endsWith('.pdf'));
       System.assertEquals(
         EstimateSendBoardController.ATTACHMENT_NEW,
@@ -480,11 +486,11 @@ private class EstimateSendBoardControllerTest {
           currentToken(history.Id),
           draft
         );
-        System.assert(false, '権限16が無いときは送れない');
+        System.assert(false, '権限05が無いときは送れない');
       } catch (AuraHandledException ex) {
-        System.assert(
-          ex.getMessage().contains('見積書を送付する権限がありません'),
-          'Core 第4.3.1節: 見積を送るは権限16をサーバで強制する'
+        System.assertEquals(
+          '見積を送る権限がありません。',
+          ex.getMessage()
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;
@@ -536,12 +542,9 @@ private class EstimateSendBoardControllerTest {
 
     Contact sendContact;
     if (String.isNotBlank(toAddress)) {
-      sendContact = new Contact(
-        LastName = '見積送付先',
-        AccountId = account.Id,
-        Email = toAddress
-      );
-      insert sendContact;
+      sendContact = ContractTestDataFactory.insertContact(account.Id, '見積送付先');
+      sendContact.Email = toAddress;
+      update sendContact;
     }
 
     ContractService__c service = new ContractService__c(
@@ -568,6 +571,7 @@ private class EstimateSendBoardControllerTest {
       RenewEstimateAutoCreated__c = true
     );
     ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     Boolean previousAllow = ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite;
     ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite = true;
     try {
@@ -576,6 +580,36 @@ private class EstimateSendBoardControllerTest {
       ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite = previousAllow;
     }
     return history;
+  }
+
+  private static void insertLine(ContractHistory__c history) {
+    ContractService__c service = [
+      SELECT Account__c
+      FROM ContractService__c
+      WHERE Id = :history.ContractService__c
+    ];
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Send Board Line ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c line = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = service.Account__c,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 8000,
+      Amount__c = 8000,
+      StartDate__c = history.CurrentTermStartDate__c,
+      Enddate__c = history.CurrentTermEndDate__c,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(line);
+    line.Amount__c = 8000;
+    insert line;
   }
 
   private static String currentToken(Id historyId) {
