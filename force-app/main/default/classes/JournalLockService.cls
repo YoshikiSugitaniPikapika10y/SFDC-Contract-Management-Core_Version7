@@ -269,7 +269,7 @@ public without sharing class JournalLockService {
 
   /**
    * 仕様: Core 第11.4.4節、第11.6節、Accounting 第9.5節。
-   * 未Lockは画面定義にある追加項目を直せる。Lock後は除外一覧にある項目だけ（メモ含む）。
+   * 未Lockはメモと画面定義の追加項目を直せる。Lock後は除外一覧にある項目だけ（メモ含む）。
    * 金額・科目・日付は一覧に書いても不可。
    */
   public static void assertExemptUpdate(
@@ -316,9 +316,11 @@ public without sharing class JournalLockService {
     }
   }
 
-  /** 仕様: Core 第11.6節、第11.4.4節、Accounting 第9.5節。未Lockは画面定義の追加項目だけ。 */
+  /** 仕様: Core 第11.6節、第11.4.4節、Accounting 第9.5節。未Lockはメモと画面定義の追加項目。 */
   private static Set<String> unlockedAllowedFieldNames() {
-    return InvoiceOpsFieldService.journalScreenFieldApiNames();
+    Set<String> names = InvoiceOpsFieldService.journalScreenFieldApiNames();
+    names.add('Memo__c');
+    return names;
   }
 
   private static Boolean valuesEqual(Object left, Object right) {

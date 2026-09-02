@@ -518,15 +518,34 @@ private class JournalLockServiceTest {
   }
 
   @IsTest
-  static void assertExemptUpdate_unlockedRejectsNonScreenField() {
+  static void assertExemptUpdate_unlockedMemoAllowed() {
     GlJournal__c prior = new GlJournal__c(
       Amount__c = 100,
       Memo__c = 'a',
       IsLocked__c = false
     );
-    GlJournal__c changed = new GlJournal__c(
+    GlJournal__c memoOnly = new GlJournal__c(
       Amount__c = 100,
       Memo__c = 'b',
+      IsLocked__c = false
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(new List<InvoiceOpsField__mdt>());
+    JournalLockService.assertExemptUpdate(prior, memoOnly);
+    InvoiceOpsFieldService.resetCache();
+  }
+
+  @IsTest
+  static void assertExemptUpdate_unlockedRejectsNonScreenField() {
+    GlJournal__c prior = new GlJournal__c(
+      Amount__c = 100,
+      Memo__c = 'a',
+      IdempotencyKey__c = 'k1',
+      IsLocked__c = false
+    );
+    GlJournal__c changed = new GlJournal__c(
+      Amount__c = 100,
+      Memo__c = 'a',
+      IdempotencyKey__c = 'k2',
       IsLocked__c = false
     );
     InvoiceOpsFieldService.setCachedRowsForTest(new List<InvoiceOpsField__mdt>());
