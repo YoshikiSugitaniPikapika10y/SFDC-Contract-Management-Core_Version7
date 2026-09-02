@@ -33,6 +33,7 @@ private class InvoicePreviewIntegrityServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createMismatchFixture();
       Boolean thrown = false;
+      Test.startTest();
       try {
         OrderCreateController.getInvoicePreview(fixture.historyId);
       } catch (AuraHandledException ex) {
@@ -43,6 +44,7 @@ private class InvoicePreviewIntegrityServiceTest {
           'Core 第7.7.0節: ボード取得時の不一致は表示・編集を止める'
         );
       }
+      Test.stopTest();
       System.assertEquals(true, thrown);
     }
   }
