@@ -97,4 +97,117 @@ private class ContractOptimisticLockUtilTest {
       }
     }
   }
+
+  @IsTest
+  static void parseToken_trimsWhitespace() {
+    Datetime stamp = Datetime.newInstance(2026, 8, 10, 1, 2, 3);
+    String token = ContractOptimisticLockUtil.toToken(stamp);
+    System.assertEquals(
+      stamp.getTime(),
+      ContractOptimisticLockUtil.parseToken('  ' + token + '  ').getTime()
+    );
+  }
+
+  @IsTest
+  static void assertRequiredHistoryUnchanged_nullHistory_throws() {
+    try {
+      ContractOptimisticLockUtil.assertRequiredHistoryUnchanged(null, '1');
+      System.assert(false, 'Expected missing history');
+    } catch (AuraHandledException ex) {
+      System.assertEquals('契約履歴が見つかりません。', ex.getMessage());
+    }
+  }
+
+  @IsTest
+  static void resolveHistoryProductDatetime_nullId_returnsNull() {
+    System.assertEquals(
+      null,
+      ContractOptimisticLockUtil.resolveHistoryProductDatetime(null)
+    );
+    System.assertEquals(
+      null,
+      ContractOptimisticLockUtil.toHistoryProductToken(null)
+    );
+  }
+
+  @IsTest
+  static void assertRequiredHistoryProductsUnchanged_comparesHistoryAndProducts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Lock Account');
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Lock Service'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Lock History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+      insert history;
+
+      String token = ContractOptimisticLockUtil.toHistoryProductToken(
+        history.Id
+      );
+      ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+        history.Id,
+        token
+      );
+      ContractOptimisticLockUtil.assertRequiredHistoryUnchanged(
+        [
+          SELECT LastModifiedDate
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ],
+        ContractOptimisticLockUtil.toToken(
+          [
+            SELECT LastModifiedDate
+            FROM ContractHistory__c
+            WHERE Id = :history.Id
+          ]
+          .LastModifiedDate
+        )
+      );
+
+      Product2 product = ContractTestDataFactory.buildProduct('Lock Product');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c contractProduct = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = account.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 1000,
+        StartDate__c = Date.today(),
+        Enddate__c = Date.today(),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        Type__c = 'New',
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+      );
+      ContractTestDataFactory.applyRequiredFields(contractProduct);
+      contractProduct.Amount__c = 1000;
+      insert contractProduct;
+
+      Boolean rejected = false;
+      try {
+        ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+          history.Id,
+          token
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage(),
+          'Core 第4.3.12節: 版は契約履歴と配下の見積商品'
+        );
+      }
+      System.assertEquals(true, rejected);
+    }
+  }
 }

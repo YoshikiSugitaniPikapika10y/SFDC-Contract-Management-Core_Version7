@@ -466,6 +466,92 @@ private class ChangeBillingEventUtilTest {
     System.assertEquals(2, filtered.size());
   }
 
+  @IsTest
+  static void filterProductsForEstimateDocument_excludesInvoiceSettingOnlyLineage() {
+    Id lineageId = fakeId(ContractProduct__c.SObjectType, 40);
+    Id productId = fakeId(Product2.SObjectType, 1);
+    ContractProduct__c original = new ContractProduct__c(
+      Id = fakeId(ContractProduct__c.SObjectType, 41),
+      Product__c = productId,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+      StartDate__c = Date.newInstance(2026, 4, 1),
+      Enddate__c = Date.newInstance(2027, 3, 31),
+      Type__c = 'Original',
+      PreviousContractProduct__c = lineageId
+    );
+    ContractProduct__c remake = new ContractProduct__c(
+      Id = fakeId(ContractProduct__c.SObjectType, 42),
+      Product__c = productId,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      StartDate__c = Date.newInstance(2026, 4, 1),
+      Enddate__c = Date.newInstance(2027, 3, 31),
+      Type__c = 'Remake',
+      PreviousContractProduct__c = lineageId
+    );
+    List<ContractProduct__c> filtered = ChangeBillingEventUtil.filterProductsForEstimateDocument(
+      'Change',
+      new List<ContractProduct__c>{ original, remake }
+    );
+    System.assertEquals(
+      0,
+      filtered.size(),
+      'Core 第4.4.1節: 請求設定の差は継続課金イベントではない'
+    );
+  }
+
+  @IsTest
+  static void isInvoiceSettingOnlyChange_emptyOrMidTermStart_isNotSettingOnly() {
+    System.assertEquals(
+      false,
+      ChangeBillingEventUtil.isInvoiceSettingOnlyChange(null)
+    );
+    System.assertEquals(
+      false,
+      ChangeBillingEventUtil.isInvoiceSettingOnlyChange(
+        new List<ContractProduct__c>()
+      )
+    );
+    Id lineageId = fakeId(ContractProduct__c.SObjectType, 50);
+    Id productId = fakeId(Product2.SObjectType, 1);
+    ContractProduct__c original = new ContractProduct__c(
+      Id = fakeId(ContractProduct__c.SObjectType, 51),
+      Product__c = productId,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      StartDate__c = Date.newInstance(2026, 4, 1),
+      Enddate__c = Date.newInstance(2027, 3, 31),
+      Type__c = 'Original',
+      PreviousContractProduct__c = lineageId
+    );
+    ContractProduct__c remake = new ContractProduct__c(
+      Id = fakeId(ContractProduct__c.SObjectType, 52),
+      Product__c = productId,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+      StartDate__c = Date.newInstance(2026, 10, 1),
+      Enddate__c = Date.newInstance(2027, 3, 31),
+      Type__c = 'Remake',
+      PreviousContractProduct__c = lineageId
+    );
+    System.assertEquals(
+      false,
+      ChangeBillingEventUtil.isInvoiceSettingOnlyChange(
+        new List<ContractProduct__c>{ original, remake }
+      ),
+      'Core 第4.4.1節: Remakeの途中開始は課金イベント'
+    );
+  }
+
   private static Id fakeId(Schema.SObjectType sobjectType, Integer n) {
     String keyPrefix = sobjectType.getDescribe().getKeyPrefix();
     String suffix = String.valueOf(n).leftPad(12, '0');

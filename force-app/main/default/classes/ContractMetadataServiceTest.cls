@@ -259,5 +259,135 @@ private class ContractMetadataServiceTest {
       null,
       ContractMetadataService.resolveLineRevenueRecognitionBasis(blankLine)
     );
+    System.assertEquals(
+      ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ContractMetadataService.normalizeRevenueRecognitionBasis('OverTime')
+    );
+    System.assertEquals(
+      ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      ContractMetadataService.normalizeRevenueRecognitionBasis('PointInTime')
+    );
+  }
+
+  @IsTest
+  static void invoiceSettingCatalog_oneTimeOmitsMonthlySplit() {
+    System.assertEquals(
+      ContractMetadataService.INVOICE_SETTING_PREPAID_START,
+      ContractMetadataService.getDefaultInvoiceSettingLabel()
+    );
+    List<String> oneTime = ContractMetadataService.getAllowedInvoiceSettingLabels(
+      ContractMetadataService.ONE_TIME_BILLING_TYPE_LABEL
+    );
+    System.assertEquals(false, oneTime.contains(
+      ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY
+    ));
+    System.assertEquals(
+      true,
+      ContractMetadataService.isAllowedInvoiceSettingForBillingType(
+        ContractMetadataService.RECURRING_BILLING_TYPE_LABEL,
+        ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY
+      )
+    );
+    System.assertEquals(
+      '一回課金では月次分割は選択できません。',
+      ContractMetadataService.validateInvoiceSettingForBillingType(
+        ContractMetadataService.ONE_TIME_BILLING_TYPE_LABEL,
+        ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY
+      )
+    );
+    Boolean thrown = false;
+    try {
+      ContractMetadataService.resolveInvoiceSettingForBillingType(
+        ContractMetadataService.ONE_TIME_BILLING_TYPE_LABEL,
+        ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY
+      );
+    } catch (ContractMetadataService.InvoiceSettingException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('月次分割'),
+        'Core 第1.1.10節: 一回課金に合わない請求設定は埋めない'
+      );
+    }
+    System.assertEquals(true, thrown);
+    System.assertEquals(
+      ContractMetadataService.INVOICE_SETTING_PREPAID_START,
+      ContractMetadataService.resolveInvoiceSettingForBillingType(
+        ContractMetadataService.RECURRING_BILLING_TYPE_LABEL,
+        ContractMetadataService.INVOICE_SETTING_PREPAID_START
+      )
+    );
+  }
+
+  @IsTest
+  static void billingTypeAndArr_rejectBlankAndCountCycles() {
+    System.assertEquals(
+      true,
+      ContractMetadataService.isRecurringBillingType(
+        ContractMetadataService.RECURRING_BILLING_TYPE_LABEL
+      )
+    );
+    System.assertEquals(
+      false,
+      ContractMetadataService.useCalendarMonthPeriodSplit(
+        ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY
+      )
+    );
+    System.assertEquals(
+      true,
+      ContractMetadataService.isRecurringInvoiceSetting(
+        ContractMetadataService.INVOICE_SETTING_PREPAID_START
+      )
+    );
+    System.assertEquals(
+      12000,
+      ContractMetadataService.calculateMonthlyArrRunRate(1, 1000)
+    );
+    System.assertEquals(
+      0,
+      ContractMetadataService.calculateMonthlyArrRunRate(null, 1000)
+    );
+    System.assertEquals(
+      -1,
+      ContractMetadataService.countMonthlyBillingCycles(
+        Date.newInstance(2026, 6, 2),
+        Date.newInstance(2026, 6, 1)
+      )
+    );
+    Boolean invalidBilling = false;
+    try {
+      ContractMetadataService.resolveLineBillingType(
+        new ContractProduct__c(BillingType__c = '不正')
+      );
+    } catch (ContractMetadataService.BillingTypeException ex) {
+      invalidBilling = true;
+      System.assert(
+        ex.getMessage().contains('継続課金または一回課金'),
+        'Core 第1.1.10節: 課金形態の不正は商品マスタへ戻さない'
+      );
+    }
+    System.assertEquals(true, invalidBilling);
+    System.assertEquals(
+      Date.newInstance(2026, 6, 1),
+      ContractMetadataService.resolveInvoiceDate(
+        ContractMetadataService.INVOICE_SETTING_PREPAID_START,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2026, 6, 30)
+      ),
+      'Core 第7.2節: 一括前払の請求基準日は見積商品の開始日'
+    );
+    System.assertEquals(
+      null,
+      ContractMetadataService.validateInvoiceSettingForBillingType(
+        ContractMetadataService.RECURRING_BILLING_TYPE_LABEL,
+        null
+      )
+    );
+    System.assertEquals(
+      '請求設定が不正です。',
+      ContractMetadataService.validateInvoiceSettingForBillingType(
+        '不明',
+        ContractMetadataService.INVOICE_SETTING_PREPAID_START
+      )
+    );
   }
 }
