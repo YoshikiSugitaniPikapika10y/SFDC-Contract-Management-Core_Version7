@@ -69,9 +69,11 @@ public without sharing class InvoiceProductGenerationService {
     ContractArrCalculationService.beginRecalcDefer();
     ContractHistoryStatusPathService.beginPathSyncDefer();
     BillingAccountKeyService.beginReferenceRefreshDefer();
+    ContractServiceLifecycleService.beginLifecycleDefer();
     try {
       generateForHistoriesBody(contractHistoryIds);
     } finally {
+      ContractServiceLifecycleService.endLifecycleDefer();
       BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
       ContractArrCalculationService.endRecalcDefer();
@@ -89,11 +91,6 @@ public without sharing class InvoiceProductGenerationService {
 
     // Version 単位: 請求書ロック1件でもあれば全体エラー。なければ全削除して全作り直し。
     InvoiceLockUtil.assertNoLockedInvoices(contractHistoryIds);
-    // Change は見積保存と同じカバー／有効日ルールを再検証（画面外データ対策）
-    EstimateValidationService.assertChangeHistoriesReadyForInvoice(
-      contractHistoryIds
-    );
-    deleteAllInvoiceProducts(contractHistoryIds);
 
     Map<Id, HistoryGenerationContext> historyContextById = loadHistoryGenerationContextById(
       contractHistoryIds
@@ -123,6 +120,13 @@ public without sharing class InvoiceProductGenerationService {
     List<ContractProduct__c> contractProducts = queryContractProductsForGeneration(
       generateHistoryIds
     );
+    // Change は見積保存と同じカバー／有効日ルールを再検証（画面外データ対策）。
+    // 仕様: Core 第6.1節。生成用見積商品照会を再利用し、Trigger 配下と二重に取らない。
+    EstimateValidationService.assertChangeHistoriesReadyForInvoice(
+      contractHistoryIds,
+      cachedContractProductsByHistoryId
+    );
+    deleteAllInvoiceProducts(contractHistoryIds);
 
     Map<Id, List<ContractProduct__c>> contractProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
     for (ContractProduct__c contractProduct : contractProducts) {
@@ -1455,6 +1459,7 @@ public without sharing class InvoiceProductGenerationService {
     selectFields.add('Enddate__c');
     selectFields.add('InvoiceSetting__c');
     selectFields.add('InvoiceAnchorDate__c');
+    selectFields.add('RevenueRecognitionBasis__c');
     selectFields.add('PreviousContractProduct__c');
 
     Map<String, Schema.SObjectField> fieldMap = ContractProduct__c.SObjectType.getDescribe()

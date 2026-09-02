@@ -19,6 +19,8 @@ public without sharing class EstimateQueryService {
   private static final String PRODUCT_TYPE_NEW = ContractDomainConstants.PRODUCT_TYPE_NEW;
   private static final String PRODUCT_TYPE_RENEW = ContractDomainConstants.PRODUCT_TYPE_RENEW;
   private static final Integer NOTE_MAX_LENGTH = ContractDomainConstants.NOTE_MAX_LENGTH;
+  private static Map<Id, ContractHistory__c> latestOrderedByServiceId = new Map<Id, ContractHistory__c>();
+  private static Set<Id> latestOrderedQueriedServiceIds = new Set<Id>();
 
   /** 継続課金の正は明細 BillingType。商品マスタへ戻さない。 */
   private static String recurringLineSoqlPredicate() {
@@ -205,9 +207,9 @@ public without sharing class EstimateQueryService {
     EstimateCreateController.ContractHistoryDto dto = toContractHistoryDto(
       history
     );
-    dto.nextVersion = ContractHistoryVersionUtil.getNextHistoryVersion(
-      contractServiceId
-    );
+    // 仕様: Core 第4.3節。コピー／新規表示の Version は最新 Ordered + 1。同一処理の最新 Ordered を再利用する。
+    Decimal latestVersion = history.Version__c;
+    dto.nextVersion = latestVersion == null ? 1 : latestVersion + 1;
     return dto;
   }
 
@@ -217,6 +219,10 @@ public without sharing class EstimateQueryService {
     if (contractServiceId == null) {
       return null;
     }
+    if (latestOrderedQueriedServiceIds.contains(contractServiceId)) {
+      return latestOrderedByServiceId.get(contractServiceId);
+    }
+    latestOrderedQueriedServiceIds.add(contractServiceId);
 
     List<ContractHistory__c> histories = [
       SELECT
@@ -224,6 +230,7 @@ public without sharing class EstimateQueryService {
         Name,
         Version__c,
         Type__c,
+        ContractService__c,
         CurrentTermStartDate__c,
         CurrentTermEndDate__c,
         EstimateSendContact__c
@@ -246,6 +253,7 @@ public without sharing class EstimateQueryService {
       return null;
     }
 
+    latestOrderedByServiceId.put(contractServiceId, histories[0]);
     return histories[0];
   }
 
@@ -301,36 +309,48 @@ public without sharing class EstimateQueryService {
       );
     }
 
-    List<ContractHistory__c> histories = [
-      SELECT
-        Id,
-        Name,
-        Type__c,
-        Version__c,
-        historystatus__c,
-        CurrentTermStartDate__c,
-        CurrentTermEndDate__c,
-        EffectiveDate__c,
-        Opportunity__c,
-        Opportunity__r.Name,
-        Opportunity__r.Account.Name,
-        ContractService__c,
-        EstimateNoteMaster__c,
-        Note__c,
-        EstimateDate__c,
-        EstimateValidDate__c,
-        EstimateSendContact__c,
-        PreviousHistory__c,
-        PreviousHistory__r.Name,
-        PreviousHistory__r.Version__c,
-        PreviousHistory__r.CurrentTermStartDate__c,
-        PreviousHistory__r.CurrentTermEndDate__c,
-        LastModifiedDate
-      FROM ContractHistory__c
-      WHERE Id = :contractHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    List<String> historySelectFields = new List<String>{
+      'Id',
+      'Name',
+      'Type__c',
+      'Version__c',
+      'historystatus__c',
+      'CurrentTermStartDate__c',
+      'CurrentTermEndDate__c',
+      'EffectiveDate__c',
+      'Opportunity__c',
+      'Opportunity__r.Name',
+      'Opportunity__r.Account.Name',
+      'ContractService__c',
+      'EstimateNoteMaster__c',
+      'Note__c',
+      'EstimateDate__c',
+      'EstimateValidDate__c',
+      'EstimateSendContact__c',
+      'PreviousHistory__c',
+      'PreviousHistory__r.Name',
+      'PreviousHistory__r.Version__c',
+      'PreviousHistory__r.CurrentTermStartDate__c',
+      'PreviousHistory__r.CurrentTermEndDate__c',
+      'LastModifiedDate'
+    };
+    for (
+      String apiName : ContractWizardFieldService.getActiveFieldApiNames(
+        ContractWizardFieldService.WizardTarget.ContractHistory
+      )
+    ) {
+      if (!historySelectFields.contains(apiName)) {
+        historySelectFields.add(apiName);
+      }
+    }
+    String historySoql =
+      'SELECT ' +
+      String.join(historySelectFields, ',') +
+      ' FROM ContractHistory__c' +
+      ' WHERE Id = :contractHistoryId' +
+      ' WITH SYSTEM_MODE' +
+      ' LIMIT 1';
+    List<ContractHistory__c> histories = Database.query(historySoql);
 
     if (histories.isEmpty()) {
       throw new AuraHandledException('契約履歴が見つかりません。');
@@ -357,8 +377,10 @@ public without sharing class EstimateQueryService {
 
     EstimateCreateController.EstimateCopyPresetDto preset = new EstimateCreateController.EstimateCopyPresetDto();
     preset.historyStatus = history.historystatus__c;
-    preset.lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
-      history.Id
+    List<ContractProduct__c> copyProducts = queryCopyProducts(history.Id);
+    preset.lastModifiedToken = copyPresetToken(
+      history.LastModifiedDate,
+      copyProducts
     );
     preset.opportunityId = history.Opportunity__c;
     preset.opportunityName = history.Opportunity__r.Name;
@@ -391,13 +413,12 @@ public without sharing class EstimateQueryService {
       history.EstimateValidDate__c
     );
     preset.estimateSendContactId = history.EstimateSendContact__c;
-    preset.selectedProducts = loadCopyProductLines(history.Id, history.Type__c);
+    preset.selectedProducts = toCopyProductLineItems(
+      copyProducts,
+      history.Type__c
+    );
     preset.contractHistoryCustomFields = ContractWizardFieldService.extractCustomFields(
-      loadRecordWithWizardFields(
-        history.Id,
-        ContractHistory__c.SObjectType,
-        ContractWizardFieldService.WizardTarget.ContractHistory
-      ),
+      history,
       ContractWizardFieldService.WizardTarget.ContractHistory
     );
     // 仕様: Core 第4.3節、第11.4.3節
@@ -496,6 +517,8 @@ public without sharing class EstimateQueryService {
     // 編集は既存 Version を維持。コピー／新規表示は最新 Ordered + 1。
     if (forEdit == true) {
       preset.nextHistoryVersion = history.Version__c;
+    } else if (latestHistory != null && latestHistory.nextVersion != null) {
+      preset.nextHistoryVersion = latestHistory.nextVersion;
     } else {
       preset.nextHistoryVersion = ContractHistoryVersionUtil.getNextHistoryVersion(
         history.ContractService__c
@@ -646,8 +669,17 @@ public without sharing class EstimateQueryService {
     Id contractHistoryId,
     String selectedType
   ) {
+    return toCopyProductLineItems(
+      queryCopyProducts(contractHistoryId),
+      selectedType
+    );
+  }
+
+  /** 仕様: Core 第4.3.12節。コピー初期値と版トークンで同一の見積商品照会を使う。 */
+  private static List<ContractProduct__c> queryCopyProducts(Id contractHistoryId) {
     List<String> selectFields = new List<String>{
       'Id',
+      'LastModifiedDate',
       'Product__c',
       'Product__r.Name',
       'Product__r.UnitName__c',
@@ -692,7 +724,13 @@ public without sharing class EstimateQueryService {
       ' WITH SYSTEM_MODE' +
       ' ORDER BY Name ASC';
     List<ContractProduct__c> products = Database.query(soql);
+    return products;
+  }
 
+  private static List<EstimateCreateController.ProductLineItem> toCopyProductLineItems(
+    List<ContractProduct__c> products,
+    String selectedType
+  ) {
     Map<Id, String> pairIdBySource = new Map<Id, String>();
     Integer pairIndex = 0;
     for (ContractProduct__c product : products) {
@@ -710,6 +748,26 @@ public without sharing class EstimateQueryService {
       lines.add(toCopyProductLineItem(product, selectedType, pairIdBySource));
     }
     return lines;
+  }
+
+  /** 仕様: Core 第4.3.12節。同一処理で読んだ見積商品の最終更新を再利用する。 */
+  public static String copyPresetToken(
+    Datetime historyLastModified,
+    List<ContractProduct__c> products
+  ) {
+    Datetime maxLm = historyLastModified;
+    if (products != null) {
+      for (ContractProduct__c product : products) {
+        if (
+          product != null &&
+          product.LastModifiedDate != null &&
+          (maxLm == null || product.LastModifiedDate > maxLm)
+        ) {
+          maxLm = product.LastModifiedDate;
+        }
+      }
+    }
+    return ContractOptimisticLockUtil.toToken(maxLm);
   }
 
   /** 仕様: Core 第4.5.2節、第4.7節、第1.1.10節。Original／Remake／Renew の空単位を商品マスタから埋めない。 */

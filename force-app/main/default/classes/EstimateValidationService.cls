@@ -29,6 +29,37 @@ public without sharing class EstimateValidationService {
   @TestVisible
   private static final String CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE = 'カスタム項目だけを変えた追加変更は成立しません。数量・単価などと同時に変更してください。';
 
+  private static Map<Id, ContractService__c> continuationServiceById = new Map<Id, ContractService__c>();
+  private static Map<Id, ContractHistory__c> previousHistoryById = new Map<Id, ContractHistory__c>();
+
+  /** 仕様: Core 第4.3.3節。同一保存処理内の契約サービス照会を再利用する。 */
+  public static ContractService__c loadContinuationService(Id contractServiceId) {
+    if (contractServiceId == null) {
+      return null;
+    }
+    if (continuationServiceById.containsKey(contractServiceId)) {
+      return continuationServiceById.get(contractServiceId);
+    }
+    List<ContractService__c> services = [
+      SELECT
+        Id,
+        Name,
+        Account__c,
+        BiilingAcccount__c,
+        TaxPercent__c,
+        Lifecycle__c
+      FROM ContractService__c
+      WHERE Id = :contractServiceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (services.isEmpty()) {
+      return null;
+    }
+    continuationServiceById.put(contractServiceId, services[0]);
+    return services[0];
+  }
+
   public static final String REMAKE_INVOICE_LOCKED_MESSAGE = '変更後の行の請求設定は前回の版と同じにしてください。';
 
   public static final String REMAKE_REVENUE_LOCKED_MESSAGE = '変更後の行の売上計上基準は前回の版と同じにしてください。';
@@ -65,6 +96,14 @@ public without sharing class EstimateValidationService {
   public static void assertChangeHistoriesReadyForInvoice(
     Set<Id> contractHistoryIds
   ) {
+    assertChangeHistoriesReadyForInvoice(contractHistoryIds, null);
+  }
+
+  /** 仕様: Core 第6.1節、第5.1節。同一処理で照会済みの見積商品があれば再利用する。 */
+  public static void assertChangeHistoriesReadyForInvoice(
+    Set<Id> contractHistoryIds,
+    Map<Id, List<ContractProduct__c>> preloadedProductsByHistoryId
+  ) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
@@ -77,6 +116,7 @@ public without sharing class EstimateValidationService {
         CurrentTermStartDate__c,
         CurrentTermEndDate__c,
         ContractService__c,
+        ContractService__r.Lifecycle__c,
         PreviousHistory__c
       FROM ContractHistory__c
       WHERE Id IN :contractHistoryIds AND Type__c = :HISTORY_TYPE_CHANGE
@@ -89,39 +129,45 @@ public without sharing class EstimateValidationService {
     Set<Id> changeHistoryIds = new Set<Id>();
     for (ContractHistory__c history : changeHistories) {
       changeHistoryIds.add(history.Id);
+      rememberServiceLifecycle(history);
     }
 
-    Map<Id, List<ContractProduct__c>> productsByHistoryId = new Map<Id, List<ContractProduct__c>>();
-    for (ContractProduct__c contractProduct : [
-      SELECT
-        Id,
-        ContractHistory__c,
-        Product__c,
-        Quantity__c,
-        UnitPrice__c,
-        Amount__c,
-        StartDate__c,
-        Enddate__c,
-        InvoiceSetting__c,
-        RevenueRecognitionBasis__c,
-        BillingType__c,
-        Type__c,
-        PreviousContractProduct__c
-      FROM ContractProduct__c
-      WHERE ContractHistory__c IN :changeHistoryIds
-      WITH SYSTEM_MODE
-      ORDER BY StartDate__c ASC NULLS LAST, Name ASC
-    ]) {
-      if (
-        !productsByHistoryId.containsKey(contractProduct.ContractHistory__c)
-      ) {
-        productsByHistoryId.put(
-          contractProduct.ContractHistory__c,
-          new List<ContractProduct__c>()
-        );
+    Map<Id, List<ContractProduct__c>> productsByHistoryId = productsFromPreload(
+      changeHistoryIds,
+      preloadedProductsByHistoryId
+    );
+    if (productsByHistoryId.isEmpty()) {
+      for (ContractProduct__c contractProduct : [
+        SELECT
+          Id,
+          ContractHistory__c,
+          Product__c,
+          Quantity__c,
+          UnitPrice__c,
+          Amount__c,
+          StartDate__c,
+          Enddate__c,
+          InvoiceSetting__c,
+          RevenueRecognitionBasis__c,
+          BillingType__c,
+          Type__c,
+          PreviousContractProduct__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__c IN :changeHistoryIds
+        WITH SYSTEM_MODE
+        ORDER BY StartDate__c ASC NULLS LAST, Name ASC
+      ]) {
+        if (
+          !productsByHistoryId.containsKey(contractProduct.ContractHistory__c)
+        ) {
+          productsByHistoryId.put(
+            contractProduct.ContractHistory__c,
+            new List<ContractProduct__c>()
+          );
+        }
+        productsByHistoryId.get(contractProduct.ContractHistory__c)
+          .add(contractProduct);
       }
-      productsByHistoryId.get(contractProduct.ContractHistory__c)
-        .add(contractProduct);
     }
 
     for (ContractHistory__c history : changeHistories) {
@@ -282,9 +328,50 @@ public without sharing class EstimateValidationService {
     }
   }
 
+  private static Map<Id, List<ContractProduct__c>> productsFromPreload(
+    Set<Id> changeHistoryIds,
+    Map<Id, List<ContractProduct__c>> preloadedProductsByHistoryId
+  ) {
+    Map<Id, List<ContractProduct__c>> result = new Map<Id, List<ContractProduct__c>>();
+    if (preloadedProductsByHistoryId == null || changeHistoryIds == null) {
+      return result;
+    }
+    for (Id historyId : changeHistoryIds) {
+      if (!preloadedProductsByHistoryId.containsKey(historyId)) {
+        return new Map<Id, List<ContractProduct__c>>();
+      }
+      List<ContractProduct__c> lines = preloadedProductsByHistoryId.get(
+        historyId
+      );
+      result.put(
+        historyId,
+        lines == null ? new List<ContractProduct__c>() : lines
+      );
+    }
+    return result;
+  }
+
+  private static Map<Id, String> lifecycleByServiceId = new Map<Id, String>();
+
+  private static void rememberServiceLifecycle(ContractHistory__c history) {
+    if (history == null || history.ContractService__c == null) {
+      return;
+    }
+    if (history.ContractService__r == null) {
+      return;
+    }
+    lifecycleByServiceId.put(
+      history.ContractService__c,
+      history.ContractService__r.Lifecycle__c
+    );
+  }
+
   private static String resolveServiceLifecycle(Id contractServiceId) {
     if (contractServiceId == null) {
       return null;
+    }
+    if (lifecycleByServiceId.containsKey(contractServiceId)) {
+      return lifecycleByServiceId.get(contractServiceId);
     }
     List<ContractService__c> services = [
       SELECT Lifecycle__c
@@ -293,10 +380,9 @@ public without sharing class EstimateValidationService {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    if (services.isEmpty()) {
-      return null;
-    }
-    return services[0].Lifecycle__c;
+    String lifecycle = services.isEmpty() ? null : services[0].Lifecycle__c;
+    lifecycleByServiceId.put(contractServiceId, lifecycle);
+    return lifecycle;
   }
 
   /**
@@ -630,17 +716,13 @@ public without sharing class EstimateValidationService {
     validateContractServiceAccountMatchesOpportunity(request);
     validatePreviousHistory(request);
     assertContinuationDoesNotMutateService(request);
-    List<ContractService__c> services = [
-      SELECT Lifecycle__c
-      FROM ContractService__c
-      WHERE Id = :request.contractServiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (services.isEmpty()) {
+    ContractService__c service = loadContinuationService(
+      request.contractServiceId
+    );
+    if (service == null) {
       throw wrapAura('契約サービスが見つかりません。');
     }
-    String lifecycle = services[0].Lifecycle__c;
+    String lifecycle = service.Lifecycle__c;
     if (String.isBlank(lifecycle)) {
       throw wrapAura(LIFECYCLE_UNASSIGNED_MESSAGE);
     }
@@ -694,8 +776,19 @@ public without sharing class EstimateValidationService {
   public static ContractHistory__c loadPreviousHistoryTerm(
     Id previousHistoryId
   ) {
+    if (previousHistoryId == null) {
+      throw wrapAura('前回契約履歴が指定されていません。');
+    }
+    if (previousHistoryById.containsKey(previousHistoryId)) {
+      return previousHistoryById.get(previousHistoryId);
+    }
     List<ContractHistory__c> histories = [
-      SELECT Id, Type__c, CurrentTermStartDate__c, CurrentTermEndDate__c
+      SELECT
+        Id,
+        Type__c,
+        ContractService__c,
+        CurrentTermStartDate__c,
+        CurrentTermEndDate__c
       FROM ContractHistory__c
       WHERE Id = :previousHistoryId
       WITH SYSTEM_MODE
@@ -704,6 +797,7 @@ public without sharing class EstimateValidationService {
     if (histories.isEmpty()) {
       throw wrapAura('前回契約履歴が見つかりません。');
     }
+    previousHistoryById.put(previousHistoryId, histories[0]);
     return histories[0];
   }
 
@@ -2129,17 +2223,12 @@ public without sharing class EstimateValidationService {
     if (request == null || request.contractServiceId == null) {
       return;
     }
-    List<ContractService__c> services = [
-      SELECT Name, BiilingAcccount__c, TaxPercent__c
-      FROM ContractService__c
-      WHERE Id = :request.contractServiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (services.isEmpty()) {
+    ContractService__c current = loadContinuationService(
+      request.contractServiceId
+    );
+    if (current == null) {
       throw wrapAura('契約サービスが見つかりません。');
     }
-    ContractService__c current = services[0];
     if (
       String.isNotBlank(request.contractServiceName) &&
       request.contractServiceName != current.Name
@@ -2181,14 +2270,10 @@ public without sharing class EstimateValidationService {
     if (request.contractServiceId == null || request.opportunityId == null) {
       return;
     }
-    List<ContractService__c> services = [
-      SELECT Id, Account__c
-      FROM ContractService__c
-      WHERE Id = :request.contractServiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (services.isEmpty()) {
+    ContractService__c service = loadContinuationService(
+      request.contractServiceId
+    );
+    if (service == null) {
       return;
     }
     List<Opportunity> opportunities = [
@@ -2201,7 +2286,7 @@ public without sharing class EstimateValidationService {
     if (opportunities.isEmpty()) {
       return;
     }
-    Id serviceAccountId = services[0].Account__c;
+    Id serviceAccountId = service.Account__c;
     Id opportunityAccountId = opportunities[0].AccountId;
     if (
       serviceAccountId == null ||
@@ -2226,20 +2311,6 @@ public without sharing class EstimateValidationService {
       throw wrapAura('前回契約履歴が指定されていません。');
     }
 
-    List<ContractHistory__c> histories = [
-      SELECT Id, ContractService__c
-      FROM ContractHistory__c
-      WHERE Id = :request.previousHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (histories.isEmpty()) {
-      throw wrapAura('前回契約履歴が見つかりません。');
-    }
-    if (histories[0].ContractService__c != request.contractServiceId) {
-      throw wrapAura('前回契約履歴が契約サービスと一致しません。');
-    }
-
     // 正: サービスの最新 Ordered。Cancel は終端として明示的に拒否する。
     ContractHistory__c latest = EstimateQueryService.queryLatestActiveOrderedHistory(
       request.contractServiceId
@@ -2257,6 +2328,7 @@ public without sharing class EstimateValidationService {
         '前回契約履歴は最新の受注（Ordered）を指定してください。画面を開き直してください。'
       );
     }
+    previousHistoryById.put(latest.Id, latest);
   }
 
   /** 仕様: Core 第3.2節 */

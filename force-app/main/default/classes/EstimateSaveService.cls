@@ -324,6 +324,8 @@ public without sharing class EstimateSaveService {
     }
 
     ContractArrCalculationService.beginRecalcDefer();
+    // 仕様: Core 第4.3節。Change保存1処理で Path 同期と請求アカウント参照更新を同一処理にまとめる。
+    ContractHistoryStatusPathService.beginPathSyncDefer();
     BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       if (request.editHistoryId != null) {
@@ -392,6 +394,7 @@ public without sharing class EstimateSaveService {
       );
     } finally {
       BillingAccountKeyService.endReferenceRefreshDefer();
+      ContractHistoryStatusPathService.endPathSyncDefer();
       ContractArrCalculationService.endRecalcDefer();
     }
   }
@@ -920,22 +923,10 @@ public without sharing class EstimateSaveService {
   ) {
     // 仕様: Core 第11.4.2節
     FieldCopyDefinitionService.validateAllDefinitions();
-    Opportunity opportunity = [
-      SELECT Id
-      FROM Opportunity
-      WHERE Id = :request.opportunityId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-
-    List<ContractService__c> services = [
-      SELECT Id, Account__c
-      FROM ContractService__c
-      WHERE Id = :request.contractServiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (services.isEmpty()) {
+    ContractService__c service = EstimateValidationService.loadContinuationService(
+      request.contractServiceId
+    );
+    if (service == null) {
       throw EstimateValidationService.wrapAura(
         '契約サービスが見つかりません。'
       );
@@ -960,7 +951,7 @@ public without sharing class EstimateSaveService {
       CurrentTermStartDate__c = serviceStartDate,
       CurrentTermEndDate__c = serviceEndDate,
       EffectiveDate__c = EstimateCreateSupport.parseDate(request.effectiveDate),
-      Opportunity__c = opportunity.Id,
+      Opportunity__c = request.opportunityId,
       PreviousHistory__c = request.previousHistoryId
     );
     applyEstimateDocumentIfEnabled(contractHistory, request);
@@ -977,7 +968,7 @@ public without sharing class EstimateSaveService {
     }
 
     SystemContextAccess.insertRecords(
-      buildContractProducts(contractHistory.Id, services[0].Account__c, request)
+      buildContractProducts(contractHistory.Id, service.Account__c, request)
     );
 
     return buildSaveResult(
@@ -1253,7 +1244,7 @@ public without sharing class EstimateSaveService {
     Id historyIdForProducts
   ) {
     List<ContractProduct__c> savedProducts = [
-      SELECT Id
+      SELECT Id, LastModifiedDate
       FROM ContractProduct__c
       WHERE ContractHistory__c = :historyIdForProducts
       WITH SYSTEM_MODE
@@ -1277,8 +1268,9 @@ public without sharing class EstimateSaveService {
         LIMIT 1
       ];
       if (!stamped.isEmpty()) {
-        result.lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
-          contractHistoryId
+        result.lastModifiedToken = EstimateQueryService.copyPresetToken(
+          stamped[0].LastModifiedDate,
+          savedProducts
         );
         result.businessOperationKey = stamped[0].BusinessOperationKey__c;
       }

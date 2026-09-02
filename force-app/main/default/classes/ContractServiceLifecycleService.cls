@@ -8,12 +8,42 @@ public without sharing class ContractServiceLifecycleService {
   private static final String LIFECYCLE_TERM = ContractDomainConstants.LIFECYCLE_TERM;
   private static final String LIFECYCLE_SPOT = ContractDomainConstants.LIFECYCLE_SPOT;
 
+  /** 仕様: Core 第6.1節、第3.4.2節。Change 受注の期間明細生成中は Lifecycle 照会を1回にまとめる。 */
+  private static Integer lifecycleDeferDepth = 0;
+  private static Set<Id> deferredServiceIds = new Set<Id>();
+
+  public static void beginLifecycleDefer() {
+    lifecycleDeferDepth++;
+  }
+
+  public static void endLifecycleDefer() {
+    if (lifecycleDeferDepth > 0) {
+      lifecycleDeferDepth--;
+    }
+    if (lifecycleDeferDepth == 0 && !deferredServiceIds.isEmpty()) {
+      Set<Id> pending = deferredServiceIds;
+      deferredServiceIds = new Set<Id>();
+      ensureLifecycleForServicesNow(pending);
+    }
+  }
+
   /**
    * 仕様: Core 第3.4.2節。
    * Version 1受注で空から Term/Spot を確定する。差し戻しで Ordered 0件なら空に戻す。
    * First Ordered が Version 1以外なのに Lifecycle が空なら推測して埋めずエラー。
    */
   public static void ensureLifecycleForServices(Set<Id> contractServiceIds) {
+    if (contractServiceIds == null || contractServiceIds.isEmpty()) {
+      return;
+    }
+    if (lifecycleDeferDepth > 0) {
+      deferredServiceIds.addAll(contractServiceIds);
+      return;
+    }
+    ensureLifecycleForServicesNow(contractServiceIds);
+  }
+
+  private static void ensureLifecycleForServicesNow(Set<Id> contractServiceIds) {
     if (contractServiceIds == null || contractServiceIds.isEmpty()) {
       return;
     }

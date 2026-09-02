@@ -137,14 +137,26 @@ public without sharing class ContractHistoryTriggerHandler {
       }
     }
 
-    if (!insertedAsOrderedHistoryIds.isEmpty()) {
-      InvoiceProductGenerationService.generateForHistories(
-        insertedAsOrderedHistoryIds
-      );
+    ContractArrCalculationService.beginRecalcDefer();
+    ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
+    ContractServiceLifecycleService.beginLifecycleDefer();
+    try {
+      if (!insertedAsOrderedHistoryIds.isEmpty()) {
+        InvoiceProductGenerationService.generateForHistories(
+          insertedAsOrderedHistoryIds
+        );
+      }
+      syncOrderedHistoriesOnInsert(newHistories);
+      if (!insertedAsOrderedHistoryIds.isEmpty()) {
+        recalculateArr(newHistories);
+      }
+    } finally {
+      ContractServiceLifecycleService.endLifecycleDefer();
+      BillingAccountKeyService.endReferenceRefreshDefer();
+      ContractHistoryStatusPathService.endPathSyncDefer();
+      ContractArrCalculationService.endRecalcDefer();
     }
-
-    syncOrderedHistoriesOnInsert(newHistories);
-    recalculateArr(newHistories);
     ContractIrregularOperationLog.logCreate(newHistories);
   }
 
@@ -230,6 +242,9 @@ public without sharing class ContractHistoryTriggerHandler {
 
     if (!orderedHistoryIds.isEmpty() || !orderedTransitionHistories.isEmpty()) {
       ContractArrCalculationService.beginRecalcDefer();
+      ContractHistoryStatusPathService.beginPathSyncDefer();
+      BillingAccountKeyService.beginReferenceRefreshDefer();
+      ContractServiceLifecycleService.beginLifecycleDefer();
       try {
         if (!orderedHistoryIds.isEmpty()) {
           InvoiceProductGenerationService.generateForHistories(
@@ -245,6 +260,9 @@ public without sharing class ContractHistoryTriggerHandler {
           );
         }
       } finally {
+        ContractServiceLifecycleService.endLifecycleDefer();
+        BillingAccountKeyService.endReferenceRefreshDefer();
+        ContractHistoryStatusPathService.endPathSyncDefer();
         ContractArrCalculationService.endRecalcDefer();
       }
     }
