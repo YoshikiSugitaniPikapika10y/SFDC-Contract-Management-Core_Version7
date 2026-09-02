@@ -272,4 +272,94 @@ private class ContractPermissionUtilTest {
       ContractPermissionUtil.testOverrides = null;
     }
   }
+
+  @IsTest
+  static void has_blankIsFalse_and104Includes101And102() {
+    System.assertEquals(
+      false,
+      ContractPermissionUtil.has(null),
+      '共通基盤 第3.2節: 空の権限名は操作できない'
+    );
+    System.assertEquals(false, ContractPermissionUtil.hasFixContract());
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.MIGRATE_ALL => true
+    };
+    try {
+      System.assertEquals(
+        true,
+        ContractPermissionUtil.hasFixConfirmedInvoice(),
+        '共通基盤 第3.6節: 104 は 101 を含む'
+      );
+      System.assertEquals(
+        true,
+        ContractPermissionUtil.hasFixContract(),
+        '共通基盤 第3.6節: 104 は 102 を含む'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+  }
+
+  @IsTest
+  static void estimateDocumentDefaults_allow03or04or05() {
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.ISSUE_ESTIMATE => true
+    };
+    try {
+      ContractPermissionUtil.assertEstimateDocumentDefaults();
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+
+    ContractPermissionUtil.testAllowAll = false;
+    Boolean blocked = false;
+    try {
+      ContractPermissionUtil.assertEstimateDocumentDefaults();
+    } catch (AuraHandledException ex) {
+      blocked = true;
+      System.assertEquals(
+        '見積を作成・編集・コピーする権限がありません。',
+        ex.getMessage(),
+        '共通基盤 第10.4節: 送付3択の読込は 03・04・05 のどれか'
+      );
+    } finally {
+      ContractPermissionUtil.testAllowAll = true;
+    }
+    System.assertEquals(true, blocked);
+  }
+
+  @IsTest
+  static void invoiceOperationKey_andEditService_useExactMessages() {
+    ContractPermissionUtil.testAllowAll = false;
+    Boolean keyBlocked = false;
+    try {
+      ContractPermissionUtil.assertInvoiceOperationKey();
+    } catch (AuraHandledException ex) {
+      keyBlocked = true;
+      System.assertEquals('この操作を実行する権限がありません。', ex.getMessage());
+    } finally {
+      ContractPermissionUtil.testAllowAll = true;
+    }
+    System.assertEquals(true, keyBlocked);
+
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.EDIT_SERVICE => false
+    };
+    Boolean editBlocked = false;
+    try {
+      ContractPermissionUtil.assertEditService();
+    } catch (AuraHandledException ex) {
+      editBlocked = true;
+      System.assertEquals(
+        '契約サービスを編集する権限がありません。',
+        ex.getMessage(),
+        '共通基盤 第10.4節: 契約サービス保存は 08'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(true, editBlocked);
+  }
 }

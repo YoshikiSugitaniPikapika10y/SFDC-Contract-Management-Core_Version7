@@ -104,4 +104,68 @@ private class ContractDocumentTemplateServiceTest {
     }
     System.assertEquals(true, thrown);
   }
+
+  @IsTest
+  static void resolveTemplate_rejectsUnknownKeyAndTrimsKnownKey() {
+    Boolean thrown = false;
+    try {
+      ContractDocumentTemplateService.resolveTemplate(
+        ContractDocumentTemplateService.TYPE_ESTIMATE,
+        'NoSuchTemplate'
+      );
+    } catch (
+      ContractDocumentTemplateService.DocumentTemplateException ex
+    ) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('指定された帳票テンプレートは存在しないか無効です'),
+        'Core 第11.3.2節: 無効行と無いキーは出さない'
+      );
+    }
+    System.assertEquals(true, thrown);
+    ContractDocumentTemplateService.TemplateDefinition trimmed = ContractDocumentTemplateService.resolveTemplate(
+      ContractDocumentTemplateService.TYPE_ESTIMATE,
+      '  ' + ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY + '  '
+    );
+    System.assertEquals(
+      ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+      trimmed.templateKey
+    );
+  }
+
+  @IsTest
+  static void buildPageReference_rejectsNullAndInvalidPage() {
+    Boolean nullThrown = false;
+    try {
+      ContractDocumentTemplateService.buildPageReference(null, null);
+    } catch (
+      ContractDocumentTemplateService.DocumentTemplateException ex
+    ) {
+      nullThrown = true;
+      System.assert(
+        ex.getMessage().contains('帳票テンプレートが指定されていません'),
+        'Core 第11.3.2節: 帳票はカタログ行の VF を指す'
+      );
+    }
+    System.assertEquals(true, nullThrown);
+
+    ContractDocumentTemplateService.TemplateDefinition estimate = ContractDocumentTemplateService.resolveTemplate(
+      ContractDocumentTemplateService.TYPE_ESTIMATE,
+      ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY
+    );
+    estimate.visualforcePage = 'bad-page';
+    Boolean pageThrown = false;
+    try {
+      ContractDocumentTemplateService.buildPageReference(estimate, null);
+    } catch (
+      ContractDocumentTemplateService.DocumentTemplateException ex
+    ) {
+      pageThrown = true;
+      System.assert(
+        ex.getMessage().contains('Visualforceページ名が不正です'),
+        'Core 第11.3.2節: カタログは VF の API 名を指す'
+      );
+    }
+    System.assertEquals(true, pageThrown);
+  }
 }
