@@ -1,5 +1,6 @@
 @IsTest
 private class ContractCrossControllerTest {
+  /** 仕様: 横断画面.md 第5節。請求一覧の準備は同一契約履歴へ載せて照会する。 */
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
@@ -36,6 +37,47 @@ private class ContractCrossControllerTest {
         dto.estimateCloseTo,
         '完了予定日 TO は今月末'
       );
+    }
+  }
+
+  @IsTest
+  static void getBootstrap_showsEstimateMenuWhenOnly06() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => true,
+      ContractPermissionUtil.ISSUE_ESTIMATE => false,
+      ContractPermissionUtil.SEND_ESTIMATE => false,
+      ContractPermissionUtil.ORDER => true
+    };
+    try {
+      ContractCrossController.BootstrapDto dto = ContractCrossController.getBootstrap();
+      System.assertEquals(
+        true,
+        dto.canShowEstimateMenu,
+        '共通基盤.md 第3.2節: 横断の見積メニューは 04 または 05 または 06'
+      );
+      System.assertEquals(true, dto.canOrder);
+      System.assertEquals(false, dto.canIssueEstimate);
+      System.assertEquals(false, dto.canSendEstimate);
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+  }
+
+  @IsTest
+  static void getEstimateIssueContext_rejectsNullHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        ContractCrossController.getEstimateIssueContext(null);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '契約履歴が指定されていません。',
+          ex.getMessage(),
+          '横断画面.md 操作4: 発行画面は契約履歴が要る'
+        );
+      }
+      System.assertEquals(true, thrown);
     }
   }
 
@@ -138,7 +180,9 @@ private class ContractCrossControllerTest {
         history.history.Id
       );
       System.assert(
-        dto.fileName.contains(history.opportunity.Name),
+        dto.fileName.contains(
+          EstimateDocumentService.sanitizeFileName(history.opportunity.Name)
+        ),
         'Core 第11.3.2節: 見積件名が空ならファイル名のTitleは商談名'
       );
     }
@@ -167,6 +211,28 @@ private class ContractCrossControllerTest {
       ContractPermissionUtil.testOverrides = null;
     }
     System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void previewEstimateIssueFileName_usesOpportunityWhenTitleBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.ensureOrgDocumentSetting();
+      HistoryFixture history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Preview Title Est'
+      );
+      String fileName = ContractCrossController.previewEstimateIssueFileName(
+        history.history.Id,
+        'StandardEstimate'
+      );
+      System.assert(
+        fileName.contains(
+          EstimateDocumentService.sanitizeFileName(history.opportunity.Name)
+        ),
+        'Core 第11.3.2節: 見積件名が空ならファイル名のTitleは商談名'
+      );
+    }
   }
 
   @IsTest
@@ -227,30 +293,47 @@ private class ContractCrossControllerTest {
   @IsTest
   static void queryInvoices_defaultDraftExcludesCancelled() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      InvoiceFixture draft = insertInvoice('Draft');
-      insertInvoice('Confirmed');
-      InvoiceFixture cancelled = insertInvoice('Confirmed');
-      InvoiceTransactionStatusService.allowStatusWrite = true;
-      InvoiceTransactionStatusService.applyCancelled(
-        new List<Invoice__c>{ cancelled.invoice }
+      HistoryFixture historyFixture = insertHistory(
+        'Ordered',
+        ContractCrossQueryService.organizationToday(),
+        'DraftExcl'
       );
-      update cancelled.invoice;
-      InvoiceTransactionStatusService.allowStatusWrite = false;
+      Invoice__c draft = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2026, 6, 1)
+      );
+      Invoice__c confirmed = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2026, 6, 1)
+      );
+      confirmed.InvoiceTransactionStatus__c = 'Confirmed';
+      confirmed.SystemIntegrationDate__c = ContractCrossQueryService.organizationToday();
+      Invoice__c cancelled = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2026, 6, 1)
+      );
+      cancelled.InvoiceTransactionStatus__c = 'Cancelled';
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new List<Invoice__c>{ draft, confirmed, cancelled }
+      );
 
       ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
       filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_DRAFT;
       filter.includeCancelled = false;
+      filter.accountId = historyFixture.opportunity.AccountId;
 
+      Test.startTest();
       ContractCrossController.ListResultDto result = ContractCrossController.queryInvoices(
         filter
       );
+      Test.stopTest();
       Set<Id> ids = new Set<Id>();
       for (ContractCrossController.InvoiceRowDto row : result.invoices) {
         ids.add(row.id);
       }
-      System.assertEquals(true, ids.contains(draft.invoice.Id));
+      System.assertEquals(true, ids.contains(draft.Id));
       System.assertEquals(1, result.invoices.size());
-      System.assertEquals(false, ids.contains(cancelled.invoice.Id));
+      System.assertEquals(false, ids.contains(cancelled.Id));
     }
   }
 
@@ -295,14 +378,8 @@ private class ContractCrossControllerTest {
   @IsTest
   static void queryInvoices_cancelledKeepsPreCancelIssuedPdf() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      InvoiceFixture cancelled = insertInvoice('Confirmed');
+      InvoiceFixture cancelled = insertInvoice('Cancelled');
       Id documentId = insertIssuedFile(cancelled.invoice.Id);
-      InvoiceTransactionStatusService.allowStatusWrite = true;
-      InvoiceTransactionStatusService.applyCancelled(
-        new List<Invoice__c>{ cancelled.invoice }
-      );
-      update cancelled.invoice;
-      InvoiceTransactionStatusService.allowStatusWrite = false;
 
       ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
       filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_CONFIRMED;
@@ -323,33 +400,46 @@ private class ContractCrossControllerTest {
   @IsTest
   static void queryInvoices_dateRangeKeepsBlankInvoiceDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      InvoiceFixture inRange = insertInvoice('Draft');
-      InvoiceFixture blank = insertInvoice('Draft');
-      blank.invoice.InvoiceDate__c = null;
-      update blank.invoice;
-      InvoiceFixture outOfRange = insertInvoice('Draft');
-      outOfRange.invoice.InvoiceDate__c = Date.newInstance(2025, 1, 1);
-      update outOfRange.invoice;
+      HistoryFixture historyFixture = insertHistory(
+        'Ordered',
+        ContractCrossQueryService.organizationToday(),
+        'DateRange'
+      );
+      Invoice__c inRange = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2026, 6, 1)
+      );
+      Invoice__c blank = newDraftInvoice(historyFixture, null);
+      Invoice__c outOfRange = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2025, 1, 1)
+      );
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new List<Invoice__c>{ inRange, blank, outOfRange }
+      );
 
       ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
       filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_DRAFT;
       filter.invoiceDateFrom = Date.newInstance(2026, 5, 1);
       filter.invoiceDateTo = Date.newInstance(2026, 7, 1);
+      filter.accountId = historyFixture.opportunity.AccountId;
 
+      Test.startTest();
       ContractCrossController.ListResultDto result = ContractCrossController.queryInvoices(
         filter
       );
+      Test.stopTest();
       Set<Id> ids = new Set<Id>();
       for (ContractCrossController.InvoiceRowDto row : result.invoices) {
         ids.add(row.id);
       }
-      System.assertEquals(true, ids.contains(inRange.invoice.Id));
+      System.assertEquals(true, ids.contains(inRange.Id));
       System.assertEquals(
         true,
-        ids.contains(blank.invoice.Id),
+        ids.contains(blank.Id),
         '横断画面.md 第5節: 空の請求日を消さない'
       );
-      System.assertEquals(false, ids.contains(outOfRange.invoice.Id));
+      System.assertEquals(false, ids.contains(outOfRange.Id));
     }
   }
 
@@ -546,13 +636,7 @@ private class ContractCrossControllerTest {
   static void queryJournals_marksCancelledInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       enableAccounting();
-      InvoiceFixture fixture = insertInvoice('Confirmed');
-      InvoiceTransactionStatusService.allowStatusWrite = true;
-      InvoiceTransactionStatusService.applyCancelled(
-        new List<Invoice__c>{ fixture.invoice }
-      );
-      update fixture.invoice;
-      InvoiceTransactionStatusService.allowStatusWrite = false;
+      InvoiceFixture fixture = insertInvoice('Cancelled');
       Date lastMonthDay = ContractCrossQueryService.defaultJournalPostingDates()
         .dateFrom;
       GlJournal__c journal = insertJournal(
@@ -948,6 +1032,24 @@ private class ContractCrossControllerTest {
         'Core 第11.4.4節: 横断仕訳一覧は仕訳追加項目の値を返す'
       );
       InvoiceOpsFieldService.resetCache();
+    }
+  }
+
+  @IsTest
+  static void saveJournals_rejectsNullRequest() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        ContractCrossController.saveJournals(null);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '保存する内容がありません。',
+          ex.getMessage(),
+          '横断画面.md 第2.4節: 保存する内容が無ければ実行できない'
+        );
+      }
+      System.assertEquals(true, thrown);
     }
   }
 
