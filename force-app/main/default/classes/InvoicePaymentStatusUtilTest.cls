@@ -90,4 +90,50 @@ private class InvoicePaymentStatusUtilTest {
     System.assertEquals(300, lineStatus.integratedAmount);
     System.assertEquals(200, lineStatus.clearedAmount);
   }
+
+  @IsTest
+  static void clearedAmount_completedUsesFull_andLineKeepsExclusiveSum() {
+    Invoice__c completed = (Invoice__c) JSON.deserialize(
+      '{"Amount__c":1000,"TaxInclusiveAmount__c":1100,' +
+        '"InvoicePaymentNet__c":1100,"InvoiceTransactionStatus__c":"Confirmed","CollectionRefundStatus__c":"Completed"}',
+      Invoice__c.class
+    );
+    System.assertEquals(
+      1000,
+      InvoicePaymentStatusUtil.resolveClearedAmount(completed, 1000),
+      'Core 第8.7節: 請求金額Netと税込が一致すれば回収完了として税抜全額を消込'
+    );
+    System.assertEquals(
+      0,
+      InvoicePaymentStatusUtil.resolveClearedAmount(null, 1000)
+    );
+    Invoice__c zeroTaxInclusive = (Invoice__c) JSON.deserialize(
+      '{"Amount__c":0,"TaxAmount__c":0,"TaxInclusiveAmount__c":0,' +
+        '"InvoicePaymentNet__c":10,"InvoiceTransactionStatus__c":"Confirmed"}',
+      Invoice__c.class
+    );
+    System.assertEquals(
+      0,
+      InvoicePaymentStatusUtil.resolveClearedAmount(zeroTaxInclusive, 1000),
+      'Core 第8.7節: 税込0円は入出金無しでも完了側。比例配分の分母0は消込0'
+    );
+    InvoicePaymentStatusUtil.StatusAmounts noParent = InvoicePaymentStatusUtil.allocateLineStatusAmounts(
+      500,
+      0,
+      new InvoicePaymentStatusUtil.StatusAmounts(0, 0, 0)
+    );
+    System.assertEquals(0, noParent.openAmount);
+    System.assertEquals(0, noParent.integratedAmount);
+    System.assertEquals(0, noParent.clearedAmount);
+    InvoicePaymentStatusUtil.StatusAmounts missingInvoice = InvoicePaymentStatusUtil.allocateLineStatusAmounts(
+      500,
+      1000,
+      null
+    );
+    System.assertEquals(
+      500,
+      missingInvoice.openAmount,
+      'Core 第8.10節: 親バケットが無ければ明細税抜は請求前'
+    );
+  }
 }
