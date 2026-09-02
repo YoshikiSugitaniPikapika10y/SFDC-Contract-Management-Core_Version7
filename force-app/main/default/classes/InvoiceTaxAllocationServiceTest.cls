@@ -17,6 +17,7 @@ private class InvoiceTaxAllocationServiceTest {
               InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
               InvoiceDateDayOfMonth__c = 1,
               InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
         PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
         PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
         PaymentTermMonthOffset__c = 0,
@@ -30,14 +31,20 @@ private class InvoiceTaxAllocationServiceTest {
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
 
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Tax Alloc History',
         ContractService__c = service.Id,
         Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
         Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
       );
       insert history;
 
@@ -48,11 +55,22 @@ private class InvoiceTaxAllocationServiceTest {
         Amount__c = 1000,
         TaxAmount__c = 100
       );
-      insert invoice;
-      insert new List<InvoiceLine__c>{
-        new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 600),
-        new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 400)
-      };
+      ContractTestDataFactory.applyRequiredFields(invoice);
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
+      InvoiceLine__c lineHigh = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 600
+      );
+      InvoiceLine__c lineLow = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 400
+      );
+      ContractTestDataFactory.applyRequiredFields(lineHigh);
+      ContractTestDataFactory.applyRequiredFields(lineLow);
+      lineHigh.Amount__c = 600;
+      lineLow.Amount__c = 400;
+      insert new List<InvoiceLine__c>{ lineHigh, lineLow };
 
       Test.startTest();
       InvoiceTaxAllocationService.allocateOnConfirm(invoice);
@@ -81,11 +99,7 @@ private class InvoiceTaxAllocationServiceTest {
   static void allocateOnConfirm_distributesRemainderByLargestFraction() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = insertAllocationInvoice('Remainder Alloc', 10);
-      insert new List<InvoiceLine__c>{
-        new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1),
-        new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1),
-        new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1)
-      };
+      insertAllocationLines(invoice.Id, new List<Decimal>{ 1, 1, 1 });
 
       Test.startTest();
       InvoiceTaxAllocationService.allocateOnConfirm(invoice);
@@ -118,10 +132,7 @@ private class InvoiceTaxAllocationServiceTest {
   static void allocateOnConfirm_signedRemainderGoesToLargerSignedFraction() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = insertAllocationInvoice('Signed Rem', -1);
-      insert new List<InvoiceLine__c>{
-        new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = -7),
-        new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = -11)
-      };
+      insertAllocationLines(invoice.Id, new List<Decimal>{ -7, -11 });
 
       Test.startTest();
       InvoiceTaxAllocationService.allocateOnConfirm(invoice);
@@ -152,7 +163,7 @@ private class InvoiceTaxAllocationServiceTest {
   static void allocateOnConfirm_rejectsMissingTaxAndLineAmount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c missingTax = insertAllocationInvoice('Missing Tax', null);
-      insert new InvoiceLine__c(Invoice__c = missingTax.Id, Amount__c = 1000);
+      insertAllocationLines(missingTax.Id, new List<Decimal>{ 1000 });
       Boolean taxRejected = false;
       try {
         InvoiceTaxAllocationService.allocateOnConfirm(missingTax);
@@ -166,7 +177,7 @@ private class InvoiceTaxAllocationServiceTest {
       System.assertEquals(true, taxRejected);
 
       Invoice__c missingLine = insertAllocationInvoice('Missing Line Amt', 100);
-      insert new InvoiceLine__c(Invoice__c = missingLine.Id, Amount__c = null);
+      insertAllocationLines(missingLine.Id, new List<Decimal>{ null });
       Boolean lineRejected = false;
       try {
         InvoiceTaxAllocationService.allocateOnConfirm(missingLine);
@@ -198,7 +209,7 @@ private class InvoiceTaxAllocationServiceTest {
   static void allocateOnConfirm_readsTaxWhenCallerDidNotQueryIt() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = insertAllocationInvoice('Unqueried Tax', 100);
-      insert new InvoiceLine__c(Invoice__c = invoice.Id, Amount__c = 1000);
+      insertAllocationLines(invoice.Id, new List<Decimal>{ 1000 });
       Invoice__c thin = [SELECT Id FROM Invoice__c WHERE Id = :invoice.Id];
 
       Test.startTest();
@@ -225,6 +236,7 @@ private class InvoiceTaxAllocationServiceTest {
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 1,
       InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
@@ -238,14 +250,20 @@ private class InvoiceTaxAllocationServiceTest {
       BiilingAcccount__c = billingAccount.Id,
       TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
 
     ContractHistory__c history = new ContractHistory__c(
       Name = label + ' History',
       ContractService__c = service.Id,
       Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-      historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
+      historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
       Version__c = 1
+    );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
     );
     insert history;
 
@@ -256,7 +274,26 @@ private class InvoiceTaxAllocationServiceTest {
       Amount__c = 1000,
       TaxAmount__c = tax
     );
-    insert invoice;
+    ContractTestDataFactory.applyRequiredFields(invoice);
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
+  }
+
+  private static void insertAllocationLines(
+    Id invoiceId,
+    List<Decimal> amounts
+  ) {
+    List<InvoiceLine__c> lines = new List<InvoiceLine__c>();
+    for (Decimal amount : amounts) {
+      InvoiceLine__c line = new InvoiceLine__c(
+        Invoice__c = invoiceId,
+        Amount__c = amount
+      );
+      ContractTestDataFactory.applyRequiredFields(line);
+      line.Amount__c = amount;
+      lines.add(line);
+    }
+    insert lines;
   }
 }
