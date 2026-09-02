@@ -146,4 +146,160 @@ private class InvoiceOpsFieldServiceTest {
     );
     InvoiceOpsFieldService.resetCache();
   }
+
+  @IsTest
+  static void getDefinitions_skipsInactiveAndKeepsFixedDefault() {
+    InvoiceOpsField__mdt inactive = new InvoiceOpsField__mdt(
+      DeveloperName = 'InactiveMemo',
+      Active__c = false,
+      TargetObject__c = 'Invoice__c',
+      FieldApiName__c = 'Memo__c',
+      DefaultValue__c = 'ignored'
+    );
+    InvoiceOpsField__mdt active = new InvoiceOpsField__mdt(
+      DeveloperName = 'ActiveMemo',
+      Active__c = true,
+      TargetObject__c = 'Invoice__c',
+      FieldApiName__c = 'Memo__c',
+      LabelOverride__c = '請求メモ',
+      DefaultValue__c = '固定初期値'
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>{ inactive, active }
+    );
+    List<InvoiceOpsFieldService.FieldDefinition> rows = InvoiceOpsFieldService.getDefinitions();
+    System.assertEquals(1, rows.size(), 'Core 第11.4.4節: Active=true だけを対象とする');
+    System.assertEquals('ActiveMemo', rows[0].developerName);
+    System.assertEquals(
+      '固定初期値',
+      rows[0].defaultValue,
+      'Core 第11.4.4節: 初期値は DefaultValue の固定文字列だけ'
+    );
+    System.assertEquals('請求メモ', rows[0].label);
+    InvoiceOpsFieldService.resetCache();
+  }
+
+  @IsTest
+  static void getDefinitions_rejectsUnknownTargetObject() {
+    InvoiceOpsField__mdt row = new InvoiceOpsField__mdt(
+      DeveloperName = 'BadTarget',
+      Active__c = true,
+      TargetObject__c = 'Account',
+      FieldApiName__c = 'Name'
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>{ row }
+    );
+    Boolean thrown = false;
+    try {
+      InvoiceOpsFieldService.getDefinitions();
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('BadTarget'),
+        'Core 第11.4.4節: エラーに DeveloperName を含める。実際: ' +
+          ex.getMessage()
+      );
+      System.assert(
+        ex.getMessage().contains('Invoice__c'),
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, thrown);
+    InvoiceOpsFieldService.resetCache();
+  }
+
+  @IsTest
+  static void paymentDisplayedFieldApiNames_unsetFlagsAreHidden() {
+    InvoiceOpsField__mdt unsetFlags = new InvoiceOpsField__mdt(
+      DeveloperName = 'UnsetPaymentMemo',
+      Active__c = true,
+      TargetObject__c = 'InvoicePayment__c',
+      FieldApiName__c = 'Memo__c',
+      Required__c = true
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>{ unsetFlags }
+    );
+    System.assertEquals(
+      false,
+      InvoiceOpsFieldService.paymentDisplayedFieldApiNames('Invoice')
+        .contains('Memo__c'),
+      'Core 第11.4.4節: 入出金の表示旗は明示 true だけ。未設定は非表示'
+    );
+    System.assertEquals(
+      false,
+      InvoiceOpsFieldService.paymentDisplayedFieldApiNames('NonInvoice')
+        .contains('Memo__c'),
+      'Core 第11.4.4節: 入出金の表示旗は明示 true だけ。未設定は非表示'
+    );
+    InvoiceOpsFieldService.resetCache();
+  }
+
+  @IsTest
+  static void applyDisplayedValues_requiredDisplayedRejectsBlank() {
+    InvoiceOpsField__mdt requiredMemo = new InvoiceOpsField__mdt(
+      DeveloperName = 'RequiredMemo',
+      Active__c = true,
+      TargetObject__c = 'Invoice__c',
+      FieldApiName__c = 'Memo__c',
+      LabelOverride__c = '必須メモ',
+      Required__c = true
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>{ requiredMemo }
+    );
+    Boolean thrown = false;
+    try {
+      InvoiceOpsFieldService.applyDisplayedValues(
+        new Invoice__c(),
+        'Invoice__c',
+        new Map<String, Object>(),
+        new Set<String>{ 'Memo__c' }
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('必須メモ'),
+        'Core 第11.4.4節: 画面に表示されている場合だけ必須。実際: ' +
+          ex.getMessage()
+      );
+    }
+    System.assertEquals(true, thrown);
+    InvoiceOpsFieldService.resetCache();
+  }
+
+  @IsTest
+  static void fieldApiNames_returnsInvoiceDefinitionsOnly() {
+    InvoiceOpsField__mdt invoice = new InvoiceOpsField__mdt(
+      DeveloperName = 'InvMemoOnly',
+      Active__c = true,
+      TargetObject__c = 'Invoice__c',
+      FieldApiName__c = 'Memo__c'
+    );
+    InvoiceOpsField__mdt payment = new InvoiceOpsField__mdt(
+      DeveloperName = 'PayMemoOnly',
+      Active__c = true,
+      TargetObject__c = 'InvoicePayment__c',
+      FieldApiName__c = 'Memo__c',
+      ShowOnInvoicePurpose__c = true
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>{ invoice, payment }
+    );
+    Set<String> invoiceNames = InvoiceOpsFieldService.fieldApiNames(
+      'Invoice__c'
+    );
+    System.assertEquals(true, invoiceNames.contains('Memo__c'));
+    System.assertEquals(1, invoiceNames.size());
+    System.assertEquals(
+      0,
+      InvoiceOpsFieldService.readValuesById(
+          'Invoice__c',
+          new Set<Id>()
+        )
+        .size()
+    );
+    InvoiceOpsFieldService.resetCache();
+  }
 }

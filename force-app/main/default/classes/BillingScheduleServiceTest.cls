@@ -115,4 +115,129 @@ private class BillingScheduleServiceTest {
       'Core 第7.2節: 入らない項目は空にする。入っている場合は保存時に拒否する'
     );
   }
+
+  @IsTest
+  static void computeInvoiceDate_onOrAfterSameDayWhenAnchorMatches() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applyOnOrAfterBillingDay(account, 15);
+    System.assertEquals(
+      Date.newInstance(2026, 1, 15),
+      BillingScheduleService.computeInvoiceDateFromAnchor(
+        account,
+        Date.newInstance(2026, 1, 15)
+      ),
+      'Core 第7.2節: 請求基準日自身が該当すれば同日とする'
+    );
+  }
+
+  @IsTest
+  static void computeInvoiceDate_onOrAfterMonthEnd() {
+    BillingAccount__c account = new BillingAccount__c();
+    account.InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER;
+    account.InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END;
+    account.InvoiceDateDayOfMonth__c = null;
+    account.InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE;
+    System.assertEquals(
+      Date.newInstance(2026, 1, 31),
+      BillingScheduleService.computeInvoiceDateFromAnchor(
+        account,
+        Date.newInstance(2026, 1, 16)
+      ),
+      'Core 第7.2節: 基準日以後で最初に到来する月末'
+    );
+  }
+
+  @IsTest
+  static void computeInvoiceDate_monthOffsetAndDayOffset() {
+    BillingAccount__c monthOffset = new BillingAccount__c();
+    monthOffset.InvoiceDateMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET;
+    monthOffset.InvoiceDateMonthOffset__c = 1;
+    monthOffset.InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY;
+    monthOffset.InvoiceDateDayOfMonth__c = 10;
+    monthOffset.InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE;
+    System.assertEquals(
+      Date.newInstance(2026, 2, 10),
+      BillingScheduleService.computeInvoiceDateFromAnchor(
+        monthOffset,
+        Date.newInstance(2026, 1, 31)
+      ),
+      'Core 第7.2節: 基準月を0として指定月数前後した月の指定日'
+    );
+
+    BillingAccount__c dayOffset = new BillingAccount__c();
+    dayOffset.InvoiceDateMethod__c = BillingScheduleService.METHOD_DAY_OFFSET;
+    dayOffset.InvoiceDateDayOffset__c = 1;
+    dayOffset.InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE;
+    System.assertEquals(
+      Date.newInstance(2026, 2, 1),
+      BillingScheduleService.computeInvoiceDate(
+        dayOffset,
+        Date.newInstance(2026, 1, 31)
+      ),
+      'Core 第7.2節: 基準日から指定日数を加減する'
+    );
+  }
+
+  @IsTest
+  static void computePaymentScheduledDate_zeroDayOffsetIsSameDay() {
+    BillingAccount__c account = new BillingAccount__c();
+    account.PaymentTermMethod__c = BillingScheduleService.METHOD_DAY_OFFSET;
+    account.PaymentTermDayOffset__c = 0;
+    account.PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE;
+    Date invoiceDate = Date.newInstance(2026, 6, 1);
+    System.assertEquals(
+      invoiceDate,
+      BillingScheduleService.computePaymentScheduledDate(account, invoiceDate),
+      'Core 第7.5節: 0日は即日払いを表す'
+    );
+  }
+
+  @IsTest
+  static void applySnapshots_copiesScheduleFieldsWhenBlank() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applySameDayBilling(account);
+    ContractTestDataFactory.applyPaymentMonthEnd(account, 0);
+    Invoice__c invoice = new Invoice__c();
+    BillingScheduleService.applySnapshots(invoice, account);
+    System.assertEquals(
+      BillingScheduleService.METHOD_SAME_DAY,
+      invoice.InvoiceDateMethodSnapShot__c,
+      'Core 第7.2節: 生成時に請求日ルールをスナップショットする'
+    );
+    System.assertEquals(
+      BillingScheduleService.METHOD_MONTH_OFFSET,
+      invoice.PaymentTermMethodSnapShot__c,
+      'Core 第7.5節: 生成時に支払条件をスナップショットする'
+    );
+    System.assertEquals(
+      BillingScheduleService.DAY_KIND_MONTH_END,
+      invoice.PaymentTermDayKindSnapShot__c
+    );
+    System.assertEquals(0, invoice.PaymentTermMonthOffsetSnapShot__c);
+  }
+
+  @IsTest
+  static void assertSchedule_rejectsMonthEndWithSpecifiedDay() {
+    BillingAccount__c account = new BillingAccount__c();
+    account.InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER;
+    account.InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END;
+    account.InvoiceDateDayOfMonth__c = 15;
+    account.InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE;
+    ContractTestDataFactory.applyPaymentMonthEnd(account, 0);
+    Boolean rejected = false;
+    try {
+      BillingScheduleService.assertSchedule(account);
+    } catch (BillingScheduleService.ScheduleException ex) {
+      rejected = true;
+      System.assert(
+        ex.getMessage().contains('月末では指定日を空'),
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(
+      true,
+      rejected,
+      'Core 第7.2節: MonthEnd のときは指定日を空にする'
+    );
+  }
 }
