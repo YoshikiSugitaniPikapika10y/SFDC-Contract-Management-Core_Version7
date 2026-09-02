@@ -5,6 +5,13 @@ private class RenewOpportunityCreateServiceTest {
     ContractTestDataFactory.initTestContext();
   }
 
+  private static void enableRenewOpportunity() {
+    ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+    setting.RenewOpportunityEnabled__c = true;
+    update setting;
+    ContractDocumentSettingService.clearCache();
+  }
+
   @IsTest
   static void assertCreatedForHistory_rejectsMissingAndMismatch() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -19,26 +26,10 @@ private class RenewOpportunityCreateServiceTest {
       System.assertEquals(true, missingRejected);
 
       Account account = ContractTestDataFactory.insertAccount('Renew Assert Acct');
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      ContractService__c service = new ContractService__c(
-        Name = 'Renew Assert Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Renew Assert Service'
       );
-      insert service;
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Renew Assert History',
         ContractService__c = service.Id,
@@ -46,6 +37,8 @@ private class RenewOpportunityCreateServiceTest {
         historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
         Version__c = 1
       );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
       insert history;
       history = [
         SELECT Id, ContractService__c, ContractService__r.Account__c
@@ -67,35 +60,48 @@ private class RenewOpportunityCreateServiceTest {
           RenewOpportunityCreateService.MISMATCH_RENEW_OPPORTUNITY_MESSAGE;
       }
       System.assertEquals(true, mismatchRejected);
+
+      Boolean missingOpportunityRejected = false;
+      try {
+        RenewOpportunityCreateService.assertCreatedForHistory(
+          history,
+          account.Id
+        );
+      } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
+        missingOpportunityRejected =
+          ex.getMessage() ==
+          RenewOpportunityCreateService.MISSING_RENEW_OPPORTUNITY_MESSAGE;
+      }
+      System.assertEquals(
+        true,
+        missingOpportunityRejected,
+        '第11.5節: 更新商談が無い受注取消と同じ欠落文'
+      );
+      System.assertEquals(
+        null,
+        RenewOpportunityCreateService.findBySourceHistory(null),
+        '第11.5節: 元契約履歴が無ければ更新商談 Id は返さない'
+      );
+      System.assertEquals(
+        null,
+        RenewOpportunityCreateService.findBySourceHistory(history.Id),
+        '第11.5節: 元契約履歴に更新商談が無ければ Id は返さない'
+      );
+      RenewOpportunityCreateService.deleteBySourceHistory(null);
     }
   }
 
   @IsTest
   static void deleteBySourceHistory_decrementsCountAndClearsArchivedOpportunity() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       Account account = ContractTestDataFactory.insertAccount(
         'Renew Delete Count Acct'
       );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      ContractService__c service = new ContractService__c(
-        Name = 'Renew Delete Count Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Renew Delete Count Service'
       );
-      insert service;
       Opportunity quoteOpp = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Renew Delete Quote Opp'
@@ -109,6 +115,7 @@ private class RenewOpportunityCreateServiceTest {
         Opportunity__c = quoteOpp.Id,
         RenewOpportunityRequestCount__c = 2
       );
+      ContractTestDataFactory.applyRequiredFields(source);
       insert source;
       Opportunity renewOpp = ContractTestDataFactory.buildOpportunity(
         account.Id,
@@ -131,6 +138,7 @@ private class RenewOpportunityCreateServiceTest {
         Version__c = 2,
         Opportunity__c = renewOpp.Id
       );
+      ContractTestDataFactory.applyRequiredFields(archived);
       insert archived;
 
       Test.startTest();
@@ -173,29 +181,14 @@ private class RenewOpportunityCreateServiceTest {
   @IsTest
   static void deleteBySourceHistory_doesNotDecrementBelowZero() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       Account account = ContractTestDataFactory.insertAccount(
         'Renew Delete Floor Acct'
       );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      ContractService__c service = new ContractService__c(
-        Name = 'Renew Delete Floor Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Renew Delete Floor Service'
       );
-      insert service;
       Opportunity quoteOpp = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Renew Delete Floor Quote'
@@ -209,6 +202,7 @@ private class RenewOpportunityCreateServiceTest {
         Opportunity__c = quoteOpp.Id,
         RenewOpportunityRequestCount__c = 0
       );
+      ContractTestDataFactory.applyRequiredFields(source);
       insert source;
 
       Test.startTest();
@@ -238,26 +232,10 @@ private class RenewOpportunityCreateServiceTest {
       Account account = ContractTestDataFactory.insertAccount(
         'Renew Off Count Acct'
       );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      ContractService__c service = new ContractService__c(
-        Name = 'Renew Off Count Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Renew Off Count Service'
       );
-      insert service;
       Opportunity quoteOpp = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Renew Off Quote Opp'
@@ -271,6 +249,7 @@ private class RenewOpportunityCreateServiceTest {
         Opportunity__c = quoteOpp.Id,
         RenewOpportunityRequestCount__c = 2
       );
+      ContractTestDataFactory.applyRequiredFields(source);
       insert source;
       Opportunity renewOpp = ContractTestDataFactory.buildOpportunity(
         account.Id,

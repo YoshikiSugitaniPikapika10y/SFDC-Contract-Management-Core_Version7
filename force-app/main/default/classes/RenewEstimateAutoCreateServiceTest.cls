@@ -3,11 +3,13 @@ private class RenewEstimateAutoCreateServiceTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
   static void renewalOpportunityInsert_createsLinkedRenewEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       TestData data = createSourceData(true);
 
       Test.startTest();
@@ -63,6 +65,7 @@ private class RenewEstimateAutoCreateServiceTest {
   @IsTest
   static void autoRenew_quantityUnitPriceUsesOrgDefaultRounding() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       TestData data = createSourceData(true);
       data.sourceProduct.Quantity__c = 1.234;
       data.sourceProduct.UnitPrice__c = 10.345;
@@ -100,6 +103,7 @@ private class RenewEstimateAutoCreateServiceTest {
   @IsTest
   static void autoRenew_appliesAutoRenewCopyOnly() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       insert new FieldCopyDefinition__c(
         Name = 'Test_Renew_AccountName',
         TargetObject__c = 'ContractHistory__c',
@@ -120,10 +124,15 @@ private class RenewEstimateAutoCreateServiceTest {
         WHERE Opportunity__c = :renewal.Id
         LIMIT 1
       ];
+      Account account = [
+        SELECT Name
+        FROM Account
+        WHERE Id = :data.account.Id
+      ];
       System.assertEquals(
-        data.account.Name,
+        account.Name,
         created.Note__c,
-        '仕様: Core 第4.9節・第11.4.2節 自動Renew'
+        'Core 第4.9節・第11.4.2節: 契約履歴かつ自動Renewを含むコピー定義を空欄へ適用する'
       );
     }
   }
@@ -157,6 +166,7 @@ private class RenewEstimateAutoCreateServiceTest {
   @IsTest
   static void regularOpportunity_doesNotCreateRenewEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       TestData data = createSourceData(true);
 
       Test.startTest();
@@ -182,6 +192,7 @@ private class RenewEstimateAutoCreateServiceTest {
   @IsTest
   static void renewalOpportunity_requiresMatchingContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       TestData data = createSourceData(true);
       ContractService__c otherService = ContractTestDataFactory.insertContractService(
         data.account.Id,
@@ -208,6 +219,7 @@ private class RenewEstimateAutoCreateServiceTest {
   @IsTest
   static void renewalOpportunity_requiresRecurringSourceProduct() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
       TestData data = createSourceData(false);
 
       Database.SaveResult result = Database.insert(
@@ -236,7 +248,14 @@ private class RenewEstimateAutoCreateServiceTest {
     public ContractProduct__c sourceProduct;
   }
 
-  private static TestData createSourceData(Boolean withProduct) {
+  private static void enableRenewOpportunity() {
+    ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+    setting.RenewOpportunityEnabled__c = true;
+    update setting;
+    ContractDocumentSettingService.clearCache();
+  }
+
+  private static TestData createSourceData(Boolean withRecurringProduct) {
     TestData data = new TestData();
     data.account = ContractTestDataFactory.insertAccount('Auto Renew Account');
     data.previousOpportunity = ContractTestDataFactory.insertOpportunity(
@@ -254,38 +273,57 @@ private class RenewEstimateAutoCreateServiceTest {
       Name = 'Source Ordered History',
       ContractService__c = data.service.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1,
       CurrentTermStartDate__c = termStart,
       CurrentTermEndDate__c = termEnd,
       Opportunity__c = data.previousOpportunity.Id
     );
+    ContractTestDataFactory.applyRequiredFields(data.sourceHistory);
     insert data.sourceHistory;
 
-    if (withProduct) {
-      Product2 product = ContractTestDataFactory.buildProduct(
-        'Auto Renew Product'
-      );
-      product.UnitName__c = 'ID';
-      product.UnitPrice__c = 8000;
-      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
-      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-      ContractTestDataFactory.insertProduct(product);
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Auto Renew Product'
+    );
+    product.UnitName__c = 'ID';
+    product.UnitPrice__c = 8000;
+    product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    ContractTestDataFactory.insertProduct(product);
 
-      data.sourceProduct = new ContractProduct__c(
-        ContractHistory__c = data.sourceHistory.Id,
-        Product__c = product.Id,
-        Account__c = data.account.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        Unit__c = 'ID/月',
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'New'
-      );
-      insert data.sourceProduct;
+    data.sourceProduct = new ContractProduct__c(
+      ContractHistory__c = data.sourceHistory.Id,
+      Product__c = product.Id,
+      Account__c = data.account.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 8000,
+      Amount__c = 96000,
+      Unit__c = 'ID/月',
+      StartDate__c = termStart,
+      Enddate__c = withRecurringProduct ? termEnd : termStart,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = product.BillingType__c,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(data.sourceProduct);
+    insert data.sourceProduct;
+
+    data.sourceHistory.historystatus__c = 'Ordered';
+    update data.sourceHistory;
+    data.sourceHistory = [
+      SELECT Id, CurrentTermStartDate__c, CurrentTermEndDate__c
+      FROM ContractHistory__c
+      WHERE Id = :data.sourceHistory.Id
+    ];
+    if (withRecurringProduct) {
+      data.sourceProduct = [
+        SELECT Id, Quantity__c, UnitPrice__c
+        FROM ContractProduct__c
+        WHERE Id = :data.sourceProduct.Id
+      ];
+    } else {
+      data.sourceProduct = null;
     }
     return data;
   }
