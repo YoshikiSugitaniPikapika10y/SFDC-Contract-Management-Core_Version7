@@ -922,7 +922,10 @@ public without sharing class InvoiceCanonicalService {
         InvoiceDate__c,
         PaymentScheduledDate__c,
         TaxPercent__c,
-        BillingAccountKeySnapShot__c
+        BillingAccountKeySnapShot__c,
+        InvoiceTransactionStatus__c,
+        SystemIntegrationDate__c,
+        PaymentClearingCompletedDate__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
