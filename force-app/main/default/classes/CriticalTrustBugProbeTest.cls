@@ -47,6 +47,10 @@ private class CriticalTrustBugProbeTest {
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2026, 8, 31)
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
       insert history;
 
       Product2 productA = ContractTestDataFactory.buildProduct(
@@ -86,6 +90,8 @@ private class CriticalTrustBugProbeTest {
         Type__c = 'New',
         Amount__c = 30000
       );
+      ContractTestDataFactory.applyRequiredFields(cpA);
+      ContractTestDataFactory.applyRequiredFields(cpB);
       insert new List<ContractProduct__c>{ cpA, cpB };
 
       Date invoiceDate = Date.newInstance(2026, 6, 1);
@@ -98,11 +104,20 @@ private class CriticalTrustBugProbeTest {
       );
       List<InvoiceProduct__c> periodLines = new List<InvoiceProduct__c>();
       for (ContractProduct__c cp : new List<ContractProduct__c>{ cpA, cpB }) {
+        String lineKey = InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(
+          new InvoiceProduct__c(
+            ContractProduct__c = cp.Id,
+            UnitPrice__c = 10000,
+            Quantity__c = 1,
+            Unit__c = 'ID'
+          )
+        );
         periodLines.add(
           new InvoiceProduct__c(
             ContractHistory__c = history.Id,
             ContractProduct__c = cp.Id,
             InvoiceBucketKey__c = bucketKey,
+            LineBucketKey__c = lineKey,
             StartDate__c = Date.newInstance(2026, 6, 1),
             Enddate__c = Date.newInstance(2026, 6, 30),
             Quantity__c = 1,
@@ -115,6 +130,7 @@ private class CriticalTrustBugProbeTest {
             ContractHistory__c = history.Id,
             ContractProduct__c = cp.Id,
             InvoiceBucketKey__c = bucketKey,
+            LineBucketKey__c = lineKey,
             StartDate__c = Date.newInstance(2026, 7, 1),
             Enddate__c = Date.newInstance(2026, 7, 31),
             Quantity__c = 1,
@@ -127,6 +143,7 @@ private class CriticalTrustBugProbeTest {
             ContractHistory__c = history.Id,
             ContractProduct__c = cp.Id,
             InvoiceBucketKey__c = bucketKey,
+            LineBucketKey__c = lineKey,
             StartDate__c = Date.newInstance(2026, 8, 1),
             Enddate__c = Date.newInstance(2026, 8, 31),
             Quantity__c = 1,
