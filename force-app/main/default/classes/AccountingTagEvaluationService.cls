@@ -6,16 +6,20 @@ public without sharing class AccountingTagEvaluationService {
   private static final String HEADER_AMOUNT_INVTAX = 'INVTAX';
   private static final String HEADER_AMOUNT_INCL = 'INCL';
 
-  /** 仕様: Accounting 第7.3節、第7.5節 */
-  public static void evaluateForInvoice(Id invoiceId) {
-    if (invoiceId == null) {
-      return;
+  private static List<GlAccountingTagRule__c> cachedEnabledRules;
+  private static Boolean enabledRulesLoaded;
+
+  /** 仕様: Accounting 第7.5節。同一操作内の有効ルール照会を1回にする。 */
+  public static void clearCachedEnabledRules() {
+    cachedEnabledRules = null;
+    enabledRulesLoaded = false;
+  }
+
+  private static List<GlAccountingTagRule__c> enabledRules() {
+    if (enabledRulesLoaded == true) {
+      return cachedEnabledRules;
     }
-    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    if (policy.AccountingEnabled__c != true) {
-      return;
-    }
-    List<GlAccountingTagRule__c> rules = [
+    cachedEnabledRules = [
       SELECT
         Name,
         TagKey__c,
@@ -27,6 +31,20 @@ public without sharing class AccountingTagEvaluationService {
       WHERE IsEnabled__c = TRUE
       WITH SYSTEM_MODE
     ];
+    enabledRulesLoaded = true;
+    return cachedEnabledRules;
+  }
+
+  /** 仕様: Accounting 第7.3節、第7.5節 */
+  public static void evaluateForInvoice(Id invoiceId) {
+    if (invoiceId == null) {
+      return;
+    }
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+    if (policy.AccountingEnabled__c != true) {
+      return;
+    }
+    List<GlAccountingTagRule__c> rules = enabledRules();
     if (rules.isEmpty()) {
       return;
     }
@@ -78,12 +96,7 @@ public without sharing class AccountingTagEvaluationService {
     }
     Map<String, Schema.SObjectField> invoiceFields = Invoice__c.SObjectType.getDescribe()
       .fields.getMap();
-    for (GlAccountingTagRule__c rule : [
-      SELECT TargetFieldApiName__c
-      FROM GlAccountingTagRule__c
-      WHERE IsEnabled__c = TRUE
-      WITH SYSTEM_MODE
-    ]) {
+    for (GlAccountingTagRule__c rule : enabledRules()) {
       if (String.isBlank(rule.TargetFieldApiName__c)) {
         continue;
       }

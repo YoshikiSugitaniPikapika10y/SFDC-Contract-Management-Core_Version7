@@ -38,6 +38,9 @@ public without sharing class AccountingDiffService {
     if (String.isBlank(operationKey)) {
       throw new DiffException('業務操作キーがありません。');
     }
+    if (!isPaymentEvent(eventKey)) {
+      AccountingGoalService.invalidateCauseCache(invoiceId);
+    }
     Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
     GlAccountingPolicy__c policy = eventKey == AccountingEventFixedCatalog.BILLING_CONFIRMED.key
       ? GlAccountingPolicyService.freezeOnFirstConfirm()
@@ -184,6 +187,7 @@ public without sharing class AccountingDiffService {
       }
     } finally {
       GlJournalTriggerHandler.allowEngineWrite = previous;
+      AccountingCurrentService.invalidate(invoice.Id);
     }
   }
 
@@ -197,6 +201,9 @@ public without sharing class AccountingDiffService {
       throw new DiffException('請求が指定されていません。');
     }
     AccountingEventFixedCatalog.require(eventKey);
+    if (!isPaymentEvent(eventKey)) {
+      AccountingGoalService.invalidateCauseCache(invoiceId);
+    }
     Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
@@ -367,6 +374,11 @@ public without sharing class AccountingDiffService {
       eventKey == AccountingEventFixedCatalog.MANUAL_JOURNAL.key;
   }
 
+  private static Boolean isPaymentEvent(String eventKey) {
+    return eventKey == AccountingEventFixedCatalog.PAYMENT_RECORDED.key ||
+      eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key;
+  }
+
   /** 仕様: Accounting 第2.4節、第8.2節、第8.5節、第8.8節、Core 第7.9.3節・第7.9.5節 */
   private static void cancelCurrent(
     Id invoiceId,
@@ -420,6 +432,7 @@ public without sharing class AccountingDiffService {
       }
     } finally {
       GlJournalTriggerHandler.allowEngineWrite = previous;
+      AccountingCurrentService.invalidate(invoiceId);
     }
   }
 
@@ -498,8 +511,58 @@ public without sharing class AccountingDiffService {
     if (journals == null || journals.isEmpty()) {
       return;
     }
+    Map<Id, CancelReasonSnapshot> byPayment = new Map<Id, CancelReasonSnapshot>();
+    Map<Id, CancelReasonSnapshot> byHeader = new Map<Id, CancelReasonSnapshot>();
+    if (eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key) {
+      Set<Id> paymentIds = new Set<Id>();
+      for (GlJournal__c journal : journals) {
+        if (journal != null && journal.InvoicePayment__c != null) {
+          paymentIds.add(journal.InvoicePayment__c);
+        }
+      }
+      if (!paymentIds.isEmpty()) {
+        for (InvoicePayment__c payment : [
+          SELECT Id, CancellationReason__c, CancellationReasonText__c
+          FROM InvoicePayment__c
+          WHERE Id IN :paymentIds
+          WITH SYSTEM_MODE
+        ]) {
+          CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
+          snapshot.reason = payment.CancellationReason__c;
+          snapshot.reasonText = payment.CancellationReasonText__c;
+          byPayment.put(payment.Id, snapshot);
+        }
+      }
+    } else if (eventKey == AccountingEventFixedCatalog.MANUAL_JOURNAL.key) {
+      Set<Id> headerIds = new Set<Id>();
+      for (GlJournal__c journal : journals) {
+        if (journal != null && journal.GlManualJournalHeader__c != null) {
+          headerIds.add(journal.GlManualJournalHeader__c);
+        }
+      }
+      if (!headerIds.isEmpty()) {
+        for (GlManualJournalHeader__c header : [
+          SELECT Id, CancellationReason__c, CancellationReasonText__c
+          FROM GlManualJournalHeader__c
+          WHERE Id IN :headerIds
+          WITH SYSTEM_MODE
+        ]) {
+          CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
+          snapshot.reason = header.CancellationReason__c;
+          snapshot.reasonText = header.CancellationReasonText__c;
+          byHeader.put(header.Id, snapshot);
+        }
+      }
+    }
     for (GlJournal__c journal : journals) {
-      applyCancelAuditToJournal(journal, invoiceId, eventKey, operationKey);
+      applyCancelAuditToJournal(
+        journal,
+        invoiceId,
+        eventKey,
+        operationKey,
+        byPayment,
+        byHeader
+      );
     }
   }
 
@@ -509,12 +572,38 @@ public without sharing class AccountingDiffService {
     String eventKey,
     String operationKey
   ) {
+    applyCancelAuditToJournal(journal, invoiceId, eventKey, operationKey, null, null);
+  }
+
+  private static void applyCancelAuditToJournal(
+    GlJournal__c journal,
+    Id invoiceId,
+    String eventKey,
+    String operationKey,
+    Map<Id, CancelReasonSnapshot> byPayment,
+    Map<Id, CancelReasonSnapshot> byHeader
+  ) {
     if (journal == null) {
       return;
     }
     journal.BusinessOperationKey__c = operationKey;
-    CancelReasonSnapshot reason = cancelReasonOf(journal, invoiceId, eventKey);
-    if (!String.isBlank(reason.reason)) {
+    CancelReasonSnapshot reason;
+    if (
+      eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key &&
+      byPayment != null &&
+      journal.InvoicePayment__c != null
+    ) {
+      reason = byPayment.get(journal.InvoicePayment__c);
+    } else if (
+      eventKey == AccountingEventFixedCatalog.MANUAL_JOURNAL.key &&
+      byHeader != null &&
+      journal.GlManualJournalHeader__c != null
+    ) {
+      reason = byHeader.get(journal.GlManualJournalHeader__c);
+    } else {
+      reason = cancelReasonOf(journal, invoiceId, eventKey);
+    }
+    if (reason != null && !String.isBlank(reason.reason)) {
       journal.CancellationReason__c = reason.reason;
       journal.CancellationReasonText__c = reason.reasonText;
     }

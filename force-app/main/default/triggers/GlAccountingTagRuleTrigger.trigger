@@ -12,9 +12,11 @@ trigger GlAccountingTagRuleTrigger on GlAccountingTagRule__c(
     AccountingTagEvaluationService.validateOnSave(Trigger.new);
   }
   if (Trigger.isAfter && (Trigger.isInsert || Trigger.isUpdate)) {
+    AccountingTagEvaluationService.clearCachedEnabledRules();
     ContractMasterOperationLog.logSave(Trigger.new);
   }
   if (Trigger.isAfter && Trigger.isDelete) {
+    AccountingTagEvaluationService.clearCachedEnabledRules();
     ContractMasterOperationLog.logDelete(Trigger.old);
   }
 }

@@ -7,7 +7,9 @@ public without sharing class GlAccountMapResolveService {
     public Id accountId;
   }
 
-  /** 仕様: Accounting 第6.2節、第6.3節、第4.1節 */
+  private static Map<String, List<GlAccountMap__c>> mapsBySlotContext;
+
+  /** 仕様: Accounting 第6.2節、第6.3節、第4.1節、第8.2節 */
   public static ResolvedAccount resolve(
     String slotKey,
     String evaluationContext,
@@ -16,23 +18,7 @@ public without sharing class GlAccountMapResolveService {
     if (String.isBlank(slotKey) || String.isBlank(evaluationContext)) {
       throw new ResolveException('勘定科目割当のスロットまたは評価コンテキストがありません。');
     }
-    List<GlAccountMap__c> candidates = [
-      SELECT
-        Id,
-        Account__c,
-        Priority__c,
-        ConditionSourceType__c,
-        FixedConditionSetKey__c,
-        TenantConditionSet__c,
-        Account__r.IsActive__c,
-        Account__r.AccountType__c
-      FROM GlAccountMap__c
-      WHERE
-        SlotKey__c = :slotKey
-        AND EvaluationContext__c = :evaluationContext
-        AND IsActive__c = TRUE
-      WITH SYSTEM_MODE
-    ];
+    List<GlAccountMap__c> candidates = mapsOf(slotKey, evaluationContext);
     List<GlAccountMap__c> matched = new List<GlAccountMap__c>();
     for (GlAccountMap__c mapping : candidates) {
       if (matches(mapping, context)) {
@@ -68,6 +54,43 @@ public without sharing class GlAccountMapResolveService {
     resolved.assignmentId = top[0].Id;
     resolved.accountId = top[0].Account__c;
     return resolved;
+  }
+
+  /**
+   * 仕様: Accounting 第6.3節、第8.2節。
+   * 同一操作内の有効割当照会は1回にまとめ、スロットと評価コンテキストで濾る。条件一致は呼び出しごとに評価する。
+   */
+  private static List<GlAccountMap__c> mapsOf(String slotKey, String evaluationContext) {
+    if (mapsBySlotContext == null) {
+      mapsBySlotContext = new Map<String, List<GlAccountMap__c>>();
+      for (GlAccountMap__c mapping : [
+        SELECT
+          Id,
+          Account__c,
+          Priority__c,
+          ConditionSourceType__c,
+          FixedConditionSetKey__c,
+          TenantConditionSet__c,
+          SlotKey__c,
+          EvaluationContext__c,
+          Account__r.IsActive__c,
+          Account__r.AccountType__c
+        FROM GlAccountMap__c
+        WHERE IsActive__c = TRUE
+        WITH SYSTEM_MODE
+      ]) {
+        String loadedKey = mapping.SlotKey__c + '\n' + mapping.EvaluationContext__c;
+        if (!mapsBySlotContext.containsKey(loadedKey)) {
+          mapsBySlotContext.put(loadedKey, new List<GlAccountMap__c>());
+        }
+        mapsBySlotContext.get(loadedKey).add(mapping);
+      }
+    }
+    String cacheKey = slotKey + '\n' + evaluationContext;
+    if (!mapsBySlotContext.containsKey(cacheKey)) {
+      mapsBySlotContext.put(cacheKey, new List<GlAccountMap__c>());
+    }
+    return mapsBySlotContext.get(cacheKey);
   }
 
   private static Boolean matches(

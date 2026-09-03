@@ -5,15 +5,21 @@ public without sharing class GlAccountingPolicyService {
   public class PolicyException extends Exception {
   }
 
+  private static Boolean cachedHasTerminalInvoice;
+
   /** 仕様: Accounting 第3.1節、Core 第11.8節 */
   public static Boolean hasTerminalInvoice() {
-    return [
+    if (cachedHasTerminalInvoice != null) {
+      return cachedHasTerminalInvoice;
+    }
+    cachedHasTerminalInvoice = [
         SELECT COUNT()
         FROM Invoice__c
         WHERE InvoiceTransactionStatus__c IN ('Confirmed', 'Cancelled')
         WITH SYSTEM_MODE
         LIMIT 1
       ] > 0;
+    return cachedHasTerminalInvoice;
   }
 
   /** 仕様: Accounting 第3.1節、Core 第11.8節 */
@@ -21,8 +27,19 @@ public without sharing class GlAccountingPolicyService {
     return (policy != null && policy.FrozenAt__c != null) || hasTerminalInvoice();
   }
 
+  private static GlAccountingPolicy__c cachedOrgPolicy;
+
+  /** 仕様: Accounting 第3.1節。削除後に0件判定へ残さない。 */
+  public static void clearCachedOrgPolicy() {
+    cachedOrgPolicy = null;
+    cachedHasTerminalInvoice = null;
+  }
+
   /** 仕様: Accounting 第3.1節 */
   public static GlAccountingPolicy__c requireOrgPolicy() {
+    if (cachedOrgPolicy != null) {
+      return cachedOrgPolicy;
+    }
     List<GlAccountingPolicy__c> rows = [
       SELECT
         Id,
@@ -45,7 +62,8 @@ public without sharing class GlAccountingPolicyService {
     if (rows.size() > 1) {
       throw new PolicyException('Accounting会計方針は組織内1件だけです。');
     }
-    return rows[0];
+    cachedOrgPolicy = rows[0];
+    return cachedOrgPolicy;
   }
 
   /** 仕様: Accounting 第3.1節 */
@@ -76,6 +94,7 @@ public without sharing class GlAccountingPolicyService {
     // 仕様: 第5.7節。固定時に許可集合を検証する。
     deriveAllowedPatternKeys(policy);
     if (policy.FrozenAt__c != null) {
+      cachedOrgPolicy = policy;
       return policy;
     }
     Boolean previous = allowFreezeWrite;
@@ -87,6 +106,7 @@ public without sharing class GlAccountingPolicyService {
     } finally {
       allowFreezeWrite = previous;
     }
+    cachedOrgPolicy = policy;
     return policy;
   }
 

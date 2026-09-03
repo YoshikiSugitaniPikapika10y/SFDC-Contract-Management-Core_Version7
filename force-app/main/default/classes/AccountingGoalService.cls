@@ -51,6 +51,23 @@ public without sharing class AccountingGoalService {
     Decimal signedAmount;
   }
 
+  private static Map<Id, Map<Id, InvoiceLine__c>> cachedLinesByInvoice =
+    new Map<Id, Map<Id, InvoiceLine__c>>();
+  private static Map<Id, List<GlManualJournalHeader__c>> cachedHeadersByInvoice =
+    new Map<Id, List<GlManualJournalHeader__c>>();
+  private static Map<Id, Map<Id, GlManualJournalSetting__c>> cachedSettingsByInvoice =
+    new Map<Id, Map<Id, GlManualJournalSetting__c>>();
+
+  /** 仕様: Accounting 第8.2節。明細・手動ヘッダは入出金では変わらないので同一請求の再照会をまとめる。 */
+  public static void invalidateCauseCache(Id invoiceId) {
+    if (invoiceId == null) {
+      return;
+    }
+    cachedLinesByInvoice.remove(invoiceId);
+    cachedHeadersByInvoice.remove(invoiceId);
+    cachedSettingsByInvoice.remove(invoiceId);
+  }
+
   /** 仕様: Accounting 第8.2節、第8.3節、第8.4節、第4.4節、第4.6節、第5.6節、第5.7節、第8.7節 */
   public static List<GoalJournal> build(
     Invoice__c invoice,
@@ -69,7 +86,7 @@ public without sharing class AccountingGoalService {
     Map<Id, InvoicePayment__c> payments = loadPayments(invoice.Id);
     List<InvoicePaymentAllocation__c> allocations = loadAllocations(payments.keySet());
     List<GlManualJournalHeader__c> headers = loadManualHeaders(invoice.Id);
-    Map<Id, GlManualJournalSetting__c> settings = loadSettings(headers);
+    Map<Id, GlManualJournalSetting__c> settings = loadSettings(invoice.Id, headers);
     List<Candidate> candidates = new List<Candidate>();
     for (InvoiceLine__c line : lines.values()) {
       candidates.addAll(
@@ -719,7 +736,7 @@ public without sharing class AccountingGoalService {
   ) {
     Decimal billed = book.billedBody + book.billedTax;
     Decimal recognized = book.recognizedBody + book.recognizedTax;
-    Boolean billing = policy.RevenueRecognitionBasis__c == 'BillingBasis';
+    Boolean billing = usesBillingTargets(policy, candidate);
     if (
       slotKey == AccountingSlotFixedCatalog.ContractAsset.key ||
       (billing && slotKey == AccountingSlotFixedCatalog.DeferredRevenue.key)
@@ -743,6 +760,30 @@ public without sharing class AccountingGoalService {
       return billing ? max(billed - recognized, 0) : max(paid - recognized, 0);
     }
     return 0;
+  }
+
+  /**
+   * 仕様: Accounting 第4.6節、第8.3節。
+   * 再利用したパターンの優先度種別が請求基準なら請求基準の目標残高、入金連動前受ならその目標残高。
+   * 優先度種別が無い候補は会計方針の軸1に従う。
+   */
+  private static Boolean usesBillingTargets(
+    GlAccountingPolicy__c policy,
+    Candidate candidate
+  ) {
+    if (candidate != null && candidate.pattern != null && candidate.pattern.slotPriorityType != null) {
+      AccountingCatalogTypes.SlotPriorityType priorityType = candidate.pattern.slotPriorityType;
+      if (
+        priorityType == AccountingCatalogTypes.SlotPriorityType.BillingBasisInvoiceAllocation ||
+        priorityType == AccountingCatalogTypes.SlotPriorityType.BillingBasisRecognitionAllocation
+      ) {
+        return true;
+      }
+      if (priorityType == AccountingCatalogTypes.SlotPriorityType.CashBasisRecognitionAllocation) {
+        return false;
+      }
+    }
+    return policy != null && policy.RevenueRecognitionBasis__c == 'BillingBasis';
   }
 
   /**
@@ -1834,6 +1875,9 @@ public without sharing class AccountingGoalService {
   }
 
   private static Map<Id, InvoiceLine__c> loadLines(Id invoiceId) {
+    if (cachedLinesByInvoice.containsKey(invoiceId)) {
+      return cachedLinesByInvoice.get(invoiceId);
+    }
     Map<Id, InvoiceLine__c> rows = new Map<Id, InvoiceLine__c>();
     for (InvoiceLine__c line : [
       SELECT
@@ -1852,6 +1896,7 @@ public without sharing class AccountingGoalService {
     ]) {
       rows.put(line.Id, line);
     }
+    cachedLinesByInvoice.put(invoiceId, rows);
     return rows;
   }
 
@@ -1895,7 +1940,10 @@ public without sharing class AccountingGoalService {
   }
 
   private static List<GlManualJournalHeader__c> loadManualHeaders(Id invoiceId) {
-    return [
+    if (cachedHeadersByInvoice.containsKey(invoiceId)) {
+      return cachedHeadersByInvoice.get(invoiceId);
+    }
+    List<GlManualJournalHeader__c> rows = [
       SELECT
         Id,
         CreatedDate,
@@ -1908,24 +1956,36 @@ public without sharing class AccountingGoalService {
       WHERE Invoice__c = :invoiceId AND TransactionStatus__c = 'Active'
       WITH SYSTEM_MODE
     ];
+    cachedHeadersByInvoice.put(invoiceId, rows);
+    return rows;
   }
 
-  private static Map<Id, GlManualJournalSetting__c> loadSettings(List<GlManualJournalHeader__c> headers) {
+  private static Map<Id, GlManualJournalSetting__c> loadSettings(
+    Id invoiceId,
+    List<GlManualJournalHeader__c> headers
+  ) {
+    if (cachedSettingsByInvoice.containsKey(invoiceId)) {
+      return cachedSettingsByInvoice.get(invoiceId);
+    }
     Set<Id> ids = new Set<Id>();
     for (GlManualJournalHeader__c header : headers) {
       ids.add(header.GlManualJournalSetting__c);
     }
+    Map<Id, GlManualJournalSetting__c> rows;
     if (ids.isEmpty()) {
-      return new Map<Id, GlManualJournalSetting__c>();
+      rows = new Map<Id, GlManualJournalSetting__c>();
+    } else {
+      rows = new Map<Id, GlManualJournalSetting__c>(
+        [
+          SELECT Id, DebitSlotKey__c, CreditSlotKey__c, DebitAccount__c, CreditAccount__c, IsActive__c
+          FROM GlManualJournalSetting__c
+          WHERE Id IN :ids
+          WITH SYSTEM_MODE
+        ]
+      );
     }
-    return new Map<Id, GlManualJournalSetting__c>(
-      [
-        SELECT Id, DebitSlotKey__c, CreditSlotKey__c, DebitAccount__c, CreditAccount__c, IsActive__c
-        FROM GlManualJournalSetting__c
-        WHERE Id IN :ids
-        WITH SYSTEM_MODE
-      ]
-    );
+    cachedSettingsByInvoice.put(invoiceId, rows);
+    return rows;
   }
 
   private static LineBook bookOf(Map<Id, LineBook> books, InvoiceLine__c line) {

@@ -22,6 +22,7 @@ trigger GlAccountingPolicyTrigger on GlAccountingPolicy__c(
     GlAccountingPolicyTriggerHandler.afterUpdate(Trigger.new, Trigger.oldMap);
   }
   if (Trigger.isAfter && Trigger.isDelete) {
+    GlAccountingPolicyService.clearCachedOrgPolicy();
     ContractMasterOperationLog.logDelete(Trigger.old);
   }
 }
