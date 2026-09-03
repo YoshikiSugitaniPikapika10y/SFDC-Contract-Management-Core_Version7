@@ -3,6 +3,7 @@ private class EstimateWizardCustomFieldPresetTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
@@ -16,6 +17,7 @@ private class EstimateWizardCustomFieldPresetTest {
         testAccount.Id,
         'CF Preset Opportunity'
       );
+      BillingAccount__c billingAccount = insertBillingAccount(testAccount.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'CF Preset Product'
@@ -47,7 +49,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Description__c' => 'product-memo-original'
       };
 
-      EstimateCreateController.EstimateSaveResult saveResult = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult saveResult = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'CF Preset Service',
@@ -63,7 +65,7 @@ private class EstimateWizardCustomFieldPresetTest {
         ),
         null,
         null,
-        null,
+        billingAccount.Id,
         null,
         null,
         JSON.serialize(
@@ -102,7 +104,7 @@ private class EstimateWizardCustomFieldPresetTest {
       System.assertEquals(true, preset.contractCustomFieldsExpanded);
 
       EstimateCreateController.ProductLineItem editedLine = preset.selectedProducts[0];
-      EstimateCreateController.EstimateSaveResult editResult = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult editResult = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         preset.contractServiceName,
@@ -122,7 +124,8 @@ private class EstimateWizardCustomFieldPresetTest {
         null,
         saveResult.contractHistoryId,
         JSON.serialize(preset.contractServiceCustomFields),
-        JSON.serialize(preset.contractHistoryCustomFields)
+        JSON.serialize(preset.contractHistoryCustomFields),
+        preset.lastModifiedToken
       );
 
       ContractProduct__c reloadedProduct = [
@@ -199,7 +202,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Description__c' => 'product-before'
       };
 
-      EstimateCreateController.EstimateSaveResult saveResult = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult saveResult = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'Ordered CF Service',
@@ -282,7 +285,7 @@ private class EstimateWizardCustomFieldPresetTest {
       editedLine.unitPrice = 1;
 
       Test.startTest();
-      EstimateCreateController.EstimateSaveResult editResult = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult editResult = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'HACKED SERVICE NAME',
@@ -308,7 +311,8 @@ private class EstimateWizardCustomFieldPresetTest {
           new Map<String, Object>{
             'ApplicationDate__c' => String.valueOf(Date.today().addDays(3))
           }
-        )
+        ),
+        preset.lastModifiedToken
       );
       Test.stopTest();
 
@@ -339,7 +343,11 @@ private class EstimateWizardCustomFieldPresetTest {
         WHERE Id = :serviceBefore.Id
       ];
       System.assertEquals(serviceNameBefore, serviceAfter.Name);
-      System.assertEquals('service-after', serviceAfter.CustomerMemo__c);
+      System.assertEquals(
+        'service-before',
+        serviceAfter.CustomerMemo__c,
+        'Core 第4.3節: Ordered編集は契約サービスの追加項目を更新しない'
+      );
 
       ContractProduct__c productAfter = [
         SELECT Quantity__c, UnitPrice__c, Description__c
@@ -423,7 +431,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
       };
 
-      EstimateCreateController.EstimateSaveResult saveResult = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult saveResult = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'Ordered Empty Ctx Service',
@@ -473,7 +481,7 @@ private class EstimateWizardCustomFieldPresetTest {
       editedLine.productVisibilityContext = new Map<String, String>();
 
       Test.startTest();
-      EstimateCreateController.saveEstimate(
+      saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'Ordered Empty Ctx Service',
@@ -493,7 +501,14 @@ private class EstimateWizardCustomFieldPresetTest {
         null,
         history.Id,
         null,
-        null
+        JSON.serialize(
+          new Map<String, Object>{
+            'ApplicationDate__c' => String.valueOf(
+              ContractTestDataFactory.stableTermStart()
+            )
+          }
+        ),
+        preset.lastModifiedToken
       );
       Test.stopTest();
 
@@ -577,7 +592,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
       };
 
-      EstimateCreateController.EstimateSaveResult saveResult = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult saveResult = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'Ordered Stale Ctx Service',
@@ -629,7 +644,7 @@ private class EstimateWizardCustomFieldPresetTest {
       };
 
       Test.startTest();
-      EstimateCreateController.saveEstimate(
+      saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'Ordered Stale Ctx Service',
@@ -649,7 +664,14 @@ private class EstimateWizardCustomFieldPresetTest {
         null,
         history.Id,
         null,
-        null
+        JSON.serialize(
+          new Map<String, Object>{
+            'ApplicationDate__c' => String.valueOf(
+              ContractTestDataFactory.stableTermStart()
+            )
+          }
+        ),
+        preset.lastModifiedToken
       );
       Test.stopTest();
 
@@ -687,6 +709,17 @@ private class EstimateWizardCustomFieldPresetTest {
       insert service;
 
       Date cancelDate = Date.today();
+      insert new ContractHistory__c(
+        Name = 'Ordered Cancel Prior',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = cancelDate.addYears(-1),
+        CurrentTermEndDate__c = cancelDate.addDays(-1),
+        EffectiveDate__c = cancelDate.addYears(-1)
+      );
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Ordered Cancel CF History',
         ContractService__c = service.Id,
@@ -708,7 +741,7 @@ private class EstimateWizardCustomFieldPresetTest {
       System.assertEquals('Cancel', preset.selectedType);
 
       Test.startTest();
-      EstimateCreateController.saveEstimate(
+      saveEstimateWithRequiredTax(
         opportunity.Id,
         'Cancel',
         null,
@@ -730,7 +763,8 @@ private class EstimateWizardCustomFieldPresetTest {
           new Map<String, Object>{
             'ApplicationDate__c' => String.valueOf(cancelDate.addDays(2))
           }
-        )
+        ),
+        preset.lastModifiedToken
       );
       Test.stopTest();
 
@@ -813,7 +847,7 @@ private class EstimateWizardCustomFieldPresetTest {
       createLine.billingCycle = '月';
       createLine.recordType = 'New';
 
-      EstimateCreateController.EstimateSaveResult saveResult = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult saveResult = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'Ordered Missing CP Service',
@@ -854,6 +888,10 @@ private class EstimateWizardCustomFieldPresetTest {
         return;
       }
 
+      EstimateCreateController.EstimateCopyPresetDto orderedPreset = EstimateCreateController.getEstimateEditPreset(
+        history.Id
+      );
+
       EstimateCreateController.ProductLineItem badLine = new EstimateCreateController.ProductLineItem();
       badLine.productId = product.Id;
       badLine.contractProductId = null;
@@ -877,7 +915,7 @@ private class EstimateWizardCustomFieldPresetTest {
       Boolean thrown = false;
       try {
         Test.startTest();
-        EstimateCreateController.saveEstimate(
+        saveEstimateWithRequiredTax(
           opportunity.Id,
           'New',
           'Ordered Missing CP Service',
@@ -897,7 +935,14 @@ private class EstimateWizardCustomFieldPresetTest {
           null,
           history.Id,
           null,
-          null
+          JSON.serialize(
+            new Map<String, Object>{
+              'ApplicationDate__c' => String.valueOf(
+                ContractTestDataFactory.stableTermStart()
+              )
+            }
+          ),
+          orderedPreset.lastModifiedToken
         );
         Test.stopTest();
       } catch (AuraHandledException ex) {
@@ -953,12 +998,16 @@ private class EstimateWizardCustomFieldPresetTest {
       );
       insert history;
 
+      EstimateCreateController.EstimateCopyPresetDto emptyPreset = EstimateCreateController.getEstimateEditPreset(
+        history.Id
+      );
+
       EstimateCreateController.ProductLineItem emptyLine = new EstimateCreateController.ProductLineItem();
       emptyLine.productId = null;
       emptyLine.contractProductId = null;
 
       Test.startTest();
-      EstimateCreateController.EstimateSaveResult result = EstimateCreateController.saveEstimate(
+      EstimateCreateController.EstimateSaveResult result = saveEstimateWithRequiredTax(
         opportunity.Id,
         'New',
         'Ordered Empty Line Service',
@@ -986,7 +1035,8 @@ private class EstimateWizardCustomFieldPresetTest {
           new Map<String, Object>{
             'ApplicationDate__c' => String.valueOf(startDate.addDays(1))
           }
-        )
+        ),
+        emptyPreset.lastModifiedToken
       );
       Test.stopTest();
 
@@ -1040,6 +1090,97 @@ private class EstimateWizardCustomFieldPresetTest {
     System.assertEquals(
       0,
       ContractWizardFieldService.parseCustomFieldsJson(null).size()
+    );
+  }
+
+  private static EstimateCreateController.EstimateSaveResult saveEstimateWithRequiredTax(
+    Id opportunityId,
+    String selectedType,
+    String contractServiceName,
+    String contractHistoryName,
+    Id contractServiceId,
+    Id previousHistoryId,
+    String contractStartDate,
+    String contractEndDate,
+    String effectiveDate,
+    String applicationDate,
+    String productsJson,
+    Id estimateRemarkMasterId,
+    String remarksText,
+    Id billingAccountId,
+    Id copyFromHistoryId,
+    Id editHistoryId,
+    String contractServiceCustomFieldsJson,
+    String contractHistoryCustomFieldsJson
+  ) {
+    return saveEstimateWithRequiredTax(
+      opportunityId,
+      selectedType,
+      contractServiceName,
+      contractHistoryName,
+      contractServiceId,
+      previousHistoryId,
+      contractStartDate,
+      contractEndDate,
+      effectiveDate,
+      applicationDate,
+      productsJson,
+      estimateRemarkMasterId,
+      remarksText,
+      billingAccountId,
+      copyFromHistoryId,
+      editHistoryId,
+      contractServiceCustomFieldsJson,
+      contractHistoryCustomFieldsJson,
+      null
+    );
+  }
+
+  private static EstimateCreateController.EstimateSaveResult saveEstimateWithRequiredTax(
+    Id opportunityId,
+    String selectedType,
+    String contractServiceName,
+    String contractHistoryName,
+    Id contractServiceId,
+    Id previousHistoryId,
+    String contractStartDate,
+    String contractEndDate,
+    String effectiveDate,
+    String applicationDate,
+    String productsJson,
+    Id estimateRemarkMasterId,
+    String remarksText,
+    Id billingAccountId,
+    Id copyFromHistoryId,
+    Id editHistoryId,
+    String contractServiceCustomFieldsJson,
+    String contractHistoryCustomFieldsJson,
+    String expectedLastModifiedToken
+  ) {
+    return EstimateCreateController.saveEstimate(
+      opportunityId,
+      selectedType,
+      contractServiceName,
+      contractHistoryName,
+      contractServiceId,
+      previousHistoryId,
+      contractStartDate,
+      contractEndDate,
+      effectiveDate,
+      applicationDate,
+      productsJson,
+      estimateRemarkMasterId,
+      remarksText,
+      billingAccountId,
+      copyFromHistoryId,
+      editHistoryId,
+      contractServiceCustomFieldsJson,
+      contractHistoryCustomFieldsJson,
+      expectedLastModifiedToken,
+      10,
+      null,
+      null,
+      null
     );
   }
 
