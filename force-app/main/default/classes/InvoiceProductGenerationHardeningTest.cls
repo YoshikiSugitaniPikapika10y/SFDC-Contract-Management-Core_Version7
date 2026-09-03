@@ -33,6 +33,10 @@ private class InvoiceProductGenerationHardeningTest {
         CurrentTermEndDate__c = Date.newInstance(2026, 6, 1),
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        cancelHistory,
+        account.Id
+      );
       insert cancelHistory;
 
       Test.startTest();
@@ -71,6 +75,10 @@ private class InvoiceProductGenerationHardeningTest {
         Version__c = 1,
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2026, 8, 31)
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
       );
       insert history;
 
