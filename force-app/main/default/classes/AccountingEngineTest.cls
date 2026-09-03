@@ -3,6 +3,7 @@ private class AccountingEngineTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
   }
 
   @IsTest
@@ -37,7 +38,7 @@ private class AccountingEngineTest {
   @IsTest
   static void freezeOnFirstConfirm_rejectsLaterChange() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       GlAccountingPolicyService.freezeOnFirstConfirm();
       GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
       System.assertNotEquals(null, policy.FrozenAt__c);
@@ -133,7 +134,7 @@ private class AccountingEngineTest {
   static void applyForInvoice_offSkipsGeneration() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Off');
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       markConfirmed(fixture.invoice);
       Test.startTest();
       AccountingDiffService.applyForInvoice(
@@ -439,7 +440,12 @@ private class AccountingEngineTest {
       fixture.invoice.TaxAmount__c = 100;
       InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
       Invoice__c invoice = [
-        SELECT Id, InvoiceDate__c, InvoiceTransactionStatus__c
+        SELECT
+          Id,
+          InvoiceDate__c,
+          InvoiceTransactionStatus__c,
+          BillingAccountSnapShot__c,
+          BillingAccountKeySnapShot__c
         FROM Invoice__c
         WHERE Id = :fixture.invoice.Id
       ];
@@ -513,7 +519,12 @@ private class AccountingEngineTest {
       fixture.invoice.TaxAmount__c = 100;
       InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
       Invoice__c invoice = [
-        SELECT Id, InvoiceDate__c, InvoiceTransactionStatus__c
+        SELECT
+          Id,
+          InvoiceDate__c,
+          InvoiceTransactionStatus__c,
+          BillingAccountSnapShot__c,
+          BillingAccountKeySnapShot__c
         FROM Invoice__c
         WHERE Id = :fixture.invoice.Id
       ];
@@ -524,7 +535,8 @@ private class AccountingEngineTest {
         Invoice__c = invoice.Id,
         InvoiceLine__c = fixture.line.Id,
         JournalPatternKey__c = 'BILLING_BASIS_INVOICE_BODY',
-        RecognitionSequence__c = 0
+        RecognitionSequence__c = 0,
+        TransactionStatus__c = 'Active'
       );
       Test.startTest();
       List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
@@ -549,7 +561,7 @@ private class AccountingEngineTest {
   static void applyForInvoice_offConfirmDoesNotCancelLeftovers() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Keep');
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       markConfirmed(fixture.invoice);
       GlAccount__c debit = new GlAccount__c(
         Name = 'Keep Debit',
@@ -596,7 +608,7 @@ private class AccountingEngineTest {
   static void acceptance_rejectsCancelledInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('AccCancel');
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       markConfirmed(fixture.invoice);
       markCancelled(fixture.invoice);
 
@@ -633,7 +645,7 @@ private class AccountingEngineTest {
   static void acceptance_offAllowsLogicallyDeletedLeftover() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('OffDel');
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       markConfirmed(fixture.invoice);
       insert new GlJournal__c(
         Invoice__c = fixture.invoice.Id,
@@ -674,7 +686,7 @@ private class AccountingEngineTest {
   static void acceptance_offRejectsActiveCurrent() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('OffAct');
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       markConfirmed(fixture.invoice);
       insert new GlJournal__c(
         Invoice__c = fixture.invoice.Id,
@@ -718,6 +730,14 @@ private class AccountingEngineTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('NoPol');
       markConfirmed(fixture.invoice);
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.MIGRATE_ALL => true
+      };
+      try {
+        delete [SELECT Id FROM GlAccountingPolicy__c];
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
       Boolean thrown = false;
       try {
         InvoiceCanonicalService.updateLineAcceptanceEndDates(
@@ -937,7 +957,7 @@ private class AccountingEngineTest {
   static void journal_rejectsPhysicalDelete() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Del');
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       GlAccount__c debit = new GlAccount__c(
         Name = 'Del Debit',
         AccountType__c = 'Asset',
@@ -975,7 +995,7 @@ private class AccountingEngineTest {
   static void journal_allowsPhysicalDeleteWith104() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Del104');
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       GlAccount__c debit = new GlAccount__c(
         Name = 'Del104 Debit',
         AccountType__c = 'Asset',
@@ -1345,7 +1365,7 @@ private class AccountingEngineTest {
   @IsTest
   static void journalLock_rejectsWhenAccountingOff() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      insert GlAccountingPolicyService.newOrgDefault();
+      ensureAccountingOffPolicy();
       Fixture fixture = createFixture('lockoff');
       Boolean thrown = false;
       try {
@@ -1688,7 +1708,7 @@ private class AccountingEngineTest {
       policy.AccountingEnabled__c = true;
       policy.TaxRecognitionTiming__c = 'AtRecognition';
       policy.RoundingTargetBucket__c = 'First';
-      insert policy;
+      policy = saveOrgPolicy(policy);
       seedMaps();
       markConfirmed(fixture.invoice);
       Invoice__c invoice = [
@@ -1751,7 +1771,7 @@ private class AccountingEngineTest {
       policy.AccountingEnabled__c = true;
       policy.RevenueRecognitionBasis__c = 'CashBasis';
       policy.RoundingTargetBucket__c = 'Last';
-      insert policy;
+      policy = saveOrgPolicy(policy);
       seedMaps();
       markConfirmed(fixture.invoice);
       Invoice__c invoice = [
@@ -1827,7 +1847,7 @@ private class AccountingEngineTest {
       policy.RevenueRecognitionBasis__c = 'BillingBasis';
       policy.TaxRecognitionTiming__c = 'AtInvoice';
       policy.RoundingTargetBucket__c = 'Last';
-      insert policy;
+      policy = saveOrgPolicy(policy);
       seedMaps();
       markConfirmed(fixture.invoice);
       Invoice__c invoice = [
@@ -1967,7 +1987,7 @@ private class AccountingEngineTest {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
       policy.AccountingEnabled__c = true;
       policy.MonthlyBucketMethod__c = 'CalendarMonth';
-      insert policy;
+      policy = saveOrgPolicy(policy);
       seedMaps();
       markConfirmed(fixture.invoice);
       Invoice__c invoice = [
@@ -2030,7 +2050,7 @@ private class AccountingEngineTest {
       policy.AccountingEnabled__c = true;
       policy.RevenueRecognitionBasis__c = 'BillingBasis';
       policy.TaxRecognitionTiming__c = 'AtRecognition';
-      insert policy;
+      policy = saveOrgPolicy(policy);
       seedMaps();
       markConfirmed(fixture.invoice);
       InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
@@ -2137,7 +2157,7 @@ private class AccountingEngineTest {
       policy.RevenueRecognitionBasis__c = 'BillingBasis';
       policy.TaxRecognitionTiming__c = 'AtRecognition';
       policy.RoundingTargetBucket__c = 'Last';
-      insert policy;
+      policy = saveOrgPolicy(policy);
       seedMaps();
       markConfirmed(fixture.invoice);
       InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
@@ -2277,7 +2297,7 @@ private class AccountingEngineTest {
       policy.RevenueRecognitionBasis__c = 'CashBasis';
       policy.TaxRecognitionTiming__c = 'AtRecognition';
       policy.RoundingTargetBucket__c = 'Last';
-      insert policy;
+      policy = saveOrgPolicy(policy);
       seedMaps();
       markConfirmed(fixture.invoice);
       InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
@@ -2521,6 +2541,10 @@ private class AccountingEngineTest {
       historystatus__c = 'Ordered',
       Version__c = 1
     );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     insert history;
     Product2 product = ContractTestDataFactory.buildProduct('Engine Prod ' + suffix);
     product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
@@ -2600,9 +2624,41 @@ private class AccountingEngineTest {
   }
 
   private static void enableAccounting() {
-    GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
-    policy.AccountingEnabled__c = true;
-    insert policy;
+    GlAccountingPolicy__c policy = ContractTestDataFactory.ensureOrgAccountingPolicy();
+    if (policy.AccountingEnabled__c != true) {
+      policy.AccountingEnabled__c = true;
+      update policy;
+    }
+  }
+
+  private static void ensureAccountingOffPolicy() {
+    GlAccountingPolicy__c policy = ContractTestDataFactory.ensureOrgAccountingPolicy();
+    if (policy.AccountingEnabled__c == true) {
+      policy.AccountingEnabled__c = false;
+      update policy;
+    }
+  }
+
+  private static GlAccountingPolicy__c saveOrgPolicy(GlAccountingPolicy__c overlay) {
+    GlAccountingPolicy__c policy = ContractTestDataFactory.ensureOrgAccountingPolicy();
+    policy.AccountingEnabled__c = overlay.AccountingEnabled__c == true;
+    if (overlay.RevenueRecognitionBasis__c != null) {
+      policy.RevenueRecognitionBasis__c = overlay.RevenueRecognitionBasis__c;
+    }
+    if (overlay.TaxRecognitionTiming__c != null) {
+      policy.TaxRecognitionTiming__c = overlay.TaxRecognitionTiming__c;
+    }
+    if (overlay.MonthlyBucketMethod__c != null) {
+      policy.MonthlyBucketMethod__c = overlay.MonthlyBucketMethod__c;
+    }
+    if (overlay.MonthlyRecognitionDatePosition__c != null) {
+      policy.MonthlyRecognitionDatePosition__c = overlay.MonthlyRecognitionDatePosition__c;
+    }
+    if (overlay.RoundingTargetBucket__c != null) {
+      policy.RoundingTargetBucket__c = overlay.RoundingTargetBucket__c;
+    }
+    update policy;
+    return policy;
   }
 
   private static void seedMaps() {
