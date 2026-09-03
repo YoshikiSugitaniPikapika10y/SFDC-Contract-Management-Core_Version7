@@ -71,7 +71,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         thrown = true;
         System.assertEquals(
-          '???E?????E????????????E',
+          '未確定請求を直す権限がありません。',
           ex.getMessage()
         );
       } finally {
@@ -107,7 +107,7 @@ private class InvoiceCanonicalServiceTest {
       );
     } catch (InvoiceCanonicalService.InvoiceEditException ex) {
       thrown = true;
-      System.assertEquals('??????E?E?????E', ex.getMessage());
+      System.assertEquals('明細と金額は必須です。', ex.getMessage());
     }
     System.assertEquals(true, thrown);
   }
@@ -466,7 +466,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException e) {
         threw = true;
         System.assert(
-          e.getMessage().contains('?????'),
+          e.getMessage().contains('分割先の入金予定日は必須です'),
           e.getMessage()
         );
       }
@@ -704,7 +704,8 @@ private class InvoiceCanonicalServiceTest {
           Id,
           PeriodLineAmountTotal__c,
           ContractService__c,
-          ContractHistory__c
+          ContractHistory__c,
+          TaxPercent__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
@@ -744,6 +745,7 @@ private class InvoiceCanonicalServiceTest {
         InvoiceDate__c = Date.newInstance(2026, 9, 1),
         Amount__c = 0,
         TaxAmount__c = 0,
+        TaxPercent__c = source.TaxPercent__c,
         PeriodLineAmountTotal__c = 0
       );
       insert target;
@@ -1071,11 +1073,13 @@ private class InvoiceCanonicalServiceTest {
         LIMIT 1
       ];
 
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       update new Invoice__c(
         Id = target.Id,
         InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
       );
+      InvoiceTransactionStatusService.allowStatusWrite = false;
 
       Decimal sourceAmountBefore = [
         SELECT Amount__c
@@ -1175,7 +1179,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         failed = true;
         System.assertEquals(
-          '?? Version?E???E????E??E??????E???????E',
+          '同一 Version（契約履歴）の請求へだけ明細を移せます。',
           ex.getMessage()
         );
       }
@@ -1290,35 +1294,41 @@ private class InvoiceCanonicalServiceTest {
         invoiceSeed.PaymentScheduledDate__c
       );
       insert new List<InvoiceProduct__c>{
-        new InvoiceProduct__c(
-          ContractHistory__c = fixture.history.Id,
-          ContractProduct__c = cpB.Id,
-          InvoiceBucketKey__c = bucketKey,
-          StartDate__c = Date.newInstance(2026, 6, 1),
-          Enddate__c = Date.newInstance(2026, 6, 30),
-          Quantity__c = 1,
-          UnitPrice__c = 10000,
-          Amount__c = 10000
+        withLineBucketKey(
+          new InvoiceProduct__c(
+            ContractHistory__c = fixture.history.Id,
+            ContractProduct__c = cpB.Id,
+            InvoiceBucketKey__c = bucketKey,
+            StartDate__c = Date.newInstance(2026, 6, 1),
+            Enddate__c = Date.newInstance(2026, 6, 30),
+            Quantity__c = 1,
+            UnitPrice__c = 10000,
+            Amount__c = 10000
+          )
         ),
-        new InvoiceProduct__c(
-          ContractHistory__c = fixture.history.Id,
-          ContractProduct__c = cpB.Id,
-          InvoiceBucketKey__c = bucketKey,
-          StartDate__c = Date.newInstance(2026, 7, 1),
-          Enddate__c = Date.newInstance(2026, 7, 31),
-          Quantity__c = 1,
-          UnitPrice__c = 10000,
-          Amount__c = 10000
+        withLineBucketKey(
+          new InvoiceProduct__c(
+            ContractHistory__c = fixture.history.Id,
+            ContractProduct__c = cpB.Id,
+            InvoiceBucketKey__c = bucketKey,
+            StartDate__c = Date.newInstance(2026, 7, 1),
+            Enddate__c = Date.newInstance(2026, 7, 31),
+            Quantity__c = 1,
+            UnitPrice__c = 10000,
+            Amount__c = 10000
+          )
         ),
-        new InvoiceProduct__c(
-          ContractHistory__c = fixture.history.Id,
-          ContractProduct__c = cpB.Id,
-          InvoiceBucketKey__c = bucketKey,
-          StartDate__c = Date.newInstance(2026, 8, 1),
-          Enddate__c = Date.newInstance(2026, 8, 31),
-          Quantity__c = 1,
-          UnitPrice__c = 10000,
-          Amount__c = 10000
+        withLineBucketKey(
+          new InvoiceProduct__c(
+            ContractHistory__c = fixture.history.Id,
+            ContractProduct__c = cpB.Id,
+            InvoiceBucketKey__c = bucketKey,
+            StartDate__c = Date.newInstance(2026, 8, 1),
+            Enddate__c = Date.newInstance(2026, 8, 31),
+            Quantity__c = 1,
+            UnitPrice__c = 10000,
+            Amount__c = 10000
+          )
         )
       };
 
@@ -2232,11 +2242,13 @@ private class InvoiceCanonicalServiceTest {
         WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       update new Invoice__c(
         Id = line.Invoice__c,
         InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         SystemIntegrationDate__c = Date.today()
       );
+      InvoiceTransactionStatusService.allowStatusWrite = false;
 
       InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
       split.lineId = line.Id;
@@ -2628,11 +2640,11 @@ private class InvoiceCanonicalServiceTest {
         WHERE Id = :invoice.Id
       ];
       System.assertEquals(
-        '??E????',
+        baBefore.BillingAddressee__c,
         invoiceAfter.BillingAddresseeSnapShot__c
       );
       System.assertEquals(
-        'edited@example.com',
+        baBefore.BillingEmailTo__c,
         invoiceAfter.BillingEmailToSnapShot__c
       );
     }
@@ -2716,7 +2728,7 @@ private class InvoiceCanonicalServiceTest {
       System.assertEquals(
         InvoiceDeliveryMethodService.POST,
         created.InvoiceDeliveryMethodSnapShot__c,
-        'Core 第3.3.7節: 分割先請求へ届け方をスナップショットする'
+        'Core 第3.3.7節: 分割で新しく請求を作るとき届け方をスナップショットする'
       );
       System.assertEquals(true, created.IsManuallyAdjusted__c);
     }
@@ -2826,61 +2838,25 @@ private class InvoiceCanonicalServiceTest {
   @IsTest
   static void historyDelete_clearsCanonicalForEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      // ?EOrdered ????????????????? Invoice ????????E???
-      Fixture fixture = createOrderedFixture();
-      Id historyId = fixture.history.Id;
-      Id contractProductId = [
-        SELECT Id
-        FROM ContractProduct__c
-        WHERE ContractHistory__c = :historyId
-        LIMIT 1
-      ]
-      .Id;
-
-      fixture.history.historystatus__c = 'Estimate';
-      update fixture.history;
-      System.assertEquals(
-        0,
-        [
-          SELECT COUNT()
-          FROM Invoice__c
-          WHERE ContractHistory__c = :historyId
-        ],
-        '????????E???E'
-      );
-
-      insert new InvoiceProduct__c(
-        ContractHistory__c = historyId,
-        ContractProduct__c = contractProductId,
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2026, 6, 30),
-        Amount__c = 1000
-      );
-      insert new Invoice__c(
-        ContractHistory__c = historyId,
-        ContractService__c = fixture.history.ContractService__c,
-        InvoiceDate__c = Date.newInstance(2026, 6, 1),
-        Amount__c = 1000,
-        TaxAmount__c = 100
-      );
-
-      Test.startTest();
-      delete fixture.history;
-      Test.stopTest();
-
-      System.assertEquals(
-        0,
-        [SELECT COUNT() FROM Invoice__c WHERE ContractHistory__c = :historyId]
-      );
+      Fixture fixture = createFixture('Estimate');
+      Boolean blocked = false;
+      try {
+        delete fixture.history;
+      } catch (DmlException ex) {
+        blocked = true;
+        System.assert(
+          ex.getMessage().contains('契約履歴は物理削除できません'),
+          'Core 第3.4節: 契約履歴は物理削除しない'
+        );
+      }
+      System.assertEquals(true, blocked);
     }
   }
 
   @IsTest
   static void rebuildForHistories_rejectsNonOrderedHistory() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createOrderedFixture();
-      fixture.history.historystatus__c = 'Estimate';
-      update fixture.history;
+      Fixture fixture = createFixture('Estimate');
 
       Boolean thrown = false;
       try {
@@ -2890,7 +2866,7 @@ private class InvoiceCanonicalServiceTest {
       } catch (InvoiceCanonicalService.InvoiceEditException ex) {
         thrown = true;
         System.assertEquals(
-          '????????E???E?????????E????????E?????E',
+          '期間明細・請求・請求明細は受注済みの契約履歴にのみ作成できます。',
           ex.getMessage()
         );
       }
@@ -3024,12 +3000,14 @@ private class InvoiceCanonicalServiceTest {
       );
 
       // ?E???E?????????????E???????E???E?????
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       update new Invoice__c(
         Id = source.Id,
         InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
         CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED,
         PaymentClearingCompletedDate__c = Date.today()
       );
+      InvoiceTransactionStatusService.allowStatusWrite = false;
 
       InvoiceLine__c unlockedLine = [
         SELECT Id, Amount__c, Invoice__c
@@ -3546,8 +3524,8 @@ private class InvoiceCanonicalServiceTest {
         WHERE IdempotencyKey__c = 'CONF-TEXT-MANUAL'
       ];
       System.assertEquals(
-        '',
-        journal.ConfirmationText__c,
+        true,
+        String.isBlank(journal.ConfirmationText__c),
         'Accounting 第9.1.1節: 請求明細参照が空なら全文空'
       );
     }
@@ -3590,8 +3568,58 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
+  @IsTest
+  static void rebuildForHistories_snapshotsDeliveryMethod() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      ContractHistory__c history = [
+        SELECT ContractService__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
+      ContractService__c service = [
+        SELECT BiilingAcccount__c
+        FROM ContractService__c
+        WHERE Id = :history.ContractService__c
+      ];
+      BillingAccount__c account = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :service.BiilingAcccount__c
+      ];
+      account.InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST;
+      update account;
+
+      Test.startTest();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Test.stopTest();
+
+      Invoice__c created = [
+        SELECT InvoiceDeliveryMethodSnapShot__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        InvoiceDeliveryMethodService.POST,
+        created.InvoiceDeliveryMethodSnapShot__c,
+        'Core 第3.3.5節・第3.3.7節: 受注時再生成で届け方をスナップショットする'
+      );
+    }
+  }
+
   private static Decimal nvl(Decimal value) {
     return value == null ? 0 : value;
+  }
+
+  /** 仕様: Core 第6.7節。期間明細のキー欠落時に推測しない */
+  private static InvoiceProduct__c withLineBucketKey(InvoiceProduct__c row) {
+    row.LineBucketKey__c = InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(
+      row
+    );
+    return row;
   }
 
   private class Fixture {
@@ -3599,6 +3627,10 @@ private class InvoiceCanonicalServiceTest {
   }
 
   private static Fixture createOrderedFixture() {
+    return createFixture('Ordered');
+  }
+
+  private static Fixture createFixture(String historyStatus) {
     ContractTestDataFactory.ensureOrgAccountingPolicy();
     Account account = ContractTestDataFactory.insertAccount(
       'Canonical Invoice Account'
@@ -3630,10 +3662,14 @@ private class InvoiceCanonicalServiceTest {
       Name = 'Canonical History',
       ContractService__c = service.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = historyStatus,
       Version__c = 1,
       CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
       CurrentTermEndDate__c = Date.newInstance(2026, 8, 31)
+    );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
     );
     insert history;
 
@@ -3648,6 +3684,7 @@ private class InvoiceCanonicalServiceTest {
       Product__c = product.Id,
       Quantity__c = 1,
       UnitPrice__c = 10000,
+      Amount__c = 10000,
       Unit__c = 'ID',
       StartDate__c = Date.newInstance(2026, 6, 1),
       Enddate__c = Date.newInstance(2026, 8, 31),
@@ -3666,35 +3703,41 @@ private class InvoiceCanonicalServiceTest {
       paymentDate
     );
     insert new List<InvoiceProduct__c>{
-      new InvoiceProduct__c(
-        ContractHistory__c = history.Id,
-        ContractProduct__c = contractProduct.Id,
-        InvoiceBucketKey__c = bucketKey,
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2026, 6, 30),
-        Quantity__c = 1,
-        UnitPrice__c = 10000,
-        Amount__c = 10000
+      withLineBucketKey(
+        new InvoiceProduct__c(
+          ContractHistory__c = history.Id,
+          ContractProduct__c = contractProduct.Id,
+          InvoiceBucketKey__c = bucketKey,
+          StartDate__c = Date.newInstance(2026, 6, 1),
+          Enddate__c = Date.newInstance(2026, 6, 30),
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = 10000
+        )
       ),
-      new InvoiceProduct__c(
-        ContractHistory__c = history.Id,
-        ContractProduct__c = contractProduct.Id,
-        InvoiceBucketKey__c = bucketKey,
-        StartDate__c = Date.newInstance(2026, 7, 1),
-        Enddate__c = Date.newInstance(2026, 7, 31),
-        Quantity__c = 1,
-        UnitPrice__c = 10000,
-        Amount__c = 10000
+      withLineBucketKey(
+        new InvoiceProduct__c(
+          ContractHistory__c = history.Id,
+          ContractProduct__c = contractProduct.Id,
+          InvoiceBucketKey__c = bucketKey,
+          StartDate__c = Date.newInstance(2026, 7, 1),
+          Enddate__c = Date.newInstance(2026, 7, 31),
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = 10000
+        )
       ),
-      new InvoiceProduct__c(
-        ContractHistory__c = history.Id,
-        ContractProduct__c = contractProduct.Id,
-        InvoiceBucketKey__c = bucketKey,
-        StartDate__c = Date.newInstance(2026, 8, 1),
-        Enddate__c = Date.newInstance(2026, 8, 31),
-        Quantity__c = 1,
-        UnitPrice__c = 10000,
-        Amount__c = 10000
+      withLineBucketKey(
+        new InvoiceProduct__c(
+          ContractHistory__c = history.Id,
+          ContractProduct__c = contractProduct.Id,
+          InvoiceBucketKey__c = bucketKey,
+          StartDate__c = Date.newInstance(2026, 8, 1),
+          Enddate__c = Date.newInstance(2026, 8, 31),
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = 10000
+        )
       )
     };
 
