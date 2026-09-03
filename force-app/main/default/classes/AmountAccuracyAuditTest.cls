@@ -737,6 +737,17 @@ private class AmountAccuracyAuditTest {
         'Audit Cancel Opp'
       );
       Date termEnd = Date.newInstance(2027, 3, 31);
+      insert new ContractHistory__c(
+        Name = 'Audit Cancel Prior',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 4, 1),
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = Date.newInstance(2026, 4, 1)
+      );
       ContractHistory__c cancelHistory = new ContractHistory__c(
         Name = 'Audit Cancel History',
         ContractService__c = service.Id,
@@ -806,6 +817,10 @@ private class AmountAccuracyAuditTest {
         Version__c = 1,
         CurrentTermStartDate__c = termStart,
         CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
       );
       insert history;
       line.ContractHistory__c = history.Id;
