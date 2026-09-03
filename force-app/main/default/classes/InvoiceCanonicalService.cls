@@ -3402,6 +3402,7 @@ public without sharing class InvoiceCanonicalService {
           );
           if (nextBasis != priorBasis) {
             line.addError(EXISTING_BASIS_LOCKED_MESSAGE);
+            continue;
           }
         }
       }

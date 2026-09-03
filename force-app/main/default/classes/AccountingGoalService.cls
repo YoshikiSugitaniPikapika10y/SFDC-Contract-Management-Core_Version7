@@ -692,14 +692,16 @@ public without sharing class AccountingGoalService {
     Decimal beforeTarget = targetOf(policy, before, targetSlot, candidate);
     Decimal afterTarget = targetOf(policy, after, targetSlot, candidate);
     Decimal delta = afterTarget - beforeTarget;
-    // 仕様: Accounting 第4.6節・第6.2節。取り崩し容量は帰属する実行残高（本体／税スタンプ）と目標差の小さい方。
+    // 仕様: Accounting 第4.6節・第6.2節。取り崩し容量は対象明細・符号方向・対象スロットに帰属する実行残高と目標差の小さい方。
     Decimal running = attributedSlotBalance(before, targetSlot, candidate);
     if (delta > 0) {
       return delta;
     }
     if (delta < 0) {
       Decimal draw = -delta;
-      return running < draw ? max(running, 0) : draw;
+      // 仕様: Accounting 第4.6節。正額と負額は同じ算法を符号方向へ正規化する。取り崩し上限は帰属残高の絶対値。
+      Decimal available = nvl(running).abs();
+      return available < draw ? available : draw;
     }
     return 0;
   }
@@ -1117,11 +1119,13 @@ public without sharing class AccountingGoalService {
     ) {
       stampTotal += nvl(stamp.signedAmount);
     }
-    if (stampTotal <= 0) {
+    Integer sign = businessAmount < 0 ? -1 : 1;
+    Decimal available = max(stampTotal * sign, 0);
+    if (available <= 0) {
       return 0;
     }
-    Decimal take = businessAmount.abs() < stampTotal ? businessAmount.abs() : stampTotal;
-    return take * (businessAmount < 0 ? -1 : 1);
+    Decimal take = businessAmount.abs() < available ? businessAmount.abs() : available;
+    return take * sign;
   }
 
   private static Boolean increasesSlot(Candidate split, String targetSlot) {
@@ -1146,7 +1150,7 @@ public without sharing class AccountingGoalService {
       return rows;
     }
     for (AccountStamp stamp : byAccount.values()) {
-      if (stamp == null || nvl(stamp.signedAmount) <= 0) {
+      if (stamp == null || nvl(stamp.signedAmount) == 0) {
         continue;
       }
       if (originKind != null && stamp.originKind != originKind) {
@@ -1189,7 +1193,7 @@ public without sharing class AccountingGoalService {
     List<Integer> amounts = new List<Integer>();
     Integer assigned = 0;
     for (AccountStamp stamp : balances) {
-      Integer remaining = nvl(stamp.signedAmount).intValue();
+      Integer remaining = nvl(stamp.signedAmount).abs().intValue();
       amounts.add(remaining * sign);
       assigned += remaining;
     }
@@ -1284,14 +1288,11 @@ public without sharing class AccountingGoalService {
     if (candidate.isManual) {
       return;
     }
-    if (candidate.debitAccountId != null && candidate.creditAccountId != null) {
+    // 仕様: Accounting 第8.2節手順6・第8.8節。片側がスタンプ済みでも同一生成単位の元仕訳があれば実勘定を維持する。
+    if (reuseOriginalAccounts(candidate, currentJournals)) {
       return;
     }
-    if (
-      candidate.debitAccountId == null &&
-      candidate.creditAccountId == null &&
-      reuseOriginalAccounts(candidate, currentJournals)
-    ) {
+    if (candidate.debitAccountId != null && candidate.creditAccountId != null) {
       return;
     }
     String contextName = evaluationContext(candidate);
@@ -1935,6 +1936,7 @@ public without sharing class AccountingGoalService {
     return books.get(key);
   }
 
+  /** 仕様: Accounting 第4.6節。取り崩し容量は帰属する実行残高（スタンプ）を見る。複写から落とさない。 */
   private static LineBook snapshot(LineBook source) {
     LineBook copy = new LineBook();
     copy.billedBody = source.billedBody;
@@ -1943,6 +1945,9 @@ public without sharing class AccountingGoalService {
     copy.recognizedTax = source.recognizedTax;
     copy.paid = source.paid;
     copy.slots = source.slots.clone();
+    for (String slotKey : source.accountStamps.keySet()) {
+      copy.accountStamps.put(slotKey, source.accountStamps.get(slotKey).clone());
+    }
     return copy;
   }
 
