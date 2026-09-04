@@ -94,9 +94,9 @@ private class InvoicePaymentTriggerHandlerTest {
         );
         System.assert(false, '未確定請求への入金は失敗するはず');
       } catch (DmlException ex) {
-        System.assert(
-          ex.getMessage()
-            .contains(InvoicePaymentTriggerHandler.DRAFT_PAYMENT_BLOCK_MESSAGE),
+        System.assertEquals(
+          InvoicePaymentTriggerHandler.DRAFT_PAYMENT_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
           ex.getMessage()
         );
       }
@@ -118,9 +118,9 @@ private class InvoicePaymentTriggerHandlerTest {
         );
         System.assert(false, '0円入金は失敗するはず');
       } catch (DmlException ex) {
-        System.assert(
-          ex.getMessage()
-            .contains(InvoicePaymentTriggerHandler.ZERO_AMOUNT_BLOCK_MESSAGE),
+        System.assertEquals(
+          InvoicePaymentTriggerHandler.ZERO_AMOUNT_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
           ex.getMessage()
         );
       }
@@ -275,9 +275,9 @@ private class InvoicePaymentTriggerHandlerTest {
         );
         System.assert(false, '権限なしは失敗するはず');
       } catch (DmlException ex) {
-        System.assert(
-          ex.getMessage()
-            .contains(InvoicePaymentTriggerHandler.PERMISSION_REQUIRED_MESSAGE),
+        System.assertEquals(
+          InvoicePaymentTriggerHandler.PERMISSION_REQUIRED_MESSAGE,
+          ex.getDmlMessage(0),
           ex.getMessage()
         );
       }
@@ -314,10 +314,9 @@ private class InvoicePaymentTriggerHandlerTest {
         update payment;
         System.assert(false, '未ロックでも直接更新は禁止');
       } catch (DmlException ex) {
-        System.assert(
-          ex.getMessage().contains(
-            InvoicePaymentLockUtil.NEVER_EXEMPT_MESSAGE
-          ),
+        System.assertEquals(
+          InvoicePaymentLockUtil.NEVER_EXEMPT_MESSAGE,
+          ex.getDmlMessage(0),
           'Core 第11.6節: 金額は除外一覧に書いても不可。実際: ' + ex.getMessage()
         );
       }
@@ -339,9 +338,9 @@ private class InvoicePaymentTriggerHandlerTest {
         delete payment;
         System.assert(false, '入出金の物理削除は禁止');
       } catch (DmlException ex) {
-        System.assert(
-          ex.getMessage()
-            .contains(InvoicePaymentTriggerHandler.DELETE_BLOCK_MESSAGE),
+        System.assertEquals(
+          InvoicePaymentTriggerHandler.DELETE_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
           ex.getMessage()
         );
       }
@@ -425,11 +424,9 @@ private class InvoicePaymentTriggerHandlerTest {
         );
         System.assert(false, '割当なしの請求金額入出金は失敗するはず');
       } catch (DmlException ex) {
-        System.assert(
-          ex.getMessage()
-            .contains(
-              InvoicePaymentTriggerHandler.INVOICE_ALLOCATION_REQUIRED_MESSAGE
-            ),
+        System.assertEquals(
+          InvoicePaymentTriggerHandler.INVOICE_ALLOCATION_REQUIRED_MESSAGE,
+          ex.getDmlMessage(0),
           ex.getMessage()
         );
       }
@@ -441,24 +438,22 @@ private class InvoicePaymentTriggerHandlerTest {
   static void unknownPurpose_blocksPayment() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = createInvoice('Confirmed');
+      InvoicePayment__c payment = new InvoicePayment__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 100,
+        PaymentPurpose__c = 'Collection',
+        PaymentDate__c = Date.today()
+      );
       Test.startTest();
-      try {
-        insert new InvoicePayment__c(
-          Invoice__c = invoice.Id,
-          Amount__c = 100,
-          PaymentPurpose__c = 'Collection',
-          PaymentDate__c = Date.today()
-        );
-        System.assert(false, '旧4種別の目的は失敗するはず');
-      } catch (DmlException ex) {
-        System.assert(
-          ex.getMessage()
-            .contains(InvoicePaymentTriggerHandler.PURPOSE_BLOCK_MESSAGE) ||
-            ex.getMessage().contains('PaymentPurpose'),
-          ex.getMessage()
-        );
-      }
+      InvoicePaymentTriggerHandler.handleBeforeInsert(
+        new List<InvoicePayment__c>{ payment }
+      );
       Test.stopTest();
+      System.assertEquals(
+        InvoicePaymentTriggerHandler.PURPOSE_BLOCK_MESSAGE,
+        payment.getErrors()[0].getMessage(),
+        'Core 第8.1節: 入出金目的は請求金額または請求金額以外'
+      );
     }
   }
 
