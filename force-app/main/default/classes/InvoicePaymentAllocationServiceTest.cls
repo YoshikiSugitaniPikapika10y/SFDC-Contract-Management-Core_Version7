@@ -16,8 +16,9 @@ private class InvoicePaymentAllocationServiceTest {
       );
     } catch (Exception ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('明細別割当が1件以上必要'),
+      System.assertEquals(
+        '請求金額の入出金は明細別割当が1件以上必要です。',
+        ex.getMessage(),
         'Core 第8.6節: Invoice目的は明細別割当が1件以上必須'
       );
     }
@@ -40,8 +41,9 @@ private class InvoicePaymentAllocationServiceTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('合計は親の金額と一致'),
+        System.assertEquals(
+          '明細別割当の合計は親の金額と一致させてください。',
+          ex.getMessage(),
           'Core 第8.6節: 割当合計は親Amountと完全一致'
         );
       }
@@ -71,8 +73,9 @@ private class InvoicePaymentAllocationServiceTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('同じ請求明細へ重複して割り当てられません'),
+        System.assertEquals(
+          '同じ請求明細へ重複して割り当てられません。',
+          ex.getMessage(),
           'Core 第8.6節: 同じ請求明細を重複させない'
         );
       }
@@ -97,8 +100,9 @@ private class InvoicePaymentAllocationServiceTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('親と同じ請求書の請求明細だけ'),
+        System.assertEquals(
+          '明細別割当は親と同じ請求書の請求明細だけを指定できます。',
+          ex.getMessage(),
           'Core 第8.6節: 割当先は親と同じ請求書の明細だけ'
         );
       }
@@ -115,8 +119,9 @@ private class InvoicePaymentAllocationServiceTest {
         InvoicePaymentAllocationService.proposeLines(invoice.Id, 1100);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('明細別割当が1件以上必要'),
+        System.assertEquals(
+          '請求金額の入出金は明細別割当が1件以上必要です。',
+          ex.getMessage(),
           'Core 第8.6節: 請求明細が無いInvoice目的は割当を作れない'
         );
       }
@@ -208,8 +213,9 @@ private class InvoicePaymentAllocationServiceTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('処理可能残額以内'),
+        System.assertEquals(
+          '明細別割当は各明細の処理可能残額以内にしてください。',
+          ex.getMessage(),
           'Core 第8.6節: 残額と異符号の割当は処理可能残額を超える'
         );
       }
@@ -236,8 +242,9 @@ private class InvoicePaymentAllocationServiceTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('処理可能残額以内'),
+        System.assertEquals(
+          '明細別割当は各明細の処理可能残額以内にしてください。',
+          ex.getMessage(),
           'Core 第8.6節: 明細の処理可能残額を超えた割当を拒否する'
         );
       }
@@ -264,8 +271,9 @@ private class InvoicePaymentAllocationServiceTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('全明細の未処理税込残額を0'),
+        System.assertEquals(
+          '最終決済では全明細の未処理税込残額を0にしてください。',
+          ex.getMessage(),
           'Core 第8.6節: ヘッダ完了なのに明細残が残る保存を拒否する'
         );
       }
@@ -284,9 +292,9 @@ private class InvoicePaymentAllocationServiceTest {
     } catch (Exception ex) {
       nullPayment = ex;
     }
-    System.assert(
-      nullPayment != null &&
-      nullPayment.getMessage().contains('請求入出金が指定されていません'),
+    System.assertEquals(
+      '請求入出金が指定されていません。',
+      nullPayment == null ? null : nullPayment.getMessage(),
       'Core 第8.1節: 割当先の請求入出金は必須'
     );
 
@@ -296,9 +304,9 @@ private class InvoicePaymentAllocationServiceTest {
     } catch (Exception ex) {
       proposeBlank = ex;
     }
-    System.assert(
-      proposeBlank != null &&
-      proposeBlank.getMessage().contains('明細別割当の初期値を作れません'),
+    System.assertEquals(
+      '明細別割当の初期値を作れません。',
+      proposeBlank == null ? null : proposeBlank.getMessage(),
       'Core 第8.6節: 親金額0や請求書空では初期配分できない'
     );
 
@@ -315,9 +323,9 @@ private class InvoicePaymentAllocationServiceTest {
     } catch (Exception ex) {
       fractionEx = ex;
     }
-    System.assert(
-      fractionEx != null &&
-      fractionEx.getMessage().contains('明細別割当の金額は整数にしてください'),
+    System.assertEquals(
+      '明細別割当の金額は整数にしてください。',
+      fractionEx == null ? null : fractionEx.getMessage(),
       'Core 第8.6節: 割当額は符号付き整数'
     );
 
@@ -405,9 +413,9 @@ private class InvoicePaymentAllocationServiceTest {
       } catch (Exception ex) {
         nonInvoiceEx = ex;
       }
-      System.assert(
-        nonInvoiceEx != null &&
-        nonInvoiceEx.getMessage().contains('請求金額以外の入出金に明細別割当は持てません'),
+      System.assertEquals(
+        '請求金額以外の入出金に明細別割当は持てません。',
+        nonInvoiceEx == null ? null : nonInvoiceEx.getMessage(),
         'Core 第8.6節: Purpose=NonInvoiceは明細別割当を持たない'
       );
     }
@@ -444,8 +452,9 @@ private class InvoicePaymentAllocationServiceTest {
         update allocation;
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('直接編集できません'),
+        System.assertEquals(
+          InvoicePaymentAllocationService.HISTORICAL_AMOUNT_EDIT_MESSAGE,
+          ex.getDmlMessage(0),
           'Core 第8.6節、Accounting 第4.4節: 利用者が過去日UAC／SP振替額を直接編集できない'
         );
       }
