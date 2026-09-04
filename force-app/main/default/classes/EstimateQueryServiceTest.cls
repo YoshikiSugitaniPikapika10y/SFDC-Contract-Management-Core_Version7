@@ -199,13 +199,25 @@ private class EstimateQueryServiceTest {
         EstimateQueryService.getEstimateCopyPreset(null);
       } catch (AuraHandledException ex) {
         nullThrown = true;
-        System.assert(
-          ex.getMessage().contains('コピー元の契約履歴が指定されていません') ||
-            ex.getMessage().contains('Script-thrown exception'),
+        System.assertEquals(
+          'コピー元の契約履歴が指定されていません。',
+          ex.getMessage(),
           'Core 第4.7節: コピー元Idが空なら指定なしで拒否'
         );
       }
       System.assertEquals(true, nullThrown);
+      Boolean editNullThrown = false;
+      try {
+        EstimateQueryService.getEstimateEditPreset(null);
+      } catch (AuraHandledException ex) {
+        editNullThrown = true;
+        System.assertEquals(
+          '編集元の契約履歴が指定されていません。',
+          ex.getMessage(),
+          'Core 第4.7節: 編集元Idが空なら指定なしで拒否'
+        );
+      }
+      System.assertEquals(true, editNullThrown);
       Boolean missingThrown = false;
       try {
         EstimateQueryService.getEstimateCopyPreset(
@@ -214,12 +226,13 @@ private class EstimateQueryServiceTest {
         );
       } catch (AuraHandledException ex) {
         missingThrown = true;
+        System.assertEquals(
+          '契約履歴が見つかりません。',
+          ex.getMessage(),
+          'Core 第4.7節: 契約履歴が無ければ拒否'
+        );
       }
-      System.assertEquals(
-        true,
-        missingThrown,
-        'Core 第4.7節: 契約履歴が無ければ拒否'
-      );
+      System.assertEquals(true, missingThrown);
     }
   }
 
@@ -386,12 +399,13 @@ private class EstimateQueryServiceTest {
         EstimateQueryService.getEstimateCopyPreset(ordered.Id);
       } catch (AuraHandledException ex) {
         thrown = true;
+        System.assertEquals(
+          'Estimate状態の契約履歴のみコピーできます。',
+          ex.getMessage(),
+          'Core 第4.7節: コピー元はEstimateだけ'
+        );
       }
-      System.assertEquals(
-        true,
-        thrown,
-        'Core 第4.7節: コピー元はEstimateだけ'
-      );
+      System.assertEquals(true, thrown);
     }
   }
 
@@ -418,12 +432,13 @@ private class EstimateQueryServiceTest {
         EstimateQueryService.getEstimateEditPreset(archived.Id);
       } catch (AuraHandledException ex) {
         thrown = true;
+        System.assertEquals(
+          'Estimate / Ordered 状態の契約履歴のみ編集できます。',
+          ex.getMessage(),
+          'Core 第4.7節: Archiveは編集できない'
+        );
       }
-      System.assertEquals(
-        true,
-        thrown,
-        'Core 第4.7節: Archiveは編集できない'
-      );
+      System.assertEquals(true, thrown);
     }
   }
 
@@ -489,9 +504,9 @@ private class EstimateQueryServiceTest {
         EstimateQueryService.getProductDefaults(unavailable.Id);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('契約管理で利用可能な商品のみ選択できます') ||
-            ex.getMessage().contains('Script-thrown exception'),
+        System.assertEquals(
+          '[EST-S3-New-026] 契約管理で利用可能な商品のみ選択できます。',
+          ex.getMessage(),
           'Core 第4.3.7節: 契約利用不可の商品は拒否する'
         );
       }

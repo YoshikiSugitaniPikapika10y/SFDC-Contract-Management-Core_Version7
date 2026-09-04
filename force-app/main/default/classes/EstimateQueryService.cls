@@ -298,13 +298,14 @@ public without sharing class EstimateQueryService {
     return buildEstimatePreset(contractHistoryId, true);
   }
 
+  /** 仕様: Core 第4.7節・第0.1節。コピー元はEstimateだけ。Archiveは編集できない。人が見る拒否文は日本語で返す。 */
   public static EstimateCreateController.EstimateCopyPresetDto buildEstimatePreset(
     Id contractHistoryId,
     Boolean forEdit
   ) {
     String actionLabel = forEdit == true ? '編集' : 'コピー';
     if (contractHistoryId == null) {
-      throw new AuraHandledException(
+      throw EstimateValidationService.wrapAura(
         actionLabel + '元の契約履歴が指定されていません。'
       );
     }
@@ -353,7 +354,7 @@ public without sharing class EstimateQueryService {
     List<ContractHistory__c> histories = Database.query(historySoql);
 
     if (histories.isEmpty()) {
-      throw new AuraHandledException('契約履歴が見つかりません。');
+      throw EstimateValidationService.wrapAura('契約履歴が見つかりません。');
     }
 
     ContractHistory__c history = histories[0];
@@ -362,17 +363,17 @@ public without sharing class EstimateQueryService {
         history.historystatus__c != HISTORY_STATUS_ESTIMATE &&
         history.historystatus__c != HISTORY_STATUS_ORDERED
       ) {
-        throw new AuraHandledException(
+        throw EstimateValidationService.wrapAura(
           'Estimate / Ordered 状態の契約履歴のみ編集できます。'
         );
       }
     } else if (history.historystatus__c != HISTORY_STATUS_ESTIMATE) {
-      throw new AuraHandledException(
+      throw EstimateValidationService.wrapAura(
         'Estimate状態の契約履歴のみ' + actionLabel + 'できます。'
       );
     }
     if (history.Opportunity__c == null) {
-      throw new AuraHandledException('商談が設定されていません。');
+      throw EstimateValidationService.wrapAura('商談が設定されていません。');
     }
 
     EstimateCreateController.EstimateCopyPresetDto preset = new EstimateCreateController.EstimateCopyPresetDto();
