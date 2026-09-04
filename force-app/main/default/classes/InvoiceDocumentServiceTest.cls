@@ -54,23 +54,10 @@ private class InvoiceDocumentServiceTest {
         );
       }
       System.assertEquals(true, thrown, 'Draft の直接PDF表示も拒否すること');
-      System.assert(
-        InvoiceDocumentService.STATUS_REQUIRED_MESSAGE.contains('請求取引状態'),
-        'Core 第0.1節・第7.11節: 拒否は請求取引状態を指す'
-      );
-      System.assert(
-        InvoiceDocumentService.STATUS_REQUIRED_MESSAGE.contains('確定済み'),
-        'Core 第7.10節: 確定済み請求だけ発行できる'
-      );
       System.assertEquals(
-        false,
-        InvoiceDocumentService.STATUS_REQUIRED_MESSAGE.contains('回収ステータス'),
-        'Core 第7.11節: 回収・返金状態では発行可否を決めない'
-      );
-      System.assertEquals(
-        false,
-        InvoiceDocumentService.STATUS_REQUIRED_MESSAGE.contains('Confirmed'),
-        'Core 第0.1節: 人が見る拒否文に Confirmed と出さない'
+        '請求書の表示・発行は請求取引状態が確定済みの請求のみ利用できます。',
+        InvoiceDocumentService.STATUS_REQUIRED_MESSAGE,
+        'Core 第0.1節・第7.10節・第7.11節: 拒否は請求取引状態の確定済み。回収ステータスや Confirmed は出さない'
       );
     }
   }
@@ -87,9 +74,9 @@ private class InvoiceDocumentServiceTest {
     String fileName = InvoiceDocumentService.buildFileName(invoice, null);
 
     System.assertEquals(
-      true,
-      fileName.contains(compact),
-      '日付仕様 第8章: 請求日未設定のファイル名の今日は組織タイムゾーン'
+      'Invoice_請求書_' + compact + '.pdf',
+      fileName,
+      '日付仕様 第8章: 請求日未設定のファイル名の今日は組織タイムゾーン。宛名空は請求書'
     );
   }
 
@@ -129,7 +116,11 @@ private class InvoiceDocumentServiceTest {
         saved.PathOnClient,
         'Core 第11.3.2節: 請求の {Title} は宛名スナップショット'
       );
-      System.assert(saved.VersionData.size() > 0, 'テスト用PDF Blobを保存すること');
+      System.assertEquals(
+        Blob.valueOf('%PDF-1.4 invoice test').toString(),
+        saved.VersionData.toString(),
+        'テスト実行中の発行本文はダミーPDF'
+      );
       System.assertEquals(
         1,
         [
@@ -179,7 +170,12 @@ private class InvoiceDocumentServiceTest {
       InvoiceDocumentPdfController draftController =
         new InvoiceDocumentPdfController();
       System.assertEquals(false, draftController.hasContext);
-      System.assert(!ApexPages.getMessages().isEmpty());
+      System.assertEquals(1, ApexPages.getMessages().size());
+      System.assertEquals(
+        InvoiceDocumentService.STATUS_REQUIRED_MESSAGE,
+        ApexPages.getMessages()[0].getSummary(),
+        'Core 第7.10節: Draft の直接PDFは拒否文を出す'
+      );
     }
   }
 
@@ -191,8 +187,11 @@ private class InvoiceDocumentServiceTest {
         fixture.invoice.Id,
         'StandardInvoice'
       );
-      System.assertNotEquals(null, body);
-      System.assert(body.size() > 0);
+      System.assertEquals(
+        Blob.valueOf('%PDF-1.4 invoice test').toString(),
+        body.toString(),
+        'テスト実行中はダミーPDF本文'
+      );
     }
   }
 
