@@ -70,6 +70,27 @@ private class ContractOrderedHistorySyncServiceTest {
   }
 
   @IsTest
+  static void syncForHistories_nullOrEmpty_doesNotChangeServices() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractOrderedHistorySyncService.syncForHistories(null);
+      ContractOrderedHistorySyncService.syncForHistories(
+        new List<ContractHistory__c>()
+      );
+      ContractOrderedHistorySyncService.syncForServices(null);
+      ContractOrderedHistorySyncService.syncForServices(new Set<Id>());
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractService__c
+          WHERE Name = 'Ordered History Sync Service'
+        ],
+        'Core 第3.4.2節: 対象の契約サービスが無ければ同期しない'
+      );
+    }
+  }
+
+  @IsTest
   static void syncForServices_setsFirstAndLatestOrderedHistories() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
@@ -232,7 +253,8 @@ private class ContractOrderedHistorySyncServiceTest {
       );
       System.assertEquals(
         '契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。',
-        message
+        message,
+        'Core 第3.4節: 契約履歴は物理削除しない'
       );
       ContractService__c afterDelete = [
         SELECT FirstOrderedHistory__c, LatestOrderedHistory__c
