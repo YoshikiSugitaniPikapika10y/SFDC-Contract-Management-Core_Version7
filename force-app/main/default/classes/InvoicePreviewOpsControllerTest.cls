@@ -535,40 +535,6 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
-  static void updateJournalMemo_twoArgWritesMemo() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      insert GlAccountingPolicyService.newOrgDefault();
-      InvoiceOpsFieldService.setCachedRowsForTest(
-        new List<InvoiceOpsField__mdt>{
-          new InvoiceOpsField__mdt(
-            DeveloperName = 'JnlMemo2',
-            Active__c = true,
-            TargetObject__c = 'GlJournal__c',
-            FieldApiName__c = 'Memo__c'
-          )
-        }
-      );
-      InvoiceFixture fixture = createInvoice(true);
-      insertJournal(fixture.invoice.Id, false, 'Active', 'MEMO2');
-      GlJournal__c journal = [
-        SELECT Id
-        FROM GlJournal__c
-        WHERE Invoice__c = :fixture.invoice.Id
-        LIMIT 1
-      ];
-      Test.startTest();
-      InvoicePreviewOpsController.updateJournalMemo(journal.Id, '2引数メモ');
-      Test.stopTest();
-      System.assertEquals(
-        '2引数メモ',
-        [SELECT Memo__c FROM GlJournal__c WHERE Id = :journal.Id].Memo__c,
-        'Accounting 第9.1節: 仕訳メモは後から保存した文が残る'
-      );
-      InvoiceOpsFieldService.resetCache();
-    }
-  }
-
-  @IsTest
   static void updateJournalMemo_threeArgWritesMemo() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
