@@ -155,7 +155,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
   }
 
   @IsTest
-  static void periodLineBeforeInsert_runsWithoutErrorWhenNoPeriodCmdt() {
+  static void periodLineBeforeInsert_keepsPrefilledAmount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Period');
       InvoiceProduct__c periodLine = new InvoiceProduct__c(
@@ -172,27 +172,49 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       insert periodLine;
       Test.stopTest();
 
-      System.assertNotEquals(null, periodLine.Id);
+      InvoiceProduct__c loaded = [
+        SELECT Amount__c, Quantity__c, UnitPrice__c
+        FROM InvoiceProduct__c
+        WHERE Id = :periodLine.Id
+      ];
+      System.assertEquals(
+        1000,
+        loaded.Amount__c,
+        '仕様: Core 第11.4.2節 既にあれば上書きしない'
+      );
+      System.assertEquals(1, loaded.Quantity__c);
+      System.assertEquals(1000, loaded.UnitPrice__c);
     }
   }
 
   @IsTest
-  static void handlers_acceptEmptyOrBareRecordsWithoutThrowing() {
-    Boolean completed = false;
+  static void handlers_doNotFillWhenSourceIsUnreachable() {
+    InvoiceProduct__c periodLine = new InvoiceProduct__c();
+    Invoice__c invoice = new Invoice__c();
+    InvoiceLine__c line = new InvoiceLine__c();
     InvoiceFieldCopyTriggerHandler.handlePeriodLineBeforeInsert(
-      new List<InvoiceProduct__c>{ new InvoiceProduct__c() }
+      new List<InvoiceProduct__c>{ periodLine }
     );
     InvoiceFieldCopyTriggerHandler.handleInvoiceBeforeInsert(
-      new List<Invoice__c>{ new Invoice__c() }
+      new List<Invoice__c>{ invoice }
     );
     InvoiceFieldCopyTriggerHandler.handleInvoiceLineBeforeInsert(
-      new List<InvoiceLine__c>{ new InvoiceLine__c() }
+      new List<InvoiceLine__c>{ line }
     );
-    completed = true;
     System.assertEquals(
-      true,
-      completed,
-      '空／最小レコードでもハンドラが例外なく完了すること'
+      null,
+      periodLine.Amount__c,
+      '仕様: Core 第11.4.2節 届かない相手へ空埋めしない'
+    );
+    System.assertEquals(
+      null,
+      invoice.Memo__c,
+      '仕様: Core 第11.4.2節 届かない相手へ空埋めしない'
+    );
+    System.assertEquals(
+      null,
+      line.ProductCodeSnapShot__c,
+      '仕様: Core 第11.4.2節 届かない相手へ空埋めしない'
     );
   }
 
