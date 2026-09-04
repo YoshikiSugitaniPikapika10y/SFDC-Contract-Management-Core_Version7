@@ -81,10 +81,11 @@ private class InvoiceOpsControllerTest {
       insert roundTripLine;
 
       Test.startTest();
+      Date integrationDate = Date.today();
       Integer invoiced = InvoiceOpsController.markInvoiced(
         history.Id,
         new List<Id>{ invoice.Id },
-        Date.today()
+        integrationDate
       );
       System.assertEquals(1, invoiced);
       Test.stopTest();
@@ -99,7 +100,11 @@ private class InvoiceOpsControllerTest {
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
-      System.assertNotEquals(null, reloaded.SystemIntegrationDate__c);
+      System.assertEquals(
+        integrationDate,
+        reloaded.SystemIntegrationDate__c,
+        'Core 第7.9節: 確定日は渡した計上日'
+      );
       System.assertEquals(
         null,
         reloaded.PaymentClearingCompletedDate__c,
@@ -266,14 +271,16 @@ private class InvoiceOpsControllerTest {
           Date.today()
         );
       } catch (Exception ex) {
-        rejected = ex.getMessage()
-          .contains('請求書の税額が税抜と税率から計算した値と一致しないため確定できません。');
+        rejected = true;
+        System.assertEquals(
+          '請求は確定できませんでした: ' +
+            String.valueOf(invoice.Id) +
+            ': 請求書の税額が税抜と税率から計算した値と一致しないため確定できません。',
+          ex.getMessage(),
+          'Core 第7.9.1節: 各請求の税がその枚の税抜から計算されていなければ確定できない'
+        );
       }
-      System.assertEquals(
-        true,
-        rejected,
-        'Core 第7.9.1節: 各請求の税がその枚の税抜から計算されていなければ確定できない'
-      );
+      System.assertEquals(true, rejected);
       System.assertEquals(
         null,
         [
@@ -294,13 +301,24 @@ private class InvoiceOpsControllerTest {
       insertOpsLine(invoice.Id);
 
       Test.startTest();
+      Date integrationDate = Date.today();
       InvoiceOpsController.markInvoiced(
         invoice.ContractHistory__c,
         new List<Id>{ invoice.Id },
-        Date.today()
+        integrationDate
       );
       Test.stopTest();
 
+      System.assertEquals(
+        integrationDate,
+        [
+          SELECT SystemIntegrationDate__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+        .SystemIntegrationDate__c,
+        'Core 第7.9節: 確定日は渡した計上日'
+      );
       GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
       System.assertNotEquals(
         null,
@@ -334,8 +352,11 @@ private class InvoiceOpsControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('Accounting会計方針がありません'),
+        System.assertEquals(
+          '請求は確定できませんでした: ' +
+            String.valueOf(invoice.Id) +
+            ': Accounting会計方針がありません。',
+          ex.getMessage(),
           'Core 第1.1.10節: 方針0件をOrgDefaultで埋めない'
         );
       }
