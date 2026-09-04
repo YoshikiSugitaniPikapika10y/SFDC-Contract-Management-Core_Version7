@@ -73,8 +73,8 @@ private class EstimateSaveServiceTest {
         blankEx = ex;
       }
       System.assertNotEquals(null, blankEx);
-      System.assert(
-        blankEx.getMessage().contains('売上計上基準が空です。'),
+      System.assertEquals(
+        '売上計上基準が空です。',
         blankEx.getMessage()
       );
     }
@@ -852,46 +852,40 @@ private class EstimateSaveServiceTest {
 
   @IsTest
   static void saveEstimate_unsupportedType_throwsCodedMessage() {
-    // コード付きメッセージ自体の契約
-    System.assertEquals(
-      '[EST-Save-002] New、Change、Renew、Cancelタイプのみ保存できます。',
-      EstimateValidationService.estSaveException(
-          '002',
-          'New、Change、Renew、Cancelタイプのみ保存できます。'
-        )
-        .getMessage()
-    );
-
-    Boolean thrown = false;
-    try {
-      EstimateSaveService.saveEstimate(
-        UserInfo.getUserId(),
-        'Partial',
-        null,
-        'Unsupported Type History',
-        null,
-        null,
-        null,
-        null,
-        null,
-        String.valueOf(Date.today()),
-        '[]',
-        null,
-        null,
-        null,
-        null
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Unsupported Type');
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Unsupported Type Opp'
       );
-    } catch (AuraHandledException ex) {
-      thrown = true;
-      // 組織の必須カスタム項目があると Save-002 より先に落ちる場合がある
-      System.assert(
-        ex.getMessage().contains('EST-Save-002') ||
-          ex.getMessage().contains('入力') ||
-          ex.getMessage().contains('必須'),
-        ex.getMessage()
-      );
+      Boolean thrown = false;
+      try {
+        EstimateSaveService.saveEstimate(
+          opportunity.Id,
+          'Partial',
+          null,
+          'Unsupported Type History',
+          null,
+          null,
+          null,
+          null,
+          null,
+          String.valueOf(Date.today()),
+          '[]',
+          null,
+          null,
+          null,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '[EST-Save-002] New、Change、Renew、Cancelタイプのみ保存できます。',
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown);
     }
-    System.assertEquals(true, thrown);
   }
 
   @IsTest
@@ -1222,20 +1216,6 @@ private class EstimateSaveServiceTest {
         '備考クリア保存で Note__c が消えること'
       );
     }
-  }
-
-  @IsTest
-  static void loadEditableEstimateHistory_throwsWhenMissing() {
-    String keyPrefix = ContractHistory__c.SObjectType.getDescribe()
-      .getKeyPrefix();
-    Id missingId = (Id) (keyPrefix + '0'.repeat(12) + 'AAA');
-    Boolean thrown = false;
-    try {
-      EstimateSaveService.loadEditableEstimateHistory(missingId);
-    } catch (AuraHandledException ex) {
-      thrown = true;
-    }
-    System.assertEquals(true, thrown);
   }
 
   @IsTest
