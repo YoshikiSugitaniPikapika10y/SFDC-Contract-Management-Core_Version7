@@ -58,22 +58,22 @@ public without sharing class ContractDocumentSettingsController {
     @AuraEnabled public String businessOperationKey;
   }
 
-  public class DiagnosisDto {
-    @AuraEnabled public String heading;
-    @AuraEnabled public String message;
-    @AuraEnabled public String linkLabel;
-    @AuraEnabled public String linkUrl;
+  public class CatalogLinkDto {
+    @AuraEnabled public String key;
+    @AuraEnabled public String label;
+    @AuraEnabled public String url;
   }
 
   public class PageDataDto {
     @AuraEnabled public SettingsDto settings;
-    @AuraEnabled public List<SelectOptionDto> estimateDocumentTemplates;
-    @AuraEnabled public List<SelectOptionDto> invoiceDocumentTemplates;
-    @AuraEnabled public List<SelectOptionDto> estimateEmailTemplates;
-    @AuraEnabled public List<SelectOptionDto> invoiceEmailTemplates;
     @AuraEnabled public List<SelectOptionDto> orgWideEmailAddresses;
-    @AuraEnabled public List<DiagnosisDto> diagnoses;
+    @AuraEnabled public List<CatalogLinkDto> settingLinks;
+    /** 仕様: Core 第11.6節。21（Loop_21_AccountingMaster）が無ければ会計マスタ行を出さない。 */
+    @AuraEnabled public Boolean hasAccountingMaster;
   }
+
+  @TestVisible
+  static Boolean testHasAccountingMaster;
 
   /** 仕様: Core 第11.3節・第11.6節・第11.9節、Accounting 第3.1節 */
   @AuraEnabled
@@ -89,24 +89,13 @@ public without sharing class ContractDocumentSettingsController {
         AmountCalculationSettingService.requireOrgDefault()
       );
     } catch (AmountCalculationSettingService.SettingException ex) {
-      // 仕様: Core 第11.6節。OrgDefault無しは診断。読込全体は止めない。
+      // 仕様: Core 第11.6節。0件警告は出さない。読込全体は止めない。
     }
     applyInputSystemToDto(result.settings);
     applyVersionTokens(result.settings, setting, policy);
-    result.estimateDocumentTemplates = documentTemplateOptions(
-      ContractDocumentTemplateService.TYPE_ESTIMATE
-    );
-    result.invoiceDocumentTemplates = documentTemplateOptions(
-      ContractDocumentTemplateService.TYPE_INVOICE
-    );
-    result.estimateEmailTemplates = emailTemplateOptions(
-      ContractEmailTemplateService.TYPE_ESTIMATE
-    );
-    result.invoiceEmailTemplates = emailTemplateOptions(
-      ContractEmailTemplateService.TYPE_INVOICE
-    );
     result.orgWideEmailAddresses = orgWideEmailAddressOptions();
-    result.diagnoses = buildDiagnoses(setting, policy);
+    result.hasAccountingMaster = hasAccountingMasterSet();
+    result.settingLinks = buildSettingLinks(result.hasAccountingMaster);
     return result;
   }
 
@@ -836,7 +825,7 @@ public without sharing class ContractDocumentSettingsController {
         AmountCalculationSettingService.requireOrgDefault()
       );
     } catch (AmountCalculationSettingService.SettingException ex) {
-      // 仕様: Core 第11.6節。OrgDefault無しは診断。
+      // 仕様: Core 第11.6節。0件警告は出さない。
     }
     applyInputSystemToDto(saved);
     applyVersionTokens(saved, setting, resolvedPolicy);
@@ -1094,33 +1083,6 @@ public without sharing class ContractDocumentSettingsController {
     return value;
   }
 
-  private static List<SelectOptionDto> documentTemplateOptions(String typeName) {
-    List<SelectOptionDto> result = new List<SelectOptionDto>();
-    for (
-      ContractDocumentTemplateService.TemplateDefinition definition :
-      ContractDocumentTemplateService.getActiveTemplates(typeName)
-    ) {
-      result.add(option(definition.label, definition.templateKey));
-    }
-    return result;
-  }
-
-  /** 仕様: Core 第11.3.2節 */
-  private static List<SelectOptionDto> emailTemplateOptions(String documentType) {
-    List<SelectOptionDto> result = new List<SelectOptionDto>();
-    try {
-      for (
-        ContractEmailTemplateService.EmailTemplateDefinition definition :
-        ContractEmailTemplateService.getActiveTemplates(documentType)
-      ) {
-        result.add(option(definition.label, definition.apiName));
-      }
-    } catch (ContractEmailTemplateService.EmailTemplateException ex) {
-      return result;
-    }
-    return result;
-  }
-
   private static List<SelectOptionDto> orgWideEmailAddressOptions() {
     List<SelectOptionDto> result = new List<SelectOptionDto>();
     for (OrgWideEmailAddress record : [
@@ -1198,17 +1160,6 @@ public without sharing class ContractDocumentSettingsController {
     }
   }
 
-  private static Id parseId(String value, String label) {
-    if (!Pattern.matches('^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$', value)) {
-      throw handled(label + 'の形式が不正です。');
-    }
-    try {
-      return Id.valueOf(value);
-    } catch (Exception ex) {
-      throw handled(label + 'の形式が不正です。');
-    }
-  }
-
   private static String normalize(String value) {
     return String.isBlank(value) ? null : value.trim();
   }
@@ -1220,150 +1171,100 @@ public without sharing class ContractDocumentSettingsController {
     return result;
   }
 
-  /** 仕様: Core 第11.6節。無い／0件だけ。効く／効かないは書かない。 */
-  private static List<DiagnosisDto> buildDiagnoses(
-    ContractDocumentSetting__c setting,
-    GlAccountingPolicy__c policy
-  ) {
-    List<DiagnosisDto> rows = new List<DiagnosisDto>();
-    Boolean missingOrgSetting = setting == null || setting.Id == null;
-    if (missingOrgSetting) {
-      rows.add(diagnosis('帳票・送付', '組織の既定がありません。', null, null));
-      rows.add(diagnosis('契約', '組織の既定がありません。', null, null));
-    }
-    if (countTemplates(ContractDocumentTemplateService.TYPE_ESTIMATE) == 0) {
+  /** 仕様: Core 第11.6節。リンクラベルは行き先の名前だけ。Setup手順は出さない。 */
+  private static List<CatalogLinkDto> buildSettingLinks(Boolean includeAccountingMaster) {
+    List<CatalogLinkDto> rows = new List<CatalogLinkDto>();
+    rows.add(catalogLink('permissionSets', '権限セット', '/lightning/setup/PermSets/home'));
+    rows.add(
+      catalogLink(
+        'permissionSetGroups',
+        '権限セットグループ',
+        '/lightning/setup/PermSetGroups/home'
+      )
+    );
+    rows.add(catalogLink('sharing', '共有設定', '/lightning/setup/SecuritySharing/home'));
+    rows.add(catalogLink('products', '商品', '/lightning/o/Product2/list'));
+    rows.add(
+      catalogLink(
+        'documentCatalog',
+        '帳票カタログ',
+        cmdtListUrl('ContractDocumentTemplate__mdt', 'All')
+      )
+    );
+    rows.add(
+      catalogLink(
+        'estimateNotes',
+        '見積備考',
+        '/lightning/o/EstimateNoteMaster__c/list'
+      )
+    );
+    rows.add(
+      catalogLink(
+        'emailCatalog',
+        '送付メールカタログ',
+        cmdtListUrl('ContractEmailTemplate__mdt', 'All')
+      )
+    );
+    rows.add(
+      catalogLink(
+        'estimateWizardFields',
+        '見積ウィザード追加項目',
+        cmdtListUrl('EstimateWizardField__mdt', 'All')
+      )
+    );
+    rows.add(
+      catalogLink(
+        'orderWizardFields',
+        '受注ウィザード追加項目',
+        cmdtListUrl('OrderWizardField__mdt', 'All')
+      )
+    );
+    rows.add(
+      catalogLink(
+        'invoiceOpsFields',
+        '請求操作追加項目',
+        cmdtListUrl('InvoiceOpsField__mdt', 'All')
+      )
+    );
+    rows.add(
+      catalogLink(
+        'fieldCopy',
+        '追加項目コピー',
+        objectListUrl('FieldCopyDefinition__c')
+      )
+    );
+    rows.add(
+      catalogLink(
+        'amountCalculation',
+        '金額計算',
+        cmdtListUrl('GlAccountingSetting__mdt', 'All')
+      )
+    );
+    if (includeAccountingMaster == true) {
+      rows.add(catalogLink('glAccounts', '勘定科目', objectListUrl('GlAccount__c')));
       rows.add(
-        diagnosis(
-          '帳票・送付',
-          '見積の帳票カタログがありません。',
-          '帳票カタログ',
-          cmdtListUrl('ContractDocumentTemplate__mdt', 'Estimate')
+        catalogLink('conditionSets', '条件セット', objectListUrl('GlConditionSet__c'))
+      );
+      rows.add(catalogLink('accountMaps', '割当', objectListUrl('GlAccountMap__c')));
+      rows.add(
+        catalogLink('tagRules', 'タグルール', objectListUrl('GlAccountingTagRule__c'))
+      );
+      rows.add(
+        catalogLink(
+          'manualJournals',
+          '手動仕訳',
+          objectListUrl('GlManualJournalSetting__c')
         )
       );
-    }
-    if (countTemplates(ContractDocumentTemplateService.TYPE_INVOICE) == 0) {
-      rows.add(
-        diagnosis(
-          '帳票・送付',
-          '請求の帳票カタログがありません。',
-          '帳票カタログ',
-          cmdtListUrl('ContractDocumentTemplate__mdt', 'Invoice')
-        )
-      );
-    }
-    if (countEmailCatalog(ContractEmailTemplateService.TYPE_ESTIMATE) == 0) {
-      rows.add(
-        diagnosis(
-          '帳票・送付',
-          '見積の送付メールカタログがありません。',
-          '送付メールカタログ',
-          cmdtListUrl('ContractEmailTemplate__mdt', 'Estimate')
-        )
-      );
-    }
-    if (countEmailCatalog(ContractEmailTemplateService.TYPE_INVOICE) == 0) {
-      rows.add(
-        diagnosis(
-          '帳票・送付',
-          '請求の送付メールカタログがありません。',
-          '送付メールカタログ',
-          cmdtListUrl('ContractEmailTemplate__mdt', 'Invoice')
-        )
-      );
-    }
-    if (
-      ContractPermissionUtil.has(ContractPermissionUtil.ESTIMATE) &&
-      [
-        SELECT COUNT()
-        FROM EstimateNoteMaster__c
-        WITH SYSTEM_MODE
-        LIMIT 1
-      ] == 0
-    ) {
-      rows.add(
-        diagnosis(
-          '帳票・送付',
-          '見積備考マスタがありません。',
-          '見積備考マスタ',
-          '/lightning/o/EstimateNoteMaster__c/list'
-        )
-      );
-    }
-    if (resolveAmountCalculationModified() == null) {
-      rows.add(
-        diagnosis(
-          '金額計算',
-          '金額計算の組織既定がありません。',
-          '金額計算',
-          cmdtListUrl('GlAccountingSetting__mdt', 'All')
-        )
-      );
-    }
-    if (policy == null) {
-      rows.add(diagnosis('Accounting方針', '会計方針がありません。', null, null));
-    }
-    if (hasAccountingMasterSet()) {
-      if ([SELECT COUNT() FROM GlAccount__c WITH SYSTEM_MODE LIMIT 1] == 0) {
-        rows.add(
-          diagnosis(
-            'Accounting方針',
-            '勘定科目がありません。',
-            '勘定科目',
-            '/lightning/o/GlAccount__c/list'
-          )
-        );
-      }
-      if ([SELECT COUNT() FROM GlAccountMap__c WITH SYSTEM_MODE LIMIT 1] == 0) {
-        rows.add(
-          diagnosis(
-            'Accounting方針',
-            '勘定科目割当がありません。',
-            '割当',
-            '/lightning/o/GlAccountMap__c/list'
-          )
-        );
-      }
-    }
-    ContractValidationEnforce__c enforce =
-      ContractValidationEnforce__c.getOrgDefaults();
-    if (enforce == null || enforce.Id == null) {
-      rows.add(diagnosis('入力', '入力強制の組織既定がありません。', null, null));
-    }
-    InvoiceLockExemptFields__c invoiceLock =
-      InvoiceLockExemptFields__c.getOrgDefaults();
-    if (invoiceLock == null || invoiceLock.Id == null) {
-      rows.add(diagnosis('システム', '請求ロック除外項目の組織既定がありません。', null, null));
-    }
-    InvoicePaymentLockExemptFields__c paymentLock =
-      InvoicePaymentLockExemptFields__c.getOrgDefaults();
-    if (paymentLock == null || paymentLock.Id == null) {
-      rows.add(diagnosis('システム', '入出金ロック除外項目の組織既定がありません。', null, null));
-    }
-    GlJournalLockExemptFields__c journalLock =
-      GlJournalLockExemptFields__c.getOrgDefaults();
-    if (journalLock == null || journalLock.Id == null) {
-      rows.add(diagnosis('システム', '仕訳ロック除外項目の組織既定がありません。', null, null));
     }
     return rows;
   }
 
-  private static Integer countTemplates(String documentType) {
-    return [
-      SELECT COUNT()
-      FROM ContractDocumentTemplate__mdt
-      WHERE DocumentType__c = :documentType
-    ];
-  }
-
-  private static Integer countEmailCatalog(String documentType) {
-    return [
-      SELECT COUNT()
-      FROM ContractEmailTemplate__mdt
-      WHERE DocumentType__c = :documentType
-    ];
-  }
-
+  /** 仕様: 共通基盤 第3章。21はカスタム権限なし。権限セット割当で判定する。 */
   private static Boolean hasAccountingMasterSet() {
+    if (testHasAccountingMaster != null) {
+      return testHasAccountingMaster;
+    }
     return [
         SELECT COUNT()
         FROM PermissionSetAssignment
@@ -1372,24 +1273,19 @@ public without sharing class ContractDocumentSettingsController {
       ] > 0;
   }
 
-  private static String cmdtListUrl(String objectApiName, String filterName) {
-    return '/lightning/o/' +
-      objectApiName +
-      '/list?filterName=' +
-      filterName;
+  private static String objectListUrl(String objectApiName) {
+    return '/lightning/o/' + objectApiName + '/list';
   }
 
-  private static DiagnosisDto diagnosis(
-    String heading,
-    String message,
-    String linkLabel,
-    String linkUrl
-  ) {
-    DiagnosisDto row = new DiagnosisDto();
-    row.heading = heading;
-    row.message = message;
-    row.linkLabel = linkLabel;
-    row.linkUrl = linkUrl;
+  private static String cmdtListUrl(String objectApiName, String filterName) {
+    return objectListUrl(objectApiName) + '?filterName=' + filterName;
+  }
+
+  private static CatalogLinkDto catalogLink(String key, String label, String url) {
+    CatalogLinkDto row = new CatalogLinkDto();
+    row.key = key;
+    row.label = label;
+    row.url = url;
     return row;
   }
 

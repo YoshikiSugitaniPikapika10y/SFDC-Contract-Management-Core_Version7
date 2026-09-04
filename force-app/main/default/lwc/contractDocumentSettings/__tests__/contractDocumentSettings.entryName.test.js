@@ -26,6 +26,82 @@ jest.mock(
   { virtual: true }
 );
 
+const MASTER_LINKS = [
+  { key: "glAccounts", label: "勘定科目", url: "/lightning/o/GlAccount__c/list" },
+  {
+    key: "conditionSets",
+    label: "条件セット",
+    url: "/lightning/o/GlConditionSet__c/list"
+  },
+  { key: "accountMaps", label: "割当", url: "/lightning/o/GlAccountMap__c/list" },
+  {
+    key: "tagRules",
+    label: "タグルール",
+    url: "/lightning/o/GlAccountingTagRule__c/list"
+  },
+  {
+    key: "manualJournals",
+    label: "手動仕訳",
+    url: "/lightning/o/GlManualJournalSetting__c/list"
+  }
+];
+
+function pageData(overrides = {}) {
+  const { settings, settingLinks, ...rest } = overrides;
+  return {
+    orgWideEmailAddresses: [],
+    hasAccountingMaster: false,
+    settingLinks: [
+      { key: "permissionSets", url: "/lightning/setup/PermSets/home" },
+      {
+        key: "documentCatalog",
+        url: "/lightning/o/ContractDocumentTemplate__mdt/list?filterName=All"
+      },
+      { key: "estimateNotes", url: "/lightning/o/EstimateNoteMaster__c/list" },
+      {
+        key: "amountCalculation",
+        url: "/lightning/o/GlAccountingSetting__mdt/list?filterName=All"
+      }
+    ],
+    ...rest,
+    settingLinks: settingLinks || [
+      { key: "permissionSets", url: "/lightning/setup/PermSets/home" },
+      {
+        key: "documentCatalog",
+        url: "/lightning/o/ContractDocumentTemplate__mdt/list?filterName=All"
+      },
+      { key: "estimateNotes", url: "/lightning/o/EstimateNoteMaster__c/list" },
+      {
+        key: "amountCalculation",
+        url: "/lightning/o/GlAccountingSetting__mdt/list?filterName=All"
+      }
+    ],
+    settings: {
+      estimateSendMode: "PdfOnly",
+      invoiceSendMode: "PdfOnly",
+      estimateValidMonths: 1,
+      defaultMonthlyCycles: 12,
+      renewOpportunityEnabled: false,
+      accountingEnabled: false,
+      taxRoundingMode: "DOWN",
+      quantityUnitPriceRoundingMode: "Scale2HalfUp",
+      amountRoundingMode: "Scale0HalfUp",
+      taxLineAllocationMethod: "SignedLargestRemainder",
+      allocationTieBreak: "InvoiceLineStableOrder",
+      monthlyBucketAmountMethod: "EqualSplit",
+      taxScheduleAllocationMethod: "SignedRevenueRatio",
+      paymentLineAllocationMethod: "OpenInclusiveRatio",
+      accountBalanceAllocationMethod: "SameRate",
+      documentGroupTaxAllocationMethod: "ExclusiveRatioLastAbsorbs",
+      validationEnforce: false,
+      lockExemptFieldApiNames: "Memo__c",
+      paymentLockExemptFieldApiNames: "Memo__c",
+      journalLockExemptFieldApiNames: "Memo__c",
+      ...settings
+    }
+  };
+}
+
 describe("contractDocumentSettings entry name (Core 11.6)", () => {
   const proto = ContractDocumentSettings.prototype;
   const title = Object.getOwnPropertyDescriptor(proto, "settingsPageTitle").get;
@@ -38,7 +114,7 @@ describe("contractDocumentSettings entry name (Core 11.6)", () => {
   });
 });
 
-describe("contractDocumentSettings contract heading (Core 11.6)", () => {
+describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
   const getSettings = require("@salesforce/apex/ContractDocumentSettingsController.getSettings")
     .default;
 
@@ -48,198 +124,125 @@ describe("contractDocumentSettings contract heading (Core 11.6)", () => {
     }
   });
 
-  it("shows 契約 heading with cycles, valid months, and renew switch", async () => {
+  async function mount(data) {
+    getSettings.mockResolvedValue(data);
     const { createElement } = require("lwc");
-    getSettings.mockResolvedValue({
-      settings: {
-        estimateSendMode: "PdfOnly",
-        invoiceSendMode: "PdfOnly",
-        estimateValidMonths: 1,
-        defaultMonthlyCycles: 12,
-        renewOpportunityEnabled: false,
-        accountingEnabled: false
-      },
-      estimateDocumentTemplates: [],
-      invoiceDocumentTemplates: [],
-      estimateEmailTemplates: [],
-      invoiceEmailTemplates: [],
-      orgWideEmailAddresses: []
-    });
     const element = createElement("c-contract-document-settings", {
       is: ContractDocumentSettings
     });
     document.body.appendChild(element);
     await Promise.resolve();
     await Promise.resolve();
+    return element;
+  }
 
-    expect(element.shadowRoot.textContent).toContain("契約");
-    expect(element.shadowRoot.textContent).toContain(
-      "継続課金の既定サイクル数"
-    );
-    expect(element.shadowRoot.textContent).toContain("見積有効期間");
-    expect(element.shadowRoot.textContent).toContain("更新商談を利用する");
-  });
-});
-
-describe("contractDocumentSettings document heading (Core 11.6)", () => {
-  const getSettings = require("@salesforce/apex/ContractDocumentSettingsController.getSettings")
-    .default;
-
-  afterEach(() => {
-    while (document.body.firstChild) {
-      document.body.removeChild(document.body.firstChild);
-    }
-  });
-
-  it("shows 帳票・送付 heading with send modes, company, sender, and defaults", async () => {
-    const { createElement } = require("lwc");
-    getSettings.mockResolvedValue({
-      settings: {
-        estimateSendMode: "PdfOnly",
-        invoiceSendMode: "PdfOnly",
-        estimateValidMonths: 1,
-        defaultMonthlyCycles: 12,
-        accountingEnabled: false
-      },
-      estimateDocumentTemplates: [],
-      invoiceDocumentTemplates: [],
-      estimateEmailTemplates: [],
-      invoiceEmailTemplates: [],
-      orgWideEmailAddresses: []
-    });
-    const element = createElement("c-contract-document-settings", {
-      is: ContractDocumentSettings
-    });
-    document.body.appendChild(element);
-    await Promise.resolve();
-    await Promise.resolve();
-
+  it("shows numbered headings 1-9 with inputs and links mixed", async () => {
+    const element = await mount(pageData());
     const text = element.shadowRoot.textContent;
-    expect(text).toContain("帳票・送付");
-    expect(text).not.toContain("共通会社・送信元");
     const h2s = Array.from(element.shadowRoot.querySelectorAll("h2")).map(
-      (node) => node.textContent
+      (node) => node.textContent.trim()
     );
-    expect(h2s).toContain("帳票・送付");
-    expect(h2s).not.toContain("見積");
-    expect(h2s).not.toContain("請求");
-    expect(h2s).not.toContain("関連設定");
-    expect(h2s.filter((label) => label === "帳票・送付").length).toBe(1);
-    expect(text).toContain("帳票テンプレート（カスタムメタデータ）");
-    expect(text).toContain("送付メールカタログ（カスタムメタデータ）");
+    expect(h2s).toEqual([
+      "1. 権限と共有",
+      "2. 商品",
+      "3. 帳票",
+      "4. 送付",
+      "5. 契約",
+      "6. 追加項目",
+      "7. 金額計算",
+      "8. Accounting",
+      "9. 入力とロック"
+    ]);
+    expect(text).toContain("行 3.1");
+    expect(text).toContain("継続課金の既定サイクル数");
+    expect(text).toContain("更新商談スイッチ");
+    expect(text).toContain("見積備考");
+    expect(text).not.toContain("帳票・送付");
+    expect(text).not.toContain("組織の既定がありません");
+    expect(text).not.toContain("既定帳票");
+    expect(text).not.toContain("lightning-helptext");
+    expect(element.shadowRoot.querySelector("lightning-helptext")).toBeNull();
+  });
+
+  it("hides accounting master links without permission 21", async () => {
+    const element = await mount(
+      pageData({
+        hasAccountingMaster: false,
+        settingLinks: [
+          { key: "permissionSets", url: "/lightning/setup/PermSets/home" },
+          ...MASTER_LINKS
+        ]
+      })
+    );
+    const text = element.shadowRoot.textContent;
+    expect(text).toContain("8. Accounting");
+    expect(text).toContain("仕訳機能の利用有無");
+    expect(text).not.toContain("行 8.7");
+    expect(text).not.toContain("タグルール");
+    expect(text).not.toContain("手動仕訳");
+  });
+
+  it("shows accounting master links when permission 21 is present", async () => {
+    const element = await mount(
+      pageData({
+        hasAccountingMaster: true,
+        settingLinks: [
+          { key: "permissionSets", url: "/lightning/setup/PermSets/home" },
+          ...MASTER_LINKS
+        ]
+      })
+    );
+    const text = element.shadowRoot.textContent;
+    expect(text).toContain("8.7");
+    expect(text).toContain("勘定科目");
+    expect(text).toContain("条件セット");
+    expect(text).toContain("割当");
+    expect(text).toContain("タグルール");
+    expect(text).toContain("手動仕訳");
+  });
+
+  it("renders one-option amount fields as readonly text without a lock badge", async () => {
+    const element = await mount(pageData());
+    const text = element.shadowRoot.textContent;
+    expect(text).toContain("小数第2位の四捨五入");
+    expect(text).toContain("注意");
+    expect(text).toContain("変更しても保存済みは再計算しない");
+    const quantityInput = element.shadowRoot.querySelector(
+      '[name="quantityUnitPriceRoundingMode"]'
+    );
+    expect(quantityInput).toBeNull();
+    const amountSection = [...element.shadowRoot.querySelectorAll("h2")]
+      .find((node) => node.textContent.trim() === "7. 金額計算")
+      .closest("section");
+    expect(amountSection.textContent).not.toContain("変更不可");
+  });
+
+  it("shows freeze badges before and after policy freeze", async () => {
+    const unfrozen = await mount(pageData({ settings: { policyFrozen: false } }));
+    expect(unfrozen.shadowRoot.textContent).toContain("確定後は変更不可");
+    expect(unfrozen.shadowRoot.textContent).toContain(
+      "最初の請求確定まで変えられる。確定後は104以外では戻せない"
+    );
+    document.body.removeChild(unfrozen);
+
+    const frozen = await mount(
+      pageData({
+        settings: {
+          policyFrozen: true,
+          frozenByName: "固定者",
+          frozenAtLabel: "2026-08-01"
+        }
+      })
+    );
+    const text = frozen.shadowRoot.textContent;
+    expect(text).toContain("変更不可");
+    expect(text).not.toContain("確定後は変更不可");
+    expect(text).toContain("固定者");
+    expect(text).toContain("2026-08-01");
   });
 });
 
-describe("contractDocumentSettings amount calculation heading (Core 11.6 / 11.9)", () => {
-  const proto = ContractDocumentSettings.prototype;
-  const warning = Object.getOwnPropertyDescriptor(
-    proto,
-    "amountCalculationWarning"
-  ).get;
-  const getSettings = require("@salesforce/apex/ContractDocumentSettingsController.getSettings")
-    .default;
-
-  afterEach(() => {
-    while (document.body.firstChild) {
-      document.body.removeChild(document.body.firstChild);
-    }
-  });
-
-  it("shows 金額計算 heading and pre-save warning that saved amounts are not recalculated", async () => {
-    expect(warning.call({})).toBe(
-      "会社設定を後から変えても、保存済みの見積金額、請求税額、AllocatedTaxAmount__c、入出金割当、仕訳金額は再計算しません。これから行う計算だけが新しい設定を見ます。"
-    );
-
-    getSettings.mockResolvedValue({
-      settings: {
-        estimateSendMode: "PdfOnly",
-        invoiceSendMode: "PdfOnly",
-        estimateValidMonths: 1,
-        defaultMonthlyCycles: 12,
-        taxRoundingMode: "DOWN",
-        quantityUnitPriceRoundingMode: "Scale2HalfUp",
-        amountRoundingMode: "Scale0HalfUp",
-        taxLineAllocationMethod: "SignedLargestRemainder",
-        allocationTieBreak: "InvoiceLineStableOrder",
-        monthlyBucketAmountMethod: "EqualSplit",
-        taxScheduleAllocationMethod: "SignedRevenueRatio",
-        paymentLineAllocationMethod: "OpenInclusiveRatio",
-        accountBalanceAllocationMethod: "SameRate",
-        documentGroupTaxAllocationMethod: "ExclusiveRatioLastAbsorbs",
-        accountingEnabled: false
-      },
-      estimateDocumentTemplates: [],
-      invoiceDocumentTemplates: [],
-      estimateEmailTemplates: [],
-      invoiceEmailTemplates: [],
-      orgWideEmailAddresses: []
-    });
-    const { createElement } = require("lwc");
-    const element = createElement("c-contract-document-settings", {
-      is: ContractDocumentSettings
-    });
-    document.body.appendChild(element);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(element.shadowRoot.textContent).toContain("金額計算");
-    expect(element.shadowRoot.textContent).toContain(
-      "保存済みの見積金額、請求税額、AllocatedTaxAmount__c、入出金割当、仕訳金額は再計算しません"
-    );
-    expect(element.shadowRoot.textContent).toContain("税額丸め");
-    expect(element.shadowRoot.textContent).toContain("帳票グループ税込");
-  });
-});
-
-describe("contractDocumentSettings input and system headings (Core 11.6)", () => {
-  const getSettings = require("@salesforce/apex/ContractDocumentSettingsController.getSettings")
-    .default;
-
-  afterEach(() => {
-    while (document.body.firstChild) {
-      document.body.removeChild(document.body.firstChild);
-    }
-  });
-
-  it("shows 入力 and システム headings with enforce and lock-exempt fields", async () => {
-    getSettings.mockResolvedValue({
-      settings: {
-        estimateSendMode: "PdfOnly",
-        invoiceSendMode: "PdfOnly",
-        estimateValidMonths: 1,
-        defaultMonthlyCycles: 12,
-        validationEnforce: false,
-        lockExemptFieldApiNames: "Memo__c,SentDate__c",
-        paymentLockExemptFieldApiNames: "Memo__c",
-        journalLockExemptFieldApiNames: "Memo__c",
-        accountingEnabled: false
-      },
-      estimateDocumentTemplates: [],
-      invoiceDocumentTemplates: [],
-      estimateEmailTemplates: [],
-      invoiceEmailTemplates: [],
-      orgWideEmailAddresses: []
-    });
-    const { createElement } = require("lwc");
-    const element = createElement("c-contract-document-settings", {
-      is: ContractDocumentSettings
-    });
-    document.body.appendChild(element);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(element.shadowRoot.textContent).toContain("入力");
-    expect(element.shadowRoot.textContent).toContain(
-      "顧客固有Validation Ruleの強制"
-    );
-    expect(element.shadowRoot.textContent).toContain("システム");
-    expect(element.shadowRoot.textContent).toContain("請求ロック除外項目");
-    expect(element.shadowRoot.textContent).toContain("入出金ロック除外項目");
-    expect(element.shadowRoot.textContent).toContain("仕訳ロック除外項目");
-  });
-});
-
-describe("contractDocumentSettings copy definition validation (Accounting 3.1)", () => {
+describe("contractDocumentSettings copy definition validation (Core 11.6)", () => {
   const getSettings = require("@salesforce/apex/ContractDocumentSettingsController.getSettings")
     .default;
   const validateFieldCopyDefinitions = require("@salesforce/apex/ContractDocumentSettingsController.validateFieldCopyDefinitions")
@@ -251,24 +254,16 @@ describe("contractDocumentSettings copy definition validation (Accounting 3.1)",
     }
   });
 
-  it("shows optional copy-settings validation under Accounting方針 without placing copy definitions", async () => {
-    getSettings.mockResolvedValue({
-      settings: {
-        estimateSendMode: "PdfOnly",
-        invoiceSendMode: "PdfOnly",
-        estimateValidMonths: 1,
-        defaultMonthlyCycles: 12,
-        accountingEnabled: false,
-        policyFrozen: true,
-        frozenByName: "固定者",
-        frozenAtLabel: "2026-08-01"
-      },
-      estimateDocumentTemplates: [],
-      invoiceDocumentTemplates: [],
-      estimateEmailTemplates: [],
-      invoiceEmailTemplates: [],
-      orgWideEmailAddresses: []
-    });
+  it("shows optional copy-settings validation under heading 6 after freeze", async () => {
+    getSettings.mockResolvedValue(
+      pageData({
+        settings: {
+          policyFrozen: true,
+          frozenByName: "固定者",
+          frozenAtLabel: "2026-08-01"
+        }
+      })
+    );
     validateFieldCopyDefinitions.mockResolvedValue(
       "コピー設定に不備はありません。"
     );
@@ -280,21 +275,24 @@ describe("contractDocumentSettings copy definition validation (Accounting 3.1)",
     await Promise.resolve();
     await Promise.resolve();
 
-    const text = element.shadowRoot.textContent;
-    expect(text).toContain("Accounting方針");
-    expect(text).toContain("コピー設定を検証");
-    expect(text).not.toContain("追加項目コピー");
-    const accountingHeading = [...element.shadowRoot.querySelectorAll("h2")].find(
-      (node) => node.textContent === "Accounting方針"
+    const extraHeading = [...element.shadowRoot.querySelectorAll("h2")].find(
+      (node) => node.textContent.trim() === "6. 追加項目"
     );
-    expect(accountingHeading).toBeTruthy();
-    const accountingSection = accountingHeading.closest("section");
-    expect(accountingSection.textContent).toContain("コピー設定を検証");
-    const validateButton = [...accountingSection.querySelectorAll("lightning-button")].find(
-      (btn) => btn.label === "コピー設定を検証"
-    );
+    expect(extraHeading).toBeTruthy();
+    const extraSection = extraHeading.closest("section");
+    expect(extraSection.textContent).toContain("コピー設定を検証");
+    expect(extraSection.textContent).toContain("追加項目コピー");
+    const validateButton = [
+      ...extraSection.querySelectorAll("lightning-button")
+    ].find((btn) => btn.label === "コピー設定を検証");
     expect(validateButton).toBeTruthy();
     expect(validateButton.disabled).toBe(false);
+    const accountingHeading = [...element.shadowRoot.querySelectorAll("h2")].find(
+      (node) => node.textContent.trim() === "8. Accounting"
+    );
+    expect(accountingHeading.closest("section").textContent).not.toContain(
+      "コピー設定を検証"
+    );
 
     await element.handleValidateFieldCopy();
     expect(validateFieldCopyDefinitions).toHaveBeenCalled();

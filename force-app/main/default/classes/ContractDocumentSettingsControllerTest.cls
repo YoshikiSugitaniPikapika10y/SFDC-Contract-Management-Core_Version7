@@ -6,6 +6,18 @@ private class ContractDocumentSettingsControllerTest {
     ContractPermissionUtil.testOverrides = null;
   }
 
+  private static ContractDocumentSettingsController.CatalogLinkDto findLink(
+    List<ContractDocumentSettingsController.CatalogLinkDto> rows,
+    String key
+  ) {
+    for (ContractDocumentSettingsController.CatalogLinkDto row : rows) {
+      if (row.key == key) {
+        return row;
+      }
+    }
+    return null;
+  }
+
   /** 仕様: Core 第11.6節。開いたときの版と操作キーを付けて保存する。 */
   private static ContractDocumentSettingsController.SettingsDto saveWithFreshTokens(
     ContractDocumentSettingsController.SettingsDto input
@@ -36,6 +48,7 @@ private class ContractDocumentSettingsControllerTest {
     );
 
     Test.startTest();
+    ContractDocumentSettingsController.testHasAccountingMaster = false;
     ContractDocumentSettingsController.PageDataDto result =
       ContractDocumentSettingsController.getSettings();
     Test.stopTest();
@@ -65,11 +78,23 @@ private class ContractDocumentSettingsControllerTest {
       'Core 第1.1.10節: 会計方針0件はOFFと埋めない'
     );
     System.assertEquals(null, result.settings.revenueRecognitionBasis);
-    System.assertNotEquals(null, result.estimateDocumentTemplates);
-    System.assertNotEquals(null, result.invoiceDocumentTemplates);
-    System.assertNotEquals(null, result.estimateEmailTemplates);
-    System.assertNotEquals(null, result.invoiceEmailTemplates);
     System.assertNotEquals(null, result.orgWideEmailAddresses);
+    System.assertNotEquals(null, result.settingLinks);
+    System.assertEquals(false, result.hasAccountingMaster);
+    System.assertEquals(
+      null,
+      findLink(result.settingLinks, 'glAccounts'),
+      'Core 第11.6節: 21が無ければ会計マスタのリンクを返さない'
+    );
+    System.assertNotEquals(
+      null,
+      findLink(result.settingLinks, 'documentCatalog')
+    );
+    System.assertEquals(
+      '/lightning/setup/PermSets/home',
+      findLink(result.settingLinks, 'permissionSets').url
+    );
+    ContractDocumentSettingsController.testHasAccountingMaster = null;
   }
 
   @IsTest
@@ -754,6 +779,40 @@ private class ContractDocumentSettingsControllerTest {
       System.assert(ex.getMessage().contains('権限がありません'));
     }
     Test.stopTest();
+  }
+
+  @IsTest
+  static void getSettings_includesAccountingMasterLinksWhenPermission21Assigned() {
+    ContractDocumentSettingsController.testHasAccountingMaster = true;
+    try {
+      Test.startTest();
+      ContractDocumentSettingsController.PageDataDto result =
+        ContractDocumentSettingsController.getSettings();
+      Test.stopTest();
+      System.assertEquals(true, result.hasAccountingMaster);
+      System.assertEquals(
+        '/lightning/o/GlAccount__c/list',
+        findLink(result.settingLinks, 'glAccounts').url
+      );
+      System.assertEquals(
+        '/lightning/o/GlConditionSet__c/list',
+        findLink(result.settingLinks, 'conditionSets').url
+      );
+      System.assertEquals(
+        '/lightning/o/GlAccountMap__c/list',
+        findLink(result.settingLinks, 'accountMaps').url
+      );
+      System.assertEquals(
+        '/lightning/o/GlAccountingTagRule__c/list',
+        findLink(result.settingLinks, 'tagRules').url
+      );
+      System.assertEquals(
+        '/lightning/o/GlManualJournalSetting__c/list',
+        findLink(result.settingLinks, 'manualJournals').url
+      );
+    } finally {
+      ContractDocumentSettingsController.testHasAccountingMaster = null;
+    }
   }
 
   @IsTest

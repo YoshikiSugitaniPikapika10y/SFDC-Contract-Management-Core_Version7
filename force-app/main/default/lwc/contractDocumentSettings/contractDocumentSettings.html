@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <lightning-card title={settingsPageTitle} icon-name="standard:settings">
     <div class="actions slds-p-horizontal_medium">
       <lightning-button label="再読込" onclick={load} disabled={loading}></lightning-button>
@@ -12,183 +12,598 @@
     </template>
 
     <div class="slds-p-around_medium">
+      <!-- 仕様: Core 第11.6節 -->
       <section>
-        <!-- 仕様: Core 第11.6節 -->
-        <h2 class="slds-text-heading_small slds-m-bottom_small">帳票・送付</h2>
-        <p class="slds-text-body_regular slds-m-bottom_small">見積書・請求書の3択、会社情報、組織送信元を置く。カタログ本体はリンク先</p>
-        <template for:each={documentDiagnoses} for:item="row">
-          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">
-            <span>{row.message}</span>
-            <template lwc:if={row.linkUrl}>
-              <a class="slds-m-left_xx-small" href={row.linkUrl} target="_blank">{row.linkLabel}</a>
-            </template>
-          </p>
-        </template>
-        <lightning-combobox name="estimateSendMode" label="見積書" value={settings.estimateSendMode} options={sendModeOptions} onchange={handleChange} required></lightning-combobox>
-        <lightning-combobox name="invoiceSendMode" label="請求書" value={settings.invoiceSendMode} options={sendModeOptions} onchange={handleChange} required></lightning-combobox>
-        <div class="slds-grid slds-wrap slds-gutters">
-          <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
-            <lightning-input name="companyName" label="会社名" value={settings.companyName} maxlength="255" required={companyNameRequired} onchange={handleChange}></lightning-input>
-            <lightning-textarea name="address" label="住所" value={settings.address} maxlength="255" required={addressRequired} onchange={handleChange}></lightning-textarea>
-            <lightning-input name="invoiceRegistrationNumber" label="適格請求書発行事業者登録番号" value={settings.invoiceRegistrationNumber} maxlength="80" required={invoiceCompanyFieldsRequired} onchange={handleChange}></lightning-input>
+        <h2 class="slds-text-heading_small">1. 権限と共有</h2>
+        <p class="slds-text-body_regular section-lead">権限とレコードの共有</p>
+        <div class="setting-row">
+          <span class="row-num">行 1.1</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">権限セット</span>
+          <div class="row-control">
+            <a href={permissionSetsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>権限セット</a>
           </div>
-          <div class="slds-col slds-size_1-of-1 slds-large-size_1-of-2">
-            <lightning-combobox name="estimateOrgWideEmailAddress" label="見積の組織送信元" field-level-help="PDFとメール送付でも空でよい。Fromで組織を選んだときだけ使う。" value={settings.estimateOrgWideEmailAddress} options={orgWideEmailAddresses} onchange={handleChange}></lightning-combobox>
-            <lightning-combobox name="invoiceOrgWideEmailAddress" label="請求の組織送信元" field-level-help="請求がPDFとメール送付のときは必須。" value={settings.invoiceOrgWideEmailAddress} options={orgWideEmailAddresses} required={invoiceOrgWideRequired} onchange={handleChange}></lightning-combobox>
-            <lightning-input type="url" name="privacyPolicyUrl" label="プライバシーポリシーURL" value={settings.privacyPolicyUrl} onchange={handleChange}></lightning-input>
-            <lightning-textarea name="documentFooter" label="帳票フッター" value={settings.documentFooter} onchange={handleChange}></lightning-textarea>
-            <lightning-textarea name="bankTransferInfo" label="振込先情報" value={settings.bankTransferInfo} required={invoiceCompanyFieldsRequired} onchange={handleChange}></lightning-textarea>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">業務に使う権限をユーザへ付ける。金額は変わらない。付与・はく奪は操作ログに書かない</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 1.2</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">権限セットグループ</span>
+          <div class="row-control">
+            <a href={permissionSetGroupsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>権限セットグループ</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">グループでまとめて付与する</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 1.3</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">共有設定</span>
+          <div class="row-control">
+            <a href={sharingUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>共有設定</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">レコードの共有。01を使う組織は必須。一覧の範囲は01／02</span>
+          </span>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <h2 class="slds-text-heading_small">2. 商品</h2>
+        <p class="slds-text-body_regular section-lead">契約で使う商品</p>
+        <div class="setting-row">
+          <span class="row-num">行 2.1</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">商品</span>
+          <div class="row-control">
+            <a href={productsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>商品</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">契約で使う商品。新しい見積行の初期値。見積に載った行はスナップショット</span>
+          </span>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <h2 class="slds-text-heading_small">3. 帳票</h2>
+        <p class="slds-text-body_regular section-lead">見積書・請求書の3択、会社情報。本体はリンク先。既定はカタログ</p>
+        <div class="setting-row">
+          <span class="row-num">行 3.1</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">見積書</span>
+          <div class="row-control">
+            <lightning-combobox name="estimateSendMode" label="見積書" variant="label-hidden" value={settings.estimateSendMode} options={sendModeOptions} onchange={handleChange} required></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">使わない／PDFのみ／PDFとメール送付。シードはPDFのみ。発行・メールボタン、ウィザードの見積書セクション。確定では発行しない</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.2</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">請求書</span>
+          <div class="row-control">
+            <lightning-combobox name="invoiceSendMode" label="請求書" variant="label-hidden" value={settings.invoiceSendMode} options={sendModeOptions} onchange={handleChange} required></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">見積書と同じ3択。シードはPDFのみ。確定では発行しない</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.3</span>
+          <span class="slds-badge need need-conditional">条件付き必須</span>
+          <span class="row-label">会社名</span>
+          <div class="row-control">
+            <lightning-input name="companyName" label="会社名" variant="label-hidden" value={settings.companyName} maxlength="255" required={companyNameRequired} onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">見積または請求が使わない以外なら必須。発行時点のPDF。請求レコードへはコピーしない</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.4</span>
+          <span class="slds-badge need need-conditional">条件付き必須</span>
+          <span class="row-label">住所</span>
+          <div class="row-control">
+            <lightning-textarea name="address" label="住所" variant="label-hidden" value={settings.address} maxlength="255" required={addressRequired} onchange={handleChange}></lightning-textarea>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">会社名と同じ</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.5</span>
+          <span class="slds-badge need need-conditional">条件付き必須</span>
+          <span class="row-label">登録番号</span>
+          <div class="row-control">
+            <lightning-input name="invoiceRegistrationNumber" label="登録番号" variant="label-hidden" value={settings.invoiceRegistrationNumber} maxlength="80" required={invoiceCompanyFieldsRequired} onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">請求が使わない以外なら必須。請求PDFに出す</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.6</span>
+          <span class="slds-badge need need-conditional">条件付き必須</span>
+          <span class="row-label">振込先</span>
+          <div class="row-control">
+            <lightning-textarea name="bankTransferInfo" label="振込先" variant="label-hidden" value={settings.bankTransferInfo} required={invoiceCompanyFieldsRequired} onchange={handleChange}></lightning-textarea>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">登録番号と同じ</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.7</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">帳票フッター</span>
+          <div class="row-control">
+            <lightning-textarea name="documentFooter" label="帳票フッター" variant="label-hidden" value={settings.documentFooter} onchange={handleChange}></lightning-textarea>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">空でなければPDFに出す</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.8</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">プライバシーポリシーURL</span>
+          <div class="row-control">
+            <lightning-input type="url" name="privacyPolicyUrl" label="プライバシーポリシーURL" variant="label-hidden" value={settings.privacyPolicyUrl} onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">空でなければPDFに出す</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.9</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">帳票カタログ</span>
+          <div class="row-control">
+            <a href={documentCatalogUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>帳票カタログ</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">これから発行するPDF。有効な既定がちょうど1つなら発行・送付の初期選択</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 3.10</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">見積備考</span>
+          <div class="row-control">
+            <a href={estimateNotesUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>見積備考</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">ウィザードの備考初期。自由文だけでも保存できる</span>
+          </span>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <h2 class="slds-text-heading_small">4. 送付</h2>
+        <p class="slds-text-body_regular section-lead">組織送信元。本体はリンク先。既定はカタログ</p>
+        <div class="setting-row">
+          <span class="row-num">行 4.1</span>
+          <span class="slds-badge need need-conditional">条件付き必須</span>
+          <span class="row-label">見積用組織送信元</span>
+          <div class="row-control">
+            <lightning-combobox name="estimateOrgWideEmailAddress" label="見積用組織送信元" variant="label-hidden" value={settings.estimateOrgWideEmailAddress} options={orgWideEmailAddresses} onchange={handleChange}></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">見積がPDFとメール送付のとき、組織送信元を使う送付のFrom。空なら自分から送れる</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 4.2</span>
+          <span class="slds-badge need need-conditional">条件付き必須</span>
+          <span class="row-label">請求用組織送信元</span>
+          <div class="row-control">
+            <lightning-combobox name="invoiceOrgWideEmailAddress" label="請求用組織送信元" variant="label-hidden" value={settings.invoiceOrgWideEmailAddress} options={orgWideEmailAddresses} required={invoiceOrgWideRequired} onchange={handleChange}></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">請求がPDFとメール送付なら必須。請求は組織送信元だけ</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 4.3</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">送付メールカタログ</span>
+          <div class="row-control">
+            <a href={emailCatalogUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>送付メールカタログ</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">これから送るメール。初期選択の規則は帳票と同じ</span>
+          </span>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <h2 class="slds-text-heading_small">5. 契約</h2>
+        <p class="slds-text-body_regular section-lead">継続課金の既定サイクル数、見積有効期間、更新商談スイッチ</p>
+        <div class="setting-row">
+          <span class="row-num">行 5.1</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">継続課金の既定サイクル数</span>
+          <div class="row-control">
+            <lightning-input type="number" name="defaultMonthlyCycles" label="継続課金の既定サイクル数" variant="label-hidden" value={settings.defaultMonthlyCycles} min="1" max="36" step="1" required onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">Newの空終了日、手動Renewの初期終了日、自動Renew見積の延長の初期値。見積終了日は上限を超えて手入力できる</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 5.2</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">見積有効期間</span>
+          <div class="row-control">
+            <lightning-input type="number" name="estimateValidMonths" label="見積有効期間" variant="label-hidden" value={settings.estimateValidMonths} min="1" max="12" step="1" required onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">ウィザードが見積日から有効期限の初期値を付ける暦月数</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 5.3</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">更新商談スイッチ</span>
+          <div class="row-control">
+            <lightning-input type="checkbox" name="renewOpportunityEnabled" label="更新商談スイッチ" variant="label-hidden" checked={settings.renewOpportunityEnabled} onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">ONのときだけチェックとカウント。OFFなら作成要求を拒否し自動Renew見積も作らない</span>
+          </span>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <h2 class="slds-text-heading_small">6. 追加項目</h2>
+        <p class="slds-text-body_regular section-lead">ウィザード・請求操作の追加項目とコピー。検証は任意</p>
+        <div class="setting-row">
+          <span class="row-num">行 6.1</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">見積ウィザード追加項目</span>
+          <div class="row-control">
+            <a href={estimateWizardFieldsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>見積ウィザード追加項目</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">見積Step 2の表示・必須・初期値</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 6.2</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">受注ウィザード追加項目</span>
+          <div class="row-control">
+            <a href={orderWizardFieldsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>受注ウィザード追加項目</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">受注・Ordered見積編集・差し戻し。見積必須とは同期しない</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 6.3</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">請求操作追加項目</span>
+          <div class="row-control">
+            <a href={invoiceOpsFieldsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>請求操作追加項目</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">請求情報編集・入出金登録・仕訳の追加項目</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 6.4</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">追加項目コピー</span>
+          <div class="row-control">
+            <a href={fieldCopyUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>追加項目コピー</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">作成時の空欄だけコピー。壊れていれば作成系を止める</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 6.5</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">コピー設定を検証</span>
+          <div class="row-control">
+            <template lwc:if={canManageOrgSettings}>
+              <lightning-button label="コピー設定を検証" onclick={handleValidateFieldCopy} disabled={loading}></lightning-button>
+            </template>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">保存とは別の任意実行。定義は編集しない。操作キーは置かない。会計方針の固定後も実行できる</span>
+          </span>
+        </div>
+      </section>
+
+      <section class="slds-m-top_large">
+        <h2 class="slds-text-heading_small">7. 金額計算</h2>
+        <p class="slds-text-body_regular section-lead">丸め・按分。変更しても保存済みは再計算しない</p>
+        <div class="setting-row">
+          <span class="row-num">行 7.1</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">丸め・按分</span>
+          <div class="row-control">
+            <div class="amount-sub">
+              <span>税額丸め</span>
+              <lightning-combobox name="taxRoundingMode" label="税額丸め" variant="label-hidden" value={settings.taxRoundingMode} options={taxRoundingModeOptions} onchange={handleChange}></lightning-combobox>
+            </div>
+            <template for:each={amountReadonlyItems} for:item="item">
+              <div key={item.key} class="amount-sub">
+                <span>{item.label}</span>
+                <span class="readonly-text">{item.text}</span>
+              </div>
+            </template>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">見積税額、請求ヘッダ税、配分、入出金初期配分、月次バケット金額。1択は読み取り専用の文字</span>
+          </span>
+          <div class="row-note">
+            <span class="slds-badge badge-caution">注意</span>
+            <span class="row-note-text">{amountCautionText}</span>
           </div>
         </div>
-      </section>
-
-      <section class="slds-m-top_large">
-        <!-- 仕様: Core 第11.6節、第11.5節、日付仕様 第2.5節、第2.6節 -->
-        <h2 class="slds-text-heading_small slds-m-bottom_small">契約</h2>
-        <p class="slds-text-body_regular slds-m-bottom_small">継続課金の既定サイクル数、見積有効期間、更新商談スイッチを置く</p>
-        <template for:each={contractDiagnoses} for:item="row">
-          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">{row.message}</p>
-        </template>
-        <div class="slds-grid slds-wrap slds-gutters">
-          <lightning-input
-            class="slds-col slds-size_1-of-1 slds-large-size_1-of-2"
-            type="number"
-            name="defaultMonthlyCycles"
-            label="継続課金の既定サイクル数"
-            value={settings.defaultMonthlyCycles}
-            min="1"
-            max="36"
-            step="1"
-            required
-            onchange={handleChange}
-          ></lightning-input>
-          <lightning-input
-            class="slds-col slds-size_1-of-1 slds-large-size_1-of-2"
-            type="number"
-            name="estimateValidMonths"
-            label="見積有効期間"
-            value={settings.estimateValidMonths}
-            min="1"
-            max="12"
-            step="1"
-            required
-            onchange={handleChange}
-          ></lightning-input>
+        <div class="setting-row">
+          <span class="row-num">行 7.2</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">金額計算</span>
+          <div class="row-control">
+            <a href={amountCalculationUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>金額計算</a>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">丸め・按分の会社設定の行</span>
+          </span>
         </div>
-        <lightning-input
-          type="checkbox"
-          name="renewOpportunityEnabled"
-          label="更新商談を利用する"
-          checked={settings.renewOpportunityEnabled}
-          onchange={handleChange}
-        ></lightning-input>
       </section>
 
       <section class="slds-m-top_large">
-        <!-- 仕様: Core 第11.6節、第11.9節 -->
-        <h2 class="slds-text-heading_small slds-m-bottom_small">金額計算</h2>
-        <p class="slds-text-body_regular slds-m-bottom_small">丸め・按分。変更しても保存済みは再計算しない</p>
-        <template for:each={amountDiagnoses} for:item="row">
-          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">
-            <span>{row.message}</span>
-            <template lwc:if={row.linkUrl}>
-              <a class="slds-m-left_xx-small" href={row.linkUrl} target="_blank">{row.linkLabel}</a>
+        <h2 class="slds-text-heading_small">8. Accounting</h2>
+        <p class="slds-text-body_regular section-lead">利用有無と方針。未固定なら変更可。固定後は参照専用。マスタはリンク先</p>
+        <div class="setting-row">
+          <span class="row-num">行 8.1</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">仕訳機能の利用有無</span>
+          <div class="row-control">
+            <lightning-input type="checkbox" name="accountingEnabled" label="仕訳機能の利用有無" variant="label-hidden" checked={settings.accountingEnabled} disabled={policyFrozen} onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">ONなら仕訳生成、会計タグ、検収終了日の標準UI。OFFでも請求・入出金は動く</span>
+          </span>
+          <div class="row-note">
+            <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
+            <template lwc:if={freezePolicyHint}>
+              <span class="row-note-text">{freezePolicyHint}</span>
             </template>
-          </p>
-        </template>
-        <p class="slds-text-body_regular slds-m-bottom_small">{amountCalculationWarning}</p>
-        <div class="slds-grid slds-wrap slds-gutters">
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxRoundingMode" label="税額丸め" value={settings.taxRoundingMode} options={taxRoundingModeOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="quantityUnitPriceRoundingMode" label="数量・単価の丸め" value={settings.quantityUnitPriceRoundingMode} options={quantityUnitPriceRoundingModeOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="amountRoundingMode" label="税抜金額の丸め" value={settings.amountRoundingMode} options={amountRoundingModeOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxLineAllocationMethod" label="ヘッダ税の明細配分" value={settings.taxLineAllocationMethod} options={taxLineAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="allocationTieBreak" label="同率の決定順" value={settings.allocationTieBreak} options={allocationTieBreakOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="monthlyBucketAmountMethod" label="月次バケットの金額" value={settings.monthlyBucketAmountMethod} options={monthlyBucketAmountMethodOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxScheduleAllocationMethod" label="税のスケジュール配分" value={settings.taxScheduleAllocationMethod} options={taxScheduleAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="paymentLineAllocationMethod" label="一部入返金の初期配分" value={settings.paymentLineAllocationMethod} options={paymentLineAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="accountBalanceAllocationMethod" label="複数実勘定への配分" value={settings.accountBalanceAllocationMethod} options={accountBalanceAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="documentGroupTaxAllocationMethod" label="帳票グループ税込" value={settings.documentGroupTaxAllocationMethod} options={documentGroupTaxAllocationMethodOptions} onchange={handleChange}></lightning-combobox>
+          </div>
         </div>
-      </section>
-
-      <section class="slds-m-top_large">
-        <!-- 仕様: Core 第11.6節・第11.4.2節、Accounting 第3.1節 -->
-        <h2 class="slds-text-heading_small slds-m-bottom_small">Accounting方針</h2>
-        <p class="slds-text-body_regular slds-m-bottom_small">利用有無と方針。未固定なら変更可。固定後は参照専用。コピー定義の検証は任意</p>
-        <template for:each={policyDiagnoses} for:item="row">
-          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">
-            <span>{row.message}</span>
-            <template lwc:if={row.linkUrl}>
-              <a class="slds-m-left_xx-small" href={row.linkUrl} target="_blank">{row.linkLabel}</a>
-            </template>
-          </p>
-        </template>
-        <lightning-input type="checkbox" name="accountingEnabled" label="仕訳機能の利用有無" checked={settings.accountingEnabled} disabled={policyFrozen} onchange={handleChange}></lightning-input>
-        <div class="slds-grid slds-wrap slds-gutters">
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="revenueRecognitionBasis" label="売上計上方針" value={settings.revenueRecognitionBasis} options={revenueRecognitionBasisOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="taxRecognitionTiming" label="税認識方針" value={settings.taxRecognitionTiming} options={taxRecognitionTimingOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="monthlyBucketMethod" label="月次バケットの刻み方" value={settings.monthlyBucketMethod} options={monthlyBucketMethodOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="monthlyRecognitionDatePosition" label="月次計上の計上日位置" value={settings.monthlyRecognitionDatePosition} options={monthlyRecognitionDatePositionOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="roundingTargetBucket" label="端数の寄せ先" value={settings.roundingTargetBucket} options={roundingTargetBucketOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+        <div class="setting-row">
+          <span class="row-num">行 8.2</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">売上計上方針</span>
+          <div class="row-control">
+            <lightning-combobox name="revenueRecognitionBasis" label="売上計上方針" variant="label-hidden" value={settings.revenueRecognitionBasis} options={revenueRecognitionBasisOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">請求基準／入金連動前受基準</span>
+          </span>
+          <div class="row-note">
+            <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
+          </div>
         </div>
-        <template lwc:if={policyFrozen}>
+        <div class="setting-row">
+          <span class="row-num">行 8.3</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">税認識方針</span>
+          <div class="row-control">
+            <lightning-combobox name="taxRecognitionTiming" label="税認識方針" variant="label-hidden" value={settings.taxRecognitionTiming} options={taxRecognitionTimingOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">請求時／売上計上時</span>
+          </span>
+          <div class="row-note">
+            <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 8.4</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">月次バケットの刻み方</span>
+          <div class="row-control">
+            <lightning-combobox name="monthlyBucketMethod" label="月次バケットの刻み方" variant="label-hidden" value={settings.monthlyBucketMethod} options={monthlyBucketMethodOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">未固定の変更は組織内の請求明細のバケット数を書き直す</span>
+          </span>
+          <div class="row-note">
+            <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 8.5</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">月次計上の計上日位置</span>
+          <div class="row-control">
+            <lightning-combobox name="monthlyRecognitionDatePosition" label="月次計上の計上日位置" variant="label-hidden" value={settings.monthlyRecognitionDatePosition} options={monthlyRecognitionDatePositionOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">月次売上の計上日</span>
+          </span>
+          <div class="row-note">
+            <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 8.6</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">端数の寄せ先</span>
+          <div class="row-control">
+            <lightning-combobox name="roundingTargetBucket" label="端数の寄せ先" variant="label-hidden" value={settings.roundingTargetBucket} options={roundingTargetBucketOptions} disabled={policyFrozen} onchange={handleChange}></lightning-combobox>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">月次売上・税配分の端数吸収先</span>
+          </span>
+          <div class="row-note">
+            <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
+          </div>
+        </div>
+        <template lwc:if={showFrozenBy}>
           <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
             <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="固定者" value={settings.frozenByName} disabled></lightning-input>
             <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="固定日時" value={settings.frozenAtLabel} disabled></lightning-input>
           </div>
         </template>
-        <!-- 仕様: Core 第11.6節・第11.4.2節。保存とは別。固定後も実行できる。操作キーは置かない。 -->
-        <div class="slds-m-top_small">
-          <template lwc:if={canManageOrgSettings}>
-            <lightning-button label="コピー設定を検証" onclick={handleValidateFieldCopy} disabled={loading}></lightning-button>
-          </template>
+        <template lwc:if={showAccountingMasterLinks}>
+          <div class="setting-row">
+            <span class="row-num">行 8.7</span>
+            <span class="slds-badge need need-optional">任意</span>
+            <span class="row-label">勘定科目</span>
+            <div class="row-control">
+              <a href={glAccountsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>勘定科目</a>
+            </div>
+            <span class="help-wrap">
+              <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+              <span class="help-tip" role="tooltip">Accounting ONのときの実勘定科目。21が無ければ出さない</span>
+            </span>
+          </div>
+          <div class="setting-row">
+            <span class="row-num">行 8.8</span>
+            <span class="slds-badge need need-optional">任意</span>
+            <span class="row-label">条件セット</span>
+            <div class="row-control">
+              <a href={conditionSetsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>条件セット</a>
+            </div>
+            <span class="help-wrap">
+              <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+              <span class="help-tip" role="tooltip">割当を条件分けするとき。21が無ければ出さない</span>
+            </span>
+          </div>
+          <div class="setting-row">
+            <span class="row-num">行 8.9</span>
+            <span class="slds-badge need need-optional">任意</span>
+            <span class="row-label">割当</span>
+            <div class="row-control">
+              <a href={accountMapsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>割当</a>
+            </div>
+            <span class="help-wrap">
+              <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+              <span class="help-tip" role="tooltip">スロットから実勘定へ。21が無ければ出さない</span>
+            </span>
+          </div>
+          <div class="setting-row">
+            <span class="row-num">行 8.10</span>
+            <span class="slds-badge need need-optional">任意</span>
+            <span class="row-label">タグルール</span>
+            <div class="row-control">
+              <a href={tagRulesUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>タグルール</a>
+            </div>
+            <span class="help-wrap">
+              <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+              <span class="help-tip" role="tooltip">請求書単位のタグ結果。21が無ければ出さない</span>
+            </span>
+          </div>
+          <div class="setting-row">
+            <span class="row-num">行 8.11</span>
+            <span class="slds-badge need need-optional">任意</span>
+            <span class="row-label">手動仕訳</span>
+            <div class="row-control">
+              <a href={manualJournalsUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>手動仕訳</a>
+            </div>
+            <span class="help-wrap">
+              <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+              <span class="help-tip" role="tooltip">手動仕訳のメニュー。21が無ければ出さない</span>
+            </span>
+          </div>
+        </template>
+      </section>
+
+      <section class="slds-m-top_large">
+        <h2 class="slds-text-heading_small">9. 入力とロック</h2>
+        <p class="slds-text-body_regular section-lead">入力強制とロック除外項目</p>
+        <div class="setting-row">
+          <span class="row-num">行 9.1</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">入力強制</span>
+          <div class="row-control">
+            <lightning-input type="checkbox" name="validationEnforce" label="入力強制" variant="label-hidden" checked={settings.validationEnforce} onchange={handleChange}></lightning-input>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">旗の対象にした顧客入力規則だけ。Coreの整合性ガードは外れない</span>
+          </span>
         </div>
-      </section>
-
-      <section class="slds-m-top_large">
-        <!-- 仕様: Core 第11.6節 -->
-        <h2 class="slds-text-heading_small slds-m-bottom_small">入力</h2>
-        <p class="slds-text-body_regular slds-m-bottom_small">顧客固有 Validation Rule の強制</p>
-        <template for:each={inputDiagnoses} for:item="row">
-          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">{row.message}</p>
-        </template>
-        <lightning-input
-          type="checkbox"
-          name="validationEnforce"
-          label="顧客固有Validation Ruleの強制"
-          checked={settings.validationEnforce}
-          onchange={handleChange}
-        ></lightning-input>
-      </section>
-
-      <section class="slds-m-top_large">
-        <!-- 仕様: Core 第11.6節 -->
-        <h2 class="slds-text-heading_small slds-m-bottom_small">システム</h2>
-        <p class="slds-text-body_regular slds-m-bottom_small">請求・入出金・仕訳のロック除外項目</p>
-        <template for:each={systemDiagnoses} for:item="row">
-          <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">{row.message}</p>
-        </template>
-        <lightning-textarea
-          name="lockExemptFieldApiNames"
-          label="請求ロック除外項目"
-          value={settings.lockExemptFieldApiNames}
-          maxlength="255"
-          onchange={handleChange}
-        ></lightning-textarea>
-        <lightning-textarea
-          name="paymentLockExemptFieldApiNames"
-          label="入出金ロック除外項目"
-          value={settings.paymentLockExemptFieldApiNames}
-          maxlength="255"
-          onchange={handleChange}
-        ></lightning-textarea>
-        <lightning-textarea
-          name="journalLockExemptFieldApiNames"
-          label="仕訳ロック除外項目"
-          value={settings.journalLockExemptFieldApiNames}
-          maxlength="255"
-          onchange={handleChange}
-        ></lightning-textarea>
+        <div class="setting-row">
+          <span class="row-num">行 9.2</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">請求ロック除外項目</span>
+          <div class="row-control">
+            <lightning-textarea name="lockExemptFieldApiNames" label="請求ロック除外項目" variant="label-hidden" value={settings.lockExemptFieldApiNames} maxlength="255" onchange={handleChange}></lightning-textarea>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">確定後に人が直せる追加項目。金額・請求日・宛名は一覧に書いても不可</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 9.3</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">入出金ロック除外項目</span>
+          <div class="row-control">
+            <lightning-textarea name="paymentLockExemptFieldApiNames" label="入出金ロック除外項目" variant="label-hidden" value={settings.paymentLockExemptFieldApiNames} maxlength="255" onchange={handleChange}></lightning-textarea>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">登録後に人が直せる追加項目。金額・日付・目的は一覧に書いても不可</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <span class="row-num">行 9.4</span>
+          <span class="slds-badge need need-required">必須</span>
+          <span class="row-label">仕訳ロック除外項目</span>
+          <div class="row-control">
+            <lightning-textarea name="journalLockExemptFieldApiNames" label="仕訳ロック除外項目" variant="label-hidden" value={settings.journalLockExemptFieldApiNames} maxlength="255" onchange={handleChange}></lightning-textarea>
+          </div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">Lock後に人が直せる追加項目。金額・科目・日付は一覧に書いても不可</span>
+          </span>
+        </div>
       </section>
     </div>
   </lightning-card>
