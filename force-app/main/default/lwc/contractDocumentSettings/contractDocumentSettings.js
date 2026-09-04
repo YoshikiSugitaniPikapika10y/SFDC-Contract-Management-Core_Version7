@@ -236,11 +236,25 @@ export default class ContractDocumentSettings extends LightningElement {
     }
   }
 
+  /**
+   * 仕様: Core 第11.3節・第11.6節。3択の保存値は Unused／PdfOnly／PdfAndEmail。
+   * combobox の event.target.value は表示ラベルになりうるので、detail.value を正とする。
+   */
   handleChange(event) {
-    const { name, type, checked, value } = event.target;
-    let nextValue = type === 'checkbox' ? checked : value;
-    if (type === 'number') {
-      nextValue = value === '' || value == null ? null : Number(value);
+    const name = event.target?.name;
+    if (!name) {
+      return;
+    }
+    const type = event.target.type;
+    const detailValue = event.detail ? event.detail.value : undefined;
+    let nextValue;
+    if (type === 'checkbox') {
+      nextValue = event.target.checked;
+    } else if (type === 'number') {
+      const raw = detailValue !== undefined ? detailValue : event.target.value;
+      nextValue = raw === '' || raw == null ? null : Number(raw);
+    } else {
+      nextValue = detailValue !== undefined ? detailValue : event.target.value;
     }
     this.settings = {
       ...this.settings,
@@ -261,6 +275,7 @@ export default class ContractDocumentSettings extends LightningElement {
   }
 
   async handleSave() {
+    this.applyNamedFieldValues();
     if (!this.reportValidity()) {
       return;
     }
@@ -290,6 +305,32 @@ export default class ContractDocumentSettings extends LightningElement {
     } finally {
       this.loading = false;
     }
+  }
+
+  /** 仕様: Core 第11.6節。画面に出ている値を保存対象にする。 */
+  applyNamedFieldValues() {
+    const next = { ...this.settings };
+    this.template
+      .querySelectorAll(
+        'lightning-input, lightning-textarea, lightning-combobox'
+      )
+      .forEach((element) => {
+        const name = element.name;
+        if (!name) {
+          return;
+        }
+        if (element.type === 'checkbox') {
+          next[name] = element.checked;
+          return;
+        }
+        const raw = element.value;
+        if (element.type === 'number') {
+          next[name] = raw === '' || raw == null ? null : Number(raw);
+          return;
+        }
+        next[name] = raw;
+      });
+    this.settings = next;
   }
 
   /** 仕様: Core 第11.3.1節、第11.3.2節、第1.1.10節。必須空は画面で止める。空白のみは空。 */

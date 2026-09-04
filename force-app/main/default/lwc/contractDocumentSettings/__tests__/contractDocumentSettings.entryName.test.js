@@ -388,3 +388,39 @@ describe("contractDocumentSettings required fields (Core 11.3.1 / 11.3.2 / 1.1.1
     expect(proto.isBlankSetting("会社")).toBe(false);
   });
 });
+
+describe("contractDocumentSettings send mode change (Core 11.3)", () => {
+  const proto = ContractDocumentSettings.prototype;
+
+  it("saves PdfAndEmail from combobox detail, not the display label", () => {
+    const instance = { settings: {} };
+    proto.handleChange.call(instance, {
+      target: { name: "estimateSendMode", value: "PDFとメール送付" },
+      detail: { value: "PdfAndEmail" }
+    });
+    expect(instance.settings.estimateSendMode).toBe("PdfAndEmail");
+    proto.handleChange.call(instance, {
+      target: { name: "invoiceSendMode", value: "PDFとメール送付" },
+      detail: { value: "PdfAndEmail" }
+    });
+    expect(instance.settings.invoiceSendMode).toBe("PdfAndEmail");
+  });
+
+  it("reads combobox option values before save", () => {
+    const instance = {
+      settings: {
+        estimateSendMode: "PDFとメール送付",
+        invoiceSendMode: "PDFとメール送付"
+      },
+      template: {
+        querySelectorAll: () => [
+          { name: "estimateSendMode", value: "PdfAndEmail" },
+          { name: "invoiceSendMode", value: "PdfAndEmail" }
+        ]
+      }
+    };
+    proto.applyNamedFieldValues.call(instance);
+    expect(instance.settings.estimateSendMode).toBe("PdfAndEmail");
+    expect(instance.settings.invoiceSendMode).toBe("PdfAndEmail");
+  });
+});
