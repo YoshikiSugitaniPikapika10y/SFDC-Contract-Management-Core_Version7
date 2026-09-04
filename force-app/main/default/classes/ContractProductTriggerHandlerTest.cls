@@ -213,7 +213,7 @@ private class ContractProductTriggerHandlerTest {
       System.assertEquals(
         screenConfirmedAmount,
         contractProduct.Amount__c,
-        'Trigger は Amount を再計算上書きしない'
+        'Core 第4.6節: 見積商品金額はウィザードで確認・保存した税抜であり、Triggerは再計算上書きしない'
       );
 
       history = [
