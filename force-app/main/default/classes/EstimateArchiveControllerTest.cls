@@ -45,6 +45,24 @@ private class EstimateArchiveControllerTest {
   }
 
   @IsTest
+  static void getArchiveContext_nullId_throwsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        EstimateArchiveController.getArchiveContext(null);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '契約履歴IDが指定されていません。',
+          ex.getMessage(),
+          'Core 第4.3.12節: 手動Archiveの照会は契約履歴Id必須'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
   static void getArchiveContext_missingHistory_throwsKnownMessage() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
@@ -58,6 +76,49 @@ private class EstimateArchiveControllerTest {
         System.assertEquals('契約履歴が見つかりません。', ex.getMessage());
       }
       System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void getArchiveContext_withoutPermission_throwsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Context Perm Deny Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Archive Context Perm Deny Service'
+      );
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Context Perm Deny History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
+      );
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.ESTIMATE => false
+      };
+      try {
+        Boolean thrown = false;
+        try {
+          EstimateArchiveController.getArchiveContext(history.Id);
+        } catch (AuraHandledException ex) {
+          thrown = true;
+          System.assertEquals(
+            '見積アーカイブを実行する権限がありません。',
+            ex.getMessage(),
+            '共通基盤 第1.4節: 見積権限なしは手動Archive照会も拒否'
+          );
+        }
+        System.assertEquals(true, thrown);
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
     }
   }
 
