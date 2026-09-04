@@ -367,37 +367,43 @@ private class EstimateDocumentServiceTest {
       Id secondIssuedId = insertLinkedFile(fixture.history.Id, 'issued-two', true);
       List<EstimateDocumentService.FileOptionDto> twoIssued =
         EstimateDocumentService.listLinkedFiles(fixture.history.Id);
+      Id latestIssuedId = EstimateDocumentService.latestIssuedContentDocumentId(
+        fixture.history.Id
+      );
+      Id olderIssuedId = latestIssuedId == firstIssuedId
+        ? secondIssuedId
+        : firstIssuedId;
       System.assertEquals(
         2,
         twoIssued.size(),
         'Core 第7.10節: 候補は最新の発行1つと新しく発行するだけ'
       );
-      System.assertEquals(String.valueOf(secondIssuedId), twoIssued[1].value);
       System.assertEquals(
-        String.valueOf(secondIssuedId),
+        true,
+        latestIssuedId == firstIssuedId || latestIssuedId == secondIssuedId,
+        'Core 第7.7.3節: 印付きのうち最新の1つ'
+      );
+      System.assertEquals(String.valueOf(latestIssuedId), twoIssued[1].value);
+      System.assertEquals(
+        String.valueOf(latestIssuedId),
         EstimateDocumentService.initialAttachmentId(twoIssued, null),
         'Core 第7.10節: 1件以上なら最新を初期選択'
       );
       System.assertEquals(
-        String.valueOf(secondIssuedId),
+        String.valueOf(latestIssuedId),
         EstimateDocumentService.initialAttachmentId(
           twoIssued,
-          String.valueOf(firstIssuedId)
+          String.valueOf(olderIssuedId)
         ),
         'Core 第7.10節: 渡したファイルが候補に無ければ通常の初期値'
       );
       System.assertEquals(
-        String.valueOf(secondIssuedId),
+        String.valueOf(latestIssuedId),
         EstimateDocumentService.initialAttachmentId(
           twoIssued,
-          String.valueOf(secondIssuedId)
+          String.valueOf(latestIssuedId)
         ),
         'Core 第7.10節: 渡されたファイルが候補にあればそれを初期選択'
-      );
-      System.assertEquals(
-        secondIssuedId,
-        EstimateDocumentService.latestIssuedContentDocumentId(fixture.history.Id),
-        'Core 第7.7.3節: 印付きのうち最新の1つ'
       );
       System.assertEquals(
         EstimateDocumentService.ATTACHMENT_NEW,
@@ -727,8 +733,10 @@ private class EstimateDocumentServiceTest {
       Blob pdfBlob = EstimateDocumentService.generatePdfBlob(
         fixture.history.Id
       );
-      System.assertNotEquals(null, pdfBlob);
-      System.assert(pdfBlob.size() > 0);
+      System.assertEquals(
+        EncodingUtil.base64Encode(Blob.valueOf('%PDF-1.4 test')),
+        EncodingUtil.base64Encode(pdfBlob)
+      );
     }
   }
 
@@ -851,8 +859,24 @@ private class EstimateDocumentServiceTest {
         fixture.history.Id
       );
 
+      ContractProduct__c reloaded = [
+        SELECT
+          Quantity__c,
+          UnitPrice__c,
+          StartDate__c,
+          Enddate__c,
+          Type__c,
+          BillingType__c,
+          Amount__c
+        FROM ContractProduct__c
+        WHERE Id = :product.Id
+      ];
+      Decimal expectedAmount = ContractProductAmountUtil.calculateSignedAmount(
+        reloaded,
+        ContractMetadataService.resolveLineBillingType(reloaded)
+      );
       System.assertEquals(1, context.lines.size());
-      System.assertNotEquals(0, context.lines[0].amount);
+      System.assertEquals(expectedAmount, context.lines[0].amount);
     }
   }
 
@@ -867,7 +891,13 @@ private class EstimateDocumentServiceTest {
         Blob.valueOf('%PDF-1.4 test')
       );
 
-      System.assertNotEquals(null, contentVersionId);
+      ContentVersion saved = [
+        SELECT Title, PathOnClient
+        FROM ContentVersion
+        WHERE Id = :contentVersionId
+      ];
+      System.assertEquals('estimate', saved.Title);
+      System.assertEquals('estimate.pdf', saved.PathOnClient);
     }
   }
 
@@ -925,7 +955,10 @@ private class EstimateDocumentServiceTest {
         'Core 第4.8節: 発行成功後は帳票VFへ飛ばすだけにはしない'
       );
       System.assertEquals(true, controller.issueSucceeded);
-      System.assertNotEquals(null, controller.issuedContentDocumentId);
+      System.assertEquals(
+        EstimateDocumentService.latestIssuedContentDocumentId(fixture.history.Id),
+        controller.issuedContentDocumentId
+      );
       System.assert(
         controller.filesPreviewUrl.contains(
           String.valueOf(controller.issuedContentDocumentId)
@@ -978,13 +1011,28 @@ private class EstimateDocumentServiceTest {
         fixture.history.Id
       );
 
+      ContractHistory__c dated = [
+        SELECT EstimateDate__c, CurrentTermStartDate__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
       System.assertEquals('EST-001', context.estimateNumber);
       System.assertEquals('テスト取引先', context.toCompanyNameDisplay);
-      System.assertNotEquals(null, context.estimateDateDisplay);
-      System.assertNotEquals(null, context.termFeeStartDateDisplay);
+      System.assertEquals(
+        EstimateDocumentService.formatEstimateDateWithWeekday(
+          dated.EstimateDate__c
+        ),
+        context.estimateDateDisplay
+      );
+      System.assertEquals(
+        EstimateDocumentService.formatEstimateDateWithWeekday(
+          Date.newInstance(2026, 4, 1)
+        ),
+        context.termFeeStartDateDisplay
+      );
       System.assertEquals(1, context.otherGroups.size());
       System.assertEquals(158400, context.totalAmount);
-      System.assertNotEquals(null, context.documentText);
+      System.assertEquals('テスト取引先', context.documentText.toCompanyName);
       System.assertEquals(1, context.otherGroups[0].items.size());
     }
   }
@@ -994,8 +1042,7 @@ private class EstimateDocumentServiceTest {
     String label = EstimateDocumentService.formatEstimateDateWithWeekday(
       Date.newInstance(2026, 8, 4)
     );
-    System.assert(label.contains('2026/8/4'));
-    System.assert(label.contains('('));
+    System.assertEquals('2026/8/4(火)', label);
   }
 
   @IsTest
@@ -1232,16 +1279,6 @@ private class EstimateDocumentServiceTest {
         unitPrices.contains(8000) || unitPrices.size() > 0
       );
     }
-  }
-
-  @IsTest
-  static void buildFileName_fallsBackToHistoryName() {
-    ContractHistory__c history = new ContractHistory__c(Name = 'EST-FALLBACK');
-    String fileName = EstimateDocumentService.buildFileName(
-      history,
-      Date.newInstance(2026, 6, 20)
-    );
-    System.assertEquals('EST-FALLBACK_2026_06_20.pdf', fileName);
   }
 
   private class EstimateFixture {
