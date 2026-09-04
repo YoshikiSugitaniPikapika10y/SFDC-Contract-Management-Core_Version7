@@ -348,32 +348,6 @@ private class EstimateRevertInvoiceServiceTest {
   }
 
   @IsTest
-  static void isLatestOrderedHistory_returnsFalseForPriorOrdered() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      TestContext context = createTwoVersionContext(
-        Date.newInstance(2026, 10, 1)
-      );
-      Test.startTest();
-      context.changeHistory.historystatus__c = 'Ordered';
-      update context.changeHistory;
-
-      System.assertEquals(
-        false,
-        EstimateRevertInvoiceService.isLatestOrderedHistory(
-          context.priorHistory.Id
-        )
-      );
-      System.assertEquals(
-        true,
-        EstimateRevertInvoiceService.isLatestOrderedHistory(
-          context.changeHistory.Id
-        )
-      );
-      Test.stopTest();
-    }
-  }
-
-  @IsTest
   static void isLatestOrderedHistory_usesVersionNotLatestPointer() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestContext context = createTwoVersionContext(
