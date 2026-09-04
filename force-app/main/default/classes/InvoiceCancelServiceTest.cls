@@ -9,65 +9,7 @@ private class InvoiceCancelServiceTest {
   static void cancelConfirmed_copiesHeaderAdjustmentFlags() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
-      Account account = ContractTestDataFactory.insertAccount(
-        'CancelFlag ' + String.valueOf(Crypto.getRandomInteger())
-      );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'cancelflag@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-        account.Id,
-        'CancelFlag Opp'
-      );
-      ContractService__c service = new ContractService__c(
-        Name = 'CancelFlag Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = 0.1
-      );
-      insert service;
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'CancelFlag History',
-        ContractService__c = service.Id,
-        Opportunity__c = opportunity.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1
-      );
-      insert history;
-      Invoice__c invoice = new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
-        InvoiceDate__c = Date.newInstance(2026, 6, 1),
-        Amount__c = 1000,
-        TaxAmount__c = 100,
-        BillingAccountSnapShot__c = billingAccount.Id,
-        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-        SystemIntegrationDate__c = Date.today(),
-        IsAmountAdjusted__c = true,
-        IsSplitMoved__c = true,
-        IsManuallyAdjusted__c = true
-      );
-      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
-      insert new InvoiceLine__c(
-        Invoice__c = invoice.Id,
-        ProductName__c = 'CancelFlag Line',
-        Amount__c = 1000,
-        Quantity__c = 1,
-        UnitPrice__c = 1000
-      );
-
+      Invoice__c invoice = insertConfirmedInvoice('CancelFlag', true, true, true, null);
       InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
       request.invoiceId = invoice.Id;
       request.cancellationReason = 'Duplicate';
@@ -110,61 +52,12 @@ private class InvoiceCancelServiceTest {
   static void cancelConfirmed_doesNotCopyMergeKey_andAssignsNewName() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
-      Account account = ContractTestDataFactory.insertAccount(
-        'CancelMerge ' + String.valueOf(Crypto.getRandomInteger())
-      );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'cancelmerge@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-        account.Id,
-        'CancelMerge Opp'
-      );
-      ContractService__c service = new ContractService__c(
-        Name = 'CancelMerge Service',
-        Account__c = account.Id,
-        BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = 0.1
-      );
-      insert service;
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'CancelMerge History',
-        ContractService__c = service.Id,
-        Opportunity__c = opportunity.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 1
-      );
-      insert history;
-      Invoice__c invoice = new Invoice__c(
-        ContractService__c = service.Id,
-        ContractHistory__c = history.Id,
-        InvoiceDate__c = Date.newInstance(2026, 6, 1),
-        Amount__c = 1000,
-        TaxAmount__c = 100,
-        BillingAccountSnapShot__c = billingAccount.Id,
-        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-        SystemIntegrationDate__c = Date.today(),
-        MergeKey__c = 'INV|CANCEL-MERGE-KEY'
-      );
-      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
-      insert new InvoiceLine__c(
-        Invoice__c = invoice.Id,
-        ProductName__c = 'CancelMerge Line',
-        Amount__c = 1000,
-        Quantity__c = 1,
-        UnitPrice__c = 1000
+      Invoice__c invoice = insertConfirmedInvoice(
+        'CancelMerge',
+        false,
+        false,
+        false,
+        'INV|CANCEL-MERGE-KEY'
       );
       String originalName = [SELECT Name FROM Invoice__c WHERE Id = :invoice.Id]
         .Name;
@@ -289,8 +182,9 @@ private class InvoiceCancelServiceTest {
         InvoiceCancelService.cancelConfirmed(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消基準日が必要'),
+        System.assertEquals(
+          'ロック済み仕訳がある取消では取消基準日が必要です。',
+          ex.getMessage(),
           'Core 第7.9.6節、日付仕様 第7.3節: ロック済み仕訳がある取消は未入力をエラーにする'
         );
       }
@@ -401,6 +295,46 @@ private class InvoiceCancelServiceTest {
   }
 
   @IsTest
+  static void cancelConfirmed_rejectsBlankInvoiceAndReason() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceCancelService.CancelRequest blankInvoice = new InvoiceCancelService.CancelRequest();
+      blankInvoice.cancellationReason = 'Duplicate';
+      Boolean invoiceThrown = false;
+      try {
+        InvoiceCancelService.cancelConfirmed(blankInvoice);
+      } catch (InvoiceCancelService.CancelException ex) {
+        invoiceThrown = true;
+        System.assertEquals(
+          '取消する請求が指定されていません。',
+          ex.getMessage(),
+          'Core 第7.9.3節: 取消する請求が無ければ始めない'
+        );
+      }
+      System.assertEquals(true, invoiceThrown);
+
+      Invoice__c invoice = insertConfirmedInvoice('CancelReason');
+      InvoiceCancelService.CancelRequest blankReason = new InvoiceCancelService.CancelRequest();
+      blankReason.invoiceId = invoice.Id;
+      blankReason.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Boolean reasonThrown = false;
+      try {
+        InvoiceCancelService.cancelConfirmed(blankReason);
+      } catch (InvoiceCancelService.CancelException ex) {
+        reasonThrown = true;
+        System.assertEquals(
+          '取消理由を入力してください。',
+          ex.getMessage(),
+          'Core 第7.9.3節: 取消理由は必須'
+        );
+      }
+      System.assertEquals(true, reasonThrown);
+    }
+  }
+
+  @IsTest
   static void cancelConfirmed_rejectsBlankExpectedToken() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
@@ -494,61 +428,86 @@ private class InvoiceCancelServiceTest {
   }
 
   private static Invoice__c insertConfirmedInvoice(String suffix) {
+    return insertConfirmedInvoice(suffix, false, false, false, null);
+  }
+
+  private static Invoice__c insertConfirmedInvoice(
+    String suffix,
+    Boolean amountAdjusted,
+    Boolean splitMoved,
+    Boolean manuallyAdjusted,
+    String mergeKey
+  ) {
     Account account = ContractTestDataFactory.insertAccount(
       suffix + ' ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = suffix.toLowerCase() + '@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+    ContractService__c service = ContractTestDataFactory.insertContractService(
       account.Id,
-      suffix + ' Opp'
+      suffix + ' Service'
     );
-    ContractService__c service = new ContractService__c(
-      Name = suffix + ' Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
-    );
-    insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = suffix + ' History',
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
-      Version__c = 1
+      historystatus__c = 'Estimate',
+      Version__c = 1,
+      CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+      EffectiveDate__c = Date.newInstance(2026, 6, 1)
     );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
+    Product2 product = ContractTestDataFactory.buildProduct(suffix + ' Product');
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    ContractTestDataFactory.insertProduct(product);
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Account__c = account.Id,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      Amount__c = 1000,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2026, 6, 30),
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+    );
+    ContractTestDataFactory.applyRequiredFields(contractProduct);
+    contractProduct.Amount__c = 1000;
+    insert contractProduct;
+    history.historystatus__c = 'Ordered';
+    update history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
       ContractHistory__c = history.Id,
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      BillingAccountSnapShot__c = billingAccount.Id,
-      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
-      SystemIntegrationDate__c = Date.today()
+      BillingAccountSnapShot__c = service.BiilingAcccount__c
     );
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+    invoice.SystemIntegrationDate__c = Date.today();
+    invoice.IsAmountAdjusted__c = amountAdjusted;
+    invoice.IsSplitMoved__c = splitMoved;
+    invoice.IsManuallyAdjusted__c = manuallyAdjusted;
+    invoice.MergeKey__c = mergeKey;
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
-    insert new InvoiceLine__c(
+    InvoiceLine__c invoiceLine = new InvoiceLine__c(
       Invoice__c = invoice.Id,
       ProductName__c = suffix + ' Line',
       Amount__c = 1000,
       Quantity__c = 1,
-      UnitPrice__c = 1000
+      UnitPrice__c = 1000,
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      AcceptanceEndDate__c = Date.newInstance(2026, 6, 30),
+      ServicePeriodStartDate__c = Date.newInstance(2026, 6, 1),
+      ServicePeriodEndDate__c = Date.newInstance(2026, 6, 30)
     );
+    ContractTestDataFactory.applyRequiredFields(invoiceLine);
+    insert invoiceLine;
     return invoice;
   }
 
