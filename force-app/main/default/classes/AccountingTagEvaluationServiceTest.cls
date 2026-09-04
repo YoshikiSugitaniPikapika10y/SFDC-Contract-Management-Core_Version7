@@ -34,7 +34,10 @@ private class AccountingTagEvaluationServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('保存先項目がありません'),
+          ex.getMessage()
+            .contains(
+              '会計タグルール「AR残」の保存先項目がありません: Missing_Tag_Target__c'
+            ),
           'Accounting 第7.4節: 有効=Trueの保存で保存先の存在を検証する。実際: ' +
             ex.getMessage()
         );
@@ -53,7 +56,7 @@ private class AccountingTagEvaluationServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('同じ保存先項目'),
+          ex.getMessage().contains('同じ保存先項目を複数の有効タグルールが更新しています。'),
           'Accounting 第7.4節: 同じ保存先を複数の有効ルールが更新してはならない。実際: ' +
             ex.getMessage()
         );
@@ -132,8 +135,8 @@ private class AccountingTagEvaluationServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('未知のトークン') ||
-            ex.getMessage().contains('式が不正'),
+          ex.getMessage()
+            .contains('会計タグルール「字句」の式に未知のトークンがあります: AR-DEF'),
           'Accounting 第7.3節・第7.4節: 有効時は式の字句・構文を検証する。実際: ' +
             ex.getMessage()
         );
@@ -151,7 +154,8 @@ private class AccountingTagEvaluationServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('チェックボックスではありません'),
+          ex.getMessage()
+            .contains('会計タグルール「AR残」の保存先はチェックボックスではありません。'),
           'Accounting 第7.4節: 保存先はチェックボックス型。実際: ' + ex.getMessage()
         );
       }
@@ -218,7 +222,8 @@ private class AccountingTagEvaluationServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('有効な会計タグルールは削除できません'),
+          ex.getMessage()
+            .contains('有効な会計タグルールは削除できません。無効にしてから削除してください。'),
           'Accounting 第7.2節: ルール削除は有効=Falseの場合だけ許可する。実際: ' +
             ex.getMessage()
         );
@@ -977,39 +982,19 @@ private class AccountingTagEvaluationServiceTest {
     Account account = ContractTestDataFactory.insertAccount(
       'Tag ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'tag@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+    ContractService__c service = ContractTestDataFactory.insertContractService(
       account.Id,
-      'Tag Opp'
+      'Tag Service'
     );
-    ContractService__c service = new ContractService__c(
-      Name = 'Tag Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
-    );
-    insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = 'Tag History',
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1
     );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
@@ -1017,10 +1002,10 @@ private class AccountingTagEvaluationServiceTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      BillingAccountSnapShot__c = billingAccount.Id,
-      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+      BillingAccountSnapShot__c = service.BiilingAcccount__c
     );
-    insert invoice;
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
   }
 }
