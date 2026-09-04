@@ -10,10 +10,11 @@ private class AccountingCauseLockServiceTest {
     Boolean thrown = false;
     try {
       AccountingCauseLockService.lockInvoice(null);
-    } catch (Exception ex) {
+    } catch (AccountingCauseLockService.LockException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('請求が指定されていません'),
+      System.assertEquals(
+        '請求が指定されていません。',
+        ex.getMessage(),
         'Accounting 第8.2節: 対象請求書が無ければパイプラインを始めない'
       );
     }
@@ -40,8 +41,9 @@ private class AccountingCauseLockServiceTest {
       AccountingCauseLockService.lockHistory(null);
     } catch (AccountingCauseLockService.LockException ex) {
       nullThrown = true;
-      System.assert(
-        ex.getMessage().contains('契約履歴が指定されていません'),
+      System.assertEquals(
+        '契約履歴が指定されていません。',
+        ex.getMessage(),
         'Core 第4.3.12節: 対象契約履歴が無ければ行ロックしない'
       );
     }
@@ -51,8 +53,9 @@ private class AccountingCauseLockServiceTest {
       AccountingCauseLockService.lockHistory(fakeId(ContractHistory__c.SObjectType));
     } catch (AccountingCauseLockService.LockException ex) {
       missingThrown = true;
-      System.assert(
-        ex.getMessage().contains('契約履歴をロックできませんでした'),
+      System.assertEquals(
+        '契約履歴をロックできませんでした。',
+        ex.getMessage(),
         'Core 第4.3.12節: 取れなければ操作全体を失敗させる'
       );
     }
@@ -81,8 +84,9 @@ private class AccountingCauseLockServiceTest {
         AccountingCauseLockService.lockService(null);
       } catch (AccountingCauseLockService.LockException ex) {
         serviceNullThrown = true;
-        System.assert(
-          ex.getMessage().contains('契約サービスが指定されていません'),
+        System.assertEquals(
+          '契約サービスが指定されていません。',
+          ex.getMessage(),
           'Core 第3.4.1節: 対象の契約サービスを行ロックする'
         );
       }
@@ -100,8 +104,9 @@ private class AccountingCauseLockServiceTest {
         AccountingCauseLockService.lockService(fakeId(ContractService__c.SObjectType));
       } catch (AccountingCauseLockService.LockException ex) {
         serviceMissingThrown = true;
-        System.assert(
-          ex.getMessage().contains('契約サービスをロックできませんでした'),
+        System.assertEquals(
+          '契約サービスをロックできませんでした。',
+          ex.getMessage(),
           'Core 第4.3.12節: 短時間待っても取れなければ操作全体を失敗させる'
         );
       }
@@ -131,8 +136,9 @@ private class AccountingCauseLockServiceTest {
       AccountingCauseLockService.lockInvoice(fakeId(Invoice__c.SObjectType));
     } catch (AccountingCauseLockService.LockException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('請求をロックできませんでした'),
+      System.assertEquals(
+        '請求をロックできませんでした。',
+        ex.getMessage(),
         'Accounting 第8.2節: 対象請求書を行ロックする'
       );
     }
@@ -220,40 +226,19 @@ private class AccountingCauseLockServiceTest {
     Account account = ContractTestDataFactory.insertAccount(
       'Lock ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'lock@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+    ContractService__c service = ContractTestDataFactory.insertContractService(
       account.Id,
-      'Lock Opp'
+      'Lock Service'
     );
-    ContractService__c service = new ContractService__c(
-      Name = 'Lock Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
-    );
-    ContractTestDataFactory.applyRequiredFields(service);
-    insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = 'Lock History',
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
-      historystatus__c = 'Ordered',
+      historystatus__c = 'Estimate',
       Version__c = 1
     );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
@@ -261,10 +246,10 @@ private class AccountingCauseLockServiceTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
-      BillingAccountSnapShot__c = billingAccount.Id,
-      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+      BillingAccountSnapShot__c = service.BiilingAcccount__c
     );
-    insert invoice;
+    ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+    ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
   }
 }
