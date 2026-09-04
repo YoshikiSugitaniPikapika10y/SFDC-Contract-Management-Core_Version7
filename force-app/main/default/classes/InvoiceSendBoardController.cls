@@ -73,7 +73,9 @@ public without sharing class InvoiceSendBoardController {
       try {
         ContractDocumentSettingService.assertRequiredCompanyFields();
       } catch (ContractDocumentSettingService.SettingException ex) {
-        result.companyBlockedReason = ex.getMessage();
+        result.companyBlockedReason = ContractDocumentSettingService.withDocumentSendHeading(
+          ex.getMessage()
+        );
       }
       result.listLimit = LIST_LIMIT;
       return result;
@@ -214,7 +216,9 @@ public without sharing class InvoiceSendBoardController {
         return null;
       }
     } catch (ContractDocumentSettingService.SettingException ex) {
-      return ex.getMessage();
+      return ContractDocumentSettingService.withDocumentSendHeading(
+        ex.getMessage()
+      );
     }
     Savepoint sp = Database.setSavepoint();
     Boolean previous = ContractOperationLogService.suppressIssueLog;

@@ -310,4 +310,22 @@ private class ContractDocumentSettingServiceTest {
       ContractDocumentSetting__c.InvoiceSendMode__c.getDescribe().getType()
     );
   }
+
+  @IsTest
+  static void withDocumentSendHeading_prefixesShortageBody() {
+    System.assertEquals(
+      '帳票・送付：会社名を設定してください。',
+      ContractDocumentSettingService.withDocumentSendHeading(
+        ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE
+      ),
+      'Core 第7.10節・第11.3.1節・第11.6節: 発行・送付・確定の不足エラーに見出し名を付ける'
+    );
+    System.assertEquals(
+      '帳票・送付：会社名を設定してください。',
+      ContractDocumentSettingService.withDocumentSendHeading(
+        '帳票・送付：会社名を設定してください。'
+      ),
+      'Core 第7.10節: 見出し名は重ねない'
+    );
+  }
 }

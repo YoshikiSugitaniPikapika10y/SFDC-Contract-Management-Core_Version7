@@ -581,7 +581,9 @@ public without sharing class ContractCrossController {
       try {
         ContractDocumentSettingService.assertRequiredCompanyFields(setting);
       } catch (ContractDocumentSettingService.SettingException ex) {
-        dto.companyBlockedReason = ex.getMessage();
+        dto.companyBlockedReason = ContractDocumentSettingService.withDocumentSendHeading(
+          ex.getMessage()
+        );
       }
       dto.latestIssuedContentDocumentId = EstimateDocumentService.latestIssuedContentDocumentId(
         historyId

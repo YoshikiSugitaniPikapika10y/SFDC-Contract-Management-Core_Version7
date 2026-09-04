@@ -97,9 +97,11 @@ private class ContractCrossControllerTest {
         history.history.Id
       );
       System.assertEquals(
-        ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE,
+        ContractDocumentSettingService.withDocumentSendHeading(
+          ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE
+        ),
         dto.companyBlockedReason,
-        'Core 第11.3.1節: 会社名空なら見積発行を画面で止める'
+        'Core 第11.3.1節・第7.10節: 会社名空なら見積発行を画面で止め、見出し名を付ける'
       );
     }
   }

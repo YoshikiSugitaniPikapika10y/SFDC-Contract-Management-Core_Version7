@@ -282,7 +282,9 @@ public without sharing class EstimateDocumentService {
       }
       ContractDocumentSettingService.assertRequiredCompanyFields();
     } catch (ContractDocumentSettingService.SettingException ex) {
-      throw new EstimateDocumentException(ex.getMessage());
+      throw new EstimateDocumentException(
+        ContractDocumentSettingService.withDocumentSendHeading(ex.getMessage())
+      );
     }
     lockHistoryForDocumentIssue(contractHistoryId);
     DocumentContext context = loadContext(contractHistoryId);
@@ -1240,7 +1242,9 @@ public without sharing class EstimateDocumentService {
         resolvedKey = ContractDocumentSettingService.requireOrgSetting()
           .EstimateDefaultDocumentTemplateKey__c;
       } catch (ContractDocumentSettingService.SettingException ex) {
-        throw new EstimateDocumentException(ex.getMessage());
+        throw new EstimateDocumentException(
+          ContractDocumentSettingService.withDocumentSendHeading(ex.getMessage())
+        );
       }
     }
     try {
@@ -1249,7 +1253,11 @@ public without sharing class EstimateDocumentService {
         resolvedKey
       );
     } catch (ContractDocumentTemplateService.DocumentTemplateException ex) {
-      throw new EstimateDocumentException(ex.getMessage());
+      String message = ex.getMessage();
+      if (message == ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE) {
+        message = ContractDocumentSettingService.withDocumentSendHeading(message);
+      }
+      throw new EstimateDocumentException(message);
     }
   }
 

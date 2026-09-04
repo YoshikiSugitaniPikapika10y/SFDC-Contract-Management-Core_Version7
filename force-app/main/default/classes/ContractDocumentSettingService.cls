@@ -24,8 +24,20 @@ public without sharing class ContractDocumentSettingService {
     '保存した組織送信元アドレスに一致する検証済みの組織ワイドメールがありません。';
   public static final String ORG_SENDER_AMBIGUOUS_MESSAGE =
     '保存した組織送信元アドレスに一致する検証済みの組織ワイドメールが複数あります。';
+  public static final String DOCUMENT_SEND_HEADING = '帳票・送付';
 
   private static ContractDocumentSetting__c cachedOrgSetting;
+
+  /** 仕様: Core 第7.10節、第11.3.1節、第11.6節。発行・送付・確定の不足エラーに見出し名を付ける。 */
+  public static String withDocumentSendHeading(String body) {
+    if (String.isBlank(body)) {
+      return body;
+    }
+    if (body.startsWith(DOCUMENT_SEND_HEADING)) {
+      return body;
+    }
+    return DOCUMENT_SEND_HEADING + '：' + body;
+  }
 
   /** 仕様: Core 第11.3節、第4.10節、第1.1.10節 */
   public static String requireSendMode(String documentKind) {

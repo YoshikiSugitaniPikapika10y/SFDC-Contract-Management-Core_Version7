@@ -120,7 +120,9 @@ public without sharing class InvoiceDocumentService {
       }
       ContractDocumentSettingService.assertRequiredCompanyFields();
     } catch (ContractDocumentSettingService.SettingException ex) {
-      throw new InvoiceDocumentException(ex.getMessage());
+      throw new InvoiceDocumentException(
+        ContractDocumentSettingService.withDocumentSendHeading(ex.getMessage())
+      );
     }
     DocumentContext context = loadContext(invoiceId);
     String fileName = String.isNotBlank(attachmentFileName)
@@ -274,7 +276,9 @@ public without sharing class InvoiceDocumentService {
         resolvedKey = ContractDocumentSettingService.requireOrgSetting()
           .InvoiceDefaultDocumentTemplateKey__c;
       } catch (ContractDocumentSettingService.SettingException ex) {
-        throw new InvoiceDocumentException(ex.getMessage());
+        throw new InvoiceDocumentException(
+          ContractDocumentSettingService.withDocumentSendHeading(ex.getMessage())
+        );
       }
     }
     try {
@@ -283,7 +287,11 @@ public without sharing class InvoiceDocumentService {
         resolvedKey
       );
     } catch (ContractDocumentTemplateService.DocumentTemplateException ex) {
-      throw new InvoiceDocumentException(ex.getMessage());
+      String message = ex.getMessage();
+      if (message == ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE) {
+        message = ContractDocumentSettingService.withDocumentSendHeading(message);
+      }
+      throw new InvoiceDocumentException(message);
     }
   }
 

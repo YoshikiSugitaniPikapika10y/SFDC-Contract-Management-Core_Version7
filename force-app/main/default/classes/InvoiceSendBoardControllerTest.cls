@@ -181,10 +181,12 @@ private class InvoiceSendBoardControllerTest {
       Test.stopTest();
 
       System.assertEquals(1, confirmed.confirmedCount);
-      System.assertNotEquals(
-        null,
+      System.assertEquals(
+        ContractDocumentSettingService.withDocumentSendHeading(
+          ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE
+        ),
         confirmed.issueWarning,
-        'Core 第7.10節: 発行できなかった理由を返す'
+        'Core 第7.10節・第11.3.1節: 不足エラーに見出し名「帳票・送付」を付ける'
       );
       System.assertEquals(
         InvoiceTransactionStatusService.TX_CONFIRMED,
@@ -235,9 +237,11 @@ private class InvoiceSendBoardControllerTest {
 
       InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
       System.assertEquals(
-        ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE,
+        ContractDocumentSettingService.withDocumentSendHeading(
+          ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE
+        ),
         context.companyBlockedReason,
-        'Core 第11.3.1節・第7.10節: 会社名空なら発行を止める理由を返す'
+        'Core 第11.3.1節・第7.10節: 会社名空なら発行を止める理由に見出し名を付ける'
       );
     }
   }

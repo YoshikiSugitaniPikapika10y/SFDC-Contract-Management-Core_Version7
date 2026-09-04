@@ -275,9 +275,11 @@ public with sharing class EstimateDocumentPdfController {
     try {
       ContractDocumentSettingService.assertRequiredCompanyFields();
     } catch (ContractDocumentSettingService.SettingException ex) {
-      companyBlockedReason = ex.getMessage();
+      companyBlockedReason = ContractDocumentSettingService.withDocumentSendHeading(
+        ex.getMessage()
+      );
       ApexPages.addMessage(
-        new ApexPages.Message(ApexPages.Severity.ERROR, ex.getMessage())
+        new ApexPages.Message(ApexPages.Severity.ERROR, companyBlockedReason)
       );
     }
   }

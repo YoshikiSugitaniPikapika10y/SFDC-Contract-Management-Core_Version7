@@ -456,9 +456,11 @@ private class EstimateDocumentServiceTest {
       } catch (EstimateDocumentService.EstimateDocumentException ex) {
         thrown = true;
         System.assertEquals(
-          ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE,
+          ContractDocumentSettingService.withDocumentSendHeading(
+            ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE
+          ),
           ex.getMessage(),
-          'Core 第11.3.1節: 必須の空欄は発行でも止める'
+          'Core 第11.3.1節・第7.10節: 必須の空欄は発行でも止め、見出し名を付ける'
         );
       }
       System.assertEquals(true, thrown);
@@ -488,7 +490,9 @@ private class EstimateDocumentServiceTest {
         'Core 第4.8節・第11.3.1節・第1.1.10節: 会社情報空なら発行ボタンを出さない'
       );
       System.assertEquals(
-        ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE,
+        ContractDocumentSettingService.withDocumentSendHeading(
+          ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE
+        ),
         controller.companyBlockedReason
       );
     }
