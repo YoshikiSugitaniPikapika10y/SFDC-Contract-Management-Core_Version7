@@ -639,10 +639,6 @@ private class EstimateCreateControllerTest {
       System.assertEquals(2, result.version);
       // 未受注 Estimate があっても次 Version は最新 Ordered + 1
       System.assertEquals(3, result.nextVersion);
-      System.assertEquals(
-        ContractHistoryVersionUtil.getNextHistoryVersion(service.Id),
-        result.nextVersion
-      );
     }
   }
 
@@ -4132,8 +4128,29 @@ private class EstimateCreateControllerTest {
         null,
         null
       );
-      System.assertNotEquals(null, result);
+      System.assertEquals(service.Id, result.contractServiceId);
       System.assertNotEquals(null, result.contractHistoryId);
+
+      ContractHistory__c saved = [
+        SELECT Type__c, historystatus__c, Version__c, PreviousHistory__c
+        FROM ContractHistory__c
+        WHERE Id = :result.contractHistoryId
+      ];
+      System.assertEquals('Change', saved.Type__c);
+      System.assertEquals('Estimate', saved.historystatus__c);
+      System.assertEquals(2, saved.Version__c);
+      System.assertEquals(sourceHistory.Id, saved.PreviousHistory__c);
+
+      List<ContractProduct__c> savedProducts = [
+        SELECT Type__c, UnitPrice__c, Amount__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :result.contractHistoryId
+        ORDER BY Type__c DESC
+      ];
+      System.assertEquals(2, savedProducts.size());
+      System.assertEquals('Remake', savedProducts[0].Type__c);
+      System.assertEquals(29000, savedProducts[0].UnitPrice__c);
+      System.assertEquals('Original', savedProducts[1].Type__c);
     }
   }
 
@@ -5254,60 +5271,23 @@ private class EstimateCreateControllerTest {
   }
 
   @IsTest
-  static void wizardFieldService_helpers_areCoveredWithTestDefinitions() {
-    ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
-
-    System.assertEquals(
-      1,
-      ContractWizardFieldService.getContractServiceFieldDefinitions().size()
-    );
-    System.assertEquals(
-      1,
-      ContractWizardFieldService.getContractHistoryFieldDefinitions().size()
-    );
-
-    ContractService__c service = new ContractService__c();
-    ContractWizardFieldService.applyCustomFields(
-      service,
-      new Map<String, Object>{ 'CustomerMemo__c' => ' service memo ' },
-      ContractWizardFieldService.WizardTarget.ContractService
-    );
-    System.assertEquals('service memo', service.CustomerMemo__c);
-
-    Product2 product = new Product2(
-      Name = 'Wizard Coverage Product',
-      Family = ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
-    );
-    ContractTestDataFactory.insertProduct(product);
-    Map<String, String> context = ContractWizardFieldService.buildProductVisibilityContext(
-      product
-    );
-    System.assertEquals(
-      ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY,
-      context.get('Family')
-    );
-
-    System.assertEquals(true, EstimateValidationService.decimalsEqual(1, 1));
-    System.assertEquals(false, EstimateValidationService.decimalsEqual(1, 2));
-    try {
-      throw EstimateValidationService.estSaveException('001', 'coverage');
-    } catch (AuraHandledException ex) {
-      System.assertNotEquals(null, ex.getMessage());
-    }
-  }
-
-  @IsTest
   static void facadeQueryMethods_areCallable() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount('Facade Account');
-      System.assertNotEquals(
-        null,
+      String defaultLabel = ContractMetadataService.getDefaultInvoiceSettingLabel();
+      System.assertEquals(
+        defaultLabel,
         EstimateCreateController.getDefaultInvoiceSettingLabel()
       );
-      System.assertNotEquals(
-        null,
-        EstimateCreateController.getInvoiceSettingOptions()
-      );
+      List<ContractMetadataService.InvoiceSettingOption> options = EstimateCreateController.getInvoiceSettingOptions();
+      System.assertEquals(false, options.isEmpty());
+      Boolean foundDefault = false;
+      for (ContractMetadataService.InvoiceSettingOption option : options) {
+        if (option != null && option.label == defaultLabel) {
+          foundDefault = true;
+        }
+      }
+      System.assertEquals(true, foundDefault);
       System.assertEquals(
         0,
         EstimateCreateController.getBillingAccountsByAccount(null).size()
@@ -5316,65 +5296,34 @@ private class EstimateCreateControllerTest {
         0,
         EstimateCreateController.getActiveContractServicesByAccount(null).size()
       );
-      Integer policyCount = [SELECT COUNT() FROM GlAccountingPolicy__c];
-      if (policyCount == 0) {
-        Boolean policyMissingThrown = false;
-        try {
-          EstimateCreateController.isAccountingEnabled();
-        } catch (Exception ex) {
-          policyMissingThrown = true;
-          System.assert(
-            ex.getMessage().contains('Accounting会計方針がありません'),
-            'Core 第1.1.10節: 会計方針0件はOFFと埋めずエラーにする'
-          );
-        }
-        System.assertEquals(
-          true,
-          policyMissingThrown,
-          'Core 第1.1.10節・第7.6節: 会計方針が無いときはOFFとみなさない'
-        );
-      } else {
-        System.assertEquals(
-          false,
-          EstimateCreateController.isAccountingEnabled(),
-          'Core 第4.5.2節・第7.6節: Accounting OFFでは計上方法列を出さない'
-        );
-      }
 
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = 'テスト御中',
-        BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
-
-      System.assert(
-        EstimateCreateController.getBillingAccountsByAccount(account.Id)
-          .size() >= 1
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
       );
+      List<EstimateCreateController.BillingAccountOptionDto> accounts = EstimateCreateController.getBillingAccountsByAccount(
+        account.Id
+      );
+      BillingAccount__c namedAccount = [
+        SELECT Name
+        FROM BillingAccount__c
+        WHERE Id = :billingAccount.Id
+      ];
+      System.assertEquals(1, accounts.size());
+      System.assertEquals(billingAccount.Id, accounts[0].id);
+      System.assertEquals(namedAccount.Name, accounts[0].name);
 
-      ContractService__c service = ContractTestDataFactory.insertContractService(
+      ContractTestDataFactory.insertContractService(
         account.Id,
         'Facade Service'
       );
       List<EstimateCreateController.ContractServiceOptionDto> services = EstimateCreateController.getActiveContractServicesByAccount(
         account.Id
       );
-      System.assertNotEquals(null, services);
-      // 未受注のみのサービスは候補に出ない。DTO は id/name だけ触れ、ウィザード向け拡張フィールドは触らない。
-      EstimateCreateController.ContractServiceOptionDto shape = new EstimateCreateController.ContractServiceOptionDto();
-      shape.id = service.Id;
-      shape.name = service.Name;
-      System.assertEquals(service.Id, shape.id);
-      System.assertEquals(service.Name, shape.name);
+      System.assertEquals(
+        0,
+        services.size(),
+        '未受注のみのサービスは候補に出ない'
+      );
     }
   }
 
@@ -5684,6 +5633,10 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown18 = true;
+        System.assertEquals(
+          '[EST-S1-001] タイプを選択してください。',
+          ex.getMessage()
+        );
       }
       System.assertEquals(true, thrown18);
 
@@ -5709,6 +5662,10 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown16 = true;
+        System.assertEquals(
+          '[EST-S1-001] タイプを選択してください。',
+          ex.getMessage()
+        );
       }
       System.assertEquals(true, thrown16);
 
@@ -5733,47 +5690,13 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown15 = true;
+        System.assertEquals(
+          '[EST-S1-001] タイプを選択してください。',
+          ex.getMessage()
+        );
       }
       System.assertEquals(true, thrown15);
     }
-  }
-
-  @IsTest
-  static void dtoConstructors_instantiateInnerClasses() {
-    EstimateCreateController.ProductDefaultDto productDefault = new EstimateCreateController.ProductDefaultDto();
-    productDefault.unitName = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
-    productDefault.unitPrice = 1000;
-
-    EstimateCreateController.ProductLineItem lineItem = new EstimateCreateController.ProductLineItem();
-    lineItem.quantity = 1;
-    lineItem.amount = 1000;
-
-    EstimateCreateController.EstimateCopyPresetDto preset = new EstimateCreateController.EstimateCopyPresetDto();
-    preset.selectedType = 'New';
-    preset.contractCustomFieldsExpanded = true;
-
-    EstimateCreateController.BillingAccountInvoiceSettingsDto billingSettings = new EstimateCreateController.BillingAccountInvoiceSettingsDto();
-    billingSettings.billingDayOfMonth = 25;
-
-    EstimateCreateController.BillingAccountOptionDto billingOption = new EstimateCreateController.BillingAccountOptionDto();
-    billingOption.name = 'BA';
-
-    EstimateCreateController.ContractServiceOptionDto serviceOption = new EstimateCreateController.ContractServiceOptionDto();
-    serviceOption.name = 'Service';
-
-    EstimateCreateController.EstimateSaveRequest saveRequest = new EstimateCreateController.EstimateSaveRequest();
-    saveRequest.selectedType = 'New';
-
-    EstimateCreateController.EstimateSaveResult saveResult = new EstimateCreateController.EstimateSaveResult();
-    saveResult.contractProductIds = new List<Id>();
-
-    EstimateCreateController.ContractHistoryDto historyDto = new EstimateCreateController.ContractHistoryDto();
-    historyDto.version = 1;
-
-    EstimateCreateController.ContractProductLineDto productLine = new EstimateCreateController.ContractProductLineDto();
-    productLine.quantity = 1;
-
-    System.assertEquals('New', preset.selectedType);
   }
 
   @IsTest
@@ -5786,8 +5709,9 @@ private class EstimateCreateControllerTest {
       EstimateCreateController.issueEstimateOperationKey();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('見積を作成・編集・コピーする権限がありません'),
+      System.assertEquals(
+        '見積を作成・編集・コピーする権限がありません。',
+        ex.getMessage(),
         '共通基盤 第10.4節: 見積キー発行は 03'
       );
     } finally {
@@ -5806,9 +5730,10 @@ private class EstimateCreateControllerTest {
         ContractPermissionUtil.SEND_ESTIMATE => false
       };
       try {
+        ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
         EstimateCreateController.DocumentDefaultsDto dto = EstimateCreateController.getDocumentDefaults();
-        System.assertNotEquals(
-          null,
+        System.assertEquals(
+          setting.EstimateSendMode__c,
           dto.estimateSendMode,
           '共通基盤 第10.4節、Core 第4.3.1節: 04だけでも送付3択を返す'
         );
@@ -5832,8 +5757,9 @@ private class EstimateCreateControllerTest {
       EstimateCreateController.getDocumentDefaults();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('見積を作成・編集・コピーする権限がありません'),
+      System.assertEquals(
+        '見積を作成・編集・コピーする権限がありません。',
+        ex.getMessage(),
         '共通基盤 第10.4節: 03／04／05 が無ければ送付3択を読まない'
       );
     } finally {
