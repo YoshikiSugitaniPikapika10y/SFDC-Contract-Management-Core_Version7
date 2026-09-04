@@ -51,10 +51,10 @@ private class ManualJournalServiceTest {
         ManualJournalService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消基準日が必要'),
-          'Accounting 第8.5節・第8.8節: Lockがある手動登録は取消基準日必須。実際: ' +
-            ex.getMessage()
+        System.assertEquals(
+          'ロック済み仕訳がある取消では取消基準日が必要です。',
+          ex.getMessage(),
+          'Accounting 第8.5節・第8.8節: Lockがある手動登録は取消基準日必須'
         );
       }
       System.assertEquals(true, thrown);
@@ -186,10 +186,10 @@ private class ManualJournalServiceTest {
         ManualJournalService.previewRegister(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消基準日が必要'),
-          'Accounting 第8.5節・第8.8節: Lockがある手動登録プレビューも取消基準日必須。実際: ' +
-            ex.getMessage()
+        System.assertEquals(
+          'ロック済み仕訳がある取消では取消基準日が必要です。',
+          ex.getMessage(),
+          'Accounting 第8.5節・第8.8節: Lockがある手動登録プレビューも取消基準日必須'
         );
       }
       System.assertEquals(true, thrown);
@@ -209,8 +209,9 @@ private class ManualJournalServiceTest {
         ManualJournalService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('0より大きい整数'),
+        System.assertEquals(
+          '金額は0より大きい整数にしてください。',
+          ex.getMessage(),
           'Accounting 第10.3節: 負数は自動反転せず拒否する'
         );
       }
@@ -232,8 +233,9 @@ private class ManualJournalServiceTest {
         ManualJournalService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('AccountingがOFFのときは手動仕訳を登録できません'),
+        System.assertEquals(
+          'AccountingがOFFのときは手動仕訳を登録できません。',
+          ex.getMessage(),
           'Accounting 第10.3節: OFFなら登録しない'
         );
       }
@@ -251,8 +253,9 @@ private class ManualJournalServiceTest {
         ManualJournalService.cancel(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消理由を入力してください'),
+        System.assertEquals(
+          '取消理由を入力してください。',
+          ex.getMessage(),
           'Accounting 第10.4節: 取消理由は必須'
         );
       }
@@ -364,8 +367,9 @@ private class ManualJournalServiceTest {
         ManualJournalService.cancel(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消基準日が必要'),
+        System.assertEquals(
+          'ロック済み仕訳がある取消では取消基準日が必要です。',
+          ex.getMessage(),
           'Accounting 第10.3節、第10.4節、日付仕様 第7.3節: ロック済みなら未入力はエラー'
         );
       }
@@ -440,10 +444,10 @@ private class ManualJournalServiceTest {
         ManualJournalService.cancel(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消基準日が必要'),
-          'Accounting 第8.5節: 請求書単位の Active Lock で取消基準日必須。実際: ' +
-            ex.getMessage()
+        System.assertEquals(
+          'ロック済み仕訳がある取消では取消基準日が必要です。',
+          ex.getMessage(),
+          'Accounting 第8.5節: 請求書単位の Active Lock で取消基準日必須'
         );
       }
       System.assertEquals(true, thrown);
@@ -586,29 +590,15 @@ private class ManualJournalServiceTest {
     Account account = ContractTestDataFactory.insertAccount(
       'MJSvc ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'mjsvc@example.com',
-      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    ContractService__c service = new ContractService__c(
-      Name = 'MJSvc Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+    ContractService__c service = ContractTestDataFactory.insertContractService(
+      account.Id,
+      'MJSvc Service'
     );
-    ContractTestDataFactory.applyRequiredFields(service);
-    insert service;
+    BillingAccount__c billingAccount = [
+      SELECT Id
+      FROM BillingAccount__c
+      WHERE Id = :service.BiilingAcccount__c
+    ];
     ContractHistory__c history = new ContractHistory__c(
       Name = 'MJSvc History',
       ContractService__c = service.Id,
@@ -670,10 +660,10 @@ private class ManualJournalServiceTest {
         ManualJournalService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('有効な手動仕訳設定だけ選べます'),
-          'Accounting 第10.3節: 利用者は有効なメニューだけを指定する。実際: ' +
-            ex.getMessage()
+        System.assertEquals(
+          '有効な手動仕訳設定だけ選べます。',
+          ex.getMessage(),
+          'Accounting 第10.3節: 利用者は有効なメニューだけを指定する'
         );
       }
       System.assertEquals(true, thrown);
@@ -808,10 +798,10 @@ private class ManualJournalServiceTest {
         delete setting;
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('参照されている手動仕訳設定は削除できません'),
-          'Accounting 第10.2節: 参照済みなら削除せず無効化する。実際: ' +
-            ex.getMessage()
+        System.assertEquals(
+          '参照されている手動仕訳設定は削除できません。無効化してください。',
+          ex.getDmlMessage(0),
+          'Accounting 第10.2節: 参照済みなら削除せず無効化する'
         );
       }
       System.assertEquals(true, thrown);
