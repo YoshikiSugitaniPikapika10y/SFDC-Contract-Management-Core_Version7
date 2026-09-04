@@ -18,8 +18,9 @@ private class ManualJournalControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('0より大きい整数'),
+        System.assertEquals(
+          '金額は0より大きい整数にしてください。',
+          ex.getMessage(),
           'Accounting 第10.3節: 負数は自動反転せず拒否する'
         );
       }
@@ -43,8 +44,9 @@ private class ManualJournalControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('AccountingがOFFのときは手動仕訳を登録できません'),
+        System.assertEquals(
+          'AccountingがOFFのときは手動仕訳を登録できません。',
+          ex.getMessage(),
           'Accounting 第10.3節: OFFなら登録しない'
         );
       }
@@ -62,8 +64,9 @@ private class ManualJournalControllerTest {
         );
       } catch (Exception ex) {
         previewThrown = true;
-        System.assert(
-          ex.getMessage().contains('AccountingがOFFのときは手動仕訳を登録できません'),
+        System.assertEquals(
+          'AccountingがOFFのときは手動仕訳を登録できません。',
+          ex.getMessage(),
           'Accounting 第10.3節: OFFならプレビューもしない'
         );
       }
@@ -82,8 +85,9 @@ private class ManualJournalControllerTest {
         );
       } catch (Exception ex) {
         scopedRegisterThrown = true;
-        System.assert(
-          ex.getMessage().contains('AccountingがOFFのときは手動仕訳を登録できません'),
+        System.assertEquals(
+          'AccountingがOFFのときは手動仕訳を登録できません。',
+          ex.getMessage(),
           'Accounting 第10.3節: 契約履歴付き登録もOFFなら拒否'
         );
       }
@@ -111,8 +115,9 @@ private class ManualJournalControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('確定済みの請求にだけ手動仕訳を登録できます'),
+        System.assertEquals(
+          '確定済みの請求にだけ手動仕訳を登録できます。',
+          ex.getMessage(),
           'Accounting 第10.3節: 確定前請求には登録できない'
         );
       }
@@ -128,8 +133,9 @@ private class ManualJournalControllerTest {
         ManualJournalController.cancel(UserInfo.getUserId(), null, null, null);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消理由を入力してください'),
+        System.assertEquals(
+          '取消理由を入力してください。',
+          ex.getMessage(),
           'Accounting 第10.4節: 取消理由は必須'
         );
       }
@@ -206,8 +212,9 @@ private class ManualJournalControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('その他のときは内容を入力してください'),
+        System.assertEquals(
+          '取消理由がその他のときは内容を入力してください。',
+          ex.getMessage(),
           'Accounting 第10.4節: Otherは内容必須'
         );
       }
@@ -313,29 +320,15 @@ private class ManualJournalControllerTest {
     Account account = ContractTestDataFactory.insertAccount(
       'MJ ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'mj@example.com',
-      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    ContractService__c service = new ContractService__c(
-      Name = 'MJ Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+    ContractService__c service = ContractTestDataFactory.insertContractService(
+      account.Id,
+      'MJ Service'
     );
-    ContractTestDataFactory.applyRequiredFields(service);
-    insert service;
+    BillingAccount__c billingAccount = [
+      SELECT Id
+      FROM BillingAccount__c
+      WHERE Id = :service.BiilingAcccount__c
+    ];
     ContractHistory__c history = new ContractHistory__c(
       Name = 'MJ History',
       ContractService__c = service.Id,
