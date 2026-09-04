@@ -6,8 +6,6 @@ private class EstimateSendBoardControllerTest {
     ContractTestDataFactory.ensureOrgAccountingPolicy();
     ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
     setting.EstimateSendMode__c = 'PdfAndEmail';
-    setting.EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate';
-    setting.EstimateDefaultEmailTemplateApiName__c = 'EstimateMail';
     setting.EstimateOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
     update setting;
     ContractDocumentSettingService.clearCache();
@@ -97,7 +95,7 @@ private class EstimateSendBoardControllerTest {
       EstimateSendBoardController.ActionResultDto result = EstimateSendBoardController.sendEstimateFromRecordPage(
         history.Id,
         'StandardEstimate',
-        null,
+        'EstimateMail',
         token,
         draft
       );
@@ -134,7 +132,7 @@ private class EstimateSendBoardControllerTest {
       EstimateSendBoardController.ActionResultDto result = EstimateSendBoardController.sendEstimateFromRecordPage(
         history.Id,
         'StandardEstimate',
-        null,
+        'EstimateMail',
         null,
         draft
       );
@@ -178,7 +176,7 @@ private class EstimateSendBoardControllerTest {
       EstimateSendBoardController.sendEstimateFromRecordPage(
         history.Id,
         'StandardEstimate',
-        null,
+        'EstimateMail',
         state.lastModifiedToken,
         draft
       );
@@ -508,23 +506,18 @@ private class EstimateSendBoardControllerTest {
   }
 
   @IsTest
-  static void getBoardContext_doesNotFillEmptyDefaultDocumentKey() {
+  static void getBoardContext_initialSelectionUsesCatalogDefault() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
-      setting.EstimateDefaultDocumentTemplateKey__c = null;
-      update setting;
-      ContractDocumentSettingService.clearCache();
-
       EstimateSendBoardController.BoardContextDto context = EstimateSendBoardController.getBoardContext();
       System.assertEquals(
-        null,
+        'StandardEstimate',
         context.defaultDocumentTemplateKey,
-        'Core 第11.3.2節・第1.1.10節: 既定帳票が空ならカタログ先頭で埋めない'
+        'Core 第11.3.2節: 有効な既定がちょうど1つなら初期選択'
       );
       System.assertEquals(
         false,
         context.documentTemplateOptions.isEmpty(),
-        'カタログ候補は出す。初期選択だけ空'
+        'カタログ候補は出す'
       );
     }
   }

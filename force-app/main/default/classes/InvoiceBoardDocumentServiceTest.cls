@@ -11,7 +11,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfOnly';
-      setting.InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice';
       update setting;
       ContractDocumentSettingService.clearCache();
 
@@ -200,11 +199,10 @@ private class InvoiceBoardDocumentServiceTest {
         );
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains(ContractEmailTemplateService.MISSING_API_NAME_MESSAGE),
-          'Core 第11.3.2節: カタログ無しでは送付しない。実際: ' +
-            ex.getMessage()
+        System.assertEquals(
+          ContractEmailTemplateService.MISSING_API_NAME_MESSAGE,
+          ex.getMessage(),
+          '仕様: Core 第11.3.2節 カタログ無しでは送付しない'
         );
       }
       System.assertEquals(true, thrown);
@@ -216,7 +214,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
       setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       update setting;
       ContractDocumentSettingService.clearCache();
@@ -240,7 +237,7 @@ private class InvoiceBoardDocumentServiceTest {
         result = InvoiceBoardDocumentService.sendFromPreview(
           invoice.Id,
           'StandardInvoice',
-          null,
+          'InvoiceMail',
           token(invoice.Id),
           draft
         );
@@ -270,7 +267,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
       setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       update setting;
       ContractDocumentSettingService.clearCache();
@@ -294,7 +290,7 @@ private class InvoiceBoardDocumentServiceTest {
         result = InvoiceBoardDocumentService.sendFromPreview(
           invoice.Id,
           'StandardInvoice',
-          null,
+          'InvoiceMail',
           null,
           draft
         );
@@ -320,7 +316,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfOnly';
-      setting.InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice';
       update setting;
       ContractDocumentSettingService.clearCache();
 
@@ -343,7 +338,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfOnly';
-      setting.InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice';
       update setting;
       ContractDocumentSettingService.clearCache();
 
@@ -374,7 +368,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
       String orgSender = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       setting.InvoiceOrgWideEmailAddress__c = orgSender;
       update setting;
@@ -395,7 +388,7 @@ private class InvoiceBoardDocumentServiceTest {
         'Core 第7.10節: Fromは組織送信元の参照'
       );
       System.assertEquals(
-        'board-doc@example.com',
+        ContractTestDataFactory.TENANT_BILLING_EMAIL_TO,
         preview.toAddresses,
         'Core 第7.10節: 宛先の初期値は請求書スナップショット'
       );
@@ -419,7 +412,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
       setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
       update setting;
       ContractDocumentSettingService.clearCache();
@@ -461,7 +453,7 @@ private class InvoiceBoardDocumentServiceTest {
         WHERE Id = :invoice.Id
       ];
       System.assertEquals(
-        'board-doc@example.com',
+        ContractTestDataFactory.TENANT_BILLING_EMAIL_TO,
         stored.BillingEmailToSnapShot__c,
         'Core 第7.10節: プレビュー加筆は請求書スナップショットに書き戻さない'
       );
@@ -471,7 +463,7 @@ private class InvoiceBoardDocumentServiceTest {
         'InvoiceMail'
       );
       System.assertEquals(
-        'board-doc@example.com',
+        ContractTestDataFactory.TENANT_BILLING_EMAIL_TO,
         preview.toAddresses,
         'Core 第7.10節: 再送の宛先初期値はスナップショットであり、前回送付で直した宛先は使わない'
       );
@@ -483,7 +475,6 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice';
       update setting;
       ContractDocumentSettingService.clearCache();
 
@@ -586,31 +577,17 @@ private class InvoiceBoardDocumentServiceTest {
 
   private static Invoice__c createConfirmedInvoice(String deliveryMethod) {
     Account account = ContractTestDataFactory.insertAccount('Board Doc Account');
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'board-doc@example.com',
-      InvoiceDeliveryMethod__c = deliveryMethod,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    ContractService__c service = ContractTestDataFactory.insertContractService(
+      account.Id,
+      'Board Doc Service'
     );
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
+    BillingAccount__c billingAccount = [
+      SELECT Id, BillingEmailTo__c
+      FROM BillingAccount__c
+      WHERE Id = :service.BiilingAcccount__c
+    ];
     billingAccount.InvoiceDeliveryMethod__c = deliveryMethod;
-    insert billingAccount;
-    ContractService__c service = new ContractService__c(
-      Name = 'Board Doc Service',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
-    );
-    ContractTestDataFactory.applyRequiredFields(service);
-    insert service;
+    update billingAccount;
     ContractHistory__c history = new ContractHistory__c(
       Name = 'Board Doc History',
       ContractService__c = service.Id,
@@ -655,7 +632,7 @@ private class InvoiceBoardDocumentServiceTest {
       Amount__c = 1000,
       TaxAmount__c = 100,
       BillingAccountSnapShot__c = billingAccount.Id,
-      BillingEmailToSnapShot__c = 'board-doc@example.com',
+      BillingEmailToSnapShot__c = billingAccount.BillingEmailTo__c,
       InvoiceDeliveryMethodSnapShot__c = deliveryMethod
     );
     ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);

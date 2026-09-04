@@ -201,7 +201,8 @@ private class EstimateDocumentServiceTest {
       update fixture.history;
 
       EstimateDocumentService.IssueResult result = EstimateDocumentService.issueEstimateDocument(
-        fixture.history.Id
+        fixture.history.Id,
+        'StandardEstimate'
       );
 
       System.assertNotEquals(null, result.contentVersionId);
@@ -264,7 +265,7 @@ private class EstimateDocumentServiceTest {
       System.assertEquals(
         'StandardEstimate',
         controller.selectedTemplateKey,
-        'Core 第4.8節: 発行画面は組織の既定帳票を最初に選ぶ'
+        'Core 第4.8節: 発行画面は有効な既定がちょうど1つなら最初に選ぶ'
       );
       System.assertEquals(
         true,
@@ -458,7 +459,10 @@ private class EstimateDocumentServiceTest {
       EstimateFixture fixture = createEstimateFixture();
       Boolean thrown = false;
       try {
-        EstimateDocumentService.issueEstimateDocument(fixture.history.Id);
+        EstimateDocumentService.issueEstimateDocument(
+          fixture.history.Id,
+          'StandardEstimate'
+        );
       } catch (EstimateDocumentService.EstimateDocumentException ex) {
         thrown = true;
         System.assertEquals(
@@ -649,7 +653,10 @@ private class EstimateDocumentServiceTest {
 
       Boolean thrown = false;
       try {
-        EstimateDocumentService.issueEstimateDocument(fixture.history.Id);
+        EstimateDocumentService.issueEstimateDocument(
+          fixture.history.Id,
+          'StandardEstimate'
+        );
       } catch (EstimateDocumentService.EstimateDocumentException ex) {
         thrown = true;
         System.assertEquals(
@@ -731,7 +738,8 @@ private class EstimateDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();
       Blob pdfBlob = EstimateDocumentService.generatePdfBlob(
-        fixture.history.Id
+        fixture.history.Id,
+        'StandardEstimate'
       );
       System.assertEquals(
         EncodingUtil.base64Encode(Blob.valueOf('%PDF-1.4 test')),

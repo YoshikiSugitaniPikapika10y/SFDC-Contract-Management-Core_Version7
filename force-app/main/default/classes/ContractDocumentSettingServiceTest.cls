@@ -221,44 +221,38 @@ private class ContractDocumentSettingServiceTest {
     try {
       ContractDocumentSettingService.assertModeCatalogRequirements(
         ContractDocumentSettingService.MODE_PDF_ONLY,
-        null,
-        null,
         0,
         null
       );
     } catch (ContractDocumentSettingService.SettingException ex) {
       missingDoc = true;
-      System.assertEquals(
-        ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE,
-        ex.getMessage()
-      );
     }
-    System.assertEquals(true, missingDoc);
+    System.assertEquals(
+      false,
+      missingDoc,
+      'Core 第11.6節: 既定帳票キー必須では保存を止めない'
+    );
 
     Boolean missingEmail = false;
     try {
       ContractDocumentSettingService.assertModeCatalogRequirements(
         ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-        'StandardInvoice',
-        null,
         1,
         'sender@example.com'
       );
     } catch (ContractDocumentSettingService.SettingException ex) {
       missingEmail = true;
-      System.assertEquals(
-        ContractEmailTemplateService.MISSING_DEFAULT_EMAIL_MESSAGE,
-        ex.getMessage()
-      );
     }
-    System.assertEquals(true, missingEmail);
+    System.assertEquals(
+      false,
+      missingEmail,
+      'Core 第11.6節: 既定メール必須では保存を止めない'
+    );
 
     Boolean missingCatalog = false;
     try {
       ContractDocumentSettingService.assertModeCatalogRequirements(
         ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-        'StandardInvoice',
-        'InvoiceMail',
         0,
         'sender@example.com'
       );
@@ -275,8 +269,6 @@ private class ContractDocumentSettingServiceTest {
     try {
       ContractDocumentSettingService.assertModeCatalogRequirements(
         ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-        'StandardInvoice',
-        'InvoiceMail',
         1,
         null
       );
@@ -291,8 +283,6 @@ private class ContractDocumentSettingServiceTest {
 
     ContractDocumentSettingService.assertModeCatalogRequirements(
       ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-      'StandardEstimate',
-      'EstimateMail',
       1,
       null,
       false

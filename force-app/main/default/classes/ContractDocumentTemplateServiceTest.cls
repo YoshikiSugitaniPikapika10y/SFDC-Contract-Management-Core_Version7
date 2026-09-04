@@ -58,13 +58,73 @@ private class ContractDocumentTemplateServiceTest {
   }
 
   @IsTest
-  static void catalog_doesNotHaveIsDefaultField() {
+  static void catalog_hasIsDefaultField() {
     System.assertEquals(
-      false,
+      true,
       ContractDocumentTemplate__mdt.SObjectType.getDescribe()
         .fields.getMap()
         .containsKey('IsDefault__c'),
-      'Core 第11.3.2節: 既定は組織設定のキー。CMDT IsDefault は持たない'
+      'Core 第11.3.2節: 既定はカタログ IsDefault'
+    );
+  }
+
+  @IsTest
+  static void initialSelectionKey_bundledRowIsExactlyOneDefault() {
+    System.assertEquals(
+      ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+      ContractDocumentTemplateService.initialSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 同梱は有効な既定ちょうど1つ'
+    );
+    System.assertEquals(
+      ContractDocumentTemplateService.DEFAULT_INVOICE_KEY,
+      ContractDocumentTemplateService.initialSelectionKey(
+        ContractDocumentTemplateService.TYPE_INVOICE
+      )
+    );
+  }
+
+  @IsTest
+  static void initialSelectionKey_zeroOrManyDefaults_returnsNull() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      templateRow('A', false),
+      templateRow('B', false)
+    };
+    System.assertEquals(
+      null,
+      ContractDocumentTemplateService.initialSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 有効な既定0件なら未選択'
+    );
+
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      templateRow('A', true),
+      templateRow('B', true)
+    };
+    System.assertEquals(
+      null,
+      ContractDocumentTemplateService.initialSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 有効な既定2件以上なら未選択'
+    );
+    ContractDocumentTemplateService.clearTestState();
+  }
+
+  private static ContractDocumentTemplate__mdt templateRow(
+    String key,
+    Boolean isDefault
+  ) {
+    return new ContractDocumentTemplate__mdt(
+      MasterLabel = key,
+      TemplateKey__c = key,
+      DocumentType__c = ContractDocumentTemplateService.TYPE_ESTIMATE,
+      IsActive__c = true,
+      IsDefault__c = isDefault,
+      VisualforcePage__c = 'EstimateDocumentPdf',
+      SortOrder__c = 1
     );
   }
 

@@ -298,26 +298,6 @@ private class GlAccountInstallServiceTest {
         '仕様: Core 第11.5節・第11.6節 更新商談スイッチOFF'
       );
       System.assertEquals(
-        ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
-        setting.EstimateDefaultDocumentTemplateKey__c,
-        '仕様: Core 第11.3.2節 見積既定帳票'
-      );
-      System.assertEquals(
-        ContractDocumentTemplateService.DEFAULT_INVOICE_KEY,
-        setting.InvoiceDefaultDocumentTemplateKey__c,
-        '仕様: Core 第11.3.2節 請求既定帳票'
-      );
-      System.assertEquals(
-        'Contract_Standard_Estimate_Email',
-        setting.EstimateDefaultEmailTemplateApiName__c,
-        '仕様: Core 第11.3.2節 見積既定メール初期値'
-      );
-      System.assertEquals(
-        'Contract_Standard_Invoice_Email',
-        setting.InvoiceDefaultEmailTemplateApiName__c,
-        '仕様: Core 第11.3.2節 請求既定メール初期値'
-      );
-      System.assertEquals(
         1,
         [
           SELECT COUNT()

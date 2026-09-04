@@ -316,14 +316,10 @@ public with sharing class EstimateDocumentPdfController {
     List<ContractDocumentTemplateService.TemplateDefinition> templates = ContractDocumentTemplateService.getActiveTemplates(
       ContractDocumentTemplateService.TYPE_ESTIMATE
     );
-    // 仕様: Core 第4.8節、第11.3.2節。発行画面は組織の既定帳票を最初に選ぶ。
-    String requestedKey = ContractDocumentSettingService.requireOrgSetting()
-      .EstimateDefaultDocumentTemplateKey__c;
-    ContractDocumentTemplateService.TemplateDefinition selected = ContractDocumentTemplateService.resolveTemplate(
-      ContractDocumentTemplateService.TYPE_ESTIMATE,
-      requestedKey
+    // 仕様: Core 第4.8節、第11.3.2節。有効な既定がちょうど1つなら最初に選ぶ。
+    selectedTemplateKey = ContractDocumentTemplateService.initialSelectionKey(
+      ContractDocumentTemplateService.TYPE_ESTIMATE
     );
-    selectedTemplateKey = selected.templateKey;
     for (
       ContractDocumentTemplateService.TemplateDefinition template : templates
     ) {

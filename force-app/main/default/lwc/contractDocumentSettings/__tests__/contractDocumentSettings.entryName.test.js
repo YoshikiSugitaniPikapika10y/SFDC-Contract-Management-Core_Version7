@@ -11,6 +11,11 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
+  "@salesforce/apex/ContractDocumentSettingsController.issueOrgSettingsOperationKey",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
   "@salesforce/apex/ContractDocumentSettingsController.validateFieldCopyDefinitions",
   () => ({ default: jest.fn() }),
   { virtual: true }
@@ -306,17 +311,9 @@ describe("contractDocumentSettings required fields (Core 11.3.1 / 11.3.2 / 1.1.1
     proto,
     "invoiceCompanyFieldsRequired"
   ).get;
-  const estimateDefaultDocumentRequired = Object.getOwnPropertyDescriptor(
-    proto,
-    "estimateDefaultDocumentRequired"
-  ).get;
   const invoiceOrgWideRequired = Object.getOwnPropertyDescriptor(
     proto,
     "invoiceOrgWideRequired"
-  ).get;
-  const estimateDefaultEmailRequired = Object.getOwnPropertyDescriptor(
-    proto,
-    "estimateDefaultEmailRequired"
   ).get;
 
   function ctx(settings) {
@@ -353,33 +350,12 @@ describe("contractDocumentSettings required fields (Core 11.3.1 / 11.3.2 / 1.1.1
     ).toBe(true);
   });
 
-  it("requires default document when PDF is used", () => {
-    expect(
-      estimateDefaultDocumentRequired.call(
-        ctx({ estimateSendMode: "PdfOnly" })
-      )
-    ).toBe(true);
-    expect(
-      estimateDefaultDocumentRequired.call(
-        ctx({ estimateSendMode: "Unused" })
-      )
-    ).toBe(false);
-  });
-
-  it("requires invoice org sender and default email only for PdfAndEmail", () => {
+  it("requires invoice org sender only for PdfAndEmail", () => {
     expect(
       invoiceOrgWideRequired.call(ctx({ invoiceSendMode: "PdfAndEmail" }))
     ).toBe(true);
     expect(
       invoiceOrgWideRequired.call(ctx({ invoiceSendMode: "PdfOnly" }))
-    ).toBe(false);
-    expect(
-      estimateDefaultEmailRequired.call(
-        ctx({ estimateSendMode: "PdfAndEmail" })
-      )
-    ).toBe(true);
-    expect(
-      estimateDefaultEmailRequired.call(ctx({ estimateSendMode: "PdfOnly" }))
     ).toBe(false);
   });
 
@@ -391,22 +367,73 @@ describe("contractDocumentSettings required fields (Core 11.3.1 / 11.3.2 / 1.1.1
 
 describe("contractDocumentSettings send mode change (Core 11.3)", () => {
   const proto = ContractDocumentSettings.prototype;
+  const sendModes = [
+    { label: "使わない", stored: "Unused" },
+    { label: "PDFのみ", stored: "PdfOnly" },
+    { label: "PDFとメール送付", stored: "PdfAndEmail" }
+  ];
+  const saveSettings = require("@salesforce/apex/ContractDocumentSettingsController.saveSettings")
+    .default;
 
-  it("saves PdfAndEmail from combobox detail, not the display label", () => {
-    const instance = { settings: {} };
-    proto.handleChange.call(instance, {
-      target: { name: "estimateSendMode", value: "PDFとメール送付" },
-      detail: { value: "PdfAndEmail" }
-    });
-    expect(instance.settings.estimateSendMode).toBe("PdfAndEmail");
-    proto.handleChange.call(instance, {
-      target: { name: "invoiceSendMode", value: "PDFとメール送付" },
-      detail: { value: "PdfAndEmail" }
-    });
-    expect(instance.settings.invoiceSendMode).toBe("PdfAndEmail");
+  afterEach(() => {
+    saveSettings.mockReset();
   });
 
-  it("reads combobox option values before save", () => {
+  sendModes.forEach(({ label, stored }) => {
+    it(`stores ${stored} when selecting ${label} for estimate and invoice`, () => {
+      const instance = { settings: {} };
+      proto.handleChange.call(instance, {
+        target: { name: "estimateSendMode", value: label },
+        detail: { value: stored }
+      });
+      proto.handleChange.call(instance, {
+        target: { name: "invoiceSendMode", value: label },
+        detail: { value: stored }
+      });
+      expect(instance.settings.estimateSendMode).toBe(stored);
+      expect(instance.settings.invoiceSendMode).toBe(stored);
+      proto.assertStoredSendModes.call(instance);
+    });
+  });
+
+  sendModes.forEach(({ label, stored }) => {
+    it(`saveSettings receives ${stored} after selecting ${label}`, async () => {
+      saveSettings.mockResolvedValue({
+        estimateSendMode: stored,
+        invoiceSendMode: stored
+      });
+      const instance = {
+        settings: {
+          estimateSendMode: label,
+          invoiceSendMode: label
+        },
+        template: {
+          querySelectorAll: () => [
+            { name: "estimateSendMode", value: stored },
+            { name: "invoiceSendMode", value: stored }
+          ]
+        },
+        reportValidity() {
+          return true;
+        },
+        toast: jest.fn(),
+        _pendingOperationKey: "op-1",
+        saveSuccessMessage: "組織設定を保存しました。",
+        applyNamedFieldValues: proto.applyNamedFieldValues,
+        assertStoredSendModes: proto.assertStoredSendModes,
+        message: proto.message
+      };
+      await proto.handleSave.call(instance);
+      expect(saveSettings).toHaveBeenCalledTimes(1);
+      const payload = saveSettings.mock.calls[0][0].input;
+      expect(payload.estimateSendMode).toBe(stored);
+      expect(payload.invoiceSendMode).toBe(stored);
+      expect(payload.estimateSendMode).not.toBe(label);
+      expect(payload.invoiceSendMode).not.toBe(label);
+    });
+  });
+
+  it("errors and does not save when the stored value is the display label", async () => {
     const instance = {
       settings: {
         estimateSendMode: "PDFとメール送付",
@@ -414,13 +441,37 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
       },
       template: {
         querySelectorAll: () => [
-          { name: "estimateSendMode", value: "PdfAndEmail" },
-          { name: "invoiceSendMode", value: "PdfAndEmail" }
+          { name: "estimateSendMode", value: "PDFとメール送付" },
+          { name: "invoiceSendMode", value: "PDFとメール送付" }
         ]
+      },
+      reportValidity() {
+        return true;
+      },
+      toast: jest.fn(),
+      _pendingOperationKey: "op-1",
+      applyNamedFieldValues: proto.applyNamedFieldValues,
+      assertStoredSendModes: proto.assertStoredSendModes,
+      message: proto.message
+    };
+    await proto.handleSave.call(instance);
+    expect(saveSettings).not.toHaveBeenCalled();
+    expect(instance.toast).toHaveBeenCalledWith(
+      "保存エラー",
+      "見積書の3択が無い、空、または不正です。",
+      "error"
+    );
+  });
+
+  it("errors when invoice send mode is not a stored value", () => {
+    const instance = {
+      settings: {
+        estimateSendMode: "PdfOnly",
+        invoiceSendMode: "PDFのみ"
       }
     };
-    proto.applyNamedFieldValues.call(instance);
-    expect(instance.settings.estimateSendMode).toBe("PdfAndEmail");
-    expect(instance.settings.invoiceSendMode).toBe("PdfAndEmail");
+    expect(() => proto.assertStoredSendModes.call(instance)).toThrow(
+      "請求書の3択が無い、空、または不正です。"
+    );
   });
 });

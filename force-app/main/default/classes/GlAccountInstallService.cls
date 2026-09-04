@@ -105,7 +105,7 @@ public without sharing class GlAccountInstallService implements InstallHandler {
     );
   }
 
-  /** 仕様: Core 第4.10節、第11.3.2節、第11.5節、第11.6節、第11.8節。無ければ初回だけ。アップグレードでは消した組織既定を戻さない。 */
+  /** 仕様: Core 第4.10節、第11.3.2節、第11.5節、第11.6節、第11.8節。無ければ初回だけ。アップグレードでは消した組織既定を戻さない。既定帳票・既定メールは持たない。IsDefault は post-install では書かない。 */
   private static void seedContractDocumentSetting() {
     ContractDocumentSetting__c existing = ContractDocumentSetting__c.getOrgDefaults();
     if (existing != null && existing.Id != null) {
@@ -118,11 +118,7 @@ public without sharing class GlAccountInstallService implements InstallHandler {
       InvoiceSendMode__c = ContractDocumentSettingService.MODE_PDF_ONLY,
       DefaultMonthlyCycles__c = 12,
       EstimateValidMonths__c = 1,
-      RenewOpportunityEnabled__c = false,
-      EstimateDefaultDocumentTemplateKey__c = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
-      InvoiceDefaultDocumentTemplateKey__c = ContractDocumentTemplateService.DEFAULT_INVOICE_KEY,
-      EstimateDefaultEmailTemplateApiName__c = 'Contract_Standard_Estimate_Email',
-      InvoiceDefaultEmailTemplateApiName__c = 'Contract_Standard_Invoice_Email'
+      RenewOpportunityEnabled__c = false
     );
   }
 

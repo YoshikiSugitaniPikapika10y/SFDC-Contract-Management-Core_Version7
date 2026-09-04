@@ -34,6 +34,8 @@ public without sharing class ContractEmailTemplateService {
     public String label;
     @AuraEnabled
     public Decimal sortOrder;
+    @AuraEnabled
+    public Boolean isDefault;
     public Id emailTemplateId;
   }
 
@@ -60,6 +62,7 @@ public without sharing class ContractEmailTemplateService {
       definition.apiName = apiName;
       definition.label = record.MasterLabel;
       definition.sortOrder = record.SortOrder__c;
+      definition.isDefault = record.IsDefault__c == true;
       definitions.add(definition);
     }
     for (Integer count : apiNameCounts.values()) {
@@ -68,6 +71,22 @@ public without sharing class ContractEmailTemplateService {
       }
     }
     return definitions;
+  }
+
+  /**
+   * 仕様: Core 第11.3.2節。有効かつ既定がちょうど1つならその API 名。
+   * 0件または2件以上なら null。発行・送付 Apex の空埋めには使わない。
+   */
+  public static String initialSelectionApiName(String documentType) {
+    String found = null;
+    Integer defaults = 0;
+    for (EmailTemplateDefinition definition : getActiveTemplates(documentType)) {
+      if (definition.isDefault == true) {
+        defaults++;
+        found = definition.apiName;
+      }
+    }
+    return defaults == 1 ? found : null;
   }
 
   /** 仕様: Core 第11.3.2節、第7.10節 */
@@ -93,16 +112,16 @@ public without sharing class ContractEmailTemplateService {
     return matched;
   }
 
-  /** 仕様: Core 第11.3.2節、第4.8節、第7.10節 */
+  /**
+   * 仕様: Core 第11.3.2節、第4.8節、第7.10節。
+   * 指定が空ならエラー。orgDefaultApiName は使わない（組織設定に既定メールは無い）。
+   */
   public static EmailTemplateDefinition resolveForOperation(
     String documentType,
     String requestedApiName,
     String orgDefaultApiName
   ) {
-    String apiName = String.isNotBlank(requestedApiName)
-      ? requestedApiName.trim()
-      : (String.isNotBlank(orgDefaultApiName) ? orgDefaultApiName.trim() : null);
-    return resolveTemplate(documentType, apiName);
+    return resolveTemplate(documentType, requestedApiName);
   }
 
   public class MergeResult {
@@ -221,6 +240,7 @@ public without sharing class ContractEmailTemplateService {
     row.DocumentType__c = documentType;
     row.EmailTemplateApiName__c = apiName;
     row.IsActive__c = true;
+    row.IsDefault__c = false;
     row.SortOrder__c = 1;
     testRecords.add(row);
     skipSalesforceTemplateLookup = true;
@@ -289,6 +309,7 @@ public without sharing class ContractEmailTemplateService {
         DocumentType__c,
         EmailTemplateApiName__c,
         IsActive__c,
+        IsDefault__c,
         SortOrder__c
       FROM ContractEmailTemplate__mdt
       WHERE DocumentType__c = :documentType AND IsActive__c = TRUE

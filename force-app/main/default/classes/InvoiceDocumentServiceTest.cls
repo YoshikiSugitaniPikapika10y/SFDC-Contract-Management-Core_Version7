@@ -195,6 +195,27 @@ private class InvoiceDocumentServiceTest {
     }
   }
 
+  @IsTest
+  static void issueInvoiceDocument_blankKey_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('Confirmed');
+      Boolean thrown = false;
+      try {
+        InvoiceDocumentService.issueInvoiceDocument(fixture.invoice.Id);
+      } catch (InvoiceDocumentService.InvoiceDocumentException ex) {
+        thrown = true;
+        System.assertEquals(
+          ContractDocumentSettingService.withDocumentSendHeading(
+            ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE
+          ),
+          ex.getMessage(),
+          'Core 第7.10節・第11.3.2節: キー空は発行できない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
   private class Fixture {
     Invoice__c invoice;
   }

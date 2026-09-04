@@ -545,12 +545,11 @@ public without sharing class ContractCrossController {
         option.value = definition.templateKey;
         dto.documentTemplateOptions.add(option);
       }
-      ContractDocumentTemplateService.TemplateDefinition selected = ContractDocumentTemplateService.resolveTemplate(
-        ContractDocumentTemplateService.TYPE_ESTIMATE,
-        setting.EstimateDefaultDocumentTemplateKey__c
+      // 仕様: Core 第11.3.2節。有効な既定がちょうど1つなら初期選択。発行の空キー埋めには使わない。
+      String initialKey = ContractDocumentTemplateService.initialSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
       );
-      dto.defaultDocumentTemplateKey = selected.templateKey;
-      // 仕様: Core 第11.3.2節。{Title}は見積件名→商談名→契約履歴名。
+      dto.defaultDocumentTemplateKey = initialKey;
       List<ContractHistory__c> histories = [
         SELECT
           Id,
@@ -566,11 +565,19 @@ public without sharing class ContractCrossController {
       if (histories.isEmpty()) {
         throw new CrossException('契約履歴が見つかりません。');
       }
-      dto.fileName = EstimateDocumentService.buildFileName(
-        histories[0],
-        histories[0].EstimateIssueDate__c,
-        selected
-      );
+      if (String.isNotBlank(initialKey)) {
+        ContractDocumentTemplateService.TemplateDefinition selected =
+          ContractDocumentTemplateService.resolveTemplate(
+            ContractDocumentTemplateService.TYPE_ESTIMATE,
+            initialKey
+          );
+        // 仕様: Core 第11.3.2節。{Title}は見積件名→商談名→契約履歴名。
+        dto.fileName = EstimateDocumentService.buildFileName(
+          histories[0],
+          histories[0].EstimateIssueDate__c,
+          selected
+        );
+      }
       String sendMode = ContractDocumentSettingService.requireSendMode('Estimate');
       dto.canIssue =
         ContractPermissionUtil.has(ContractPermissionUtil.ISSUE_ESTIMATE) &&

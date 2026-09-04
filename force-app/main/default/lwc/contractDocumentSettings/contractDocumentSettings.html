@@ -15,7 +15,7 @@
       <section>
         <!-- 仕様: Core 第11.6節 -->
         <h2 class="slds-text-heading_small slds-m-bottom_small">帳票・送付</h2>
-        <p class="slds-text-body_regular slds-m-bottom_small">見積書・請求書の3択、会社情報、組織送信元、既定帳票、既定メールを置く。カタログ本体はリンク先</p>
+        <p class="slds-text-body_regular slds-m-bottom_small">見積書・請求書の3択、会社情報、組織送信元を置く。カタログ本体はリンク先</p>
         <template for:each={documentDiagnoses} for:item="row">
           <p key={row.message} class="slds-text-body_regular slds-m-bottom_xx-small">
             <span>{row.message}</span>
@@ -39,12 +39,6 @@
             <lightning-textarea name="documentFooter" label="帳票フッター" value={settings.documentFooter} onchange={handleChange}></lightning-textarea>
             <lightning-textarea name="bankTransferInfo" label="振込先情報" value={settings.bankTransferInfo} required={invoiceCompanyFieldsRequired} onchange={handleChange}></lightning-textarea>
           </div>
-        </div>
-        <div class="slds-grid slds-wrap slds-gutters">
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="estimateDefaultDocumentTemplateKey" label="見積の既定帳票テンプレート" value={settings.estimateDefaultDocumentTemplateKey} options={estimateDocumentTemplates} required={estimateDefaultDocumentRequired} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="estimateDefaultEmailTemplateApiName" label="見積の既定メール" value={settings.estimateDefaultEmailTemplateApiName} options={estimateEmailTemplates} required={estimateDefaultEmailRequired} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="invoiceDefaultDocumentTemplateKey" label="請求の既定帳票テンプレート" value={settings.invoiceDefaultDocumentTemplateKey} options={invoiceDocumentTemplates} required={invoiceDefaultDocumentRequired} onchange={handleChange}></lightning-combobox>
-          <lightning-combobox class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" name="invoiceDefaultEmailTemplateApiName" label="請求の既定メール" value={settings.invoiceDefaultEmailTemplateApiName} options={invoiceEmailTemplates} required={invoiceDefaultEmailRequired} onchange={handleChange}></lightning-combobox>
         </div>
       </section>
 

@@ -15,6 +15,7 @@ const SEND_MODE_OPTIONS = [
   { label: 'PDFのみ', value: 'PdfOnly' },
   { label: 'PDFとメール送付', value: 'PdfAndEmail' }
 ];
+const SEND_MODE_STORED_VALUES = SEND_MODE_OPTIONS.map((option) => option.value);
 const REVENUE_RECOGNITION_BASIS_OPTIONS = [
   { label: '請求基準', value: 'BillingBasis' },
   { label: '入金連動前受基準', value: 'CashBasis' }
@@ -129,24 +130,6 @@ export default class ContractDocumentSettings extends LightningElement {
   /** 仕様: Core 第11.3.1節。請求が使わない以外なら登録番号・振込先必須。 */
   get invoiceCompanyFieldsRequired() {
     return this.isUsedSendMode(this.settings?.invoiceSendMode);
-  }
-
-  /** 仕様: Core 第11.3.2節。PDF利用時は既定帳票必須。 */
-  get estimateDefaultDocumentRequired() {
-    return this.usesPdfSendMode(this.settings?.estimateSendMode);
-  }
-
-  get invoiceDefaultDocumentRequired() {
-    return this.usesPdfSendMode(this.settings?.invoiceSendMode);
-  }
-
-  /** 仕様: Core 第11.3.2節。PDFとメール送付のとき既定メール必須。 */
-  get estimateDefaultEmailRequired() {
-    return this.settings?.estimateSendMode === "PdfAndEmail";
-  }
-
-  get invoiceDefaultEmailRequired() {
-    return this.settings?.invoiceSendMode === "PdfAndEmail";
   }
 
   /** 仕様: Core 第11.3.2節。請求がPDFとメール送付なら請求用組織送信元必須。 */
@@ -276,6 +259,12 @@ export default class ContractDocumentSettings extends LightningElement {
 
   async handleSave() {
     this.applyNamedFieldValues();
+    try {
+      this.assertStoredSendModes();
+    } catch (error) {
+      this.toast('保存エラー', this.message(error), 'error');
+      return;
+    }
     if (!this.reportValidity()) {
       return;
     }
@@ -304,6 +293,21 @@ export default class ContractDocumentSettings extends LightningElement {
       }
     } finally {
       this.loading = false;
+    }
+  }
+
+  /**
+   * 仕様: Core 第11.3節・第1.1.10節。保存値は Unused／PdfOnly／PdfAndEmail のみ。
+   * 表示ラベルや空は不正として止める。PdfOnly へ落とさない。
+   */
+  assertStoredSendModes() {
+    const estimate = this.settings?.estimateSendMode;
+    const invoice = this.settings?.invoiceSendMode;
+    if (!SEND_MODE_STORED_VALUES.includes(estimate)) {
+      throw new Error('見積書の3択が無い、空、または不正です。');
+    }
+    if (!SEND_MODE_STORED_VALUES.includes(invoice)) {
+      throw new Error('請求書の3択が無い、空、または不正です。');
     }
   }
 
@@ -363,26 +367,6 @@ export default class ContractDocumentSettings extends LightningElement {
       "bankTransferInfo",
       this.invoiceCompanyFieldsRequired,
       "振込先を設定してください。"
-    );
-    this.setRequiredBlankValidity(
-      "estimateDefaultDocumentTemplateKey",
-      this.estimateDefaultDocumentRequired,
-      "PDFのみ／PDFとメール送付のとき、既定帳票を選んでください。"
-    );
-    this.setRequiredBlankValidity(
-      "invoiceDefaultDocumentTemplateKey",
-      this.invoiceDefaultDocumentRequired,
-      "PDFのみ／PDFとメール送付のとき、既定帳票を選んでください。"
-    );
-    this.setRequiredBlankValidity(
-      "estimateDefaultEmailTemplateApiName",
-      this.estimateDefaultEmailRequired,
-      "PDFとメール送付のとき、既定メールをカタログから選んでください。"
-    );
-    this.setRequiredBlankValidity(
-      "invoiceDefaultEmailTemplateApiName",
-      this.invoiceDefaultEmailRequired,
-      "PDFとメール送付のとき、既定メールをカタログから選んでください。"
     );
     this.setRequiredBlankValidity(
       "invoiceOrgWideEmailAddress",

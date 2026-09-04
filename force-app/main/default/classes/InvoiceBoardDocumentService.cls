@@ -87,10 +87,10 @@ public without sharing class InvoiceBoardDocumentService {
       if (!InvoiceTransactionStatusService.isConfirmed(invoice)) {
         throw handledMessage(DRAFT_BLOCK_MESSAGE);
       }
-      ContractDocumentSetting__c setting = loadSendSetting();
+      // 仕様: Core 第11.3.2節。発行プレビューも空キーは既定印で埋めない。
       String resolvedKey = String.isNotBlank(documentTemplateKey)
         ? documentTemplateKey.trim()
-        : setting.InvoiceDefaultDocumentTemplateKey__c;
+        : null;
       ContractDocumentTemplateService.TemplateDefinition template =
         ContractDocumentTemplateService.resolveTemplate(
           ContractDocumentTemplateService.TYPE_INVOICE,
@@ -129,6 +129,9 @@ public without sharing class InvoiceBoardDocumentService {
     String expectedToken
   ) {
     ContractPermissionUtil.assertSendInvoice();
+    ContractArrCalculationService.beginRecalcDefer();
+    ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       Invoice__c invoice = loadInvoice(invoiceId, true);
       assertIssuable(invoice, false);
@@ -141,6 +144,10 @@ public without sharing class InvoiceBoardDocumentService {
       throw ex;
     } catch (Exception ex) {
       throw handled('請求書を発行できませんでした。', ex);
+    } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
+      ContractHistoryStatusPathService.endPathSyncDefer();
+      ContractArrCalculationService.endRecalcDefer();
     }
   }
 
@@ -192,6 +199,9 @@ public without sharing class InvoiceBoardDocumentService {
     SendDraftDto draft
   ) {
     ContractPermissionUtil.assertSendInvoice();
+    ContractArrCalculationService.beginRecalcDefer();
+    ContractHistoryStatusPathService.beginPathSyncDefer();
+    BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       Invoice__c invoice = loadInvoice(invoiceId, true);
       assertIssuable(invoice, true);
@@ -205,6 +215,10 @@ public without sharing class InvoiceBoardDocumentService {
       throw ex;
     } catch (Exception ex) {
       throw handled('請求書を送付できませんでした。', ex);
+    } finally {
+      BillingAccountKeyService.endReferenceRefreshDefer();
+      ContractHistoryStatusPathService.endPathSyncDefer();
+      ContractArrCalculationService.endRecalcDefer();
     }
   }
 
@@ -273,7 +287,7 @@ public without sharing class InvoiceBoardDocumentService {
         merged = ContractEmailTemplateService.renderForSend(
           ContractEmailTemplateService.TYPE_INVOICE,
           emailTemplateApiName,
-          setting.InvoiceDefaultEmailTemplateApiName__c,
+          null,
           invoice.Id
         );
         sender = ContractEmailTemplateService.resolveOrgWide(
@@ -284,7 +298,7 @@ public without sharing class InvoiceBoardDocumentService {
       }
       String resolvedKey = String.isNotBlank(documentTemplateKey)
         ? documentTemplateKey.trim()
-        : setting.InvoiceDefaultDocumentTemplateKey__c;
+        : null;
       ContractDocumentTemplateService.TemplateDefinition template =
         ContractDocumentTemplateService.resolveTemplate(
           ContractDocumentTemplateService.TYPE_INVOICE,
@@ -350,7 +364,7 @@ public without sharing class InvoiceBoardDocumentService {
       emailTemplate = ContractEmailTemplateService.resolveForOperation(
         ContractEmailTemplateService.TYPE_INVOICE,
         emailTemplateApiName,
-        setting.InvoiceDefaultEmailTemplateApiName__c
+        null
       );
       sender = ContractEmailTemplateService.resolveOrgWide(
         setting.InvoiceOrgWideEmailAddress__c
@@ -360,7 +374,7 @@ public without sharing class InvoiceBoardDocumentService {
     }
     String resolvedDocumentTemplateKey = String.isNotBlank(documentTemplateKey)
       ? documentTemplateKey.trim()
-      : setting.InvoiceDefaultDocumentTemplateKey__c;
+      : null;
     if (
       String.isNotBlank(resolvedDocumentTemplateKey) &&
       resolvedDocumentTemplateKey.length() > 80
@@ -594,8 +608,6 @@ public without sharing class InvoiceBoardDocumentService {
   private static ContractDocumentSetting__c loadSendSetting() {
     List<ContractDocumentSetting__c> settings = [
       SELECT
-        InvoiceDefaultDocumentTemplateKey__c,
-        InvoiceDefaultEmailTemplateApiName__c,
         InvoiceOrgWideEmailAddress__c
       FROM ContractDocumentSetting__c
       WHERE SetupOwnerId = :UserInfo.getOrganizationId()

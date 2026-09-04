@@ -117,18 +117,14 @@ public without sharing class ContractDocumentSettingService {
     }
   }
 
-  /** 仕様: Core 第11.3.2節 */
+  /** 仕様: Core 第11.3.2節、第11.6節。既定帳票・既定メールは組織設定に無い。 */
   public static void assertModeCatalogRequirements(
     String mode,
-    String defaultDocumentKey,
-    String defaultEmailApiName,
     Integer catalogSize,
     String orgWideEmailAddress
   ) {
     assertModeCatalogRequirements(
       mode,
-      defaultDocumentKey,
-      defaultEmailApiName,
       catalogSize,
       orgWideEmailAddress,
       true
@@ -138,11 +134,10 @@ public without sharing class ContractDocumentSettingService {
   /**
    * 仕様: Core 第11.3.2節。
    * PDFとメール送付のとき、請求用組織送信元は必須。見積用は空でよい。
+   * 既定キー必須では保存を止めない。
    */
   public static void assertModeCatalogRequirements(
     String mode,
-    String defaultDocumentKey,
-    String defaultEmailApiName,
     Integer catalogSize,
     String orgWideEmailAddress,
     Boolean requireOrgWideSender
@@ -153,15 +148,7 @@ public without sharing class ContractDocumentSettingService {
     if (mode != MODE_PDF_ONLY && mode != MODE_PDF_AND_EMAIL) {
       throw new SettingException(INVALID_SEND_MODE_MESSAGE);
     }
-    if (String.isBlank(defaultDocumentKey)) {
-      throw new SettingException(MISSING_DEFAULT_DOCUMENT_MESSAGE);
-    }
     if (mode == MODE_PDF_AND_EMAIL) {
-      if (String.isBlank(defaultEmailApiName)) {
-        throw new SettingException(
-          ContractEmailTemplateService.MISSING_DEFAULT_EMAIL_MESSAGE
-        );
-      }
       if (catalogSize == null || catalogSize < 1) {
         throw new SettingException(
           ContractEmailTemplateService.MISSING_CATALOG_MESSAGE
@@ -198,10 +185,6 @@ public without sharing class ContractDocumentSettingService {
         Address__c,
         InvoiceRegistrationNumber__c,
         BankTransferInfo__c,
-        EstimateDefaultDocumentTemplateKey__c,
-        InvoiceDefaultDocumentTemplateKey__c,
-        EstimateDefaultEmailTemplateApiName__c,
-        InvoiceDefaultEmailTemplateApiName__c,
         EstimateOrgWideEmailAddress__c,
         InvoiceOrgWideEmailAddress__c
       FROM ContractDocumentSetting__c

@@ -15,6 +15,10 @@
         <value xsi:type="xsd:boolean">true</value>
     </values>
     <values>
+        <field>IsDefault__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
         <field>SortOrder__c</field>
         <value xsi:type="xsd:double">1</value>
     </values>

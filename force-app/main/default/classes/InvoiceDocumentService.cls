@@ -92,7 +92,7 @@ public without sharing class InvoiceDocumentService {
     return context;
   }
 
-  /** 仕様: Core 第7.7.3節、第7.10節、第11.3.1節 */
+  /** 仕様: Core 第7.7.3節、第7.10節、第11.3.1節、第11.3.2節。キー空は発行できない。 */
   public static IssueResult issueInvoiceDocument(
     Id invoiceId,
     String templateKey
@@ -266,25 +266,14 @@ public without sharing class InvoiceDocumentService {
       : settings[0];
   }
 
-  /** 仕様: Core 第11.3.2節。キー空なら組織の既定。カタログ先頭では埋めない。 */
+  /** 仕様: Core 第7.10節・第11.3.2節。キー空は発行できない。組織既定も既定印も使わない。 */
   private static ContractDocumentTemplateService.TemplateDefinition resolveIssueTemplate(
     String templateKey
   ) {
-    String resolvedKey = templateKey;
-    if (String.isBlank(resolvedKey)) {
-      try {
-        resolvedKey = ContractDocumentSettingService.requireOrgSetting()
-          .InvoiceDefaultDocumentTemplateKey__c;
-      } catch (ContractDocumentSettingService.SettingException ex) {
-        throw new InvoiceDocumentException(
-          ContractDocumentSettingService.withDocumentSendHeading(ex.getMessage())
-        );
-      }
-    }
     try {
       return ContractDocumentTemplateService.resolveTemplate(
         ContractDocumentTemplateService.TYPE_INVOICE,
-        resolvedKey
+        templateKey
       );
     } catch (ContractDocumentTemplateService.DocumentTemplateException ex) {
       String message = ex.getMessage();

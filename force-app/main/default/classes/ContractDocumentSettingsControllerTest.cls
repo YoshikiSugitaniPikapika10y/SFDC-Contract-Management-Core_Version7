@@ -32,9 +32,7 @@ private class ContractDocumentSettingsControllerTest {
       InvoiceRegistrationNumber__c = 'T1234567890123',
       BankTransferInfo__c = 'テスト銀行',
       EstimateSendMode__c = 'PdfOnly',
-      InvoiceSendMode__c = 'PdfOnly',
-      EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate',
-      InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice'
+      InvoiceSendMode__c = 'PdfOnly'
     );
 
     Test.startTest();
@@ -80,8 +78,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
-    input.estimateDefaultDocumentTemplateKey = 'StandardEstimate';
-    input.invoiceDefaultDocumentTemplateKey = 'StandardInvoice';
     input.companyName = ' 株式会社サンプル ';
     input.address = '東京都';
     input.invoiceRegistrationNumber = 'T1234567890123';
@@ -139,8 +135,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
-    input.estimateDefaultDocumentTemplateKey = 'StandardEstimate';
-    input.invoiceDefaultDocumentTemplateKey = 'StandardInvoice';
     input.companyName = '組織既定';
     input.address = '東京都';
     input.invoiceRegistrationNumber = 'T1234567890123';
@@ -218,8 +212,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
-    input.estimateDefaultDocumentTemplateKey = 'StandardEstimate';
-    input.invoiceDefaultDocumentTemplateKey = 'StandardInvoice';
     input.companyName = '初回会社';
     input.address = '東京都';
     input.invoiceRegistrationNumber = 'T1234567890123';
@@ -270,8 +262,6 @@ private class ContractDocumentSettingsControllerTest {
       BankTransferInfo__c = '銀行',
       EstimateSendMode__c = 'PdfOnly',
       InvoiceSendMode__c = 'PdfOnly',
-      EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate',
-      InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice',
       EstimateValidMonths__c = 1,
       DefaultMonthlyCycles__c = 12
     );
@@ -302,8 +292,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
-    input.estimateDefaultDocumentTemplateKey = 'StandardEstimate';
-    input.invoiceDefaultDocumentTemplateKey = 'StandardInvoice';
     input.companyName = 'テスト発行会社';
     input.address = 'テスト住所';
     input.invoiceRegistrationNumber = 'T0000000000000';
@@ -390,40 +378,21 @@ private class ContractDocumentSettingsControllerTest {
   }
 
   @IsTest
-  static void saveRejectsWrongDocumentType() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
-    input.estimateDefaultDocumentTemplateKey = 'StandardInvoice';
-
-    Test.startTest();
-    try {
-      saveWithFreshTokens(input);
-      System.assert(false, '種別不一致は保存できないこと');
-    } catch (AuraHandledException ex) {
-      System.assert(ex.getMessage().contains('種別不一致'));
-    }
-    Test.stopTest();
-  }
-
-  @IsTest
-  static void saveRejectsUnknownEmailCatalogApiName() {
+  static void saveSettings_pdfOnlySucceedsWithoutDefaultDocumentKeys() {
     ContractDocumentSettingsController.SettingsDto input =
       new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
-    input.estimateDefaultEmailTemplateApiName = 'NotInCatalog';
 
     Test.startTest();
-    try {
+    ContractDocumentSettingsController.SettingsDto saved =
       saveWithFreshTokens(input);
-      System.assert(false, 'カタログに無い既定メールは保存できないこと');
-    } catch (AuraHandledException ex) {
-      System.assert(
-        ex.getMessage().contains('有効カタログにありません'),
-        'Core 第11.3.2節: 候補に無い既定メールは保存エラー。実際: ' +
-          ex.getMessage()
-      );
-    }
     Test.stopTest();
+
+    System.assertEquals(
+      'PdfOnly',
+      saved.estimateSendMode,
+      'Core 第11.6節: 既定キー必須では保存を止めない'
+    );
   }
 
   @IsTest
@@ -432,7 +401,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
-    input.estimateDefaultEmailTemplateApiName = 'EstimateMail';
     input.estimateOrgWideEmailAddress = null;
     ContractEmailTemplateService.testRecords =
       new List<ContractEmailTemplate__mdt>();
@@ -460,7 +428,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
-    input.estimateDefaultEmailTemplateApiName = 'EstimateMail';
     input.estimateOrgWideEmailAddress = 'nosuch-sender@example.com';
     ContractEmailTemplateService.seedActiveRowForTest(
       ContractEmailTemplateService.TYPE_ESTIMATE,
@@ -490,7 +457,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
-    input.estimateDefaultEmailTemplateApiName = 'EstimateMail';
     input.estimateOrgWideEmailAddress = null;
     ContractEmailTemplateService.seedActiveRowForTest(
       ContractEmailTemplateService.TYPE_ESTIMATE,
@@ -541,8 +507,6 @@ private class ContractDocumentSettingsControllerTest {
   ) {
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
-    input.estimateDefaultDocumentTemplateKey = 'StandardEstimate';
-    input.invoiceDefaultDocumentTemplateKey = 'StandardInvoice';
     input.companyName = 'テスト発行会社';
     input.address = 'テスト住所';
     input.invoiceRegistrationNumber = 'T0000000000000';
@@ -718,8 +682,6 @@ private class ContractDocumentSettingsControllerTest {
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.invoiceSendMode = 'PdfAndEmail';
-    input.estimateDefaultEmailTemplateApiName = 'EstimateMail';
-    input.invoiceDefaultEmailTemplateApiName = 'InvoiceMail';
     String orgSender = ContractTestDataFactory.requireVerifiedOrgWideAddress();
     input.estimateOrgWideEmailAddress = orgSender;
     input.invoiceOrgWideEmailAddress = orgSender;
@@ -755,7 +717,6 @@ private class ContractDocumentSettingsControllerTest {
       new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.invoiceSendMode = 'PdfAndEmail';
-    input.invoiceDefaultEmailTemplateApiName = 'InvoiceMail';
     input.estimateOrgWideEmailAddress = null;
     ContractEmailTemplateService.seedActiveRowForTest(
       ContractEmailTemplateService.TYPE_INVOICE,

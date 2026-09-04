@@ -157,22 +157,92 @@ private class ContractEmailTemplateServiceTest {
   }
 
   @IsTest
-  static void resolveForOperation_usesOrgDefaultWhenRequestedBlank() {
+  static void resolveForOperation_blank_doesNotFillOrgDefault() {
     ContractEmailTemplateService.clearTestState();
     ContractEmailTemplateService.seedActiveRowForTest(
       ContractEmailTemplateService.TYPE_INVOICE,
       'InvoiceMail'
     );
-    ContractEmailTemplateService.EmailTemplateDefinition resolved =
+    Boolean thrown = false;
+    try {
       ContractEmailTemplateService.resolveForOperation(
         ContractEmailTemplateService.TYPE_INVOICE,
         '  ',
         'InvoiceMail'
       );
+    } catch (ContractEmailTemplateService.EmailTemplateException ex) {
+      thrown = true;
+      System.assertEquals(
+        ContractEmailTemplateService.MISSING_API_NAME_MESSAGE,
+        ex.getMessage(),
+        'Core 第11.3.2節: 指定が空なら組織既定では埋めない'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void initialSelectionApiName_oneDefault_returnsApiName() {
+    ContractEmailTemplateService.clearTestState();
+    ContractEmailTemplate__mdt row = new ContractEmailTemplate__mdt();
+    row.MasterLabel = 'InvoiceMail';
+    row.DocumentType__c = ContractEmailTemplateService.TYPE_INVOICE;
+    row.EmailTemplateApiName__c = 'InvoiceMail';
+    row.IsActive__c = true;
+    row.IsDefault__c = true;
+    row.SortOrder__c = 1;
+    ContractEmailTemplateService.testRecords = new List<ContractEmailTemplate__mdt>{
+      row
+    };
+    ContractEmailTemplateService.skipSalesforceTemplateLookup = true;
     System.assertEquals(
       'InvoiceMail',
-      resolved.apiName,
-      'Core 第11.3.2節: 指定が空なら組織既定のカタログ行を使う'
+      ContractEmailTemplateService.initialSelectionApiName(
+        ContractEmailTemplateService.TYPE_INVOICE
+      ),
+      'Core 第11.3.2節: 有効な既定がちょうど1つなら初期選択'
+    );
+  }
+
+  @IsTest
+  static void initialSelectionApiName_zeroOrMany_returnsNull() {
+    ContractEmailTemplateService.clearTestState();
+    ContractEmailTemplateService.seedActiveRowForTest(
+      ContractEmailTemplateService.TYPE_INVOICE,
+      'InvoiceMail'
+    );
+    System.assertEquals(
+      null,
+      ContractEmailTemplateService.initialSelectionApiName(
+        ContractEmailTemplateService.TYPE_INVOICE
+      ),
+      'Core 第11.3.2節: 有効な既定0件なら未選択'
+    );
+
+    ContractEmailTemplate__mdt first = new ContractEmailTemplate__mdt();
+    first.MasterLabel = 'A';
+    first.DocumentType__c = ContractEmailTemplateService.TYPE_INVOICE;
+    first.EmailTemplateApiName__c = 'A';
+    first.IsActive__c = true;
+    first.IsDefault__c = true;
+    first.SortOrder__c = 1;
+    ContractEmailTemplate__mdt second = new ContractEmailTemplate__mdt();
+    second.MasterLabel = 'B';
+    second.DocumentType__c = ContractEmailTemplateService.TYPE_INVOICE;
+    second.EmailTemplateApiName__c = 'B';
+    second.IsActive__c = true;
+    second.IsDefault__c = true;
+    second.SortOrder__c = 2;
+    ContractEmailTemplateService.testRecords = new List<ContractEmailTemplate__mdt>{
+      first,
+      second
+    };
+    System.assertEquals(
+      null,
+      ContractEmailTemplateService.initialSelectionApiName(
+        ContractEmailTemplateService.TYPE_INVOICE
+      ),
+      'Core 第11.3.2節: 有効な既定2件以上なら未選択'
     );
   }
 
@@ -199,6 +269,24 @@ private class ContractEmailTemplateServiceTest {
       );
     }
     System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void initialSelectionApiName_bundledRowIsExactlyOneDefault() {
+    ContractEmailTemplateService.clearTestState();
+    System.assertEquals(
+      'Contract_Standard_Estimate_Email',
+      ContractEmailTemplateService.initialSelectionApiName(
+        ContractEmailTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 同梱は有効な既定ちょうど1つ'
+    );
+    System.assertEquals(
+      'Contract_Standard_Invoice_Email',
+      ContractEmailTemplateService.initialSelectionApiName(
+        ContractEmailTemplateService.TYPE_INVOICE
+      )
+    );
   }
 
   @IsTest

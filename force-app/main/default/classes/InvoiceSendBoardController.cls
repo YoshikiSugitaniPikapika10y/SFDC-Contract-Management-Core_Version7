@@ -64,9 +64,13 @@ public without sharing class InvoiceSendBoardController {
         );
       }
       result.defaultDocumentTemplateKey =
-        setting.InvoiceDefaultDocumentTemplateKey__c;
+        ContractDocumentTemplateService.initialSelectionKey(
+          ContractDocumentTemplateService.TYPE_INVOICE
+        );
       result.defaultEmailTemplateApiName =
-        setting.InvoiceDefaultEmailTemplateApiName__c;
+        ContractEmailTemplateService.initialSelectionApiName(
+          ContractEmailTemplateService.TYPE_INVOICE
+        );
       result.orgFromResolved = String.isNotBlank(
         setting.InvoiceOrgWideEmailAddress__c
       );
@@ -119,7 +123,7 @@ public without sharing class InvoiceSendBoardController {
     );
   }
 
-  /** 仕様: Core 第7.7.3節、第7.9節、第7.9.7節、第7.10節、第11.3節。確定成功の続きで既定帳票PDFを1つ付ける。発行失敗で確定は戻さない。 */
+  /** 仕様: Core 第7.7.3節、第7.9節、第7.9.7節、第7.10節、第11.3節。確定はPDFを付けない。 */
   @AuraEnabled
   public static ConfirmResultDto confirmInvoiceFromPreview(
     Id invoiceId,
@@ -189,9 +193,6 @@ public without sharing class InvoiceSendBoardController {
       ConfirmResultDto result = new ConfirmResultDto();
       result.confirmedCount = confirmedCount;
       result.businessOperationKey = operationKey;
-      if (confirmedCount > 0) {
-        result.issueWarning = issueDefaultInvoiceDocument(invoice.Id);
-      }
       ContractOperationLogService.write(
         'ConfirmInvoice',
         operationKey,
@@ -203,34 +204,6 @@ public without sharing class InvoiceSendBoardController {
       throw ex;
     } catch (Exception ex) {
       throw handled('請求を確定できませんでした。', ex);
-    }
-  }
-
-  /** 仕様: Core 第7.10節。確定時は既定帳票だけ。メールは送らない。 */
-  private static String issueDefaultInvoiceDocument(Id invoiceId) {
-    try {
-      if (
-        ContractDocumentSettingService.requireSendMode('Invoice') ==
-        ContractDocumentSettingService.MODE_UNUSED
-      ) {
-        return null;
-      }
-    } catch (ContractDocumentSettingService.SettingException ex) {
-      return ContractDocumentSettingService.withDocumentSendHeading(
-        ex.getMessage()
-      );
-    }
-    Savepoint sp = Database.setSavepoint();
-    Boolean previous = ContractOperationLogService.suppressIssueLog;
-    ContractOperationLogService.suppressIssueLog = true;
-    try {
-      InvoiceDocumentService.issueInvoiceDocument(invoiceId);
-      return null;
-    } catch (Exception ex) {
-      Database.rollback(sp);
-      return ex.getMessage();
-    } finally {
-      ContractOperationLogService.suppressIssueLog = previous;
     }
   }
 
@@ -274,8 +247,6 @@ public without sharing class InvoiceSendBoardController {
     List<ContractDocumentSetting__c> settings = [
       SELECT
         InvoiceSendMode__c,
-        InvoiceDefaultDocumentTemplateKey__c,
-        InvoiceDefaultEmailTemplateApiName__c,
         InvoiceOrgWideEmailAddress__c
       FROM ContractDocumentSetting__c
       WHERE SetupOwnerId = :UserInfo.getOrganizationId()

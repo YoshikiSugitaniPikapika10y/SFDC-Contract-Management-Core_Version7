@@ -27,6 +27,8 @@ public without sharing class ContractDocumentTemplateService {
     public String description;
     @AuraEnabled
     public Decimal sortOrder;
+    @AuraEnabled
+    public Boolean isDefault;
 
     private TemplateDefinition(ContractDocumentTemplate__mdt record) {
       templateKey = record.TemplateKey__c;
@@ -36,35 +38,41 @@ public without sharing class ContractDocumentTemplateService {
       fileNamePattern = record.FileNamePattern__c;
       description = record.Description__c;
       sortOrder = record.SortOrder__c;
+      isDefault = record.IsDefault__c == true;
     }
   }
 
-  /** 仕様: Core 第11.3.2節。有効行を出す。既定は組織設定のキー。 */
+  @TestVisible
+  static List<ContractDocumentTemplate__mdt> testRecords;
+
+  /** 仕様: Core 第11.3.2節。有効行を出す。既定印は初期選択だけに使う。 */
   public static List<TemplateDefinition> getActiveTemplates(
     String documentType
   ) {
     assertDocumentType(documentType);
-    List<ContractDocumentTemplate__mdt> records = [
-      SELECT
-        MasterLabel,
-        DocumentType__c,
-        TemplateKey__c,
-        IsActive__c,
-        SortOrder__c,
-        VisualforcePage__c,
-        FileNamePattern__c,
-        Description__c
-      FROM ContractDocumentTemplate__mdt
-      WHERE DocumentType__c = :documentType AND IsActive__c = TRUE
-      ORDER BY SortOrder__c ASC NULLS LAST, MasterLabel ASC
-    ];
-
+    List<ContractDocumentTemplate__mdt> records = loadRecords(documentType);
     List<TemplateDefinition> definitions = new List<TemplateDefinition>();
     for (ContractDocumentTemplate__mdt record : records) {
       validateRecord(record);
       definitions.add(new TemplateDefinition(record));
     }
     return definitions;
+  }
+
+  /**
+   * 仕様: Core 第11.3.2節。有効かつ既定がちょうど1つならそのキー。
+   * 0件または2件以上なら null。発行 Apex の空キー埋めには使わない。
+   */
+  public static String initialSelectionKey(String documentType) {
+    String found = null;
+    Integer defaults = 0;
+    for (TemplateDefinition definition : getActiveTemplates(documentType)) {
+      if (definition.isDefault == true) {
+        defaults++;
+        found = definition.templateKey;
+      }
+    }
+    return defaults == 1 ? found : null;
   }
 
   public static TemplateDefinition resolveTemplate(
@@ -78,6 +86,7 @@ public without sharing class ContractDocumentTemplateService {
       );
     }
 
+    // 仕様: Core 第7.10節・第11.3.2節。キー空は発行できない。既定印でもカタログ先頭でも埋めない。
     if (String.isBlank(templateKey)) {
       throw new DocumentTemplateException(
         ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE
@@ -119,6 +128,40 @@ public without sharing class ContractDocumentTemplateService {
     }
     pageReference.getParameters().put('templateKey', definition.templateKey);
     return pageReference;
+  }
+
+  @TestVisible
+  static void clearTestState() {
+    testRecords = null;
+  }
+
+  private static List<ContractDocumentTemplate__mdt> loadRecords(
+    String documentType
+  ) {
+    if (testRecords != null) {
+      List<ContractDocumentTemplate__mdt> filtered = new List<ContractDocumentTemplate__mdt>();
+      for (ContractDocumentTemplate__mdt record : testRecords) {
+        if (record.DocumentType__c == documentType && record.IsActive__c == true) {
+          filtered.add(record);
+        }
+      }
+      return filtered;
+    }
+    return [
+      SELECT
+        MasterLabel,
+        DocumentType__c,
+        TemplateKey__c,
+        IsActive__c,
+        IsDefault__c,
+        SortOrder__c,
+        VisualforcePage__c,
+        FileNamePattern__c,
+        Description__c
+      FROM ContractDocumentTemplate__mdt
+      WHERE DocumentType__c = :documentType AND IsActive__c = TRUE
+      ORDER BY SortOrder__c ASC NULLS LAST, MasterLabel ASC
+    ];
   }
 
   private static void assertDocumentType(String documentType) {

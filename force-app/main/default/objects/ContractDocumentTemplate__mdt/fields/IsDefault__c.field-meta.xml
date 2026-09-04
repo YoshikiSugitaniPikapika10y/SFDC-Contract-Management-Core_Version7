@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>IsDefault__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>仕様: Core 第11.3.2節。発行・送付画面の初期選択。有効かつ既定がちょうど1つのときだけ選ぶ。</description>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <label>既定</label>
+    <type>Checkbox</type>
+</CustomField>

@@ -5,8 +5,6 @@ private class InvoiceSendBoardControllerTest {
     ContractTestDataFactory.initTestContext();
     ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
     setting.InvoiceSendMode__c = 'PdfAndEmail';
-    setting.InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice';
-    setting.InvoiceDefaultEmailTemplateApiName__c = 'InvoiceMail';
     setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
     update setting;
     ContractDocumentSettingService.clearCache();
@@ -28,7 +26,10 @@ private class InvoiceSendBoardControllerTest {
       System.assertEquals(true, context.featureEnabled);
       System.assertEquals(500, context.listLimit);
       System.assertEquals('StandardInvoice', context.defaultDocumentTemplateKey);
-      System.assertEquals('InvoiceMail', context.defaultEmailTemplateApiName);
+      System.assertEquals(
+        'Contract_Standard_Invoice_Email',
+        context.defaultEmailTemplateApiName
+      );
       System.assert(
         !context.documentTemplateOptions.isEmpty(),
         'Invoice帳票テンプレートが返ること'
@@ -63,7 +64,7 @@ private class InvoiceSendBoardControllerTest {
       System.assertEquals(
         null,
         confirmed.issueWarning,
-        'Core 第7.10節: 確定成功の続きで既定帳票PDFを付ける'
+        'Core 第7.10節: 確定はPDFを付けない'
       );
       System.assertEquals(
         true,
@@ -101,7 +102,7 @@ private class InvoiceSendBoardControllerTest {
         documentIds.add(link.ContentDocumentId);
       }
       System.assertEquals(
-        1,
+        0,
         [
           SELECT COUNT()
           FROM ContentVersion
@@ -110,7 +111,7 @@ private class InvoiceSendBoardControllerTest {
             AND IsLatest = true
             AND ContractDocumentIssued__c = true
         ],
-        'Core 第7.9節: 確定成功の続きで既定帳票PDFを1つ付ける'
+        'Core 第7.10節: 確定ではPDFを付けない'
       );
     }
   }
@@ -160,7 +161,7 @@ private class InvoiceSendBoardControllerTest {
   }
 
   @IsTest
-  static void confirmInvoiceFromPreview_keepsConfirmWhenIssueFails() {
+  static void confirmInvoiceFromPreview_doesNotIssueWhenCompanyNameEmpty() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.CompanyName__c = null;
@@ -182,11 +183,9 @@ private class InvoiceSendBoardControllerTest {
 
       System.assertEquals(1, confirmed.confirmedCount);
       System.assertEquals(
-        ContractDocumentSettingService.withDocumentSendHeading(
-          ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE
-        ),
+        null,
         confirmed.issueWarning,
-        'Core 第7.10節・第11.3.1節: 不足エラーに見出し名「帳票・送付」を付ける'
+        'Core 第7.10節: 確定はPDFを付けない'
       );
       System.assertEquals(
         InvoiceTransactionStatusService.TX_CONFIRMED,
@@ -196,7 +195,7 @@ private class InvoiceSendBoardControllerTest {
           WHERE Id = :invoice.Id
         ]
         .InvoiceTransactionStatus__c,
-        'Core 第7.9節: 発行できないときは確定を戻さない'
+        'Core 第7.9節・第11.3.1節: 会社情報空でも確定は止めない'
       );
       System.assertEquals(
         0,
@@ -205,24 +204,19 @@ private class InvoiceSendBoardControllerTest {
           FROM ContentDocumentLink
           WHERE LinkedEntityId = :invoice.Id
         ],
-        'Core 第7.10節: 発行できないときはPDFは付けない'
+        'Core 第7.10節: 確定ではPDFは付けない'
       );
     }
   }
 
   @IsTest
-  static void getBoardContext_doesNotFillEmptyDefaultDocumentKey() {
+  static void getBoardContext_initialSelectionUsesCatalogDefault() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
-      setting.InvoiceDefaultDocumentTemplateKey__c = null;
-      update setting;
-      ContractDocumentSettingService.clearCache();
-
       InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
       System.assertEquals(
-        null,
+        'StandardInvoice',
         context.defaultDocumentTemplateKey,
-        'Core 第11.3.2節・第1.1.10節: 既定帳票が空ならカタログ先頭で埋めない'
+        'Core 第11.3.2節: 有効な既定がちょうど1つなら初期選択'
       );
     }
   }

@@ -144,9 +144,13 @@ public without sharing class EstimateSendBoardController {
         );
       }
       result.defaultDocumentTemplateKey =
-        setting.EstimateDefaultDocumentTemplateKey__c;
+        ContractDocumentTemplateService.initialSelectionKey(
+          ContractDocumentTemplateService.TYPE_ESTIMATE
+        );
       result.defaultEmailTemplateApiName =
-        setting.EstimateDefaultEmailTemplateApiName__c;
+        ContractEmailTemplateService.initialSelectionApiName(
+          ContractEmailTemplateService.TYPE_ESTIMATE
+        );
       result.listLimit = LIST_LIMIT;
       result.defaultFromChoice = FROM_SELF;
       result.operatorEmail = UserInfo.getUserEmail();
@@ -263,8 +267,12 @@ public without sharing class EstimateSendBoardController {
       try {
         merged = ContractEmailTemplateService.renderForSend(
           ContractEmailTemplateService.TYPE_ESTIMATE,
-          emailTemplateApiName,
-          setting.EstimateDefaultEmailTemplateApiName__c,
+          String.isNotBlank(emailTemplateApiName)
+            ? emailTemplateApiName.trim()
+            : ContractEmailTemplateService.initialSelectionApiName(
+                ContractEmailTemplateService.TYPE_ESTIMATE
+              ),
+          null,
           history.Id,
           resolveEstimateWhoId(history)
         );
@@ -279,7 +287,7 @@ public without sharing class EstimateSendBoardController {
       ContractDocumentTemplateService.TemplateDefinition template =
         ContractDocumentTemplateService.resolveTemplate(
           ContractDocumentTemplateService.TYPE_ESTIMATE,
-          resolveDocumentTemplateKey(documentTemplateKey, setting)
+          resolveDocumentTemplateKey(documentTemplateKey, false)
         );
       SendPreviewDto preview = new SendPreviewDto();
       preview.fromChoice = resolvedFromChoice;
@@ -358,7 +366,7 @@ public without sharing class EstimateSendBoardController {
         emailTemplate = ContractEmailTemplateService.resolveForOperation(
           ContractEmailTemplateService.TYPE_ESTIMATE,
           emailTemplateApiName,
-          setting.EstimateDefaultEmailTemplateApiName__c
+          null
         );
         fromResolved = resolveEstimateFrom(fromChoice, setting, true);
       } catch (ContractEmailTemplateService.EmailTemplateException ex) {
@@ -366,7 +374,7 @@ public without sharing class EstimateSendBoardController {
       }
       String resolvedTemplateKey = resolveDocumentTemplateKey(
         documentTemplateKey,
-        setting
+        false
       );
       String attachmentFileName = draft != null &&
         String.isNotBlank(draft.fileName)
@@ -822,8 +830,6 @@ public without sharing class EstimateSendBoardController {
     List<ContractDocumentSetting__c> settings = [
       SELECT
         EstimateSendMode__c,
-        EstimateDefaultDocumentTemplateKey__c,
-        EstimateDefaultEmailTemplateApiName__c,
         EstimateOrgWideEmailAddress__c
       FROM ContractDocumentSetting__c
       WHERE SetupOwnerId = :UserInfo.getOrganizationId()
@@ -840,14 +846,19 @@ public without sharing class EstimateSendBoardController {
     return item;
   }
 
+  /** 仕様: Core 第7.10節・第11.3.2節。fillInitial は画面初期値だけ。発行・送付の空キーは埋めない。 */
   private static String resolveDocumentTemplateKey(
     String requestedKey,
-    ContractDocumentSetting__c setting
+    Boolean fillInitial
   ) {
     if (String.isNotBlank(requestedKey)) {
       return requestedKey.trim();
     }
-    return setting.EstimateDefaultDocumentTemplateKey__c;
+    return fillInitial == true
+      ? ContractDocumentTemplateService.initialSelectionKey(
+          ContractDocumentTemplateService.TYPE_ESTIMATE
+        )
+      : null;
   }
 
   private static ActionResultDto toActionResult(

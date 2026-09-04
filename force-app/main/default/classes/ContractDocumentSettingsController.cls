@@ -13,10 +13,6 @@ public without sharing class ContractDocumentSettingsController {
   public class SettingsDto {
     @AuraEnabled public String estimateSendMode;
     @AuraEnabled public String invoiceSendMode;
-    @AuraEnabled public String estimateDefaultDocumentTemplateKey;
-    @AuraEnabled public String invoiceDefaultDocumentTemplateKey;
-    @AuraEnabled public String estimateDefaultEmailTemplateApiName;
-    @AuraEnabled public String invoiceDefaultEmailTemplateApiName;
     @AuraEnabled public String estimateOrgWideEmailAddress;
     @AuraEnabled public String invoiceOrgWideEmailAddress;
     @AuraEnabled public String companyName;
@@ -128,22 +124,10 @@ public without sharing class ContractDocumentSettingsController {
     if (input == null) {
       throw handled('保存する設定が指定されていません。');
     }
-    validateDocumentTemplate(
-      input.estimateDefaultDocumentTemplateKey,
-      ContractDocumentTemplateService.TYPE_ESTIMATE,
-      '見積'
-    );
-    validateDocumentTemplate(
-      input.invoiceDefaultDocumentTemplateKey,
-      ContractDocumentTemplateService.TYPE_INVOICE,
-      '請求'
-    );
     String estimateMode = requireSendMode(input.estimateSendMode, '見積書');
     String invoiceMode = requireSendMode(input.invoiceSendMode, '請求書');
     Integer estimateValidMonths = requireEstimateValidMonths(input.estimateValidMonths);
     Integer defaultMonthlyCycles = requireDefaultCycles(input.defaultMonthlyCycles);
-    String estimateEmailApiName = normalize(input.estimateDefaultEmailTemplateApiName);
-    String invoiceEmailApiName = normalize(input.invoiceDefaultEmailTemplateApiName);
     String estimateOrgWideEmailAddress = normalize(
       input.estimateOrgWideEmailAddress
     );
@@ -161,31 +145,15 @@ public without sharing class ContractDocumentSettingsController {
         );
       ContractDocumentSettingService.assertModeCatalogRequirements(
         estimateMode,
-        normalize(input.estimateDefaultDocumentTemplateKey),
-        estimateEmailApiName,
         estimateEmails.size(),
         estimateOrgWideEmailAddress,
         false
       );
       ContractDocumentSettingService.assertModeCatalogRequirements(
         invoiceMode,
-        normalize(input.invoiceDefaultDocumentTemplateKey),
-        invoiceEmailApiName,
         invoiceEmails.size(),
         invoiceOrgWideEmailAddress,
         true
-      );
-      validateEmailTemplate(
-        estimateEmailApiName,
-        estimateEmails,
-        ContractEmailTemplateService.TYPE_ESTIMATE,
-        '見積'
-      );
-      validateEmailTemplate(
-        invoiceEmailApiName,
-        invoiceEmails,
-        ContractEmailTemplateService.TYPE_INVOICE,
-        '請求'
       );
       ContractDocumentSettingService.assertRequiredCompanyFields(
         toCompanyCheckSetting(input, estimateMode, invoiceMode)
@@ -217,12 +185,6 @@ public without sharing class ContractDocumentSettingsController {
     setting.SetupOwnerId = UserInfo.getOrganizationId();
     setting.EstimateSendMode__c = estimateMode;
     setting.InvoiceSendMode__c = invoiceMode;
-    setting.EstimateDefaultDocumentTemplateKey__c =
-      normalize(input.estimateDefaultDocumentTemplateKey);
-    setting.InvoiceDefaultDocumentTemplateKey__c =
-      normalize(input.invoiceDefaultDocumentTemplateKey);
-    setting.EstimateDefaultEmailTemplateApiName__c = estimateEmailApiName;
-    setting.InvoiceDefaultEmailTemplateApiName__c = invoiceEmailApiName;
     // 仕様: Core 第11.3.2節。見積用と請求用を別アドレスで持つ。単一のOrgWideEmailAddress__cは持たない。
     setting.EstimateOrgWideEmailAddress__c = estimateOrgWideEmailAddress;
     setting.InvoiceOrgWideEmailAddress__c = invoiceOrgWideEmailAddress;
@@ -285,10 +247,6 @@ public without sharing class ContractDocumentSettingsController {
     List<ContractDocumentSetting__c> records = [
       SELECT
         Id, EstimateSendMode__c, InvoiceSendMode__c,
-        EstimateDefaultDocumentTemplateKey__c,
-        InvoiceDefaultDocumentTemplateKey__c,
-        EstimateDefaultEmailTemplateApiName__c,
-        InvoiceDefaultEmailTemplateApiName__c,
         EstimateOrgWideEmailAddress__c, InvoiceOrgWideEmailAddress__c,
         CompanyName__c, Address__c, InvoiceRegistrationNumber__c,
         BankTransferInfo__c, DocumentFooter__c, PrivacyPolicyUrl__c,
@@ -309,14 +267,6 @@ public without sharing class ContractDocumentSettingsController {
     SettingsDto result = new SettingsDto();
     result.estimateSendMode = setting.EstimateSendMode__c;
     result.invoiceSendMode = setting.InvoiceSendMode__c;
-    result.estimateDefaultDocumentTemplateKey =
-      setting.EstimateDefaultDocumentTemplateKey__c;
-    result.invoiceDefaultDocumentTemplateKey =
-      setting.InvoiceDefaultDocumentTemplateKey__c;
-    result.estimateDefaultEmailTemplateApiName =
-      setting.EstimateDefaultEmailTemplateApiName__c;
-    result.invoiceDefaultEmailTemplateApiName =
-      setting.InvoiceDefaultEmailTemplateApiName__c;
     result.estimateOrgWideEmailAddress = setting.EstimateOrgWideEmailAddress__c;
     result.invoiceOrgWideEmailAddress = setting.InvoiceOrgWideEmailAddress__c;
     result.companyName = setting.CompanyName__c;
@@ -631,10 +581,6 @@ public without sharing class ContractDocumentSettingsController {
         List<ContractDocumentSetting__c> rows = [
           SELECT
             Id, EstimateSendMode__c, InvoiceSendMode__c,
-            EstimateDefaultDocumentTemplateKey__c,
-            InvoiceDefaultDocumentTemplateKey__c,
-            EstimateDefaultEmailTemplateApiName__c,
-            InvoiceDefaultEmailTemplateApiName__c,
             EstimateOrgWideEmailAddress__c, InvoiceOrgWideEmailAddress__c,
             CompanyName__c, Address__c, InvoiceRegistrationNumber__c,
             BankTransferInfo__c, DocumentFooter__c, PrivacyPolicyUrl__c,
@@ -1221,55 +1167,6 @@ public without sharing class ContractDocumentSettingsController {
       );
     }
     return raw.intValue();
-  }
-
-  private static void validateDocumentTemplate(
-    String templateKey,
-    String expectedType,
-    String label
-  ) {
-    String value = normalize(templateKey);
-    if (value == null) {
-      return;
-    }
-    List<ContractDocumentTemplate__mdt> records = [
-      SELECT TemplateKey__c
-      FROM ContractDocumentTemplate__mdt
-      WHERE TemplateKey__c = :value
-        AND DocumentType__c = :expectedType
-        AND IsActive__c = TRUE
-      LIMIT 1
-    ];
-    if (records.isEmpty()) {
-      throw handled(
-        label + 'の帳票テンプレートは存在しないか、無効または種別不一致です。'
-      );
-    }
-  }
-
-  /** 仕様: Core 第11.3.2節 */
-  private static void validateEmailTemplate(
-    String apiName,
-    List<ContractEmailTemplateService.EmailTemplateDefinition> catalog,
-    String documentType,
-    String label
-  ) {
-    if (apiName == null) {
-      return;
-    }
-    Boolean found = false;
-    for (
-      ContractEmailTemplateService.EmailTemplateDefinition definition : catalog
-    ) {
-      if (definition.apiName == apiName) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      throw handled(label + 'の既定メールは、その種別の有効カタログにありません。');
-    }
-    ContractEmailTemplateService.resolveTemplate(documentType, apiName);
   }
 
   private static ContractDocumentSetting__c toCompanyCheckSetting(

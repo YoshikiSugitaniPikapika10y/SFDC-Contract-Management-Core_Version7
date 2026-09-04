@@ -132,6 +132,9 @@ public class ContractTestDataFactory {
   public static final String TENANT_BILLING_TYPE_ONE_TIME = '一回課金';
   public static final String TENANT_UNIT_NAME_DEFAULT = '式';
   public static final String TENANT_BILLING_ADDRESSEE_DEFAULT = '株式会社テスト 御中';
+  public static final String TENANT_BILLING_EMAIL_TO = 'to@example.com';
+  public static final String TENANT_BILLING_EMAIL_CC = 'cc@example.com';
+  public static final String TENANT_BILLING_EMAIL_BCC = 'bcc@example.com';
 
   /**
    * 月次期間バリデーションを日付に依存せず通す固定開始日。
@@ -287,10 +290,6 @@ public class ContractTestDataFactory {
         Address__c,
         InvoiceRegistrationNumber__c,
         BankTransferInfo__c,
-        EstimateDefaultDocumentTemplateKey__c,
-        InvoiceDefaultDocumentTemplateKey__c,
-        EstimateDefaultEmailTemplateApiName__c,
-        InvoiceDefaultEmailTemplateApiName__c,
         EstimateOrgWideEmailAddress__c,
         InvoiceOrgWideEmailAddress__c
       FROM ContractDocumentSetting__c
@@ -308,8 +307,6 @@ public class ContractTestDataFactory {
       RenewOpportunityEnabled__c = true,
       EstimateSendMode__c = 'PdfOnly',
       InvoiceSendMode__c = 'PdfOnly',
-      EstimateDefaultDocumentTemplateKey__c = 'StandardEstimate',
-      InvoiceDefaultDocumentTemplateKey__c = 'StandardInvoice',
       CompanyName__c = 'テスト発行会社',
       Address__c = 'テスト住所',
       InvoiceRegistrationNumber__c = 'T0000000000000',
@@ -642,9 +639,9 @@ public class ContractTestDataFactory {
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = accountId,
       BillingAddressee__c = TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com',
+      BillingEmailTo__c = TENANT_BILLING_EMAIL_TO,
+      BillingEmailCc__c = TENANT_BILLING_EMAIL_CC,
+      BillingEmailBcc__c = TENANT_BILLING_EMAIL_BCC,
       InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL
     );
     applyDefaultBillingSchedule(billingAccount);
