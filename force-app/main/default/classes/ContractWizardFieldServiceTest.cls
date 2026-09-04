@@ -719,8 +719,11 @@ private class ContractWizardFieldServiceTest {
       ContractWizardFieldService.WizardTarget.ContractHistory,
       new Map<String, Object>{ 'ApplicationDate__c' => '2026/07/28' }
     );
-    System.assertNotEquals(null, error);
-    System.assert(error.contains('形式が不正'), error);
+    System.assertEquals(
+      'カスタム項目の形式が不正です: 申込日（YYYY-MM-DD 形式で入力してください）',
+      error,
+      'Core 第4.3.3節: 日付は YYYY-MM-DD 以外を拒否する'
+    );
   }
 
   @IsTest
@@ -762,16 +765,10 @@ private class ContractWizardFieldServiceTest {
       null,
       'Cancel'
     );
-    System.assertNotEquals(
-      null,
+    System.assertEquals(
+      '必須のカスタム項目を入力してください: 顧客メモ',
       missing,
-      'Cancel 表示中の Required は未入力エラー'
-    );
-    System.assert(missing.contains('必須'), missing);
-    // LabelOverride が無いときは項目ラベル（なければ API 名）
-    System.assert(
-      missing.contains('顧客メモ') || missing.contains('CustomerMemo__c'),
-      missing
+      'Core 第4.3.3節: Cancel 表示中の Required は未入力を拒否する'
     );
 
     // ShowOnCancel=false の種別では必須にしない
@@ -831,12 +828,8 @@ private class ContractWizardFieldServiceTest {
       ContractWizardFieldService.validateActiveDefinitions();
       System.assert(false, 'Unknown VisibilityFieldApiName should fail');
     } catch (ContractWizardFieldService.WizardFieldConfigException ex) {
-      System.assert(
-        ex.getMessage().contains('VisibilityFieldApiName'),
-        ex.getMessage()
-      );
-      System.assert(
-        ex.getMessage().contains('DoesNotExistOnProduct2__c'),
+      System.assertEquals(
+        '見積ウィザードカスタム項目「Test_Bad_Visibility_Field」の VisibilityFieldApiName「DoesNotExistOnProduct2__c」が Product2 に存在しません。',
         ex.getMessage()
       );
     }
@@ -868,9 +861,8 @@ private class ContractWizardFieldServiceTest {
       ContractWizardFieldService.validateActiveDefinitions();
       System.assert(false, 'Visibility on ContractService should fail');
     } catch (ContractWizardFieldService.WizardFieldConfigException ex) {
-      System.assert(ex.getMessage().contains('Visibility'), ex.getMessage());
-      System.assert(
-        ex.getMessage().contains('ContractProduct__c'),
+      System.assertEquals(
+        '見積ウィザードカスタム項目「Test_Visibility_On_Service」の Visibility* は見積商品（ContractProduct__c）でのみ利用できます。',
         ex.getMessage()
       );
     }
@@ -902,11 +894,10 @@ private class ContractWizardFieldServiceTest {
       ContractWizardFieldService.validateActiveDefinitions();
       System.assert(false, 'Unknown VisibilityOperator should fail');
     } catch (ContractWizardFieldService.WizardFieldConfigException ex) {
-      System.assert(
-        ex.getMessage().contains('VisibilityOperator'),
+      System.assertEquals(
+        '見積ウィザードカスタム項目「Test_Bad_Visibility_Op」の VisibilityOperator「CONTAINS」は未対応です。IN / NOT_IN / EQUALS / NOT_EQUALS / IS_BLANK / IS_NOT_BLANK のいずれかを指定してください。',
         ex.getMessage()
       );
-      System.assert(ex.getMessage().contains('CONTAINS'), ex.getMessage());
     }
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
   }
@@ -936,8 +927,8 @@ private class ContractWizardFieldServiceTest {
       ContractWizardFieldService.validateActiveDefinitions();
       System.assert(false, 'Empty VisibilityValues for IN should fail');
     } catch (ContractWizardFieldService.WizardFieldConfigException ex) {
-      System.assert(
-        ex.getMessage().contains('VisibilityValues'),
+      System.assertEquals(
+        '見積ウィザードカスタム項目「Test_Empty_Visibility_Values」の VisibilityOperator=IN には VisibilityValues（カンマ区切り）が必要です。',
         ex.getMessage()
       );
     }
