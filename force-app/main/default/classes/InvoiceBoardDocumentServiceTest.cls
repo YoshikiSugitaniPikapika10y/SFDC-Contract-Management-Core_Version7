@@ -24,7 +24,7 @@ private class InvoiceBoardDocumentServiceTest {
       Test.startTest();
       InvoiceBoardDocumentService.DocumentResultDto preview = InvoiceBoardDocumentService.previewIssueFromPreview(
         invoice.Id,
-        null,
+        'StandardInvoice',
         invoice.ContractHistory__c
       );
       Test.stopTest();
@@ -45,6 +45,35 @@ private class InvoiceBoardDocumentServiceTest {
         filesAfter,
         'Core 第4.8節: ファイル名を見せるだけで発行しない'
       );
+    }
+  }
+
+  @IsTest
+  static void previewIssueFromPreview_blankTemplateKey_throwsJapanese() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfOnly';
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      Invoice__c invoice = createConfirmedInvoice();
+      Boolean thrown = false;
+      try {
+        InvoiceBoardDocumentService.previewIssueFromPreview(
+          invoice.Id,
+          null,
+          invoice.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求書の発行ファイル名を取得できませんでした。 ' +
+            ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.10節・第11.3.2節: キー空は発行できない。既定印でもカタログ先頭でも埋めない'
+        );
+      }
+      System.assertEquals(true, thrown);
     }
   }
 
