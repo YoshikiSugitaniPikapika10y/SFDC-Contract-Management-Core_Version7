@@ -124,31 +124,20 @@ public without sharing class ContractDocumentSettingsController {
       input.invoiceOrgWideEmailAddress
     );
     try {
-      List<ContractEmailTemplateService.EmailTemplateDefinition> estimateEmails =
-        ContractEmailTemplateService.getActiveTemplates(
-          ContractEmailTemplateService.TYPE_ESTIMATE
-        );
-      List<ContractEmailTemplateService.EmailTemplateDefinition> invoiceEmails =
-        ContractEmailTemplateService.getActiveTemplates(
-          ContractEmailTemplateService.TYPE_INVOICE
-        );
+      // 仕様: Core 第11.3.2節・第11.6節。カタログ件数・HTML・API実在は保存では見ない。
       ContractDocumentSettingService.assertModeCatalogRequirements(
         estimateMode,
-        estimateEmails.size(),
         estimateOrgWideEmailAddress,
         false
       );
       ContractDocumentSettingService.assertModeCatalogRequirements(
         invoiceMode,
-        invoiceEmails.size(),
         invoiceOrgWideEmailAddress,
         true
       );
       ContractDocumentSettingService.assertRequiredCompanyFields(
         toCompanyCheckSetting(input, estimateMode, invoiceMode)
       );
-    } catch (ContractEmailTemplateService.EmailTemplateException ex) {
-      throw handled(ex.getMessage());
     } catch (ContractDocumentSettingService.SettingException ex) {
       throw handled(ex.getMessage());
     }

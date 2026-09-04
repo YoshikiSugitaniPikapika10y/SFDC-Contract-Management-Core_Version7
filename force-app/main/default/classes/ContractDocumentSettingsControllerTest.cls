@@ -421,7 +421,7 @@ private class ContractDocumentSettingsControllerTest {
   }
 
   @IsTest
-  static void saveRejectsPdfAndEmailWithoutCatalog() {
+  static void saveAllowsPdfAndEmailWithoutCatalog() {
     ContractDocumentSettingsController.SettingsDto input =
       new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
@@ -430,21 +430,16 @@ private class ContractDocumentSettingsControllerTest {
     ContractEmailTemplateService.testRecords =
       new List<ContractEmailTemplate__mdt>();
 
-    Boolean thrown = false;
     Test.startTest();
-    try {
+    ContractDocumentSettingsController.SettingsDto saved =
       saveWithFreshTokens(input);
-    } catch (AuraHandledException ex) {
-      thrown = true;
-      System.assert(
-        ex.getMessage()
-          .contains(ContractEmailTemplateService.MISSING_CATALOG_MESSAGE),
-        'Core 第11.3.2節: PDFとメール送付は有効カタログ1件以上。実際: ' +
-          ex.getMessage()
-      );
-    }
     Test.stopTest();
-    System.assertEquals(true, thrown);
+
+    System.assertEquals(
+      'PdfAndEmail',
+      saved.estimateSendMode,
+      'Core 第11.3.2節・第11.6節: 3択はカタログの状態に関係なく保存できる'
+    );
   }
 
   @IsTest
@@ -454,10 +449,6 @@ private class ContractDocumentSettingsControllerTest {
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.estimateOrgWideEmailAddress = 'nosuch-sender@example.com';
-    ContractEmailTemplateService.seedActiveRowForTest(
-      ContractEmailTemplateService.TYPE_ESTIMATE,
-      'EstimateMail'
-    );
 
     Boolean thrown = false;
     Test.startTest();
@@ -483,10 +474,6 @@ private class ContractDocumentSettingsControllerTest {
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.estimateOrgWideEmailAddress = null;
-    ContractEmailTemplateService.seedActiveRowForTest(
-      ContractEmailTemplateService.TYPE_ESTIMATE,
-      'EstimateMail'
-    );
 
     Test.startTest();
     ContractDocumentSettingsController.SettingsDto saved =
@@ -710,14 +697,6 @@ private class ContractDocumentSettingsControllerTest {
     String orgSender = ContractTestDataFactory.requireVerifiedOrgWideAddress();
     input.estimateOrgWideEmailAddress = orgSender;
     input.invoiceOrgWideEmailAddress = orgSender;
-    ContractEmailTemplateService.seedActiveRowForTest(
-      ContractEmailTemplateService.TYPE_ESTIMATE,
-      'EstimateMail'
-    );
-    ContractEmailTemplateService.seedActiveRowForTest(
-      ContractEmailTemplateService.TYPE_INVOICE,
-      'InvoiceMail'
-    );
 
     Test.startTest();
     ContractDocumentSettingsController.SettingsDto saved =
@@ -743,10 +722,6 @@ private class ContractDocumentSettingsControllerTest {
     applyPdfOnlyRequired(input);
     input.invoiceSendMode = 'PdfAndEmail';
     input.estimateOrgWideEmailAddress = null;
-    ContractEmailTemplateService.seedActiveRowForTest(
-      ContractEmailTemplateService.TYPE_INVOICE,
-      'InvoiceMail'
-    );
 
     Boolean thrown = false;
     Test.startTest();

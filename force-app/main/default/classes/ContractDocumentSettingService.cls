@@ -117,28 +117,21 @@ public without sharing class ContractDocumentSettingService {
     }
   }
 
-  /** 仕様: Core 第11.3.2節、第11.6節。既定帳票・既定メールは組織設定に無い。 */
+  /** 仕様: Core 第11.3.2節、第11.6節。既定帳票・既定メールは組織設定に無い。カタログ件数は保存では見ない。 */
   public static void assertModeCatalogRequirements(
     String mode,
-    Integer catalogSize,
     String orgWideEmailAddress
   ) {
-    assertModeCatalogRequirements(
-      mode,
-      catalogSize,
-      orgWideEmailAddress,
-      true
-    );
+    assertModeCatalogRequirements(mode, orgWideEmailAddress, true);
   }
 
   /**
-   * 仕様: Core 第11.3.2節。
+   * 仕様: Core 第11.3.2節、第11.6節。
+   * 組織設定の保存では送付メールカタログの件数・HTML・API実在を見ない。
    * PDFとメール送付のとき、請求用組織送信元は必須。見積用は空でよい。
-   * 既定キー必須では保存を止めない。
    */
   public static void assertModeCatalogRequirements(
     String mode,
-    Integer catalogSize,
     String orgWideEmailAddress,
     Boolean requireOrgWideSender
   ) {
@@ -148,18 +141,12 @@ public without sharing class ContractDocumentSettingService {
     if (mode != MODE_PDF_ONLY && mode != MODE_PDF_AND_EMAIL) {
       throw new SettingException(INVALID_SEND_MODE_MESSAGE);
     }
-    if (mode == MODE_PDF_AND_EMAIL) {
-      if (catalogSize == null || catalogSize < 1) {
-        throw new SettingException(
-          ContractEmailTemplateService.MISSING_CATALOG_MESSAGE
-        );
-      }
-      if (
-        requireOrgWideSender == true &&
-        String.isBlank(orgWideEmailAddress)
-      ) {
-        throw new SettingException(MISSING_ORG_SENDER_MESSAGE);
-      }
+    if (
+      mode == MODE_PDF_AND_EMAIL &&
+      requireOrgWideSender == true &&
+      String.isBlank(orgWideEmailAddress)
+    ) {
+      throw new SettingException(MISSING_ORG_SENDER_MESSAGE);
     }
   }
 

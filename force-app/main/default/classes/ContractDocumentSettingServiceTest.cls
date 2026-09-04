@@ -212,64 +212,26 @@ private class ContractDocumentSettingServiceTest {
   static void assertModeCatalogRequirements_followsSendModeTable() {
     ContractDocumentSettingService.assertModeCatalogRequirements(
       ContractDocumentSettingService.MODE_UNUSED,
-      null,
-      null,
-      0,
       null
     );
-    Boolean missingDoc = false;
-    try {
-      ContractDocumentSettingService.assertModeCatalogRequirements(
-        ContractDocumentSettingService.MODE_PDF_ONLY,
-        0,
-        null
-      );
-    } catch (ContractDocumentSettingService.SettingException ex) {
-      missingDoc = true;
-    }
-    System.assertEquals(
-      false,
-      missingDoc,
-      'Core 第11.6節: 既定帳票キー必須では保存を止めない'
+    ContractDocumentSettingService.assertModeCatalogRequirements(
+      ContractDocumentSettingService.MODE_PDF_ONLY,
+      null
     );
-
-    Boolean missingEmail = false;
-    try {
-      ContractDocumentSettingService.assertModeCatalogRequirements(
-        ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-        1,
-        'sender@example.com'
-      );
-    } catch (ContractDocumentSettingService.SettingException ex) {
-      missingEmail = true;
-    }
-    System.assertEquals(
-      false,
-      missingEmail,
-      'Core 第11.6節: 既定メール必須では保存を止めない'
+    ContractDocumentSettingService.assertModeCatalogRequirements(
+      ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
+      'sender@example.com'
     );
-
-    Boolean missingCatalog = false;
-    try {
-      ContractDocumentSettingService.assertModeCatalogRequirements(
-        ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-        0,
-        'sender@example.com'
-      );
-    } catch (ContractDocumentSettingService.SettingException ex) {
-      missingCatalog = true;
-      System.assertEquals(
-        ContractEmailTemplateService.MISSING_CATALOG_MESSAGE,
-        ex.getMessage()
-      );
-    }
-    System.assertEquals(true, missingCatalog);
+    ContractDocumentSettingService.assertModeCatalogRequirements(
+      ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
+      null,
+      false
+    );
 
     Boolean missingSender = false;
     try {
       ContractDocumentSettingService.assertModeCatalogRequirements(
         ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-        1,
         null
       );
     } catch (ContractDocumentSettingService.SettingException ex) {
@@ -280,13 +242,6 @@ private class ContractDocumentSettingServiceTest {
       );
     }
     System.assertEquals(true, missingSender);
-
-    ContractDocumentSettingService.assertModeCatalogRequirements(
-      ContractDocumentSettingService.MODE_PDF_AND_EMAIL,
-      1,
-      null,
-      false
-    );
   }
 
   @IsTest
