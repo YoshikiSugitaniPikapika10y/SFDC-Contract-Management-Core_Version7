@@ -35,30 +35,7 @@ private class ContractHistoryTriggerHandlerTest {
     Account account,
     String serviceName
   ) {
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 25,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    ContractService__c service = new ContractService__c(
-      Name = serviceName,
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
-    );
-    insert service;
-    return service;
+    return ContractTestDataFactory.insertContractService(account.Id, serviceName);
   }
 
   @IsTest
@@ -473,8 +450,9 @@ private class ContractHistoryTriggerHandlerTest {
         delete history;
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('契約履歴は物理削除できません'),
+        System.assertEquals(
+          '契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。',
+          ex.getDmlMessage(0),
           'Core 第4.11節: 契約履歴の物理削除を拒否する'
         );
       }
@@ -525,8 +503,9 @@ private class ContractHistoryTriggerHandlerTest {
         delete history;
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('契約履歴は物理削除できません'),
+        System.assertEquals(
+          '契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。',
+          ex.getDmlMessage(0),
           'Core 第4.11節: 緊急権限でも物理削除を通さない'
         );
       }
@@ -673,8 +652,9 @@ private class ContractHistoryTriggerHandlerTest {
           result.isSuccess(),
           'Core 第4.11節: 一括でも契約履歴は全件拒否'
         );
-        System.assert(
-          result.getErrors()[0].getMessage().contains('契約履歴は物理削除できません'),
+        System.assertEquals(
+          '契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。',
+          result.getErrors()[0].getMessage(),
           'Core 第4.11節: 物理削除拒否メッセージ'
         );
       }
@@ -755,8 +735,9 @@ private class ContractHistoryTriggerHandlerTest {
       );
       for (Database.DeleteResult result : results) {
         System.assertEquals(false, result.isSuccess());
-        System.assert(
-          result.getErrors()[0].getMessage().contains('契約履歴は物理削除できません'),
+        System.assertEquals(
+          '契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。',
+          result.getErrors()[0].getMessage(),
           'Core 第4.11節: 物理削除を拒否する'
         );
       }
