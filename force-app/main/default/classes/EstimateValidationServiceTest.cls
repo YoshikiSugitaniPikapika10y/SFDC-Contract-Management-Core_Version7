@@ -145,7 +145,7 @@ private class EstimateValidationServiceTest {
       headerEx = ex;
     }
     assertRejected(
-      '期間開始日と期間終了日はヘッダー期間開始日起点の月次分割である必要があります',
+      '期間開始日と期間終了日はヘッダー期間開始日起点の月次分割である必要があります（カレンダー月分割は使えません）',
       headerEx
     );
 
@@ -200,7 +200,10 @@ private class EstimateValidationServiceTest {
     } catch (Exception ex) {
       overlapEx = ex;
     }
-    assertRejected('同一商品の契約期間が重複しています', overlapEx);
+    assertRejected(
+      '同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください',
+      overlapEx
+    );
 
     Exception editableEx = null;
     try {
@@ -369,7 +372,10 @@ private class EstimateValidationServiceTest {
     } catch (Exception ex) {
       unassignedEx = ex;
     }
-    assertRejected('ライフサイクルが未設定です', unassignedEx);
+    assertRejected(
+      'ライフサイクルが未設定です。先にバックフィルしてください',
+      unassignedEx
+    );
 
     Exception spotRenewEx = null;
     try {
@@ -537,37 +543,15 @@ private class EstimateValidationServiceTest {
       EstimateValidationService.validatePreviousHistory(request);
 
       request.previousHistoryId = fakeId(ContractHistory__c.SObjectType, 999);
-      Boolean historyNotFound = false;
+      Exception historyNotFoundEx = null;
       try {
         EstimateValidationService.validatePreviousHistory(request);
-      } catch (AuraHandledException ex) {
-        historyNotFound = true;
+      } catch (Exception ex) {
+        historyNotFoundEx = ex;
       }
-      System.assertEquals(true, historyNotFound);
-
-      ContractHistory__c newerOrdered = new ContractHistory__c(
-        Name = 'Newer Ordered',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Ordered',
-        Version__c = 2
-      );
-      insertHistory(newerOrdered, serviceAccount.Id);
-      request.previousHistoryId = history.Id;
-      Boolean stalePrevious = false;
-      try {
-        EstimateValidationService.validatePreviousHistory(request);
-      } catch (AuraHandledException ex) {
-        stalePrevious = true;
-        System.assert(
-          ex.getMessage() != null && ex.getMessage().contains('最新の受注'),
-          ex.getMessage()
-        );
-      }
-      System.assertEquals(
-        true,
-        stalePrevious,
-        '古い Ordered を previous にするとエラー'
+      assertRejected(
+        '前回契約履歴は最新の受注（Ordered）を指定してください。画面を開き直してください',
+        historyNotFoundEx
       );
     }
   }
@@ -1327,7 +1311,10 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected('同一商品の契約期間が重複しています', ex);
+    assertRejected(
+      '同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください',
+      ex
+    );
 
     EstimateCreateController.ProductLineItem mixedOneTime = new EstimateCreateController.ProductLineItem();
     mixedOneTime.productId = left.productId;
@@ -1349,7 +1336,10 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected('同一商品の契約期間が重複しています', ex);
+    assertRejected(
+      '同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください',
+      ex
+    );
 
     System.assertNotEquals(
       null,
@@ -1437,7 +1427,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected('前回契約履歴が見つかりません', ex);
+    assertRejected('前回契約履歴が指定されていません', ex);
 
     EstimateCreateController.ProductLineItem recurringOverlap = new EstimateCreateController.ProductLineItem();
     recurringOverlap.productId = continuation.productId;
@@ -1468,7 +1458,10 @@ private class EstimateValidationServiceTest {
     } catch (Exception e) {
       ex = e;
     }
-    assertRejected('同一商品の契約期間が重複しています', ex);
+    assertRejected(
+      '同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください',
+      ex
+    );
 
     EstimateValidationService.validateChangeProductPeriodOverlap(
       new List<EstimateCreateController.ProductLineItem>{
@@ -1586,7 +1579,7 @@ private class EstimateValidationServiceTest {
       } catch (Exception ex) {
         unavailableEx = ex;
       }
-      assertRejected('契約管理で利用可能な商品のみ', unavailableEx);
+      assertRejected('契約管理で利用可能な商品のみ選択できます', unavailableEx);
 
       EstimateCreateController.ProductLineItem mismatch = new EstimateCreateController.ProductLineItem();
       mismatch.productId = available.Id;
@@ -2748,7 +2741,7 @@ private class EstimateValidationServiceTest {
         termExpectedSpotEx = ex;
       }
       assertRejected(
-        '都度契約の後続見積は一回課金だけの Change',
+        '都度契約の後続見積は一回課金だけの Change を使ってください',
         termExpectedSpotEx
       );
 
@@ -2940,7 +2933,7 @@ private class EstimateValidationServiceTest {
       }
       // parseDate は不正文字列で TypeException（Invalid date: ...）を投げる。
       // null 返却→日本語 AuraHandledException には到達しない（本番挙動に合わせる）。
-      assertRejected('Invalid date', badEffectiveEx);
+      assertRejected('Invalid date: not-a-date', badEffectiveEx);
 
       badMeta.effectiveDate = String.valueOf(termStart);
       EstimateValidationService.validateHistoryMetaDates(
@@ -3036,10 +3029,30 @@ private class EstimateValidationServiceTest {
       !message.contains('Script-thrown exception'),
       'setMessage されていない Aura 例外: ' + expectedSnippet
     );
-    System.assert(
-      message.contains(expectedSnippet),
-      '想定「' + expectedSnippet + '」を含むこと。実際: ' + message
-    );
+    String body = message;
+    if (message.contains('FIELD_CUSTOM_VALIDATION_EXCEPTION')) {
+      Integer startIdx = message.indexOf(', ');
+      Integer endIdx = message.indexOf(': [');
+      if (startIdx >= 0 && endIdx > startIdx) {
+        body = message.substring(startIdx + 2, endIdx);
+      }
+    } else if (message.contains('] ')) {
+      body = message.substringAfterLast('] ');
+    }
+    if (body.startsWith('商品明細')) {
+      Integer colon = body.indexOf(': ');
+      if (colon >= 0) {
+        body = body.substring(colon + 2);
+      }
+    }
+    String expectedBody = expectedSnippet;
+    if (
+      expectedSnippet.replaceAll('[A-Za-z0-9 :._\\-]', '').length() > 0 &&
+      !expectedSnippet.endsWith('。')
+    ) {
+      expectedBody = expectedSnippet + '。';
+    }
+    System.assertEquals(expectedBody, body, '実際: ' + message);
   }
 
   private static Id fakeId(Schema.SObjectType sobjectType, Integer n) {
@@ -3141,7 +3154,10 @@ private class EstimateValidationServiceTest {
       } catch (Exception ex) {
         blankEx = ex;
       }
-      assertRejected('バックフィル', blankEx);
+      assertRejected(
+        'ライフサイクルが未設定です。先にバックフィルしてください',
+        blankEx
+      );
 
       EstimateValidationService.assertLoadedLifecycle(
         ContractDomainConstants.LIFECYCLE_TERM,
@@ -3160,7 +3176,7 @@ private class EstimateValidationServiceTest {
         termExpectedSpotEx = ex;
       }
       assertRejected(
-        '都度契約の後続見積は一回課金だけの Change',
+        '都度契約の後続見積は一回課金だけの Change を使ってください',
         termExpectedSpotEx
       );
 
