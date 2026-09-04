@@ -36,13 +36,15 @@ private class InvoiceProductFieldCopyServiceTest {
       periodTargets.add(definition.TargetFieldApiName__c);
     }
 
-    System.assert(
+    System.assertEquals(
+      true,
       invoiceTargets.contains('Memo__c'),
-      '仕様: Core 第11.4.2節 Sample_Inv_AccountName'
+      '仕様: Core 第11.4.2節 請求の見本は取引先名をメモへ'
     );
-    System.assert(
+    System.assertEquals(
+      true,
       lineTargets.contains('ProductCodeSnapShot__c'),
-      '仕様: Core 第11.4.2節 Sample_Line_ProductCode'
+      '仕様: Core 第11.4.2節 請求明細の見本は商品コード SnapShot'
     );
     System.assertEquals(
       true,
@@ -157,6 +159,11 @@ private class InvoiceProductFieldCopyServiceTest {
     );
 
     System.assertEquals(null, periodLine.Amount__c);
+    System.assertEquals(
+      null,
+      periodLine.Unit__c,
+      '仕様: Core 第11.4.2節 届かない相手へ空埋めしない。請求向け定義は期間明細に適用しない'
+    );
   }
 
   @IsTest
@@ -176,7 +183,11 @@ private class InvoiceProductFieldCopyServiceTest {
       InvoiceProductFieldCopyService.validateActiveDefinitions();
     } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
       rejected = true;
-      System.assert(ex.getMessage().contains('ハードコード'), ex.getMessage());
+      System.assertEquals(
+        '請求項目コピー「Bad_Overlap_Addressee」のコピー先項目「BillingAddresseeSnapShot__c」はパッケージ標準（ハードコード）と重複しています。必須項目はコード側、顧客拡張だけをコピー定義に置いてください。',
+        ex.getMessage(),
+        '仕様: Core 第11.4.2節 ハードコード先とTargetFieldApiNameが重複したらエラー'
+      );
     }
     System.assertEquals(true, rejected);
   }
@@ -261,7 +272,11 @@ private class InvoiceProductFieldCopyServiceTest {
       InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
       ba.Id
     );
-    System.assertNotEquals(null, loaded);
+    System.assertEquals(
+      ba.Id,
+      loaded.Id,
+      '仕様: Core 第11.4.2節 コピー元の請求アカウントを読む'
+    );
 
     InvoiceProduct__c periodLine = new InvoiceProduct__c();
     InvoiceProductFieldCopyService.applyCopies(
@@ -277,7 +292,6 @@ private class InvoiceProductFieldCopyServiceTest {
         ),
         InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY => new Opportunity(
           Name = 'o',
-          StageName = 'Prospecting',
           CloseDate = Date.today()
         ),
         InvoiceProductFieldCopyService.OBJECT_ACCOUNT => new Account(Name = 'a')
@@ -436,6 +450,11 @@ private class InvoiceProductFieldCopyServiceTest {
       );
     } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
       missingSource = true;
+      System.assertEquals(
+        '請求項目コピー「Test_Account_Coerce」のコピー元「Account」の参照先が見つかりません（請求商品 → 契約履歴 → 契約サービス → 取引先）。',
+        ex.getMessage(),
+        '仕様: Core 第11.4.2節 届かない相手へ空埋めしない。定義が壊れていたら止める'
+      );
     }
     System.assertEquals(true, missingSource);
 
@@ -453,6 +472,10 @@ private class InvoiceProductFieldCopyServiceTest {
       InvoiceProductFieldCopyService.validateActiveDefinitions();
     } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
       incomplete = true;
+      System.assertEquals(
+        '請求項目コピー「Bad_Incomplete」の設定が不完全です（Fromオブジェクト / From項目API名 / To項目API名は必須です）。',
+        ex.getMessage()
+      );
     }
     System.assertEquals(true, incomplete);
 
@@ -470,6 +493,10 @@ private class InvoiceProductFieldCopyServiceTest {
       InvoiceProductFieldCopyService.validateActiveDefinitions();
     } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
       badSource = true;
+      System.assertEquals(
+        '請求項目コピー「Bad_SourceObject」のコピー元オブジェクト「NotAnObject__c」は許可されていません。',
+        ex.getMessage()
+      );
     }
     System.assertEquals(true, badSource);
 
@@ -487,6 +514,10 @@ private class InvoiceProductFieldCopyServiceTest {
       InvoiceProductFieldCopyService.validateActiveDefinitions();
     } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
       badTarget = true;
+      System.assertEquals(
+        '請求項目コピー「Bad_TargetField」のコピー先項目「DoesNotExist__c」が「Invoice__c」に存在しません。',
+        ex.getMessage()
+      );
     }
     System.assertEquals(true, badTarget);
 
@@ -533,13 +564,14 @@ private class InvoiceProductFieldCopyServiceTest {
       try {
         InvoiceProductFieldCopyService.validateActiveDefinitions();
       } catch (InvoiceProductFieldCopyService.FieldCopyException ex) {
-        missingTarget = ex.getMessage().contains('存在しません');
+        missingTarget = true;
+        System.assertEquals(
+          '請求項目コピー「Bad_Missing_Object」のコピー先オブジェクト「DoesNotExist__c」が組織に存在しません。',
+          ex.getMessage(),
+          '仕様: Core 第11.4.2節 無いToオブジェクトは設定エラー'
+        );
       }
-      System.assertEquals(
-        true,
-        missingTarget,
-        'Core 第11.4.2節: 無いToオブジェクトは設定エラー'
-      );
+      System.assertEquals(true, missingTarget);
       InvoiceProductFieldCopyService.resetCache();
 
       Account account = ContractTestDataFactory.insertAccount('copy-insert-src');
