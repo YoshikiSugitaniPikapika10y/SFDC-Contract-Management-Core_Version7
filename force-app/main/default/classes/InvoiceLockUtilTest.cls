@@ -139,7 +139,7 @@ private class InvoiceLockUtilTest {
       System.assertEquals(
         false,
         confirmed.hasErrors(),
-        '共通基盤 第3.6節: 104 単独で確定済み請求の削除を通す'
+        '共通基盤 第3.6節: 101 単独で確定済み請求の削除を通す'
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;

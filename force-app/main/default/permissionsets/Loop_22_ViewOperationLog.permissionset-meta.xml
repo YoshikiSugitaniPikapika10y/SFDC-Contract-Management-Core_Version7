@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>105 例外。操作ログの参照だけ。カスタム権限なし。01／02 と併用しない。常時は付けない。</description>
+    <description>22。操作ログの参照だけ。カスタム権限なし。01／02 と併用しない。常時は付けない。表示名に例外を入れない。</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>105 契約 例外 操作ログを見る</label>
+    <label>22 契約 操作ログを見る</label>
     <objectPermissions>
         <allowCreate>false</allowCreate>
         <allowDelete>false</allowDelete>

@@ -1,5 +1,5 @@
 /**
- * 仕様: 共通基盤.md 第12章・第3.6節。101〜104の例外書き込みは1件1行。
+ * 仕様: 共通基盤.md 第12章・第3.6節。101〜103の例外書き込みは1件1行。
  * 正規手続き・エンジン・インストールは書かない。
  */
 public without sharing class ContractIrregularOperationLog {
@@ -25,7 +25,6 @@ public without sharing class ContractIrregularOperationLog {
     if (
       skipRegularPath() ||
       (
-        !ContractPermissionUtil.hasFixConfirmedInvoice() &&
         !ContractPermissionUtil.hasFixContract() &&
         !ContractPermissionUtil.hasMigrateAll()
       )

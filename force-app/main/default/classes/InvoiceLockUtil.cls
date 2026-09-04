@@ -98,10 +98,10 @@ public without sharing class InvoiceLockUtil {
     if (testCanBypassLockedDml != null) {
       return testCanBypassLockedDml;
     }
-    return ContractPermissionUtil.hasFixConfirmedInvoice();
+    return ContractPermissionUtil.hasMigrateAll();
   }
 
-  /** 仕様: 共通基盤 第3.6節。確定済み請求の削除は 103／104。 */
+  /** 仕様: 共通基盤 第3.6節。確定済み請求の削除は 101／103。 */
   public static Boolean canBypassLockedDelete() {
     if (allowLockedStatusWrite == true) {
       return true;

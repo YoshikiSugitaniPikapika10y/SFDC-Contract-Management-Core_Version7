@@ -1032,7 +1032,7 @@ private class AccountingEngineTest {
       System.assertEquals(
         0,
         [SELECT COUNT() FROM GlJournal__c WHERE Id = :journal.Id],
-        '共通基盤 第3.6節: 104 単独で仕訳の物理削除を通す'
+        '共通基盤 第3.6節: 101 単独で仕訳の物理削除を通す'
       );
     }
   }

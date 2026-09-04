@@ -311,7 +311,7 @@ public without sharing class ContractHistoryTriggerHandler {
 
   /**
    * 受注（→Ordered）は 06、差し戻し（Ordered→Estimate）は 07。
-   * ウィザード以外の直接 DML でも同じ。101〜104 では代替しない。
+   * ウィザード以外の直接 DML でも同じ。101〜103 では代替しない。
    */
   private static void enforceOrderAndRevertPermissions(
     List<ContractHistory__c> newHistories,

@@ -88,7 +88,7 @@ private class ContractServiceWriteGuardTest {
       System.assertEquals(
         0,
         [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id],
-        '共通基盤 第3.6節: 104 単独で契約サービス（Ordered 含む）の物理削除を通す'
+        '共通基盤 第3.6節: 101 単独で契約サービス（Ordered 含む）の物理削除を通す'
       );
     }
   }

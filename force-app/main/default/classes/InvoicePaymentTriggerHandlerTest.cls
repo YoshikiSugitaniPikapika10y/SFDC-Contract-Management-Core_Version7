@@ -370,7 +370,7 @@ private class InvoicePaymentTriggerHandlerTest {
       System.assertEquals(
         0,
         [SELECT COUNT() FROM InvoicePayment__c WHERE Id = :payment.Id],
-        '共通基盤 第3.6節: 104 単独で入出金の物理削除を通す'
+        '共通基盤 第3.6節: 101 単独で入出金の物理削除を通す'
       );
     }
   }

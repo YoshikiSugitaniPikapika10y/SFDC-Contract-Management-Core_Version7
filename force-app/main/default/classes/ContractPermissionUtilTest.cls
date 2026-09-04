@@ -13,7 +13,7 @@ private class ContractPermissionUtilTest {
     );
     System.assertEquals(
       false,
-      ContractPermissionUtil.hasFixConfirmedInvoice()
+      ContractPermissionUtil.hasMigrateAll()
     );
     System.assertEquals(
       true,
@@ -22,7 +22,7 @@ private class ContractPermissionUtilTest {
 
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.ORDER => false,
-      ContractPermissionUtil.FIX_CONFIRMED_INVOICE => true
+      ContractPermissionUtil.MIGRATE_ALL => true
     };
     System.assertEquals(
       false,
@@ -30,7 +30,7 @@ private class ContractPermissionUtilTest {
     );
     System.assertEquals(
       true,
-      ContractPermissionUtil.hasFixConfirmedInvoice()
+      ContractPermissionUtil.hasMigrateAll()
     );
 
     ContractPermissionUtil.testOverrides = null;
@@ -251,7 +251,7 @@ private class ContractPermissionUtilTest {
     System.assertEquals(
       false,
       ContractPermissionUtil.hasDeleteRecords(),
-      '共通基盤 第3.6節: テスト既定は 103／104 とも拒否'
+      '共通基盤 第3.6節: テスト既定は 103／101 とも拒否'
     );
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.MIGRATE_ALL => true
@@ -260,13 +260,13 @@ private class ContractPermissionUtilTest {
       System.assertEquals(
         true,
         ContractPermissionUtil.hasDeleteRecords(),
-        '共通基盤 第3.6節: 104 は 103 を含む'
+        '共通基盤 第3.6節: 101 は 103 を含む'
       );
       System.assertEquals(true, ContractPermissionUtil.hasMigrateAll());
       System.assertEquals(
         false,
         ContractPermissionUtil.has(ContractPermissionUtil.DELETE_RECORDS),
-        '共通基盤 第3.6節: 104 単独では 103 カスタム権限は不要'
+        '共通基盤 第3.6節: 101 単独では 103 カスタム権限は不要'
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;
@@ -287,13 +287,13 @@ private class ContractPermissionUtilTest {
     try {
       System.assertEquals(
         true,
-        ContractPermissionUtil.hasFixConfirmedInvoice(),
-        '共通基盤 第3.6節: 104 は 101 を含む'
+        ContractPermissionUtil.hasMigrateAll(),
+        '共通基盤 第3.6節: 101 は移行の全部操作'
       );
       System.assertEquals(
         true,
         ContractPermissionUtil.hasFixContract(),
-        '共通基盤 第3.6節: 104 は 102 を含む'
+        '共通基盤 第3.6節: 101 は 102 を含む'
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;

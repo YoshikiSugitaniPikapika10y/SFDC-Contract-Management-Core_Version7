@@ -1006,7 +1006,7 @@ private class InvoicePreviewOpsControllerTest {
         ContractPermissionUtil.EDIT_DRAFT_INVOICE => true,
         ContractPermissionUtil.CONFIRM_INVOICE => true,
         ContractPermissionUtil.UNLOCK_JOURNAL => true,
-        ContractPermissionUtil.FIX_CONFIRMED_INVOICE => true,
+        ContractPermissionUtil.MIGRATE_ALL => true,
         ContractPermissionUtil.MIGRATE_ALL => true,
         ContractPermissionUtil.LOCK_JOURNAL => false
       };
@@ -1023,7 +1023,7 @@ private class InvoicePreviewOpsControllerTest {
         System.assertEquals(
           '仕訳をLockする権限がありません。',
           ex.getMessage(),
-          'Accounting 第9.5節: 閲覧・編集・確定・Unlock・101〜104 では Lock しない'
+          'Accounting 第9.5節: 閲覧・編集・確定・Unlock・101〜103 では Lock しない'
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;

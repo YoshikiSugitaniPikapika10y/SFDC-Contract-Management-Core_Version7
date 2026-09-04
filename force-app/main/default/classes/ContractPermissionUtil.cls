@@ -1,6 +1,6 @@
 /**
  * 仕様: 共通基盤 第3.2節・第3.8節・第10.4節。操作の可否は Loop_* カスタム権限。
- * 01・02・19・21・105 にカスタム権限は無い。101〜104 はテスト既定 OFF。
+ * 01・02・19・21・22 にカスタム権限は無い。101〜103 はテスト既定 OFF。
  */
 public without sharing class ContractPermissionUtil {
   public static final String ESTIMATE = 'Loop_03_Can_Estimate';
@@ -20,10 +20,9 @@ public without sharing class ContractPermissionUtil {
   public static final String UNLOCK_JOURNAL = 'Loop_17_Can_UnlockJournal';
   public static final String CROSS_WORK = 'Loop_18_Can_CrossWork';
   public static final String ORG_SETTINGS = 'Loop_20_Can_OrgSettings';
-  public static final String FIX_CONFIRMED_INVOICE = 'Loop_101_Can_FixConfirmedInvoice';
   public static final String FIX_CONTRACT = 'Loop_102_Can_FixContract';
   public static final String DELETE_RECORDS = 'Loop_103_Can_DeleteRecords';
-  public static final String MIGRATE_ALL = 'Loop_104_Can_MigrateAll';
+  public static final String MIGRATE_ALL = 'Loop_101_Can_MigrateAll';
 
   private static final Set<String> INVOICE_BOARD_PERMISSIONS = new Set<String>{
     VIEW_INVOICE,
@@ -38,13 +37,12 @@ public without sharing class ContractPermissionUtil {
   };
 
   private static final Set<String> IRREGULAR_PERMISSIONS = new Set<String>{
-    FIX_CONFIRMED_INVOICE,
     FIX_CONTRACT,
     DELETE_RECORDS,
     MIGRATE_ALL
   };
 
-  /** テスト既定: 03〜21 は許可。101〜104 は拒否。false にすると未オーバーライド分も拒否。 */
+  /** テスト既定: 03〜21 は許可。101〜103 は拒否。false にすると未オーバーライド分も拒否。 */
   @TestVisible
   private static Boolean testAllowAll = true;
 
@@ -68,11 +66,7 @@ public without sharing class ContractPermissionUtil {
     return FeatureManagement.checkPermission(permissionName);
   }
 
-  /** 仕様: 共通基盤 第3.6節。104 は 101〜103 を含む。 */
-  public static Boolean hasFixConfirmedInvoice() {
-    return has(FIX_CONFIRMED_INVOICE) || has(MIGRATE_ALL);
-  }
-
+  /** 仕様: 共通基盤 第3.6節。101 は 102・103 を含む。 */
   public static Boolean hasFixContract() {
     return has(FIX_CONTRACT) || has(MIGRATE_ALL);
   }

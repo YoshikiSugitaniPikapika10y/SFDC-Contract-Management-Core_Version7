@@ -374,7 +374,7 @@ private class InvoiceCancelServiceTest {
         ContractPermissionUtil.CONFIRM_INVOICE => true,
         ContractPermissionUtil.INVOICE_PAYMENT => true,
         ContractPermissionUtil.MANUAL_JOURNAL => true,
-        ContractPermissionUtil.FIX_CONFIRMED_INVOICE => true,
+        ContractPermissionUtil.MIGRATE_ALL => true,
         ContractPermissionUtil.FIX_CONTRACT => true,
         ContractPermissionUtil.DELETE_RECORDS => true,
         ContractPermissionUtil.MIGRATE_ALL => true,
@@ -388,7 +388,7 @@ private class InvoiceCancelServiceTest {
         System.assertEquals(
           '確定済み請求を取り消す権限がありません。',
           ex.getMessage(),
-          'Core 第7.9.3節: 請求確定・入金・手動仕訳・101〜104 では代替しない'
+          'Core 第7.9.3節: 請求確定・入金・手動仕訳・101〜103 では代替しない'
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;

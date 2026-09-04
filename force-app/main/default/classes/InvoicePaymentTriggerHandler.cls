@@ -54,7 +54,7 @@ public without sharing class InvoicePaymentTriggerHandler {
     }
   }
 
-  /** 仕様: 共通基盤 第3.6節。物理削除は 103／104（hasDeleteRecords。104 は 103 を含む）。 */
+  /** 仕様: 共通基盤 第3.6節。物理削除は 101／103（hasDeleteRecords。101 は 103 を含む）。 */
   public static void handleBeforeDelete(List<InvoicePayment__c> payments) {
     if (ContractPermissionUtil.hasDeleteRecords()) {
       return;

@@ -57,7 +57,7 @@ public without sharing class GlJournalTriggerHandler {
     }
   }
 
-  /** 仕様: Accounting 第2.5節、共通基盤 第3.6節。物理削除は 103／104。例外は Core 第5.3節の差し戻し。 */
+  /** 仕様: Accounting 第2.5節、共通基盤 第3.6節。物理削除は 101／103。例外は Core 第5.3節の差し戻し。 */
   public static void beforeDelete(List<GlJournal__c> oldRecords) {
     if (
       ContractPermissionUtil.hasDeleteRecords() ||

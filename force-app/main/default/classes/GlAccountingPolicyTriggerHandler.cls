@@ -39,7 +39,7 @@ public without sharing class GlAccountingPolicyTriggerHandler {
     }
   }
 
-  /** 仕様: Accounting 第3.1節、共通基盤 第3.6節。固定後の削除は 104 だけ。103 では回避しない。 */
+  /** 仕様: Accounting 第3.1節、共通基盤 第3.6節。固定後の削除は 101 だけ。103 では回避しない。 */
   public static void beforeDelete(List<GlAccountingPolicy__c> oldRecords) {
     Boolean migrateAll = ContractPermissionUtil.hasMigrateAll();
     Boolean deleteRecords = ContractPermissionUtil.hasDeleteRecords();
@@ -63,7 +63,7 @@ public without sharing class GlAccountingPolicyTriggerHandler {
     }
   }
 
-  /** 仕様: 共通基盤.md 第12章。104の方針固定解除は IrregularUpdate。それ以外のマスタ保存は SaveAccountingMaster。 */
+  /** 仕様: 共通基盤.md 第12章。101の方針固定解除は IrregularUpdate。それ以外のマスタ保存は SaveAccountingMaster。 */
   public static void afterUpdate(
     List<GlAccountingPolicy__c> newRecords,
     Map<Id, GlAccountingPolicy__c> oldMap

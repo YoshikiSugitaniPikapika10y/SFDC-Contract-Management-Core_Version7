@@ -291,10 +291,10 @@
         <members>Loop_19_BillingAccount</members>
         <members>Loop_20_OrgSettings</members>
         <members>Loop_21_AccountingMaster</members>
-        <members>Loop_101_FixConfirmedInvoice</members>
+        <members>Loop_22_ViewOperationLog</members>
+        <members>Loop_101_MigrateAll</members>
         <members>Loop_102_FixContract</members>
         <members>Loop_103_DeleteRecords</members>
-        <members>Loop_104_MigrateAll</members>
         <name>PermissionSet</name>
     </types>
     <types>
@@ -331,10 +331,9 @@
         <members>Loop_17_Can_UnlockJournal</members>
         <members>Loop_18_Can_CrossWork</members>
         <members>Loop_20_Can_OrgSettings</members>
-        <members>Loop_101_Can_FixConfirmedInvoice</members>
+        <members>Loop_101_Can_MigrateAll</members>
         <members>Loop_102_Can_FixContract</members>
         <members>Loop_103_Can_DeleteRecords</members>
-        <members>Loop_104_Can_MigrateAll</members>
         <name>CustomPermission</name>
     </types>
     <types>

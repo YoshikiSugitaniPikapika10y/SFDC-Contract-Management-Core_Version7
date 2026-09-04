@@ -68,7 +68,7 @@ public without sharing class ContractServiceWriteGuard {
     }
   }
 
-  /** 仕様: Core 第3.4節、共通基盤 第3.6節。削除は 103／104。 */
+  /** 仕様: Core 第3.4節、共通基盤 第3.6節。削除は 101／103。 */
   public static void assertNoDelete(List<ContractService__c> oldRecords) {
     if (
       oldRecords == null ||

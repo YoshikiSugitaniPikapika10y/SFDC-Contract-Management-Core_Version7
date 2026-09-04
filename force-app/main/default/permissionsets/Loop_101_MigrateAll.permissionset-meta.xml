@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>104 例外。移行の全部操作。101〜103 を含む。操作ログは Read／Delete／View All／Modify All。Create と Edit は付けない。通常は 01 または 02 と併用。</description>
+    <description>101 例外。移行の全部操作。102・103 を含む。操作ログは Read／Delete／View All／Modify All。Create と Edit は付けない。通常は 01 または 02 と併用。</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>104 契約 例外 移行（全部操作）</label>
+    <label>101 契約 例外 移行（全部操作）</label>
     <customPermissions>
         <enabled>true</enabled>
-        <name>Loop_104_Can_MigrateAll</name>
+        <name>Loop_101_Can_MigrateAll</name>
     </customPermissions>
     <objectPermissions>
         <allowCreate>false</allowCreate>

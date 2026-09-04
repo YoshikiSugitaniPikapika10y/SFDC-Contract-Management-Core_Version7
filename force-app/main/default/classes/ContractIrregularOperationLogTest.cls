@@ -77,7 +77,6 @@ private class ContractIrregularOperationLogTest {
   @IsTest
   static void logUpdate_isNotWrittenWithout101102104() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
-      ContractPermissionUtil.FIX_CONFIRMED_INVOICE => false,
       ContractPermissionUtil.FIX_CONTRACT => false,
       ContractPermissionUtil.MIGRATE_ALL => false
     };

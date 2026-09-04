@@ -16,7 +16,7 @@
                                     <rightValue>true</rightValue>
                                 </criteria>
                                 <criteria>
-                                    <leftValue>{!$Permission.CustomPermission.Loop_104_Can_MigrateAll}</leftValue>
+                                    <leftValue>{!$Permission.CustomPermission.Loop_101_Can_MigrateAll}</leftValue>
                                     <operator>EQUAL</operator>
                                     <rightValue>true</rightValue>
                                 </criteria>
