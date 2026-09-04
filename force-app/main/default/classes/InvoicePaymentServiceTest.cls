@@ -98,10 +98,10 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains(ContractOptimisticLockUtil.CONFLICT_MESSAGE) ||
-            ex.getMessage().contains('他のユーザーが先に更新しました'),
-          'Core 第7.9.7節: 比較値未指定は拒否する。実際: ' + ex.getMessage()
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.9.7節: 比較値未指定は拒否する'
         );
       }
       System.assertEquals(true, thrown);
@@ -122,8 +122,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('確定済みの請求にだけ入出金を登録できます'),
+        System.assertEquals(
+          '確定済みの請求にだけ入出金を登録できます。',
+          ex.getMessage(),
           'Core 第8.4節: 未確定請求への登録を拒否する'
         );
       }
@@ -144,8 +145,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('0以外の整数'),
+        System.assertEquals(
+          '入出金金額は0以外の整数を指定してください。',
+          ex.getMessage(),
           'Core 第8.3節: 0円は登録しない'
         );
       }
@@ -168,8 +170,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('明細別割当が1件以上必要'),
+        System.assertEquals(
+          '請求金額の入出金は明細別割当が1件以上必要です。',
+          ex.getMessage(),
           'Core 第8.6節: Invoice目的は明細別割当が必須'
         );
       }
@@ -192,8 +195,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('請求金額以外の入出金に明細別割当は持てません'),
+        System.assertEquals(
+          '請求金額以外の入出金に明細別割当は持てません。',
+          ex.getMessage(),
           'Core 第8.6節: NonInvoiceは明細別割当を持たない'
         );
       }
@@ -215,8 +219,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('請求をロックできませんでした'),
+        System.assertEquals(
+          '請求をロックできませんでした。',
+          ex.getMessage(),
           'Accounting 第8.2節: 未処理Net判定の前に対象請求書を行ロックする'
         );
       }
@@ -240,8 +245,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('未処理Netを超えられません'),
+        System.assertEquals(
+          '請求金額の入出金は未処理Netを超えられません。',
+          ex.getMessage(),
           'Core 第8.3節: |Amount| は未処理Netを超えない'
         );
       }
@@ -338,8 +344,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.cancel(cancel);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('有効な入出金だけ取消できます'),
+        System.assertEquals(
+          '有効な入出金だけ取消できます。',
+          ex.getMessage(),
           'Core 第8.5節: 同じ元取引を二重に取り消さない'
         );
       }
@@ -364,8 +371,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (InvoicePaymentService.PaymentException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('ロック済み仕訳がある取消では取消基準日が必要です'),
+        System.assertEquals(
+          'ロック済み仕訳がある取消では取消基準日が必要です。',
+          ex.getMessage(),
           'Accounting 第8.5節: ONかつロック済みなら取消基準日必須'
         );
       }
@@ -459,8 +467,18 @@ private class InvoicePaymentServiceTest {
         request
       );
       Test.stopTest();
-      System.assertNotEquals(null, preview);
-      System.assertNotEquals(null, preview.displayText);
+      System.assertEquals(
+        0,
+        preview.logicalDeleteCount,
+        'Accounting OFF の入金登録プレビューは既存ロック仕訳を論理削除しない'
+      );
+      System.assertEquals(0, preview.reverseCount);
+      System.assertEquals(false, preview.hasFutureReverseDate);
+      System.assertEquals(
+        '論理削除件数: 0\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし',
+        preview.displayText,
+        'Core 第7.9.6節: プレビュー本文'
+      );
       System.assertEquals(
         0,
         [SELECT COUNT() FROM InvoicePayment__c WHERE Invoice__c = :fixture.invoice.Id],
@@ -479,8 +497,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.cancel(cancel);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消理由を入力してください'),
+        System.assertEquals(
+          '取消理由を入力してください。',
+          ex.getMessage(),
           'Core 第8.5節: 取消理由は必須'
         );
       }
@@ -499,8 +518,9 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.cancel(cancel);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('その他のときは内容を入力してください'),
+        System.assertEquals(
+          '取消理由がその他のときは内容を入力してください。',
+          ex.getMessage(),
           'Core 第8.5節: Otherは内容必須'
         );
       }
@@ -540,6 +560,18 @@ private class InvoicePaymentServiceTest {
         1,
         preview.reverseCount,
         'OFF: 対象入出金の Lock 仕訳だけを逆仕訳件数に数える'
+      );
+      System.assertEquals(
+        false,
+        preview.hasFutureReverseDate,
+        '取消基準日は今日なので将来日付ではない'
+      );
+      System.assertEquals(
+        '論理削除件数: 0\n逆仕訳件数: 1\n実際の逆仕訳日:\n' +
+          String.valueOf(Date.today()) +
+          ': 1件\n将来日付: なし',
+        preview.displayText,
+        'Core 第7.9.6節: 取消プレビュー本文'
       );
     }
   }
@@ -619,6 +651,11 @@ private class InvoicePaymentServiceTest {
         'Accounting 第4.2節・第8.8節・Core 第7.9.6節: ON は Goal Diff 全体（売上含む）を数える'
       );
       System.assertEquals(0, preview.reverseCount);
+      System.assertEquals(
+        '論理削除件数: 2\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし',
+        preview.displayText,
+        'Accounting 第4.2節: ON の取消プレビュー本文'
+      );
     }
   }
 
