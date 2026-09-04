@@ -2324,7 +2324,7 @@ Term契約サービスのサービス開始日はFirst Orderedの継続課金期
 | 帳票フッター                 | `DocumentFooter__c`            | 空でなければ出す | 空でなければ出す | 任意                           |
 | プライバシーポリシーURL      | `PrivacyPolicyUrl__c`          | 空でなければ出す | 空でなければ出す | 任意                           |
 
-必須の空欄は、該当する3択が`使わない`以外のとき、組織設定の保存でも発行と「新しく発行する」でも止める。確定・取消は止めない。既存ファイルを送るだけなら止めない。Setup の会社情報は見ない。発行・送付の不足エラーには、組織設定の見出し名「帳票」を付ける。文言は業務の日本語とする。組織設定の保存を止めるのは、本節の必須空だけである。診断は持たない。第11.6節。
+必須の空欄は、該当する3択が`使わない`以外のとき、組織設定の保存でも発行と「新しく発行する」でも止める。確定・取消は止めない。既存ファイルを送るだけなら止めない。Setup の会社情報は見ない。発行・送付の不足エラーには、組織設定の見出し名「帳票」を付ける。文言は業務の日本語とする。組織設定の保存を止めるのは、本節の必須空と、第11.3.2節の請求用組織送信元（請求が`PDFとメール送付`のとき）である。送付メールカタログの件数・HTML・API実在では止めない。診断は持たない。第11.6節。
 
 #### 11.3.2 帳票カタログと送付メールカタログ
 
@@ -2332,7 +2332,7 @@ Term契約サービスのサービス開始日はFirst Orderedの継続課金期
 
 帳票は`ContractDocumentTemplate__mdt`である。各行は Visualforce ページの API 名を指す。標準見積・標準請求書を1行ずつ同梱する。追加は管理者が行を足す。ファイル名は発行 Apex が、選んだ行の`FileNamePattern__c`を置換する。VF コントローラはファイル名を返さない。空なら`{TemplateKey}_{Title}_{yyyyMMdd}.pdf`。使える変数は`{TemplateKey}`（カタログ行のキー）、`{Title}`、`{DocumentType}`、`{yyyyMMdd}`である。`{Title}`は、見積なら見積件名（`EstimateTitleName__c`）→商談名→契約履歴名→「見積書」、請求なら宛名スナップショット→請求番号→「請求書」。日付は見積が発行日（未設定なら今日）、請求が請求日（未設定なら今日）。これはファイル名だけである。見積PDF本文の日付は第4.8節。空なら空のまま出し、今日で埋めない。Files の Title は拡張子`.pdf`を除いた名前である。発行画面では直さない。見積も請求も同じ。送付直前の添付名の微調整は第7.10節。2つ目の帳票は、顧客が VF（必要なら Apex）とカタログ1行（VF API 名、種別、キー、任意でパターン）を足す。カタログに Apex クラス名は書かない。顧客 Apex はファイル名変数を返さない。
 
-送付メールは`ContractEmailTemplate__mdt`である。各行は Classic メールテンプレートの API 名（`DeveloperName`）を指す。帳票VFと同型で、テキスト形式 Classic を見積1通・請求1通同梱し、カタログ行も同梱する。管理者が行を足してよい。指すテンプレートは**テキスト形式**（`TemplateType = text`）で、有効、公開のメールフォルダにあり、Lightning メールビルダーではない。HTML、カスタム（HTML）、Visualforce、Lightning ビルダーは組織設定の保存と発行・送付でエラーにする。同じ種別の有効行が同じ API 名を複数持たない。金額・振込明細・HTMLは同梱本文に盛らない。解説は本節へ書き、テンプレ本文にコメントは入れない。
+送付メールは`ContractEmailTemplate__mdt`である。各行は Classic メールテンプレートの API 名（`DeveloperName`）を指す。帳票VFと同型で、テキスト形式 Classic を見積1通・請求1通同梱し、カタログ行も同梱する。管理者が行を足してよい。指すテンプレートは**テキスト形式**（`TemplateType = text`）で、有効、公開のメールフォルダにあり、Lightning メールビルダーではない。HTML、カスタム（HTML）、Visualforce、Lightning ビルダーは発行・送付でエラーにする。組織設定の保存では見ない。同じ種別の有効行が同じ API 名を複数持たない。金額・振込明細・HTMLは同梱本文に盛らない。解説は本節へ書き、テンプレ本文にコメントは入れない。
 
 同梱テンプレの API 名は見積`Contract_Standard_Estimate_Email`、請求`Contract_Standard_Invoice_Email`である。関連は見積が契約履歴、請求が請求書。カタログの同梱行も同じ API 名を指す。同梱の帳票2行と送付メールカタログ2行は、`IsDefault__c`の初期値をONとする。Apexのpost-installでは書かない。購読者がOFFにしたあとのアップグレードで戻す処理は持たない。`PDFのみ`でも同梱行は置く。同梱の帳票行、送付メールカタログ行、Classicメールはパッケージ同梱である。管理者が行を足せる。
 
@@ -2369,17 +2369,17 @@ Term契約サービスのサービス開始日はFirst Orderedの継続課金期
 ご不明点がございましたら、本メールへご返信ください。
 ```
 
-CMDT に入力規則と Trigger は置けない。件数と API 名の実在は組織設定の保存と発行・送付の Apex／LWC で見る。既定印の件数は Setup の CMDT 保存では止めない。発行・送付はキーが空ならエラーにする。カタログ先頭および既定印では埋めない。カタログの編集入口は、その種別の行一覧である。種類の目次（`CustomMetadata/home`）は使わない。第11.6節。帳票カタログと送付メールカタログの一覧は、表示ラベルと有効を先、DeveloperNameを後ろとする。帳票は種別に加え有効と既定を出す。送付メールも帳票と同じく種別と既定を出す。LWC編集器は持たない。レコードページは標準である。プレビューボタンは持たない。保存は標準。既存の設定エラーは変えない。帳票の見出しはキー、種別、VF、ファイル名パターン、既定の順とする。送付メールの見出しはAPI名、種別、既定の順とする。検証ボタンはこの画面に置かない（組織設定のまま。第11.6節）。アプリのタブ順は`共通基盤.md`第3.9節。
+CMDT に入力規則と Trigger は置けない。件数と API 名の実在は発行・送付の Apex／LWC で見る。組織設定の保存では見ない。既定印の件数は Setup の CMDT 保存では止めない。発行・送付はキーが空ならエラーにする。カタログ先頭および既定印では埋めない。カタログの編集入口は、その種別の行一覧である。種類の目次（`CustomMetadata/home`）は使わない。第11.6節。帳票カタログと送付メールカタログの一覧は、表示ラベルと有効を先、DeveloperNameを後ろとする。帳票は種別に加え有効と既定を出す。送付メールも帳票と同じく種別と既定を出す。LWC編集器は持たない。レコードページは標準である。プレビューボタンは持たない。保存は標準。既存の設定エラーは変えない。帳票の見出しはキー、種別、VF、ファイル名パターン、既定の順とする。送付メールの見出しはAPI名、種別、既定の順とする。検証ボタンはこの画面に置かない（組織設定のまま。第11.6節）。アプリのタブ順は`共通基盤.md`第3.9節。
 
 既定はカタログ行の`IsDefault__c`である。帳票は`ContractDocumentTemplate__mdt`、送付メールは`ContractEmailTemplate__mdt`。組織設定は既定帳票・既定メールの項目を持たない。契約・請求・見積のレコードごとには持たない。編集は Setup の標準である。種別ごとに有効かつ既定がちょうど1つなら、発行・送付の画面はその行を最初に選ぶ。0件または有効な既定が2件以上なら未選択のまま開く。選ぶまで発行・送付はできない。システムが既定帳票を自動発行することはない。請求確定でも見積の自動Renewでも PDF は付けない。第4.8節・第4.9節・第7.10節。旧`EstimateDefaultEmailTemplateId__c`／`InvoiceDefaultEmailTemplateId__c`は持たない。
 
-3択ごとの必須は次である。空でよいものは空のまま保存できる。空を許す列でも、値があるなら有効カタログ行でなければならない。既定印は本表の必須ではない。
+3択ごとの必須は次である。空でよいものは空のまま保存できる。3択はカタログの状態に関係なく保存できる。送付メールカタログの件数は組織設定の保存では見ない。発行・送付では、空を許す列でも、値があるなら有効カタログ行でなければならない。既定印は本表の必須ではない。
 
-| 3択               | 送付メールカタログ        | 見積用組織送信元 | 請求用組織送信元 |
-| ----------------- | ------------------------- | ---------------- | ---------------- |
-| `使わない`        | 空でよい                  | 空でよい         | 空でよい         |
-| `PDFのみ`         | 空でよい                  | 空でよい         | 空でよい         |
-| `PDFとメール送付` | その種別の有効行が1件以上 | 空でよい         | 必須             |
+| 3択               | 送付メールカタログ                                      | 見積用組織送信元 | 請求用組織送信元 |
+| ----------------- | ------------------------------------------------------- | ---------------- | ---------------- |
+| `使わない`        | 空でよい                                                | 空でよい         | 空でよい         |
+| `PDFのみ`         | 空でよい                                                | 空でよい         | 空でよい         |
+| `PDFとメール送付` | 発行・送付でその種別の有効行が1件以上。保存では見ない   | 空でよい         | 必須             |
 
 組織送信元は見積用と請求用を別項目で持つ。契約ごと・送付ごとには持たない。Salesforce の組織ワイドメールを指す。画面は既存の組織設定（`contractDocumentSettings`）の見出し4「送付」で、コンボを2つ並べる。Lookup項目は作らない。第2の設定LWCは作らない。保存値はアドレス文字列である。レコード Id は持たない。旧`OrgWideEmailAddressId__c`および単一の`OrgWideEmailAddress__c`は持たない。表示名はラベルだけに使い、保存しない。送るときは、その種別の保存アドレスで検証済みの組織ワイドメールを引き、1件ならその Id で From にする。0件も2件以上も、組織設定の保存とその種別の**組織送信元を使う送付**でエラーにする。任意のアドレス文字列を From にはしない。Reply-To は未設定とし、From に追随する。請求アカウントに Reply-To は持たない。
 
@@ -2396,7 +2396,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 一覧 帳票は表示ラベル、種別、有効、既定、DeveloperName（後ろ）。送付メールは表示ラベル、種別、有効、既定、DeveloperName（後ろ）。LWC編集器は持たない。
 レコードページ 帳票の見出しはキー、種別、VF、ファイル名パターン、既定。送付メールの見出しはAPI名、種別、既定。プレビューボタンは持たない。保存は標準。検証ボタンは置かない。
 同梱の帳票行・送付メールカタログ行・Classicメールはパッケージ。Apexのpost-installでは作らない。購読者のOFFをアップグレードで戻さない。
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractDocumentSettingService.requireSendMode</code>、<code>ContractDocumentSettingsController.saveSettings</code>、<code>ContractDocumentTemplateService.getActiveTemplates</code>、<code>OrderCreateController.getInvoicePreview</code>（請求ボード取得。無い・空・不正はエラー。nullに落とさない）
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractDocumentSettingService.requireSendMode</code>、<code>ContractDocumentSettingsController.saveSettings</code>（カタログ件数・HTML・API実在は見ない。請求が<code>PDFとメール送付</code>なら請求用組織送信元は必須）、<code>ContractDocumentTemplateService.getActiveTemplates</code>、<code>OrderCreateController.getInvoicePreview</code>（請求ボード取得。無い・空・不正はエラー。nullに落とさない）
 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractEmailTemplateService.getActiveTemplates</code>
 ／ 請求ボードの発行・送付は<code>InvoiceBoardDocumentService.issueFromPreview</code> / <code>sendFromPreview</code>。請求のメール可否は<code>InvoiceDeliveryMethodService.allowsEmailSend</code>。<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>は確定とAccountingだけ。キー空の発行は<code>EstimateDocumentService.resolveIssueTemplate</code>／請求側の解決でエラー。既定印では埋めない。
 </div>
@@ -2711,7 +2711,7 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>contractDocumentSettings</code>、<code>ContractDocumentSettingsController.getSettings</code> / <code>issueOrgSettingsOperationKey</code> / <code>saveSettings</code>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>contractDocumentSettings</code>、<code>ContractDocumentSettingsController.getSettings</code> / <code>issueOrgSettingsOperationKey</code> / <code>saveSettings</code>（保存停止は第11.3.1節の必須空と請求用組織送信元。カタログは発行・送付）
 ／ 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractDocumentSetting__c.BusinessOperationKey__c</code>
 ／ タブ <code>Contract_Document_Settings</code>。表示名は「組織設定」。API名は変えない。部品・共有utilsは枠に載せない。第2の設定LWCは作らない。見出しは1〜9。入力とリンクを混ぜる。リンクは常時。0件警告は出さない。コピー検証は見出し6。
 ／ アプリ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>Contract_Estimate</code>。表示名は「契約管理設定」。ナビは<code>共通基盤.md</code>第3.9節。
@@ -2785,7 +2785,7 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 
 この画面に置かない。請求アカウント。FixedCatalog。102の再計算。種類の目次。既定帳票・既定メール。
 
-組織設定の保存は、既存の必須空（第11.3.1節）以外では止めない。発行・送付の既存の不足エラーには、組織設定の見出し名を付ける（会社情報・3択は見出し3「帳票」。組織送信元は見出し4「送付」）。
+組織設定の保存は、第11.3.1節の必須空と、請求が`PDFとメール送付`のときの請求用組織送信元（第11.3.2節・行4.2）以外では止めない。送付メールカタログの件数・HTML・API実在では止めない。発行・送付の既存の不足エラーには、組織設定の見出し名を付ける（会社情報・3択は見出し3「帳票」。組織送信元は見出し4「送付」）。
 
 権限は`Loop_20_Can_OrgSettings`（`共通基盤.md`第3章）。この画面全体に使う。Accounting方針の変更は未固定のときだけ許し、固定後は同じ権限でも書き換えない。101〜103 でも固定を外さない。104 は`共通基盤.md`第3.6節。
 
