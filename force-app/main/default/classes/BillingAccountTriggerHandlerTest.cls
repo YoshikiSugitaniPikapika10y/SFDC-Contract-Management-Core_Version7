@@ -10,7 +10,7 @@ private class BillingAccountTriggerHandlerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       BillingAccount__c billingAccount = createBillingAccount('No Ordered BA');
 
-      billingAccount.BillingEmailTo__c = 'changed@example.com';
+      billingAccount.BillingEmailTo__c = ContractTestDataFactory.TENANT_BILLING_EMAIL_CC;
       update billingAccount;
 
       BillingAccount__c updated = [
@@ -18,7 +18,11 @@ private class BillingAccountTriggerHandlerTest {
         FROM BillingAccount__c
         WHERE Id = :billingAccount.Id
       ];
-      System.assertEquals('changed@example.com', updated.BillingEmailTo__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_EMAIL_CC,
+        updated.BillingEmailTo__c,
+        'Core 第3.3節: 受注参照が無い請求アカウントは保存できる'
+      );
     }
   }
 
@@ -32,7 +36,11 @@ private class BillingAccountTriggerHandlerTest {
         FROM BillingAccount__c
         WHERE Id = :billingAccount.Id
       ];
-      System.assertEquals(String.valueOf(stored.Id), stored.BillingAccountKey__c);
+      System.assertEquals(
+        String.valueOf(stored.Id),
+        stored.BillingAccountKey__c,
+        'Core 第3.3.1節: キーが空なら Id を入れる'
+      );
       System.assertEquals(false, stored.HasReference__c);
     }
   }
@@ -46,7 +54,7 @@ private class BillingAccountTriggerHandlerTest {
         Account__c = account.Id,
         BillingAccountKey__c = '  BA-TRIM-1  ',
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
+        BillingEmailTo__c = ContractTestDataFactory.TENANT_BILLING_EMAIL_TO,
               InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
               InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
               InvoiceDateDayOfMonth__c = 25,
@@ -78,7 +86,8 @@ private class BillingAccountTriggerHandlerTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains(BillingAccountKeyService.KEY_CHANGE_MESSAGE)
+          ex.getMessage().contains(BillingAccountKeyService.KEY_CHANGE_MESSAGE),
+          'Core 第3.3.1節: 請求アカウントキーは作成後に変更できない'
         );
       }
       System.assertEquals(true, thrown);
@@ -97,7 +106,8 @@ private class BillingAccountTriggerHandlerTest {
         thrown = true;
         System.assert(
           ex.getMessage()
-            .contains(BillingAccountKeyService.HAS_REFERENCE_CHANGE_MESSAGE)
+            .contains(BillingAccountKeyService.HAS_REFERENCE_CHANGE_MESSAGE),
+          'Core 第3.3節: 参照ありは利用者が変更できない'
         );
       }
       System.assertEquals(true, thrown);
@@ -129,7 +139,7 @@ private class BillingAccountTriggerHandlerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       BillingAccount__c billingAccount = createOrderedBillingAccount();
 
-      billingAccount.BillingEmailTo__c = 'confirmed@example.com';
+      billingAccount.BillingEmailTo__c = ContractTestDataFactory.TENANT_BILLING_EMAIL_BCC;
       update billingAccount;
 
       BillingAccount__c updated = [
@@ -137,7 +147,11 @@ private class BillingAccountTriggerHandlerTest {
         FROM BillingAccount__c
         WHERE Id = :billingAccount.Id
       ];
-      System.assertEquals('confirmed@example.com', updated.BillingEmailTo__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_EMAIL_BCC,
+        updated.BillingEmailTo__c,
+        'Core 第3.3節: 受注で使っていてもマスタの宛先は保存できる'
+      );
     }
   }
 
@@ -149,7 +163,7 @@ private class BillingAccountTriggerHandlerTest {
         Name = 'SameDay Extra',
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com'
+        BillingEmailTo__c = ContractTestDataFactory.TENANT_BILLING_EMAIL_TO
       );
       ContractTestDataFactory.applySameDayBilling(billingAccount);
       ContractTestDataFactory.applyPaymentMonthEnd(billingAccount, 0);
@@ -174,24 +188,9 @@ private class BillingAccountTriggerHandlerTest {
 
   private static BillingAccount__c createBillingAccount(String name) {
     Account account = ContractTestDataFactory.insertAccount(name + ' Account');
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Name = name,
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com',
-      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 25,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
+    BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+      account.Id
+    );
     return billingAccount;
   }
 
