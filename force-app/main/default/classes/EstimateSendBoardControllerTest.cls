@@ -38,7 +38,10 @@ private class EstimateSendBoardControllerTest {
         row.toAddresses,
         'Core 第4.8節: 宛先の正は見積送付先'
       );
-      System.assertNotEquals(null, row.lastModifiedToken);
+      System.assertEquals(
+        currentToken(history.Id),
+        row.lastModifiedToken
+      );
     }
   }
 
@@ -56,16 +59,19 @@ private class EstimateSendBoardControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
+          EstimateSendBoardController.ESTIMATE_STATUS_REQUIRED_MESSAGE,
+          ex.getMessage()
+        );
+        System.assertEquals(
           false,
           EstimateSendBoardController.ESTIMATE_STATUS_REQUIRED_MESSAGE.contains(
             'Estimate'
           ),
           'Core 第0.1節: 人が見る拒否文に Estimate と出さない'
         );
-        System.assert(
-          EstimateSendBoardController.ESTIMATE_STATUS_REQUIRED_MESSAGE.contains(
-            '見積'
-          ),
+        System.assertEquals(
+          'ステータスが見積の契約履歴のみ操作できます。',
+          EstimateSendBoardController.ESTIMATE_STATUS_REQUIRED_MESSAGE,
           'Core 第0.1節: Estimate の画面表示は見積'
         );
       }
@@ -235,12 +241,11 @@ private class EstimateSendBoardControllerTest {
         preview.subject,
         'テストは差し込みを飛ばす。本文を定数で埋めない'
       );
-      System.assertNotEquals(null, preview.fileName);
-      System.assert(
-        preview.fileName.contains('20260315'),
+      System.assertEquals(
+        'StandardEstimate_送付テスト見積_20260315.pdf',
+        preview.fileName,
         'Core 第11.3.2節: 見積のファイル名日付は発行日'
       );
-      System.assert(preview.fileName.endsWith('.pdf'));
       System.assertEquals(
         EstimateSendBoardController.ATTACHMENT_NEW,
         preview.attachmentId,
@@ -324,7 +329,10 @@ private class EstimateSendBoardControllerTest {
         );
         System.assert(false, '例外が必要');
       } catch (AuraHandledException ex) {
-        System.assert(ex.getMessage().contains('Toメールアドレス'));
+        System.assertEquals(
+          EstimateSendBoardController.MISSING_TO_MESSAGE,
+          ex.getMessage()
+        );
       }
       System.assertEquals(
         null,
@@ -523,22 +531,13 @@ private class EstimateSendBoardControllerTest {
 
   private static ContractHistory__c createEstimate(String toAddress) {
     Account account = ContractTestDataFactory.insertAccount('送付テスト取引先');
-    BillingAccount__c billing = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = '送付テスト取引先 御中',
-      BillingEmailTo__c = toAddress,
-      BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 25,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billing);
-    insert billing;
+    BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+      account.Id
+    );
+    if (String.isNotBlank(toAddress)) {
+      billing.BillingEmailTo__c = toAddress;
+      update billing;
+    }
 
     Contact sendContact;
     if (String.isNotBlank(toAddress)) {
