@@ -492,6 +492,7 @@ public without sharing class EstimateSaveService {
     );
   }
 
+  /** 仕様: Core 第4.7節・第0.1節。編集できるのはEstimateとOrdered。人が見る拒否文は日本語で返す。 */
   public static ContractHistory__c loadEditableEstimateHistory(
     Id editHistoryId
   ) {
@@ -528,7 +529,7 @@ public without sharing class EstimateSaveService {
       history.historystatus__c != HISTORY_STATUS_ORDERED
     ) {
       throw EstimateValidationService.wrapAura(
-        'Estimate / Ordered 状態の契約履歴のみ編集できます。'
+        '見積／受注済み状態の契約履歴のみ編集できます。'
       );
     }
     return history;

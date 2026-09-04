@@ -364,12 +364,12 @@ public without sharing class EstimateQueryService {
         history.historystatus__c != HISTORY_STATUS_ORDERED
       ) {
         throw EstimateValidationService.wrapAura(
-          'Estimate / Ordered 状態の契約履歴のみ編集できます。'
+          '見積／受注済み状態の契約履歴のみ編集できます。'
         );
       }
     } else if (history.historystatus__c != HISTORY_STATUS_ESTIMATE) {
       throw EstimateValidationService.wrapAura(
-        'Estimate状態の契約履歴のみ' + actionLabel + 'できます。'
+        '見積状態の契約履歴のみ' + actionLabel + 'できます。'
       );
     }
     if (history.Opportunity__c == null) {

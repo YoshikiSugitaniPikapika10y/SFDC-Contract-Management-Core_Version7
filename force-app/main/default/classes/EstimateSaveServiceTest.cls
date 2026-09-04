@@ -1777,7 +1777,7 @@ private class EstimateSaveServiceTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          'Estimate / Ordered 状態の契約履歴のみ編集できます。',
+          '見積／受注済み状態の契約履歴のみ編集できます。',
           ex.getMessage()
         );
       }

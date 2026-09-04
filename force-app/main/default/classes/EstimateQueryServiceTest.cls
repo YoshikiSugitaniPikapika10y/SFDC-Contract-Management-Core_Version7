@@ -400,7 +400,7 @@ private class EstimateQueryServiceTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          'Estimate状態の契約履歴のみコピーできます。',
+          '見積状態の契約履歴のみコピーできます。',
           ex.getMessage(),
           'Core 第4.7節: コピー元はEstimateだけ'
         );
@@ -433,7 +433,7 @@ private class EstimateQueryServiceTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          'Estimate / Ordered 状態の契約履歴のみ編集できます。',
+          '見積／受注済み状態の契約履歴のみ編集できます。',
           ex.getMessage(),
           'Core 第4.7節: Archiveは編集できない'
         );
