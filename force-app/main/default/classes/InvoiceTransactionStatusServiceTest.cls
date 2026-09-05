@@ -59,6 +59,11 @@ private class InvoiceTransactionStatusServiceTest {
       );
     } catch (InvoiceTransactionStatusService.InvoiceStatusException ex) {
       thrown = true;
+      System.assertEquals(
+        InvoiceTransactionStatusService.INVALID_CONFIRM_MESSAGE,
+        ex.getMessage(),
+        'Core 第7.11節: 未確定の請求だけ確定できる'
+      );
     }
     System.assertEquals(true, thrown);
   }
@@ -359,6 +364,153 @@ private class InvoiceTransactionStatusServiceTest {
       '期限状態',
       Invoice__c.DueStatus__c.getDescribe().getLabel(),
       'Core 第7.11節: 期限状態の表示名は期限状態。期限状況ではない'
+    );
+  }
+
+  @IsTest
+  static void applyConfirmedAndCancelled_emptyOrNullDoNotThrow() {
+    InvoiceTransactionStatusService.applyConfirmed(null, Date.newInstance(2026, 8, 1));
+    InvoiceTransactionStatusService.applyConfirmed(
+      new List<Invoice__c>(),
+      Date.newInstance(2026, 8, 1)
+    );
+    InvoiceTransactionStatusService.applyConfirmed(
+      new List<Invoice__c>{ null },
+      Date.newInstance(2026, 8, 1)
+    );
+    InvoiceTransactionStatusService.applyCancelled(null);
+    InvoiceTransactionStatusService.applyCancelled(new List<Invoice__c>());
+    InvoiceTransactionStatusService.applyCancelled(new List<Invoice__c>{ null });
+    InvoiceTransactionStatusService.applyDelivery(null, InvoiceTransactionStatusService.DELIVERY_SENT, Date.today());
+    InvoiceTransactionStatusService.applyCollectionRefund(null);
+    InvoiceTransactionStatusService.seedDefaults(null);
+    System.assertEquals(
+      false,
+      InvoiceTransactionStatusService.isConfirmed(null),
+      'Core 第7.11節: 空の請求は確定済みではない'
+    );
+    System.assertEquals(false, InvoiceTransactionStatusService.isCancelled(null));
+    System.assertEquals(false, InvoiceTransactionStatusService.isDraft(null));
+    System.assertEquals(
+      0,
+      InvoiceTransactionStatusService.resolveTaxInclusive(null),
+      'Core 第7.11節: 空の請求の税込は0'
+    );
+  }
+
+  @IsTest
+  static void applyDelivery_setsAndClearsSentDate() {
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED
+    );
+    InvoiceTransactionStatusService.applyDelivery(
+      invoice,
+      InvoiceTransactionStatusService.DELIVERY_SENT,
+      Date.newInstance(2026, 8, 2)
+    );
+    System.assertEquals(
+      InvoiceTransactionStatusService.DELIVERY_SENT,
+      invoice.DeliveryStatus__c,
+      'Core 第7.10節・第7.11節: 送付成功は送付状態を送付済にする'
+    );
+    System.assertEquals(
+      Date.newInstance(2026, 8, 2),
+      invoice.SentDate__c,
+      'Core 第7.11節: 送付日は送付と同じ処理で書く'
+    );
+    InvoiceTransactionStatusService.applyDelivery(
+      invoice,
+      InvoiceTransactionStatusService.DELIVERY_UNSENT,
+      Date.newInstance(2026, 8, 3)
+    );
+    System.assertEquals(
+      null,
+      invoice.SentDate__c,
+      'Core 第7.11節: 送付済以外は送付日をクリアする'
+    );
+  }
+
+  @IsTest
+  static void applyCollectionRefund_cancelledStaysUntouched() {
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED,
+      CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_IN_PROGRESS,
+      PaymentClearingCompletedDate__c = Date.newInstance(2026, 7, 1)
+    );
+    InvoiceTransactionStatusService.applyCollectionRefund(invoice, 2);
+    System.assertEquals(
+      InvoiceTransactionStatusService.COLLECTION_IN_PROGRESS,
+      invoice.CollectionRefundStatus__c,
+      'Core 第7.11節: 取消済みは回収・返金判定の対象外。取消前の値を保つ'
+    );
+    System.assertEquals(Date.newInstance(2026, 7, 1), invoice.PaymentClearingCompletedDate__c);
+  }
+
+  @IsTest
+  static void applyCollectionRefund_matchingNetIsCompletedAndKeepsClearingDate() {
+    Date kept = Date.newInstance(2026, 6, 10);
+    Invoice__c invoice = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      InvoicePaymentNet__c = 0,
+      PaymentClearingCompletedDate__c = kept
+    );
+    InvoiceTransactionStatusService.applyCollectionRefund(invoice, 0);
+    System.assertEquals(
+      InvoiceTransactionStatusService.COLLECTION_COMPLETED,
+      invoice.CollectionRefundStatus__c,
+      'Core 第7.11節: 税込0円請求は入出金0件でも完了。Netと税込が一致すれば完了'
+    );
+    System.assertEquals(
+      kept,
+      invoice.PaymentClearingCompletedDate__c,
+      'Core 第7.11節: 完了日は既にあれば上書きしない'
+    );
+    Invoice__c fromAmount = new Invoice__c(
+      Amount__c = 1000,
+      TaxAmount__c = 100
+    );
+    System.assertEquals(
+      1100,
+      InvoiceTransactionStatusService.resolveTaxInclusive(fromAmount),
+      'Core 第7.11節: 税込正本が空なら税抜と税額の合計'
+    );
+  }
+
+  @IsTest
+  static void rejectDirectStatusEdits_allowWriteAndBlockDeliveryChange() {
+    InvoiceTransactionStatusService.allowStatusWrite = true;
+    Invoice__c allowed = new Invoice__c(
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED
+    );
+    InvoiceTransactionStatusService.rejectDirectStatusEdits(
+      new List<Invoice__c>{ allowed },
+      null
+    );
+    System.assertEquals(
+      false,
+      allowed.hasErrors(),
+      'Core 第7.11節: 専用処理の書込だけ状態更新を許す'
+    );
+    InvoiceTransactionStatusService.allowStatusWrite = false;
+    Id fakeId =
+      Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000008AAA';
+    Invoice__c prior = new Invoice__c(
+      Id = fakeId,
+      DeliveryStatus__c = InvoiceTransactionStatusService.DELIVERY_UNSENT
+    );
+    Invoice__c next = new Invoice__c(
+      Id = fakeId,
+      DeliveryStatus__c = InvoiceTransactionStatusService.DELIVERY_SENT
+    );
+    InvoiceTransactionStatusService.rejectDirectStatusEdits(
+      new List<Invoice__c>{ next },
+      new Map<Id, Invoice__c>{ fakeId => prior }
+    );
+    System.assertEquals(true, next.hasErrors());
+    System.assertEquals(
+      InvoiceTransactionStatusService.DIRECT_EDIT_MESSAGE,
+      next.getErrors()[0].getMessage(),
+      'Core 第7.11節: 送付状態の直接編集も拒否する'
     );
   }
 }

@@ -541,6 +541,10 @@ private class AccountingDiffServiceTest {
       );
     } catch (Exception ex) {
       thrown = true;
+      System.assert(
+        ex.getMessage().contains('会計イベントキーがCatalogにありません'),
+        'Accounting 第4.2節: Catalogに無い会計イベントではDiffを始めない'
+      );
     }
     System.assertEquals(true, thrown);
   }
@@ -1110,6 +1114,72 @@ private class AccountingDiffServiceTest {
         'Accounting 第8.4節: 自動計算値が0なら0円仕訳を作らない'
       );
     }
+  }
+
+  @IsTest
+  static void toDisplayText_emptyReverseDates_saysNone() {
+    AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
+    preview.logicalDeleteCount = 2;
+    preview.reverseCount = 0;
+    preview.hasFutureReverseDate = false;
+    preview.reverseDateCounts = null;
+    String text = AccountingDiffService.toDisplayText(preview);
+    System.assert(
+      text.contains('論理削除件数: 2'),
+      'Accounting 第8.5節: プレビュー文言に論理削除件数を出す'
+    );
+    System.assert(
+      text.contains('逆仕訳件数: 0'),
+      'Accounting 第8.5節: プレビュー文言に逆仕訳件数を出す'
+    );
+    System.assert(
+      text.contains('なし'),
+      'Accounting 第8.5節: 逆仕訳日が無ければなしと出す'
+    );
+    System.assert(
+      text.contains('将来日付: なし'),
+      'Accounting 第8.5節: 将来の逆仕訳日が無ければなしと出す'
+    );
+  }
+
+  @IsTest
+  static void previewApply_unknownEvent_throws() {
+    Boolean thrown = false;
+    try {
+      AccountingDiffService.previewApply(
+        UserInfo.getUserId(),
+        'NOT_A_CATALOG_EVENT',
+        null
+      );
+    } catch (Exception ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('会計イベントキーがCatalogにありません'),
+        'Accounting 第4.2節: Catalogに無い会計イベントではプレビューを始めない'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void previewCancel_unknownEvent_throws() {
+    Boolean thrown = false;
+    try {
+      AccountingDiffService.previewCancel(
+        UserInfo.getUserId(),
+        'NOT_A_CATALOG_EVENT',
+        null,
+        null,
+        null
+      );
+    } catch (Exception ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('会計イベントキーがCatalogにありません'),
+        'Accounting 第4.2節: Catalogに無い会計イベントでは取消プレビューを始めない'
+      );
+    }
+    System.assertEquals(true, thrown);
   }
 
   private static Invoice__c insertConfirmedInvoice() {

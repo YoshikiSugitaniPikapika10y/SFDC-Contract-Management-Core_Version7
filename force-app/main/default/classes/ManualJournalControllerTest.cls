@@ -308,6 +308,86 @@ private class ManualJournalControllerTest {
     }
   }
 
+  @IsTest
+  static void previewCancel_nullHeader_wrapsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        ManualJournalController.previewCancel(null, Date.today());
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '取消する手動仕訳が指定されていません。',
+          ex.getMessage(),
+          'Accounting 第10.4節: 取消対象の手動仕訳が無ければ始めない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void previewRegister_withoutManageInvoiceOps_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertConfirmedInvoice();
+      GlManualJournalSetting__c setting = insertActiveSetting();
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.MANUAL_JOURNAL => false
+      };
+      Boolean thrown = false;
+      try {
+        ManualJournalController.previewRegister(
+          invoice.Id,
+          setting.Id,
+          Date.today(),
+          100,
+          null,
+          null,
+          invoice.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '手動仕訳を実行する権限がありません。',
+          ex.getMessage(),
+          'Core 第7.7.3節: 手動仕訳プレビューは請求ボード操作権限を見る'
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void previewRegister_rejectsWhenInvoiceOutsideContractService() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c own = insertConfirmedInvoice();
+      Invoice__c other = insertConfirmedInvoice();
+      GlManualJournalSetting__c setting = insertActiveSetting();
+      Boolean previewRejected = false;
+      try {
+        ManualJournalController.previewRegister(
+          other.Id,
+          setting.Id,
+          Date.today(),
+          100,
+          null,
+          null,
+          own.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        previewRejected = true;
+        System.assertEquals(
+          InvoiceOpsController.SCOPE_MISMATCH_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.7.3節: 契約サービスをまたいで手動仕訳登録プレビューできない'
+        );
+      }
+      System.assertEquals(true, previewRejected);
+    }
+  }
+
   private static Invoice__c insertConfirmedInvoice() {
     return insertInvoice(true);
   }
