@@ -5,7 +5,32 @@ jest.mock("@salesforce/apex", () => ({ refreshApex: jest.fn() }), {
 });
 jest.mock(
   "lightning/uiRecordApi",
-  () => ({ getRecordNotifyChange: jest.fn() }),
+  () => {
+    function getRecord() {}
+    return {
+      getRecord,
+      getFieldValue: jest.fn(),
+      getRecordNotifyChange: jest.fn()
+    };
+  },
+  { virtual: true }
+);
+jest.mock(
+  "lightning/actions",
+  () => ({ CloseActionScreenEvent: class CloseActionScreenEvent {} }),
+  { virtual: true }
+);
+jest.mock(
+  "lightning/refresh",
+  () => ({ RefreshEvent: class RefreshEvent {} }),
+  { virtual: true }
+);
+jest.mock(
+  "lightning/navigation",
+  () => ({
+    NavigationMixin: (Base) => class extends Base {},
+    CurrentPageReference: jest.fn()
+  }),
   { virtual: true }
 );
 jest.mock(
@@ -66,36 +91,64 @@ jest.mock(
 
 describe("estimateCreateWizard Ordered additional fields (Core 4.3 / 11.4.3)", () => {
   const proto = EstimateCreateWizard.prototype;
+  const displayed = Object.getOwnPropertyDescriptor(
+    proto,
+    "displayedHistoryFieldDefinitions"
+  ).get;
 
   function instance(overrides) {
-    const target = Object.create(proto);
-    Object.assign(target, {
-      editHistoryId: "a01000000000001AAA",
+    return {
+      isOrderedCustomFieldsOnlyEdit: false,
       historyFieldDefinitions: [{ apiName: "Note__c" }],
       orderHistoryFieldDefinitions: [{ apiName: "ApplicationDate__c" }],
-      wizardData: { historyStatus: "Estimate" },
       ...overrides
-    });
-    return target;
+    };
   }
 
   it("Ordered見積編集は見積追加項目と受注追加項目を出す", () => {
-    const target = instance({
-      wizardData: { historyStatus: "Ordered" }
-    });
-    const names = proto.displayedHistoryFieldDefinitions
-      .call(target)
+    const names = displayed
+      .call(instance({ isOrderedCustomFieldsOnlyEdit: true }))
       .map((field) => field.apiName);
     expect(names).toEqual(["Note__c", "ApplicationDate__c"]);
   });
 
   it("見積候補の編集には受注追加項目を出さない", () => {
-    const target = instance({
-      wizardData: { historyStatus: "Estimate" }
-    });
-    const names = proto.displayedHistoryFieldDefinitions
-      .call(target)
-      .map((field) => field.apiName);
+    const names = displayed.call(instance()).map((field) => field.apiName);
     expect(names).toEqual(["Note__c"]);
+  });
+});
+
+describe("estimateCreateWizard close confirm (Core 4.3.2 / 4.3.6)", () => {
+  const proto = EstimateCreateWizard.prototype;
+
+  it("asks discard confirm before save success", () => {
+    const openConfirm = jest.fn();
+    const performClose = jest.fn();
+    proto.handleClose.call({
+      isSaving: false,
+      hasOpenConfirm: false,
+      _saveSucceededThisSession: false,
+      openConfirm,
+      performClose
+    });
+    expect(openConfirm).toHaveBeenCalledWith(
+      { kind: "close" },
+      "入力内容は保存されていません。破棄してよろしいですか？"
+    );
+    expect(performClose).not.toHaveBeenCalled();
+  });
+
+  it("closes without confirm after save success", () => {
+    const openConfirm = jest.fn();
+    const performClose = jest.fn();
+    proto.handleClose.call({
+      isSaving: false,
+      hasOpenConfirm: false,
+      _saveSucceededThisSession: true,
+      openConfirm,
+      performClose
+    });
+    expect(openConfirm).not.toHaveBeenCalled();
+    expect(performClose).toHaveBeenCalled();
   });
 });

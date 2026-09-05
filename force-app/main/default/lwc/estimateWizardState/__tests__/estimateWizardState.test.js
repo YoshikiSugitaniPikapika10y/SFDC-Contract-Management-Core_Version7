@@ -8,7 +8,8 @@ import {
   shouldLoadPreset,
   createRowId,
   applyEstimateDocumentDefaults,
-  followEstimateValidDate
+  followEstimateValidDate,
+  formatHistoryVersion
 } from "c/estimateWizardState";
 
 const dispatch = (state, action) => reduceWizardState(state, action);
@@ -258,6 +259,7 @@ describe("SET_TYPE", () => {
       selectedType: "Cancel"
     });
     expect(state.data.contractHistoryName).toBe("2026年度 契約 解約");
+    expect(state.data.contractHistoryName).not.toContain("Churn");
   });
 });
 
@@ -838,5 +840,13 @@ describe("不変性", () => {
       fields: { contractServiceId: "svcB" }
     });
     expect(JSON.stringify(before)).toBe(snapshot);
+  });
+});
+
+describe("Version 表示 (Core 0.1)", () => {
+  it("数値だけを返し V も 版 も付けない", () => {
+    expect(formatHistoryVersion(3)).toBe("3");
+    expect(formatHistoryVersion(3)).not.toMatch(/V|版/);
+    expect(formatHistoryVersion("abc")).toBe("");
   });
 });

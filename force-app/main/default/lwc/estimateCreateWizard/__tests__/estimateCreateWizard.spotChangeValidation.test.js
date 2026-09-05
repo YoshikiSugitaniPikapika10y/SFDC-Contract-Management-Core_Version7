@@ -10,7 +10,32 @@ jest.mock("@salesforce/apex", () => ({ refreshApex: jest.fn() }), {
 });
 jest.mock(
   "lightning/uiRecordApi",
-  () => ({ getRecordNotifyChange: jest.fn() }),
+  () => {
+    function getRecord() {}
+    return {
+      getRecord,
+      getFieldValue: jest.fn(),
+      getRecordNotifyChange: jest.fn()
+    };
+  },
+  { virtual: true }
+);
+jest.mock(
+  "lightning/actions",
+  () => ({ CloseActionScreenEvent: class CloseActionScreenEvent {} }),
+  { virtual: true }
+);
+jest.mock(
+  "lightning/refresh",
+  () => ({ RefreshEvent: class RefreshEvent {} }),
+  { virtual: true }
+);
+jest.mock(
+  "lightning/navigation",
+  () => ({
+    NavigationMixin: (Base) => class extends Base {},
+    CurrentPageReference: jest.fn()
+  }),
   { virtual: true }
 );
 jest.mock(
