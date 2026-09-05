@@ -1903,7 +1903,13 @@ Unlock後も金額、科目、日付、借貸は直せない。以降の原因�
 
 請求書画面では、顧客がページレイアウトへ配置した会計タグ用チェックボックスと、有効な会計タグルールのタグラベルを利用できる。専用の会計チェック状態、要対応一覧および対応済操作は表示しない。請求税込額と全入出金Netの差額は既存Core表示の`全入出金Net - 請求税込額`を使用し、Accounting専用の差額表示項目または標準タグを追加しない。正負から超過・不足を自動命名しない。
 
-差額フィルタは「差額あり／なし」を基本とする。
+請求ボードに「差額あり／なし」フィルタは出さない。算法とCoreの差額表示式は変えない。カードに差額は出さない。Core第7.7.0節・第8.7節・第8.8節・第8.10節。横断の版差額は対象外。
+
+<div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
+<strong style="color:#1a5276;">ToBe</strong>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>
+／ 「差額あり／なし」フィルタは出さない。標準差額タグは足さない。
+</div>
 
 ### 11.3 会計マスタ管理
 
