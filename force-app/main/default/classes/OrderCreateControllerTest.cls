@@ -434,20 +434,9 @@ private class OrderCreateControllerTest {
   static void getBillingAccountOptionsForPreview_returnsAccountBillingAccounts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
-      BillingAccount__c second = new BillingAccount__c(
-        Account__c = context.account.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'second@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(second);
-      insert second;
+      BillingAccount__c second = ContractTestDataFactory.insertBillingAccount(
+        context.account.Id
+      );
 
       List<OrderCreateController.BillingAccountOptionDto> options = OrderCreateController.getBillingAccountOptionsForPreview(
         context.history.Id
@@ -1403,20 +1392,9 @@ private class OrderCreateControllerTest {
         '?E??????E????????????'
       );
 
-      BillingAccount__c otherBa = new BillingAccount__c(
-        Account__c = context.account.Id,
-        BillingAddressee__c = '????E ??',
-        BillingEmailTo__c = 'other-ba@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 20,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(otherBa);
-      insert otherBa;
+      BillingAccount__c otherBa = ContractTestDataFactory.insertBillingAccount(
+        context.account.Id
+      );
 
       Invoice__c source = [
         SELECT Id, PaymentScheduledDate__c, InvoiceDate__c
@@ -2439,8 +2417,9 @@ private class OrderCreateControllerTest {
         OrderCreateController.issueOrderOperationKey();
         System.assert(false, '06 なしのキー発行は落ちること');
       } catch (AuraHandledException ex) {
-        System.assert(
-          ex.getMessage().contains('受注を実行する権限がありません'),
+        System.assertEquals(
+          '受注を実行する権限がありません。',
+          ex.getMessage(),
           '共通基盤 第10.4節: 受注キー発行は 06'
         );
       } finally {
@@ -3873,31 +3852,15 @@ private class OrderCreateControllerTest {
     context.account = ContractTestDataFactory.insertAccount(
       'Order Wizard Account'
     );
-
-    context.billingAccount = new BillingAccount__c(
-      Account__c = context.account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 25,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(context.billingAccount);
-    insert context.billingAccount;
-
-    context.service = new ContractService__c(
-      Name = 'Order Wizard Service',
-      Account__c = context.account.Id,
-      BiilingAcccount__c = context.billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+    context.service = ContractTestDataFactory.insertContractService(
+      context.account.Id,
+      'Order Wizard Service'
     );
-    insert context.service;
+    context.billingAccount = [
+      SELECT Id, BillingEmailTo__c
+      FROM BillingAccount__c
+      WHERE Id = :context.service.BiilingAcccount__c
+    ];
 
     context.history = new ContractHistory__c(
       Name = 'Order Wizard History',
@@ -4011,33 +3974,17 @@ private class OrderCreateControllerTest {
     context.account = ContractTestDataFactory.insertAccount(
       'Order Cancel Account'
     );
-
-    context.billingAccount = new BillingAccount__c(
-      Account__c = context.account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      BillingEmailCc__c = 'cc@example.com',
-      BillingEmailBcc__c = 'bcc@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 25,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(context.billingAccount);
-    insert context.billingAccount;
-
-    context.service = new ContractService__c(
-      Name = 'Order Cancel Service',
-      Account__c = context.account.Id,
-      BiilingAcccount__c = context.billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+    context.service = ContractTestDataFactory.insertContractService(
+      context.account.Id,
+      'Order Cancel Service'
     );
-    ContractTestDataFactory.applyRequiredFields(context.service);
-    insert context.service;
+    context.service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
+    update context.service;
+    context.billingAccount = [
+      SELECT Id, BillingEmailTo__c
+      FROM BillingAccount__c
+      WHERE Id = :context.service.BiilingAcccount__c
+    ];
 
     Date cancelDate = Date.newInstance(2026, 6, 1);
     context.history = new ContractHistory__c(
@@ -4077,9 +4024,9 @@ private class OrderCreateControllerTest {
         OrderCreateController.getOrderContext(context.history.Id);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('契約履歴に存在しません') &&
-            ex.getMessage().contains('BadOrderField'),
+        System.assertEquals(
+          '受注ウィザード追加項目「BadOrderField」の項目「NoSuchField__c」が契約履歴に存在しません。',
+          ex.getMessage(),
           'Core 第11.4.3節: 有効な不正定義は fail-fast しエラーに DeveloperName を含める'
         );
       } finally {
@@ -4106,9 +4053,9 @@ private class OrderCreateControllerTest {
         OrderCreateController.confirmOrder(context.history.Id, null, false);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('契約履歴に存在しません') &&
-            ex.getMessage().contains('BadOrderField'),
+        System.assertEquals(
+          '受注ウィザード追加項目「BadOrderField」の項目「NoSuchField__c」が契約履歴に存在しません。',
+          ex.getMessage(),
           'Core 第11.4.3節: 有効な不正定義は受注を続行せずエラーに DeveloperName を含める'
         );
       } finally {
@@ -4136,9 +4083,9 @@ private class OrderCreateControllerTest {
         OrderCreateController.revertOrder(context.history.Id, false);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('契約履歴に存在しません') &&
-            ex.getMessage().contains('BadOrderField'),
+        System.assertEquals(
+          '受注ウィザード追加項目「BadOrderField」の項目「NoSuchField__c」が契約履歴に存在しません。',
+          ex.getMessage(),
           'Core 第11.4.3節: 有効な不正定義は差し戻しを続行せずエラーに DeveloperName を含める'
         );
       } finally {
