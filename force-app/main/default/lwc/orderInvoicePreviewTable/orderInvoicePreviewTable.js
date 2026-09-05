@@ -38,11 +38,8 @@ import hasCancelInvoice from "@salesforce/customPermission/Loop_15_Can_CancelInv
 
 const ALL_VERSIONS = "ALL";
 const ALL_INVOICES = "ALL";
-const ALL_DIFFERENCES = "ALL";
 const VERSION_CONFLICT_MESSAGE =
   "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。";
-const DIFFERENCE_HAS = "HAS";
-const DIFFERENCE_NONE = "NONE";
 const SEND_MODE_UNUSED = "Unused";
 const SEND_MODE_PDF_AND_EMAIL = "PdfAndEmail";
 /** 仕様: Core 第7.10節 */
@@ -232,7 +229,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   @track selectedVersion = ALL_VERSIONS;
   @track selectedInvoiceId = ALL_INVOICES;
-  @track selectedDifferenceFilter = ALL_DIFFERENCES;
   @track includeCancelled = false;
   @track includeCancelledPayments = false;
   @track invoiceCancelState = null;
@@ -878,7 +874,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     const options = [{ label: "全請求書", value: ALL_INVOICES }];
     this.invoicesForFilter()
       .filter((invoice) => this.includeCancelled || !this.isCancelledInvoice(invoice))
-      .filter((invoice) => this.invoiceMatchesDifferenceFilter(invoice))
       .forEach((invoice) => {
         options.push({
           label: invoice.invoiceName || invoice.invoiceId,
@@ -886,14 +881,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         });
       });
     return options;
-  }
-
-  get differenceFilterOptions() {
-    return [
-      { label: "すべて", value: ALL_DIFFERENCES },
-      { label: "差額あり", value: DIFFERENCE_HAS },
-      { label: "差額なし", value: DIFFERENCE_NONE }
-    ];
   }
 
   get invoiceSendMode() {
@@ -1031,18 +1018,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       bundle?.paymentNetTotal ?? invoice?.paymentNetTotal ?? 0
     );
     return Math.round(allPaymentNet - gross);
-  }
-
-  // 仕様: Accounting 第11.2節、Core 第8.7節。完全一致だけ差額なし。
-  invoiceMatchesDifferenceFilter(invoice) {
-    if (this.selectedDifferenceFilter === ALL_DIFFERENCES) {
-      return true;
-    }
-    const difference = this.invoiceBalanceDifference(invoice);
-    if (this.selectedDifferenceFilter === DIFFERENCE_HAS) {
-      return difference !== 0;
-    }
-    return difference === 0;
   }
 
   paymentTransactionStatus(payment) {
@@ -1652,9 +1627,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           this.selectedInvoiceId !== ALL_INVOICES &&
           invoice.invoiceId !== this.selectedInvoiceId
         ) {
-          return null;
-        }
-        if (!this.invoiceMatchesDifferenceFilter(invoice)) {
           return null;
         }
         const invoiceId = invoice.invoiceId;
@@ -2763,19 +2735,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   handleInvoiceFilterChange(event) {
     this.selectedInvoiceId = event.detail.value || ALL_INVOICES;
-  }
-
-  handleDifferenceFilterChange(event) {
-    this.selectedDifferenceFilter = event.detail.value || ALL_DIFFERENCES;
-    if (
-      this.selectedDifferenceFilter !== ALL_DIFFERENCES &&
-      this.selectedInvoiceId !== ALL_INVOICES
-    ) {
-      const current = this.findInvoice(this.selectedInvoiceId);
-      if (current && !this.invoiceMatchesDifferenceFilter(current)) {
-        this.selectedInvoiceId = ALL_INVOICES;
-      }
-    }
   }
 
   handleIncludeCancelledPaymentsChange(event) {

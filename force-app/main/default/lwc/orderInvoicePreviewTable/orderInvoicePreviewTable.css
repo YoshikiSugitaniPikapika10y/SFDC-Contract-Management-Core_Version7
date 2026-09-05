@@ -43,10 +43,6 @@
   max-width: 16rem;
 }
 
-.difference-filter {
-  max-width: 10rem;
-}
-
 .memo-row {
   display: grid;
   gap: 0.5rem;
@@ -726,16 +722,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.billing-edit-row_send {
-  grid-template-columns: minmax(0, 2fr) minmax(8rem, 1fr);
-}
-
-.billing-edit-row_mail {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.billing-edit-row_dates,
+.billing-edit-row_send,
 .billing-edit-row_extra {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.billing-edit-row_dates {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -1696,10 +1688,7 @@ tr.journal-row_highlight td {
 
 @media (max-width: 48rem) {
   .billing-edit-grid,
-  .billing-edit-row_send,
-  .billing-edit-row_mail,
   .billing-edit-row_dates,
-  .billing-edit-row_extra,
   .split-field-row,
   .invoice-send-panel,
   .invoice-send-fields {

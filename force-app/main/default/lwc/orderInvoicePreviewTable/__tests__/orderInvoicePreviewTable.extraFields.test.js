@@ -249,6 +249,7 @@ async function waitUntil(predicate, attempts = 50) {
 
 describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 9.1.1)", () => {
   beforeEach(() => {
+    getInvoiceOpsFieldDefinitions.mockResolvedValue([]);
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
       paymentAllowed: true,
@@ -381,6 +382,56 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
       element.shadowRoot.querySelectorAll(".header-actions button")
     ).find((button) => button.textContent.trim() === "請求アカウントの内容を反映");
     expect(headerApply).toBeFalsy();
+  });
+
+  it("送付は1行5列、反映は送付の2行目、追加項目は1行5項目 (Core 7.8 / 11.4.4)", async () => {
+    getInvoiceOpsFieldDefinitions.mockResolvedValue(
+      Array.from({ length: 6 }, (_, index) => ({
+        targetObject: "Invoice__c",
+        apiName: `Extra${index + 1}__c`,
+        label: `追加${index + 1}`,
+        fieldType: "STRING"
+      }))
+    );
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Draft",
+      locked: false,
+      billingAccountId: "a00BA0000000001"
+    });
+    document.body.appendChild(element);
+    const open = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "請求書情報"
+      )
+    );
+    open.click();
+    const panel = await waitUntil(() =>
+      element.shadowRoot.querySelector(".billing-info-panel")
+    );
+    const sendRow = panel.querySelector(".billing-edit-row_send");
+    expect(
+      Array.from(sendRow.querySelectorAll(".invoice-meta-k")).map((node) =>
+        node.textContent.trim()
+      )
+    ).toEqual(["宛名", "届け方", "To", "Cc", "Bcc"]);
+    expect(panel.querySelector(".billing-edit-row_mail")).toBeFalsy();
+    const apply = await waitUntil(() =>
+      Array.from(panel.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "請求アカウントの内容を反映"
+      )
+    );
+    expect(apply.closest(".billing-edit-row_send")).toBeFalsy();
+    expect(apply.closest(".billing-edit-apply").previousElementSibling).toBe(
+      sendRow
+    );
+    const extraRow = await waitUntil(() =>
+      panel.querySelector(".billing-edit-row_extra")
+    );
+    expect(extraRow.querySelectorAll(".ops-extra-field")).toHaveLength(6);
+    expect(panel.querySelectorAll(".billing-edit-row_extra")).toHaveLength(1);
   });
 
   it("仕訳タブの表列に確認用を常時出さない (Accounting 9.1.1 / Core 11.4.4)", async () => {

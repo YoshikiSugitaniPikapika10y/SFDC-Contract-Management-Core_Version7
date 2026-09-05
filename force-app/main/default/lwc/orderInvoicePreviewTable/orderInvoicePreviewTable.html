@@ -27,18 +27,6 @@
         >
         </lightning-combobox>
       </div>
-      <div class="version-filter difference-filter">
-        <lightning-combobox
-          name="differenceFilter"
-          label="差額"
-          value={selectedDifferenceFilter}
-          options={differenceFilterOptions}
-          onchange={handleDifferenceFilterChange}
-          dropdown-alignment="left"
-          variant="label-hidden"
-        >
-        </lightning-combobox>
-      </div>
       <lightning-input
         type="checkbox"
         label="取消済みを含める"
@@ -1312,8 +1300,6 @@
                       {invoice.invoiceDeliveryMethodLabel}
                     </div>
                   </div>
-                </div>
-                <div class="billing-edit-row billing-edit-row_mail">
                   <div class="billing-edit-field">
                     <span class="invoice-meta-k">To</span>
                     <div class="invoice-meta-v">{invoice.billingEmailTo}</div>

@@ -211,27 +211,6 @@
               </thead>
               <tbody>
                 <template for:each={displayItemList} for:item="item">
-                  <template if:true={item.isCustomToggleRow}>
-                    <tr key={item.id} class={item.tableRowClass}>
-                      <td colspan={productTableColspan}>
-                        <button
-                          type="button"
-                          class={item.productCustomRowToggleClass}
-                          title="商品のカスタム項目"
-                          data-id={item.parentRowId}
-                          aria-expanded={item.productCustomRowExpandedAria}
-                          onclick={handleToggleRowProductCustomFields}
-                        >
-                          <lightning-icon
-                            icon-name="utility:chevronright"
-                            size="xx-small"
-                            class={item.productCustomRowChevronClass}
-                          ></lightning-icon>
-                          商品のカスタム項目
-                        </button>
-                      </td>
-                    </tr>
-                  </template>
                   <template if:true={item.isCustomDetailRow}>
                     <tr key={item.id} class={item.tableRowClass}>
                       <td colspan={productTableColspan}>

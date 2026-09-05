@@ -700,7 +700,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(footerText).not.toContain("差額");
   });
 
-  it("filters invoices by 差額あり and 差額なし", async () => {
+  it("does not show 差額あり／なし filter (Core 7.7.0)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -763,23 +763,13 @@ describe("orderInvoicePreviewTable footer totals", () => {
 
     expect(element.shadowRoot.textContent).toContain("INV-HAS");
     expect(element.shadowRoot.textContent).toContain("INV-NONE");
-
-    const filter = await waitUntil(() =>
-      element.shadowRoot.querySelector(".difference-filter lightning-combobox")
-    );
-    filter.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "HAS" } })
-    );
-    await Promise.resolve();
-    expect(element.shadowRoot.textContent).toContain("INV-HAS");
-    expect(element.shadowRoot.textContent).not.toContain("INV-NONE");
-
-    filter.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "NONE" } })
-    );
-    await Promise.resolve();
-    expect(element.shadowRoot.textContent).not.toContain("INV-HAS");
-    expect(element.shadowRoot.textContent).toContain("INV-NONE");
+    expect(
+      element.shadowRoot.querySelector(
+        "lightning-combobox[name='differenceFilter']"
+      )
+    ).toBeFalsy();
+    expect(element.shadowRoot.textContent).not.toContain("差額あり");
+    expect(element.shadowRoot.textContent).not.toContain("差額なし");
   });
 
   it("shows true accounting tag labels as badges under the money row when Accounting is ON and not Draft", async () => {
@@ -1127,7 +1117,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
     document.body.appendChild(element);
     const filter = await waitUntil(() =>
       element.shadowRoot.querySelector(
-        ".version-filter:not(.invoice-filter):not(.difference-filter) lightning-combobox"
+        ".version-filter:not(.invoice-filter) lightning-combobox"
       )
     );
     expect(filter.options.map((option) => option.label)).toEqual([

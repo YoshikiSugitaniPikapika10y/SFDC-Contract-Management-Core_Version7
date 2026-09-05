@@ -226,9 +226,8 @@ export default class EstimateCreateModal3 extends LightningElement {
   @track isLoadingChangeProducts = false;
   @track isLoadingRenewProducts = false;
   @track changeLoadError = "";
-  /** Global open/close for all product line custom fields (default open). 親へは送らない。 */
+  /** 仕様: Core 第4.3.4節。商品のカスタム項目はヘッダ右の1トグル。一括状態は保存しない。 */
   @track productCustomFieldsExpanded = true;
-  productCustomRowExpanded = {};
   /** セクション開閉（ローカル表示のみ）。 */
   @track recurringPeriodExpanded = true;
   @track productLinesExpanded = true;
@@ -948,14 +947,8 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.productCustomFieldsExpanded ? "true" : "false";
   }
 
-  /** 仕様: Core 第4.3.4節 */
-  isProductCustomRowExpanded(rowId) {
-    if (
-      rowId &&
-      Object.prototype.hasOwnProperty.call(this.productCustomRowExpanded, rowId)
-    ) {
-      return this.productCustomRowExpanded[rowId] === true;
-    }
+  /** 仕様: Core 第4.3.4節。開なら該当行はすべてグリッド、閉ならすべて出さない。 */
+  isProductCustomRowExpanded() {
     return this.productCustomFieldsExpanded === true;
   }
 
@@ -1211,26 +1204,8 @@ export default class EstimateCreateModal3 extends LightningElement {
         result.push(row);
         continue;
       }
-      const expanded = this.isProductCustomRowExpanded(row.id);
       result.push(row);
-      result.push({
-        id: `custom-toggle-${row.id}`,
-        isCustomToggleRow: true,
-        isCustomChromeRow: true,
-        isGroupHeader: false,
-        parentRowId: row.id,
-        tableRowClass: "est-detail-toggle-row",
-        productCustomRowToggleClass: expanded
-          ? "est-btn-custom est-btn-custom_active est-btn-custom_row"
-          : "est-btn-custom est-btn-custom_row",
-        productCustomRowChevronClass: expanded
-          ? "est-custom-chevron est-custom-chevron_open"
-          : "est-custom-chevron",
-        productCustomRowExpandedAria: expanded ? "true" : "false",
-        changeGroupBoundary: row.changeGroupBoundary || null,
-        changeGroupTone: row.changeGroupTone || null
-      });
-      if (!expanded) {
+      if (!this.isProductCustomRowExpanded()) {
         continue;
       }
       result.push({
@@ -4176,23 +4151,9 @@ export default class EstimateCreateModal3 extends LightningElement {
     );
   }
 
-  /** 仕様: Core 第4.3.4節 */
+  /** 仕様: Core 第4.3.4節。行別トグルは置かない。 */
   handleToggleAllProductCustomFields() {
     this.productCustomFieldsExpanded = !this.productCustomFieldsExpanded;
-    this.productCustomRowExpanded = {};
-    this.itemList = this.decorateAllRows(this.itemList);
-  }
-
-  /** 仕様: Core 第4.3.4節 */
-  handleToggleRowProductCustomFields(event) {
-    const rowId = event.currentTarget?.dataset?.id;
-    if (!rowId) {
-      return;
-    }
-    this.productCustomRowExpanded = {
-      ...this.productCustomRowExpanded,
-      [rowId]: !this.isProductCustomRowExpanded(rowId)
-    };
     this.itemList = this.decorateAllRows(this.itemList);
   }
 
@@ -4278,11 +4239,6 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (!fieldTarget || !fieldApi) {
       return;
     }
-    this.productCustomFieldsExpanded = true;
-    this.productCustomRowExpanded = {
-      ...this.productCustomRowExpanded,
-      [fieldTarget]: true
-    };
     this.commitItemList(
       this.itemList.map((item) => {
         if (item.id !== fieldTarget) {
