@@ -131,29 +131,7 @@ private class InvoiceProductGenerationHardeningTest {
     Account account,
     String serviceName
   ) {
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 25,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE
-    );
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    ContractService__c service = new ContractService__c(
-      Name = serviceName,
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
-    );
-    insert service;
-    return service;
+    return ContractTestDataFactory.insertContractService(account.Id, serviceName);
   }
 
   @IsTest
