@@ -256,6 +256,222 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void goalBuild_queriesTenantInvoiceConditionFieldsWithoutWideningLock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('InvCond');
+      enableAccounting();
+      seedMaps();
+      update new Invoice__c(Id = fixture.invoice.Id, Memo__c = 'INV-MEMO-541');
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Invoice Tenant Fields',
+        EvaluationContext__c = 'InvoiceLine',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'Invoice__c',
+        TargetField__c = 'Memo__c',
+        Operator__c = 'IsNotNull'
+      );
+      Id arAccountId = [
+        SELECT Account__c
+        FROM GlAccountMap__c
+        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+        LIMIT 1
+      ]
+      .Account__c;
+      insert new GlAccountMap__c(
+        Name = 'Engine AR Tenant Invoice',
+        Account__c = arAccountId,
+        SlotKey__c = 'AccountsReceivable',
+        EvaluationContext__c = 'InvoiceLine',
+        ConditionSourceType__c = 'Tenant',
+        TenantConditionSet__c = conditionSet.Id,
+        Priority__c = 20,
+        IsActive__c = true
+      );
+      markConfirmed(fixture.invoice);
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      Invoice__c invoice = [
+        SELECT
+          Id,
+          InvoiceDate__c,
+          InvoiceTransactionStatus__c,
+          TaxInclusiveAmount__c,
+          InvoicePaymentNet__c,
+          BillingAccountSnapShot__c,
+          BillingAccountKeySnapShot__c,
+          ContractHistory__c,
+          ContractService__c,
+          BusinessOperationKey__c,
+          DeliveryStatus__c,
+          LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      Test.startTest();
+      List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
+        invoice,
+        policy,
+        new List<GlJournal__c>()
+      );
+      Test.stopTest();
+      System.assertEquals(false, goals.isEmpty());
+    }
+  }
+
+  @IsTest
+  static void goalBuild_queriesTenantInvoicePaymentConditionFields() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createPaymentFixture();
+      enableAccounting();
+      seedMaps();
+      seedPaymentMaps();
+      confirmWithJournals(fixture.invoice);
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Payment Tenant Fields',
+        EvaluationContext__c = 'InvoicePayment',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'InvoicePayment__c',
+        TargetField__c = 'Memo__c',
+        Operator__c = 'IsNotNull'
+      );
+      Id cashAccountId = [
+        SELECT Account__c
+        FROM GlAccountMap__c
+        WHERE SlotKey__c = 'Cash' AND EvaluationContext__c = 'InvoicePayment'
+        LIMIT 1
+      ]
+      .Account__c;
+      insert new GlAccountMap__c(
+        Name = 'Engine Cash Tenant Payment',
+        Account__c = cashAccountId,
+        SlotKey__c = 'Cash',
+        EvaluationContext__c = 'InvoicePayment',
+        ConditionSourceType__c = 'Tenant',
+        TenantConditionSet__c = conditionSet.Id,
+        Priority__c = 20,
+        IsActive__c = true
+      );
+      InvoicePayment__c payment = new InvoicePayment__c(
+        Invoice__c = fixture.invoice.Id,
+        Amount__c = 1000,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_NON_INVOICE,
+        PaymentDate__c = Date.newInstance(2026, 6, 20),
+        PaymentTransactionStatus__c = InvoicePaymentService.STATUS_ACTIVE,
+        Memo__c = 'PAY-MEMO-542'
+      );
+      insertInvoicePurpose(payment);
+      Invoice__c invoice = [
+        SELECT
+          Id,
+          InvoiceDate__c,
+          InvoiceTransactionStatus__c,
+          BillingAccountSnapShot__c,
+          BillingAccountKeySnapShot__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      Test.startTest();
+      List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
+        invoice,
+        policy,
+        new List<GlJournal__c>()
+      );
+      Test.stopTest();
+      System.assertEquals(false, goals.isEmpty());
+    }
+  }
+
+  @IsTest
+  static void goalBuild_queriesTenantAllocationConditionFields() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createPaymentFixture();
+      enableAccounting();
+      seedMaps();
+      seedPaymentMaps();
+      confirmWithJournals(fixture.invoice);
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Allocation Tenant Fields',
+        EvaluationContext__c = 'InvoicePaymentAllocation',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'InvoicePaymentAllocation__c',
+        TargetField__c = 'LastModifiedDate',
+        Operator__c = 'IsNotNull'
+      );
+      Id cashAccountId = [
+        SELECT Account__c
+        FROM GlAccountMap__c
+        WHERE SlotKey__c = 'Cash' AND EvaluationContext__c = 'InvoicePaymentAllocation'
+        LIMIT 1
+      ]
+      .Account__c;
+      insert new GlAccountMap__c(
+        Name = 'Engine Cash Tenant Allocation',
+        Account__c = cashAccountId,
+        SlotKey__c = 'Cash',
+        EvaluationContext__c = 'InvoicePaymentAllocation',
+        ConditionSourceType__c = 'Tenant',
+        TenantConditionSet__c = conditionSet.Id,
+        Priority__c = 20,
+        IsActive__c = true
+      );
+      InvoicePayment__c payment = new InvoicePayment__c(
+        Invoice__c = fixture.invoice.Id,
+        Amount__c = 100000,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_INVOICE,
+        PaymentDate__c = Date.newInstance(2026, 6, 20),
+        PaymentTransactionStatus__c = InvoicePaymentService.STATUS_ACTIVE
+      );
+      insertInvoicePurpose(payment);
+      insert new InvoicePaymentAllocation__c(
+        InvoicePayment__c = payment.Id,
+        InvoiceLine__c = fixture.line.Id,
+        Amount__c = 100000,
+        HistoricalUacAmount__c = 0,
+        HistoricalSpAmount__c = 0
+      );
+      Invoice__c invoice = [
+        SELECT
+          Id,
+          InvoiceDate__c,
+          InvoiceTransactionStatus__c,
+          BillingAccountSnapShot__c,
+          BillingAccountKeySnapShot__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      Test.startTest();
+      List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
+        invoice,
+        policy,
+        new List<GlJournal__c>()
+      );
+      Test.stopTest();
+      System.assertEquals(false, goals.isEmpty());
+    }
+  }
+
+  @IsTest
   static void applyForInvoice_copiesJournalSourcesFromUnqueriedFields() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('CopySrc');

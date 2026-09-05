@@ -82,6 +82,7 @@ public without sharing class AccountingGoalService {
     }
     Set<String> allowed = GlAccountingPolicyService.deriveAllowedPatternKeys(policy);
     Map<String, String> reusedPatterns = reusedPatternsByCandidate(currentJournals);
+    invoice = hydrateInvoiceForConditions(invoice);
     Map<Id, InvoiceLine__c> lines = loadLines(invoice.Id);
     Map<Id, InvoicePayment__c> payments = loadPayments(invoice.Id);
     List<InvoicePaymentAllocation__c> allocations = loadAllocations(payments.keySet());
@@ -1874,54 +1875,130 @@ public without sharing class AccountingGoalService {
     );
   }
 
-  private static Set<String> cachedTenantInvoiceLineFields;
+  private static Map<String, Set<String>> cachedTenantConditionFieldsByObject;
+
+  /** 仕様: Accounting 第4.7節、第6.2節。ロック照会は広げず、Goalの原因照会へテナント条件項目を足す。 */
+  private static Invoice__c hydrateInvoiceForConditions(Invoice__c invoice) {
+    if (invoice == null || invoice.Id == null) {
+      return invoice;
+    }
+    Set<String> extraFields = tenantConditionFields(Invoice__c.SObjectType);
+    if (extraFields.isEmpty()) {
+      return invoice;
+    }
+    Set<String> selectFields = new Set<String>(extraFields);
+    selectFields.add('Id');
+    Id invoiceId = invoice.Id;
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(selectFields), ',') +
+      ' FROM Invoice__c WHERE Id = :invoiceId LIMIT 1';
+    List<Invoice__c> loaded = Database.query(soql, AccessLevel.SYSTEM_MODE);
+    if (loaded.isEmpty()) {
+      return invoice;
+    }
+    Invoice__c hydrated = invoice.clone(true, true, true, true);
+    for (String fieldName : extraFields) {
+      hydrated.put(fieldName, loaded[0].get(fieldName));
+    }
+    return hydrated;
+  }
 
   /** 仕様: Accounting 第4.7節、第6.2節、第8.2節。明細単位の科目割当は請求明細の対象項目・比較対象項目を評価する。 */
   private static Set<String> tenantInvoiceLineFields() {
-    if (cachedTenantInvoiceLineFields != null) {
-      return cachedTenantInvoiceLineFields;
+    return tenantConditionFields(InvoiceLine__c.SObjectType);
+  }
+
+  private static Set<String> tenantConditionFields(Schema.SObjectType sobType) {
+    if (sobType == null) {
+      return new Set<String>();
     }
-    Set<String> fields = new Set<String>();
-    Map<String, Schema.SObjectField> describe = InvoiceLine__c.SObjectType.getDescribe()
-      .fields.getMap();
+    Map<String, Set<String>> byObject = tenantConditionFieldsByObject();
+    String objectApiName = sobType.getDescribe().getName();
+    if (!byObject.containsKey(objectApiName)) {
+      return new Set<String>();
+    }
+    return byObject.get(objectApiName);
+  }
+
+  private static Map<String, Set<String>> tenantConditionFieldsByObject() {
+    if (cachedTenantConditionFieldsByObject != null) {
+      return cachedTenantConditionFieldsByObject;
+    }
+    Map<String, Map<String, Schema.SObjectField>> describes = new Map<String, Map<String, Schema.SObjectField>>{
+      'Invoice__c' => Invoice__c.SObjectType.getDescribe().fields.getMap(),
+      'InvoiceLine__c' => InvoiceLine__c.SObjectType.getDescribe().fields.getMap(),
+      'InvoicePayment__c' => InvoicePayment__c.SObjectType.getDescribe().fields.getMap(),
+      'InvoicePaymentAllocation__c' => InvoicePaymentAllocation__c.SObjectType.getDescribe()
+        .fields.getMap()
+    };
+    Map<String, Set<String>> fieldsByObject = new Map<String, Set<String>>();
+    for (String objectApiName : describes.keySet()) {
+      fieldsByObject.put(objectApiName, new Set<String>());
+    }
     for (GlConditionRule__c rule : [
       SELECT TargetObject__c, TargetField__c, CompareObject__c, CompareField__c
       FROM GlConditionRule__c
-      WHERE
-        TargetObject__c IN ('InvoiceLine__c', 'InvoiceLine')
-        OR CompareObject__c IN ('InvoiceLine__c', 'InvoiceLine')
       WITH SYSTEM_MODE
     ]) {
-      addInvoiceLineConditionField(fields, describe, rule.TargetObject__c, rule.TargetField__c);
-      addInvoiceLineConditionField(
-        fields,
-        describe,
+      addTenantConditionField(
+        fieldsByObject,
+        describes,
+        rule.TargetObject__c,
+        rule.TargetField__c
+      );
+      addTenantConditionField(
+        fieldsByObject,
+        describes,
         rule.CompareObject__c,
         rule.CompareField__c
       );
     }
-    cachedTenantInvoiceLineFields = fields;
-    return fields;
+    cachedTenantConditionFieldsByObject = fieldsByObject;
+    return fieldsByObject;
   }
 
-  private static void addInvoiceLineConditionField(
-    Set<String> fields,
-    Map<String, Schema.SObjectField> describe,
+  private static void addTenantConditionField(
+    Map<String, Set<String>> fieldsByObject,
+    Map<String, Map<String, Schema.SObjectField>> describes,
     String objectApiName,
     String fieldApiName
   ) {
+    String resolvedObject = conditionObjectApiName(objectApiName);
     if (
-      fields == null ||
-      describe == null ||
+      fieldsByObject == null ||
+      describes == null ||
+      String.isBlank(resolvedObject) ||
       String.isBlank(fieldApiName) ||
-      (objectApiName != 'InvoiceLine__c' && objectApiName != 'InvoiceLine')
+      !describes.containsKey(resolvedObject)
     ) {
       return;
     }
+    Map<String, Schema.SObjectField> describe = describes.get(resolvedObject);
     if (!describe.containsKey(fieldApiName)) {
       return;
     }
-    fields.add(describe.get(fieldApiName).getDescribe().getName());
+    fieldsByObject.get(resolvedObject)
+      .add(describe.get(fieldApiName).getDescribe().getName());
+  }
+
+  private static String conditionObjectApiName(String objectApiName) {
+    if (objectApiName == 'Invoice' || objectApiName == 'Invoice__c') {
+      return 'Invoice__c';
+    }
+    if (objectApiName == 'InvoiceLine' || objectApiName == 'InvoiceLine__c') {
+      return 'InvoiceLine__c';
+    }
+    if (objectApiName == 'InvoicePayment' || objectApiName == 'InvoicePayment__c') {
+      return 'InvoicePayment__c';
+    }
+    if (
+      objectApiName == 'InvoicePaymentAllocation' ||
+      objectApiName == 'InvoicePaymentAllocation__c'
+    ) {
+      return 'InvoicePaymentAllocation__c';
+    }
+    return null;
   }
 
   private static Map<Id, InvoiceLine__c> loadLines(Id invoiceId) {
@@ -1954,19 +2031,21 @@ public without sharing class AccountingGoalService {
 
   private static Map<Id, InvoicePayment__c> loadPayments(Id invoiceId) {
     Map<Id, InvoicePayment__c> rows = new Map<Id, InvoicePayment__c>();
-    for (InvoicePayment__c payment : [
-      SELECT
-        Id,
-        CreatedDate,
-        Invoice__c,
-        Amount__c,
-        PaymentPurpose__c,
-        PaymentDate__c,
-        PaymentTransactionStatus__c
-      FROM InvoicePayment__c
-      WHERE Invoice__c = :invoiceId AND PaymentTransactionStatus__c = 'Active'
-      WITH SYSTEM_MODE
-    ]) {
+    Set<String> selectFields = new Set<String>{
+      'Id',
+      'CreatedDate',
+      'Invoice__c',
+      'Amount__c',
+      'PaymentPurpose__c',
+      'PaymentDate__c',
+      'PaymentTransactionStatus__c'
+    };
+    selectFields.addAll(tenantConditionFields(InvoicePayment__c.SObjectType));
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(selectFields), ',') +
+      ' FROM InvoicePayment__c WHERE Invoice__c = :invoiceId AND PaymentTransactionStatus__c = \'Active\'';
+    for (InvoicePayment__c payment : Database.query(soql, AccessLevel.SYSTEM_MODE)) {
       rows.put(payment.Id, payment);
     }
     return rows;
@@ -1976,19 +2055,21 @@ public without sharing class AccountingGoalService {
     if (paymentIds == null || paymentIds.isEmpty()) {
       return new List<InvoicePaymentAllocation__c>();
     }
-    return [
-      SELECT
-        Id,
-        CreatedDate,
-        InvoicePayment__c,
-        InvoiceLine__c,
-        Amount__c,
-        HistoricalUacAmount__c,
-        HistoricalSpAmount__c
-      FROM InvoicePaymentAllocation__c
-      WHERE InvoicePayment__c IN :paymentIds
-      WITH SYSTEM_MODE
-    ];
+    Set<String> selectFields = new Set<String>{
+      'Id',
+      'CreatedDate',
+      'InvoicePayment__c',
+      'InvoiceLine__c',
+      'Amount__c',
+      'HistoricalUacAmount__c',
+      'HistoricalSpAmount__c'
+    };
+    selectFields.addAll(tenantConditionFields(InvoicePaymentAllocation__c.SObjectType));
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(selectFields), ',') +
+      ' FROM InvoicePaymentAllocation__c WHERE InvoicePayment__c IN :paymentIds';
+    return Database.query(soql, AccessLevel.SYSTEM_MODE);
   }
 
   private static List<GlManualJournalHeader__c> loadManualHeaders(Id invoiceId) {
