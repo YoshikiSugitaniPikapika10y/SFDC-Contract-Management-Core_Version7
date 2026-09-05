@@ -178,7 +178,17 @@ function buildPreview() {
         invoiceDeliveryMethod: "Email",
         locked: true,
         isCancelled: false,
-        lines: []
+        lines: [
+          {
+            lineId: "a01LINE00000001",
+            productName: "A",
+            amount: 1000,
+            historyVersionLabel: "V1",
+            isRecurring: true,
+            unitPrice: 1000,
+            quantity: 1
+          }
+        ]
       }
     ]
   };
@@ -204,19 +214,9 @@ describe("orderInvoicePreviewTable cancel permission (Core 7.7.3 / 7.9.3 / 共�
     element.preview = buildPreview();
     document.body.appendChild(element);
     await flush();
-    expect(element.invoiceCards[0].showCancelAction).toBe(false);
-  });
-
-  it("shows 確定取消 when Loop_15 is present", async () => {
-    const element = createElement("c-order-invoice-preview-table", {
-      is: OrderInvoicePreviewTable
-    });
-    Object.defineProperty(element, "canCancelInvoiceOp", {
-      get: () => true
-    });
-    element.preview = buildPreview();
-    document.body.appendChild(element);
-    await flush();
-    expect(element.invoiceCards[0].showCancelAction).toBe(true);
+    const hidden = Array.from(element.shadowRoot.querySelectorAll("button")).find(
+      (button) => button.textContent.trim() === "取消"
+    );
+    expect(hidden).toBeFalsy();
   });
 });

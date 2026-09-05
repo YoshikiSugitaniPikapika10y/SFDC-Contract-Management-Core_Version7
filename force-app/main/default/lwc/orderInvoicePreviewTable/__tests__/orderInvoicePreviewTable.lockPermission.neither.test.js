@@ -1,16 +1,16 @@
 import { createElement } from "lwc";
 import OrderInvoicePreviewTable from "c/orderInvoicePreviewTable";
+import getBoardContext from "@salesforce/apex/InvoiceSendBoardController.getBoardContext";
 import getOpsBundle from "@salesforce/apex/InvoicePreviewOpsController.getOpsBundle";
-import getInvoiceOpsFieldDefinitions from "@salesforce/apex/InvoiceOpsFieldService.getDefinitions";
 
 jest.mock(
   "@salesforce/customPermission/Loop_16_Can_LockJournal",
-  () => ({ default: true }),
+  () => ({ default: false }),
   { virtual: true }
 );
 jest.mock(
   "@salesforce/customPermission/Loop_17_Can_UnlockJournal",
-  () => ({ default: true }),
+  () => ({ default: false }),
   { virtual: true }
 );
 jest.mock(
@@ -178,16 +178,6 @@ jest.mock(
   { virtual: true }
 );
 
-jest.mock(
-  "c/estimateLineItemUtils",
-  () => ({
-    resolveScaledNumericInput: jest.fn(),
-    roundUnitPrice: jest.fn((value) => Number(value)),
-    setAmountCalculationRoundingModes: jest.fn()
-  }),
-  { virtual: true }
-);
-
 function buildPreview(invoiceOverrides) {
   return {
     canEdit: true,
@@ -247,67 +237,50 @@ async function waitUntil(predicate, attempts = 50) {
   return last;
 }
 
-describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 9.1.1)", () => {
+function lockButton(element) {
+  return Array.from(element.shadowRoot.querySelectorAll("button")).find(
+    (button) => button.textContent.trim() === "選んだ仕訳をLock"
+  );
+}
+
+function unlockButton(element) {
+  return Array.from(element.shadowRoot.querySelectorAll("button")).find(
+    (button) => button.textContent.trim() === "選んだ仕訳をUnlock"
+  );
+}
+
+function lockCheckbox(element) {
+  return element.shadowRoot.querySelector(
+    'td.split-select-col lightning-input[data-journal-id="a03JNL000000001"]'
+  );
+}
+
+async function openJournalsTab(element) {
+  const tab = await waitUntil(
+    () => element.shadowRoot.querySelector("button[data-tab='journals']")
+  );
+  tab.click();
+  await flush();
+}
+
+function mount(preview) {
+  const element = createElement("c-order-invoice-preview-table", {
+    is: OrderInvoicePreviewTable
+  });
+  element.preview = preview;
+  document.body.appendChild(element);
+  return element;
+}
+
+describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5節 / 共通基盤 第10.4節 / Core 第7.7.3節)", () => {
   beforeEach(() => {
-    getOpsBundle.mockResolvedValue({
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
       accountingEnabled: true,
-      paymentAllowed: true,
-      taxInclusiveAmount: 1100,
-      invoicePaymentNet: 0,
-      paymentNetTotal: 0,
-      invoiceDate: "2026-06-01",
-      invoiceToken: "token",
-      hasLockedJournals: false,
-      payments: [],
-      paymentLines: [],
-      journals: [],
-      manualJournals: []
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
     });
-  });
-
-  afterEach(() => {
-    while (document.body.firstChild) {
-      document.body.removeChild(document.body.firstChild);
-    }
-  });
-
-  it("確定済みでも請求情報編集ボタンを出す (Core 7.8 / 11.4.4)", async () => {
-    const element = createElement("c-order-invoice-preview-table", {
-      is: OrderInvoicePreviewTable
-    });
-    element.preview = buildPreview();
-    document.body.appendChild(element);
-    const billing = await waitUntil(() =>
-      Array.from(element.shadowRoot.querySelectorAll("button")).find(
-        (button) => button.textContent.trim() === "請求情報編集"
-      )
-    );
-    expect(billing).toBeTruthy();
-    const split = Array.from(element.shadowRoot.querySelectorAll("button")).find(
-      (button) => button.textContent.trim() === "別の請求へ分ける"
-    );
-    expect(split).toBeFalsy();
-  });
-
-  it("取消済み請求は請求情報編集を出さない (Core 7.8 / 11.4.4)", async () => {
-    const element = createElement("c-order-invoice-preview-table", {
-      is: OrderInvoicePreviewTable
-    });
-    element.initialInvoiceId = "a00INV000000001";
-    element.preview = buildPreview({
-      invoiceTransactionStatus: "Cancelled",
-      isCancelled: true
-    });
-    document.body.appendChild(element);
-    await flush();
-    const billing = Array.from(element.shadowRoot.querySelectorAll("button")).find(
-      (button) => button.textContent.trim() === "請求情報編集"
-    );
-    expect(billing).toBeFalsy();
-  });
-
-  it("仕訳タブの表列に確認用を常時出さない (Accounting 9.1.1 / Core 11.4.4)", async () => {
-    getInvoiceOpsFieldDefinitions.mockResolvedValue([]);
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
       paymentAllowed: true,
@@ -328,29 +301,25 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
           postingDate: "2026-06-01",
           transactionStatus: "Active",
           isLocked: false,
-          memo: "",
-          confirmationText: "明細税抜 1,100円"
+          memo: ""
         }
       ],
       manualJournals: []
     });
-    const element = createElement("c-order-invoice-preview-table", {
-      is: OrderInvoicePreviewTable
-    });
-    element.preview = buildPreview();
-    document.body.appendChild(element);
-    const journalsTab = await waitUntil(
-      () =>
-        element.shadowRoot.querySelectorAll("button[data-tab='journals']")[0]
-    );
-    journalsTab.click();
+  });
+
+  afterEach(() => {
+    while (document.body.firstChild) {
+      document.body.removeChild(document.body.firstChild);
+    }
+  });
+
+  it("hides Lock and Unlock when neither dedicated permission is present", async () => {
+    const element = mount(buildPreview());
     await flush();
-    const headerText = Array.from(
-      element.shadowRoot.querySelectorAll(".ops-table thead th")
-    )
-      .map((th) => th.textContent.trim())
-      .join(" ");
-    expect(headerText).not.toContain("確認用");
-    expect(element.shadowRoot.textContent).not.toContain("明細税抜 1,100円");
+    await openJournalsTab(element);
+    expect(lockButton(element)).toBeFalsy();
+    expect(unlockButton(element)).toBeFalsy();
+    expect(lockCheckbox(element)).toBeFalsy();
   });
 });

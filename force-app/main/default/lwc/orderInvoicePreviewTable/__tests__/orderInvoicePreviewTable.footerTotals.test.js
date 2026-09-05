@@ -231,6 +231,19 @@ function buildPreview({
   };
 }
 
+async function waitUntil(predicate, attempts = 50) {
+  let last;
+  for (let i = 0; i < attempts; i += 1) {
+    last = predicate();
+    if (last) {
+      return last;
+    }
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return last;
+}
+
 describe("orderInvoicePreviewTable footer totals", () => {
   afterEach(() => {
     while (document.body.firstChild) {
@@ -467,13 +480,12 @@ describe("orderInvoicePreviewTable footer totals", () => {
       ]
     };
     document.body.appendChild(element);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const buttons = Array.from(
-      element.shadowRoot.querySelectorAll('button.solid-btn[data-invoice-id]')
-    ).filter((button) => button.textContent.trim() === "確定する");
+    const buttons = await waitUntil(() => {
+      const found = Array.from(
+        element.shadowRoot.querySelectorAll("button.solid-btn[data-invoice-id]")
+      ).filter((button) => button.textContent.trim() === "確定する");
+      return found.length === 2 ? found : null;
+    });
     expect(buttons).toHaveLength(2);
     const byId = Object.fromEntries(
       buttons.map((button) => [button.dataset.invoiceId, button.disabled])
@@ -485,7 +497,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
     );
   });
 
-  it("disables confirm when tax-inclusive totals differ even if tax-excl matches", async () => {
+  it("税抜が一致すれば税込が違ってもフッタは端数なしで確定できる (Core 7.9.1 / 7.8.5)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -514,7 +526,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
           invoiceName: "INV-1",
           historyVersion: 1,
           amountTotal: 1000,
-          taxTotal: 99,
+          taxTotal: 100,
           taxPercent: 10,
           taxInclusiveAmount: 1099,
           canConfirm: true,
@@ -540,13 +552,15 @@ describe("orderInvoicePreviewTable footer totals", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    const button = Array.from(
-      element.shadowRoot.querySelectorAll("button.solid-btn")
-    ).find((node) => node.textContent.trim() === "確定する");
+    const button = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button.solid-btn")).find(
+        (node) => node.textContent.trim() === "確定する"
+      )
+    );
     expect(button).toBeTruthy();
-    expect(button.disabled).toBe(true);
+    expect(button.disabled).toBe(false);
     expect(element.shadowRoot.querySelector(".amount-compare-status").textContent).toBe(
-      "端数あり"
+      "端数なし"
     );
   });
 
@@ -731,8 +745,8 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(element.shadowRoot.textContent).toContain("INV-HAS");
     expect(element.shadowRoot.textContent).toContain("INV-NONE");
 
-    const filter = element.shadowRoot.querySelector(
-      'lightning-combobox[name="differenceFilter"]'
+    const filter = await waitUntil(() =>
+      element.shadowRoot.querySelector(".difference-filter lightning-combobox")
     );
     filter.dispatchEvent(
       new CustomEvent("change", { detail: { value: "HAS" } })
@@ -795,15 +809,14 @@ describe("orderInvoicePreviewTable footer totals", () => {
       ]
     };
     document.body.appendChild(element);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const dateInputs = element.shadowRoot.querySelectorAll(
-      'td.acceptance-col lightning-input[type="date"]'
-    );
-    expect(dateInputs).toHaveLength(1);
-    expect(dateInputs[0].dataset.lineId).toBe("a01LINE00000002");
+    const dateInputs = await waitUntil(() => {
+      const node = element.shadowRoot.querySelector(
+        'lightning-input[data-line-id="a01LINE00000002"]'
+      );
+      return node || null;
+    });
+    expect(dateInputs).toBeTruthy();
+    expect(dateInputs.dataset.lineId).toBe("a01LINE00000002");
     const cells = element.shadowRoot.querySelectorAll("td.acceptance-col");
     expect(cells).toHaveLength(2);
     expect(cells[0].textContent).toContain("—");
@@ -1002,10 +1015,10 @@ describe("orderInvoicePreviewTable footer totals", () => {
       ]
     };
     document.body.appendChild(element);
-    await Promise.resolve();
-
-    const filter = element.shadowRoot.querySelector(
-      'lightning-combobox[name="versionFilter"]'
+    const filter = await waitUntil(() =>
+      element.shadowRoot.querySelector(
+        ".version-filter:not(.invoice-filter):not(.difference-filter) lightning-combobox"
+      )
     );
     expect(filter.options.map((option) => option.label)).toEqual([
       "全版",

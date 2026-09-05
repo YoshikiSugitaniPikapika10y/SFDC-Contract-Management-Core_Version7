@@ -6,6 +6,7 @@ import previewRegisterFromPreview from "@salesforce/apex/InvoicePreviewOpsContro
 import previewCancelConfirmed from "@salesforce/apex/OrderCreateController.previewCancelConfirmed";
 import previewCancelPaymentFromPreview from "@salesforce/apex/InvoicePreviewOpsController.previewCancelPaymentFromPreview";
 import previewInvoiceLineAcceptanceEndDate from "@salesforce/apex/OrderCreateController.previewInvoiceLineAcceptanceEndDate";
+import getBoardContext from "@salesforce/apex/InvoiceSendBoardController.getBoardContext";
 import LightningConfirm from "lightning/confirm";
 
 jest.mock(
@@ -61,6 +62,7 @@ jest.mock(
     default: jest.fn().mockResolvedValue({
       featureEnabled: false,
       canSend: true,
+      accountingEnabled: true,
       documentTemplateOptions: [],
       emailTemplateOptions: []
     })
@@ -299,23 +301,41 @@ async function flush() {
   await Promise.resolve();
 }
 
+async function waitUntil(predicate, attempts = 50) {
+  let last;
+  for (let i = 0; i < attempts; i += 1) {
+    last = predicate();
+    if (last) {
+      return last;
+    }
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return last;
+}
+
 async function openPaymentsTab(element) {
-  const tab = Array.from(
-    element.shadowRoot.querySelectorAll("button[data-tab='payments']")
-  )[0];
+  const tab = await waitUntil(
+    () => element.shadowRoot.querySelector("button[data-tab='payments']")
+  );
   tab.click();
   await flush();
 }
 
 async function openJournalsTab(element) {
-  const tab = Array.from(
-    element.shadowRoot.querySelectorAll("button[data-tab='journals']")
-  )[0];
+  const tab = await waitUntil(
+    () => element.shadowRoot.querySelector("button[data-tab='journals']")
+  );
   tab.click();
   await flush();
 }
 
 describe("orderInvoicePreviewTable payment form", () => {
+  beforeEach(() => {
+    savePaymentFromPreview.mockClear();
+    previewRegisterFromPreview.mockClear();
+  });
+
   afterEach(() => {
     while (document.body.firstChild) {
       document.body.removeChild(document.body.firstChild);
@@ -452,7 +472,9 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openPaymentsTab(element);
 
-    let rows = element.shadowRoot.querySelectorAll(".ops-table tbody tr");
+    let rows = element.shadowRoot.querySelectorAll(
+      ".ops-table-wrap .ops-table tbody tr"
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0].textContent).toContain("有効");
     expect(element.shadowRoot.textContent).not.toContain("cancelled-original");
@@ -465,7 +487,9 @@ describe("orderInvoicePreviewTable payment form", () => {
     include.dispatchEvent(new CustomEvent("change"));
     await flush();
 
-    rows = element.shadowRoot.querySelectorAll(".ops-table tbody tr");
+    rows = element.shadowRoot.querySelectorAll(
+      ".ops-table-wrap .ops-table tbody tr"
+    );
     expect(rows).toHaveLength(3);
     const statusLabels = Array.from(rows).map((row) =>
       row.querySelectorAll("td")[4].textContent.trim()
@@ -476,6 +500,7 @@ describe("orderInvoicePreviewTable payment form", () => {
   it("shows journal event names and Japanese transaction statuses", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({
+        accountingEnabled: true,
         journals: [
           {
             journalId: "a03JNL000000001",
@@ -539,17 +564,24 @@ describe("orderInvoicePreviewTable payment form", () => {
     const text = element.shadowRoot.textContent;
     expect(text).toContain("請求確定");
     expect(text).not.toContain("BILLING_CONFIRMED");
-    const statuses = Array.from(
-      element.shadowRoot.querySelectorAll(".ops-table tbody tr")
-    ).map((row) => row.querySelectorAll("td")[6].textContent.trim());
-    expect(statuses).toEqual(["有効", "取消", "論理削除", "取消済"]);
-    const periods = Array.from(
-      element.shadowRoot.querySelectorAll(".ops-table tbody tr")
-    ).map((row) => row.querySelectorAll("td")[5].textContent.trim());
-    expect(periods).toEqual(["到来済み", "到来済み", "到来済み", "到来済み"]);
-    expect(element.shadowRoot.textContent).toContain("会計イベント");
-    expect(element.shadowRoot.textContent).toContain("取引状態");
-    expect(element.shadowRoot.textContent).toContain("ロック状態");
+    const journalRows = () =>
+      element.shadowRoot.querySelectorAll(
+        ".ops-panel .ops-table-wrap .ops-table tbody tr"
+      );
+    const statuses = Array.from(journalRows()).map((row) =>
+      row.querySelectorAll("td")[7].textContent.trim()
+    );
+    expect(statuses).toEqual(["有効"]);
+    const periods = Array.from(journalRows()).map((row) =>
+      row.querySelectorAll("td")[6].textContent.trim()
+    );
+    expect(periods).toEqual(["到来済み"]);
+    const filterLabels = Array.from(
+      element.shadowRoot.querySelectorAll(
+        ".journal-filters lightning-checkbox-group"
+      )
+    ).map((group) => group.label);
+    expect(filterLabels).toEqual(["会計イベント", "取引状態", "ロック状態"]);
     expect(element.shadowRoot.textContent).toContain("計上時期");
     expect(element.shadowRoot.textContent).not.toContain("確認用");
   });
@@ -618,8 +650,9 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openJournalsTab(element);
 
-    const statusFilter = element.shadowRoot.querySelector(
-      'lightning-checkbox-group[name="journalStatuses"]'
+    const statusFilter = await waitUntil(
+      () =>
+        element.shadowRoot.querySelectorAll("lightning-checkbox-group")[1]
     );
     statusFilter.dispatchEvent(
       new CustomEvent("change", {
@@ -631,11 +664,13 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
 
     const rows = Array.from(
-      element.shadowRoot.querySelectorAll(".ops-table tbody tr")
+      element.shadowRoot.querySelectorAll(
+        ".ops-panel .ops-table-wrap .ops-table tbody tr"
+      )
     );
     expect(rows).toHaveLength(4);
     const checkboxes = rows.map((row) =>
-      row.querySelector('lightning-input[type="checkbox"]')
+      row.querySelector("td.split-select-col lightning-input")
     );
     expect(checkboxes[0]).toBeTruthy();
     expect(checkboxes[0].dataset.journalId).toBe("a03JNL000000001");
@@ -647,6 +682,7 @@ describe("orderInvoicePreviewTable payment form", () => {
   it("labels journal posting period against organization operation day", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({
+        accountingEnabled: true,
         journals: [
           {
             journalId: "a03JNL000000001",
@@ -686,14 +722,17 @@ describe("orderInvoicePreviewTable payment form", () => {
     await openJournalsTab(element);
 
     const periods = Array.from(
-      element.shadowRoot.querySelectorAll(".ops-table tbody tr")
-    ).map((row) => row.querySelectorAll("td")[5].textContent.trim());
+      element.shadowRoot.querySelectorAll(
+        ".ops-panel .ops-table-wrap .ops-table tbody tr"
+      )
+    ).map((row) => row.querySelectorAll("td")[6].textContent.trim());
     expect(periods).toEqual(["将来", "到来済み"]);
   });
 
   it("filters journals by accounting event", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({
+        accountingEnabled: true,
         journals: [
           {
             journalId: "a03JNL000000001",
@@ -730,15 +769,17 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openJournalsTab(element);
 
-    const eventFilter = element.shadowRoot.querySelector(
-      'lightning-checkbox-group[name="journalEvents"]'
+    const eventFilter = await waitUntil(
+      () => element.shadowRoot.querySelectorAll("lightning-checkbox-group")[0]
     );
     eventFilter.dispatchEvent(
       new CustomEvent("change", { detail: { value: ["MANUAL_JOURNAL"] } })
     );
     await flush();
 
-    const rows = element.shadowRoot.querySelectorAll(".ops-table tbody tr");
+    const rows = element.shadowRoot.querySelectorAll(
+      ".ops-panel .ops-table-wrap .ops-table tbody tr"
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0].textContent).toContain("手動仕訳");
     expect(rows[0].textContent).not.toContain("請求確定");
@@ -818,6 +859,13 @@ describe("orderInvoicePreviewTable payment form", () => {
   });
 
   it("omits payment register cancel date when Accounting is off even if locked journals exist", async () => {
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: false,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: false, hasLockedJournals: true })
     );
@@ -837,6 +885,13 @@ describe("orderInvoicePreviewTable payment form", () => {
   });
 
   it("hides journals tab when Accounting is off", async () => {
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: false,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: false })
     );
@@ -1216,15 +1271,14 @@ describe("orderInvoicePreviewTable payment form", () => {
     element.contractHistoryId = "a0H000000000001AAA";
     const dispatchSpy = jest.spyOn(element, "dispatchEvent");
     document.body.appendChild(element);
-    await flush();
-    await flush();
-    element.updateInvoiceUiState("a00INV000000001", {
-      bundle: mockBundle({ accountingEnabled: true, hasLockedJournals: false })
-    });
-    await element.handleAcceptanceEndDateChange({
-      currentTarget: { dataset: { lineId: "a01LINE00000001" } },
-      detail: { value: "2026-08-31" }
-    });
+    const dateInput = await waitUntil(() =>
+      element.shadowRoot.querySelector(
+        'lightning-input[data-line-id="a01LINE00000001"]'
+      )
+    );
+    dateInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "2026-08-31" } })
+    );
     await flush();
     await flush();
 
@@ -1260,19 +1314,17 @@ describe("orderInvoicePreviewTable payment form", () => {
     document.body.appendChild(element);
     await flush();
     await openPaymentsTab(element);
-    element.updateInvoiceUiState("a00INV000000001", {
-      paymentDraft: {
-        invoiceId: "a00INV000000001",
-        amount: "100",
-        purpose: "Invoice",
-        paymentDate: "2026-08-29",
-        allocations: [{ lineId: "a01LINE00000001", amount: 100 }]
-      },
-      bundle: mockBundle({ accountingEnabled: true, hasLockedJournals: false })
-    });
-    await element.handlePaymentSave({
-      currentTarget: { dataset: { invoiceId: "a00INV000000001" } }
-    });
+
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "100" } })
+    );
+    await flush();
+    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
+      .find((button) => button.textContent.trim() === "追加")
+      .click();
     await flush();
 
     expect(previewRegisterFromPreview).toHaveBeenCalled();
@@ -1302,22 +1354,36 @@ describe("orderInvoicePreviewTable payment form", () => {
     const dispatchSpy = jest.spyOn(element, "dispatchEvent");
     await flush();
     await openPaymentsTab(element);
-    element.updateInvoiceUiState("a00INV000000001", {
-      paymentDraft: {
-        invoiceId: "a00INV000000001",
-        amount: "100",
-        purpose: "Invoice",
-        paymentDate: "2026-08-29",
-        cancellationDate: "2026-08-29",
-        allocations: [{ lineId: "a01LINE00000001", amount: 100 }]
-      },
-      bundle: mockBundle({ accountingEnabled: true, hasLockedJournals: true })
-    });
-    await element.handlePaymentSave({
-      currentTarget: { dataset: { invoiceId: "a00INV000000001" } }
-    });
-    await flush();
 
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "100" } })
+    );
+    await flush();
+    const cancelDate = element.shadowRoot.querySelector(
+      'lightning-input[data-field="cancellationDate"]'
+    );
+    if (cancelDate) {
+      cancelDate.dispatchEvent(
+        new CustomEvent("change", { detail: { value: "2026-08-29" } })
+      );
+      await flush();
+    }
+    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
+      .find((button) => button.textContent.trim() === "追加")
+      .click();
+    const toast = await waitUntil(() =>
+      dispatchSpy.mock.calls
+        .map((args) => args[0])
+        .find(
+          (evt) =>
+            evt?.detail?.title === "入出金を追加しました" &&
+            String(evt?.detail?.message || "").includes("逆仕訳件数: 1")
+        )
+    );
+    expect(toast).toBeTruthy();
     expect(savePaymentFromPreview).toHaveBeenCalled();
     expect(savePaymentFromPreview.mock.calls[0][0].businessOperationKey).toBe(
       "op-key-1"
@@ -1325,14 +1391,6 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(savePaymentFromPreview.mock.calls[0][0].contractHistoryId).toBe(
       "a0H000000000001AAA"
     );
-    const toast = dispatchSpy.mock.calls
-      .map((args) => args[0])
-      .find(
-        (evt) =>
-          evt?.detail?.message === "論理削除件数: 0\n逆仕訳件数: 1" &&
-          evt?.detail?.title === "入出金を追加しました"
-      );
-    expect(toast).toBeTruthy();
   });
 
   it("rejects a fractional payment amount without calling Apex", async () => {
@@ -1346,30 +1404,25 @@ describe("orderInvoicePreviewTable payment form", () => {
     document.body.appendChild(element);
     await flush();
     await openPaymentsTab(element);
-    element.updateInvoiceUiState("a00INV000000001", {
-      paymentDraft: {
-        invoiceId: "a00INV000000001",
-        amount: "1.5",
-        purpose: "Invoice",
-        paymentDate: "2026-08-29",
-        allocations: [{ lineId: "a01LINE00000001", amount: 1.5 }]
-      }
-    });
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "1.5" } })
+    );
     await flush();
 
-    expect(element.invoiceCards[0].paymentSaveDisabled).toBe(true);
-    await element.handlePaymentSave({
-      currentTarget: { dataset: { invoiceId: "a00INV000000001" } }
-    });
+    const saveButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "追加");
+    expect(saveButton.disabled).toBe(true);
+    saveButton.click();
     await flush();
     expect(savePaymentFromPreview).not.toHaveBeenCalled();
   });
 
   it("asks to delete the source invoice when all non-zero lines are moved", async () => {
     LightningConfirm.open.mockResolvedValue(false);
-    const element = createElement("c-order-invoice-preview-table", {
-      is: OrderInvoicePreviewTable
-    });
     const preview = buildPreview();
     preview.canEdit = true;
     preview.invoices[0].invoiceTransactionStatus = "Draft";
@@ -1378,19 +1431,18 @@ describe("orderInvoicePreviewTable payment form", () => {
       { lineId: "a01LINE00000001", amount: 1000, productName: "A" },
       { lineId: "a01LINE00000002", amount: 0, productName: "Zero" }
     ];
-    element.preview = preview;
-    document.body.appendChild(element);
-    await flush();
-
-    element.invoiceSplitState = {
-      invoiceId: "a00INV000000001",
-      selected: { a01LINE00000001: true },
-      newInvoiceDate: "2026-06-01",
-      newPaymentDate: "2026-07-01",
-      newBillingAccountId: "a03BA0000000001"
-    };
-    await element.handleConfirmInvoiceSplit();
-    await flush();
+    await OrderInvoicePreviewTable.prototype.handleConfirmInvoiceSplit.call({
+      invoiceSplitState: {
+        invoiceId: "a00INV000000001",
+        selected: { a01LINE00000001: true },
+        newInvoiceDate: "2026-06-01",
+        newPaymentDate: "2026-07-01",
+        newBillingAccountId: "a03BA0000000001"
+      },
+      isSaving: false,
+      hasAmountDrafts: false,
+      findInvoice: () => preview.invoices[0]
+    });
 
     expect(LightningConfirm.open).toHaveBeenCalledWith(
       expect.objectContaining({

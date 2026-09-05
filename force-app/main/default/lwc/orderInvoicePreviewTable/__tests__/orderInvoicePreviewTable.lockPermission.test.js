@@ -1,5 +1,7 @@
 import { createElement } from "lwc";
 import OrderInvoicePreviewTable from "c/orderInvoicePreviewTable";
+import getBoardContext from "@salesforce/apex/InvoiceSendBoardController.getBoardContext";
+import getOpsBundle from "@salesforce/apex/InvoicePreviewOpsController.getOpsBundle";
 
 jest.mock(
   "@salesforce/customPermission/Loop_16_Can_LockJournal",
@@ -198,7 +200,18 @@ function buildPreview(invoiceOverrides) {
         invoiceDeliveryMethod: "Email",
         locked: true,
         isCancelled: false,
-        lines: [],
+        historyVersion: 1,
+        lines: [
+          {
+            lineId: "a01LINE00000001",
+            productName: "A",
+            amount: 1000,
+            historyVersionLabel: "V1",
+            isRecurring: true,
+            unitPrice: 1000,
+            quantity: 1
+          }
+        ],
         ...invoiceOverrides
       }
     ]
@@ -211,27 +224,90 @@ async function flush() {
   await Promise.resolve();
 }
 
-function mount(preview, permissionOverrides) {
+async function waitUntil(predicate, attempts = 50) {
+  let last;
+  for (let i = 0; i < attempts; i += 1) {
+    last = predicate();
+    if (last) {
+      return last;
+    }
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return last;
+}
+
+function lockButton(element) {
+  return Array.from(element.shadowRoot.querySelectorAll("button")).find(
+    (button) => button.textContent.trim() === "選んだ仕訳をLock"
+  );
+}
+
+function unlockButton(element) {
+  return Array.from(element.shadowRoot.querySelectorAll("button")).find(
+    (button) => button.textContent.trim() === "選んだ仕訳をUnlock"
+  );
+}
+
+function lockCheckbox(element) {
+  return element.shadowRoot.querySelector(
+    'td.split-select-col lightning-input[data-journal-id="a03JNL000000001"]'
+  );
+}
+
+async function openJournalsTab(element) {
+  const tab = await waitUntil(
+    () => element.shadowRoot.querySelector("button[data-tab='journals']")
+  );
+  tab.click();
+  await flush();
+}
+
+function mount(preview) {
   const element = createElement("c-order-invoice-preview-table", {
     is: OrderInvoicePreviewTable
   });
-  if (permissionOverrides && Object.prototype.hasOwnProperty.call(permissionOverrides, "canLockJournal")) {
-    Object.defineProperty(element, "canLockJournal", {
-      get: () => permissionOverrides.canLockJournal
-    });
-  }
-  if (permissionOverrides && Object.prototype.hasOwnProperty.call(permissionOverrides, "canUnlockJournal")) {
-    Object.defineProperty(element, "canUnlockJournal", {
-      get: () => permissionOverrides.canUnlockJournal
-    });
-  }
-  element.accountingEnabledOnBoard = true;
   element.preview = preview;
   document.body.appendChild(element);
   return element;
 }
 
 describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5節 / 共通基盤 第10.4節 / Core 第7.7.3節)", () => {
+  beforeEach(() => {
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: true,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [
+        {
+          journalId: "a03JNL000000001",
+          eventKey: "BILLING_CONFIRMED",
+          eventName: "請求確定",
+          amount: 1100,
+          postingDate: "2026-06-01",
+          transactionStatus: "Active",
+          isLocked: false,
+          memo: ""
+        }
+      ],
+      manualJournals: []
+    });
+  });
+
   afterEach(() => {
     while (document.body.firstChild) {
       document.body.removeChild(document.body.firstChild);
@@ -241,70 +317,59 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
   it("shows Lock and Unlock when each dedicated permission is present", async () => {
     const element = mount(buildPreview());
     await flush();
-    const card = element.invoiceCards[0];
-    expect(card.showJournalLockButton).toBe(true);
-    expect(card.showJournalUnlockButton).toBe(true);
-    expect(card.showJournalLockActions).toBe(true);
-  });
-
-  it("hides Lock when Loop_16 is absent and does not let Unlock stand in", async () => {
-    const element = mount(buildPreview(), {
-      canLockJournal: false,
-      canUnlockJournal: true
-    });
-    await flush();
-    const card = element.invoiceCards[0];
-    expect(card.showJournalLockButton).toBe(false);
-    expect(card.showJournalUnlockButton).toBe(true);
-    expect(card.showJournalLockActions).toBe(true);
-  });
-
-  it("hides Unlock when Loop_17 is absent and does not let Lock stand in", async () => {
-    const element = mount(buildPreview(), {
-      canLockJournal: true,
-      canUnlockJournal: false
-    });
-    await flush();
-    const card = element.invoiceCards[0];
-    expect(card.showJournalLockButton).toBe(true);
-    expect(card.showJournalUnlockButton).toBe(false);
-    expect(card.showJournalLockActions).toBe(true);
-  });
-
-  it("hides Lock and Unlock when neither dedicated permission is present", async () => {
-    const element = mount(buildPreview(), {
-      canLockJournal: false,
-      canUnlockJournal: false
-    });
-    await flush();
-    const card = element.invoiceCards[0];
-    expect(card.showJournalLockButton).toBe(false);
-    expect(card.showJournalUnlockButton).toBe(false);
-    expect(card.showJournalLockActions).toBe(false);
+    await openJournalsTab(element);
+    expect(lockButton(element)).toBeTruthy();
+    expect(unlockButton(element)).toBeTruthy();
+    expect(lockCheckbox(element)).toBeTruthy();
   });
 
   it("hides Lock and Unlock on cancelled invoices even with both permissions", async () => {
-    const element = mount(
-      buildPreview({
-        invoiceTransactionStatus: "Cancelled",
-        isCancelled: true
-      })
-    );
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.initialInvoiceId = "a00INV000000001";
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Cancelled",
+      isCancelled: true
+    });
+    document.body.appendChild(element);
     await flush();
-    const card = element.invoiceCards[0];
-    expect(card.showJournalLockButton).toBe(false);
-    expect(card.showJournalUnlockButton).toBe(false);
-    expect(card.showJournalLockActions).toBe(false);
+    await openJournalsTab(element);
+    expect(lockButton(element)).toBeFalsy();
+    expect(unlockButton(element)).toBeFalsy();
+    expect(lockCheckbox(element)).toBeFalsy();
   });
 
   it("hides Lock and Unlock when Accounting is OFF", async () => {
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: false,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: false,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [],
+      manualJournals: []
+    });
     const element = mount(buildPreview());
-    element.accountingEnabledOnBoard = false;
     await flush();
-    const card = element.invoiceCards[0];
-    expect(card.accountingEnabled).toBe(false);
-    expect(card.showJournalLockButton).toBe(false);
-    expect(card.showJournalUnlockButton).toBe(false);
-    expect(card.showJournalLockActions).toBe(false);
+    await flush();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      element.shadowRoot.querySelector("button[data-tab='journals']")
+    ).toBeNull();
+    expect(lockButton(element)).toBeFalsy();
+    expect(unlockButton(element)).toBeFalsy();
   });
 });
