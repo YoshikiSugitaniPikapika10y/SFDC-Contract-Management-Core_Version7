@@ -21,6 +21,11 @@ private class OrderCreateControllerTest {
       System.assertEquals(false, dto.isOrdered);
       System.assertEquals(1, dto.products.size());
       System.assertEquals(context.billingAccount.Id, dto.billingAccountId);
+      System.assertEquals(
+        String.valueOf(context.billingAccount.Id),
+        dto.billingAccountKey,
+        'Core 第3.3.2節: 受注確認の識別にキーを出す'
+      );
       System.assertNotEquals(
         null,
         dto.lastModifiedToken,

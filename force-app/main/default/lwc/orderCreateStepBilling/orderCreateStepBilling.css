@@ -66,7 +66,13 @@
   min-width: 0;
 }
 
-/* 1行目: 取引先 / 請求アカウント / 支払・請求設定 */
+/* 1行目: 識別 */
+.est-field-grid_identity {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+}
+
+/* 請求日ルール・支払条件 */
 .est-field-grid_other {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
@@ -74,13 +80,26 @@
 
 /* 2行目: 宛名・メールアドレス */
 .est-field-grid_address {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  padding-top: 0.875rem;
-  border-top: 1px solid var(--est-border);
+}
+
+.ba-bundle-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--est-text);
+}
+
+.ba-bundle-help {
+  margin: 0 0 0.5rem;
+  font-size: var(--est-font-desc);
+  color: var(--est-muted);
+  line-height: 1.45;
 }
 
 @media (max-width: 960px) {
+  .est-field-grid_identity,
   .est-field-grid_other {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -92,7 +111,8 @@
 
 @media (max-width: 720px) {
   .est-field-grid_other,
-  .est-field-grid_address {
+  .est-field-grid_address,
+  .est-field-grid_identity {
     grid-template-columns: 1fr;
     align-items: stretch;
   }

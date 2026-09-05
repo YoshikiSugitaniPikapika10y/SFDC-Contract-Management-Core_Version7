@@ -690,6 +690,16 @@ private class EstimateQueryServiceTest {
         dto.billingCustomFields.get('BillingEmailTo__c'),
         'Core 第5.2節: 受注画面は請求アカウントの最新のToを読む'
       );
+      System.assertEquals(
+        InvoiceDeliveryMethodService.EMAIL,
+        dto.billingCustomFields.get('InvoiceDeliveryMethod__c'),
+        'Core 第5.2節: 送付の届け方を読む'
+      );
+      System.assertEquals(
+        String.valueOf(billing.Id),
+        dto.billingCustomFields.get('BillingAccountKey__c'),
+        'Core 第3.3.2節: 識別のキーを読む'
+      );
     }
   }
 

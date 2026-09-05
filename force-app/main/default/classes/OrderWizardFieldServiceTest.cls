@@ -144,6 +144,7 @@ private class OrderWizardFieldServiceTest {
     System.assert(apiNames.contains('BillingEmailTo__c'));
     System.assert(apiNames.contains('BillingEmailCc__c'));
     System.assert(apiNames.contains('BillingEmailBcc__c'));
+    System.assert(apiNames.contains('InvoiceDeliveryMethod__c'));
     System.assert(!apiNames.contains('Name'));
   }
 

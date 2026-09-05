@@ -56,6 +56,9 @@ public without sharing class OrderCreateController {
     public String billingAccountName;
 
     @AuraEnabled
+    public String billingAccountKey;
+
+    @AuraEnabled
     public String billingCustomerAccountName;
 
     @AuraEnabled
@@ -601,6 +604,10 @@ public without sharing class OrderCreateController {
       null
       ? null
       : history.ContractService__r.BiilingAcccount__r.Name;
+    dto.billingAccountKey = history.ContractService__r.BiilingAcccount__r ==
+      null
+      ? null
+      : history.ContractService__r.BiilingAcccount__r.BillingAccountKey__c;
     dto.billingCustomerAccountName = history.ContractService__r.BiilingAcccount__r ==
       null ||
       history.ContractService__r.BiilingAcccount__r.Account__r == null
@@ -2751,6 +2758,8 @@ public without sharing class OrderCreateController {
       ', ContractService__c, ContractService__r.Name, ContractService__r.Lifecycle__c, ' +
       'ContractService__r.Account__r.Name, ContractService__r.BiilingAcccount__c, ' +
       'ContractService__r.BiilingAcccount__r.Name, ' +
+      'ContractService__r.BiilingAcccount__r.BillingAccountKey__c, ' +
+      'ContractService__r.BiilingAcccount__r.InvoiceDeliveryMethod__c, ' +
       'ContractService__r.BiilingAcccount__r.InvoiceDateMethod__c, ' +
       'ContractService__r.BiilingAcccount__r.InvoiceDateDayKind__c, ' +
       'ContractService__r.BiilingAcccount__r.InvoiceDateDayOfMonth__c, ' +
@@ -3180,6 +3189,8 @@ public without sharing class OrderCreateController {
         BillingEmailTo__c,
         BillingEmailCc__c,
         BillingEmailBcc__c,
+        InvoiceDeliveryMethod__c,
+        BillingAccountKey__c,
         InvoiceDateMethod__c,
         InvoiceDateDayKind__c,
         InvoiceDateDayOfMonth__c,
@@ -3206,6 +3217,8 @@ public without sharing class OrderCreateController {
     values.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
     values.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
     values.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
+    values.put('InvoiceDeliveryMethod__c', loaded.InvoiceDeliveryMethod__c);
+    values.put('BillingAccountKey__c', loaded.BillingAccountKey__c);
     for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
       values.put(fieldApiName, loaded.get(fieldApiName));
     }

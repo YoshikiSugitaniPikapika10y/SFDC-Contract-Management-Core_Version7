@@ -614,6 +614,7 @@ public without sharing class OrderWizardFieldService {
   }
 
   // 受注ウィザードでは Note__c（備考）を扱わない。見積の備考をそのまま引き継ぐため。
+  /** 仕様: Core 第5.2節・第3.3.2節。参照確認の項目。届け方は送付。必須は本定義に含めずハードコード。 */
   private static List<FieldConfig> orderBillingAccountFields() {
     FieldConfig addressee = new FieldConfig();
     addressee.fieldApiName = 'BillingAddressee__c';
@@ -638,6 +639,12 @@ public without sharing class OrderWizardFieldService {
     emailBcc.label = '請求書送付先（Bcc）';
     emailBcc.required = false;
     emailBcc.sortOrder = 30;
+
+    FieldConfig deliveryMethod = new FieldConfig();
+    deliveryMethod.fieldApiName = 'InvoiceDeliveryMethod__c';
+    deliveryMethod.label = '届け方';
+    deliveryMethod.required = false;
+    deliveryMethod.sortOrder = 35;
 
     FieldConfig invoiceDateMethod = new FieldConfig();
     invoiceDateMethod.fieldApiName = 'InvoiceDateMethod__c';
@@ -716,6 +723,7 @@ public without sharing class OrderWizardFieldService {
       emailTo,
       emailCc,
       emailBcc,
+      deliveryMethod,
       invoiceDateMethod,
       invoiceDateAdjust,
       invoiceDateDayKind,

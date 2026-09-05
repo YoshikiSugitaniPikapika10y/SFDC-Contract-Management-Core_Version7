@@ -2,19 +2,24 @@ import { LightningElement, api, wire } from "lwc";
 import { NavigationMixin } from "lightning/navigation";
 import { refreshApex } from "@salesforce/apex";
 import { getRecordNotifyChange } from "lightning/uiRecordApi";
+import { getObjectInfo } from "lightning/uiObjectInfoApi";
+import BILLING_ACCOUNT_OBJECT from "@salesforce/schema/BillingAccount__c";
 import getOrderBillingFieldDefinitions from "@salesforce/apex/OrderWizardFieldService.getOrderBillingFieldDefinitions";
 import getBillingAccountInvoiceSettings from "@salesforce/apex/EstimateCreateController.getBillingAccountInvoiceSettings";
 import { buildCustomFieldInputs } from "c/estimateWizardCustomFields";
+import {
+  DELIVERY_FIELD_APIS,
+  INVOICE_DATE_FIELD_APIS,
+  PAYMENT_TERM_FIELD_APIS,
+  invoiceDateMethodHelp,
+  isBillingScheduleFieldVisible,
+  paymentTermMethodHelp
+} from "c/billingAccountForm";
 
 const EMPTY_LABEL = "—";
-
-/** 2行目（アドレス行）に出す請求アカウント項目 */
-const ADDRESS_FIELD_APIS = new Set([
-  "BillingAddressee__c",
-  "BillingEmailTo__c",
-  "BillingEmailCc__c",
-  "BillingEmailBcc__c"
-]);
+const DELIVERY_FIELD_API_SET = new Set(DELIVERY_FIELD_APIS);
+const INVOICE_DATE_FIELD_API_SET = new Set(INVOICE_DATE_FIELD_APIS);
+const PAYMENT_TERM_FIELD_API_SET = new Set(PAYMENT_TERM_FIELD_APIS);
 
 /** 仕様: Core 第5.2節 */
 export default class OrderCreateStepBilling extends NavigationMixin(
@@ -28,6 +33,7 @@ export default class OrderCreateStepBilling extends NavigationMixin(
   _wiredBillingAccountInvoiceSettings;
 
   fieldDefinitions = [];
+  _objectInfo;
 
   connectedCallback() {
     // eslint-disable-next-line @lwc/lwc/no-async-operation
@@ -80,7 +86,7 @@ export default class OrderCreateStepBilling extends NavigationMixin(
   @api
   openBillingAccountFormalEdit() {
     const recordId = this.billingAccountId;
-    if (!recordId) {
+    if (!recordId || this.canUpdateBillingAccount === false) {
       return false;
     }
     this[NavigationMixin.Navigate]({
@@ -104,6 +110,11 @@ export default class OrderCreateStepBilling extends NavigationMixin(
     const missingLabels = [];
     for (const field of this.fieldDefinitions) {
       if (!field.required) {
+        continue;
+      }
+      if (
+        !isBillingScheduleFieldVisible(field.apiName, this._billingCustomFields)
+      ) {
         continue;
       }
       const value = this.resolveBillingFieldValue(
@@ -175,6 +186,13 @@ export default class OrderCreateStepBilling extends NavigationMixin(
     return this.context?.billingAccountId || null;
   }
 
+  @wire(getObjectInfo, { objectApiName: BILLING_ACCOUNT_OBJECT })
+  wiredBillingAccountObjectInfo({ data }) {
+    if (data) {
+      this._objectInfo = data;
+    }
+  }
+
   @wire(getBillingAccountInvoiceSettings, {
     billingAccountId: "$billingAccountId"
   })
@@ -225,28 +243,65 @@ export default class OrderCreateStepBilling extends NavigationMixin(
     return this.context?.billingAccountName || EMPTY_LABEL;
   }
 
+  get billingAccountKey() {
+    return this.context?.billingAccountKey || EMPTY_LABEL;
+  }
+
+  get canUpdateBillingAccount() {
+    if (!this._objectInfo) {
+      return true;
+    }
+    return Boolean(this._objectInfo.updateable);
+  }
+
+  get showFormalEditButton() {
+    return this.hasBillingAccount && this.canUpdateBillingAccount;
+  }
+
+  get invoiceDateHelp() {
+    return invoiceDateMethodHelp(
+      this._billingCustomFields.InvoiceDateMethod__c
+    );
+  }
+
+  get paymentTermHelp() {
+    return paymentTermMethodHelp(
+      this._billingCustomFields.PaymentTermMethod__c
+    );
+  }
+
   get billingFieldInputs() {
     return buildCustomFieldInputs(
       this.fieldDefinitions,
       this._billingCustomFields,
       "order-billing",
       true
-    ).map((field) => ({
-      ...field,
-      displayValue: this.formatDisplayValue(field.displayValue),
-      labelClass: field.required ? "est-label est-label_required" : "est-label"
-    }));
+    )
+      .filter((field) =>
+        isBillingScheduleFieldVisible(field.apiName, this._billingCustomFields)
+      )
+      .map((field) => ({
+        ...field,
+        displayValue: this.formatDisplayValue(field.displayValue),
+        labelClass: field.required ? "est-label est-label_required" : "est-label"
+      }));
   }
 
-  get otherFieldInputs() {
-    return this.billingFieldInputs.filter(
-      (field) => !ADDRESS_FIELD_APIS.has(field.apiName)
+  get deliveryFieldInputs() {
+    return this.billingFieldInputs.filter((field) =>
+      DELIVERY_FIELD_API_SET.has(field.apiName)
     );
   }
 
-  get addressFieldInputs() {
+  get invoiceDateFieldInputs() {
     return this.billingFieldInputs.filter((field) =>
-      ADDRESS_FIELD_APIS.has(field.apiName)
+      INVOICE_DATE_FIELD_API_SET.has(field.apiName)
+    );
+  }
+
+  get paymentTermFieldInputs() {
+    return this.billingFieldInputs.filter((field) =>
+      PAYMENT_TERM_FIELD_API_SET.has(field.apiName)
     );
   }
 

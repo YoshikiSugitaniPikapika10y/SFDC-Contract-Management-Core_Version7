@@ -51,6 +51,15 @@
             <span class="est-label est-label_required">請求アカウント</span>
             <template if:true={showBillingAccountReadonly}>
               <div class="est-value">{billingAccountDisplayValue}</div>
+              <template if:true={showBillingAccountFormalEdit}>
+                <button
+                  type="button"
+                  class="est-billing-reselect"
+                  onclick={handleOpenBillingAccountFormalEdit}
+                >
+                  請求アカウントの正規編集画面を開く
+                </button>
+              </template>
               <template if:false={isStandardFieldsReadonly}>
                 <button
                   type="button"
@@ -325,6 +334,15 @@
             <div class="est-field est-field_billing">
               <span class="est-label">請求アカウント</span>
               <div class="est-value">{billingAccountDisplayValue}</div>
+              <template if:true={showBillingAccountFormalEdit}>
+                <button
+                  type="button"
+                  class="est-billing-reselect"
+                  onclick={handleOpenBillingAccountFormalEdit}
+                >
+                  請求アカウントの正規編集画面を開く
+                </button>
+              </template>
             </div>
             <div class="est-field">
               <span class="est-label">税率</span>

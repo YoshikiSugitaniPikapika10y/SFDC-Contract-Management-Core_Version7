@@ -48,8 +48,8 @@
         </itemInstances>
         <itemInstances>
             <componentInstance>
-                <componentName>force:detailPanel</componentName>
-                <identifier>force_detailPanel</identifier>
+                <componentName>billingAccountForm</componentName>
+                <identifier>c_billingAccountForm</identifier>
             </componentInstance>
         </itemInstances>
         <name>detailTabContent</name>

@@ -234,6 +234,7 @@
     </types>
     <types>
         <members>estimateCopyRecordAction</members>
+        <members>billingAccountForm</members>
         <members>estimateArchiveRecordAction</members>
         <members>estimateCreateModal1</members>
         <members>estimateCreateModal2</members>

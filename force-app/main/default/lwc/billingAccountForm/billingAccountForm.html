@@ -1,0 +1,282 @@
+<template>
+  <template if:true={permissionDeniedMessage}>
+    <div class="ba-alert" role="alert">{permissionDeniedMessage}</div>
+  </template>
+
+  <template if:true={showForm}>
+    <template if:true={isView}>
+      <lightning-record-view-form
+        record-id={recordId}
+        object-api-name="BillingAccount__c"
+      >
+        <div class="ba-toolbar">
+          <template if:true={showEditButton}>
+            <lightning-button
+              label="編集"
+              variant="brand"
+              onclick={handleOpenEdit}
+            ></lightning-button>
+          </template>
+        </div>
+        <section class="ba-section">
+          <h2 class="ba-section-title">識別</h2>
+          <div class="ba-grid">
+            <lightning-output-field field-name="Name"></lightning-output-field>
+            <lightning-output-field
+              field-name="Account__c"
+            ></lightning-output-field>
+            <lightning-output-field
+              field-name="BillingAccountKey__c"
+            ></lightning-output-field>
+            <template if:true={showHasReference}>
+              <lightning-output-field
+                field-name="HasReference__c"
+              ></lightning-output-field>
+            </template>
+          </div>
+        </section>
+        <section class="ba-section">
+          <h2 class="ba-section-title">送付</h2>
+          <div class="ba-grid">
+            <lightning-output-field
+              field-name="BillingAddressee__c"
+            ></lightning-output-field>
+            <lightning-output-field
+              field-name="BillingEmailTo__c"
+            ></lightning-output-field>
+            <lightning-output-field
+              field-name="BillingEmailCc__c"
+            ></lightning-output-field>
+            <lightning-output-field
+              field-name="BillingEmailBcc__c"
+            ></lightning-output-field>
+            <lightning-output-field
+              field-name="InvoiceDeliveryMethod__c"
+            ></lightning-output-field>
+          </div>
+        </section>
+        <section class="ba-section">
+          <h2 class="ba-section-title">請求日ルール</h2>
+          <p class="ba-help">{invoiceDateHelp}</p>
+          <div class="ba-grid">
+            <lightning-output-field
+              field-name="InvoiceDateMethod__c"
+            ></lightning-output-field>
+            <lightning-output-field
+              field-name="InvoiceDateAdjust__c"
+            ></lightning-output-field>
+            <template if:true={showInvoiceDayKind}>
+              <lightning-output-field
+                field-name="InvoiceDateDayKind__c"
+              ></lightning-output-field>
+            </template>
+            <template if:true={showInvoiceDayOfMonth}>
+              <lightning-output-field
+                field-name="InvoiceDateDayOfMonth__c"
+              ></lightning-output-field>
+            </template>
+            <template if:true={showInvoiceMonthOffset}>
+              <lightning-output-field
+                field-name="InvoiceDateMonthOffset__c"
+              ></lightning-output-field>
+            </template>
+            <template if:true={showInvoiceDayOffset}>
+              <lightning-output-field
+                field-name="InvoiceDateDayOffset__c"
+              ></lightning-output-field>
+            </template>
+          </div>
+        </section>
+        <section class="ba-section">
+          <h2 class="ba-section-title">支払条件</h2>
+          <p class="ba-help">{paymentTermHelp}</p>
+          <div class="ba-grid">
+            <lightning-output-field
+              field-name="PaymentTermMethod__c"
+            ></lightning-output-field>
+            <lightning-output-field
+              field-name="PaymentTermAdjust__c"
+            ></lightning-output-field>
+            <template if:true={showPaymentDayKind}>
+              <lightning-output-field
+                field-name="PaymentTermDayKind__c"
+              ></lightning-output-field>
+            </template>
+            <template if:true={showPaymentDayOfMonth}>
+              <lightning-output-field
+                field-name="PaymentTermDayOfMonth__c"
+              ></lightning-output-field>
+            </template>
+            <template if:true={showPaymentMonthOffset}>
+              <lightning-output-field
+                field-name="PaymentTermMonthOffset__c"
+              ></lightning-output-field>
+            </template>
+            <template if:true={showPaymentDayOffset}>
+              <lightning-output-field
+                field-name="PaymentTermDayOffset__c"
+              ></lightning-output-field>
+            </template>
+          </div>
+        </section>
+      </lightning-record-view-form>
+    </template>
+
+    <template if:false={isView}>
+      <lightning-record-edit-form
+        record-id={recordId}
+        object-api-name="BillingAccount__c"
+        onsubmit={handleSubmit}
+        onsuccess={handleSuccess}
+        onerror={handleError}
+      >
+        <lightning-messages></lightning-messages>
+        <template if:true={errorMessage}>
+          <div class="ba-alert" role="alert">{errorMessage}</div>
+        </template>
+        <section class="ba-section">
+          <h2 class="ba-section-title">識別</h2>
+          <div class="ba-grid">
+            <lightning-input-field
+              field-name="Name"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <lightning-input-field
+              field-name="Account__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <template if:true={showKeyInput}>
+              <lightning-input-field
+                field-name="BillingAccountKey__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+            <template if:true={showKeyOutput}>
+              <lightning-output-field
+                field-name="BillingAccountKey__c"
+              ></lightning-output-field>
+            </template>
+            <template if:true={showHasReference}>
+              <lightning-output-field
+                field-name="HasReference__c"
+              ></lightning-output-field>
+            </template>
+          </div>
+        </section>
+        <section class="ba-section">
+          <h2 class="ba-section-title">送付</h2>
+          <div class="ba-grid">
+            <lightning-input-field
+              field-name="BillingAddressee__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <lightning-input-field
+              field-name="BillingEmailTo__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <lightning-input-field
+              field-name="BillingEmailCc__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <lightning-input-field
+              field-name="BillingEmailBcc__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <lightning-input-field
+              field-name="InvoiceDeliveryMethod__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+          </div>
+        </section>
+        <section class="ba-section">
+          <h2 class="ba-section-title">請求日ルール</h2>
+          <p class="ba-help">{invoiceDateHelp}</p>
+          <div class="ba-grid">
+            <lightning-input-field
+              field-name="InvoiceDateMethod__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <lightning-input-field
+              field-name="InvoiceDateAdjust__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <template if:true={showInvoiceMonthOffset}>
+              <lightning-input-field
+                field-name="InvoiceDateMonthOffset__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+            <template if:true={showInvoiceDayKind}>
+              <lightning-input-field
+                field-name="InvoiceDateDayKind__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+            <template if:true={showInvoiceDayOfMonth}>
+              <lightning-input-field
+                field-name="InvoiceDateDayOfMonth__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+            <template if:true={showInvoiceDayOffset}>
+              <lightning-input-field
+                field-name="InvoiceDateDayOffset__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+          </div>
+        </section>
+        <section class="ba-section">
+          <h2 class="ba-section-title">支払条件</h2>
+          <p class="ba-help">{paymentTermHelp}</p>
+          <div class="ba-grid">
+            <lightning-input-field
+              field-name="PaymentTermMethod__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <lightning-input-field
+              field-name="PaymentTermAdjust__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
+            <template if:true={showPaymentMonthOffset}>
+              <lightning-input-field
+                field-name="PaymentTermMonthOffset__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+            <template if:true={showPaymentDayKind}>
+              <lightning-input-field
+                field-name="PaymentTermDayKind__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+            <template if:true={showPaymentDayOfMonth}>
+              <lightning-input-field
+                field-name="PaymentTermDayOfMonth__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+            <template if:true={showPaymentDayOffset}>
+              <lightning-input-field
+                field-name="PaymentTermDayOffset__c"
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
+          </div>
+        </section>
+        <div class="ba-toolbar">
+          <lightning-button
+            class="slds-m-right_small"
+            label="キャンセル"
+            onclick={handleCancel}
+          ></lightning-button>
+          <lightning-button
+            type="submit"
+            variant="brand"
+            label="保存"
+          ></lightning-button>
+        </div>
+      </lightning-record-edit-form>
+    </template>
+  </template>
+</template>

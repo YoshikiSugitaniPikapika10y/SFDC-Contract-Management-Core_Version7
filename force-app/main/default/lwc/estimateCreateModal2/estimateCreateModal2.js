@@ -1,14 +1,17 @@
 import { LightningElement, api, track, wire } from "lwc";
+import { NavigationMixin } from "lightning/navigation";
 import {
   getRecord,
   getFieldValue,
   getRecordNotifyChange
 } from "lightning/uiRecordApi";
+import { getObjectInfo } from "lightning/uiObjectInfoApi";
 import { refreshApex } from "@salesforce/apex";
 import OPP_NAME_FIELD from "@salesforce/schema/Opportunity.Name";
 import OPP_ACCOUNT_ID_FIELD from "@salesforce/schema/Opportunity.AccountId";
 import CS_BILLING_ACCOUNT_FIELD from "@salesforce/schema/ContractService__c.BiilingAcccount__c";
 import BA_NAME_FIELD from "@salesforce/schema/BillingAccount__c.Name";
+import BILLING_ACCOUNT_OBJECT from "@salesforce/schema/BillingAccount__c";
 import getBillingAccountsByAccount from "@salesforce/apex/EstimateCreateController.getBillingAccountsByAccount";
 import getActiveContractServicesByAccount from "@salesforce/apex/EstimateCreateController.getActiveContractServicesByAccount";
 import {
@@ -40,7 +43,9 @@ const TYPE_META = {
  * 基本情報内: 契約の特定（名前／選択／請求アカウント／契約履歴名）と操作選択。
  * 入口（新規/続き）は modal1。操作はサービス選択後にここ。
  */
-export default class EstimateCreateModal2 extends LightningElement {
+export default class EstimateCreateModal2 extends NavigationMixin(
+  LightningElement
+) {
   @api recordId;
   @api editMode = false;
   @api orderedCustomFieldsOnly = false;
@@ -69,6 +74,7 @@ export default class EstimateCreateModal2 extends LightningElement {
   @track servicePickerOpen = false;
   /** LDS で取得した商談名（デフォルト名用）。 */
   @track opportunityName = "";
+  _billingAccountObjectInfo;
 
   @api
   get wizardData() {
@@ -168,6 +174,25 @@ export default class EstimateCreateModal2 extends LightningElement {
 
   get billingAccountId() {
     return this._wizardData?.billingAccountId || "";
+  }
+
+  @wire(getObjectInfo, { objectApiName: BILLING_ACCOUNT_OBJECT })
+  wiredBillingAccountObjectInfo({ data }) {
+    if (data) {
+      this._billingAccountObjectInfo = data;
+    }
+  }
+
+  get canUpdateBillingAccount() {
+    if (!this._billingAccountObjectInfo) {
+      return true;
+    }
+    return Boolean(this._billingAccountObjectInfo.updateable);
+  }
+
+  /** 仕様: Core 第4.3.3節。宛名・メールはウィザード内で編集せず、19があれば正規 Edit へ。 */
+  get showBillingAccountFormalEdit() {
+    return Boolean(this.billingAccountId) && this.canUpdateBillingAccount;
   }
 
   get taxPercent() {
@@ -833,6 +858,23 @@ export default class EstimateCreateModal2 extends LightningElement {
     this._billingAccountResolved = !this.isNewType;
     this.allowOtherAccountBilling = false;
     this.emitChange({ billingAccountId: "" });
+  }
+
+  /** 仕様: Core 第4.3.3節。19 が無ければ遷移は出さない。 */
+  handleOpenBillingAccountFormalEdit() {
+    const recordId = this.billingAccountId;
+    if (!recordId || this.canUpdateBillingAccount === false) {
+      return false;
+    }
+    this[NavigationMixin.Navigate]({
+      type: "standard__recordPage",
+      attributes: {
+        recordId,
+        objectApiName: "BillingAccount__c",
+        actionName: "edit"
+      }
+    });
+    return true;
   }
 
   handleAllowOtherAccountBillingChange(event) {

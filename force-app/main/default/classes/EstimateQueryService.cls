@@ -1192,7 +1192,7 @@ public without sharing class EstimateQueryService {
     }
   }
 
-  /** 仕様: Core 第5.2節。宛名・To/Cc/Bcc・支払条件・請求日ルールの最新。 */
+  /** 仕様: Core 第5.2節・第3.3.2節。4束ねの最新。届け方は送付、キーは識別。 */
   public static EstimateCreateController.BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
     Id billingAccountId
   ) {
@@ -1208,6 +1208,8 @@ public without sharing class EstimateQueryService {
         BillingEmailTo__c,
         BillingEmailCc__c,
         BillingEmailBcc__c,
+        InvoiceDeliveryMethod__c,
+        BillingAccountKey__c,
         InvoiceDateMethod__c,
         InvoiceDateDayKind__c,
         InvoiceDateDayOfMonth__c,
@@ -1233,6 +1235,14 @@ public without sharing class EstimateQueryService {
     dto.billingCustomFields.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
     dto.billingCustomFields.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
     dto.billingCustomFields.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
+    dto.billingCustomFields.put(
+      'InvoiceDeliveryMethod__c',
+      loaded.InvoiceDeliveryMethod__c
+    );
+    dto.billingCustomFields.put(
+      'BillingAccountKey__c',
+      loaded.BillingAccountKey__c
+    );
     for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
       dto.billingCustomFields.put(fieldApiName, loaded.get(fieldApiName));
     }

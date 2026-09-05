@@ -10,38 +10,70 @@
 
     <div class="est-card-body">
       <template if:true={hasBillingAccount}>
-        <div class="est-field-grid est-field-grid_other">
-          <div class="est-field">
-            <span class="est-label">取引先</span>
-            <div class="est-value">{billingCustomerAccountName}</div>
-          </div>
-          <div class="est-field">
-            <span class="est-label">請求アカウント</span>
-            <div class="est-value">{billingAccountName}</div>
-          </div>
-          <template for:each={otherFieldInputs} for:item="field">
-            <div key={field.key} class="est-field">
-              <span class={field.labelClass}> {field.label} </span>
-              <div class="est-value">{field.displayValue}</div>
+        <section class="ba-bundle">
+          <h3 class="ba-bundle-title">識別</h3>
+          <div class="est-field-grid est-field-grid_identity">
+            <div class="est-field">
+              <span class="est-label">取引先</span>
+              <div class="est-value">{billingCustomerAccountName}</div>
             </div>
-          </template>
-        </div>
-
-        <div class="est-field-grid est-field-grid_address">
-          <template for:each={addressFieldInputs} for:item="field">
-            <div key={field.key} class="est-field">
-              <span class={field.labelClass}> {field.label} </span>
-              <div class="est-value">{field.displayValue}</div>
+            <div class="est-field">
+              <span class="est-label">請求アカウント</span>
+              <div class="est-value">{billingAccountName}</div>
             </div>
-          </template>
-        </div>
+            <div class="est-field">
+              <span class="est-label">キー</span>
+              <div class="est-value">{billingAccountKey}</div>
+            </div>
+          </div>
+        </section>
 
-        <div class="est-formal-edit slds-m-top_small">
-          <lightning-button
-            label="請求アカウントの正規編集画面を開く"
-            onclick={handleOpenFormalEdit}
-          ></lightning-button>
-        </div>
+        <section class="ba-bundle">
+          <h3 class="ba-bundle-title">送付</h3>
+          <div class="est-field-grid est-field-grid_address">
+            <template for:each={deliveryFieldInputs} for:item="field">
+              <div key={field.key} class="est-field">
+                <span class={field.labelClass}> {field.label} </span>
+                <div class="est-value">{field.displayValue}</div>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <section class="ba-bundle">
+          <h3 class="ba-bundle-title">請求日ルール</h3>
+          <p class="ba-bundle-help">{invoiceDateHelp}</p>
+          <div class="est-field-grid est-field-grid_other">
+            <template for:each={invoiceDateFieldInputs} for:item="field">
+              <div key={field.key} class="est-field">
+                <span class={field.labelClass}> {field.label} </span>
+                <div class="est-value">{field.displayValue}</div>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <section class="ba-bundle">
+          <h3 class="ba-bundle-title">支払条件</h3>
+          <p class="ba-bundle-help">{paymentTermHelp}</p>
+          <div class="est-field-grid est-field-grid_other">
+            <template for:each={paymentTermFieldInputs} for:item="field">
+              <div key={field.key} class="est-field">
+                <span class={field.labelClass}> {field.label} </span>
+                <div class="est-value">{field.displayValue}</div>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <template if:true={showFormalEditButton}>
+          <div class="est-formal-edit slds-m-top_small">
+            <lightning-button
+              label="請求アカウントの正規編集画面を開く"
+              onclick={handleOpenFormalEdit}
+            ></lightning-button>
+          </div>
+        </template>
       </template>
 
       <template if:false={hasBillingAccount}>

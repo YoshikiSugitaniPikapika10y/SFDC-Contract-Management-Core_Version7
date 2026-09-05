@@ -14,7 +14,19 @@ jest.mock(
 );
 jest.mock(
   "lightning/uiRecordApi",
-  () => ({ getRecordNotifyChange: jest.fn() }),
+  () => {
+    function getRecord() {}
+    return {
+      getRecord,
+      getFieldValue: jest.fn(),
+      getRecordNotifyChange: jest.fn()
+    };
+  },
+  { virtual: true }
+);
+jest.mock(
+  "lightning/actions",
+  () => ({ CloseActionScreenEvent: class CloseActionScreenEvent {} }),
   { virtual: true }
 );
 jest.mock("@salesforce/apex", () => ({ refreshApex: jest.fn() }), {
@@ -90,6 +102,18 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
     const opened =
       OrderCreateStepBilling.prototype.openBillingAccountFormalEdit.call({
         billingAccountId: null,
+        [NavigationMixin.Navigate]: navigate
+      });
+    expect(opened).toBe(false);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate when 19 cannot update the billing account (共通基盤 10.4)", () => {
+    const navigate = jest.fn();
+    const opened =
+      OrderCreateStepBilling.prototype.openBillingAccountFormalEdit.call({
+        billingAccountId: "a00BA0000000001",
+        canUpdateBillingAccount: false,
         [NavigationMixin.Navigate]: navigate
       });
     expect(opened).toBe(false);
