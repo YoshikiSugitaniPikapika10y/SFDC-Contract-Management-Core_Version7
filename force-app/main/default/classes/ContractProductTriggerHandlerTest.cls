@@ -160,6 +160,21 @@ private class ContractProductTriggerHandlerTest {
         contractProduct.InvoiceAnchorDate__c,
         '請求基準は InvoiceAnchorDateUtil'
       );
+      Account otherAccount = ContractTestDataFactory.insertAccount(
+        'Trigger Keep Account'
+      );
+      ContractProduct__c keepAccount = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = otherAccount.Id
+      );
+      ContractProductTriggerHandler.populateAccountFromContractHistory(
+        new List<ContractProduct__c>{ keepAccount }
+      );
+      System.assertEquals(
+        otherAccount.Id,
+        keepAccount.Account__c,
+        'Core 第4.6節: 空の取引先だけ契約サービスから埋める。既にあれば上書きしない'
+      );
     }
   }
 
@@ -345,6 +360,10 @@ private class ContractProductTriggerHandlerTest {
 
   @IsTest
   static void populateAccount_ignoresNullAndEmpty() {
+    ContractProductTriggerHandler.handleBeforeInsertOrUpdate(null);
+    ContractProductTriggerHandler.handleBeforeInsertOrUpdate(
+      new List<ContractProduct__c>()
+    );
     ContractProductTriggerHandler.populateAccountFromContractHistory(null);
     ContractProductTriggerHandler.populateAccountFromContractHistory(
       new List<ContractProduct__c>()
@@ -360,10 +379,16 @@ private class ContractProductTriggerHandlerTest {
     ContractProductTriggerHandler.handleAfterDelete(
       new List<ContractProduct__c>()
     );
+    ContractProduct__c untouched = new ContractProduct__c(
+      Amount__c = 12345
+    );
+    ContractProductTriggerHandler.handleBeforeInsertOrUpdate(
+      new List<ContractProduct__c>{ untouched }
+    );
     System.assertEquals(
-      0,
-      new List<ContractProduct__c>().size(),
-      'null／空入力でも例外にならないこと'
+      12345,
+      untouched.Amount__c,
+      'Core 第4.6節: 見積商品金額はウィザードで確認・保存した税抜であり、Triggerは再計算上書きしない'
     );
   }
 

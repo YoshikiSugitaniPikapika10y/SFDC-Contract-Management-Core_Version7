@@ -180,6 +180,85 @@ private class InvoiceDocumentServiceTest {
   }
 
   @IsTest
+  static void loadContext_andSavePdf_rejectBlankIdsAndEmptyBody() {
+    Boolean missingId = false;
+    try {
+      InvoiceDocumentService.loadContext(null);
+    } catch (InvoiceDocumentService.InvoiceDocumentException ex) {
+      missingId = true;
+      System.assertEquals(
+        '請求IDが指定されていません。',
+        ex.getMessage(),
+        'Core 第7.10節: 請求IDが無い発行は止める'
+      );
+    }
+    System.assertEquals(true, missingId);
+
+    Boolean notFound = false;
+    try {
+      InvoiceDocumentService.loadContext(UserInfo.getUserId());
+    } catch (InvoiceDocumentService.InvoiceDocumentException ex) {
+      notFound = true;
+      System.assertEquals(
+        '請求が見つかりません。',
+        ex.getMessage(),
+        'Core 第7.10節: 無い請求は発行できない'
+      );
+    }
+    System.assertEquals(true, notFound);
+
+    Boolean missingSaveId = false;
+    try {
+      InvoiceDocumentService.savePdfToInvoice(
+        null,
+        'invoice.pdf',
+        Blob.valueOf('%PDF-1.4')
+      );
+    } catch (InvoiceDocumentService.InvoiceDocumentException ex) {
+      missingSaveId = true;
+      System.assertEquals(
+        '保存先の請求IDが指定されていません。',
+        ex.getMessage(),
+        'Core 第7.10節: 保存先の請求が無い発行は止める'
+      );
+    }
+    System.assertEquals(true, missingSaveId);
+
+    Boolean emptyPdf = false;
+    try {
+      InvoiceDocumentService.savePdfToInvoice(
+        UserInfo.getUserId(),
+        'invoice.pdf',
+        null
+      );
+    } catch (InvoiceDocumentService.InvoiceDocumentException ex) {
+      emptyPdf = true;
+      System.assertEquals(
+        'PDFデータが空です。',
+        ex.getMessage(),
+        'Core 第7.10節: 空のPDFは発行できない'
+      );
+    }
+    System.assertEquals(true, emptyPdf);
+
+    System.assertEquals(
+      '請求書',
+      InvoiceDocumentService.sanitizeFileName(null),
+      'Core 第11.3.2節: 空のファイル名は請求書'
+    );
+    System.assertEquals(
+      'a_b_c',
+      InvoiceDocumentService.sanitizeFileName('a/b:c'),
+      'Core 第11.3.2節: ファイル名の禁則文字は置き換える'
+    );
+    System.assertEquals(
+      '',
+      InvoiceDocumentService.formatDisplayDate(null),
+      '日付仕様 第8章: 空の請求日は本文を今日で埋めない'
+    );
+  }
+
+  @IsTest
   static void generatePdfBlob_returnsDummyDuringTest() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Confirmed');

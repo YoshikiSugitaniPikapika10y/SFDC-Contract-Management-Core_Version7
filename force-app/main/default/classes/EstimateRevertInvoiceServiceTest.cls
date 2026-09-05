@@ -453,8 +453,47 @@ private class EstimateRevertInvoiceServiceTest {
           WHERE Name = 'Newer Estimate v3'
           LIMIT 1
         ]
-        .historystatus__c
+        .historystatus__c,
+        'Core 第4.9節: 差し戻しはより新しい Estimate を先に Archive にする'
       );
+    }
+  }
+
+  @IsTest
+  static void revertHelpers_emptyAndNull_doNotChangeHistories() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateRevertInvoiceService.archiveNewerEstimates(null);
+      EstimateRevertInvoiceService.archiveNewerEstimates(
+        new List<ContractHistory__c>()
+      );
+      EstimateRevertInvoiceService.archiveNewerEstimates(
+        new List<ContractHistory__c>{ null, new ContractHistory__c() }
+      );
+      EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories(null);
+      EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories(
+        new List<ContractHistory__c>()
+      );
+      EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories(
+        new List<ContractHistory__c>{ new ContractHistory__c() }
+      );
+      System.assertEquals(
+        false,
+        EstimateRevertInvoiceService.isLatestOrderedHistory(null),
+        'Core 第4.9節: Latest Ordered だけ差し戻せる。空の履歴は最新と証明できない'
+      );
+      System.assertEquals(
+        false,
+        EstimateRevertInvoiceService.hasNewerEstimateVersion(null),
+        'Core 第4.9節: より新しい Estimate の判定も空の履歴ではしない'
+      );
+      EstimateRevertInvoiceService.RevertBlockSets emptyBlocks =
+        EstimateRevertInvoiceService.queryRevertBlockSets(null);
+      System.assertEquals(
+        0,
+        emptyBlocks.nonLatestOrderedHistoryIds.size(),
+        'Core 第4.9節: 対象が空なら差し戻し拒否の集合も空'
+      );
+      System.assertEquals(0, emptyBlocks.newerEstimateHistoryIds.size());
     }
   }
 
