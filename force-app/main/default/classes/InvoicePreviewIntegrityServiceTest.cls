@@ -245,6 +245,27 @@ private class InvoicePreviewIntegrityServiceTest {
   }
 
   @IsTest
+  static void assertSameHistory_skipsRecordsWithoutId_andKeepsMatchingHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createMatchingFixture();
+      InvoicePreviewIntegrityService.assertSameHistory(
+        fixture.historyId,
+        new List<Invoice__c>{ new Invoice__c(), fixture.invoice }
+      );
+      Invoice__c loaded = [
+        SELECT ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      System.assertEquals(
+        fixture.historyId,
+        loaded.ContractHistory__c,
+        '仕様: Core 第7.7.0節 請求書の契約履歴は必須で配下と一致する'
+      );
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_wrapsIntegrityAsAuraHandled() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createMismatchFixture();

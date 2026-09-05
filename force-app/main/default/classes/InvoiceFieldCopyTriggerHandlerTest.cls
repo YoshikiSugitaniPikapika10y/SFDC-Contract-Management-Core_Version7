@@ -27,22 +27,47 @@ private class InvoiceFieldCopyTriggerHandlerTest {
           BillingAccountSnapShot__c,
           BillingAddresseeSnapShot__c,
           BillingEmailToSnapShot__c,
+          BillingEmailCcSnapShot__c,
+          BillingEmailBccSnapShot__c,
+          InvoiceDeliveryMethodSnapShot__c,
           PaymentTermMethodSnapShot__c
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
       System.assertEquals(
         fixture.billingAccount.Id,
-        loaded.BillingAccountSnapShot__c
+        loaded.BillingAccountSnapShot__c,
+        '仕様: Core 第11.4.2節・第5.2節 空欄の請求アカウント参照をコピーする'
       );
       System.assertEquals(
         'トリガ宛名 御中',
-        loaded.BillingAddresseeSnapShot__c
+        loaded.BillingAddresseeSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄だけコピーする'
       );
-      System.assertEquals('trig@example.com', loaded.BillingEmailToSnapShot__c);
+      System.assertEquals(
+        'trig@example.com',
+        loaded.BillingEmailToSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄だけコピーする'
+      );
+      System.assertEquals(
+        'trig-cc@example.com',
+        loaded.BillingEmailCcSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄だけコピーする'
+      );
+      System.assertEquals(
+        'trig-bcc@example.com',
+        loaded.BillingEmailBccSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄だけコピーする'
+      );
+      System.assertEquals(
+        InvoiceDeliveryMethodService.EMAIL,
+        loaded.InvoiceDeliveryMethodSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄だけコピーする'
+      );
       System.assertEquals(
         BillingScheduleService.METHOD_MONTH_OFFSET,
-        loaded.PaymentTermMethodSnapShot__c
+        loaded.PaymentTermMethodSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄だけコピーする'
       );
     }
   }
@@ -146,10 +171,15 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         FROM InvoiceLine__c
         WHERE Id = :line.Id
       ];
-      System.assertEquals(fixture.product.Id, loaded.Product__c);
+      System.assertEquals(
+        fixture.product.Id,
+        loaded.Product__c,
+        '仕様: Core 第11.4.2節 空欄の商品参照をコピーする'
+      );
       System.assertEquals(
         ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
-        loaded.Unit__c
+        loaded.Unit__c,
+        '仕様: Core 第11.4.2節 空欄の単位をコピーする'
       );
     }
   }
@@ -235,6 +265,9 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       Account__c = account.Id,
       BillingAddressee__c = 'トリガ宛名 御中',
       BillingEmailTo__c = 'trig@example.com',
+      BillingEmailCc__c = 'trig-cc@example.com',
+      BillingEmailBcc__c = 'trig-bcc@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
       InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 1,
@@ -277,6 +310,9 @@ private class InvoiceFieldCopyTriggerHandlerTest {
     );
     if (suffix == 'Journal') {
       fixture.product.ProductCode = 'FIELD-COPY-JOURNAL';
+    }
+    if (suffix == 'Line') {
+      fixture.product.ProductCode = 'FIELD-COPY-LINE';
     }
     fixture.product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
     ContractTestDataFactory.insertProduct(fixture.product);
