@@ -275,17 +275,25 @@ describe("orderInvoicePreviewTable footer totals", () => {
     document.body.appendChild(element);
     await Promise.resolve();
 
-    const statusValues = Array.from(
+    const totalValues = Array.from(
       element.shadowRoot.querySelectorAll(
-        "footer.invoice-footer .summary-row_status lightning-formatted-number"
+        "footer.invoice-footer .summary-row_totals lightning-formatted-number"
       )
     ).map((node) => Number(node.value));
-    // 請求前 / 請求金額未処理 / 請求金額処理済み / 請求金額外Net / 差額
-    expect(statusValues).toEqual([8, 8, 0, 0, -8]);
-    expect(element.shadowRoot.textContent).toContain("請求金額未処理（回収）");
+    // 税抜 / 税 / 税込 / 未入金額（符号付き税込－請求金額Net）
+    expect(totalValues).toEqual([7, 1, 8, 8]);
+    expect(element.shadowRoot.textContent).toContain("未入金額");
+    expect(element.shadowRoot.textContent).not.toContain("請求金額未処理");
+    expect(element.shadowRoot.textContent).not.toContain("請求前");
+    expect(element.shadowRoot.textContent).not.toContain("請求金額処理済み");
+    expect(element.shadowRoot.textContent).not.toContain("請求金額外Net");
+    const footerText = element.shadowRoot.querySelector(
+      "footer.invoice-footer"
+    ).textContent;
+    expect(footerText).not.toContain("差額");
   });
 
-  it("shows absolute unprocessed remaining with 返金 direction when net is negative", async () => {
+  it("shows signed unpaid amount when payment net exceeds tax-inclusive", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -304,14 +312,21 @@ describe("orderInvoicePreviewTable footer totals", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    const statusValues = Array.from(
+    const unpaidItem = Array.from(
       element.shadowRoot.querySelectorAll(
-        "footer.invoice-footer .summary-row_status lightning-formatted-number"
+        "footer.invoice-footer .summary-row_totals .money-item"
       )
-    ).map((node) => Number(node.value));
-    // 未処理は|8-16|=8、方向は返金
-    expect(statusValues).toContain(8);
-    expect(element.shadowRoot.textContent).toContain("請求金額未処理（返金）");
+    ).find((item) =>
+      item.querySelector(".money-label")?.textContent.includes("未入金額")
+    );
+    expect(unpaidItem).toBeTruthy();
+    expect(
+      Number(unpaidItem.querySelector("lightning-formatted-number").value)
+    ).toBe(-8);
+    const footerText = element.shadowRoot.querySelector(
+      "footer.invoice-footer"
+    ).textContent;
+    expect(footerText).not.toContain("請求金額未処理");
   });
 
   it("keeps Version totals for the selected invoice when parent is all versions", async () => {
@@ -632,7 +647,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(text).not.toContain("INV-2");
   });
 
-  it("shows signed payment-net minus tax-inclusive as 差額 and does not invert negative invoices", async () => {
+  it("shows signed unpaid amount for negative invoices and does not show 差額 on the card", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -670,15 +685,19 @@ describe("orderInvoicePreviewTable footer totals", () => {
     document.body.appendChild(element);
     await Promise.resolve();
 
-    const diffItem = Array.from(
+    const unpaidItem = Array.from(
       element.shadowRoot.querySelectorAll("footer.invoice-footer .money-item")
     ).find((item) =>
-      item.querySelector(".money-label")?.textContent.includes("差額")
+      item.querySelector(".money-label")?.textContent.includes("未入金額")
     );
-    expect(diffItem).toBeTruthy();
+    expect(unpaidItem).toBeTruthy();
     expect(
-      Number(diffItem.querySelector("lightning-formatted-number").value)
-    ).toBe(1100);
+      Number(unpaidItem.querySelector("lightning-formatted-number").value)
+    ).toBe(-1100);
+    const footerText = element.shadowRoot.querySelector(
+      "footer.invoice-footer"
+    ).textContent;
+    expect(footerText).not.toContain("差額");
   });
 
   it("filters invoices by 差額あり and 差額なし", async () => {
@@ -761,6 +780,97 @@ describe("orderInvoicePreviewTable footer totals", () => {
     await Promise.resolve();
     expect(element.shadowRoot.textContent).not.toContain("INV-HAS");
     expect(element.shadowRoot.textContent).toContain("INV-NONE");
+  });
+
+  it("shows true accounting tag labels as badges under the money row when Accounting is ON and not Draft", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      tagResults: [
+        { fieldApiName: "TagA__c", name: "AR残あり", value: true }
+      ]
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview({
+      amountTotal: 1000,
+      taxTotal: 100,
+      clearedAmount: 0,
+      sourceHistoryVersion: "1"
+    });
+    preview.invoices[0].invoiceTransactionStatus = "Confirmed";
+    preview.invoices[0].taxInclusiveAmount = 1100;
+    element.preview = preview;
+    document.body.appendChild(element);
+    const badges = await waitUntil(() => {
+      const nodes = element.shadowRoot.querySelectorAll(
+        "footer.invoice-footer .summary-row_tags lightning-badge"
+      );
+      return nodes.length ? nodes : null;
+    });
+    expect(Array.from(badges).map((node) => node.label)).toEqual(["AR残あり"]);
+  });
+
+  it("does not show accounting tag badges for Draft invoices", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      tagResults: [
+        { fieldApiName: "TagA__c", name: "AR残あり", value: true }
+      ]
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview({
+      amountTotal: 1000,
+      taxTotal: 100,
+      clearedAmount: 0,
+      sourceHistoryVersion: "1"
+    });
+    preview.invoices[0].invoiceTransactionStatus = "Draft";
+    element.preview = preview;
+    document.body.appendChild(element);
+    await waitUntil(() => getOpsBundle.mock.calls.length > 0);
+    await waitUntil(() =>
+      element.shadowRoot.querySelector(
+        'button[data-tab="journals"], footer.invoice-footer'
+      )
+    );
+    expect(
+      element.shadowRoot.querySelectorAll(
+        "footer.invoice-footer lightning-badge"
+      ).length
+    ).toBe(0);
+  });
+
+  it("does not show accounting tag badges when Accounting is OFF", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: false,
+      tagResults: [
+        { fieldApiName: "TagA__c", name: "AR残あり", value: true }
+      ]
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview({
+      amountTotal: 1000,
+      taxTotal: 100,
+      clearedAmount: 0,
+      sourceHistoryVersion: "1"
+    });
+    preview.invoices[0].invoiceTransactionStatus = "Confirmed";
+    element.preview = preview;
+    document.body.appendChild(element);
+    await waitUntil(() => getOpsBundle.mock.calls.length > 0);
+    await waitUntil(() =>
+      element.shadowRoot.querySelector("footer.invoice-footer")
+    );
+    expect(
+      element.shadowRoot.querySelectorAll(
+        "footer.invoice-footer lightning-badge"
+      ).length
+    ).toBe(0);
   });
 
   it("shows acceptance end date input only for 一括計上 lines when Accounting is ON (Core 7.6)", async () => {

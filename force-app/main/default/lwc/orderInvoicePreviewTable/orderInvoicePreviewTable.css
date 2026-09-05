@@ -516,12 +516,21 @@
   justify-content: flex-end;
 }
 
-/* 税抜 / 税 / 税込 を1行 */
+/* 税抜 / 税 / 税込 / 未入金額 を1行 */
 .invoice-footer .summary-row_totals {
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: baseline;
   gap: 1rem;
+}
+
+.invoice-footer .summary-row_tags {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
+  padding-top: 0.15rem;
 }
 
 .invoice-footer .summary-row_totals .money-item {

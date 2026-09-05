@@ -1993,15 +1993,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             taxInclusiveTotal ??
             0
         );
+        // 仕様: Core 第8.10節・第7.7.3節。未入金額は符号付きの請求税込－請求金額Net。
         const invoiceUnprocessedNet = gross - invoicePaymentNet;
-        // 仕様: Core 第8.10節。絶対値を残額表示に使い、符号で回収／返金方向を示す。
-        const invoiceUnprocessedRemaining = Math.abs(invoiceUnprocessedNet);
-        const invoiceUnprocessedDirectionLabel =
-          invoiceUnprocessedNet > 0
-            ? "回収"
-            : invoiceUnprocessedNet < 0
-              ? "返金"
-              : "";
         const nonInvoiceNet = allPaymentNet - invoicePaymentNet;
         const balanceDifference = Math.round(allPaymentNet - gross);
         const dueStatus = invoice.dueStatus || "";
@@ -2109,11 +2102,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           integratedAmount: totals.integratedAmount,
           clearedAmount: totals.clearedAmount,
           openAmount: totals.openAmount,
-          draftBeforeAmount: isDraft ? gross : 0,
-          showDraftBefore: isDraft,
           invoiceUnprocessedNet,
-          invoiceUnprocessedRemaining,
-          invoiceUnprocessedDirectionLabel,
           invoiceProcessedNet: invoicePaymentNet,
           nonInvoiceNet,
           balanceDifference,
@@ -2631,8 +2620,12 @@ export default class OrderInvoicePreviewTable extends LightningElement {
                 : "journal-row"
           })),
           hasJournals: (bundle?.journals || []).length > 0,
+          // 仕様: Core 第8.10節、Accounting 第7.6節。Trueのタグラベルを金額行直下。OFFとDraftは出さない。
           tagResults: bundle?.tagResults || [],
-          hasTagResults: (bundle?.tagResults || []).length > 0,
+          showCardAccountingTags:
+            accountingEnabled &&
+            !isDraft &&
+            (bundle?.tagResults || []).length > 0,
           manualSettings: bundle?.manualSettings || [],
           manualJournals: (bundle?.manualJournals || []).map((header) => ({
             ...header,

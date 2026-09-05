@@ -1069,12 +1069,6 @@
               <template if:false={invoice.hasJournals}>
                 <p class="edit-note">この請求の仕訳はありません。</p>
               </template>
-              <template if:true={invoice.hasTagResults}>
-                <p class="ops-form-title">会計タグ</p>
-                <template for:each={invoice.tagResults} for:item="tag">
-                  <p key={tag.fieldApiName} class="edit-note">{tag.name}</p>
-                </template>
-              </template>
               <template if:true={invoice.showManualJournalEntry}>
                 <c-manual-journal-entry
                   invoice-id={invoice.invoiceId}
@@ -2211,75 +2205,30 @@
                   </lightning-formatted-number>
                 </span>
               </div>
+              <div class="money-item">
+                <span class="money-label">未入金額</span>
+                <span class="money-value money-value_secondary">
+                  <lightning-formatted-number
+                    value={invoice.invoiceUnprocessedNet}
+                    format-style="currency"
+                    currency-code="JPY"
+                    maximum-fraction-digits="0"
+                  >
+                  </lightning-formatted-number>
+                </span>
+              </div>
             </div>
+            <template if:true={invoice.showCardAccountingTags}>
+              <div class="summary-row summary-row_tags" aria-label="会計タグ">
+                <template for:each={invoice.tagResults} for:item="tag">
+                  <lightning-badge
+                    key={tag.fieldApiName}
+                    label={tag.name}
+                  ></lightning-badge>
+                </template>
+              </div>
+            </template>
             <div class="summary-row summary-row_status">
-              <template if:true={invoice.showDraftBefore}>
-                <div class="money-item">
-                  <span class="money-label">請求前</span>
-                  <span class="money-value money-value_secondary">
-                    <lightning-formatted-number
-                      value={invoice.draftBeforeAmount}
-                      format-style="currency"
-                      currency-code="JPY"
-                      maximum-fraction-digits="0"
-                    >
-                    </lightning-formatted-number>
-                  </span>
-                </div>
-              </template>
-              <div class="money-item">
-                <span class="money-label"
-                  >請求金額未処理<template
-                    lwc:if={invoice.invoiceUnprocessedDirectionLabel}
-                    >（{invoice.invoiceUnprocessedDirectionLabel}）</template
-                  ></span
-                >
-                <span class="money-value money-value_secondary">
-                  <lightning-formatted-number
-                    value={invoice.invoiceUnprocessedRemaining}
-                    format-style="currency"
-                    currency-code="JPY"
-                    maximum-fraction-digits="0"
-                  >
-                  </lightning-formatted-number>
-                </span>
-              </div>
-              <div class="money-item">
-                <span class="money-label">請求金額処理済み</span>
-                <span class="money-value money-value_secondary">
-                  <lightning-formatted-number
-                    value={invoice.invoiceProcessedNet}
-                    format-style="currency"
-                    currency-code="JPY"
-                    maximum-fraction-digits="0"
-                  >
-                  </lightning-formatted-number>
-                </span>
-              </div>
-              <div class="money-item">
-                <span class="money-label">請求金額外Net</span>
-                <span class="money-value money-value_secondary">
-                  <lightning-formatted-number
-                    value={invoice.nonInvoiceNet}
-                    format-style="currency"
-                    currency-code="JPY"
-                    maximum-fraction-digits="0"
-                  >
-                  </lightning-formatted-number>
-                </span>
-              </div>
-              <div class="money-item">
-                <span class="money-label">差額</span>
-                <span class="money-value money-value_secondary">
-                  <lightning-formatted-number
-                    value={invoice.balanceDifference}
-                    format-style="currency"
-                    currency-code="JPY"
-                    maximum-fraction-digits="0"
-                  >
-                  </lightning-formatted-number>
-                </span>
-              </div>
               <template if:true={invoice.showDueLabel}>
                 <div class="money-item">
                   <span class="money-label">期限</span>
