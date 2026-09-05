@@ -1,5 +1,4 @@
 import { LightningElement, api, wire } from "lwc";
-import { NavigationMixin } from "lightning/navigation";
 import { CloseActionScreenEvent } from "lightning/actions";
 import { getRecord } from "lightning/uiRecordApi";
 import getDocumentDefaults from "@salesforce/apex/EstimateCreateController.getDocumentDefaults";
@@ -20,7 +19,7 @@ const QUICK_ACTIONS = {
 };
 
 /** 仕様: Core 第4.3.1節 */
-export default class EstimateActionHub extends NavigationMixin(LightningElement) {
+export default class EstimateActionHub extends LightningElement {
   @api recordId;
 
   historyStatus = "";
@@ -105,41 +104,38 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
     this.dispatchEvent(new CloseActionScreenEvent());
   }
 
+  // 仕様: Core 第4.3.1節
   handleSelect(event) {
     const key = event.currentTarget?.dataset?.key;
-    if (!key) {
+    const url = this.urlForSelectedAction(key);
+    if (!url) {
       return;
     }
     this.dispatchEvent(new CloseActionScreenEvent());
-    if (key === "issue") {
-      this.navigateToIssue();
-      return;
-    }
-    const apiName = QUICK_ACTIONS[key];
-    if (!apiName || !this.recordId) {
-      return;
-    }
-    this[NavigationMixin.Navigate]({
-      type: "standard__quickAction",
-      attributes: {
-        apiName
-      },
-      state: {
-        recordId: this.recordId,
-        objectApiName: "ContractHistory__c"
-      }
-    });
+    this.scheduleOpenSelectedAction(url);
   }
 
-  navigateToIssue() {
-    if (!this.recordId) {
+  urlForSelectedAction(key) {
+    if (!key || !this.recordId) {
+      return "";
+    }
+    if (key === "issue") {
+      return `/apex/EstimateDocumentIssue?id=${encodeURIComponent(this.recordId)}`;
+    }
+    const apiName = QUICK_ACTIONS[key];
+    if (!apiName) {
+      return "";
+    }
+    return `/lightning/action/quick/${apiName}?recordId=${encodeURIComponent(this.recordId)}`;
+  }
+
+  scheduleOpenSelectedAction(url) {
+    if (!url || typeof window === "undefined") {
       return;
     }
-    this[NavigationMixin.Navigate]({
-      type: "standard__webPage",
-      attributes: {
-        url: `/apex/EstimateDocumentIssue?id=${this.recordId}`
-      }
-    });
+    // eslint-disable-next-line @lwc/lwc/no-async-operation
+    window.setTimeout(() => {
+      window.location.href = url;
+    }, 0);
   }
 }

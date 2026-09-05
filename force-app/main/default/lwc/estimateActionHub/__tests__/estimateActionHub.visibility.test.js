@@ -25,16 +25,6 @@ jest.mock(
   () => ({ getRecord: jest.fn() }),
   { virtual: true }
 );
-jest.mock(
-  "lightning/navigation",
-  () => ({
-    NavigationMixin: (Base) =>
-      class extends Base {
-        [Symbol.for("NavigationMixin.Navigate")]() {}
-      }
-  }),
-  { virtual: true }
-);
 jest.mock("lightning/actions", () => ({ CloseActionScreenEvent: class {} }), {
   virtual: true
 });
