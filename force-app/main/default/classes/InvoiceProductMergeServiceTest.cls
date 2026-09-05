@@ -432,7 +432,11 @@ private class InvoiceProductMergeServiceTest {
         '2026-06-01～2026-08-31',
         invoices[0].lines[0].periodLabel
       );
-      System.assertEquals('版1', invoices[0].lines[0].historyVersionLabel);
+      System.assertEquals(
+        'Version1',
+        invoices[0].lines[0].historyVersionLabel,
+        'Core 第0.1節: 契約履歴番号は画面に Version と出す'
+      );
       System.assertEquals(
         3,
         invoices[0].lines[0].sourceInvoiceProductIds.size()
