@@ -133,9 +133,10 @@ private class ContractEmailTemplateServiceTest {
       );
     } catch (ContractEmailTemplateService.EmailTemplateException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('メールテンプレートAPI名が空です'),
-        'Core 第11.3.2節: カタログ行のAPI名は空にしない。実際: ' + ex.getMessage()
+      System.assertEquals(
+        '空API のメールテンプレートAPI名が空です。',
+        ex.getMessage(),
+        'Core 第11.3.2節: カタログ行のAPI名は空にしない'
       );
     }
     System.assertEquals(true, thrown);
@@ -148,9 +149,10 @@ private class ContractEmailTemplateServiceTest {
       ContractEmailTemplateService.getActiveTemplates('UnknownType');
     } catch (ContractEmailTemplateService.EmailTemplateException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('帳票種別が不正です'),
-        'Core 第11.3.2節: 帳票種別は見積または請求。実際: ' + ex.getMessage()
+      System.assertEquals(
+        '帳票種別が不正です: UnknownType',
+        ex.getMessage(),
+        'Core 第11.3.2節: 帳票種別は見積または請求'
       );
     }
     System.assertEquals(true, thrown);
@@ -285,7 +287,8 @@ private class ContractEmailTemplateServiceTest {
       'Contract_Standard_Invoice_Email',
       ContractEmailTemplateService.initialSelectionApiName(
         ContractEmailTemplateService.TYPE_INVOICE
-      )
+      ),
+      'Core 第11.3.2節: 請求も同梱は有効な既定ちょうど1つ'
     );
   }
 
