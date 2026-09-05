@@ -751,13 +751,16 @@ export function applyEstimateDocumentDefaults(state, defaults) {
     quantityUnitPriceRoundingMode: defaults.quantityUnitPriceRoundingMode,
     amountRoundingMode: defaults.amountRoundingMode
   });
+  // 仕様: Core 第4.10節。使わないなら空欄初期値を付けない。
   if (mode === "Unused") {
     return { ...state, data };
   }
+  // 仕様: Core 第4.10節。保存済み・コピー元の見積日は今日で上書きしない。
   if (!data.estimateDate) {
     data.estimateDate = defaults.today || "";
   }
-  if (!data.estimateValidDateTouched) {
+  // 仕様: Core 第4.10節。有効期限が空なら見積日の暦月N後。元値は上書きしない。
+  if (!data.estimateValidDate) {
     data.estimateValidDate = addCalendarMonths(
       data.estimateDate,
       defaults.estimateValidMonths

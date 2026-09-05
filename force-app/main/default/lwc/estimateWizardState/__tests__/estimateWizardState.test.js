@@ -825,6 +825,80 @@ describe("見積日・有効期限の初期値", () => {
     expect(next.data.estimateValidDate).toBe("");
   });
 
+  it("コピー／編集の保存済み見積日と有効期限は今日で上書きしない", () => {
+    const state = {
+      ...createInitialWizardState(),
+      data: {
+        ...createInitialWizardState().data,
+        estimateDate: "2026-01-15",
+        estimateValidDate: "2026-03-01",
+        estimateValidDateTouched: true,
+        estimateRemarks: "元の備考"
+      }
+    };
+    const next = applyEstimateDocumentDefaults(state, defaults);
+    expect(next.data.estimateDate).toBe("2026-01-15");
+    expect(next.data.estimateValidDate).toBe("2026-03-01");
+    expect(next.data.estimateSendMode).toBe("PdfOnly");
+    expect(next.data.estimateRemarks).toBe("元の備考");
+  });
+
+  it("presetのあとでも送付モードを載せ、空の有効期限だけ暦月N後にする", () => {
+    let state = createInitialWizardState();
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.PRESET_LOAD_SUCCESS,
+      preset: {
+        selectedType: "New",
+        estimateDate: "2026-04-01",
+        estimateValidDate: "",
+        estimateRemarks: "コピー備考"
+      },
+      key: "copy:h1"
+    });
+    expect(state.data.estimateSendMode).toBe("");
+    expect(state.data.estimateDate).toBe("2026-04-01");
+    const next = applyEstimateDocumentDefaults(state, defaults);
+    expect(next.data.estimateSendMode).toBe("PdfOnly");
+    expect(next.data.estimateDate).toBe("2026-04-01");
+    expect(next.data.estimateValidDate).toBe("2026-05-01");
+    expect(next.data.estimateRemarks).toBe("コピー備考");
+  });
+
+  it("使わないならpreset後も空欄初期値を付けない", () => {
+    let state = createInitialWizardState();
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.PRESET_LOAD_SUCCESS,
+      preset: {
+        selectedType: "Change",
+        estimateDate: "",
+        estimateValidDate: ""
+      },
+      key: "copy:h2"
+    });
+    const next = applyEstimateDocumentDefaults(state, {
+      ...defaults,
+      estimateSendMode: "Unused"
+    });
+    expect(next.data.estimateSendMode).toBe("Unused");
+    expect(next.data.estimateDate).toBe("");
+    expect(next.data.estimateValidDate).toBe("");
+  });
+
+  it("コピーで有効期限だけ空なら見積日の暦月N後", () => {
+    const loaded = dispatch(createInitialWizardState(), {
+      type: WIZARD_ACTIONS.PRESET_LOAD_SUCCESS,
+      key: "copy:2",
+      preset: {
+        selectedType: "Change",
+        estimateDate: "2026-01-31",
+        estimateValidDate: ""
+      }
+    });
+    const next = applyEstimateDocumentDefaults(loaded, defaults);
+    expect(next.data.estimateDate).toBe("2026-01-31");
+    expect(next.data.estimateValidDate).toBe("2026-02-28");
+  });
+
   it("触った有効期限は見積日に追従しない", () => {
     expect(
       followEstimateValidDate("2026-08-28", 1, true, "2026-12-01")

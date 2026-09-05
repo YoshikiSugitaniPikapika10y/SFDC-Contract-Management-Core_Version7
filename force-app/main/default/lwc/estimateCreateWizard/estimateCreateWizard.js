@@ -942,6 +942,8 @@ export default class EstimateCreateWizard extends LightningElement {
         preset,
         key
       });
+      // 仕様: Core 第4.10節。コピー／編集のpresetのあとでも見積書の出す／初期値を付ける。
+      this.reapplyDocumentDefaultsFromCache();
       this.clearValidationAlert();
       await this.loadOrderHistoryFieldDefinitions(preset);
     } catch (error) {
