@@ -493,7 +493,7 @@ private class JournalLockServiceTest {
       Memo__c = 'new',
       IsLocked__c = true
     );
-    JournalLockService.testLockExemptFieldApiNames = 'Memo__c';
+    JournalLockService.testLockExemptFieldApiNames = '';
     JournalLockService.assertExemptUpdate(prior, memoOnly);
 
     GlJournal__c amountChange = new GlJournal__c(

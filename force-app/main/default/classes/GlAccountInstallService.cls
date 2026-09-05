@@ -13,12 +13,9 @@ public without sharing class GlAccountInstallService implements InstallHandler {
   }
 
   private static void seedOnInstall(Boolean isUpgrade) {
-    // 仕様: Core 第11.4.2節・第11.6節。コピー見本と組織設定・ロック除外は初回だけ。アップグレードでは消した行を戻さない。
+    // 仕様: Core 第11.4.2節・第11.6節。コピー見本と組織設定は初回だけ。ロック除外3件は作らない。アップグレードでは消した行を戻さない。
     if (isUpgrade != true) {
       seedFieldCopySamples();
-      seedInvoiceLockExemptFields();
-      seedPaymentLockExemptFields();
-      seedJournalLockExemptFields();
       seedContractDocumentSetting();
     }
     if ([SELECT COUNT() FROM GlAccountingPolicy__c WITH SYSTEM_MODE] == 0) {
@@ -69,43 +66,7 @@ public without sharing class GlAccountInstallService implements InstallHandler {
     };
   }
 
-  /** 仕様: Core 第11.6節。無ければ初回インストールだけ。人が消したあとのアップグレードでは戻さない。 */
-  private static void seedInvoiceLockExemptFields() {
-    InvoiceLockExemptFields__c existing = InvoiceLockExemptFields__c.getOrgDefaults();
-    if (existing != null && existing.Id != null) {
-      return;
-    }
-    insert new InvoiceLockExemptFields__c(
-      SetupOwnerId = UserInfo.getOrganizationId(),
-      FieldApiNames__c = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS
-    );
-  }
-
-  /** 仕様: Core 第11.6節。無ければ初回インストールだけ。人が消したあとのアップグレードでは戻さない。 */
-  private static void seedPaymentLockExemptFields() {
-    InvoicePaymentLockExemptFields__c existing = InvoicePaymentLockExemptFields__c.getOrgDefaults();
-    if (existing != null && existing.Id != null) {
-      return;
-    }
-    insert new InvoicePaymentLockExemptFields__c(
-      SetupOwnerId = UserInfo.getOrganizationId(),
-      FieldApiNames__c = InvoicePaymentLockUtil.SEED_LOCK_EXEMPT_FIELDS
-    );
-  }
-
-  /** 仕様: Core 第11.6節。無ければ初回インストールだけ。人が消したあとのアップグレードでは戻さない。 */
-  private static void seedJournalLockExemptFields() {
-    GlJournalLockExemptFields__c existing = GlJournalLockExemptFields__c.getOrgDefaults();
-    if (existing != null && existing.Id != null) {
-      return;
-    }
-    insert new GlJournalLockExemptFields__c(
-      SetupOwnerId = UserInfo.getOrganizationId(),
-      FieldApiNames__c = JournalLockService.SEED_LOCK_EXEMPT_FIELDS
-    );
-  }
-
-  /** 仕様: Core 第4.10節、第11.3.2節、第11.5節、第11.6節、第11.8節。無ければ初回だけ。アップグレードでは消した組織既定を戻さない。既定帳票・既定メールは持たない。IsDefault は post-install では書かない。 */
+  /** 仕様: Core 第4.10節、第11.3.2節、第11.5節、第11.6節、第11.8節。無ければ初回だけ。アップグレードでは消した組織既定を戻さない。既定帳票・既定メールは持たない。IsDefault は post-install では書かない。ロック除外3件は作らない。 */
   private static void seedContractDocumentSetting() {
     ContractDocumentSetting__c existing = ContractDocumentSetting__c.getOrgDefaults();
     if (existing != null && existing.Id != null) {

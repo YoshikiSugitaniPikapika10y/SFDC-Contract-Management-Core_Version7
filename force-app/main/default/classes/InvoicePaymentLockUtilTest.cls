@@ -6,19 +6,14 @@ private class InvoicePaymentLockUtilTest {
   }
 
   @IsTest
-  static void resolveLockExemptFieldNames_blankIsError() {
+  static void resolveLockExemptFieldNames_blankIsEmpty() {
     InvoicePaymentLockUtil.testLockExemptFieldApiNames = '  ';
-    Boolean thrown = false;
-    try {
-      InvoicePaymentLockUtil.resolveLockExemptFieldNames();
-    } catch (InvoicePaymentLockUtil.LockExemptException ex) {
-      thrown = true;
-      System.assertEquals(
-        InvoicePaymentLockUtil.MISSING_LOCK_EXEMPT_MESSAGE,
-        ex.getMessage()
-      );
-    }
-    System.assertEquals(true, thrown);
+    Set<String> names = InvoicePaymentLockUtil.resolveLockExemptFieldNames();
+    System.assertEquals(
+      true,
+      names.isEmpty(),
+      'Core 第11.6節: 空は追加なし'
+    );
     InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
   }
 
@@ -58,7 +53,7 @@ private class InvoicePaymentLockUtilTest {
       Amount__c = 100,
       Memo__c = 'b'
     );
-    InvoicePaymentLockUtil.testLockExemptFieldApiNames = 'Memo__c';
+    InvoicePaymentLockUtil.testLockExemptFieldApiNames = '';
     InvoicePaymentLockUtil.assertExemptUpdate(prior, current);
     InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
   }

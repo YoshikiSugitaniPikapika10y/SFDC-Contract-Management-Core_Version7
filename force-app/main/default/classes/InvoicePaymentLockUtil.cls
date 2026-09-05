@@ -6,11 +6,11 @@ public without sharing class InvoicePaymentLockUtil {
   public class LockExemptException extends Exception {
   }
 
-  /** 仕様: Core 第11.6節。インストール時シード。実行時の空欄代替には使わない。 */
-  public static final String SEED_LOCK_EXEMPT_FIELDS = 'Memo__c';
+  /** 仕様: Core 第11.6節。人が足す一覧の外。製品固定で登録後も直せる。 */
+  public static final String PRODUCT_FIXED_EXEMPT_FIELD = 'Memo__c';
 
-  public static final String MISSING_LOCK_EXEMPT_MESSAGE =
-    '入出金ロック除外項目の組織設定が無い、または空です。';
+  /** @deprecated Core 第11.6節。初回インストールでは組織既定を作らない。 */
+  public static final String SEED_LOCK_EXEMPT_FIELDS = 'Memo__c';
 
   public static final String NEVER_EXEMPT_MESSAGE =
     '入出金の金額・日付・目的は更新できません。';
@@ -41,20 +41,19 @@ public without sharing class InvoicePaymentLockUtil {
   @TestVisible
   private static String testLockExemptFieldApiNames;
 
-  /** 仕様: Core 第1.1.10節、第11.6節。無い・空はシードへ落とさずエラー。 */
+  /** 仕様: Core 第11.6節、第11.4.4節。人が直せる追加項目だけ。無い・空は追加なし。 */
   public static Set<String> resolveLockExemptFieldNames() {
     String raw = testLockExemptFieldApiNames;
     if (raw == null) {
       InvoicePaymentLockExemptFields__c setting = InvoicePaymentLockExemptFields__c.getOrgDefaults();
-      if (setting == null || setting.Id == null) {
-        throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
-      }
-      raw = setting.FieldApiNames__c;
-    }
-    if (String.isBlank(raw)) {
-      throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
+      raw = setting == null || setting.Id == null
+        ? null
+        : setting.FieldApiNames__c;
     }
     Set<String> names = new Set<String>();
+    if (String.isBlank(raw)) {
+      return names;
+    }
     for (String part : raw.split(',')) {
       if (part == null) {
         continue;
@@ -63,9 +62,6 @@ public without sharing class InvoicePaymentLockUtil {
       if (String.isNotBlank(trimmed)) {
         names.add(trimmed);
       }
-    }
-    if (names.isEmpty()) {
-      throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
     }
     return names;
   }
@@ -113,6 +109,9 @@ public without sharing class InvoicePaymentLockUtil {
       if (isNeverExempt(fieldName) || isNeverExempt(apiName)) {
         return NEVER_EXEMPT_MESSAGE;
       }
+      if (isProductFixedExempt(fieldName) || isProductFixedExempt(apiName)) {
+        continue;
+      }
       if (
         !containsName(exemptFields, fieldName) &&
         !containsName(exemptFields, apiName)
@@ -121,6 +120,10 @@ public without sharing class InvoicePaymentLockUtil {
       }
     }
     return null;
+  }
+
+  private static Boolean isProductFixedExempt(String fieldName) {
+    return PRODUCT_FIXED_EXEMPT_FIELD.equals(fieldName);
   }
 
   private static Boolean isNeverExempt(String fieldName) {

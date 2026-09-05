@@ -238,36 +238,20 @@ private class GlAccountInstallServiceTest {
       GlAccountInstallService.seedOnInstall();
       GlAccountInstallService.seedOnInstall();
 
-      InvoiceLockExemptFields__c lockExempt = InvoiceLockExemptFields__c.getOrgDefaults();
-      System.assertNotEquals(null, lockExempt.Id, '仕様: Core 第11.6節 ロック除外をシード');
       System.assertEquals(
-        InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS,
-        lockExempt.FieldApiNames__c,
-        '仕様: Core 第11.6節 指定9項目'
-      );
-      InvoicePaymentLockExemptFields__c paymentLockExempt =
-        InvoicePaymentLockExemptFields__c.getOrgDefaults();
-      System.assertNotEquals(
         null,
-        paymentLockExempt.Id,
-        '仕様: Core 第11.6節 入出金ロック除外をシード'
+        InvoiceLockExemptFields__c.getOrgDefaults().Id,
+        'Core 第11.6節: 初回インストールでも請求ロック除外は作らない'
       );
       System.assertEquals(
-        InvoicePaymentLockUtil.SEED_LOCK_EXEMPT_FIELDS,
-        paymentLockExempt.FieldApiNames__c,
-        '仕様: Core 第11.6節 入出金シード Memo__c'
-      );
-      GlJournalLockExemptFields__c journalLockExempt =
-        GlJournalLockExemptFields__c.getOrgDefaults();
-      System.assertNotEquals(
         null,
-        journalLockExempt.Id,
-        '仕様: Core 第11.6節 仕訳ロック除外をシード'
+        InvoicePaymentLockExemptFields__c.getOrgDefaults().Id,
+        'Core 第11.6節: 初回インストールでも入出金ロック除外は作らない'
       );
       System.assertEquals(
-        JournalLockService.SEED_LOCK_EXEMPT_FIELDS,
-        journalLockExempt.FieldApiNames__c,
-        '仕様: Core 第11.6節 仕訳シード Memo__c'
+        null,
+        GlJournalLockExemptFields__c.getOrgDefaults().Id,
+        'Core 第11.6節: 初回インストールでも仕訳ロック除外は作らない'
       );
 
       ContractDocumentSetting__c setting = ContractDocumentSetting__c.getOrgDefaults();

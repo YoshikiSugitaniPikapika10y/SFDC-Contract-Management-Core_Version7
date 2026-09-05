@@ -114,12 +114,15 @@ private class InvoiceLockUtilTest {
 
     InvoiceLockUtil.testLockExemptFieldApiNames = null;
     Set<String> defaults = InvoiceLockUtil.resolveLockExemptFieldNames();
-    System.assertEquals(true, defaults.contains('PaymentInclusiveTotal__c'));
     System.assertEquals(
-      true,
-      defaults.contains('PaymentClearingCompletedDate__c')
+      false,
+      defaults.contains('PaymentInclusiveTotal__c'),
+      'Core 第11.6節: 空・無しは追加なし。製品の確定後更新は一覧の外'
     );
-    System.assertEquals(true, defaults.contains('InvoiceTransactionStatus__c'));
+    System.assertEquals(
+      false,
+      defaults.contains('InvoiceTransactionStatus__c')
+    );
   }
 
   @IsTest
@@ -279,6 +282,34 @@ private class InvoiceLockUtilTest {
   }
 
   @IsTest
+  static void blockLockedRowDml_allowsMemoWhenListEmpty() {
+    Id fakeInvoiceId =
+      Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000004AAA';
+    Invoice__c prior = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      Memo__c = 'old'
+    );
+    Invoice__c memoOnly = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      Memo__c = 'new'
+    );
+    InvoiceLockUtil.testCanBypassLockedDml = false;
+    InvoiceLockUtil.testLockExemptFieldApiNames = '';
+    InvoiceLockUtil.blockLockedRowDml(
+      new List<Invoice__c>{ memoOnly },
+      new Map<Id, Invoice__c>{ fakeInvoiceId => prior }
+    );
+    System.assertEquals(
+      false,
+      memoOnly.hasErrors(),
+      'Core 第11.6節: メモは製品固定。一覧が空でも確定後に直せる'
+    );
+    InvoiceLockUtil.testLockExemptFieldApiNames = null;
+  }
+
+  @IsTest
   static void resolveLockExemptFieldNames_honorsTestOverride() {
     InvoiceLockUtil.testLockExemptFieldApiNames = 'Amount__c, TaxAmount__c';
     Set<String> names = InvoiceLockUtil.resolveLockExemptFieldNames();
@@ -291,15 +322,12 @@ private class InvoiceLockUtilTest {
     System.assertEquals(true, names.contains('ExtraField__c'));
 
     InvoiceLockUtil.testLockExemptFieldApiNames = '';
-    try {
-      InvoiceLockUtil.resolveLockExemptFieldNames();
-      System.assert(false, '空のロック除外はシードへ落とさずエラー');
-    } catch (InvoiceLockUtil.LockExemptException ex) {
-      System.assertEquals(
-        InvoiceLockUtil.MISSING_LOCK_EXEMPT_MESSAGE,
-        ex.getMessage()
-      );
-    }
+    Set<String> emptyNames = InvoiceLockUtil.resolveLockExemptFieldNames();
+    System.assertEquals(
+      true,
+      emptyNames.isEmpty(),
+      'Core 第11.6節: 空は追加なし。シードへ落とさない'
+    );
 
     InvoiceLockUtil.testLockExemptFieldApiNames = null;
   }
@@ -416,20 +444,20 @@ private class InvoiceLockUtilTest {
   }
 
   @IsTest
-  static void seedLockExemptFields_excludesAppliedTaxRoundingMode() {
-    Set<String> fields = new Set<String>(
-      InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS.split(',')
+  static void seedLockExemptFields_isNotUsedAtRuntime() {
+    InvoiceLockUtil.testLockExemptFieldApiNames = '';
+    Set<String> names = InvoiceLockUtil.resolveLockExemptFieldNames();
+    System.assertEquals(
+      false,
+      names.contains('Memo__c'),
+      'Core 第11.6節: メモは一覧の外。空の resolve に載せない'
     );
     System.assertEquals(
       false,
-      fields.contains('AppliedTaxRoundingMode__c'),
-      'Core 第11.6節: シードに税額丸め適用値を含めない'
+      names.contains('SentDate__c'),
+      'Core 第11.6節: 製品の確定後更新は一覧の外'
     );
-    System.assertEquals(
-      true,
-      fields.contains('Memo__c'),
-      'Core 第11.6節: シードにメモを含める'
-    );
+    InvoiceLockUtil.testLockExemptFieldApiNames = null;
   }
 
   @IsTest

@@ -195,11 +195,11 @@ public without sharing class JournalLockService {
     );
   }
 
-  /** 仕様: Core 第11.6節。インストール時シード。実行時の空欄代替には使わない。 */
-  public static final String SEED_LOCK_EXEMPT_FIELDS = 'Memo__c';
+  /** 仕様: Core 第11.6節、Accounting 第9.5節。人が足す一覧の外。製品固定でLock後も直せる。 */
+  public static final String PRODUCT_FIXED_EXEMPT_FIELD = 'Memo__c';
 
-  public static final String MISSING_LOCK_EXEMPT_MESSAGE =
-    '仕訳ロック除外項目の組織設定が無い、または空です。';
+  /** @deprecated Core 第11.6節。初回インストールでは組織既定を作らない。 */
+  public static final String SEED_LOCK_EXEMPT_FIELDS = 'Memo__c';
 
   public static final String NEVER_EXEMPT_MESSAGE =
     '仕訳の金額・科目・日付・借貸は変更できません。';
@@ -238,20 +238,19 @@ public without sharing class JournalLockService {
   @TestVisible
   private static String testLockExemptFieldApiNames;
 
-  /** 仕様: Core 第1.1.10節、第11.6節。無い・空はシードへ落とさずエラー。 */
+  /** 仕様: Core 第11.6節、第11.4.4節。人が直せる追加項目だけ。無い・空は追加なし。 */
   public static Set<String> resolveLockExemptFieldNames() {
     String raw = testLockExemptFieldApiNames;
     if (raw == null) {
       GlJournalLockExemptFields__c setting = GlJournalLockExemptFields__c.getOrgDefaults();
-      if (setting == null || setting.Id == null) {
-        throw new LockException(MISSING_LOCK_EXEMPT_MESSAGE);
-      }
-      raw = setting.FieldApiNames__c;
-    }
-    if (String.isBlank(raw)) {
-      throw new LockException(MISSING_LOCK_EXEMPT_MESSAGE);
+      raw = setting == null || setting.Id == null
+        ? null
+        : setting.FieldApiNames__c;
     }
     Set<String> names = new Set<String>();
+    if (String.isBlank(raw)) {
+      return names;
+    }
     for (String part : raw.split(',')) {
       if (part == null) {
         continue;
@@ -261,15 +260,12 @@ public without sharing class JournalLockService {
         names.add(trimmed);
       }
     }
-    if (names.isEmpty()) {
-      throw new LockException(MISSING_LOCK_EXEMPT_MESSAGE);
-    }
     return names;
   }
 
   /**
    * 仕様: Core 第11.4.4節、第11.6節、Accounting 第9.5節。
-   * 未Lockはメモと画面定義の追加項目を直せる。Lock後は除外一覧にある項目だけ（メモ含む）。
+   * 未Lockはメモと画面定義の追加項目を直せる。Lock後はメモ（製品固定）と除外一覧の追加項目。
    * 金額・科目・日付は一覧に書いても不可。
    */
   public static void assertExemptUpdate(
@@ -281,7 +277,7 @@ public without sharing class JournalLockService {
     }
     Boolean locked = prior.IsLocked__c == true;
     Set<String> allowed = locked
-      ? resolveLockExemptFieldNames()
+      ? lockedAllowedFieldNames()
       : unlockedAllowedFieldNames();
     Map<String, Schema.SObjectField> fieldMap = GlJournal__c.SObjectType.getDescribe()
       .fields.getMap();
@@ -314,6 +310,13 @@ public without sharing class JournalLockService {
         );
       }
     }
+  }
+
+  /** 仕様: Core 第11.6節、Accounting 第9.5節。Lock後はメモ（製品固定）と人が足した除外項目。 */
+  private static Set<String> lockedAllowedFieldNames() {
+    Set<String> names = resolveLockExemptFieldNames();
+    names.add(PRODUCT_FIXED_EXEMPT_FIELD);
+    return names;
   }
 
   /** 仕様: Core 第11.6節、第11.4.4節、Accounting 第9.5節。未Lockはメモと画面定義の追加項目。 */

@@ -23,11 +23,12 @@ public without sharing class InvoiceLockUtil {
   /** @deprecated プレビュー編集は assertInvoiceEditable を使う。Version 全体操作向けに残置。 */
   public static final String VERSION_EDIT_BLOCK_MESSAGE = 'この Version に連携済または消込済の請求があるため、請求を編集できません。';
 
-  /** 仕様: Core 第11.6節、第7.9.2節。インストール時シード。実行時の空欄代替には使わない。 */
+  /** 仕様: Core 第11.6節。人が足す一覧の外。製品固定で確定後も直せる。 */
+  public static final String PRODUCT_FIXED_EXEMPT_FIELD = 'Memo__c';
+
+  /** @deprecated Core 第11.6節。初回インストールでは組織既定を作らない。実行時の空欄代替にも使わない。 */
   public static final String SEED_LOCK_EXEMPT_FIELDS =
     'InvoiceTransactionStatus__c,DeliveryStatus__c,CollectionRefundStatus__c,InvoicePaymentNet__c,PaymentInclusiveTotal__c,PaymentClearingCompletedDate__c,SystemIntegrationDate__c,SentDate__c,Memo__c';
-
-  public static final String MISSING_LOCK_EXEMPT_MESSAGE = '請求ロック除外項目の組織設定が無い、または空です。';
 
   /** 仕様: Core 第11.6節。確定後の請求日・入金予定日・税率・請求アカウントは除外一覧に書いても拒否する。 */
   public static final String CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE =
@@ -157,35 +158,30 @@ public without sharing class InvoiceLockUtil {
   public static Boolean allowAccountingTagLockExempt;
 
   /**
-   * 仕様: Core 第1.1.10節、第11.6節。
+   * 仕様: Core 第11.6節、第11.4.4節。
    * 階層 CS InvoiceLockExemptFields__c.FieldApiNames__c（カンマ区切り）。
-   * レコード無し・空はシードへ落とさずエラー。
-   * 有効な会計タグルールの保存先チェックボックスは Accounting 内部更新だけ動的に足す。
+   * 人が直せる追加項目だけ。レコード無し・空は追加なし（シードへ落とさない）。
+   * 有効な会計タグルールの保存先チェックボックスは Accounting 内部更新だけ動的に足す。この一覧には載せない。
    */
   public static Set<String> resolveLockExemptFieldNames() {
     String raw = testLockExemptFieldApiNames;
     if (raw == null) {
       InvoiceLockExemptFields__c setting = InvoiceLockExemptFields__c.getOrgDefaults();
-      if (setting == null || setting.Id == null) {
-        throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
-      }
-      raw = setting.FieldApiNames__c;
-    }
-    if (String.isBlank(raw)) {
-      throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
+      raw = setting == null || setting.Id == null
+        ? null
+        : setting.FieldApiNames__c;
     }
     Set<String> names = new Set<String>();
-    for (String part : raw.split(',')) {
-      if (part == null) {
-        continue;
+    if (String.isNotBlank(raw)) {
+      for (String part : raw.split(',')) {
+        if (part == null) {
+          continue;
+        }
+        String trimmed = part.trim();
+        if (String.isNotBlank(trimmed)) {
+          names.add(trimmed);
+        }
       }
-      String trimmed = part.trim();
-      if (String.isNotBlank(trimmed)) {
-        names.add(trimmed);
-      }
-    }
-    if (names.isEmpty()) {
-      throw new LockExemptException(MISSING_LOCK_EXEMPT_MESSAGE);
     }
     if (allowAccountingTagLockExempt == true) {
       names.addAll(enabledAccountingTagTargetFields());
@@ -214,12 +210,7 @@ public without sharing class InvoiceLockUtil {
     Invoice__c current,
     Set<String> exemptFields
   ) {
-    if (
-      prior == null ||
-      current == null ||
-      exemptFields == null ||
-      exemptFields.isEmpty()
-    ) {
+    if (prior == null || current == null) {
       return false;
     }
     Boolean anyExemptChange = false;
@@ -246,14 +237,23 @@ public without sharing class InvoiceLockUtil {
       ) {
         return false;
       }
+      if (isProductFixedExempt(fieldName) || isProductFixedExempt(apiName)) {
+        anyExemptChange = true;
+        continue;
+      }
       if (
-        !exemptFields.contains(fieldName) && !exemptFields.contains(apiName)
+        exemptFields == null ||
+        (!exemptFields.contains(fieldName) && !exemptFields.contains(apiName))
       ) {
         return false;
       }
       anyExemptChange = true;
     }
     return anyExemptChange;
+  }
+
+  private static Boolean isProductFixedExempt(String fieldName) {
+    return PRODUCT_FIXED_EXEMPT_FIELD.equals(fieldName);
   }
 
   private static Boolean valuesEqual(Object left, Object right) {

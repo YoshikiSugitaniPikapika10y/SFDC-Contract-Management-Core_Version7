@@ -222,58 +222,19 @@ public class ContractTestDataFactory {
     return created;
   }
 
-  /** 仕様: Core 第11.6節。ロック除外が空だと請求更新が落ちる。 */
+  /** 仕様: Core 第11.6節。無い・空は追加なし。テスト用にシードしない。 */
   public static InvoiceLockExemptFields__c ensureLockExemptSetting() {
-    InvoiceLockExemptFields__c existing = InvoiceLockExemptFields__c.getOrgDefaults();
-    if (existing != null && existing.Id != null) {
-      if (String.isBlank(existing.FieldApiNames__c)) {
-        existing.FieldApiNames__c = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS;
-        update existing;
-      }
-      return existing;
-    }
-    InvoiceLockExemptFields__c setting = new InvoiceLockExemptFields__c(
-      SetupOwnerId = UserInfo.getOrganizationId(),
-      FieldApiNames__c = InvoiceLockUtil.SEED_LOCK_EXEMPT_FIELDS
-    );
-    insert setting;
-    return setting;
+    return InvoiceLockExemptFields__c.getOrgDefaults();
   }
 
-  /** 仕様: Core 第11.6節。入出金ロック除外が空だと登録後更新が落ちる。 */
+  /** 仕様: Core 第11.6節。無い・空は追加なし。テスト用にシードしない。 */
   public static InvoicePaymentLockExemptFields__c ensurePaymentLockExemptSetting() {
-    InvoicePaymentLockExemptFields__c existing = InvoicePaymentLockExemptFields__c.getOrgDefaults();
-    if (existing != null && existing.Id != null) {
-      if (String.isBlank(existing.FieldApiNames__c)) {
-        existing.FieldApiNames__c = InvoicePaymentLockUtil.SEED_LOCK_EXEMPT_FIELDS;
-        update existing;
-      }
-      return existing;
-    }
-    InvoicePaymentLockExemptFields__c setting = new InvoicePaymentLockExemptFields__c(
-      SetupOwnerId = UserInfo.getOrganizationId(),
-      FieldApiNames__c = InvoicePaymentLockUtil.SEED_LOCK_EXEMPT_FIELDS
-    );
-    insert setting;
-    return setting;
+    return InvoicePaymentLockExemptFields__c.getOrgDefaults();
   }
 
-  /** 仕様: Core 第11.6節。仕訳ロック除外が空だと Lock 後更新が落ちる。 */
+  /** 仕様: Core 第11.6節。無い・空は追加なし。テスト用にシードしない。 */
   public static GlJournalLockExemptFields__c ensureJournalLockExemptSetting() {
-    GlJournalLockExemptFields__c existing = GlJournalLockExemptFields__c.getOrgDefaults();
-    if (existing != null && existing.Id != null) {
-      if (String.isBlank(existing.FieldApiNames__c)) {
-        existing.FieldApiNames__c = JournalLockService.SEED_LOCK_EXEMPT_FIELDS;
-        update existing;
-      }
-      return existing;
-    }
-    GlJournalLockExemptFields__c setting = new GlJournalLockExemptFields__c(
-      SetupOwnerId = UserInfo.getOrganizationId(),
-      FieldApiNames__c = JournalLockService.SEED_LOCK_EXEMPT_FIELDS
-    );
-    insert setting;
-    return setting;
+    return GlJournalLockExemptFields__c.getOrgDefaults();
   }
 
   /** 仕様: Core 第11.5節・第4.10節。組織設定が無いと受注・見積初期値が落ちる。 */

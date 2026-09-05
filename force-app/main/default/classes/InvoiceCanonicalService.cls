@@ -818,7 +818,7 @@ public without sharing class InvoiceCanonicalService {
     );
   }
 
-  /** 仕様: Core 第7.8節、第7.9.2節、第11.4.4節。未確定は請求日・入金予定日。税率は書かない。確定後は日付・請求アカウントを拒否し、ロック除外の追加項目だけ残す。 */
+  /** 仕様: Core 第7.8節、第7.9.2節、第11.4.4節、第11.6節。未確定は請求日・入金予定日。税率は書かない。確定後は日付・請求アカウントを拒否し、メモ（製品固定）とロック除外の追加項目だけ残す。 */
   public static void updateInvoiceHeaderAndDates(
     Id invoiceId,
     Date invoiceDate,
@@ -891,6 +891,7 @@ public without sharing class InvoiceCanonicalService {
     Set<String> extraAllowed = InvoiceOpsFieldService.fieldApiNames('Invoice__c');
     if (confirmed) {
       extraAllowed.retainAll(InvoiceLockUtil.resolveLockExemptFieldNames());
+      extraAllowed.add(InvoiceLockUtil.PRODUCT_FIXED_EXEMPT_FIELD);
       extraAllowed.removeAll(
         new Set<String>{
           'InvoiceDate__c',
