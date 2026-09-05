@@ -1,19 +1,10 @@
 import { createElement } from "lwc";
 import EstimateCopyRecordAction from "c/estimateCopyRecordAction";
+import { closeEstimateWizard } from "c/estimateWizardClose";
 
 jest.mock(
   "@salesforce/customPermission/Loop_03_Can_Estimate",
   () => ({ __esModule: true, default: true }),
-  { virtual: true }
-);
-jest.mock(
-  "lightning/navigation",
-  () => ({
-    NavigationMixin: (Base) =>
-      class extends Base {
-        [Symbol.for("NavigationMixin.Navigate")]() {}
-      }
-  }),
   { virtual: true }
 );
 jest.mock(
@@ -44,6 +35,7 @@ describe("estimateCopyRecordAction (Core 4.3.1 / 4.3)", () => {
     while (document.body.firstChild) {
       document.body.removeChild(document.body.firstChild);
     }
+    closeEstimateWizard.mockClear();
   });
 
   it("opens the copy-preset wizard when Loop_03 is present", async () => {
@@ -58,5 +50,36 @@ describe("estimateCopyRecordAction (Core 4.3.1 / 4.3)", () => {
     expect(wizard).toBeTruthy();
     expect(wizard.copySourceHistoryId).toBe("a0H000000000001AAA");
     expect(wizard.modalMode).toBe(true);
+  });
+
+  it("closes after save success without a same-turn record Navigate (Core 4.3.2 / 4.3.6)", async () => {
+    const element = createElement("c-estimate-copy-record-action", {
+      is: EstimateCopyRecordAction
+    });
+    element.recordId = "a0H000000000001AAA";
+    document.body.appendChild(element);
+    await Promise.resolve();
+
+    const wizard = element.shadowRoot.querySelector("c-estimate-create-wizard");
+    wizard.dispatchEvent(
+      new CustomEvent("requestclose", {
+        bubbles: true,
+        composed: true,
+        detail: {
+          refresh: true,
+          opportunityId: "006000000000001AAA",
+          contractHistoryId: "a0HNEW000000001AAA",
+          navigateToContractHistoryId: "a0HNEW000000001AAA"
+        }
+      })
+    );
+
+    expect(closeEstimateWizard).toHaveBeenCalledTimes(1);
+    expect(closeEstimateWizard.mock.calls[0][1]).toEqual({
+      refresh: true,
+      opportunityId: "006000000000001AAA",
+      contractHistoryId: "a0HNEW000000001AAA",
+      navigateToContractHistoryId: "a0HNEW000000001AAA"
+    });
   });
 });

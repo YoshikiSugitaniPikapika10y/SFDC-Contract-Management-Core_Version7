@@ -1,5 +1,4 @@
 import { LightningElement, api } from "lwc";
-import { NavigationMixin } from "lightning/navigation";
 import hasCopyEstimate from "@salesforce/customPermission/Loop_03_Can_Estimate";
 import {
   closeEstimateWizard,
@@ -8,9 +7,7 @@ import {
 } from "c/estimateWizardClose";
 import { resizeQuickActionPanel } from "c/quickActionPanelResize";
 
-export default class EstimateCopyRecordAction extends NavigationMixin(
-  LightningElement
-) {
+export default class EstimateCopyRecordAction extends LightningElement {
   @api recordId;
 
   pendingRecordRefresh;
@@ -27,25 +24,15 @@ export default class EstimateCopyRecordAction extends NavigationMixin(
     resizeQuickActionPanel(this);
   }
 
+  // 仕様: Core 第4.3.2節・第4.3.6節
   handleRequestClose(event) {
     const detail = event.detail || {};
     closeEstimateWizard(this, {
       refresh: detail.refresh !== false,
       opportunityId: detail.opportunityId,
-      contractHistoryId: detail.contractHistoryId || this.recordId
+      contractHistoryId: detail.contractHistoryId || this.recordId,
+      navigateToContractHistoryId: detail.navigateToContractHistoryId
     });
-
-    const navigateToId = detail.navigateToContractHistoryId;
-    if (navigateToId) {
-      this[NavigationMixin.Navigate]({
-        type: "standard__recordPage",
-        attributes: {
-          recordId: navigateToId,
-          objectApiName: "ContractHistory__c",
-          actionName: "view"
-        }
-      });
-    }
   }
 
   handleEstimateSaved(event) {
