@@ -8,6 +8,7 @@ import {
   syncCustomFieldsForVisibility,
   filterCustomFieldDefinitionsForWizardType,
   filterVisibleCustomFieldDefinitions,
+  isCustomFieldVisibleForWizardType,
   shallowEqualFieldMaps,
   buildCustomFieldInputs
 } from "c/estimateWizardCustomFields";
@@ -387,6 +388,24 @@ describe("default custom fields", () => {
     expect(
       filterVisibleCustomFieldDefinitions(typeFilterDefs, null, "New")
     ).toHaveLength(0);
+  });
+
+  it("ShowOnは明示trueだけ。未設定は非表示 (Core 11.4・0.1 新規で表示)", () => {
+    const unset = { apiName: "Memo__c" };
+    expect(isCustomFieldVisibleForWizardType(unset, "New")).toBe(false);
+    expect(isCustomFieldVisibleForWizardType(unset, "Change")).toBe(false);
+    expect(isCustomFieldVisibleForWizardType(unset, "Renew")).toBe(false);
+    expect(isCustomFieldVisibleForWizardType(unset, "Cancel")).toBe(false);
+
+    const onlyNew = { showOnNew: true };
+    expect(isCustomFieldVisibleForWizardType(onlyNew, "New")).toBe(true);
+    expect(isCustomFieldVisibleForWizardType(onlyNew, "Change")).toBe(false);
+    expect(isCustomFieldVisibleForWizardType(onlyNew, "Renew")).toBe(false);
+    expect(isCustomFieldVisibleForWizardType(onlyNew, "Cancel")).toBe(false);
+
+    const onlyCancel = { showOnCancel: true };
+    expect(isCustomFieldVisibleForWizardType(onlyCancel, "Cancel")).toBe(true);
+    expect(isCustomFieldVisibleForWizardType(onlyCancel, "New")).toBe(false);
   });
 });
 
