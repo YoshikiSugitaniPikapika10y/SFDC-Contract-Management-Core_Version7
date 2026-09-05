@@ -543,4 +543,49 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(ctx.invoiceOpsProcessingId).toBe(null);
     expect(waiting.call(ctx)).toBe(false);
   });
+
+  it("未確定の入金タブは案内一文だけ (Core 8.9)", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: false,
+      paymentBlockedReason: "請求を確定してから入金できます。",
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [],
+      manualJournals: []
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Draft",
+      locked: false
+    });
+    document.body.appendChild(element);
+    const paymentsTab = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "入金"
+      )
+    );
+    paymentsTab.click();
+    const guide = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("p")).find((p) =>
+        p.textContent.includes("請求を確定してから入金できます。")
+      )
+    );
+    expect(guide).toBeTruthy();
+    const text = element.shadowRoot.textContent;
+    expect(text).not.toContain("入金はありません。");
+    expect(
+      Array.from(element.shadowRoot.querySelectorAll("lightning-input")).some(
+        (input) => input.label === "取消済みを含める"
+      )
+    ).toBe(false);
+  });
 });

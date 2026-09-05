@@ -311,19 +311,28 @@
 
           <template if:true={invoice.isPaymentsTab}>
             <div class="ops-panel">
+              <template if:true={invoice.showDraftPaymentGuide}>
+                <p class="edit-note" role="status">
+                  請求を確定してから入金できます。
+                </p>
+              </template>
+              <template if:true={invoice.showIncludeCancelledPayments}>
               <lightning-input
                 type="checkbox"
                 label="取消済みを含める"
                 checked={invoice.includeCancelledPayments}
                 onchange={handleIncludeCancelledPaymentsChange}
               ></lightning-input>
+              </template>
+              <template if:false={invoice.showDraftPaymentGuide}>
               <template if:true={invoice.opsLoading}>
                 <p class="edit-note">入金情報を読み込み中…</p>
               </template>
               <template if:true={invoice.opsError}>
                 <p class="edit-note">{invoice.opsError}</p>
               </template>
-              <template if:true={invoice.hasPayments}>
+              </template>
+              <template if:true={invoice.showPaymentHistory}>
                 <div class="ops-table-wrap">
                   <table class="ops-table">
                     <thead>
@@ -385,7 +394,7 @@
                   </table>
                 </div>
               </template>
-              <template if:false={invoice.hasPayments}>
+              <template if:true={invoice.showPaymentEmptyMessage}>
                 <p class="edit-note">入金はありません。</p>
               </template>
 
@@ -793,9 +802,11 @@
               <template if:false={invoice.showPaymentForm}>
                 <template if:false={invoice.showPaymentCancelForm}>
                 <template if:true={invoice.paymentBlockedReason}>
+                  <template if:false={invoice.showDraftPaymentGuide}>
                   <p class="edit-note" role="status">
                     {invoice.paymentBlockedReason}
                   </p>
+                  </template>
                 </template>
                 </template>
               </template>

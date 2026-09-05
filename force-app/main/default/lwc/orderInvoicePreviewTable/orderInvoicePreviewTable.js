@@ -2501,6 +2501,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           payments: paymentRows,
           hasPayments: paymentRows.length > 0,
           includeCancelledPayments: this.includeCancelledPayments,
+          // 仕様: Core 第8.9節。未確定の入金タブは案内だけ。チェックと空メッセージは出さない。
+          showDraftPaymentGuide: isDraft,
+          showIncludeCancelledPayments: !isDraft,
+          showPaymentEmptyMessage: paymentRows.length === 0 && !isDraft,
+          showPaymentHistory: paymentRows.length > 0 && !isDraft,
           paymentTypeOptions,
           cancellationReasonOptions: this.cancellationReasonOptions(),
           paymentDraftAmount: paymentDraft?.amount ?? "",
