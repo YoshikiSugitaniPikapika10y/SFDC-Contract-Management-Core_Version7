@@ -1256,9 +1256,14 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     return Object.keys(this.amountDrafts || {}).length > 0;
   }
 
-  /** 請求情報編集パネル表示中。 */
+  /** 請求書情報パネル表示中。 */
   get isBillingEditUiOpen() {
     return this.billingEditState != null;
+  }
+
+  /** 仕様: Core 第7.8節。未保存の請求日・入金予定日・追加項目がある間は反映できない。 */
+  get hasUnsavedBillingHeaderEdit() {
+    return this.billingEditState?.dirty === true;
   }
 
   /**
@@ -1639,7 +1644,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         const isInvoiceDestinationChoiceOpen =
           invoiceDestinationChoiceOpenId === invoiceId;
         const canEditInvoice = this.canEdit && invoice.locked !== true;
-        // 仕様: Core 第7.8節、第7.7.3節、第11.4.4節。請求情報編集は確定後も出す。取消済みは出さない。
+        // 仕様: Core 第7.8節、第7.7.3節、第11.4.4節。請求書情報は確定後も出す。取消済みは出さない。
         const showBillingEdit = this.canEdit && !isCancelled;
         const moveTargetOptions = isInvoiceMoveOpen
           ? this.buildMoveTargetOptions(invoice)
@@ -2383,6 +2388,16 @@ export default class OrderInvoicePreviewTable extends LightningElement {
                 requireExemptToEdit: isConfirmed
               })
             : [],
+          hasBillingExtraFields:
+            isBillingEditOpen &&
+            this.buildExtraFieldViews({
+              targetObject: "Invoice__c",
+              storedValues: invoice.extraFieldValues,
+              draftValues: this.billingEditState?.extraFieldValues,
+              disabledAll: false,
+              exemptNames: this.preview?.invoiceLockExemptFieldApiNames,
+              requireExemptToEdit: isConfirmed
+            }).length > 0,
           canAdjustAmount: this.canEdit && invoice.locked !== true,
           amountAdjustDisabled,
           amountAdjustPlus1Title: amountAdjustDisabled
@@ -2651,12 +2666,12 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           applyBillingDisabled:
             this.hasAmountDrafts ||
             this.isSplitOrMoveUiOpen ||
-            this.isBillingEditUiOpen ||
+            this.hasUnsavedBillingHeaderEdit ||
             invoice.locked === true ||
             !invoice.billingAccountId,
           applyBillingTitle: !invoice.billingAccountId
             ? "請求アカウントがありません。"
-            : this.isBillingEditUiOpen
+            : this.hasUnsavedBillingHeaderEdit
               ? "請求情報編集をキャンセルまたは保存してから反映できます"
               : this.isSplitOrMoveUiOpen
                 ? "別の請求へ分ける／分割をキャンセルまたは実行してから反映できます"
@@ -5281,7 +5296,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       invoiceDate,
       paymentScheduledDate,
       taxPercent,
-      extraFieldValues
+      extraFieldValues,
+      dirty: false
     };
   }
 
@@ -5300,6 +5316,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (event.target.dataset.extra === "true") {
       this.billingEditState = {
         ...this.billingEditState,
+        dirty: true,
         extraFieldValues: {
           ...(this.billingEditState.extraFieldValues || {}),
           [field]: this.extraFieldValueFromEvent(event)
@@ -5309,6 +5326,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
     this.billingEditState = {
       ...this.billingEditState,
+      dirty: true,
       [field]: event.detail.value
     };
   }
@@ -5488,7 +5506,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     return exclusive + this.calculateTaxAmount(exclusive, taxPercent);
   }
 
-  // 仕様: Core 第7.8節、第3.3.5節、第1.1.10節。参照中BAが空なら画面で止める。
+  // 仕様: Core 第7.8節、第3.3.5節、第1.1.10節。入口は請求書情報の送付。未保存の日付・追加項目がある間は止める。
   async handleApplyBillingAccountContent(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
     const invoice = this.findInvoice(invoiceId);
@@ -5497,7 +5515,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       !invoice?.billingAccountId ||
       this.hasAmountDrafts ||
       this.isSplitOrMoveUiOpen ||
-      this.isBillingEditUiOpen
+      this.hasUnsavedBillingHeaderEdit
     ) {
       return;
     }

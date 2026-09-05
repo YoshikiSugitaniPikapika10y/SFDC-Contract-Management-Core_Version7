@@ -696,6 +696,62 @@
   text-align: center;
 }
 
+.billing-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.125rem;
+  padding: 1rem 1.125rem 1.25rem;
+}
+
+.billing-edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.billing-edit-heading {
+  margin: 0;
+  color: var(--preview-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.billing-edit-row {
+  display: grid;
+  gap: 0.75rem 1rem;
+}
+
+.billing-edit-row_identity {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.billing-edit-row_send {
+  grid-template-columns: minmax(0, 2fr) minmax(8rem, 1fr);
+}
+
+.billing-edit-row_mail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.billing-edit-row_dates,
+.billing-edit-row_extra {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.billing-edit-field {
+  min-width: 0;
+}
+
+.billing-edit-apply {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.billing-edit-section_memo {
+  padding-top: 0.25rem;
+}
+
 .billing-edit-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1640,6 +1696,10 @@ tr.journal-row_highlight td {
 
 @media (max-width: 48rem) {
   .billing-edit-grid,
+  .billing-edit-row_send,
+  .billing-edit-row_mail,
+  .billing-edit-row_dates,
+  .billing-edit-row_extra,
   .split-field-row,
   .invoice-send-panel,
   .invoice-send-fields {

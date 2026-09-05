@@ -271,7 +271,7 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     }
   });
 
-  it("確定済みでも請求情報編集ボタンを出す (Core 7.8 / 11.4.4)", async () => {
+  it("確定済みでも請求書情報ボタンを出す (Core 7.8 / 11.4.4)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -279,7 +279,7 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     document.body.appendChild(element);
     const billing = await waitUntil(() =>
       Array.from(element.shadowRoot.querySelectorAll("button")).find(
-        (button) => button.textContent.trim() === "請求情報編集"
+        (button) => button.textContent.trim() === "請求書情報"
       )
     );
     expect(billing).toBeTruthy();
@@ -289,7 +289,7 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(split).toBeFalsy();
   });
 
-  it("取消済み請求は請求情報編集を出さない (Core 7.8 / 11.4.4)", async () => {
+  it("取消済み請求は請求書情報を出さない (Core 7.8 / 11.4.4)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -301,9 +301,86 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     document.body.appendChild(element);
     await flush();
     const billing = Array.from(element.shadowRoot.querySelectorAll("button")).find(
-      (button) => button.textContent.trim() === "請求情報編集"
+      (button) => button.textContent.trim() === "請求書情報"
     );
     expect(billing).toBeFalsy();
+  });
+
+  it("請求書情報は識別・送付・日付・メモに分け税率とヘッダ反映とフッタメモを出さない (Core 7.8)", async () => {
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview({
+      billingAccountName: "BA-1",
+      billingAddressee: "宛名A",
+      billingEmailTo: "to@example.com",
+      memo: "既存メモ"
+    });
+    document.body.appendChild(element);
+    const open = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "請求書情報"
+      )
+    );
+    open.click();
+    const panel = await waitUntil(() =>
+      element.shadowRoot.querySelector(".billing-info-panel")
+    );
+    const headings = Array.from(
+      panel.querySelectorAll(".billing-edit-heading")
+    ).map((node) => node.textContent.trim());
+    expect(headings).toEqual(["識別", "送付", "当該請求の日付", "メモ"]);
+    expect(panel.textContent).not.toContain("税率");
+    expect(panel.textContent).not.toContain("請求日ルール");
+    expect(panel.textContent).not.toContain("支払条件");
+    const headerApply = Array.from(
+      element.shadowRoot.querySelectorAll(".header-actions button")
+    ).find((button) => button.textContent.trim() === "請求アカウントの内容を反映");
+    expect(headerApply).toBeFalsy();
+    const panelApply = Array.from(panel.querySelectorAll("button")).find(
+      (button) => button.textContent.trim() === "請求アカウントの内容を反映"
+    );
+    expect(panelApply).toBeFalsy();
+    const footerMemo = element.shadowRoot.querySelector(
+      ".invoice-footer lightning-textarea"
+    );
+    expect(footerMemo).toBeFalsy();
+    const memoSave = Array.from(panel.querySelectorAll("button")).find(
+      (button) => button.textContent.trim() === "メモを保存"
+    );
+    expect(memoSave).toBeTruthy();
+  });
+
+  it("未確定の請求書情報は送付内に反映を出す (Core 7.8)", async () => {
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Draft",
+      locked: false,
+      billingAccountId: "a00BA0000000001"
+    });
+    document.body.appendChild(element);
+    const open = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "請求書情報"
+      )
+    );
+    open.click();
+    const panel = await waitUntil(() =>
+      element.shadowRoot.querySelector(".billing-info-panel")
+    );
+    const panelApply = await waitUntil(() =>
+      Array.from(panel.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "請求アカウントの内容を反映"
+      )
+    );
+    expect(panelApply).toBeTruthy();
+    expect(panelApply.disabled).toBe(false);
+    const headerApply = Array.from(
+      element.shadowRoot.querySelectorAll(".header-actions button")
+    ).find((button) => button.textContent.trim() === "請求アカウントの内容を反映");
+    expect(headerApply).toBeFalsy();
   });
 
   it("仕訳タブの表列に確認用を常時出さない (Accounting 9.1.1 / Core 11.4.4)", async () => {

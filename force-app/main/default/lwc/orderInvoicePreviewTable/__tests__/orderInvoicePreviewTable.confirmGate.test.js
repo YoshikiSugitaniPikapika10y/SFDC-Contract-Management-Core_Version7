@@ -280,6 +280,43 @@ describe("orderInvoicePreviewTable confirm gate (Core 7.9.1 / 7.6 / 11.9)", () =
     expect(dispatchEvent).not.toHaveBeenCalled();
   });
 
+  it("未保存の請求情報がある間は反映を進めない (Core 7.8)", async () => {
+    const dispatchEvent = jest.fn();
+    await proto.handleApplyBillingAccountContent.call(
+      {
+        hasAmountDrafts: false,
+        isSplitOrMoveUiOpen: false,
+        hasUnsavedBillingHeaderEdit: true,
+        findInvoice: () => ({ billingAccountId: "a00BA0000000001" }),
+        dispatchEvent
+      },
+      { currentTarget: { dataset: { invoiceId: "a00INV000000001" } } }
+    );
+    expect(dispatchEvent).not.toHaveBeenCalled();
+  });
+
+  it("請求書情報を開いただけでは反映を止めない (Core 7.8)", async () => {
+    const dispatchEvent = jest.fn();
+    await proto.handleApplyBillingAccountContent.call(
+      {
+        hasAmountDrafts: false,
+        isSplitOrMoveUiOpen: false,
+        hasUnsavedBillingHeaderEdit: false,
+        isBillingEditUiOpen: true,
+        findInvoice: () => ({
+          billingAccountId: "a00BA0000000001",
+          lastModifiedToken: "1"
+        }),
+        resolvePendingOperationKey: async () => "k1",
+        dispatchEvent
+      },
+      { currentTarget: { dataset: { invoiceId: "a00INV000000001" } } }
+    );
+    expect(dispatchEvent.mock.calls[0][0].type).toBe(
+      "applybillingaccountcontent"
+    );
+  });
+
   it("HALF_UP は 0.5 を 0 から離す", () => {
     const ctx = board({ taxRoundingMode: "HALF_UP" });
     expect(proto.calculateTaxAmount.call(ctx, 15, 10)).toBe(2);
