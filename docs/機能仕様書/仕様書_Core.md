@@ -1723,7 +1723,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 | 〇  | 入金のメモ・追加項目を直す                                       | 有効な請求入出金。取消済／取消は出さない。金額・日付・目的は常に非活性。メモは編集パネルに出す。追加項目は入出金ロック除外へ人が足した項目だけ。仕訳のLockは見ない。操作キーと行ロックは第7.9.7節。第8.4節・第11.4.4節                                                                                                                                                                                                                                                                                                                 |
 | 〇  | 入金を取り消す                                                   | 有効な請求入出金がある。物理削除せず反対符号の取消。先に入金が残る請求は個別取消できない                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 〇  | 仕訳を見る                                                       | この請求の仕訳。Accounting ON。OFFではタブも停止中の注記も出さない。行の金額・科目・日付は、権限と緊急操作を問わず直さない。表の列に確認用は常時出さない。行のトグル展開で確認用と追加項目を出す。Accounting第9.1.1節・第11.4.4節                                                                                                                                                                                                                                                                                                      |
-| 〇  | 仕訳のメモ・追加項目を直す                                       | Accounting ON。仕訳レコードのメモと、画面定義の追加項目。行のさりげないトグルで開く。行ごとの保存。同じ文の全行一括は持たない。未Lockは出している追加項目を直せる。Lock後は仕訳ロック除外にある項目だけ（メモ含む）。金額・科目・日付はリストに書いても不可。取消済み請求の仕訳は参照。手動仕訳ヘッダーにはメモを持たない。操作キー、行ロック、版比較は使わない。後から保存した文が残る。第11.4.4節                                                                                                                                    |
+| 〇  | 仕訳のメモ・追加項目を直す                                       | Accounting ON。仕訳レコードのメモと、画面定義の追加項目。行のさりげないトグルで開く。行ごとの保存。同じ文の全行一括は持たない。未Lockは出している追加項目を直せる。メモは製品固定でLock後も直せる。Lock後の追加項目は仕訳ロック除外にある項目だけ。金額・科目・日付はリストに書いても不可。取消済み請求の仕訳は参照。手動仕訳ヘッダーにはメモを持たない。操作キー、行ロック、版比較は使わない。後から保存した文が残る。第11.4.4節                                                                                                                                    |
 | 〇  | 選んだ仕訳をLockする                                             | Accounting ON。手動Lock専用権限。請求ボードの仕訳タブで、人が目で選んだ仕訳行だけ。未選択は実行できない。未来日付でも選べる。過ぎた分だけ、という制限はパッケージに持たない。この請求以外の仕訳は選べない。自動Lockは提供しない。顧客が導入時にバッチを足してよい。確認してから選んだ行の`IsLocked__c=True`にする。金額は変えない。操作キーと版比較は第7.9.7節                                                                                                                                                                         |
 | 〇  | 選んだ仕訳をUnlockする                                           | Accounting ON。手動Unlock専用権限。Lock権限では代替しない。人が目で選んだLock済み行だけ。未選択は実行できない。理由を必須とし、確認してから選んだ行の`IsLocked__c=False`にし、`UnlockReason__c`と操作キーを書く。金額は変えない。解除後も金額・科目・日付は直さない。メモはLock中でも直せる。以降の原因操作は未Lockとして論理削除できる。操作キーと版比較は第7.9.7節                                                                                                                                                                   |
 | 〇  | 手動仕訳を登録する・取り消す                                     | Accounting ON。この請求に閉じる。手数料・貸倒など。自動仕訳の業務容量は変えない。有効な手動仕訳が残る請求は個別取消できない                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -2655,13 +2655,13 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 
 ##### 入出金
 
-登録フォームに出す。Purposeごとに表示ON/OFF。デフォルトは登録画面の初期値である。登録後は編集ボタンを出す。金額・日付・目的は常に非活性。入出金ロック除外を組織設定のシステム見出しへ置く（請求と同型。シードは`Memo__c`）。人が足した項目とメモだけ直す。仕訳のLockは見ない。取消済／取消は編集ボタンなし。メモは編集パネルに出す。保存は請求情報編集と同じ操作キー・版である。第8.4節・第8.9節・第7.9.7節。
+登録フォームに出す。Purposeごとに表示ON/OFF。デフォルトは登録画面の初期値である。登録後は編集ボタンを出す。金額・日付・目的は常に非活性。入出金ロック除外を組織設定のシステム見出しへ置く（請求と同型。初回の組織既定は作らない）。メモは製品固定で登録後も直せる。追加項目は入出金ロック除外へ人が足した項目だけ直す。仕訳のLockは見ない。取消済／取消は編集ボタンなし。メモは編集パネルに出す。保存は請求情報編集と同じ操作キー・版である。第8.4節・第8.9節・第7.9.7節。
 
 ##### 仕訳
 
 画面定義にある仕訳追加項目はメモ扱いである。GoalキーにもDiffの内容比較にも入れない。コピーの初回スタンプは空欄へ。人が直した値は、あとの原因操作で戻さない。画面定義に無いコピー先は今どおりDiff比較する。Accounting第8.7節・第9.5節。第11.4.2節。
 
-未Lockは、出している追加項目を直せる。Lock後は仕訳ロック除外にある項目だけ（メモ含む）。金額・科目・日付はリストに書いても不可。同じ文を全行へ一括する操作は持たない。取消・取消済の追加項目は参照だけとする。
+未Lockは、出している追加項目を直せる。メモは製品固定でLock後も直せる。Lock後の追加項目は仕訳ロック除外にある項目だけ。金額・科目・日付はリストに書いても不可。同じ文を全行へ一括する操作は持たない。取消・取消済の追加項目は参照だけとする。
 
 請求ボードの仕訳タブは、行のさりげないトグルで開き、追加項目と確認用を出す。表の列には確認用を常時出さない。行ごとの保存。操作キー、行ロック、版比較は使わない。後から保存した文が残る。請求書のメモと同じ。取消済み請求の仕訳は参照だけとする。
 
@@ -2777,9 +2777,9 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 | 8.10 | リンク | タグルール | 灰任意 | 請求書単位のタグ結果を付けます。 | |
 | 8.11 | リンク | 手動仕訳 | 灰任意 | 手動仕訳のメニューです。 | |
 | 9.1 | 入力 | カスタム入力規則をON | 赤必須 | この設定を参照する顧客の入力規則だけを、導入後から効かせます。パッケージ標準のテストクラスを回すときは、OFFにして回します。 | |
-| 9.2 | 入力 | 請求ロック除外項目 | 赤必須 | 確定後に人が直せるカスタム項目を指定します。 | |
-| 9.3 | 入力 | 入出金ロック除外項目 | 赤必須 | 登録後に人が直せるカスタム項目を指定します。 | |
-| 9.4 | 入力 | 仕訳ロック除外項目 | 赤必須 | Lock後に人が直せるカスタム項目を指定します。 | |
+| 9.2 | 入力 | 請求ロック除外項目 | 灰任意 | 確定後に人が直せるカスタム項目を指定します。 | |
+| 9.3 | 入力 | 入出金ロック除外項目 | 灰任意 | 登録後に人が直せるカスタム項目を指定します。 | |
+| 9.4 | 入力 | 仕訳ロック除外項目 | 灰任意 | Lock後に人が直せるカスタム項目を指定します。 | |
 
 8.1〜8.6は×の方針である。確定前は編集可。バッジ「確定後は変更不可」と案内「最初の請求確定まで変えられる。確定後は101以外では戻せない」。確定後は無効＋灰「変更不可」。固定者と日時を出す。
 
@@ -2805,23 +2805,21 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 
 パッケージ同梱の`Ordered_Requires_ApplicationDate`は見本として残す。顧客がSetupで足した規則は、式に`$Setup.ContractValidationEnforce__c.Enforce__c`を書いたものだけが旗の対象。書いていない規則は常に有効。画面必須はウィザード追加項目の設定に従う。申込日だけの専用画面ロジックは書かない。第11.4.3節・第11.7節。Core整合性ガードと 101〜103 とは別物で、旗では外さない。パッケージ同梱テストはEnforce OFF前提とし、実行時点でONなら落ちてよい。
 
-`InvoiceLockExemptFields__c.FieldApiNames__c`はカンマ区切りText(255)である。シードは次を入れる。設定レコードが無い、または一覧が空なら、実行時にこの一覧へ落とさずエラーにする。
+`InvoiceLockExemptFields__c.FieldApiNames__c`はカンマ区切りText(255)である。人が確定後に直せるカスタム項目の一覧である。製品が確定後に書く状態項目は載せない。製品の確定後更新はこの一覧を見ない。有効な会計タグルールが参照する請求書チェックボックスもAccountingの内部更新に限り動的な除外とし、この一覧には載せない。標準メモ`Memo__c`は製品固定で確定後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。初回インストールではこの組織既定を作らない。人が消したあとのアップグレードでも戻さない。
 
-`InvoiceTransactionStatus__c,DeliveryStatus__c,CollectionRefundStatus__c,InvoicePaymentNet__c,PaymentInclusiveTotal__c,PaymentClearingCompletedDate__c,SystemIntegrationDate__c,SentDate__c,Memo__c`
+部分更新では`isSet`され値が変わった項目がすべて除外一覧内の場合だけ許す。契約期間明細にはロック除外設定を持たない。請求取引状態は第7.9節の確定・取消専用操作だけが更新し、項目の直接編集による状態変更を拒否する。確定後の請求日・入金予定日・税率・請求アカウントは、除外一覧に書いても画面非活性としApexも拒否する。追加項目の確定後編集は、人が除外一覧へAPI名を足したときだけ。定義CMDTから自動では書かない。第11.4.4節。取消は`Loop_15_Can_CancelInvoice`（`共通基盤.md`第3章）。他の請求操作権限と101〜103では代替できない。101 の項目更新は`共通基盤.md`第3.6節。
 
-部分更新では`isSet`され値が変わった項目がすべて除外一覧内の場合だけ許す。有効な会計タグルールが参照する請求書チェックボックス項目もAccountingの内部更新に限り動的なロック除外対象とする。契約期間明細にはロック除外設定を持たない。請求取引状態は第7.9節の確定・取消専用操作だけが更新し、項目の直接編集による状態変更を拒否する。確定後の請求日・入金予定日・税率・請求アカウントは、除外一覧に書いても画面非活性としApexも拒否する。追加項目の確定後編集は、人が除外一覧へAPI名を足したときだけ。定義CMDTから自動では書かない。第11.4.4節。取消は`Loop_15_Can_CancelInvoice`（`共通基盤.md`第3章）。他の請求操作権限と101〜103では代替できない。101 の項目更新は`共通基盤.md`第3.6節。
+`InvoicePaymentLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。人が登録後に直せるカスタム項目の一覧である。標準メモ`Memo__c`は製品固定で登録後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。初回インストールではこの組織既定を作らない。人が消したあとのアップグレードでも戻さない。登録後の直接更新は、値が変わった項目がすべて除外一覧内の場合だけ許す。金額・日付・目的は一覧に書いても不可。仕訳のLockは見ない。定義CMDTから自動では書かない。第8.4節・第11.4.4節。
 
-`InvoicePaymentLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。シードは`Memo__c`。設定レコードが無い、または一覧が空ならエラーにする。登録後の直接更新は、値が変わった項目がすべて除外一覧内の場合だけ許す。金額・日付・目的は一覧に書いても不可。仕訳のLockは見ない。定義CMDTから自動では書かない。第8.4節・第11.4.4節。
+`GlJournalLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。人がLock後に直せるカスタム項目の一覧である。標準メモ`Memo__c`は製品固定でLock後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。初回インストールではこの組織既定を作らない。人が消したあとのアップグレードでも戻さない。未Lockは画面定義にある追加項目を直せる。Lock後の追加項目は除外一覧にある項目だけ。金額・科目・日付は一覧に書いても不可。定義CMDTから自動では書かない。Accounting第9.5節・第11.4.4節。
 
-`GlJournalLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。シードは`Memo__c`。設定レコードが無い、または一覧が空ならエラーにする。未Lockは画面定義にある追加項目を直せる。Lock後は除外一覧にある項目だけ（メモ含む）。金額・科目・日付は一覧に書いても不可。定義CMDTから自動では書かない。Accounting第9.5節・第11.4.4節。
-
-`ContractDocumentSetting__c`の組織既定と、ロック除外3件の組織既定は、無ければ初回インストールだけで入れる。人が消したあとのアップグレードでは戻さない。実行時は無い／空を既定へ落とさずエラーにする。保持体は現行のままとする。科目・手動仕訳のシードはAccounting第4.1節・第10.2節であり、本節の対象外である。
+`ContractDocumentSetting__c`の組織既定は、無ければ初回インストールだけで入れる。人が消したあとのアップグレードでは戻さない。実行時は無い／空を既定へ落とさずエラーにする。ロック除外3件の組織既定は初回インストールでも作らない。無いも空も、人が直せる追加なしである。保持体は現行のままとする。科目・手動仕訳のシードはAccounting第4.1節・第10.2節であり、本節の対象外である。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLockExemptFields__c.FieldApiNames__c</code>
-／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePaymentLockExemptFields__c.FieldApiNames__c</code>（表示名「入出金ロック除外項目」）、<code>GlJournalLockExemptFields__c.FieldApiNames__c</code>（表示名「仕訳ロック除外項目」）。Hierarchy。シードは<code>Memo__c</code>。
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLockUtil.isLocked</code>、<code>contractDocumentSettings</code>、<code>ContractDocumentSettingsController.getSettings</code> / <code>saveSettings</code>、<code>GlAccountInstallService.seedContractDocumentSetting</code> / <code>seedInvoiceLockExemptFields</code> / <code>seedPaymentLockExemptFields</code> / <code>seedJournalLockExemptFields</code>（初回インストールだけ。アップグレードでは消した組織既定を戻さない）
+／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePaymentLockExemptFields__c.FieldApiNames__c</code>（表示名「入出金ロック除外項目」）、<code>GlJournalLockExemptFields__c.FieldApiNames__c</code>（表示名「仕訳ロック除外項目」）。Hierarchy。初回インストールでは組織既定を作らない。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLockUtil.isLocked</code> / <code>resolveLockExemptFieldNames</code>、<code>contractDocumentSettings</code>、<code>ContractDocumentSettingsController.getSettings</code> / <code>saveSettings</code>、<code>GlAccountInstallService.seedContractDocumentSetting</code>（初回インストールだけ。ロック除外3件は入れない。アップグレードでは消した組織既定を戻さない）
 ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePaymentLockUtil.assertExemptUpdate</code>
 ／ 仕訳Lock後の除外は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>JournalLockService</code>へ <code>assertExemptUpdate</code>
 </div>
