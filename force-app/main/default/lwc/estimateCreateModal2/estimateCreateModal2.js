@@ -13,7 +13,8 @@ import getBillingAccountsByAccount from "@salesforce/apex/EstimateCreateControll
 import getActiveContractServicesByAccount from "@salesforce/apex/EstimateCreateController.getActiveContractServicesByAccount";
 import {
   formatHistoryVersion,
-  buildCancelHistoryName
+  buildCreateHistoryName,
+  buildCreateServiceName
 } from "c/estimateWizardState";
 import { addDaysToIsoDate } from "c/estimateLineItemUtils";
 
@@ -764,9 +765,9 @@ export default class EstimateCreateModal2 extends LightningElement {
   }
 
   /**
-   * 空欄のときだけ商談名ベースのデフォルトを入れる。
-   * 全タイプ: 契約履歴名 = 「{商談名} の契約履歴」
-   * New のみ: 契約サービス名 = 「{商談名} の契約サービス」
+   * 仕様: Core 第4.3.3節。空欄のときだけ作成の初期値を入れる。
+   * 契約履歴名 = 「{商談名}の契約履歴」（New / Change / Renew / Cancel）
+   * New のみ: 契約サービス名 = 「{商談名}の契約サービス」
    */
   maybeApplyDefaultNames() {
     if (!this._wizardData || this.isStandardFieldsReadonly) {
@@ -779,17 +780,10 @@ export default class EstimateCreateModal2 extends LightningElement {
 
     const fields = {};
     if (this.isNewType && !(this.contractServiceName || "").trim()) {
-      fields.contractServiceName = `${oppName} の契約サービス`;
+      fields.contractServiceName = buildCreateServiceName(oppName);
     }
-    if (!(this.contractHistoryName || "").trim()) {
-      if (this.isCancelType) {
-        const cancelName = buildCancelHistoryName(this.autoHistoryName);
-        if (cancelName) {
-          fields.contractHistoryName = cancelName;
-        }
-      } else if (this.isNewType) {
-        fields.contractHistoryName = `${oppName} の契約履歴`;
-      }
+    if (!(this.contractHistoryName || "").trim() && this.effectiveWizardType) {
+      fields.contractHistoryName = buildCreateHistoryName(oppName);
     }
     if (Object.keys(fields).length > 0) {
       this.emitChange(fields);

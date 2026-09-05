@@ -231,8 +231,13 @@ describe("SET_TYPE", () => {
     expect(state.data.serviceLifecycle).toBe("");
   });
 
-  it("Cancel は Latest Ordered の履歴名末尾に解約を付ける", () => {
+  it("作成の履歴名初期値は種別によらず商談名の契約履歴", () => {
     let state = createInitialWizardState();
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SET_OPPORTUNITY,
+      opportunityName: "商談X",
+      accountName: "取引先Y"
+    });
     state = dispatch(state, {
       type: WIZARD_ACTIONS.SET_ENTRY_MODE,
       entryMode: "continuation"
@@ -258,8 +263,14 @@ describe("SET_TYPE", () => {
       type: WIZARD_ACTIONS.SET_TYPE,
       selectedType: "Cancel"
     });
-    expect(state.data.contractHistoryName).toBe("2026年度 契約 解約");
-    expect(state.data.contractHistoryName).not.toContain("Churn");
+    expect(state.data.contractHistoryName).toBe("商談Xの契約履歴");
+    state = dispatch(state, {
+      type: WIZARD_ACTIONS.SELECT_CONTRACT_SERVICE_START,
+      contractServiceId: "svc2",
+      contractServiceName: "別サービス",
+      serviceLifecycle: "Term"
+    });
+    expect(state.data.contractHistoryName).toBe("商談Xの契約履歴");
   });
 });
 

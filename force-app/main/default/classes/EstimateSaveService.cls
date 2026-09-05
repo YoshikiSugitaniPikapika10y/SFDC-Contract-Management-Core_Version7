@@ -872,6 +872,7 @@ public without sharing class EstimateSaveService {
       request.contractEndDate
     );
 
+    // 仕様: Core 第4.3.3節。画面の契約サービス名をそのまま書く。子連番は付けない。
     ContractService__c contractService = new ContractService__c(
       Name = request.contractServiceName,
       Account__c = opportunity.AccountId,

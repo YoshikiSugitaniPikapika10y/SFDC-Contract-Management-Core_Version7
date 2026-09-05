@@ -266,13 +266,14 @@ private class EstimateQueryServiceTest {
         history.Id
       );
       System.assertEquals(
-        'Query Copy Source',
+        'Query Copy Sourceのコピー',
         preset.contractHistoryName,
-        'Core 第4.3.3節・第4.7節・第0.1節: コピーの履歴名に「のコピー」を付けない'
+        'Core 第4.3.3節・第4.7節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(
-        'Query Copy Serviceのコピー',
-        preset.contractServiceName
+        'Query Copy Service',
+        preset.contractServiceName,
+        'Core 第4.3.3節: Newコピーのサービス名にのコピーは付けない'
       );
       System.assertEquals(null, preset.contractServiceId);
       System.assertEquals(
@@ -335,9 +336,9 @@ private class EstimateQueryServiceTest {
         changeEstimate.Id
       );
       System.assertEquals(
-        '',
+        'Query Name Changeのコピー',
         changePreset.contractHistoryName,
-        'Core 第4.3.3節: Changeの履歴名は空'
+        'Core 第4.3.3節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(
         true,
@@ -365,9 +366,9 @@ private class EstimateQueryServiceTest {
         cancelEstimate.Id
       );
       System.assertEquals(
-        'Query Name Ordered 解約',
+        'Query Name Cancel Estのコピー',
         cancelPreset.contractHistoryName,
-        'Core 第4.3.3節・第0.1節: Cancelの履歴名末尾は解約'
+        'Core 第4.3.3節: コピーの履歴名は元名のコピー'
       );
     }
   }

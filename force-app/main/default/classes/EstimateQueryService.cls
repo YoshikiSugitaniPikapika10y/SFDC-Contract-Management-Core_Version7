@@ -389,10 +389,10 @@ public without sharing class EstimateQueryService {
       ? ''
       : history.Opportunity__r.Account.Name;
     preset.selectedType = history.Type__c;
-    // 仕様: Core 第4.3.3節、第4.7節、第0.1節。コピーに「のコピー」を付けない。
+    // 仕様: Core 第4.3.3節、第4.7節。編集は保存済み名。コピーの履歴名は元名のコピー。
     preset.contractHistoryName = forEdit == true
       ? history.Name
-      : resolveCopyHistoryName(history);
+      : buildCopyHistoryName(history.Name);
     preset.contractStartDate = EstimateCreateSupport.formatDate(
       history.CurrentTermStartDate__c
     );
@@ -461,9 +461,8 @@ public without sharing class EstimateQueryService {
         preset.contractServiceId = history.ContractService__c;
         preset.nextHistoryVersion = history.Version__c;
       } else {
-        preset.contractServiceName = service == null
-          ? ''
-          : buildCopyHistoryName(service.Name);
+        // 仕様: Core 第4.3.3節。Newコピーのサービス名は元名。のコピーは付けない。
+        preset.contractServiceName = service == null ? '' : service.Name;
         preset.contractServiceId = null;
         // New コピーは契約サービスを新規化するため Lifecycle は載せない
         preset.serviceLifecycle = null;
@@ -629,41 +628,13 @@ public without sharing class EstimateQueryService {
     return false;
   }
 
+  /** 仕様: Core 第4.3.3節、第4.7節。コピーの履歴名は {元の履歴名}のコピー。 */
   public static String buildCopyHistoryName(String sourceName) {
-    String baseName = String.isBlank(sourceName) ? '' : sourceName.trim();
-    return baseName + 'のコピー';
-  }
-
-  /** 仕様: Core 第4.3.3節、第4.7節、第0.1節 */
-  private static String resolveCopyHistoryName(ContractHistory__c history) {
-    if (history == null) {
-      return '';
-    }
-    if (
-      history.Type__c == HISTORY_TYPE_CHANGE ||
-      history.Type__c == HISTORY_TYPE_RENEW
-    ) {
-      return '';
-    }
-    if (history.Type__c == HISTORY_TYPE_CANCEL) {
-      String baseName = history.PreviousHistory__r == null
-        ? ''
-        : history.PreviousHistory__r.Name;
-      return buildCancelHistoryName(baseName);
-    }
-    return history.Name == null ? '' : history.Name;
-  }
-
-  /** 仕様: Core 第4.3.3節、第0.1節 */
-  private static String buildCancelHistoryName(String sourceName) {
     String baseName = String.isBlank(sourceName) ? '' : sourceName.trim();
     if (String.isBlank(baseName)) {
       return '';
     }
-    if (baseName.endsWith('解約')) {
-      return baseName;
-    }
-    return baseName + ' 解約';
+    return baseName + 'のコピー';
   }
 
   public static List<EstimateCreateController.ProductLineItem> loadCopyProductLines(

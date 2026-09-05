@@ -4863,13 +4863,14 @@ private class EstimateCreateControllerTest {
       System.assertEquals(opportunity.Account.Name, preset.accountName);
       System.assertEquals('New', preset.selectedType);
       System.assertEquals(
-        'Copy Test Serviceのコピー',
-        preset.contractServiceName
+        'Copy Test Service',
+        preset.contractServiceName,
+        'Core 第4.3.3節: Newコピーのサービス名にのコピーは付けない'
       );
       System.assertEquals(
-        'Copy Source History',
+        'Copy Source Historyのコピー',
         preset.contractHistoryName,
-        'Core 第4.7節: コピーの履歴名は元内容。のコピーは付けない'
+        'Core 第4.3.3節・第4.7節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(null, preset.contractServiceId);
       System.assertEquals(null, preset.contractHistoryId);
@@ -5072,9 +5073,9 @@ private class EstimateCreateControllerTest {
       System.assertEquals(1, preset.baseHistoryVersion);
       System.assertEquals(2, preset.nextHistoryVersion);
       System.assertEquals(
-        '',
+        'Change Source Estimateのコピー',
         preset.contractHistoryName,
-        'Core 第4.3.3節: 追加変更のコピー履歴名初期は空。第4.7節: のコピーは付けない'
+        'Core 第4.3.3節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(
         String.valueOf(effectiveDate),
@@ -5137,9 +5138,9 @@ private class EstimateCreateControllerTest {
 
       System.assertEquals('Renew', preset.selectedType);
       System.assertEquals(
-        '',
+        'Renew Copy Source Historyのコピー',
         preset.contractHistoryName,
-        'Core 第4.3.3節: 更新のコピー履歴名初期は空。第4.7節: のコピーは付けない'
+        'Core 第4.3.3節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(String.valueOf(renewStart), preset.contractStartDate);
       System.assertEquals(
@@ -5198,9 +5199,9 @@ private class EstimateCreateControllerTest {
       Test.stopTest();
       System.assertEquals('Cancel', preset.selectedType);
       System.assertEquals(
-        'Cancel Copy Previous History 解約',
+        'Cancel Copy Source Historyのコピー',
         preset.contractHistoryName,
-        'Core 第4.3.3節・第0.1節: 解約コピーの履歴名はLatest Ordered名の末尾に解約'
+        'Core 第4.3.3節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(
         null,

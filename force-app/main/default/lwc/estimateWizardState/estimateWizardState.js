@@ -341,10 +341,9 @@ function reduceSetType(state, action) {
     data.billingAccountId = state.data.billingAccountId;
     data.renewEligible = state.data.renewEligible;
     data.estimateSendContactId = previousSendContactId;
-    data.contractHistoryName =
-      nextType === "Cancel"
-        ? buildCancelHistoryName(data.autoHistoryName)
-        : state.data.contractHistoryName;
+    data.contractHistoryName = buildCreateHistoryName(
+      data.opportunityName
+    );
   }
   data.selectedType = nextType;
   if (nextIsNew && (data.taxPercent == null || data.taxPercent === "")) {
@@ -442,8 +441,7 @@ function reduceSelectContractServiceStart(state, action) {
     : "";
   data.contractHistoryId = "";
   data.autoHistoryName = "";
-  // 履歴名は基本情報のみで編集。サービス切替時は旧契約由来なので捨てる。
-  data.contractHistoryName = "";
+  // 仕様: Core 第4.3.3節。サービス切替でも契約履歴名は変えない。
   data.baseHistoryVersion = null;
   data.nextHistoryVersion = null;
   data.renewEligible = null;
@@ -485,9 +483,6 @@ function reduceSelectContractServiceResult(state, action, result) {
   data.nextHistoryVersion =
     result && result.nextVersion != null ? result.nextVersion : null;
   data.renewEligible = result ? result.renewEligible === true : null;
-  if (data.selectedType === "Cancel") {
-    data.contractHistoryName = buildCancelHistoryName(data.autoHistoryName);
-  }
   data.estimateSendContactId =
     (result && result.estimateSendContactId) || "";
   return {
@@ -793,6 +788,16 @@ function addCalendarMonths(isoDate, months) {
   const lastDay = new Date(Date.UTC(nextYear, nextMonth + 1, 0)).getUTCDate();
   const day = Math.min(parts[2], lastDay);
   return `${nextYear}-${String(nextMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function buildCreateHistoryName(opportunityName) {
+  const base = (opportunityName || "").trim();
+  return base ? `${base}の契約履歴` : "";
+}
+
+export function buildCreateServiceName(opportunityName) {
+  const base = (opportunityName || "").trim();
+  return base ? `${base}の契約サービス` : "";
 }
 
 export function buildCancelHistoryName(baseName) {
