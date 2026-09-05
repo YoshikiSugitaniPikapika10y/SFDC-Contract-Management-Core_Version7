@@ -3614,9 +3614,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             requireExemptToEdit: true
           })
         ),
-        expectedToken:
-          state.lastModifiedToken ||
-          this.invoiceUiState[invoiceId]?.bundle?.invoiceToken,
+        expectedToken: this.invoiceUiState[invoiceId]?.bundle?.invoiceToken,
         businessOperationKey: key,
         contractHistoryId: this.contractHistoryId
       });

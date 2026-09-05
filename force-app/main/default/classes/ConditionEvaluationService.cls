@@ -88,13 +88,24 @@ public without sharing class ConditionEvaluationService {
     return true;
   }
 
-  /** 仕様: Accounting 第4.7節、第6章 */
+  /** 仕様: Accounting 第4.7節、第6章。空欄なら全条件AND。番号は ConditionLogic の AND／OR／NOT・括弧。 */
   public static Boolean evaluateTenant(Id conditionSetId, Context context) {
     if (conditionSetId == null) {
       return true;
     }
+    List<GlConditionSet__c> sets = [
+      SELECT ConditionLogic__c
+      FROM GlConditionSet__c
+      WHERE Id = :conditionSetId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (sets.isEmpty()) {
+      throw new EvaluationException('条件セットがありません。');
+    }
     List<GlConditionRule__c> rules = [
       SELECT
+        Sequence__c,
         TargetObject__c,
         TargetField__c,
         Operator__c,
@@ -110,6 +121,7 @@ public without sharing class ConditionEvaluationService {
     if (rules.isEmpty()) {
       throw new EvaluationException('条件が0件の条件セットは参照できません。');
     }
+    Map<Decimal, Boolean> bySequence = new Map<Decimal, Boolean>();
     for (GlConditionRule__c rule : rules) {
       Object left = readValue(context, rule.TargetObject__c, rule.TargetField__c);
       Object right = null;
@@ -118,11 +130,17 @@ public without sharing class ConditionEvaluationService {
       } else if (rule.Operator__c != 'IsNull' && rule.Operator__c != 'IsNotNull') {
         right = rule.CompareValue__c;
       }
-      if (!compare(left, rule.Operator__c, right)) {
-        return false;
-      }
+      bySequence.put(rule.Sequence__c, compare(left, rule.Operator__c, right));
     }
-    return true;
+    if (String.isBlank(sets[0].ConditionLogic__c)) {
+      for (Boolean matched : bySequence.values()) {
+        if (matched != true) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return evaluateConditionLogic(sets[0].ConditionLogic__c, bySequence);
   }
 
   private static Boolean evaluateRule(
@@ -419,6 +437,92 @@ public without sharing class ConditionEvaluationService {
       index = endIndex;
     }
     return tokens;
+  }
+
+  /** 仕様: Accounting 第4.7節。保存済みの条件ロジックを評価する。 */
+  private static Boolean evaluateConditionLogic(
+    String logic,
+    Map<Decimal, Boolean> bySequence
+  ) {
+    List<String> tokens = tokenizeLogic(logic);
+    if (tokens == null || tokens.isEmpty()) {
+      throw new EvaluationException('条件ロジックの構文が不正です。');
+    }
+    LogicCursor cursor = new LogicCursor();
+    cursor.tokens = tokens;
+    cursor.index = 0;
+    cursor.bySequence = bySequence;
+    Boolean value = parseLogicOr(cursor);
+    if (cursor.index != cursor.tokens.size()) {
+      throw new EvaluationException('条件ロジックの構文が不正です。');
+    }
+    return value;
+  }
+
+  private class LogicCursor {
+    List<String> tokens;
+    Integer index;
+    Map<Decimal, Boolean> bySequence;
+  }
+
+  private static Boolean parseLogicOr(LogicCursor cursor) {
+    Boolean value = parseLogicAnd(cursor);
+    while (logicPeek(cursor) == 'OR') {
+      cursor.index++;
+      value = value || parseLogicAnd(cursor);
+    }
+    return value;
+  }
+
+  private static Boolean parseLogicAnd(LogicCursor cursor) {
+    Boolean value = parseLogicNot(cursor);
+    while (logicPeek(cursor) == 'AND') {
+      cursor.index++;
+      value = value && parseLogicNot(cursor);
+    }
+    return value;
+  }
+
+  private static Boolean parseLogicNot(LogicCursor cursor) {
+    if (logicPeek(cursor) == 'NOT') {
+      cursor.index++;
+      return !parseLogicNot(cursor);
+    }
+    return parseLogicPrimary(cursor);
+  }
+
+  private static Boolean parseLogicPrimary(LogicCursor cursor) {
+    String token = logicPeek(cursor);
+    if (token == '(') {
+      cursor.index++;
+      Boolean value = parseLogicOr(cursor);
+      if (logicPeek(cursor) != ')') {
+        throw new EvaluationException('条件ロジックの括弧が対応していません。');
+      }
+      cursor.index++;
+      return value;
+    }
+    if (String.isBlank(token)) {
+      throw new EvaluationException('条件ロジックの構文が不正です。');
+    }
+    cursor.index++;
+    Decimal sequence;
+    try {
+      sequence = Decimal.valueOf(token);
+    } catch (Exception ex) {
+      throw new EvaluationException('条件ロジックの構文が不正です。');
+    }
+    if (cursor.bySequence == null || !cursor.bySequence.containsKey(sequence)) {
+      throw new EvaluationException('条件ロジックの番号がありません。');
+    }
+    return cursor.bySequence.get(sequence) == true;
+  }
+
+  private static String logicPeek(LogicCursor cursor) {
+    if (cursor == null || cursor.tokens == null || cursor.index >= cursor.tokens.size()) {
+      return null;
+    }
+    return cursor.tokens[cursor.index];
   }
 
   private static Schema.DescribeFieldResult describeField(

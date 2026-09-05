@@ -127,11 +127,13 @@ public without sharing class InvoicePreviewOpsController {
     public Decimal remainingInclusive;
   }
 
+  /** 仕様: Core 第8.6節・第8.9節。LWCから入る明細別割当。受信は get/set。 */
+  /** 仕様: Core 第8.6節・第8.9節。LWC JSON は {get;set;} が無いと空。 */
   public class AllocationInputDto {
     @AuraEnabled
-    public Id invoiceLineId;
+    public Id invoiceLineId { get; set; }
     @AuraEnabled
-    public Decimal amount;
+    public Decimal amount { get; set; }
   }
 
   public class PaymentRowDto {
@@ -521,14 +523,9 @@ public without sharing class InvoicePreviewOpsController {
     request.businessOperationKey = businessOperationKey;
     request.expectedToken = expectedToken;
     if (resolvedPurpose == InvoicePaymentService.PURPOSE_INVOICE) {
-      if (allocations == null) {
-        request.allocations = InvoicePaymentAllocationService.proposeLines(
-          invoiceId,
-          amount
-        );
-      } else {
-        request.allocations = toAllocationLines(allocations);
-      }
+      request.allocations = toAllocationLines(
+        allocations == null ? new List<AllocationInputDto>() : allocations
+      );
     }
     try {
       return InvoicePaymentService.register(request);
@@ -705,14 +702,9 @@ public without sharing class InvoicePreviewOpsController {
     request.memo = memo;
     request.cancellationDate = cancellationDate;
     if (resolvedPurpose == InvoicePaymentService.PURPOSE_INVOICE) {
-      if (allocations == null) {
-        request.allocations = InvoicePaymentAllocationService.proposeLines(
-          invoiceId,
-          amount
-        );
-      } else {
-        request.allocations = toAllocationLines(allocations);
-      }
+      request.allocations = toAllocationLines(
+        allocations == null ? new List<AllocationInputDto>() : allocations
+      );
     }
     try {
       return InvoicePaymentService.previewRegister(request);

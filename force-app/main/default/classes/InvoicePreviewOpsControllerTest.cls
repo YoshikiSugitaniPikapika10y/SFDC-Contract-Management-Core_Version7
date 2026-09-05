@@ -191,6 +191,43 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void savePaymentFromPreview_nullAllocationsRejectedForInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c invoice = [
+        SELECT LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        InvoicePreviewOpsController.savePaymentFromPreview(
+          null,
+          fixture.invoice.Id,
+          100,
+          InvoicePaymentService.PURPOSE_INVOICE,
+          Date.today(),
+          null,
+          ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+          null,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '明細別割当の請求明細と金額は必須です。',
+          ex.getMessage(),
+          'Core 第8.6節・第8.9節: 画面の割当が空なら proposeLines で埋めない'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
   static void cancelPaymentFromPreview_allowsBlankCancelDateWithoutLockedJournals() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
@@ -1325,6 +1362,82 @@ private class InvoicePreviewOpsControllerTest {
           .Amount__c
       );
       Test.stopTest();
+      InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
+      InvoiceOpsFieldService.resetCache();
+    }
+  }
+
+  @IsTest
+  static void updatePaymentFromPreview_usesInvoiceOperationToken() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{
+          new InvoiceOpsField__mdt(
+            DeveloperName = 'PayMemoToken',
+            Active__c = true,
+            TargetObject__c = 'InvoicePayment__c',
+            FieldApiName__c = 'Memo__c',
+            ShowOnInvoicePurpose__c = false,
+            ShowOnNonInvoicePurpose__c = true
+          )
+        }
+      );
+      InvoicePaymentLockUtil.testLockExemptFieldApiNames = 'Memo__c';
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c invoice = [
+        SELECT LastModifiedDate, ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      Test.startTest();
+      Id paymentId = InvoicePreviewOpsController.savePaymentFromPreview(
+        null,
+        fixture.invoice.Id,
+        100,
+        InvoicePaymentService.PURPOSE_NON_INVOICE,
+        Date.today(),
+        '初回',
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+        null,
+        null
+      );
+      String paymentMaxToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      InvoicePreviewOpsController.updatePaymentFromPreview(
+        paymentId,
+        fixture.invoice.Id,
+        '入出金最大',
+        new Map<String, Object>{ 'Memo__c' => '入出金最大' },
+        paymentMaxToken,
+        'op-pay-token-max',
+        invoice.ContractHistory__c
+      );
+      System.assertEquals(
+        '入出金最大',
+        [SELECT Memo__c FROM InvoicePayment__c WHERE Id = :paymentId].Memo__c,
+        'Core 第7.9.7節: 入出金が最大のとき請求操作の版でメモを保存できる'
+      );
+      insertJournal(fixture.invoice.Id, false, 'Active', 'PAYEDIT');
+      String afterJournalToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      InvoicePreviewOpsController.updatePaymentFromPreview(
+        paymentId,
+        fixture.invoice.Id,
+        '仕訳後',
+        new Map<String, Object>{ 'Memo__c' => '仕訳後' },
+        afterJournalToken,
+        'op-pay-token-journal',
+        invoice.ContractHistory__c
+      );
+      Test.stopTest();
+      System.assertEquals(
+        '仕訳後',
+        [SELECT Memo__c FROM InvoicePayment__c WHERE Id = :paymentId].Memo__c,
+        'Core 第7.9.7節: 仕訳が新しくても請求操作の版でメモを保存できる'
+      );
       InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
       InvoiceOpsFieldService.resetCache();
     }

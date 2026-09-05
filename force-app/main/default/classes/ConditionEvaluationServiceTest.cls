@@ -193,6 +193,42 @@ private class ConditionEvaluationServiceTest {
   }
 
   @IsTest
+  static void evaluateTenant_appliesOrLogicFromConditionLogic() {
+    GlConditionSet__c conditionSet = new GlConditionSet__c(
+      Name = 'Eval Or Set',
+      EvaluationContext__c = 'Invoice',
+      Description__c = 'OR',
+      ConditionLogic__c = '1 OR 2'
+    );
+    insert conditionSet;
+    insert new List<GlConditionRule__c>{
+      new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'Account',
+        TargetField__c = 'Name',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '一致しない'
+      ),
+      new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 2,
+        TargetObject__c = 'Invoice__c',
+        TargetField__c = 'Memo__c',
+        Operator__c = 'IsNotNull'
+      )
+    };
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.invoice = new Invoice__c(Memo__c = 'あり');
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第4.7節: 条件ロジックの OR を評価する'
+    );
+  }
+
+  @IsTest
   static void validateRule_requiresAggregateForInvoiceLineOnInvoiceContext() {
     GlConditionRule__c rule = new GlConditionRule__c(
       TargetObject__c = 'InvoiceLine__c',

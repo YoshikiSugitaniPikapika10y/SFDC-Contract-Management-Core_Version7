@@ -2,6 +2,7 @@ import { createElement } from "lwc";
 import OrderInvoicePreviewTable from "c/orderInvoicePreviewTable";
 import getOpsBundle from "@salesforce/apex/InvoicePreviewOpsController.getOpsBundle";
 import savePaymentFromPreview from "@salesforce/apex/InvoicePreviewOpsController.savePaymentFromPreview";
+import updatePaymentFromPreview from "@salesforce/apex/InvoicePreviewOpsController.updatePaymentFromPreview";
 import previewRegisterFromPreview from "@salesforce/apex/InvoicePreviewOpsController.previewRegisterFromPreview";
 import previewCancelConfirmed from "@salesforce/apex/OrderCreateController.previewCancelConfirmed";
 import previewCancelPaymentFromPreview from "@salesforce/apex/InvoicePreviewOpsController.previewCancelPaymentFromPreview";
@@ -334,6 +335,7 @@ describe("orderInvoicePreviewTable payment form", () => {
   beforeEach(() => {
     savePaymentFromPreview.mockClear();
     previewRegisterFromPreview.mockClear();
+    updatePaymentFromPreview.mockClear();
   });
 
   afterEach(() => {
@@ -1334,6 +1336,62 @@ describe("orderInvoicePreviewTable payment form", () => {
     );
     expect(savePaymentFromPreview).toHaveBeenCalled();
     expect(savePaymentFromPreview.mock.calls[0][0].cancellationDate).toBeNull();
+    expect(savePaymentFromPreview.mock.calls[0][0].allocations).toEqual([
+      { invoiceLineId: "a01LINE00000001", amount: 100 }
+    ]);
+  });
+
+  it("sends invoice operation token when saving payment memo", async () => {
+    updatePaymentFromPreview.mockResolvedValue(undefined);
+    getOpsBundle.mockResolvedValue(
+      mockBundle({
+        payments: [
+          {
+            paymentId: "a02PAY000000001",
+            amount: 200,
+            displayAmount: 200,
+            paymentPurpose: "Invoice",
+            paymentDate: "2026-06-10",
+            memo: "",
+            canCancel: true,
+            lastModifiedToken: "pay-token",
+            paymentTransactionStatus: "Active"
+          }
+        ]
+      })
+    );
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    element.contractHistoryId = "a0H000000000001AAA";
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+    const editButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.ghost-btn")
+    ).find((button) => button.textContent.trim() === "編集");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+    const memoInput = Array.from(
+      element.shadowRoot.querySelectorAll("lightning-input")
+    ).find((input) => input.label === "メモ");
+    memoInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "メモ更新" } })
+    );
+    await flush();
+    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
+      .find((button) => button.textContent.trim() === "保存")
+      .click();
+    await flush();
+    expect(updatePaymentFromPreview).toHaveBeenCalled();
+    expect(updatePaymentFromPreview.mock.calls[0][0].expectedToken).toBe(
+      "token"
+    );
+    expect(updatePaymentFromPreview.mock.calls[0][0].expectedToken).not.toBe(
+      "pay-token"
+    );
   });
 
   it("shows reverse-journal result after locked payment register", async () => {
