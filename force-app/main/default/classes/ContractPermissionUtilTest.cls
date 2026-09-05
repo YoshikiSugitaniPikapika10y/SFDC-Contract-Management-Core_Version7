@@ -363,9 +363,9 @@ private class ContractPermissionUtilTest {
     System.assertEquals(true, editBlocked);
   }
 
-  /** 仕様: 共通基盤 第3.4節・第3.6節。101 の操作ログは Create と Edit を付けない。 */
+  /** 仕様: 共通基盤 第3.4節・第3.6節。101 の操作ログは Edit と Delete。Create は付けない。 */
   @IsTest
-  static void migrateAll_operationLogHasNoCreateOrEdit() {
+  static void migrateAll_operationLogHasEditAndDeleteNoCreate() {
     List<ObjectPermissions> rows = [
       SELECT
         PermissionsCreate,
@@ -384,7 +384,7 @@ private class ContractPermissionUtilTest {
       '共通基盤 第3.4節: 101 に操作ログのオブジェクト権限がある'
     );
     System.assertEquals(false, rows[0].PermissionsCreate);
-    System.assertEquals(false, rows[0].PermissionsEdit);
+    System.assertEquals(true, rows[0].PermissionsEdit);
     System.assertEquals(true, rows[0].PermissionsRead);
     System.assertEquals(true, rows[0].PermissionsDelete);
     System.assertEquals(true, rows[0].PermissionsViewAllRecords);
