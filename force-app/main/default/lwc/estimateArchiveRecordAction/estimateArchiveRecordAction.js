@@ -17,7 +17,8 @@ const NON_ESTIMATE_ARCHIVE_MESSAGE =
   "見積状態の契約履歴のみ不採用にできます。";
 
 export default class EstimateArchiveRecordAction extends LightningElement {
-  @api recordId;
+  _recordId = "";
+  _contextRequestSeq = 0;
 
   isWorking = false;
   errorMessage = "";
@@ -30,6 +31,20 @@ export default class EstimateArchiveRecordAction extends LightningElement {
   _lastModifiedToken = "";
   _pendingOperationKey = "";
 
+  // 仕様: Core 第4.3.1節、第5.5節。Quick Action の recordId は後から入ることがある。
+  @api
+  get recordId() {
+    return this._recordId;
+  }
+  set recordId(value) {
+    const next = value || "";
+    if (next === this._recordId) {
+      return;
+    }
+    this._recordId = next;
+    this.loadContext();
+  }
+
   connectedCallback() {
     resizeQuickActionPanel(this, "confirm");
     this.loadContext();
@@ -39,20 +54,31 @@ export default class EstimateArchiveRecordAction extends LightningElement {
     resizeQuickActionPanel(this, "confirm");
   }
 
+  // 仕様: Core 第5.5節、第4.3.11節。開いた契約履歴の状態をサーバから取る。
   async loadContext() {
-    if (!this.recordId) {
+    const historyId = this._recordId;
+    if (!historyId) {
       return;
     }
+    this._contextRequestSeq += 1;
+    const requestSeq = this._contextRequestSeq;
     try {
       const context = await getArchiveContext({
-        contractHistoryId: this.recordId
+        contractHistoryId: historyId
       });
+      if (requestSeq !== this._contextRequestSeq || this._recordId !== historyId) {
+        return;
+      }
       this._lastModifiedToken = context?.lastModifiedToken || "";
       this.historyStatus = context?.historyStatus || "";
-      if (this.historyStatus && this.historyStatus !== STATUS_ESTIMATE) {
-        this.errorMessage = NON_ESTIMATE_ARCHIVE_MESSAGE;
-      }
+      this.errorMessage =
+        this.historyStatus && this.historyStatus !== STATUS_ESTIMATE
+          ? NON_ESTIMATE_ARCHIVE_MESSAGE
+          : "";
     } catch (error) {
+      if (requestSeq !== this._contextRequestSeq || this._recordId !== historyId) {
+        return;
+      }
       const alert = resolveSaveErrorAlert(error);
       this.errorMessage = alert.messages.map((entry) => entry.text).join("\n");
     }

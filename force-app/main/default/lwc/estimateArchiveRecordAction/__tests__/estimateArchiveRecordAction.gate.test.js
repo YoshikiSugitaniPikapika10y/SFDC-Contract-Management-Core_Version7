@@ -138,7 +138,8 @@ describe("estimateArchiveRecordAction confirm (Core 5.5)", () => {
       lastModifiedToken: "tok"
     });
     const self = {
-      recordId: "a01000000000001AAA",
+      _recordId: "a01000000000001AAA",
+      _contextRequestSeq: 0,
       errorMessage: "",
       historyStatus: "",
       _lastModifiedToken: ""
@@ -149,5 +150,34 @@ describe("estimateArchiveRecordAction confirm (Core 5.5)", () => {
     );
     await proto.handleArchive.call({ isArchiveDisabled: true });
     expect(archiveEstimate).not.toHaveBeenCalled();
+  });
+
+  it("後から入ったrecordIdでも見積候補ならアーカイブするを押せる", async () => {
+    getArchiveContext.mockResolvedValue({
+      historyStatus: "Estimate",
+      lastModifiedToken: "tok"
+    });
+    const element = createElement("c-estimate-archive-record-action", {
+      is: EstimateArchiveRecordAction
+    });
+    document.body.appendChild(element);
+    await Promise.resolve();
+    expect(getArchiveContext).not.toHaveBeenCalled();
+    const before = Array.from(
+      element.shadowRoot.querySelectorAll("button")
+    ).find((button) => button.textContent.replace(/\s+/g, "") === "アーカイブする");
+    expect(before.disabled).toBe(true);
+
+    element.recordId = "a01000000000001AAA";
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getArchiveContext).toHaveBeenCalledWith({
+      contractHistoryId: "a01000000000001AAA"
+    });
+    const after = Array.from(
+      element.shadowRoot.querySelectorAll("button")
+    ).find((button) => button.textContent.replace(/\s+/g, "") === "アーカイブする");
+    expect(after.disabled).toBe(false);
   });
 });
