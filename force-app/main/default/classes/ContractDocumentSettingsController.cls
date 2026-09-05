@@ -1177,7 +1177,7 @@ public without sharing class ContractDocumentSettingsController {
       catalogLink(
         'documentCatalog',
         '帳票カタログ',
-        cmdtListUrl('ContractDocumentTemplate__mdt', 'All')
+        cmdtListUrl(ContractDocumentTemplate__mdt.SObjectType)
       )
     );
     rows.add(
@@ -1191,28 +1191,28 @@ public without sharing class ContractDocumentSettingsController {
       catalogLink(
         'emailCatalog',
         '送付メールカタログ',
-        cmdtListUrl('ContractEmailTemplate__mdt', 'All')
+        cmdtListUrl(ContractEmailTemplate__mdt.SObjectType)
       )
     );
     rows.add(
       catalogLink(
         'estimateWizardFields',
         '見積ウィザード追加項目',
-        cmdtListUrl('EstimateWizardField__mdt', 'All')
+        cmdtListUrl(EstimateWizardField__mdt.SObjectType)
       )
     );
     rows.add(
       catalogLink(
         'orderWizardFields',
         '受注ウィザード追加項目',
-        cmdtListUrl('OrderWizardField__mdt', 'All')
+        cmdtListUrl(OrderWizardField__mdt.SObjectType)
       )
     );
     rows.add(
       catalogLink(
         'invoiceOpsFields',
         '請求操作追加項目',
-        cmdtListUrl('InvoiceOpsField__mdt', 'All')
+        cmdtListUrl(InvoiceOpsField__mdt.SObjectType)
       )
     );
     rows.add(
@@ -1226,7 +1226,7 @@ public without sharing class ContractDocumentSettingsController {
       catalogLink(
         'amountCalculation',
         '金額計算',
-        cmdtListUrl('GlAccountingSetting__mdt', 'All')
+        cmdtListUrl(GlAccountingSetting__mdt.SObjectType)
       )
     );
     if (includeAccountingMaster == true) {
@@ -1266,8 +1266,10 @@ public without sharing class ContractDocumentSettingsController {
     return '/lightning/o/' + objectApiName + '/list';
   }
 
-  private static String cmdtListUrl(String objectApiName, String filterName) {
-    return objectListUrl(objectApiName) + '?filterName=' + filterName;
+  /** 仕様: Core 第11.3.2節・第11.6節。Setup の当該種別 Manage Records。種類の目次は使わない。 */
+  private static String cmdtListUrl(Schema.SObjectType token) {
+    return '/lightning/setup/CustomMetadata/page?address=%2F' +
+      token.getDescribe().getKeyPrefix();
   }
 
   private static CatalogLinkDto catalogLink(String key, String label, String url) {

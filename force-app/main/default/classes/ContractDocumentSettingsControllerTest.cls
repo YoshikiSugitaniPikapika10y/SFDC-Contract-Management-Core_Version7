@@ -98,6 +98,63 @@ private class ContractDocumentSettingsControllerTest {
   }
 
   @IsTest
+  static void getSettings_cmdtLinksGoToSetupManageRecords() {
+    Test.startTest();
+    ContractDocumentSettingsController.testHasAccountingMaster = false;
+    ContractDocumentSettingsController.PageDataDto result =
+      ContractDocumentSettingsController.getSettings();
+    Test.stopTest();
+
+    System.assertEquals(
+      cmdtManageRecordsUrl(ContractDocumentTemplate__mdt.SObjectType),
+      findLink(result.settingLinks, 'documentCatalog').url,
+      'Core 第11.3.2節: 帳票カタログは当該種別の行一覧'
+    );
+    System.assertEquals(
+      cmdtManageRecordsUrl(ContractEmailTemplate__mdt.SObjectType),
+      findLink(result.settingLinks, 'emailCatalog').url,
+      'Core 第11.3.2節: 送付メールカタログは当該種別の行一覧'
+    );
+    System.assertEquals(
+      cmdtManageRecordsUrl(EstimateWizardField__mdt.SObjectType),
+      findLink(result.settingLinks, 'estimateWizardFields').url,
+      'Core 第11.4.1節: 見積ウィザード追加項目は当該種別の行一覧'
+    );
+    System.assertEquals(
+      cmdtManageRecordsUrl(OrderWizardField__mdt.SObjectType),
+      findLink(result.settingLinks, 'orderWizardFields').url
+    );
+    System.assertEquals(
+      cmdtManageRecordsUrl(InvoiceOpsField__mdt.SObjectType),
+      findLink(result.settingLinks, 'invoiceOpsFields').url
+    );
+    System.assertEquals(
+      cmdtManageRecordsUrl(GlAccountingSetting__mdt.SObjectType),
+      findLink(result.settingLinks, 'amountCalculation').url
+    );
+    System.assertEquals(
+      '/lightning/o/FieldCopyDefinition__c/list',
+      findLink(result.settingLinks, 'fieldCopy').url,
+      'Core 第11.6節: コピーはオブジェクト一覧のまま'
+    );
+    System.assert(
+      !findLink(result.settingLinks, 'documentCatalog')
+        .url.contains('CustomMetadata/home'),
+      'Core 第11.3.2節: 種類の目次は使わない'
+    );
+    System.assert(
+      !findLink(result.settingLinks, 'documentCatalog').url.contains('/lightning/o/'),
+      'Core 第11.6節: CMDT を LEX 一覧へ出さない'
+    );
+    ContractDocumentSettingsController.testHasAccountingMaster = null;
+  }
+
+  private static String cmdtManageRecordsUrl(Schema.SObjectType token) {
+    return '/lightning/setup/CustomMetadata/page?address=%2F' +
+      token.getDescribe().getKeyPrefix();
+  }
+
+  @IsTest
   static void saveSettingsCreatesAndUpdatesOrganizationDefault() {
     ContractDocumentSettingsController.SettingsDto input =
       new ContractDocumentSettingsController.SettingsDto();
