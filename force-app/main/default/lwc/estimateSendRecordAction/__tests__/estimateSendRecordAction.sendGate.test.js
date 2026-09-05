@@ -15,6 +15,11 @@ jest.mock(
   () => ({ default: { open: jest.fn() } }),
   { virtual: true }
 );
+jest.mock(
+  "lightning/platformShowToastEvent",
+  () => ({ ShowToastEvent: class ShowToastEvent {} }),
+  { virtual: true }
+);
 
 jest.mock(
   "@salesforce/apex/EstimateSendBoardController.getBoardContext",
@@ -131,5 +136,53 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
         })
       )
     ).toBe(false);
+  });
+
+  it("Toが空なら送れない。この画面ではToを直さない (Core 4.8)", () => {
+    expect(sendDisabled.call(ctx({ toAddresses: "" }))).toBe(true);
+    const draft = { toAddresses: "to@example.com" };
+    proto.handleDraftChange.call(draft, {
+      target: { name: "toAddresses", value: "hacked@example.com" }
+    });
+    expect(draft.toAddresses).toBe("to@example.com");
+  });
+
+  it("未送付は送付する、送付済みは再送する (Core 4.8)", () => {
+    const sendButtonLabel = Object.getOwnPropertyDescriptor(
+      proto,
+      "sendButtonLabel"
+    ).get;
+    const isResend = Object.getOwnPropertyDescriptor(proto, "isResend").get;
+    expect(isResend.call({ estimate: {} })).toBe(false);
+    expect(sendButtonLabel.call({ isResend: false })).toBe("送付する");
+    expect(
+      isResend.call({ estimate: { estimateSentAt: "2026-09-01T00:00:00.000Z" } })
+    ).toBe(true);
+    expect(sendButtonLabel.call({ isResend: true })).toBe("再送する");
+  });
+
+  it("失敗のあと送り直す注記と送れない理由を本文どおり出す (Core 7.10 / 4.8)", () => {
+    const sendFailureRetryNote = Object.getOwnPropertyDescriptor(
+      proto,
+      "sendFailureRetryNote"
+    ).get;
+    const unavailableMessage = Object.getOwnPropertyDescriptor(
+      proto,
+      "unavailableMessage"
+    ).get;
+    const fromChoiceOptions = Object.getOwnPropertyDescriptor(
+      proto,
+      "fromChoiceOptions"
+    ).get;
+    expect(sendFailureRetryNote.call({})).toBe(
+      "失敗のあと送り直すと、先のメールが届いていることがある"
+    );
+    expect(unavailableMessage.call({ estimate: { sendable: false } })).toBe(
+      "この見積は送付できません。"
+    );
+    expect(fromChoiceOptions.call({})).toEqual([
+      { label: "自分", value: "Self" },
+      { label: "組織", value: "Org" }
+    ]);
   });
 });
