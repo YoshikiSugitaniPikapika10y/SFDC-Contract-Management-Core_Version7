@@ -282,6 +282,67 @@ private class GlAccountMapResolveServiceTest {
     }
   }
 
+  @IsTest
+  static void resolve_rejectsBlankEvaluationContext() {
+    Boolean thrown = false;
+    try {
+      GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        '',
+        new ConditionEvaluationService.Context()
+      );
+    } catch (GlAccountMapResolveService.ResolveException ex) {
+      thrown = true;
+      System.assertEquals(
+        '勘定科目割当のスロットまたは評価コンテキストがありません。',
+        ex.getMessage(),
+        'Accounting 第6.2節: スロットと評価コンテキストが要る'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void resolve_skipsUnmatchedTenantCondition() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccount__c account = insertAccount('Map Tenant Miss');
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Tenant Miss Set',
+        EvaluationContext__c = 'InvoiceLine',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'InvoiceLine__c',
+        TargetField__c = 'Amount__c',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '999999'
+      );
+      GlAccountMap__c mapping = insertMap(account.Id, 10, 'Tenant Miss');
+      mapping.ConditionSourceType__c = 'Tenant';
+      mapping.TenantConditionSet__c = conditionSet.Id;
+      update mapping;
+      Boolean thrown = false;
+      try {
+        GlAccountMapResolveService.resolve(
+          'AccountsReceivable',
+          'InvoiceLine',
+          new ConditionEvaluationService.Context()
+        );
+      } catch (Exception ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().contains('勘定科目割当がありません'),
+          'Accounting 第6.3節: テナント条件が不一致なら一致0件として拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
   private static GlAccount__c insertAccount(String name) {
     return insertAccount(name, 'Asset');
   }

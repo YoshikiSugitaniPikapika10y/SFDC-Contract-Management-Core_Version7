@@ -204,6 +204,7 @@ private class GlAccountingPolicyServiceTest {
 
       policy.MonthlyBucketMethod__c = 'CalendarMonth';
       update policy;
+      GlAccountingPolicyService.clearCachedOrgPolicy();
       Test.startTest();
       GlAccountingPolicyService.rewriteRecognitionBucketCounts();
       Test.stopTest();
@@ -217,6 +218,110 @@ private class GlAccountingPolicyServiceTest {
         line.RecognitionBucketCount__c,
         'Accounting 第3.2節: 月次方式変更で組織内の請求明細を書き直す'
       );
+    }
+  }
+
+  @IsTest
+  static void freezeOnFirstConfirm_alreadyFrozen_keepsFrozenAt() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      GlAccountingPolicy__c first = GlAccountingPolicyService.freezeOnFirstConfirm();
+      Datetime frozenAt = first.FrozenAt__c;
+      Id frozenBy = first.FrozenBy__c;
+      GlAccountingPolicy__c second = GlAccountingPolicyService.freezeOnFirstConfirm();
+      System.assertEquals(
+        frozenAt,
+        second.FrozenAt__c,
+        'Accounting 第3.1節: 既に固定済みなら固定日時を書き直さない'
+      );
+      System.assertEquals(frozenBy, second.FrozenBy__c);
+    }
+  }
+
+  @IsTest
+  static void deriveAllowedPatternKeys_rejectsNullAndInvalidTax() {
+    Boolean missing = false;
+    try {
+      GlAccountingPolicyService.deriveAllowedPatternKeys(null);
+    } catch (GlAccountingPolicyService.PolicyException ex) {
+      missing = true;
+      System.assertEquals(
+        'Accounting会計方針がありません。',
+        ex.getMessage(),
+        'Accounting 第3.1節: 方針が無ければ許可集合を作らない'
+      );
+    }
+    System.assertEquals(true, missing);
+
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+    policy.TaxRecognitionTiming__c = 'Unknown';
+    Boolean invalidTax = false;
+    try {
+      GlAccountingPolicyService.deriveAllowedPatternKeys(policy);
+    } catch (GlAccountingPolicyService.PolicyException ex) {
+      invalidTax = true;
+      System.assertEquals(
+        '税認識方針が不正です。',
+        ex.getMessage(),
+        'Accounting 第5.7節: 税認識方針が許可集合の正本'
+      );
+    }
+    System.assertEquals(true, invalidTax);
+  }
+
+  @IsTest
+  static void deriveAllowedPatternKeys_billingAndCashAtRecognition() {
+    GlAccountingPolicy__c billing = GlAccountingPolicyService.newOrgDefault();
+    billing.RevenueRecognitionBasis__c = 'BillingBasis';
+    billing.TaxRecognitionTiming__c = 'AtRecognition';
+    Set<String> billingKeys = GlAccountingPolicyService.deriveAllowedPatternKeys(
+      billing
+    );
+    System.assertEquals(
+      true,
+      billingKeys.contains('BILLING_BASIS_INVOICE_TAX_DEFERRED'),
+      'Accounting 第5.7節: 請求基準かつ売上計上時税は繰延税を許可する'
+    );
+    System.assertEquals(
+      false,
+      billingKeys.contains('BILLING_TAX_AT_INVOICE'),
+      'Accounting 第5.7節: 売上計上時税に請求時税パターンを混ぜない'
+    );
+
+    GlAccountingPolicy__c cash = GlAccountingPolicyService.newOrgDefault();
+    cash.RevenueRecognitionBasis__c = 'CashBasis';
+    cash.TaxRecognitionTiming__c = 'AtRecognition';
+    Set<String> cashKeys = GlAccountingPolicyService.deriveAllowedPatternKeys(cash);
+    System.assertEquals(
+      true,
+      cashKeys.contains('CASH_BASIS_INVOICE_TAX_CTA_TRANSFER'),
+      'Accounting 第5.7節: 入金連動前受かつ売上計上時税は税の前受振替を許可する'
+    );
+    System.assertEquals(
+      true,
+      cashKeys.contains('CASH_BASIS_REVENUE_TAX')
+    );
+  }
+
+  @IsTest
+  static void requireOrgPolicy_returnsCachedOrgDefault() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      GlAccountingPolicy__c first = GlAccountingPolicyService.requireOrgPolicy();
+      GlAccountingPolicy__c second = GlAccountingPolicyService.requireOrgPolicy();
+      System.assertEquals(
+        first.Id,
+        second.Id,
+        'Accounting 第3.1節: 組織内1件の会計方針を正本として返す'
+      );
+      System.assertEquals(
+        GlAccountingPolicyService.ORG_DEFAULT_NAME,
+        first.Name
+      );
+      System.assertEquals(false, first.AccountingEnabled__c);
+      GlAccountingPolicyService.clearCachedOrgPolicy();
+      GlAccountingPolicy__c afterClear = GlAccountingPolicyService.requireOrgPolicy();
+      System.assertEquals(first.Id, afterClear.Id);
     }
   }
 

@@ -168,6 +168,81 @@ private class GlJournalTriggerHandlerTest {
     }
   }
 
+  @IsTest
+  static void beforeUpdate_rejectsPostingDateAndSlotChange() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlJournal__c journal = insertJournal();
+      Boolean dateThrown = false;
+      try {
+        journal.PostingDate__c = Date.newInstance(2026, 7, 1);
+        update journal;
+      } catch (DmlException ex) {
+        dateThrown = true;
+        System.assert(
+          ex.getMessage().contains('仕訳の金額・科目・日付・借貸は変更できません'),
+          'Accounting 第9.5節: 計上日の更新は拒否する'
+        );
+      }
+      System.assertEquals(true, dateThrown);
+
+      journal = [SELECT Id, DebitSlotKey__c FROM GlJournal__c WHERE Id = :journal.Id];
+      Boolean slotThrown = false;
+      try {
+        journal.DebitSlotKey__c = 'AccountsReceivable';
+        update journal;
+      } catch (DmlException ex) {
+        slotThrown = true;
+        System.assert(
+          ex.getMessage().contains('仕訳の金額・科目・日付・借貸は変更できません'),
+          'Accounting 第9.5節: 借貸スロットの更新は拒否する'
+        );
+      }
+      System.assertEquals(true, slotThrown);
+    }
+  }
+
+  @IsTest
+  static void beforeUpdate_lockWriteAllowsLockFlagOnly() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlJournal__c journal = insertJournal();
+      JournalLockService.allowLockWrite = true;
+      try {
+        journal.IsLocked__c = true;
+        update journal;
+      } finally {
+        JournalLockService.allowLockWrite = false;
+      }
+      System.assertEquals(
+        true,
+        [SELECT IsLocked__c FROM GlJournal__c WHERE Id = :journal.Id].IsLocked__c,
+        'Accounting 第9.5節: Lock/Unlockはロック状態だけを変える'
+      );
+    }
+  }
+
+  @IsTest
+  static void beforeDelete_allowsRevertDraftJournalDelete() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlJournal__c journal = insertJournal();
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.DELETE_RECORDS => false,
+        ContractPermissionUtil.MIGRATE_ALL => false
+      };
+      GlJournalTriggerHandler.allowRevertDraftJournalDelete = true;
+      try {
+        delete journal;
+      } finally {
+        GlJournalTriggerHandler.allowRevertDraftJournalDelete = false;
+        ContractPermissionUtil.testOverrides = null;
+      }
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM GlJournal__c WHERE Id = :journal.Id],
+        'Core 第5.3節・Accounting 第2.5節: 差し戻しで消す未確定の仕訳だけ物理削除する'
+      );
+    }
+  }
+
   private static GlJournal__c insertJournal() {
     Invoice__c invoice = insertDraftInvoice();
     GlAccount__c debit = new GlAccount__c(
