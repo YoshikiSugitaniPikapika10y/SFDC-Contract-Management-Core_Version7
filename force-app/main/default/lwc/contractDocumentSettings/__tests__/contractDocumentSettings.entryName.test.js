@@ -522,6 +522,64 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
     expect(payload.invoiceSendMode).toBe("PdfAndEmail");
   });
 
+  it("keeps stored send modes when combobox value is empty on save", async () => {
+    saveSettings.mockResolvedValue({
+      estimateSendMode: "PdfOnly",
+      invoiceSendMode: "PdfAndEmail"
+    });
+    const instance = {
+      settings: {
+        estimateSendMode: "PdfOnly",
+        invoiceSendMode: "PdfAndEmail"
+      },
+      template: {
+        querySelectorAll: () => [
+          { name: "estimateSendMode", value: "" },
+          { name: "invoiceSendMode", value: null }
+        ]
+      },
+      reportValidity() {
+        return true;
+      },
+      toast: jest.fn(),
+      _pendingOperationKey: "op-1",
+      saveSuccessMessage: "組織設定を保存しました。",
+      applyNamedFieldValues: proto.applyNamedFieldValues,
+      assertStoredSendModes: proto.assertStoredSendModes,
+      storedSendMode: proto.storedSendMode,
+      message: proto.message
+    };
+    await proto.handleSave.call(instance);
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    const payload = saveSettings.mock.calls[0][0].input;
+    expect(payload.estimateSendMode).toBe("PdfOnly");
+    expect(payload.invoiceSendMode).toBe("PdfAndEmail");
+    expect(instance.toast).not.toHaveBeenCalledWith(
+      "保存エラー",
+      "見積書の3択が無い、空、または不正です。",
+      "error"
+    );
+  });
+
+  it("errors when estimate send mode is empty and settings has no stored value", () => {
+    const instance = {
+      settings: {
+        estimateSendMode: "",
+        invoiceSendMode: "PdfOnly"
+      },
+      template: {
+        querySelectorAll: () => [
+          { name: "estimateSendMode", value: "" },
+          { name: "invoiceSendMode", value: "PdfOnly" }
+        ]
+      }
+    };
+    proto.applyNamedFieldValues.call(instance);
+    expect(() => proto.assertStoredSendModes.call(instance)).toThrow(
+      "見積書の3択が無い、空、または不正です。"
+    );
+  });
+
   it("errors when invoice send mode is not a stored value", () => {
     const instance = {
       settings: {

@@ -407,7 +407,7 @@ export default class ContractDocumentSettings extends LightningElement {
     }
   }
 
-  /** 仕様: Core 第11.6節。画面に出ている値を保存対象にする。3択は表示ラベルを保存値へ戻す。 */
+  /** 仕様: Core 第11.6節。画面に出ている値を保存対象にする。3択は表示ラベルを保存値へ戻す。combobox.value が空なら読込済みの保存値を残し、空へ落とさない。 */
   applyNamedFieldValues() {
     const next = { ...this.settings };
     this.template
@@ -429,7 +429,7 @@ export default class ContractDocumentSettings extends LightningElement {
           return;
         }
         if (name === "estimateSendMode" || name === "invoiceSendMode") {
-          next[name] = this.storedSendMode(raw);
+          next[name] = this.storedSendMode(raw, next[name]);
           return;
         }
         next[name] = raw;
@@ -439,14 +439,23 @@ export default class ContractDocumentSettings extends LightningElement {
 
   /**
    * 仕様: Core 第11.3節・第0.1節。保存値は Unused／PdfOnly／PdfAndEmail。
-   * combobox の value が表示ラベルでも保存値へ戻す。未知値は落とさない。
+   * combobox の value が表示ラベルでも保存値へ戻す。空は読込済みの保存値を残す。未知値は落とさない。
    */
-  storedSendMode(raw) {
+  storedSendMode(raw, fallback) {
     if (SEND_MODE_STORED_VALUES.includes(raw)) {
       return raw;
     }
     const hit = SEND_MODE_OPTIONS.find((option) => option.label === raw);
-    return hit ? hit.value : raw;
+    if (hit) {
+      return hit.value;
+    }
+    if (
+      (raw === "" || raw == null) &&
+      SEND_MODE_STORED_VALUES.includes(fallback)
+    ) {
+      return fallback;
+    }
+    return raw;
   }
 
   /** 仕様: Core 第11.3.1節、第11.3.2節、第1.1.10節。必須空は画面で止める。空白のみは空。 */
