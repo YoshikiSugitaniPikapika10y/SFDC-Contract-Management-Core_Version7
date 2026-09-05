@@ -122,6 +122,24 @@ private class InvoiceMergeKeyConfigServiceTest {
     );
   }
 
+  @IsTest
+  static void buildInvoiceBucketKey_nullInput_usesEmptyParts() {
+    System.assertEquals(
+      'INV|BA=|CH=|DT=|PD=',
+      InvoiceMergeKeyConfigService.buildInvoiceBucketKey(
+        (InvoiceMergeKeyConfigService.InvoiceKeyInput) null
+      ),
+      'Core 第7.3節: 入力が空でもキー構成は BA・CH・DT・PD の順'
+    );
+    System.assertEquals(
+      'LINE|CP=|UP=0|Q=0',
+      InvoiceMergeKeyConfigService.buildLineBucketKey(
+        (InvoiceMergeKeyConfigService.LineKeyInput) null
+      ),
+      'Core 第7.3節: 入力が空でもキー構成は CP・単価・数量'
+    );
+  }
+
   private static Id fakeId(Schema.SObjectType typeName, Integer n) {
     String key = String.valueOf(n);
     return Id.valueOf(
