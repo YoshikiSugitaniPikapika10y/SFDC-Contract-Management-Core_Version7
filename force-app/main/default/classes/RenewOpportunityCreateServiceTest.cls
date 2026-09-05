@@ -290,4 +290,69 @@ private class RenewOpportunityCreateServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void assertCreatedForHistory_acceptsMatchingOpportunity() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Renew Match Acct'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Renew Match Service'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Renew Match History',
+        ContractService__c = service.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+      insert history;
+      history = [
+        SELECT Id, ContractService__c, ContractService__r.Account__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      Opportunity quoteOpp = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Renew Match Quote'
+      );
+      Opportunity renewOpp = ContractTestDataFactory.buildOpportunity(
+        account.Id,
+        'Renew Match Opp',
+        quoteOpp.Id,
+        false,
+        service.Id
+      );
+      ContractTestDataFactory.applyOpportunityDefaults(renewOpp);
+      insert renewOpp;
+      renewOpp.SourceContractHistory__c = history.Id;
+      update renewOpp;
+      RenewOpportunityCreateService.assertCreatedForHistory(
+        history,
+        renewOpp.Id
+      );
+      System.assertEquals(
+        renewOpp.Id,
+        RenewOpportunityCreateService.findBySourceHistory(history.Id),
+        'Core 第11.5節: 元契約履歴から作成した更新商談 Id を返す'
+      );
+    }
+  }
+
+  @IsTest
+  static void deleteBySourceHistory_missingHistory_doesNotThrow() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
+      RenewOpportunityCreateService.deleteBySourceHistory(UserInfo.getUserId());
+      System.assertEquals(
+        null,
+        RenewOpportunityCreateService.findBySourceHistory(UserInfo.getUserId()),
+        'Core 第11.5節: 元契約履歴が無ければ更新商談 Id は返さない'
+      );
+    }
+  }
 }

@@ -339,4 +339,80 @@ private class ContractEmailTemplateServiceTest {
       ContractEmailTemplateService.formatOrgWideFrom(blankAddress)
     );
   }
+
+  @IsTest
+  static void resolveTemplate_trimsApiName() {
+    ContractEmailTemplateService.clearTestState();
+    ContractEmailTemplateService.seedActiveRowForTest(
+      ContractEmailTemplateService.TYPE_INVOICE,
+      'InvoiceMail'
+    );
+    ContractEmailTemplateService.EmailTemplateDefinition matched =
+      ContractEmailTemplateService.resolveTemplate(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        ' InvoiceMail '
+      );
+    System.assertEquals(
+      'InvoiceMail',
+      matched.apiName,
+      'Core 第11.3.2節: 指定の送付メールは前後空白を除いてカタログと照合する'
+    );
+  }
+
+  @IsTest
+  static void renderForSend_withWhoId_stillLeavesBodyBlankInTest() {
+    ContractEmailTemplateService.clearTestState();
+    ContractEmailTemplateService.seedActiveRowForTest(
+      ContractEmailTemplateService.TYPE_ESTIMATE,
+      'EstimateMailWho'
+    );
+    ContractEmailTemplateService.MergeResult rendered =
+      ContractEmailTemplateService.renderForSend(
+        ContractEmailTemplateService.TYPE_ESTIMATE,
+        'EstimateMailWho',
+        'ignored-org-default',
+        UserInfo.getUserId(),
+        UserInfo.getUserId()
+      );
+    System.assertEquals('EstimateMailWho', rendered.apiName);
+    System.assertEquals(
+      '',
+      rendered.body,
+      'Core 第7.10節: テスト実行では本文マージをしない。組織既定では埋めない'
+    );
+  }
+
+  @IsTest
+  static void getActiveTemplates_skipsInactiveRows() {
+    ContractEmailTemplateService.clearTestState();
+    ContractEmailTemplateService.seedActiveRowForTest(
+      ContractEmailTemplateService.TYPE_ESTIMATE,
+      'ActiveMail'
+    );
+    ContractEmailTemplate__mdt inactive = new ContractEmailTemplate__mdt();
+    inactive.MasterLabel = 'InactiveMail';
+    inactive.DocumentType__c = ContractEmailTemplateService.TYPE_ESTIMATE;
+    inactive.EmailTemplateApiName__c = 'InactiveMail';
+    inactive.IsActive__c = false;
+    inactive.IsDefault__c = true;
+    inactive.SortOrder__c = 0;
+    ContractEmailTemplateService.testRecords.add(inactive);
+    List<ContractEmailTemplateService.EmailTemplateDefinition> rows =
+      ContractEmailTemplateService.getActiveTemplates(
+        ContractEmailTemplateService.TYPE_ESTIMATE
+      );
+    System.assertEquals(
+      1,
+      rows.size(),
+      'Core 第11.3.2節: 無効行は候補に出さない'
+    );
+    System.assertEquals('ActiveMail', rows[0].apiName);
+    System.assertEquals(
+      null,
+      ContractEmailTemplateService.initialSelectionApiName(
+        ContractEmailTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 有効な既定がちょうど1つでなければ未選択'
+    );
+  }
 }

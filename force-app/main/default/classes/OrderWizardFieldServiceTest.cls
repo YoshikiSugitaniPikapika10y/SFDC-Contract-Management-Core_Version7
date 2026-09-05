@@ -551,4 +551,135 @@ private class OrderWizardFieldServiceTest {
       'Core 第5.2節: 未入力は正規編集へ誘導する'
     );
   }
+
+  @IsTest
+  static void getDefinitions_renew_includesApplicationDate() {
+    OrderWizardFieldService.resetCache();
+    Set<String> renewApis = new Set<String>();
+    for (
+      ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
+        'Renew'
+      )
+    ) {
+      renewApis.add(definition.apiName);
+    }
+    System.assertEquals(
+      true,
+      renewApis.contains('ApplicationDate__c'),
+      'Core 第11.4.3節: Renewでも表示対象の項目を出す'
+    );
+  }
+
+  @IsTest
+  static void querySavedHistoryFieldValues_missingHistory_returnsEmpty() {
+    Map<String, Object> saved = OrderWizardFieldService.querySavedHistoryFieldValues(
+      UserInfo.getUserId()
+    );
+    System.assertEquals(
+      true,
+      saved.isEmpty(),
+      'Core 第11.4.3節: 保存済みだけ。無い契約履歴は空'
+    );
+  }
+
+  @IsTest
+  static void applyHistoryFields_nullCustomFields_savesBlankShownFields() {
+    ContractHistory__c history = new ContractHistory__c(
+      Type__c = 'New',
+      ApplicationDate__c = Date.newInstance(2026, 3, 1)
+    );
+    OrderWizardFieldService.applyHistoryFields(history, null);
+    System.assertEquals(
+      null,
+      history.ApplicationDate__c,
+      'Core 第11.4.3節: 表示中の項目を空欄で受注した場合は空を保存する'
+    );
+  }
+
+  @IsTest
+  static void buildHistoryFieldValuesForWizard_usesAccountDefaultWhenBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderWizardFieldService.setCachedDefinitionsForTest(
+        new List<OrderWizardField__mdt>{
+          new OrderWizardField__mdt(
+            DeveloperName = 'Order_EstimateTitle_Account',
+            MasterLabel = '見積件名',
+            FieldApiName__c = 'EstimateTitleName__c',
+            Active__c = true,
+            DefaultSource__c = 'Account',
+            DefaultValue__c = 'Account.Name',
+            ShowOnNew__c = true
+          )
+        }
+      );
+      Account account = ContractTestDataFactory.insertAccount(
+        '受注ウィザード取引先初期値'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        '商談名は使わない'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Order Wizard Account Default Service',
+        Account__c = account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Order Wizard Account Default History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        Opportunity__c = opportunity.Id,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      insert history;
+      history = [
+        SELECT Id, Type__c, Opportunity__c, EstimateTitleName__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      Map<String, Object> values = OrderWizardFieldService.buildHistoryFieldValuesForWizard(
+        history
+      );
+      System.assertEquals(
+        account.Name,
+        values.get('EstimateTitleName__c'),
+        'Core 第11.4.3節: 初期値 Account は取引先の項目。保存済みが空のときだけ'
+      );
+      OrderWizardFieldService.resetCache();
+    }
+  }
+
+  @IsTest
+  static void validateActiveDefinitions_blankFieldApiName_includesDeveloperName() {
+    OrderWizardFieldService.setCachedDefinitionsForTest(
+      new List<OrderWizardField__mdt>{
+        new OrderWizardField__mdt(
+          DeveloperName = 'Blank_Api',
+          MasterLabel = '空API',
+          FieldApiName__c = '  ',
+          Active__c = true,
+          ShowOnNew__c = true
+        )
+      }
+    );
+    Boolean failed = false;
+    try {
+      OrderWizardFieldService.getDefinitions('New');
+    } catch (AuraHandledException ex) {
+      failed = true;
+      System.assertEquals(
+        '受注ウィザード追加項目「Blank_Api」の FieldApiName が未設定です。',
+        ex.getMessage(),
+        'Core 第11.4.3節: FieldApiName 空は DeveloperName を含める'
+      );
+    }
+    System.assertEquals(true, failed);
+    OrderWizardFieldService.resetCache();
+  }
 }
