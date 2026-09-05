@@ -475,6 +475,7 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
         saveSuccessMessage: "組織設定を保存しました。",
         applyNamedFieldValues: proto.applyNamedFieldValues,
         assertStoredSendModes: proto.assertStoredSendModes,
+        storedSendMode: proto.storedSendMode,
         message: proto.message
       };
       await proto.handleSave.call(instance);
@@ -487,11 +488,15 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
     });
   });
 
-  it("errors and does not save when the stored value is the display label", async () => {
+  it("maps combobox display labels to stored send modes on save", async () => {
+    saveSettings.mockResolvedValue({
+      estimateSendMode: "PdfAndEmail",
+      invoiceSendMode: "PdfAndEmail"
+    });
     const instance = {
       settings: {
-        estimateSendMode: "PDFとメール送付",
-        invoiceSendMode: "PDFとメール送付"
+        estimateSendMode: "PdfAndEmail",
+        invoiceSendMode: "PdfAndEmail"
       },
       template: {
         querySelectorAll: () => [
@@ -504,17 +509,17 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
       },
       toast: jest.fn(),
       _pendingOperationKey: "op-1",
+      saveSuccessMessage: "組織設定を保存しました。",
       applyNamedFieldValues: proto.applyNamedFieldValues,
       assertStoredSendModes: proto.assertStoredSendModes,
+      storedSendMode: proto.storedSendMode,
       message: proto.message
     };
     await proto.handleSave.call(instance);
-    expect(saveSettings).not.toHaveBeenCalled();
-    expect(instance.toast).toHaveBeenCalledWith(
-      "保存エラー",
-      "見積書の3択が無い、空、または不正です。",
-      "error"
-    );
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    const payload = saveSettings.mock.calls[0][0].input;
+    expect(payload.estimateSendMode).toBe("PdfAndEmail");
+    expect(payload.invoiceSendMode).toBe("PdfAndEmail");
   });
 
   it("errors when invoice send mode is not a stored value", () => {
