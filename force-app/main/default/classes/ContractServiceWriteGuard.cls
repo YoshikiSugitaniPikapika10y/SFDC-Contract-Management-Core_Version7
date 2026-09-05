@@ -3,7 +3,7 @@
  */
 public without sharing class ContractServiceWriteGuard {
   public static final String CREATE_BLOCK_MESSAGE = '契約サービスは新規見積の保存だけで作成できます。';
-  public static final String UPDATE_BLOCK_MESSAGE = '契約サービスの直書きはできません。新規見積、契約サービスを編集、受注、差し戻しから更新してください。';
+  public static final String UPDATE_BLOCK_MESSAGE = '契約サービスの直書きはできません。見積保存、契約サービスを編集、受注、差し戻しから更新してください。';
   public static final String DELETE_BLOCK_MESSAGE = '契約サービスは削除できません。';
   public static final String SYSTEM_FIELD_BLOCK_MESSAGE = '取引先、Lifecycle、First Ordered、Latest Ordered、契約期間状態は利用者が変更できません。';
 
@@ -21,7 +21,7 @@ public without sharing class ContractServiceWriteGuard {
     return allowPackageWrite == true;
   }
 
-  /** 仕様: Core 第3.4節・第3.4.2節、共通基盤 第3.6節。102 はシステム項目以外の更新。104 は全部操作。 */
+  /** 仕様: Core 第3.4節・第3.4.2節、共通基盤 第3.6節。見積保存（Newおよび表示中の契約サービス追加項目）、契約サービスを編集、受注、差し戻し以外は拒否する。102 はシステム項目以外の更新。104 は全部操作。 */
   public static void assertAllowedWrite(
     List<ContractService__c> newRecords,
     Map<Id, ContractService__c> oldMap

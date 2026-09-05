@@ -304,15 +304,17 @@ export default class EstimateCreateWizard extends LightningElement {
     );
   }
 
-  // 仕様: Core 第4.3節、第4.3.1節
+  // 仕様: Core 第4.3節、第4.3.1節、第11.4.1節。見積追加項目は種別の表示フラグ。受注追加項目は混ぜない。
   get displayedHistoryFieldDefinitions() {
+    return this.historyFieldDefinitions;
+  }
+
+  /** 仕様: Core 第4.3節、第11.4.3節。Ordered見積編集だけ受注追加項目を別見出しで足す。+見積と見積候補には出さない。 */
+  get displayedOrderFieldDefinitions() {
     if (!this.isOrderedCustomFieldsOnlyEdit) {
-      return this.historyFieldDefinitions;
+      return [];
     }
-    return [
-      ...(this.historyFieldDefinitions || []),
-      ...(this.orderHistoryFieldDefinitions || [])
-    ];
+    return this.orderHistoryFieldDefinitions || [];
   }
 
   get showWizard() {
@@ -1311,17 +1313,15 @@ export default class EstimateCreateWizard extends LightningElement {
       return "契約履歴名を入力してください。";
     }
 
-    if (type === "New") {
-      const serviceCustomError = validateCustomFieldMaps(
-        this.serviceFieldDefinitions,
-        d.contractServiceCustomFields,
-        "契約サービス",
-        undefined,
-        d.selectedType
-      );
-      if (serviceCustomError) {
-        return serviceCustomError;
-      }
+    const serviceCustomError = validateCustomFieldMaps(
+      this.serviceFieldDefinitions,
+      d.contractServiceCustomFields,
+      "契約サービス",
+      undefined,
+      d.selectedType
+    );
+    if (serviceCustomError) {
+      return serviceCustomError;
     }
     const historyCustomError = validateCustomFieldMaps(
       this.historyFieldDefinitions,
@@ -1556,7 +1556,7 @@ export default class EstimateCreateWizard extends LightningElement {
       return serviceCustomError;
     }
     const historyCustomError = validateCustomFieldMaps(
-      this.displayedHistoryFieldDefinitions,
+      this.historyFieldDefinitions,
       d.contractHistoryCustomFields,
       "契約履歴",
       undefined,
@@ -1564,6 +1564,16 @@ export default class EstimateCreateWizard extends LightningElement {
     );
     if (historyCustomError) {
       return historyCustomError;
+    }
+    const orderCustomError = validateCustomFieldMaps(
+      this.orderHistoryFieldDefinitions,
+      d.contractHistoryCustomFields,
+      "受注",
+      undefined,
+      d.selectedType
+    );
+    if (orderCustomError) {
+      return orderCustomError;
     }
     return this.validateProductCustomFields(d.selectedProducts || [], true);
   }
@@ -1661,9 +1671,7 @@ export default class EstimateCreateWizard extends LightningElement {
             : this.copyFromHistoryId || null,
           editHistoryId: this.isEditMode ? this.editHistoryId || null : null,
           contractServiceCustomFieldsJson: JSON.stringify(
-            type === "New"
-              ? this.wizardData.contractServiceCustomFields || {}
-              : {}
+            this.wizardData.contractServiceCustomFields || {}
           ),
           contractHistoryCustomFieldsJson: JSON.stringify(
             this.wizardData.contractHistoryCustomFields || {}

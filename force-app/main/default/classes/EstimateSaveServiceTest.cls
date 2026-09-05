@@ -1026,9 +1026,9 @@ private class EstimateSaveServiceTest {
         WHERE Id = :service.Id
       ];
       System.assertEquals(
-        'keep-ordered-memo',
+        'tampered-from-ordered-edit',
         stillService.CustomerMemo__c,
-        'Core 第4.3節: Ordered見積編集は契約サービス追加項目を更新しない'
+        'Core 第4.3節・第11.4.1節: Ordered見積編集は表示中の契約サービス追加項目を更新する'
       );
     }
   }

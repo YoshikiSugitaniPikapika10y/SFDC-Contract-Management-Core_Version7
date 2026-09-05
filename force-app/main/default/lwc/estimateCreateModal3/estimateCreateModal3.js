@@ -116,6 +116,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   _productFieldDefinitions = [];
   _serviceFieldDefinitions = [];
   _historyFieldDefinitions = [];
+  _orderFieldDefinitions = [];
   _opportunityDefaultContext = {};
   /** 自 emit した selectedProducts の fingerprint（エコーバック同期を抑止）。 */
   _lastEmittedProductsFingerprint = "";
@@ -152,6 +153,17 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
   set historyFieldDefinitions(value) {
     this._historyFieldDefinitions = value || [];
+    if (this._isConnected) {
+      this.emitDefaultContractCustomFieldsIfNeeded();
+    }
+  }
+
+  @api
+  get orderFieldDefinitions() {
+    return this._orderFieldDefinitions;
+  }
+  set orderFieldDefinitions(value) {
+    this._orderFieldDefinitions = value || [];
     if (this._isConnected) {
       this.emitDefaultContractCustomFieldsIfNeeded();
     }
@@ -977,11 +989,8 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.contractCustomFieldsExpanded ? "true" : "false";
   }
 
-  /** 仕様: Core 第4.3節、第4.3.1節。Ordered編集は契約サービス追加項目を出さない。 */
+  /** 仕様: Core 第4.3.4節、第11.4.1節。契約サービスの見積追加項目は種別の表示フラグ。コードでNew以外を隠さない。 */
   get hasServiceCustomFields() {
-    if (!this.isNewType || this.orderedCustomFieldsOnly === true) {
-      return false;
-    }
     return (
       filterVisibleCustomFieldDefinitions(
         this.serviceFieldDefinitions,
@@ -1001,26 +1010,49 @@ export default class EstimateCreateModal3 extends LightningElement {
     );
   }
 
-  get hasContractCustomFields() {
-    return this.hasServiceCustomFields || this.hasHistoryCustomFields;
+  /** 仕様: Core 第4.3節、第11.4.3節。受注追加項目はOrdered見積編集だけ。 */
+  get hasOrderCustomFields() {
+    if (this.orderedCustomFieldsOnly !== true) {
+      return false;
+    }
+    return (
+      filterVisibleCustomFieldDefinitions(
+        this.orderFieldDefinitions,
+        undefined,
+        this.effectiveSelectedType
+      ).length > 0
+    );
   }
 
-  // 仕様: Core 第4.3.4節、第4.3節
+  get hasContractCustomFields() {
+    return (
+      this.hasServiceCustomFields ||
+      this.hasHistoryCustomFields ||
+      this.hasOrderCustomFields
+    );
+  }
+
+  // 仕様: Core 第4.3.4節、第4.3節、第11.4.1節、第11.4.3節
   get contractCustomFieldCount() {
-    const serviceCount =
-      this.isNewType && this.orderedCustomFieldsOnly !== true
-        ? filterVisibleCustomFieldDefinitions(
-            this.serviceFieldDefinitions,
-            undefined,
-            this.effectiveSelectedType
-          ).length
-        : 0;
+    const serviceCount = filterVisibleCustomFieldDefinitions(
+      this.serviceFieldDefinitions,
+      undefined,
+      this.effectiveSelectedType
+    ).length;
     const historyCount = filterVisibleCustomFieldDefinitions(
       this.historyFieldDefinitions,
       undefined,
       this.effectiveSelectedType
     ).length;
-    return serviceCount + historyCount;
+    const orderCount =
+      this.orderedCustomFieldsOnly === true
+        ? filterVisibleCustomFieldDefinitions(
+            this.orderFieldDefinitions,
+            undefined,
+            this.effectiveSelectedType
+          ).length
+        : 0;
+    return serviceCount + historyCount + orderCount;
   }
 
   get contractCustomSectionTitle() {
@@ -1036,7 +1068,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       return false;
     }
     if (this.isCancelType) {
-      return this.hasHistoryCustomFields;
+      return this.hasContractCustomFields;
     }
     if (this.showRecurringPeriodPanel) {
       return this.isHeaderDatesReady && this.itemList.length > 0;
@@ -1124,6 +1156,17 @@ export default class EstimateCreateModal3 extends LightningElement {
       this.historyFieldDefinitions,
       this.contractHistoryCustomFields,
       "history",
+      false,
+      undefined,
+      this.effectiveSelectedType
+    );
+  }
+
+  get orderCustomFieldInputs() {
+    return buildCustomFieldInputs(
+      this.orderFieldDefinitions,
+      this.contractHistoryCustomFields,
+      "order",
       false,
       undefined,
       this.effectiveSelectedType
@@ -4183,9 +4226,15 @@ export default class EstimateCreateModal3 extends LightningElement {
       fields.contractServiceCustomFields = nextService;
     }
     const currentHistory = this.contractHistoryCustomFields;
+    const historyDefinitionsForSync = [
+      ...(this.historyFieldDefinitions || []),
+      ...(this.orderedCustomFieldsOnly === true
+        ? this.orderFieldDefinitions || []
+        : [])
+    ];
     const nextHistory = syncCustomFieldsForVisibility(
       currentHistory,
-      this.historyFieldDefinitions,
+      historyDefinitionsForSync,
       undefined,
       this.effectiveSelectedType,
       this.opportunityDefaultContext

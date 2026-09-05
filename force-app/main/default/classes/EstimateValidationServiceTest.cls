@@ -251,21 +251,6 @@ private class EstimateValidationServiceTest {
     );
 
     EstimateValidationService.validateWizardCustomFields(null);
-    EstimateCreateController.EstimateSaveRequest mutateFields = new EstimateCreateController.EstimateSaveRequest();
-    mutateFields.selectedType = 'Change';
-    mutateFields.contractServiceCustomFields = new Map<String, Object>{
-      'Name' => 'blocked'
-    };
-    Exception customEx = null;
-    try {
-      EstimateValidationService.validateWizardCustomFields(mutateFields);
-    } catch (Exception ex) {
-      customEx = ex;
-    }
-    assertRejected(
-      '追加変更・更新・解約では契約サービスの追加項目を保存できません',
-      customEx
-    );
 
     EstimateCreateController.ProductLineItem inverted = new EstimateCreateController.ProductLineItem();
     inverted.startDate = '2026-07-01';
@@ -2875,6 +2860,14 @@ private class EstimateValidationServiceTest {
     System.assertEquals(
       'memo',
       request.contractServiceCustomFields.get('CustomerMemo__c')
+    );
+
+    request.selectedType = 'Change';
+    EstimateValidationService.validateWizardCustomFields(request, false);
+    System.assertEquals(
+      'memo',
+      request.contractServiceCustomFields.get('CustomerMemo__c'),
+      'Core 第11.4.1節: Changeでも種別表示の契約サービス追加項目を検証する'
     );
   }
 

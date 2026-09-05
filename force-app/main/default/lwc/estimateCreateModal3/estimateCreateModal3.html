@@ -1004,6 +1004,18 @@
                 </c-estimate-wizard-custom-field-grid>
               </div>
             </template>
+            <template if:true={hasOrderCustomFields}>
+              <div class="est-contract-custom">
+                <p class="est-contract-custom-title">受注</p>
+                <c-estimate-wizard-custom-field-grid
+                  fields={orderCustomFieldInputs}
+                  field-target="contractHistory"
+                  dense
+                  oncustomfieldchange={handleContractCustomFieldChange}
+                >
+                </c-estimate-wizard-custom-field-grid>
+              </div>
+            </template>
           </div>
         </template>
       </section>

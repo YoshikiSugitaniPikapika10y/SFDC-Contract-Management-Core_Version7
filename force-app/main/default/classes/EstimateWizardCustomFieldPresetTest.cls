@@ -329,9 +329,9 @@ private class EstimateWizardCustomFieldPresetTest {
       ];
       System.assertEquals(serviceNameBefore, serviceAfter.Name);
       System.assertEquals(
-        'service-before',
+        'service-after',
         serviceAfter.CustomerMemo__c,
-        'Core 第4.3節: Ordered編集は契約サービスの追加項目を更新しない'
+        'Core 第4.3節・第11.4.1節: Ordered編集は表示中の契約サービス追加項目を更新する。名前は変えない'
       );
 
       ContractProduct__c productAfter = [

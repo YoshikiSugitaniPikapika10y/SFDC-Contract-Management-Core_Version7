@@ -793,12 +793,13 @@ private class ContractWizardFieldServiceTest {
       EstimateValidationService.validateWizardCustomFields(request, false);
     } catch (AuraHandledException ex) {
       thrown = true;
+      System.assert(
+        ex.getMessage().contains('必須のカスタム項目を入力してください'),
+        'Core 第4.3.4節・第11.4.1節: CancelでもShowOnCancelの契約サービス必須は保存を止める。実際: ' +
+          ex.getMessage()
+      );
     }
-    System.assertEquals(
-      false,
-      thrown,
-      'Core 第4.3.3節: Cancelの見積保存は契約サービス追加項目を出さず必須にしない'
-    );
+    System.assertEquals(true, thrown);
 
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
   }

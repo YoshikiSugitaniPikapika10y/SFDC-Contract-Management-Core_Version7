@@ -3394,33 +3394,24 @@ public without sharing class EstimateValidationService {
       return;
     }
 
-    // 契約サービスの追加項目は New だけ。Change / Renew / Cancel は検証も保存もしない。
-    if (request.selectedType == HISTORY_TYPE_NEW) {
-      String serviceError = ContractWizardFieldService.validateRequiredCustomFields(
-        ContractWizardFieldService.WizardTarget.ContractService,
-        request.contractServiceCustomFields,
-        null,
-        request.selectedType
-      );
-      if (String.isNotBlank(serviceError)) {
-        throw wrapAura(serviceError);
-      }
-      String serviceTypeError = ContractWizardFieldService.validateCustomFieldTypes(
-        ContractWizardFieldService.WizardTarget.ContractService,
-        request.contractServiceCustomFields,
-        null,
-        request.selectedType
-      );
-      if (String.isNotBlank(serviceTypeError)) {
-        throw wrapAura(serviceTypeError);
-      }
-    } else if (
-      request.contractServiceCustomFields != null &&
-      !request.contractServiceCustomFields.isEmpty()
-    ) {
-      throw wrapAura(
-        '追加変更・更新・解約では契約サービスの追加項目を保存できません。'
-      );
+    // 仕様: Core 第4.3.4節、第11.4.1節。契約サービスの追加項目は種別の表示フラグ。コードでNew以外を隠さない。
+    String serviceError = ContractWizardFieldService.validateRequiredCustomFields(
+      ContractWizardFieldService.WizardTarget.ContractService,
+      request.contractServiceCustomFields,
+      null,
+      request.selectedType
+    );
+    if (String.isNotBlank(serviceError)) {
+      throw wrapAura(serviceError);
+    }
+    String serviceTypeError = ContractWizardFieldService.validateCustomFieldTypes(
+      ContractWizardFieldService.WizardTarget.ContractService,
+      request.contractServiceCustomFields,
+      null,
+      request.selectedType
+    );
+    if (String.isNotBlank(serviceTypeError)) {
+      throw wrapAura(serviceTypeError);
     }
     String historyError = ContractWizardFieldService.validateRequiredCustomFields(
       ContractWizardFieldService.WizardTarget.ContractHistory,

@@ -95,6 +95,10 @@ describe("estimateCreateWizard Ordered additional fields (Core 4.3 / 11.4.3)", (
     proto,
     "displayedHistoryFieldDefinitions"
   ).get;
+  const displayedOrder = Object.getOwnPropertyDescriptor(
+    proto,
+    "displayedOrderFieldDefinitions"
+  ).get;
 
   function instance(overrides) {
     return {
@@ -105,16 +109,22 @@ describe("estimateCreateWizard Ordered additional fields (Core 4.3 / 11.4.3)", (
     };
   }
 
-  it("Ordered見積編集は見積追加項目と受注追加項目を出す", () => {
-    const names = displayed
-      .call(instance({ isOrderedCustomFieldsOnlyEdit: true }))
-      .map((field) => field.apiName);
-    expect(names).toEqual(["Note__c", "ApplicationDate__c"]);
+  it("Ordered見積編集は見積追加項目を残し受注追加項目を別見出しで足す", () => {
+    const ctx = instance({ isOrderedCustomFieldsOnlyEdit: true });
+    expect(displayed.call(ctx).map((field) => field.apiName)).toEqual([
+      "Note__c"
+    ]);
+    expect(displayedOrder.call(ctx).map((field) => field.apiName)).toEqual([
+      "ApplicationDate__c"
+    ]);
   });
 
   it("見積候補の編集には受注追加項目を出さない", () => {
-    const names = displayed.call(instance()).map((field) => field.apiName);
-    expect(names).toEqual(["Note__c"]);
+    const ctx = instance();
+    expect(displayed.call(ctx).map((field) => field.apiName)).toEqual([
+      "Note__c"
+    ]);
+    expect(displayedOrder.call(ctx)).toEqual([]);
   });
 });
 

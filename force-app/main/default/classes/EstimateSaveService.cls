@@ -535,7 +535,7 @@ public without sharing class EstimateSaveService {
     return history;
   }
 
-  /** 仕様: Core 第4.3節、第4.3.1節、第11.4.3節。Ordered編集は見積追加項目と受注追加項目だけを保存する。 */
+  /** 仕様: Core 第4.3節、第4.3.1節、第4.7節、第11.4.1節、第11.4.3節。Ordered編集は表示中の見積追加項目（契約サービスを含む）と受注追加項目だけを保存する。 */
   public static EstimateCreateController.EstimateSaveResult updateOrderedEstimateCustomFieldsOnly(
     ContractHistory__c existing,
     EstimateCreateController.EstimateSaveRequest request
@@ -566,6 +566,7 @@ public without sharing class EstimateSaveService {
     } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
       throw EstimateValidationService.wrapAura(ex.getMessage());
     }
+    applyDisplayedServiceCustomFields(serviceId, request);
     SystemContextAccess.updateRecords(new List<SObject>{ historyUpdate });
 
     updateOrderedProductCustomFieldsOnly(existing.Id, request);
@@ -774,6 +775,8 @@ public without sharing class EstimateSaveService {
     applyOperationKey(existing, request);
     SystemContextAccess.updateRecords(new List<SObject>{ existing });
 
+    applyDisplayedServiceCustomFields(serviceId, request);
+
     if (request.selectedType == 'Change') {
       request.products = EstimateValidationService.normalizeChangeProductsForSave(
         request.products
@@ -809,6 +812,8 @@ public without sharing class EstimateSaveService {
     applyContractHistoryCustomFields(existing, request);
     applyOperationKey(existing, request);
     SystemContextAccess.updateRecords(new List<SObject>{ existing });
+
+    applyDisplayedServiceCustomFields(existing.ContractService__c, request);
 
     replaceEstimateProducts(existing.Id, null, request);
 
@@ -963,6 +968,8 @@ public without sharing class EstimateSaveService {
     applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
 
+    applyDisplayedServiceCustomFields(request.contractServiceId, request);
+
     if (request.selectedType == 'Change') {
       request.products = EstimateValidationService.normalizeChangeProductsForSave(
         request.products
@@ -1035,6 +1042,8 @@ public without sharing class EstimateSaveService {
     applyNotAutoRenewFieldCopy(contractHistory, request);
     applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
+
+    applyDisplayedServiceCustomFields(request.contractServiceId, request);
 
     return buildSaveResult(
       request.contractServiceId,
@@ -1355,6 +1364,34 @@ public without sharing class EstimateSaveService {
       ),
       ContractWizardFieldService.WizardTarget.ContractService
     );
+  }
+
+  /** 仕様: Core 第3.4.2節、第4.3.3節、第11.4.1節。名前・請求アカウント・税率・備考は載せず、表示中の契約サービス追加項目だけ書く。 */
+  public static void applyDisplayedServiceCustomFields(
+    Id serviceId,
+    EstimateCreateController.EstimateSaveRequest request
+  ) {
+    if (serviceId == null || request == null) {
+      return;
+    }
+    Map<String, Object> visible = ContractWizardFieldService.filterCustomFieldsByVisibility(
+      request.contractServiceCustomFields,
+      ContractWizardFieldService.WizardTarget.ContractService,
+      null,
+      request.selectedType
+    );
+    if (visible == null || visible.isEmpty()) {
+      return;
+    }
+    ContractService__c contractService = new ContractService__c(Id = serviceId);
+    applyContractServiceCustomFields(contractService, request);
+    Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
+    ContractServiceWriteGuard.allowPackageWrite(true);
+    try {
+      SystemContextAccess.updateRecords(new List<SObject>{ contractService });
+    } finally {
+      ContractServiceWriteGuard.allowPackageWrite(previousWrite);
+    }
   }
 
   public static void applyContractHistoryCustomFields(

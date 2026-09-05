@@ -60,7 +60,23 @@ describe("estimateCreateModal3 contract custom toggle (Core 4.3.4)", () => {
     );
   });
 
-  it("Ordered見積編集は契約サービス追加項目を出さない (Core 4.3 / 4.3.1)", () => {
+  it("shows visible service fields for Change (Core 4.3.4 / 11.4.1)", () => {
+    const hasService = Object.getOwnPropertyDescriptor(
+      proto,
+      "hasServiceCustomFields"
+    ).get;
+    const ctx = {
+      isNewType: false,
+      orderedCustomFieldsOnly: false,
+      effectiveSelectedType: "Change",
+      serviceFieldDefinitions: [{ showOnChange: true }, { showOnNew: true }],
+      historyFieldDefinitions: []
+    };
+    expect(hasService.call(ctx)).toBe(true);
+    expect(count.call(ctx)).toBe(1);
+  });
+
+  it("Ordered見積編集は種別表示の契約サービス追加項目を出す (Core 4.3.4 / 11.4.1)", () => {
     const hasService = Object.getOwnPropertyDescriptor(
       proto,
       "hasServiceCustomFields"
@@ -70,10 +86,11 @@ describe("estimateCreateModal3 contract custom toggle (Core 4.3.4)", () => {
       orderedCustomFieldsOnly: true,
       effectiveSelectedType: "New",
       serviceFieldDefinitions: [{ showOnNew: true }, { showOnNew: true }],
-      historyFieldDefinitions: [{ showOnNew: true }]
+      historyFieldDefinitions: [{ showOnNew: true }],
+      orderFieldDefinitions: [{ showOnNew: true }]
     };
-    expect(hasService.call(ctx)).toBe(false);
-    expect(count.call(ctx)).toBe(1);
+    expect(hasService.call(ctx)).toBe(true);
+    expect(count.call(ctx)).toBe(4);
   });
 });
 
