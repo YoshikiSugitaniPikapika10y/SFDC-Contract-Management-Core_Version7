@@ -240,9 +240,9 @@ private class InvoiceProductMergeServiceTest {
       )
     );
     System.assertEquals(
-      '版3',
+      'Version3',
       InvoiceProductMergeService.formatHistoryVersionLabel(3),
-      '第0.1節: 画面に Version と出す箇所は「版」とする'
+      '第0.1節: 画面に Version と出す箇所は Version とする'
     );
     System.assertEquals(
       '',

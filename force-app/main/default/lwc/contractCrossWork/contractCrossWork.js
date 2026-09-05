@@ -653,7 +653,7 @@ export default class ContractCrossWork extends LightningElement {
       { label: "完了予定日", value: "closeDate" },
       { label: "取引先", value: "account" },
       { label: "契約サービス名", value: "service" },
-      { label: "版", value: "version" },
+      { label: "Version", value: "version" },
       { label: "見積種別", value: "estimateType" },
       { label: "契約履歴名", value: "historyName" },
       { label: "見積税抜", value: "amount" }
@@ -806,7 +806,7 @@ export default class ContractCrossWork extends LightningElement {
     this.estimateGroups
       .filter((item) => !item.on)
       .forEach((item) => headers.push({ key: item.id, label: item.label }));
-    headers.push({ key: "version", label: "版" });
+    headers.push({ key: "version", label: "Version" });
     headers.push({ key: "type", label: "見積種別" });
     headers.push({ key: "auto", label: "自動Renew" });
     headers.push({ key: "opp", label: "商談名" });
@@ -2058,7 +2058,7 @@ export default class ContractCrossWork extends LightningElement {
       case "billingAccount":
         return sample.billingAccountName || "";
       case "history":
-        return `${sample.serviceName || ""} 版${sample.version ?? ""}`;
+        return `${sample.serviceName || ""} Version${sample.version ?? ""}`;
       case "invoiceStatus":
         return this.invoiceStatusLabel(sample.invoiceStatus);
       case "postingDate":
@@ -2147,7 +2147,7 @@ export default class ContractCrossWork extends LightningElement {
           cells.push(
             linkCell(
               "history",
-              `${row.serviceName || ""} 版${row.version ?? ""}`,
+              `${row.serviceName || ""} Version${row.version ?? ""}`,
               recordUrl("ContractHistory__c", row.historyId)
             )
           );

@@ -4,7 +4,7 @@
       <div class="version-filter">
         <lightning-combobox
           name="versionFilter"
-          label="版"
+          label="Version"
           value={selectedVersion}
           options={versionOptions}
           onchange={handleVersionChange}
@@ -1434,7 +1434,7 @@
           <template if:true={invoice.isInvoiceDestinationChoiceOpen}>
             <div class="split-panel">
               <p class="edit-note" role="note">
-                同じ版の他の未確定請求があります。新しい請求を作るか、既存の未確定へ移すかを選んでください。
+                同じVersionの他の未確定請求があります。新しい請求を作るか、既存の未確定へ移すかを選んでください。
               </p>
               <div class="panel-actions">
                 <button
@@ -1465,7 +1465,7 @@
           <template if:true={invoice.isInvoiceMoveOpen}>
             <div class="split-panel">
               <p class="edit-note" role="note">
-                下の明細にチェックを付けて、同じ版
+                下の明細にチェックを付けて、同じVersion
                 の既存請求へ全額移します。請求日・請求アカウントは移動先に従います。税率が違う先へは移せません。同じ商品でも合算せず別行のまま載せます。
               </p>
               <template if:true={invoice.invoiceMoveWillEmptySource}>

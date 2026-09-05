@@ -883,7 +883,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
       canEdit: false,
       taxRoundingMode: "DOWN",
       sourceHistoryVersion: "1",
-      versionOptions: [{ label: "版1", value: "1" }],
+      versionOptions: [{ label: "Version1", value: "1" }],
       invoices: [
         {
           invoiceId: "a00INV000000001",
@@ -901,7 +901,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
               lineId: "a01LINE00000001",
               productName: "A",
               amount: 1000,
-              historyVersionLabel: "版1",
+              historyVersionLabel: "Version1",
               isRecurring: true,
               unitPrice: 1000,
               quantity: 1
@@ -936,7 +936,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
       manualAdjustmentAmount: 3,
       versionOptions: [
         {
-          label: "版1",
+          label: "Version1",
           value: "1",
           periodLineAmountTotal: 10000,
           invoiceAmountTotal: 10003,
@@ -958,7 +958,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
               lineId: "a01LINE00000001",
               productName: "A",
               amount: 10003,
-              historyVersionLabel: "版1",
+              historyVersionLabel: "Version1",
               isRecurring: true,
               unitPrice: 10003,
               quantity: 1
@@ -982,7 +982,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(compareValues[3]).toBe(3);
   });
 
-  it("uses 版N when version option label is missing (Core 0.1)", async () => {
+  it("uses VersionN when version option label is missing (Core 0.1)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -1005,7 +1005,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
               lineId: "a01LINE00000001",
               productName: "A",
               amount: 1000,
-              historyVersionLabel: "版1",
+              historyVersionLabel: "Version1",
               isRecurring: true,
               unitPrice: 1000,
               quantity: 1
@@ -1021,8 +1021,8 @@ describe("orderInvoicePreviewTable footer totals", () => {
       )
     );
     expect(filter.options.map((option) => option.label)).toEqual([
-      "全版",
-      "版1"
+      "全Version",
+      "Version1"
     ]);
   });
 });

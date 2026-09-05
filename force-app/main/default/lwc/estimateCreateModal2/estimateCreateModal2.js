@@ -386,7 +386,7 @@ export default class EstimateCreateModal2 extends LightningElement {
       key: service?.id || "__none__",
       id: service?.id || "",
       nameLabel: name,
-      versionLabel: versionLabel ? `版${versionLabel}` : "",
+      versionLabel: versionLabel ? `Version${versionLabel}` : "",
       lifecycleLabel,
       termLabel: start && end ? `${start}～${end}` : start || end || "",
       currentProductsLabel:

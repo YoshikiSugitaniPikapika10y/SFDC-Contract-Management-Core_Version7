@@ -830,13 +830,13 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   get versionOptions() {
-    const options = [{ label: "全版", value: ALL_VERSIONS }];
+    const options = [{ label: "全Version", value: ALL_VERSIONS }];
     (this.preview?.versionOptions || []).forEach((option) => {
       if (!option?.value) {
         return;
       }
       options.push({
-        label: option.label || `版${option.value}`,
+        label: option.label || `Version${option.value}`,
         value: String(option.value)
       });
     });
@@ -944,7 +944,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   get versionFilterTitle() {
     if (this.hasAmountDrafts) {
-      return "端数調整の保存または取消後に版を切り替えられます";
+      return "端数調整の保存または取消後にVersionを切り替えられます";
     }
     return "";
   }
@@ -1233,7 +1233,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (this.isSplitOrMoveUiOpen) {
       return "別の請求へ分ける／分割をキャンセルまたは実行してから操作できます";
     }
-    return "この版の請求を受注直後の状態に作り直します";
+    return "このVersionの請求を受注直後の状態に作り直します";
   }
 
   get hasInvoices() {
@@ -1580,7 +1580,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   get editBlockedMessage() {
     if (this.preview?.versionEditBlocked) {
-      return "この版に連携済または消込済の請求があるため編集できません。";
+      return "このVersionに連携済または消込済の請求があるため編集できません。";
     }
     if (this.preview?.canEdit !== true) {
       return "請求ボード編集の権限がありません。";
@@ -2377,7 +2377,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               : invoice.locked === true
                 ? LOCKED_INVOICE_EDIT_NOTE
                 : !canMoveLines
-                  ? "同じ版に移せる未ロックの請求がありません"
+                  ? "同じVersionに移せる未ロックの請求がありません"
                   : "",
           isBillingEditOpen,
           locked: invoice.locked === true,
@@ -2686,7 +2686,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         new ShowToastEvent({
           title: "端数調整を先に確定してください",
           message:
-            "未保存の端数調整があります。保存または取消してから版を切り替えてください。",
+            "未保存の端数調整があります。保存または取消してからVersionを切り替えてください。",
           variant: "error",
           mode: "dismissable"
         })
@@ -2767,9 +2767,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   // 仕様: Core 第7.7.2節。Accounting ONの確認だけ検収終了日を名指しする。
   resetPostOrderConfirmMessage() {
     if (this.isAccountingEnabledForBoard()) {
-      return "この版の請求書・請求明細を、受注直後の状態に作り直します。分割や端数・請求日・検収終了日などの手直しはすべて消えます。よろしいですか？";
+      return "このVersionの請求書・請求明細を、受注直後の状態に作り直します。分割や端数・請求日・検収終了日などの手直しはすべて消えます。よろしいですか？";
     }
-    return "この版の請求書・請求明細を、受注直後の状態に作り直します。分割や端数・請求日などの手直しはすべて消えます。よろしいですか？";
+    return "このVersionの請求書・請求明細を、受注直後の状態に作り直します。分割や端数・請求日などの手直しはすべて消えます。よろしいですか？";
   }
 
   async handleResetPostOrderClick() {
@@ -4685,7 +4685,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "移動先を選択してください",
-          message: "同じ版の移動先請求を選んでから実行してください。",
+          message: "同じVersionの移動先請求を選んでから実行してください。",
           variant: "error",
           mode: "dismissable"
         })
@@ -5398,7 +5398,13 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     const label = line.historyVersionLabel || "";
     return label
       .split(",")
-      .map((part) => part.trim().replace(/^V/i, "").replace(/^版/, ""))
+      .map((part) =>
+        part
+          .trim()
+          .replace(/^Version/i, "")
+          .replace(/^版/, "")
+          .replace(/^V/i, "")
+      )
       .includes(String(selected));
   }
 

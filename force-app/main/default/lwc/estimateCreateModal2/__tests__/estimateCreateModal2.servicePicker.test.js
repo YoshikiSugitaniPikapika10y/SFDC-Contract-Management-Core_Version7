@@ -12,13 +12,13 @@ jest.mock(
 );
 
 describe("estimateCreateModal2 service picker (Core 第0.1節)", () => {
-  it("shows 版 not V prefix for Version", () => {
+  it("shows Version not V prefix for Version", () => {
     const option = EstimateCreateModal2.prototype.buildServicePickerOption.call(
       {},
       { id: "svc1", name: "Service", version: 3 },
       ""
     );
-    expect(option.versionLabel).toBe("版3");
+    expect(option.versionLabel).toBe("Version3");
     expect(option.versionLabel).not.toMatch(/^V/);
     expect(option.taxLabel).toBe("税率: 未設定");
   });

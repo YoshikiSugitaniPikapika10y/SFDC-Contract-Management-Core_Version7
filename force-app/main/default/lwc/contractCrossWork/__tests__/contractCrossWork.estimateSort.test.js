@@ -678,8 +678,8 @@ describe("contractCrossWork version group reload (横断画面.md 操作14・操
         { invoiceId: "c", historyVersion: 2 }
       ],
       versionOptions: [
-        { value: "1", label: "版1" },
-        { value: "2", label: "版2" }
+        { value: "1", label: "Version1" },
+        { value: "2", label: "Version2" }
       ]
     });
     expect(next.invoices.map((row) => row.invoiceId)).toEqual(["b", "c"]);

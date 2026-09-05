@@ -132,7 +132,7 @@ public without sharing class InvoiceProductMergeService {
     if (version == null) {
       return '';
     }
-    return '版' + String.valueOf(version.intValue());
+    return 'Version' + String.valueOf(version.intValue());
   }
 
   /** 仕様: Core 第1.1.10節 */

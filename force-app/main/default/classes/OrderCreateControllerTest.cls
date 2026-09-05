@@ -2560,7 +2560,7 @@ private class OrderCreateControllerTest {
           context.history.Version__c
         ),
         preview.versionOptions[0].label,
-        '第0.1節: 画面に Version と出す箇所は「版」とする'
+        '第0.1節: 画面に Version と出す箇所は Version とする'
       );
       Invoice__c storedDue = [
         SELECT DueStatus__c, OverdueDays__c
