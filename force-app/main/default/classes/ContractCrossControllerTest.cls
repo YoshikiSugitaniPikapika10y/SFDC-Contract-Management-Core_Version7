@@ -1039,6 +1039,90 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void queryEstimates_deserializedFilterKeepsRequiredCloseDates() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractCrossQueryService.DateRange range = ContractCrossQueryService.defaultEstimateCloseDates();
+      String payload =
+        '{"closeDateFrom":"' +
+        String.valueOf(range.dateFrom) +
+        '","closeDateTo":"' +
+        String.valueOf(range.dateTo) +
+        '"}';
+      ContractCrossController.EstimateFilterDto filter = (ContractCrossController.EstimateFilterDto) JSON.deserialize(
+        payload,
+        ContractCrossController.EstimateFilterDto.class
+      );
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryEstimates(
+        filter
+      );
+      Test.stopTest();
+      System.assertEquals(false, result.estimates == null);
+    }
+  }
+
+  @IsTest
+  static void queryInvoices_deserializedDraftStatusIsAccepted() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      String payload = '{"invoiceStatus":"Draft"}';
+      ContractCrossController.InvoiceFilterDto filter = (ContractCrossController.InvoiceFilterDto) JSON.deserialize(
+        payload,
+        ContractCrossController.InvoiceFilterDto.class
+      );
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryInvoices(
+        filter
+      );
+      Test.stopTest();
+      System.assertEquals(false, result.invoices == null);
+    }
+  }
+
+  @IsTest
+  static void queryInvoices_displayLabelStatusIsRejected() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
+      filter.invoiceStatus = '未確定';
+      Boolean thrown = false;
+      try {
+        ContractCrossController.queryInvoices(filter);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求状態は未確定／確定／両方のいずれかです。',
+          ex.getMessage(),
+          '横断画面.md 第5節・Core 第0.1節: 保存値はDraft。表示ラベルは保存値にしない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void queryJournals_deserializedLockStateIsAccepted() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      ContractCrossQueryService.DateRange range = ContractCrossQueryService.defaultJournalPostingDates();
+      String payload =
+        '{"postingDateFrom":"' +
+        String.valueOf(range.dateFrom) +
+        '","postingDateTo":"' +
+        String.valueOf(range.dateTo) +
+        '","lockState":"Unlocked"}';
+      ContractCrossController.JournalFilterDto filter = (ContractCrossController.JournalFilterDto) JSON.deserialize(
+        payload,
+        ContractCrossController.JournalFilterDto.class
+      );
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryJournals(
+        filter
+      );
+      Test.stopTest();
+      System.assertEquals(false, result.journals == null);
+    }
+  }
+
+  @IsTest
   static void saveJournals_rejectsNullRequest() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Boolean thrown = false;

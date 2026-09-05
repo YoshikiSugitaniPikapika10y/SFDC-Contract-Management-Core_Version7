@@ -59,88 +59,88 @@ public without sharing class ContractCrossController {
 
   public class TagFilterDto {
     @AuraEnabled
-    public String fieldApiName;
+    public String fieldApiName { get; set; }
     @AuraEnabled
-    public String state;
+    public String state { get; set; }
   }
 
   public class EstimateFilterDto {
     @AuraEnabled
-    public Date closeDateFrom;
+    public Date closeDateFrom { get; set; }
     @AuraEnabled
-    public Date closeDateTo;
+    public Date closeDateTo { get; set; }
     @AuraEnabled
-    public Id accountId;
+    public Id accountId { get; set; }
     @AuraEnabled
-    public Id serviceId;
+    public Id serviceId { get; set; }
     @AuraEnabled
-    public String estimateType;
+    public String estimateType { get; set; }
     @AuraEnabled
-    public Boolean sent;
+    public Boolean sent { get; set; }
     @AuraEnabled
-    public Boolean issued;
+    public Boolean issued { get; set; }
     @AuraEnabled
-    public Boolean autoRenew;
+    public Boolean autoRenew { get; set; }
     @AuraEnabled
-    public Date validDateFrom;
+    public Date validDateFrom { get; set; }
     @AuraEnabled
-    public Date validDateTo;
+    public Date validDateTo { get; set; }
   }
 
   public class InvoiceFilterDto {
     @AuraEnabled
-    public String invoiceStatus;
+    public String invoiceStatus { get; set; }
     @AuraEnabled
-    public String invoiceName;
+    public String invoiceName { get; set; }
     @AuraEnabled
-    public Id billingAccountId;
+    public Id billingAccountId { get; set; }
     @AuraEnabled
-    public Id accountId;
+    public Id accountId { get; set; }
     @AuraEnabled
-    public Date invoiceDateFrom;
+    public Date invoiceDateFrom { get; set; }
     @AuraEnabled
-    public Date invoiceDateTo;
+    public Date invoiceDateTo { get; set; }
     @AuraEnabled
-    public Date closeDateFrom;
+    public Date closeDateFrom { get; set; }
     @AuraEnabled
-    public Date closeDateTo;
+    public Date closeDateTo { get; set; }
     @AuraEnabled
-    public Boolean includeCancelled;
+    public Boolean includeCancelled { get; set; }
     @AuraEnabled
-    public Boolean sent;
+    public Boolean sent { get; set; }
     @AuraEnabled
-    public Boolean issued;
+    public Boolean issued { get; set; }
     @AuraEnabled
-    public Boolean overdue;
+    public Boolean overdue { get; set; }
     @AuraEnabled
-    public String collectionStatus;
+    public String collectionStatus { get; set; }
     @AuraEnabled
-    public Date nextAcceptanceFrom;
+    public Date nextAcceptanceFrom { get; set; }
     @AuraEnabled
-    public Date nextAcceptanceTo;
+    public Date nextAcceptanceTo { get; set; }
     @AuraEnabled
-    public List<TagFilterDto> tagFilters;
+    public List<TagFilterDto> tagFilters { get; set; }
   }
 
   public class JournalFilterDto {
     @AuraEnabled
-    public Date postingDateFrom;
+    public Date postingDateFrom { get; set; }
     @AuraEnabled
-    public Date postingDateTo;
+    public Date postingDateTo { get; set; }
     @AuraEnabled
-    public String lockState;
+    public String lockState { get; set; }
     @AuraEnabled
-    public String eventKey;
+    public String eventKey { get; set; }
     @AuraEnabled
-    public Id billingAccountId;
+    public Id billingAccountId { get; set; }
     @AuraEnabled
-    public Id accountId;
+    public Id accountId { get; set; }
     @AuraEnabled
-    public Id invoiceId;
+    public Id invoiceId { get; set; }
     @AuraEnabled
-    public Date closeDateFrom;
+    public Date closeDateFrom { get; set; }
     @AuraEnabled
-    public Date closeDateTo;
+    public Date closeDateTo { get; set; }
   }
 
   public class ListResultDto {
@@ -399,26 +399,26 @@ public without sharing class ContractCrossController {
 
   public class JournalMemoDraftDto {
     @AuraEnabled
-    public Id journalId;
+    public Id journalId { get; set; }
     @AuraEnabled
-    public Id invoiceId;
+    public Id invoiceId { get; set; }
     @AuraEnabled
-    public String memo;
+    public String memo { get; set; }
     @AuraEnabled
-    public Map<String, Object> extraFieldValues;
+    public Map<String, Object> extraFieldValues { get; set; }
   }
 
   public class JournalSaveRequestDto {
     @AuraEnabled
-    public List<Id> checkedJournalIds;
+    public List<Id> checkedJournalIds { get; set; }
     @AuraEnabled
-    public List<JournalMemoDraftDto> memos;
+    public List<JournalMemoDraftDto> memos { get; set; }
     @AuraEnabled
-    public String unlockReason;
+    public String unlockReason { get; set; }
     @AuraEnabled
-    public String lockState;
+    public String lockState { get; set; }
     @AuraEnabled
-    public Map<String, String> invoiceTokens;
+    public Map<String, String> invoiceTokens { get; set; }
   }
 
   public class JournalSaveResultDto {

@@ -6,70 +6,70 @@ public without sharing class ContractDocumentSettingsController {
     ContractPermissionUtil.ORG_SETTINGS;
 
   public class SelectOptionDto {
-    @AuraEnabled public String label;
-    @AuraEnabled public String value;
+    @AuraEnabled public String label { get; set; }
+    @AuraEnabled public String value { get; set; }
   }
 
   public class SettingsDto {
-    @AuraEnabled public String estimateSendMode;
-    @AuraEnabled public String invoiceSendMode;
-    @AuraEnabled public String estimateOrgWideEmailAddress;
-    @AuraEnabled public String invoiceOrgWideEmailAddress;
-    @AuraEnabled public String companyName;
-    @AuraEnabled public String address;
-    @AuraEnabled public String invoiceRegistrationNumber;
-    @AuraEnabled public String bankTransferInfo;
-    @AuraEnabled public String documentFooter;
-    @AuraEnabled public String privacyPolicyUrl;
-    @AuraEnabled public Boolean accountingEnabled;
-    @AuraEnabled public String revenueRecognitionBasis;
-    @AuraEnabled public String taxRecognitionTiming;
-    @AuraEnabled public String monthlyBucketMethod;
-    @AuraEnabled public String monthlyRecognitionDatePosition;
-    @AuraEnabled public String roundingTargetBucket;
-    @AuraEnabled public Boolean policyFrozen;
-    @AuraEnabled public String frozenAtLabel;
-    @AuraEnabled public String frozenByName;
-    @AuraEnabled public Decimal estimateValidMonths;
-    @AuraEnabled public Decimal defaultMonthlyCycles;
-    @AuraEnabled public Boolean renewOpportunityEnabled;
-    @AuraEnabled public String taxRoundingMode;
-    @AuraEnabled public String quantityUnitPriceRoundingMode;
-    @AuraEnabled public String amountRoundingMode;
-    @AuraEnabled public String taxLineAllocationMethod;
-    @AuraEnabled public String allocationTieBreak;
-    @AuraEnabled public String monthlyBucketAmountMethod;
-    @AuraEnabled public String taxScheduleAllocationMethod;
-    @AuraEnabled public String paymentLineAllocationMethod;
-    @AuraEnabled public String accountBalanceAllocationMethod;
-    @AuraEnabled public String documentGroupTaxAllocationMethod;
-    @AuraEnabled public Boolean validationEnforce;
-    @AuraEnabled public String lockExemptFieldApiNames;
-    @AuraEnabled public String paymentLockExemptFieldApiNames;
-    @AuraEnabled public String journalLockExemptFieldApiNames;
+    @AuraEnabled public String estimateSendMode { get; set; }
+    @AuraEnabled public String invoiceSendMode { get; set; }
+    @AuraEnabled public String estimateOrgWideEmailAddress { get; set; }
+    @AuraEnabled public String invoiceOrgWideEmailAddress { get; set; }
+    @AuraEnabled public String companyName { get; set; }
+    @AuraEnabled public String address { get; set; }
+    @AuraEnabled public String invoiceRegistrationNumber { get; set; }
+    @AuraEnabled public String bankTransferInfo { get; set; }
+    @AuraEnabled public String documentFooter { get; set; }
+    @AuraEnabled public String privacyPolicyUrl { get; set; }
+    @AuraEnabled public Boolean accountingEnabled { get; set; }
+    @AuraEnabled public String revenueRecognitionBasis { get; set; }
+    @AuraEnabled public String taxRecognitionTiming { get; set; }
+    @AuraEnabled public String monthlyBucketMethod { get; set; }
+    @AuraEnabled public String monthlyRecognitionDatePosition { get; set; }
+    @AuraEnabled public String roundingTargetBucket { get; set; }
+    @AuraEnabled public Boolean policyFrozen { get; set; }
+    @AuraEnabled public String frozenAtLabel { get; set; }
+    @AuraEnabled public String frozenByName { get; set; }
+    @AuraEnabled public Decimal estimateValidMonths { get; set; }
+    @AuraEnabled public Decimal defaultMonthlyCycles { get; set; }
+    @AuraEnabled public Boolean renewOpportunityEnabled { get; set; }
+    @AuraEnabled public String taxRoundingMode { get; set; }
+    @AuraEnabled public String quantityUnitPriceRoundingMode { get; set; }
+    @AuraEnabled public String amountRoundingMode { get; set; }
+    @AuraEnabled public String taxLineAllocationMethod { get; set; }
+    @AuraEnabled public String allocationTieBreak { get; set; }
+    @AuraEnabled public String monthlyBucketAmountMethod { get; set; }
+    @AuraEnabled public String taxScheduleAllocationMethod { get; set; }
+    @AuraEnabled public String paymentLineAllocationMethod { get; set; }
+    @AuraEnabled public String accountBalanceAllocationMethod { get; set; }
+    @AuraEnabled public String documentGroupTaxAllocationMethod { get; set; }
+    @AuraEnabled public Boolean validationEnforce { get; set; }
+    @AuraEnabled public String lockExemptFieldApiNames { get; set; }
+    @AuraEnabled public String paymentLockExemptFieldApiNames { get; set; }
+    @AuraEnabled public String journalLockExemptFieldApiNames { get; set; }
     /** 仕様: Core 第11.6節、第4.3.12節。開いたときの各レコード更新時刻。 */
-    @AuraEnabled public String documentSettingToken;
-    @AuraEnabled public String accountingPolicyToken;
-    @AuraEnabled public String validationEnforceToken;
-    @AuraEnabled public String lockExemptToken;
-    @AuraEnabled public String paymentLockExemptToken;
-    @AuraEnabled public String journalLockExemptToken;
-    @AuraEnabled public String amountCalculationToken;
-    @AuraEnabled public String businessOperationKey;
+    @AuraEnabled public String documentSettingToken { get; set; }
+    @AuraEnabled public String accountingPolicyToken { get; set; }
+    @AuraEnabled public String validationEnforceToken { get; set; }
+    @AuraEnabled public String lockExemptToken { get; set; }
+    @AuraEnabled public String paymentLockExemptToken { get; set; }
+    @AuraEnabled public String journalLockExemptToken { get; set; }
+    @AuraEnabled public String amountCalculationToken { get; set; }
+    @AuraEnabled public String businessOperationKey { get; set; }
   }
 
   public class CatalogLinkDto {
-    @AuraEnabled public String key;
-    @AuraEnabled public String label;
-    @AuraEnabled public String url;
+    @AuraEnabled public String key { get; set; }
+    @AuraEnabled public String label { get; set; }
+    @AuraEnabled public String url { get; set; }
   }
 
   public class PageDataDto {
-    @AuraEnabled public SettingsDto settings;
-    @AuraEnabled public List<SelectOptionDto> orgWideEmailAddresses;
-    @AuraEnabled public List<CatalogLinkDto> settingLinks;
+    @AuraEnabled public SettingsDto settings { get; set; }
+    @AuraEnabled public List<SelectOptionDto> orgWideEmailAddresses { get; set; }
+    @AuraEnabled public List<CatalogLinkDto> settingLinks { get; set; }
     /** 仕様: Core 第11.6節。21（Loop_21_AccountingMaster）が無ければ会計マスタ行を出さない。 */
-    @AuraEnabled public Boolean hasAccountingMaster;
+    @AuraEnabled public Boolean hasAccountingMaster { get; set; }
   }
 
   @TestVisible
@@ -686,43 +686,66 @@ public without sharing class ContractDocumentSettingsController {
     return rows.isEmpty() ? null : rows[0].SystemModstamp;
   }
 
-  /** 仕様: Core 第11.6節、第4.3.12節 */
+  /** 仕様: Core 第11.6節、第4.3.12節。応答版は最後に読み直した更新時刻。DML後のメモリとgetOrgDefaultsは使わない。 */
   private static void applyVersionTokens(
     SettingsDto dto,
     ContractDocumentSetting__c setting,
     GlAccountingPolicy__c policy
   ) {
+    ContractDocumentSetting__c storedSetting = loadOrganizationSetting();
     dto.documentSettingToken = ContractOptimisticLockUtil.toToken(
-      setting == null || setting.Id == null ? null : setting.LastModifiedDate
+      storedSetting == null || storedSetting.Id == null
+        ? null
+        : storedSetting.LastModifiedDate
     );
+    GlAccountingPolicy__c storedPolicy = loadPolicy();
     dto.accountingPolicyToken = ContractOptimisticLockUtil.toToken(
-      policy == null ? null : policy.LastModifiedDate
+      storedPolicy == null ? null : storedPolicy.LastModifiedDate
     );
-    ContractValidationEnforce__c enforce =
-      ContractValidationEnforce__c.getOrgDefaults();
+    Id organizationId = UserInfo.getOrganizationId();
+    List<ContractValidationEnforce__c> enforceRows = [
+      SELECT LastModifiedDate
+      FROM ContractValidationEnforce__c
+      WHERE SetupOwnerId = :organizationId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
     dto.validationEnforceToken = ContractOptimisticLockUtil.toToken(
-      enforce == null || enforce.Id == null ? null : enforce.LastModifiedDate
+      enforceRows.isEmpty() ? null : enforceRows[0].LastModifiedDate
     );
-    InvoiceLockExemptFields__c lockExempt =
-      InvoiceLockExemptFields__c.getOrgDefaults();
+    List<InvoiceLockExemptFields__c> lockExemptRows = [
+      SELECT LastModifiedDate
+      FROM InvoiceLockExemptFields__c
+      WHERE SetupOwnerId = :organizationId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
     dto.lockExemptToken = ContractOptimisticLockUtil.toToken(
-      lockExempt == null || lockExempt.Id == null
-        ? null
-        : lockExempt.LastModifiedDate
+      lockExemptRows.isEmpty() ? null : lockExemptRows[0].LastModifiedDate
     );
-    InvoicePaymentLockExemptFields__c paymentLockExempt =
-      InvoicePaymentLockExemptFields__c.getOrgDefaults();
+    List<InvoicePaymentLockExemptFields__c> paymentLockExemptRows = [
+      SELECT LastModifiedDate
+      FROM InvoicePaymentLockExemptFields__c
+      WHERE SetupOwnerId = :organizationId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
     dto.paymentLockExemptToken = ContractOptimisticLockUtil.toToken(
-      paymentLockExempt == null || paymentLockExempt.Id == null
+      paymentLockExemptRows.isEmpty()
         ? null
-        : paymentLockExempt.LastModifiedDate
+        : paymentLockExemptRows[0].LastModifiedDate
     );
-    GlJournalLockExemptFields__c journalLockExempt =
-      GlJournalLockExemptFields__c.getOrgDefaults();
+    List<GlJournalLockExemptFields__c> journalLockExemptRows = [
+      SELECT LastModifiedDate
+      FROM GlJournalLockExemptFields__c
+      WHERE SetupOwnerId = :organizationId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
     dto.journalLockExemptToken = ContractOptimisticLockUtil.toToken(
-      journalLockExempt == null || journalLockExempt.Id == null
+      journalLockExemptRows.isEmpty()
         ? null
-        : journalLockExempt.LastModifiedDate
+        : journalLockExemptRows[0].LastModifiedDate
     );
     dto.amountCalculationToken = ContractOptimisticLockUtil.toToken(
       resolveAmountCalculationModified()

@@ -189,6 +189,47 @@ private class ContractDocumentSettingsControllerTest {
   }
 
   @IsTest
+  static void saveSettings_secondSaveUsesReturnedTokens() {
+    ContractDocumentSettingsController.SettingsDto input =
+      new ContractDocumentSettingsController.SettingsDto();
+    input.estimateSendMode = 'PdfOnly';
+    input.invoiceSendMode = 'PdfOnly';
+    input.companyName = '連続保存1';
+    input.address = '東京都';
+    input.invoiceRegistrationNumber = 'T1234567890123';
+    input.bankTransferInfo = '銀行';
+    input.estimateValidMonths = 1;
+    input.defaultMonthlyCycles = 12;
+
+    ContractDocumentSettingsController.SettingsDto first = saveWithFreshTokens(
+      input
+    );
+    input.companyName = '連続保存2';
+    input.documentSettingToken = first.documentSettingToken;
+    input.accountingPolicyToken = first.accountingPolicyToken;
+    input.validationEnforceToken = first.validationEnforceToken;
+    input.lockExemptToken = first.lockExemptToken;
+    input.paymentLockExemptToken = first.paymentLockExemptToken;
+    input.journalLockExemptToken = first.journalLockExemptToken;
+    input.amountCalculationToken = first.amountCalculationToken;
+    input.businessOperationKey = AccountingCauseLockService.issueOperationKey();
+
+    Test.startTest();
+    ContractDocumentSettingsController.SettingsDto second = ContractDocumentSettingsController.saveSettings(
+      input
+    );
+    Test.stopTest();
+
+    System.assertEquals('連続保存2', second.companyName);
+    ContractDocumentSetting__c stored = [
+      SELECT CompanyName__c
+      FROM ContractDocumentSetting__c
+      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+    ];
+    System.assertEquals('連続保存2', stored.CompanyName__c);
+  }
+
+  @IsTest
   static void saveSettings_deletesNonOrgHierarchyRows() {
     Id organizationId = UserInfo.getOrganizationId();
     Id userId = UserInfo.getUserId();
