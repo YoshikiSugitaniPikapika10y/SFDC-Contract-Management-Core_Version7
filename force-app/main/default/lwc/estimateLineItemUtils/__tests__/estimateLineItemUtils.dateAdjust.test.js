@@ -9,8 +9,18 @@ import {
   countBillingCycles,
   calculateLineAmount,
   endOfMonthlyPeriodIsoDate,
+  setAmountCalculationRoundingModes,
+  QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
+  AMOUNT_ROUNDING_SCALE0_HALF_UP,
   BILLING_TYPE_RECURRING
 } from "c/estimateLineItemUtils";
+
+beforeEach(() => {
+  setAmountCalculationRoundingModes({
+    quantityUnitPriceRoundingMode: QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
+    amountRoundingMode: AMOUNT_ROUNDING_SCALE0_HALF_UP
+  });
+});
 
 describe("addMonthsToIsoDate sticky month boundary", () => {
   it("keeps calendar month-end when adding months", () => {
