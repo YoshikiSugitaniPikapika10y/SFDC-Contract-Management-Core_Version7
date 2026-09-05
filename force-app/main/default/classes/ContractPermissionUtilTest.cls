@@ -362,4 +362,32 @@ private class ContractPermissionUtilTest {
     }
     System.assertEquals(true, editBlocked);
   }
+
+  /** 仕様: 共通基盤 第3.4節・第3.6節。101 の操作ログは Create と Edit を付けない。 */
+  @IsTest
+  static void migrateAll_operationLogHasNoCreateOrEdit() {
+    List<ObjectPermissions> rows = [
+      SELECT
+        PermissionsCreate,
+        PermissionsEdit,
+        PermissionsDelete,
+        PermissionsRead,
+        PermissionsViewAllRecords,
+        PermissionsModifyAllRecords
+      FROM ObjectPermissions
+      WHERE Parent.Name = 'Loop_101_MigrateAll'
+        AND SobjectType = 'ContractOperationLog__c'
+    ];
+    System.assertEquals(
+      1,
+      rows.size(),
+      '共通基盤 第3.4節: 101 に操作ログのオブジェクト権限がある'
+    );
+    System.assertEquals(false, rows[0].PermissionsCreate);
+    System.assertEquals(false, rows[0].PermissionsEdit);
+    System.assertEquals(true, rows[0].PermissionsRead);
+    System.assertEquals(true, rows[0].PermissionsDelete);
+    System.assertEquals(true, rows[0].PermissionsViewAllRecords);
+    System.assertEquals(true, rows[0].PermissionsModifyAllRecords);
+  }
 }
