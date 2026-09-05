@@ -430,4 +430,59 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(headerText).not.toContain("確認用");
     expect(element.shadowRoot.textContent).not.toContain("明細税抜 1,100円");
   });
+
+  it("保存中は請求書情報を止め当該カードに処理中を出す (Core 7.8.2)", async () => {
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Draft",
+      locked: false
+    });
+    document.body.appendChild(element);
+    const billing = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "請求書情報"
+      )
+    );
+    expect(billing.disabled).toBe(false);
+    element.isSaving = true;
+    await flush();
+    expect(billing.disabled).toBe(true);
+    expect(element.shadowRoot.textContent).toContain("処理中");
+    expect(element.shadowRoot.querySelector("lightning-spinner")).toBeNull();
+  });
+
+  it("発行処理中は当該ボードの請求書情報を止める (Core 7.10)", async () => {
+    const proto = OrderInvoicePreviewTable.prototype;
+    const waiting = Object.getOwnPropertyDescriptor(
+      proto,
+      "isDocumentOpsWaiting"
+    ).get;
+    let release;
+    const hang = new Promise((resolve) => {
+      release = resolve;
+    });
+    const ctx = {
+      invoiceOpsProcessingId: null,
+      invoiceOpsProcessingMode: null,
+      invoiceSendState: { invoiceId: "a00INV000000001" },
+      invoiceIssueState: { invoiceId: "a00INV000000001" },
+      dispatchEvent: jest.fn(),
+      reduceInvoiceOpsError: () => ""
+    };
+    const running = proto.runInvoiceOperation.call(
+      ctx,
+      "a00INV000000001",
+      "issue",
+      () => hang
+    );
+    expect(ctx.invoiceOpsProcessingId).toBe("a00INV000000001");
+    expect(ctx.invoiceOpsProcessingMode).toBe("issue");
+    expect(waiting.call(ctx)).toBe(true);
+    release();
+    await running;
+    expect(ctx.invoiceOpsProcessingId).toBe(null);
+    expect(waiting.call(ctx)).toBe(false);
+  });
 });

@@ -368,6 +368,7 @@ export default class OrderCreateWizard extends NavigationMixin(
           : "ステータスを受注済みに更新しました。",
         "success"
       );
+      this.notifyOverlayBusy(false);
       this.closeAction();
     } catch (error) {
       this.errorMessage = this.reduceError(error);

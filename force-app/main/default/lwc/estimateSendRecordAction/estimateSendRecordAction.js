@@ -405,6 +405,7 @@ export default class EstimateSendRecordAction extends LightningElement {
         })
       );
       this.dispatchEvent(new RefreshEvent());
+      this.notifyOverlayBusy(false);
       this.dispatchEvent(
         new CustomEvent("panelclose", { bubbles: true, composed: true })
       );

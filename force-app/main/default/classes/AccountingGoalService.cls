@@ -1874,26 +1874,78 @@ public without sharing class AccountingGoalService {
     );
   }
 
+  private static Set<String> cachedTenantInvoiceLineFields;
+
+  /** 仕様: Accounting 第4.7節、第6.2節、第8.2節。明細単位の科目割当は請求明細の対象項目・比較対象項目を評価する。 */
+  private static Set<String> tenantInvoiceLineFields() {
+    if (cachedTenantInvoiceLineFields != null) {
+      return cachedTenantInvoiceLineFields;
+    }
+    Set<String> fields = new Set<String>();
+    Map<String, Schema.SObjectField> describe = InvoiceLine__c.SObjectType.getDescribe()
+      .fields.getMap();
+    for (GlConditionRule__c rule : [
+      SELECT TargetObject__c, TargetField__c, CompareObject__c, CompareField__c
+      FROM GlConditionRule__c
+      WHERE
+        TargetObject__c IN ('InvoiceLine__c', 'InvoiceLine')
+        OR CompareObject__c IN ('InvoiceLine__c', 'InvoiceLine')
+      WITH SYSTEM_MODE
+    ]) {
+      addInvoiceLineConditionField(fields, describe, rule.TargetObject__c, rule.TargetField__c);
+      addInvoiceLineConditionField(
+        fields,
+        describe,
+        rule.CompareObject__c,
+        rule.CompareField__c
+      );
+    }
+    cachedTenantInvoiceLineFields = fields;
+    return fields;
+  }
+
+  private static void addInvoiceLineConditionField(
+    Set<String> fields,
+    Map<String, Schema.SObjectField> describe,
+    String objectApiName,
+    String fieldApiName
+  ) {
+    if (
+      fields == null ||
+      describe == null ||
+      String.isBlank(fieldApiName) ||
+      (objectApiName != 'InvoiceLine__c' && objectApiName != 'InvoiceLine')
+    ) {
+      return;
+    }
+    if (!describe.containsKey(fieldApiName)) {
+      return;
+    }
+    fields.add(describe.get(fieldApiName).getDescribe().getName());
+  }
+
   private static Map<Id, InvoiceLine__c> loadLines(Id invoiceId) {
     if (cachedLinesByInvoice.containsKey(invoiceId)) {
       return cachedLinesByInvoice.get(invoiceId);
     }
     Map<Id, InvoiceLine__c> rows = new Map<Id, InvoiceLine__c>();
-    for (InvoiceLine__c line : [
-      SELECT
-        Id,
-        CreatedDate,
-        Invoice__c,
-        Amount__c,
-        AllocatedTaxAmount__c,
-        AcceptanceEndDate__c,
-        ServicePeriodStartDate__c,
-        ServicePeriodEndDate__c,
-        RevenueRecognitionBasis__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :invoiceId
-      WITH SYSTEM_MODE
-    ]) {
+    Set<String> selectFields = new Set<String>{
+      'Id',
+      'CreatedDate',
+      'Invoice__c',
+      'Amount__c',
+      'AllocatedTaxAmount__c',
+      'AcceptanceEndDate__c',
+      'ServicePeriodStartDate__c',
+      'ServicePeriodEndDate__c',
+      'RevenueRecognitionBasis__c'
+    };
+    selectFields.addAll(tenantInvoiceLineFields());
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(selectFields), ',') +
+      ' FROM InvoiceLine__c WHERE Invoice__c = :invoiceId';
+    for (InvoiceLine__c line : Database.query(soql, AccessLevel.SYSTEM_MODE)) {
       rows.put(line.Id, line);
     }
     cachedLinesByInvoice.put(invoiceId, rows);

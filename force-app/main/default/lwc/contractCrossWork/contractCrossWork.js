@@ -1652,7 +1652,7 @@ export default class ContractCrossWork extends LightningElement {
     this.overlayBusy = event.detail?.busy === true;
   }
 
-  // 仕様: Core 第7.10節。個別送付は終わるまで待たせる。裏では回さない。
+  // 仕様: Core 第7.10節。個別送付は終わるまで待たせる。裏では回さない。処理中は閉じない。終わったあとは閉じる。
   handleOverlayClose() {
     if (this.overlayBusy) {
       return;

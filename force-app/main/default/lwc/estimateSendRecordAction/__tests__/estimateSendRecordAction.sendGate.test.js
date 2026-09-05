@@ -1,4 +1,5 @@
 import EstimateSendRecordAction from "c/estimateSendRecordAction";
+import sendEstimate from "@salesforce/apex/EstimateSendBoardController.sendEstimateFromRecordPage";
 
 jest.mock(
   "lightning/actions",
@@ -190,5 +191,40 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     const ctx = { isSending: true, dispatchEvent: jest.fn() };
     proto.handleCancel.call(ctx);
     expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+  });
+
+  it("成功時は飛行中を外してから閉じる (Core 7.10)", async () => {
+    sendEstimate.mockResolvedValue({});
+    const order = [];
+    await proto.handleSend.call({
+      sendDisabled: false,
+      isSending: false,
+      errorMessage: "",
+      isResend: false,
+      _recordId: "a0H",
+      documentTemplateKey: "tpl",
+      emailTemplateApiName: "email",
+      toAddresses: "to@example.com",
+      estimate: { lastModifiedToken: "tok" },
+      ccAddresses: "",
+      bccAddresses: "",
+      subject: "s",
+      body: "b",
+      fileName: "estimate.pdf",
+      fromChoice: "Self",
+      attachmentId: "a01",
+      notifyOverlayBusy(busy) {
+        order.push(busy ? "on" : "off");
+      },
+      dispatchEvent(event) {
+        order.push(event.type || event.constructor.name);
+      }
+    });
+    const closeAt = order.indexOf("panelclose");
+    const offAt = order.indexOf("off");
+    expect(order[0]).toBe("on");
+    expect(offAt).toBeGreaterThan(-1);
+    expect(closeAt).toBeGreaterThan(-1);
+    expect(offAt).toBeLessThan(closeAt);
   });
 });

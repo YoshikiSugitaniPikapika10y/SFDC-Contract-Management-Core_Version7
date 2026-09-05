@@ -2,6 +2,8 @@ import { createElement } from "lwc";
 import OrderRevertWizard from "c/orderRevertWizard";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import hasManualInvoiceAdjustment from "@salesforce/apex/OrderCreateController.hasManualInvoiceAdjustment";
+import revertOrder from "@salesforce/apex/OrderCreateController.revertOrder";
+import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
 
 jest.mock(
   "@salesforce/customPermission/Loop_07_Can_Revert",
@@ -136,6 +138,8 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
     }
     getOrderContext.mockReset();
     hasManualInvoiceAdjustment.mockReset();
+    revertOrder.mockReset();
+    issueOrderOperationKey.mockReset();
   });
 
   it("shows revert confirmation copy and keeps the submit enabled", async () => {
@@ -164,7 +168,31 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
       "Extra__c"
     ]);
     expect(extraFields.every((field) => field.required === false)).toBe(true);
-    expect(element.historyCustomFields.OrderDate__c).toBe("2026-01-15");
+    const grid = element.shadowRoot.querySelector(
+      "c-estimate-wizard-custom-field-grid"
+    );
+    expect(grid).toBeTruthy();
+    expect(grid.disabled).toBe(false);
+  });
+
+  it("差し戻し実行中は追加項目を止める (Core 5.3 / 4.3.12)", async () => {
+    getOrderContext.mockResolvedValue(ORDERED);
+    hasManualInvoiceAdjustment.mockResolvedValue(false);
+    issueOrderOperationKey.mockResolvedValue("op-key");
+    revertOrder.mockImplementation(() => new Promise(() => {}));
+    const element = await mount();
+    const grid = element.shadowRoot.querySelector(
+      "c-estimate-wizard-custom-field-grid"
+    );
+    expect(grid).toBeTruthy();
+    expect(grid.disabled).toBe(false);
+    const submit = [...element.shadowRoot.querySelectorAll("button")].find(
+      (node) => node.textContent.trim() === "見積に差し戻す"
+    );
+    submit.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(grid.disabled).toBe(true);
   });
 
   it("warns that manual invoice adjustments are deleted, and defaults renew-opportunity delete on", async () => {

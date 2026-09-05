@@ -268,6 +268,9 @@
             <template if:true={invoice.lockNote}>
               <p class="edit-note" role="status">{invoice.lockNote}</p>
             </template>
+            <template if:true={invoice.showEditProcessing}>
+              <p class="edit-note" role="status">処理中</p>
+            </template>
             <div class="invoice-status-meta" aria-label="請求ステータス">
               <span class="invoice-date-item">
                 <span class="invoice-meta-k">取引状態</span>

@@ -201,7 +201,19 @@ function requiresPaymentRegisterCancelDate(bundle) {
 
 export default class OrderInvoicePreviewTable extends LightningElement {
   @api billingAccountOptions = [];
-  @api isSaving = false;
+  @track editProcessingInvoiceId = null;
+  @track invoiceOpsProcessingMode = null;
+  _isSaving = false;
+  @api
+  get isSaving() {
+    return this._isSaving;
+  }
+  set isSaving(value) {
+    this._isSaving = value === true;
+    if (!this._isSaving) {
+      this.editProcessingInvoiceId = null;
+    }
+  }
   @api initialVersion;
   @api initialInvoiceId;
   /** 仕様: Core 第7.7.3節 */
@@ -245,6 +257,21 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   @track invoiceSendState = null;
   @track invoiceIssueState = null;
   @track invoiceOpsProcessingId = null;
+
+  // 仕様: Core 第7.10節。発行・送付の応答まで当該ボードを待たせる。
+  get isDocumentOpsWaiting() {
+    const mode = this.invoiceOpsProcessingMode;
+    return (
+      this.invoiceOpsProcessingId != null &&
+      (mode === "issue" || mode === "send")
+    );
+  }
+
+  // 仕様: Core 第7.8.2節。端数・分ける・分割・請求情報編集・反映の実行中。
+  get isConcurrentEditBusy() {
+    return this.isSaving === true || this.editProcessingInvoiceId != null;
+  }
+
   @track invoiceUiState = {};
   @track amountDrafts = {};
   /** 単価分割の数式ポップアップ（見積金額入力と同じ UI） */
@@ -1944,8 +1971,12 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         const taxTotal = totals.taxTotal || 0;
         const taxInclusiveTotal = amountTotal + taxTotal;
         const amountAdjustDisabled =
-          this.isSaving === true || this.isAmountAdjustBlocked;
-        const amountAdjustBlockedTitle = this.isBillingEditUiOpen
+          this.isSaving === true ||
+          this.isAmountAdjustBlocked ||
+          this.isDocumentOpsWaiting;
+        const amountAdjustBlockedTitle = this.isDocumentOpsWaiting
+          ? "発行または送付が終わるまで端数調整できません"
+          : this.isBillingEditUiOpen
           ? "請求情報編集をキャンセルまたは保存してから端数調整できます"
           : this.isSplitOrMoveUiOpen
               ? "別の請求へ分ける／分割をキャンセルまたは実行してから端数調整できます"
@@ -2414,9 +2445,22 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             : "10円減らす",
           lockNote:
             invoice.locked === true ? LOCKED_INVOICE_EDIT_NOTE : "",
+          showEditProcessing:
+            (this.editProcessingInvoiceId
+              ? this.editProcessingInvoiceId === invoiceId
+              : this.isSaving === true) ||
+            (this.isDocumentOpsWaiting &&
+              this.invoiceOpsProcessingId === invoiceId),
           billingEditDisabled:
-            this.hasAmountDrafts || this.isSplitOrMoveUiOpen,
-          billingEditTitle: this.isSplitOrMoveUiOpen
+            this.hasAmountDrafts ||
+            this.isSplitOrMoveUiOpen ||
+            this.isConcurrentEditBusy ||
+            this.isDocumentOpsWaiting,
+          billingEditTitle: this.isDocumentOpsWaiting
+            ? "発行または送付が終わるまで操作できません"
+            : this.isConcurrentEditBusy
+              ? "処理中は他の編集へ進めません"
+              : this.isSplitOrMoveUiOpen
             ? "別の請求へ分ける／分割をキャンセルまたは実行してから操作できます"
             : this.hasAmountDrafts
               ? "端数調整の保存または取消後に操作できます"
@@ -2424,8 +2468,14 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           otherActionsDisabled:
             this.hasAmountDrafts ||
             this.isBillingEditUiOpen ||
-            invoice.locked === true,
-          otherActionsTitle: this.isBillingEditUiOpen
+            invoice.locked === true ||
+            this.isConcurrentEditBusy ||
+            this.isDocumentOpsWaiting,
+          otherActionsTitle: this.isDocumentOpsWaiting
+            ? "発行または送付が終わるまで操作できません"
+            : this.isConcurrentEditBusy
+              ? "処理中は他の編集へ進めません"
+              : this.isBillingEditUiOpen
             ? "請求情報編集をキャンセルまたは保存してから操作できます"
             : this.hasAmountDrafts
               ? "端数調整の保存または取消後に操作できます"
@@ -2668,10 +2718,16 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             this.isSplitOrMoveUiOpen ||
             this.hasUnsavedBillingHeaderEdit ||
             invoice.locked === true ||
-            !invoice.billingAccountId,
+            !invoice.billingAccountId ||
+            this.isConcurrentEditBusy ||
+            this.isDocumentOpsWaiting,
           applyBillingTitle: !invoice.billingAccountId
             ? "請求アカウントがありません。"
-            : this.hasUnsavedBillingHeaderEdit
+            : this.isDocumentOpsWaiting
+              ? "発行または送付が終わるまで反映できません"
+              : this.isConcurrentEditBusy
+                ? "処理中は他の編集へ進めません"
+                : this.hasUnsavedBillingHeaderEdit
               ? "請求情報編集をキャンセルまたは保存してから反映できます"
               : this.isSplitOrMoveUiOpen
                 ? "別の請求へ分ける／分割をキャンセルまたは実行してから反映できます"
@@ -3215,11 +3271,13 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     );
   }
 
+  // 仕様: Core 第7.10節。発行・送付は処理中に重ねず、当該ボードは応答まで待たせる。
   async runInvoiceOperation(invoiceId, mode, action) {
     if (!invoiceId || this.invoiceOpsProcessingId != null) {
       return;
     }
     this.invoiceOpsProcessingId = invoiceId;
+    this.invoiceOpsProcessingMode = mode;
     try {
       await action();
       this.invoiceSendState = null;
@@ -3248,6 +3306,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
     } finally {
       this.invoiceOpsProcessingId = null;
+      this.invoiceOpsProcessingMode = null;
     }
   }
 
@@ -3910,7 +3969,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   handleAdjustAmount(event) {
-    if (!this.canEdit || this.isSaving || this.isAmountAdjustBlocked) {
+    if (!this.canEdit || this.isSaving || this.isAmountAdjustBlocked || this.isDocumentOpsWaiting) {
       return;
     }
     const lineId = event.currentTarget.dataset.lineId;
@@ -4122,7 +4181,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   }
 
   async handleSaveAmountDrafts() {
-    if (!this.hasAmountDrafts || this.isSaving) {
+    if (!this.hasAmountDrafts || this.isSaving || this.isDocumentOpsWaiting) {
       return;
     }
     const edits = Object.keys(this.amountDrafts).map((lineId) => ({
@@ -4143,6 +4202,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         keyInvoiceId = invoice.invoiceId;
       }
     }
+    this.editProcessingInvoiceId = (keyInvoiceId);
     this.dispatchEvent(
       new CustomEvent("savelineamounts", {
         detail: {
@@ -4317,7 +4377,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (
       this.hasAmountDrafts ||
       this.isBillingEditUiOpen ||
-      this.isInvoiceLocked(invoiceId)
+      this.isInvoiceLocked(invoiceId) ||
+      this.isConcurrentEditBusy ||
+      this.isDocumentOpsWaiting
     ) {
       return;
     }
@@ -4660,6 +4722,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     const changedBillingAccount =
       Boolean(newBillingAccountId) &&
       newBillingAccountId !== sourceBillingAccountId;
+    this.editProcessingInvoiceId = (this.invoiceSplitState.invoiceId);
     this.dispatchEvent(
       new CustomEvent("splitinvoice", {
         detail: {
@@ -4746,6 +4809,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         return;
       }
     }
+    this.editProcessingInvoiceId = (this.invoiceMoveState.invoiceId);
     this.dispatchEvent(
       new CustomEvent("movelines", {
         detail: {
@@ -5233,6 +5297,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         return;
       }
     }
+    this.editProcessingInvoiceId = (this.lineSplitState.invoiceId);
     this.dispatchEvent(
       new CustomEvent("splitlinesinplace", {
         detail: {
@@ -5262,7 +5327,12 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   // 仕様: Core 第7.7.3節、第7.8節、第1.1.10節、第11.4.4節。確定後も開く。取消済みは出さない。
   handleOpenBillingEdit(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
-    if (this.hasAmountDrafts || this.isSplitOrMoveUiOpen) {
+    if (
+      this.hasAmountDrafts ||
+      this.isSplitOrMoveUiOpen ||
+      this.isConcurrentEditBusy ||
+      this.isDocumentOpsWaiting
+    ) {
       return;
     }
     const invoice = this.findInvoice(invoiceId);
@@ -5336,7 +5406,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (!this.billingEditState?.invoiceId) {
       return;
     }
-    if (this.isSaving) {
+    if (this.isSaving || this.isDocumentOpsWaiting) {
       return;
     }
     if (this.hasAmountDrafts) {
@@ -5375,6 +5445,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
     const invoiceId = this.billingEditState.invoiceId;
     const invoice = this.findInvoice(invoiceId);
+    this.editProcessingInvoiceId = (invoiceId);
     this.dispatchEvent(
       new CustomEvent("savebillingheader", {
         detail: {
@@ -5515,10 +5586,13 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       !invoice?.billingAccountId ||
       this.hasAmountDrafts ||
       this.isSplitOrMoveUiOpen ||
-      this.hasUnsavedBillingHeaderEdit
+      this.hasUnsavedBillingHeaderEdit ||
+      this.isConcurrentEditBusy ||
+      this.isDocumentOpsWaiting
     ) {
       return;
     }
+    this.editProcessingInvoiceId = (invoiceId);
     this.dispatchEvent(
       new CustomEvent("applybillingaccountcontent", {
         detail: {

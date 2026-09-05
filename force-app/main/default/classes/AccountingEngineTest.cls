@@ -194,6 +194,68 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void goalBuild_queriesTenantInvoiceLineConditionFields() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('LineCond');
+      enableAccounting();
+      seedMaps();
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Line Tenant Fields',
+        EvaluationContext__c = 'InvoiceLine',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'InvoiceLine__c',
+        TargetField__c = 'ProductName__c',
+        Operator__c = 'IsNotNull'
+      );
+      Id arAccountId = [
+        SELECT Account__c
+        FROM GlAccountMap__c
+        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+        LIMIT 1
+      ]
+      .Account__c;
+      insert new GlAccountMap__c(
+        Name = 'Engine AR Tenant Line',
+        Account__c = arAccountId,
+        SlotKey__c = 'AccountsReceivable',
+        EvaluationContext__c = 'InvoiceLine',
+        ConditionSourceType__c = 'Tenant',
+        TenantConditionSet__c = conditionSet.Id,
+        Priority__c = 20,
+        IsActive__c = true
+      );
+      markConfirmed(fixture.invoice);
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      Invoice__c invoice = [
+        SELECT
+          Id,
+          InvoiceDate__c,
+          InvoiceTransactionStatus__c,
+          BillingAccountSnapShot__c,
+          BillingAccountKeySnapShot__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      Test.startTest();
+      List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
+        invoice,
+        policy,
+        new List<GlJournal__c>()
+      );
+      Test.stopTest();
+      System.assertEquals(false, goals.isEmpty());
+    }
+  }
+
+  @IsTest
   static void applyForInvoice_copiesJournalSourcesFromUnqueriedFields() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('CopySrc');

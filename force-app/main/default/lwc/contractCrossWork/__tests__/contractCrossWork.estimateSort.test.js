@@ -748,6 +748,21 @@ describe("contractCrossWork overlay and journal busy (Core 7.10 / 7.9.7)", () =>
     expect(ctx.loadEstimateTile).not.toHaveBeenCalled();
   });
 
+  it("終わったあとはオーバーレイを閉じる", () => {
+    const ctx = {
+      overlayBusy: false,
+      showSendOverlay: true,
+      showOrderOverlay: true,
+      selectedId: "a0H",
+      menu: "estimate",
+      loadEstimateTile: jest.fn()
+    };
+    proto.handleOverlayClose.call(ctx);
+    expect(ctx.showSendOverlay).toBe(false);
+    expect(ctx.showOrderOverlay).toBe(false);
+    expect(ctx.loadEstimateTile).toHaveBeenCalled();
+  });
+
   it("保存中は一括選択しない", () => {
     const ctx = {
       saving: true,

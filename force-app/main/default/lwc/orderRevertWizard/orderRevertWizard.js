@@ -194,6 +194,9 @@ export default class OrderRevertWizard extends NavigationMixin(
   }
 
   handleHistoryFieldChange(event) {
+    if (this.isBusy) {
+      return;
+    }
     const fieldApi = event.detail?.fieldApi;
     if (!fieldApi) {
       return;
