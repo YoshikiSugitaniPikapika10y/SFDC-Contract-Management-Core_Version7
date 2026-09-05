@@ -192,4 +192,21 @@ describe("billingAccountForm schedule visibility (Core 3.3.2 / 7.2 / 7.5)", () =
       })
     ).toBe("請求アカウントを作る権限がありません。");
   });
+
+  it("treats Aura override with recordId as Edit when page action is empty (Core 3.3.2)", () => {
+    const proto = BillingAccountForm.prototype;
+    const isNew = Object.getOwnPropertyDescriptor(proto, "isNew").get;
+    const isEdit = Object.getOwnPropertyDescriptor(proto, "isEdit").get;
+    const isView = Object.getOwnPropertyDescriptor(proto, "isView").get;
+    const ctx = {
+      formMode: "edit",
+      recordId: "a00xx0000000001AAA",
+      actionName: ""
+    };
+    expect(isNew.call(ctx)).toBe(false);
+    expect(isEdit.call(ctx)).toBe(true);
+    ctx.isNew = false;
+    ctx.isEdit = true;
+    expect(isView.call(ctx)).toBe(false);
+  });
 });

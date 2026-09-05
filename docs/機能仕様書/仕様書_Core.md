@@ -465,7 +465,8 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> LWC <code>billingAccountForm</code>
-／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 請求アカウントの New／Edit／View 上書き。<code>BillingAccount_RecordPage</code>。<code>orderCreateStepBilling</code>
+／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> Aura <code>billingAccountFormOverride</code>（New／Edit。<code>lightning:actionOverride</code>）
+／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> View は <code>BillingAccount_RecordPage</code>。<code>orderCreateStepBilling</code>
 ／ 計算 Apex は新設しない。削除は標準。
 </div>
 

@@ -58,14 +58,14 @@
     </actionOverrides>
     <actionOverrides>
         <actionName>Edit</actionName>
-        <content>billingAccountForm</content>
+        <content>billingAccountFormOverride</content>
         <formFactor>Large</formFactor>
         <skipRecordTypeSelect>false</skipRecordTypeSelect>
         <type>LightningComponent</type>
     </actionOverrides>
     <actionOverrides>
         <actionName>Edit</actionName>
-        <content>billingAccountForm</content>
+        <content>billingAccountFormOverride</content>
         <formFactor>Small</formFactor>
         <skipRecordTypeSelect>false</skipRecordTypeSelect>
         <type>LightningComponent</type>
@@ -86,14 +86,14 @@
     </actionOverrides>
     <actionOverrides>
         <actionName>New</actionName>
-        <content>billingAccountForm</content>
+        <content>billingAccountFormOverride</content>
         <formFactor>Large</formFactor>
         <skipRecordTypeSelect>false</skipRecordTypeSelect>
         <type>LightningComponent</type>
     </actionOverrides>
     <actionOverrides>
         <actionName>New</actionName>
-        <content>billingAccountForm</content>
+        <content>billingAccountFormOverride</content>
         <formFactor>Small</formFactor>
         <skipRecordTypeSelect>false</skipRecordTypeSelect>
         <type>LightningComponent</type>

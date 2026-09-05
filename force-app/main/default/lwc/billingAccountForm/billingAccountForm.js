@@ -243,6 +243,8 @@ export default class BillingAccountForm extends NavigationMixin(
 ) {
   @api recordId;
   @api objectApiName = "BillingAccount__c";
+  /** 仕様: Core 第3.3.2節。Aura 上書きは new／edit。未指定はページ参照。 */
+  @api formMode = "";
 
   _pageRef;
   _objectInfo;
@@ -317,10 +319,22 @@ export default class BillingAccountForm extends NavigationMixin(
   }
 
   get isNew() {
+    if (this.formMode === "new") {
+      return true;
+    }
+    if (this.formMode === "edit" || this.formMode === "view") {
+      return false;
+    }
     return !this.recordId || this.actionName === "new";
   }
 
   get isEdit() {
+    if (this.formMode === "edit") {
+      return true;
+    }
+    if (this.formMode === "new" || this.formMode === "view") {
+      return false;
+    }
     return Boolean(this.recordId) && this.actionName === "edit";
   }
 
