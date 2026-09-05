@@ -1,5 +1,11 @@
 import EstimateCreateModal3 from "c/estimateCreateModal3";
-import { BILLING_TYPE_RECURRING, PRODUCT_TYPE_RENEW } from "c/estimateLineItemUtils";
+import {
+  BILLING_TYPE_RECURRING,
+  PRODUCT_TYPE_RENEW,
+  QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
+  AMOUNT_ROUNDING_SCALE0_HALF_UP,
+  setAmountCalculationRoundingModes
+} from "c/estimateLineItemUtils";
 
 jest.mock(
   "@salesforce/apex/EstimateCreateController.getProductDefaults",
@@ -44,6 +50,13 @@ jest.mock(
 
 describe("estimateCreateModal3 unitPrice null (BUG-076 / BUG-077)", () => {
   const proto = EstimateCreateModal3.prototype;
+
+  beforeEach(() => {
+    setAmountCalculationRoundingModes({
+      quantityUnitPriceRoundingMode: QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
+      amountRoundingMode: AMOUNT_ROUNDING_SCALE0_HALF_UP
+    });
+  });
 
   it("applyAmount preserves null unitPrice instead of coercing to 0", () => {
     const result = proto.applyAmount.call(

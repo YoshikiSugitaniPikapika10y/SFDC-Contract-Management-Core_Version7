@@ -99,6 +99,11 @@ describe("estimateCreateModal3 changeSourceProducts emit (BUG-080)", () => {
       _changeSourceProductsLocal: catalog,
       itemList: [{ id: "row1", productId: "01tBBB" }]
     });
+    Object.defineProperty(ctx, "changeSourceProducts", {
+      get() {
+        return changeSourceGetter.call(this);
+      }
+    });
     proto.emitProductsFromItemList.call(ctx);
     expect(ctx.emitChange).toHaveBeenCalled();
     const detail = ctx.emitChange.mock.calls[0][0];
