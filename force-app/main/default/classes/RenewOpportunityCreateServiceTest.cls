@@ -15,15 +15,16 @@ private class RenewOpportunityCreateServiceTest {
   @IsTest
   static void assertCreatedForHistory_rejectsMissingAndMismatch() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Boolean missingRejected = false;
       try {
         RenewOpportunityCreateService.assertCreatedForHistory(null, null);
+        System.assert(false, '欠落は例外になる');
       } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
-        missingRejected =
-          ex.getMessage() ==
-          RenewOpportunityCreateService.MISSING_RENEW_OPPORTUNITY_MESSAGE;
+        System.assertEquals(
+          RenewOpportunityCreateService.MISSING_RENEW_OPPORTUNITY_MESSAGE,
+          ex.getMessage(),
+          '第11.5節: 更新商談が無い'
+        );
       }
-      System.assertEquals(true, missingRejected);
 
       Account account = ContractTestDataFactory.insertAccount('Renew Assert Acct');
       ContractService__c service = ContractTestDataFactory.insertContractService(
@@ -51,32 +52,30 @@ private class RenewOpportunityCreateServiceTest {
         'Other Opp'
       );
 
-      Boolean mismatchRejected = false;
       try {
         RenewOpportunityCreateService.assertCreatedForHistory(history, other.Id);
+        System.assert(false, '不一致は例外になる');
       } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
-        mismatchRejected =
-          ex.getMessage() ==
-          RenewOpportunityCreateService.MISMATCH_RENEW_OPPORTUNITY_MESSAGE;
+        System.assertEquals(
+          RenewOpportunityCreateService.MISMATCH_RENEW_OPPORTUNITY_MESSAGE,
+          ex.getMessage(),
+          '第11.5節: 更新商談の元契約履歴・契約サービス・取引先が一致しない'
+        );
       }
-      System.assertEquals(true, mismatchRejected);
 
-      Boolean missingOpportunityRejected = false;
       try {
         RenewOpportunityCreateService.assertCreatedForHistory(
           history,
           account.Id
         );
+        System.assert(false, '商談欠落は例外になる');
       } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
-        missingOpportunityRejected =
-          ex.getMessage() ==
-          RenewOpportunityCreateService.MISSING_RENEW_OPPORTUNITY_MESSAGE;
+        System.assertEquals(
+          RenewOpportunityCreateService.MISSING_RENEW_OPPORTUNITY_MESSAGE,
+          ex.getMessage(),
+          '第11.5節: 更新商談が無い受注取消と同じ欠落文'
+        );
       }
-      System.assertEquals(
-        true,
-        missingOpportunityRejected,
-        '第11.5節: 更新商談が無い受注取消と同じ欠落文'
-      );
       System.assertEquals(
         null,
         RenewOpportunityCreateService.findBySourceHistory(null),
