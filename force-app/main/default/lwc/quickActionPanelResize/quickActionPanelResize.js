@@ -1,7 +1,8 @@
 /* 画面の約 95%。標準 flex 中央（ブラウザ実測や zoom に依存しない） */
 const LARGE_WIDTH = "95vw";
 const LARGE_HEIGHT = "95vh";
-const CONFIRM_WIDTH = "32rem";
+/* 仕様: Core 第4.3.1節、第5.2節、第5.3節。同型の小さい confirm。large（95vw）にしない。高さは内容。正方形にしない。 */
+const CONFIRM_WIDTH = "48rem";
 const CONFIRM_MAX_HEIGHT = "70vh";
 const STYLE_ID = "c-quick-action-panel-resize-style";
 
@@ -330,6 +331,7 @@ function applyOnce(host, size) {
 }
 
 /**
+ * 仕様: Core 第4.3.1節、第5.2節、第5.3節
  * Resize the Salesforce Quick Action modal.
  * @param {LightningElement} component
  * @param {'large'|'confirm'} [size='large'] large ≈ 95vw×95vh wizard; confirm = compact dialog

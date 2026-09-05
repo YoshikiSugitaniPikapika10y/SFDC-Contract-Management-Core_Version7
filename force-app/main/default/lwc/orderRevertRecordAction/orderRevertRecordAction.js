@@ -19,6 +19,7 @@ export default class OrderRevertRecordAction extends NavigationMixin(
     return hasRevert === true;
   }
 
+  // 仕様: Core 第4.3.1節、第5.3節。差し戻しは Archive・ハブと同型の小さい confirm。
   connectedCallback() {
     resizeQuickActionPanel(this, "confirm");
   }

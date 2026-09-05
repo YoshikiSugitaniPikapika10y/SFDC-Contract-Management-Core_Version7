@@ -1,5 +1,6 @@
 import { createElement } from "lwc";
 import OrderRevertRecordAction from "c/orderRevertRecordAction";
+import { resizeQuickActionPanel } from "c/quickActionPanelResize";
 
 jest.mock(
   "@salesforce/customPermission/Loop_07_Can_Revert",
@@ -54,5 +55,8 @@ describe("orderRevertRecordAction (Core 4.3.1 / 5.3)", () => {
     const wizard = element.shadowRoot.querySelector("c-order-revert-wizard");
     expect(wizard).toBeTruthy();
     expect(wizard.recordId).toBe("a0H000000000001AAA");
+    const sizes = resizeQuickActionPanel.mock.calls.map((call) => call[1]);
+    expect(sizes).toContain("confirm");
+    expect(sizes).not.toContain("large");
   });
 });
