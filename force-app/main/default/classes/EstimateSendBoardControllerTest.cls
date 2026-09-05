@@ -253,6 +253,33 @@ private class EstimateSendBoardControllerTest {
   }
 
   @IsTest
+  static void previewEstimateFromRecordPage_blankDocumentKeyStillLoadsMail() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractHistory__c history = createEstimate('preview-blank@example.com');
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_ESTIMATE,
+        'EstimateMail'
+      );
+      EstimateSendBoardController.SendPreviewDto preview = EstimateSendBoardController.previewEstimateFromRecordPage(
+        history.Id,
+        null,
+        'EstimateMail'
+      );
+      System.assertEquals(
+        null,
+        preview.documentTemplateKey,
+        'Core 第7.10節・第11.3.2節: 帳票キー空は埋めない'
+      );
+      System.assertEquals(
+        'preview-blank@example.com',
+        preview.toAddresses,
+        'Core 第4.8節: 帳票未選択でもToとメールは返す'
+      );
+      System.assertEquals('EstimateMail', preview.emailTemplateApiName);
+    }
+  }
+
+  @IsTest
   static void sendEstimateFromRecordPage_ignoresDraftTo() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractHistory__c history = createEstimate('master-to@example.com');

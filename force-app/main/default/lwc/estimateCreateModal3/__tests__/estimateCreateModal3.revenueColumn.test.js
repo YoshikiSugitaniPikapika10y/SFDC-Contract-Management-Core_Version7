@@ -1,4 +1,5 @@
 import EstimateCreateModal3 from "c/estimateCreateModal3";
+import isAccountingEnabled from "@salesforce/apex/EstimateCreateController.isAccountingEnabled";
 
 jest.mock(
   "@salesforce/apex/EstimateCreateController.getProductDefaults",
@@ -103,22 +104,37 @@ describe("estimateCreateModal3 revenue column (Core 4.3.4 / 4.5.2 / 7.6)", () =>
     expect(stepReadyFromPolicy(ctx)).toBe(true);
   });
 
-  it("does not treat accounting wire error as OFF (BUG-075)", () => {
+  it("does not treat accounting load error as OFF (BUG-075)", async () => {
+    isAccountingEnabled.mockRejectedValueOnce({ body: { message: "fail" } });
     const ctx = {
       accountingEnabled: false,
       accountingPolicyResolved: false,
       accountingPolicyLoadError: "",
+      _accountingPolicyRequestSeq: 0,
       notifyStepReadyChange() {}
     };
-    proto.wiredAccountingEnabled.call(ctx, {
-      data: undefined,
-      error: { body: { message: "fail" } }
-    });
+    await proto.loadAccountingPolicy.call(ctx);
     expect(ctx.accountingPolicyResolved).toBe(false);
     expect(ctx.accountingEnabled).toBe(false);
     expect(ctx.accountingPolicyLoadError).toMatch(/会計方針の読込に失敗/);
     expect(showColumn.call(ctx)).toBe(false);
     expect(stepReadyFromPolicy(ctx)).toBe(false);
+  });
+
+  it("loads current accounting policy when Step2 opens (Core 4.3.11 / 7.6)", async () => {
+    isAccountingEnabled.mockResolvedValueOnce(true);
+    const ctx = {
+      accountingEnabled: false,
+      accountingPolicyResolved: false,
+      accountingPolicyLoadError: "stale",
+      _accountingPolicyRequestSeq: 0,
+      notifyStepReadyChange() {}
+    };
+    await proto.loadAccountingPolicy.call(ctx);
+    expect(ctx.accountingEnabled).toBe(true);
+    expect(ctx.accountingPolicyResolved).toBe(true);
+    expect(ctx.accountingPolicyLoadError).toBe("");
+    expect(showColumn.call(ctx)).toBe(true);
   });
 
   it("shows 一括計上／月次計上 as the 計上方法 labels (Core 4.3.4 / 0.1)", () => {

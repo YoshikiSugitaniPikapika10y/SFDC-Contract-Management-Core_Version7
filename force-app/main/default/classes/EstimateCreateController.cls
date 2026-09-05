@@ -548,8 +548,8 @@ public without sharing class EstimateCreateController {
     return EstimateQueryService.getDefaultInvoiceSettingLabel();
   }
 
-  /** 仕様: Core 第1.1.10節、第4.5.2節、第7.6節、Accounting 第3.2節。0件はOFFと埋めない。 */
-  @AuraEnabled(cacheable=true)
+  /** 仕様: Core 第1.1.10節、第4.3.11節、第4.5.2節、第7.6節、Accounting 第3.2節。開いた時の方針。0件はOFFと埋めない。 */
+  @AuraEnabled
   public static Boolean isAccountingEnabled() {
     ContractPermissionUtil.assertEstimateSave(null, null);
     return GlAccountingPolicyService.requireOrgPolicy().AccountingEnabled__c ==

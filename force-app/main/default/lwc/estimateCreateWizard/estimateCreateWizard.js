@@ -771,6 +771,12 @@ export default class EstimateCreateWizard extends LightningElement {
     if (this.effectiveRecordId) {
       getRecordNotifyChange([{ recordId: this.effectiveRecordId }]);
     }
+    const modal3 = this.template.querySelector(
+      '[data-id="estimate-create-modal3"]'
+    );
+    if (modal3 && typeof modal3.refreshReferenceWires === "function") {
+      jobs.push(modal3.refreshReferenceWires());
+    }
     return Promise.all(jobs);
   }
 

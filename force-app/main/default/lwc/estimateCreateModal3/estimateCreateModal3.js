@@ -255,7 +255,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   accountingPolicyResolved = false;
   /** 仕様: Core 第4.3.11節。読込失敗時はOFF扱いにせずエラー表示する（BUG-075）。 */
   @track accountingPolicyLoadError = "";
-  _wiredAccountingEnabled;
+  _accountingPolicyRequestSeq = 0;
   defaultInvoiceType = "";
   @track productModalRowId = null;
   @track productModalProductId = "";
@@ -394,35 +394,38 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
   }
 
-  // 仕様: Core 第4.3.4節、第4.3.8節、第4.5.2節、第7.6節、Accounting 第3.2節
-  @wire(isAccountingEnabled)
-  wiredAccountingEnabled(result) {
-    this._wiredAccountingEnabled = result;
-    const { data, error } = result || {};
-    if (data !== undefined) {
-      this.accountingEnabled = data === true;
-      this.accountingPolicyResolved = true;
-      this.accountingPolicyLoadError = "";
-      this.notifyStepReadyChange();
-      return;
-    }
-    if (error) {
-      // 仕様: Core 第4.3.4節、第4.3.11節。失敗をOFF扱いにせず、エラーと再読み込み。
-      this.accountingEnabled = false;
-      this.accountingPolicyResolved = false;
-      this.accountingPolicyLoadError =
-        "会計方針の読込に失敗しました。再読み込みしてください。";
-      this.notifyStepReadyChange();
-    }
-  }
-
-  handleReloadAccountingPolicy() {
+  // 仕様: Core 第4.3.4節、第4.3.8節、第4.3.11節、第4.5.2節、第7.6節、Accounting 第3.2節
+  loadAccountingPolicy() {
     this.accountingPolicyLoadError = "";
     this.accountingPolicyResolved = false;
     this.notifyStepReadyChange();
-    if (this._wiredAccountingEnabled) {
-      refreshApex(this._wiredAccountingEnabled);
-    }
+    this._accountingPolicyRequestSeq += 1;
+    const requestSeq = this._accountingPolicyRequestSeq;
+    return isAccountingEnabled()
+      .then((data) => {
+        if (requestSeq !== this._accountingPolicyRequestSeq) {
+          return;
+        }
+        this.accountingEnabled = data === true;
+        this.accountingPolicyResolved = true;
+        this.accountingPolicyLoadError = "";
+        this.notifyStepReadyChange();
+      })
+      .catch(() => {
+        if (requestSeq !== this._accountingPolicyRequestSeq) {
+          return;
+        }
+        // 仕様: Core 第4.3.4節、第4.3.11節。失敗をOFF扱いにせず、エラーと再読み込み。
+        this.accountingEnabled = false;
+        this.accountingPolicyResolved = false;
+        this.accountingPolicyLoadError =
+          "会計方針の読込に失敗しました。再読み込みしてください。";
+        this.notifyStepReadyChange();
+      });
+  }
+
+  handleReloadAccountingPolicy() {
+    this.loadAccountingPolicy();
   }
 
   get showRevenueRecognitionColumn() {
@@ -2107,6 +2110,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   connectedCallback() {
     this._isConnected = true;
     this._wizardIdentityKey = this.buildWizardIdentityKey();
+    this.loadAccountingPolicy();
     this.bootstrapFromWizardData();
     this.emitDefaultContractCustomFieldsIfNeeded();
     // マウント時は請求設定・税率の wire／LDS キャッシュを捨てて最新化
@@ -2131,6 +2135,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (this.contractServiceId) {
       getRecordNotifyChange([{ recordId: this.contractServiceId }]);
     }
+    jobs.push(this.loadAccountingPolicy());
     return Promise.all(jobs);
   }
 

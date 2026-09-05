@@ -755,6 +755,67 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void previewRegisterFromPreview_usesInvoiceOperationTokenWhenJournalIsNewer() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'PREVIEWTOK');
+      Invoice__c invoice = [
+        SELECT LastModifiedDate, ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      String operationToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      Test.startTest();
+      AccountingDiffService.CancelPreview preview = InvoicePreviewOpsController.previewRegisterFromPreview(
+        fixture.invoice.Id,
+        100,
+        InvoicePaymentService.PURPOSE_NON_INVOICE,
+        Date.today(),
+        null,
+        operationToken,
+        null,
+        null,
+        invoice.ContractHistory__c
+      );
+      Test.stopTest();
+      System.assertNotEquals(
+        null,
+        preview,
+        'Core 第7.9.7節: 入出金登録プレビューは請求操作の版で通す'
+      );
+      String invoiceOnlyToken = ContractOptimisticLockUtil.toToken(
+        invoice.LastModifiedDate
+      );
+      if (invoiceOnlyToken != operationToken) {
+        Boolean conflicted = false;
+        try {
+          InvoicePreviewOpsController.previewRegisterFromPreview(
+            fixture.invoice.Id,
+            100,
+            InvoicePaymentService.PURPOSE_NON_INVOICE,
+            Date.today(),
+            null,
+            invoiceOnlyToken,
+            null,
+            null,
+            invoice.ContractHistory__c
+          );
+        } catch (AuraHandledException ex) {
+          conflicted = true;
+        }
+        System.assertEquals(
+          true,
+          conflicted,
+          'Core 第7.9.7節: 請求書のLastModifiedDateだけは操作集合より古ければ競合'
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void previewOps_rejectInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

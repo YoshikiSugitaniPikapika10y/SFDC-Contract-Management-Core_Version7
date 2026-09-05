@@ -655,7 +655,7 @@ public without sharing class InvoicePreviewOpsController {
     );
   }
 
-  /** 仕様: Core 第7.9.6節、第8.9節、Accounting 第8.5節・第8.8節、日付仕様 第7.3節 */
+  /** 仕様: Core 第7.9.6節、第7.9.7節、第8.9節、Accounting 第8.5節・第8.8節、日付仕様 第7.3節 */
   public static AccountingDiffService.CancelPreview previewRegisterFromPreview(
     Id invoiceId,
     Decimal amount,
@@ -682,10 +682,9 @@ public without sharing class InvoicePreviewOpsController {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    ContractOptimisticLockUtil.assertRequiredUnchanged(
-      invoice.LastModifiedDate,
-      expectedToken,
-      '請求'
+    AccountingCauseLockService.assertInvoiceOperationsUnchanged(
+      new Map<Id, String>{ invoice.Id => expectedToken },
+      new Map<Id, Datetime>{ invoice.Id => invoice.LastModifiedDate }
     );
     String resolvedPurpose = purpose;
     if (

@@ -284,11 +284,18 @@ public without sharing class EstimateSendBoardController {
         setting,
         false
       );
-      ContractDocumentTemplateService.TemplateDefinition template =
-        ContractDocumentTemplateService.resolveTemplate(
+      // 仕様: Core 第7.10節・第11.3.2節。帳票キー空でもメールと既存添付は返す。発行はキー必須。
+      String resolvedTemplateKey = resolveDocumentTemplateKey(
+        documentTemplateKey,
+        false
+      );
+      ContractDocumentTemplateService.TemplateDefinition template = null;
+      if (String.isNotBlank(resolvedTemplateKey)) {
+        template = ContractDocumentTemplateService.resolveTemplate(
           ContractDocumentTemplateService.TYPE_ESTIMATE,
-          resolveDocumentTemplateKey(documentTemplateKey, false)
+          resolvedTemplateKey
         );
+      }
       SendPreviewDto preview = new SendPreviewDto();
       preview.fromChoice = resolvedFromChoice;
       preview.operatorEmail = UserInfo.getUserEmail();
@@ -299,7 +306,7 @@ public without sharing class EstimateSendBoardController {
       preview.bccAddresses = null;
       preview.subject = merged.subject;
       preview.body = merged.body;
-      preview.documentTemplateKey = template.templateKey;
+      preview.documentTemplateKey = template == null ? null : template.templateKey;
       preview.emailTemplateApiName = merged.apiName;
       preview.attachmentOptions = EstimateDocumentService.listLinkedFiles(
         history.Id

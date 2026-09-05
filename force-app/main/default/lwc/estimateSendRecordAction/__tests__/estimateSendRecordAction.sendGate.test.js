@@ -162,6 +162,44 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     expect(sendButtonLabel.call({ isResend: true })).toBe("再送する");
   });
 
+  it("既定0／2以上でもカタログがあれば未選択のまま開く (Core 4.8 / 7.10 / 11.3.2)", () => {
+    const unavailableMessage = Object.getOwnPropertyDescriptor(
+      proto,
+      "unavailableMessage"
+    ).get;
+    expect(
+      unavailableMessage.call({
+        estimate: { sendable: true },
+        documentTemplateKey: "",
+        emailTemplateApiName: "",
+        documentTemplateOptions: [{ label: "標準", value: "std" }],
+        emailTemplateOptions: [{ label: "メール", value: "mail" }]
+      })
+    ).toBe("");
+    expect(
+      unavailableMessage.call({
+        estimate: { sendable: true },
+        documentTemplateKey: "",
+        emailTemplateApiName: "mail",
+        documentTemplateOptions: [],
+        emailTemplateOptions: [{ label: "メール", value: "mail" }]
+      })
+    ).toBe("利用できる見積帳票テンプレートがありません。");
+  });
+
+  it("既存ファイル送付は帳票キーを求めない (Core 7.10)", () => {
+    expect(
+      sendDisabled.call(
+        ctx({ documentTemplateKey: "", attachmentId: "a01" })
+      )
+    ).toBe(false);
+    expect(
+      sendDisabled.call(
+        ctx({ documentTemplateKey: "", attachmentId: "NEW" })
+      )
+    ).toBe(true);
+  });
+
   it("失敗のあと送り直す注記と送れない理由を本文どおり出す (Core 7.10 / 4.8)", () => {
     const sendFailureRetryNote = Object.getOwnPropertyDescriptor(
       proto,

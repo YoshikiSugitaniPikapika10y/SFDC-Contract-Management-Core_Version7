@@ -103,7 +103,7 @@ export default class EstimateSendRecordAction extends LightningElement {
       this.isLoading ||
       this.isSending ||
       this.estimate?.sendable !== true ||
-      !this.documentTemplateKey ||
+      (this.attachmentId === ATTACHMENT_NEW && !this.documentTemplateKey) ||
       !this.emailTemplateApiName ||
       !this.toAddresses ||
       !this.attachmentId ||
@@ -151,10 +151,10 @@ export default class EstimateSendRecordAction extends LightningElement {
     if (this.estimate.sendable !== true) {
       return this.estimate.sendableReason || "この見積は送付できません。";
     }
-    if (!this.documentTemplateKey) {
+    if (!(this.documentTemplateOptions || []).length) {
       return "利用できる見積帳票テンプレートがありません。";
     }
-    if (!this.emailTemplateApiName) {
+    if (!(this.emailTemplateOptions || []).length) {
       return "利用できる見積送付メールがありません。";
     }
     return "";
@@ -198,9 +198,7 @@ export default class EstimateSendRecordAction extends LightningElement {
       this.operatorEmail = context?.operatorEmail || "";
       this.orgFromLabel = context?.orgFromLabel || "";
       this.orgFromResolved = false;
-      if (this.documentTemplateKey && this.emailTemplateApiName) {
-        await this.reloadPreview();
-      }
+      await this.reloadPreview();
     } catch (error) {
       this.estimate = null;
       this.errorMessage = this.toMessage(error);
