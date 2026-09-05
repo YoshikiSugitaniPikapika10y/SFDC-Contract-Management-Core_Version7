@@ -108,8 +108,8 @@ public without sharing class EstimateSendBoardController {
     @AuraEnabled public Datetime sentAt;
   }
 
-  /** 仕様: Core 第11.3節、第11.3.2節、共通基盤 第1.4節・第3.3節。送る入口は 05。 */
-  @AuraEnabled(cacheable=true)
+  /** 仕様: Core 第11.3節、第11.3.2節、第4.3.11節、共通基盤 第1.4節・第3.3節。送る入口は 05。設定wireだけcacheable。 */
+  @AuraEnabled
   public static BoardContextDto getBoardContext() {
     try {
       ContractPermissionUtil.assertSendEstimates();

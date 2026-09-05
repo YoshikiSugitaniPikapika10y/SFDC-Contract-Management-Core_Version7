@@ -26,8 +26,8 @@ public without sharing class InvoiceSendBoardController {
     @AuraEnabled public Integer listLimit;
   }
 
-  /** 仕様: Core 第11.3.1節、第11.3.2節、第7.10節 */
-  @AuraEnabled(cacheable=true)
+  /** 仕様: Core 第11.3.1節、第11.3.2節、第7.10節、第4.3.11節。設定wireだけcacheable。 */
+  @AuraEnabled
   public static BoardContextDto getBoardContext() {
     try {
       ContractDocumentSetting__c setting = loadOrganizationSetting();

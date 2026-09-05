@@ -229,6 +229,48 @@ private class ConditionEvaluationServiceTest {
   }
 
   @IsTest
+  static void evaluateTenant_matchesPaymentPurposeApiValue() {
+    GlConditionSet__c conditionSet = new GlConditionSet__c(
+      Name = 'Eval Purpose Set',
+      EvaluationContext__c = 'InvoicePayment',
+      Description__c = '目的API'
+    );
+    insert conditionSet;
+    insert new GlConditionRule__c(
+      ConditionSet__c = conditionSet.Id,
+      Sequence__c = 1,
+      TargetObject__c = 'InvoicePayment__c',
+      TargetField__c = 'PaymentPurpose__c',
+      Operator__c = 'Equals',
+      CompareType__c = 'FixedValue',
+      CompareValue__c = '請求金額'
+    );
+    System.assertEquals(
+      'Invoice',
+      [
+        SELECT CompareValue__c
+        FROM GlConditionRule__c
+        WHERE ConditionSet__c = :conditionSet.Id
+      ]
+      .CompareValue__c,
+      'Accounting 第4.7節: 保存値はAPI値'
+    );
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.invoicePayment = new InvoicePayment__c(PaymentPurpose__c = 'Invoice');
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第4.7節: get()のAPI値と文字列一致する'
+    );
+    context.invoicePayment.PaymentPurpose__c = 'NonInvoice';
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第4.7節: API値が違えば不成立'
+    );
+  }
+
+  @IsTest
   static void validateRule_requiresAggregateForInvoiceLineOnInvoiceContext() {
     GlConditionRule__c rule = new GlConditionRule__c(
       TargetObject__c = 'InvoiceLine__c',

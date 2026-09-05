@@ -1,4 +1,6 @@
+import { createElement } from "lwc";
 import EstimateActionHub from "c/estimateActionHub";
+import getDocumentDefaults from "@salesforce/apex/EstimateCreateController.getDocumentDefaults";
 
 jest.mock(
   "@salesforce/customPermission/Loop_03_Can_Estimate",
@@ -72,5 +74,16 @@ describe("estimateActionHub (Core 4.3.1 / 共通基盤 10.4)", () => {
         estimateSendMode: "PdfAndEmail"
       })
     ).toEqual([]);
+  });
+
+  it("loads document defaults when the hub opens", async () => {
+    getDocumentDefaults.mockResolvedValue({ estimateSendMode: "PdfAndEmail" });
+    const element = createElement("c-estimate-action-hub", {
+      is: EstimateActionHub
+    });
+    document.body.appendChild(element);
+    await Promise.resolve();
+    expect(getDocumentDefaults).toHaveBeenCalled();
+    document.body.removeChild(element);
   });
 });

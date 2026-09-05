@@ -59,6 +59,7 @@ public without sharing class GlConditionRuleTriggerHandler {
       }
       GlConditionSet__c parent = setsById.get(row.ConditionSet__c);
       String context = parent == null ? null : parent.EvaluationContext__c;
+      ConditionEvaluationService.normalizeFixedCompareValue(row);
       String ruleError = ConditionEvaluationService.validateRule(row, context);
       if (ruleError != null) {
         row.addError(ruleError);

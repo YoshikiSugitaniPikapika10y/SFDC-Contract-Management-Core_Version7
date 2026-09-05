@@ -314,6 +314,37 @@ private class GlConditionRuleTriggerHandlerTest {
     }
   }
 
+  @IsTest
+  static void insert_storesPicklistApiValueNotLabel() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Rule Purpose Set',
+        EvaluationContext__c = 'InvoicePayment',
+        Description__c = '目的'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'InvoicePayment__c',
+        TargetField__c = 'PaymentPurpose__c',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '請求金額'
+      );
+      GlConditionRule__c saved = [
+        SELECT CompareValue__c
+        FROM GlConditionRule__c
+        WHERE ConditionSet__c = :conditionSet.Id
+      ];
+      System.assertEquals(
+        'Invoice',
+        saved.CompareValue__c,
+        'Accounting 第4.7節: 選択リスト比較はラベルではなくAPI値'
+      );
+    }
+  }
+
   private static void insertRule(Id setId, Integer sequence) {
     insert new GlConditionRule__c(
       ConditionSet__c = setId,

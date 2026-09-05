@@ -285,6 +285,65 @@ private class EstimateDocumentServiceTest {
   }
 
   @IsTest
+  static void issuePage_zeroOrManyDefaultsStaysUnselectedAndIssueNeedsKey() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+        new ContractDocumentTemplate__mdt(
+          MasterLabel = 'A',
+          TemplateKey__c = 'CatalogA',
+          DocumentType__c = ContractDocumentTemplateService.TYPE_ESTIMATE,
+          IsActive__c = true,
+          IsDefault__c = false,
+          VisualforcePage__c = 'EstimateDocumentPdf',
+          SortOrder__c = 1
+        ),
+        new ContractDocumentTemplate__mdt(
+          MasterLabel = 'B',
+          TemplateKey__c = 'CatalogB',
+          DocumentType__c = ContractDocumentTemplateService.TYPE_ESTIMATE,
+          IsActive__c = true,
+          IsDefault__c = false,
+          VisualforcePage__c = 'EstimateDocumentPdf',
+          SortOrder__c = 2
+        )
+      };
+      PageReference issuePage = Page.EstimateDocumentIssue;
+      issuePage.getParameters().put('id', fixture.history.Id);
+      Test.setCurrentPage(issuePage);
+
+      Test.startTest();
+      EstimateDocumentPdfController controller = new EstimateDocumentPdfController();
+      System.assertEquals(
+        '',
+        controller.selectedTemplateKey,
+        'Core 第4.8節・第11.3.2節: 有効な既定が0件なら未選択のまま開く'
+      );
+      System.assertEquals(
+        '',
+        controller.templateOptions[0].getValue(),
+        'Core 第4.8節: 空optionを置きカタログ先頭を送らない'
+      );
+      PageReference blankIssue = controller.issuePdf();
+      System.assertEquals(null, blankIssue);
+      System.assertEquals(
+        false,
+        controller.issueSucceeded,
+        'Core 第4.8節: キーが空のまま発行できない'
+      );
+      ContractDocumentTemplateService.clearTestState();
+      controller.selectedTemplateKey = 'StandardEstimate';
+      controller.issuePdf();
+      Test.stopTest();
+      System.assertEquals(
+        true,
+        controller.issueSucceeded,
+        'Core 第4.8節: 画面の選択キーで発行する'
+      );
+    }
+  }
+
+  @IsTest
   static void issuePage_hidesIssueWithout04() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();

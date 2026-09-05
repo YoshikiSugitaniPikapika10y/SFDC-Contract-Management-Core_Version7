@@ -256,6 +256,42 @@ public without sharing class ConditionEvaluationService {
     throw new EvaluationException('条件を評価できません: ' + operatorName);
   }
 
+  /** 仕様: Accounting 第4.7節。選択リスト比較はラベルではなくAPI値。保存時にラベルをAPIへ直す。 */
+  public static void normalizeFixedCompareValue(GlConditionRule__c rule) {
+    if (
+      rule == null ||
+      rule.CompareType__c != 'FixedValue' ||
+      String.isBlank(rule.CompareValue__c)
+    ) {
+      return;
+    }
+    Schema.DescribeFieldResult targetDescribe = describeField(
+      rule.TargetObject__c,
+      rule.TargetField__c
+    );
+    if (targetDescribe == null) {
+      return;
+    }
+    Schema.DisplayType fieldType = targetDescribe.getType();
+    if (
+      fieldType != Schema.DisplayType.PICKLIST &&
+      fieldType != Schema.DisplayType.MULTIPICKLIST
+    ) {
+      return;
+    }
+    Map<String, String> apiByToken = new Map<String, String>();
+    for (Schema.PicklistEntry entry : targetDescribe.getPicklistValues()) {
+      apiByToken.put(entry.getValue(), entry.getValue());
+      if (String.isNotBlank(entry.getLabel())) {
+        apiByToken.put(entry.getLabel(), entry.getValue());
+      }
+    }
+    String resolved = apiByToken.get(rule.CompareValue__c.trim());
+    if (resolved != null) {
+      rule.CompareValue__c = resolved;
+    }
+  }
+
   /** 仕様: Accounting 第4.7節 */
   public static String validateRule(
     GlConditionRule__c rule,

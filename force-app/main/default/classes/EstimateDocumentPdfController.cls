@@ -316,16 +316,20 @@ public with sharing class EstimateDocumentPdfController {
     List<ContractDocumentTemplateService.TemplateDefinition> templates = ContractDocumentTemplateService.getActiveTemplates(
       ContractDocumentTemplateService.TYPE_ESTIMATE
     );
-    // 仕様: Core 第4.8節、第11.3.2節。有効な既定がちょうど1つなら最初に選ぶ。
+    // 仕様: Core 第4.8節、第11.3.2節。有効な既定がちょうど1つなら最初に選ぶ。0件または2件以上は未選択。カタログ先頭では埋めない。
     selectedTemplateKey = ContractDocumentTemplateService.initialSelectionKey(
       ContractDocumentTemplateService.TYPE_ESTIMATE
     );
+    templateOptions.add(new SelectOption('', '（未選択）'));
     for (
       ContractDocumentTemplateService.TemplateDefinition template : templates
     ) {
       templateOptions.add(
         new SelectOption(template.templateKey, template.label)
       );
+    }
+    if (selectedTemplateKey == null) {
+      selectedTemplateKey = '';
     }
   }
 

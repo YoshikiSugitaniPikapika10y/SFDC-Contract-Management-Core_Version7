@@ -900,8 +900,8 @@ public without sharing class EstimateCreateController {
     public String amountRoundingMode;
   }
 
-  /** 仕様: Core 第4.10節、第11.9節、第4.3.1節、日付仕様 第2.5節・第2.6節・第8章、共通基盤 第10.4節 */
-  @AuraEnabled(cacheable=true)
+  /** 仕様: Core 第4.10節、第11.9節、第4.3.1節、第4.3.11節、日付仕様 第2.5節・第2.6節・第8章、共通基盤 第10.4節。設定wireだけcacheable。 */
+  @AuraEnabled
   public static DocumentDefaultsDto getDocumentDefaults() {
     ContractPermissionUtil.assertEstimateDocumentDefaults();
     DocumentDefaultsDto dto = new DocumentDefaultsDto();

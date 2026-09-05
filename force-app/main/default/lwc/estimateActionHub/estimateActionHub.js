@@ -18,7 +18,7 @@ const QUICK_ACTIONS = {
   send: "ContractHistory__c.Estimate_Send"
 };
 
-/** 仕様: Core 第4.3.1節 */
+/** 仕様: Core 第4.3.1節、第4.3.11節 */
 export default class EstimateActionHub extends LightningElement {
   @api recordId;
 
@@ -34,13 +34,19 @@ export default class EstimateActionHub extends LightningElement {
     }
   }
 
-  @wire(getDocumentDefaults)
-  wiredDefaults({ data, error }) {
-    if (data) {
-      this.estimateSendMode = data.estimateSendMode || "";
-    } else if (error) {
-      this.estimateSendMode = "";
-    }
+  // 仕様: Core 第4.3.11節。マスタは画面を開いた時に最新。設定wireだけcacheable。
+  connectedCallback() {
+    this.loadDocumentDefaults();
+  }
+
+  loadDocumentDefaults() {
+    getDocumentDefaults()
+      .then((data) => {
+        this.estimateSendMode = data?.estimateSendMode || "";
+      })
+      .catch(() => {
+        this.estimateSendMode = "";
+      });
   }
 
   get isEstimate() {

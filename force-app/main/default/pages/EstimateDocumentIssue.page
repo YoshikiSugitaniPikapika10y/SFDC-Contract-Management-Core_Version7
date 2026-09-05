@@ -22,7 +22,7 @@
                             styleClass="estimateIssueTemplate"
                             value="{!selectedTemplateKey}"
                             size="1"
-                            required="true">
+                            required="false">
                             <apex:selectOptions value="{!templateOptions}" />
                             <apex:actionSupport event="onchange" action="{!refreshIssueFileName}" rerender="issueFileNamePanel"/>
                         </apex:selectList>
