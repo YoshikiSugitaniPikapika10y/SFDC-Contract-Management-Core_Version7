@@ -18,14 +18,10 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('BadInvoiceFlag'),
-        '仕様: Core 第11.4.4節 エラーに DeveloperName を含める。実際: ' +
-          ex.getMessage()
-      );
-      System.assert(
-        ex.getMessage().contains('Purpose'),
-        ex.getMessage()
+      System.assertEquals(
+        '請求操作追加項目「BadInvoiceFlag」は請求書・仕訳に Purpose 表示旗を立てられません。',
+        ex.getMessage(),
+        '仕様: Core 第11.4.4節 エラーに DeveloperName を含める'
       );
     }
     System.assertEquals(true, thrown);
@@ -50,13 +46,10 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('MissingField'),
-        ex.getMessage()
-      );
-      System.assert(
-        ex.getMessage().contains('存在しません'),
-        ex.getMessage()
+      System.assertEquals(
+        '請求操作追加項目「MissingField」の項目「DoesNotExist__c」が対象オブジェクトに存在しません。',
+        ex.getMessage(),
+        'Core 第11.4.4節: 無い項目は DeveloperName 付きで拒否する'
       );
     }
     System.assertEquals(true, thrown);
@@ -81,10 +74,10 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('BadJournalFlag'),
-        '仕様: Core 第11.4.4節 エラーに DeveloperName を含める。実際: ' +
-          ex.getMessage()
+      System.assertEquals(
+        '請求操作追加項目「BadJournalFlag」は請求書・仕訳に Purpose 表示旗を立てられません。',
+        ex.getMessage(),
+        '仕様: Core 第11.4.4節 エラーに DeveloperName を含める'
       );
     }
     System.assertEquals(true, thrown);
@@ -195,14 +188,10 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('BadTarget'),
-        'Core 第11.4.4節: エラーに DeveloperName を含める。実際: ' +
-          ex.getMessage()
-      );
-      System.assert(
-        ex.getMessage().contains('Invoice__c'),
-        ex.getMessage()
+      System.assertEquals(
+        '請求操作追加項目「BadTarget」の対象オブジェクト「Account」が不正です。Invoice__c / InvoicePayment__c / GlJournal__c のいずれかを指定してください。',
+        ex.getMessage(),
+        'Core 第11.4.4節: エラーに DeveloperName を含める'
       );
     }
     System.assertEquals(true, thrown);
@@ -259,10 +248,10 @@ private class InvoiceOpsFieldServiceTest {
       );
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('必須メモ'),
-        'Core 第11.4.4節: 画面に表示されている場合だけ必須。実際: ' +
-          ex.getMessage()
+      System.assertEquals(
+        '請求操作追加項目「必須メモ」は必須です。',
+        ex.getMessage(),
+        'Core 第11.4.4節: 画面に表示されている場合だけ必須'
       );
     }
     System.assertEquals(true, thrown);
