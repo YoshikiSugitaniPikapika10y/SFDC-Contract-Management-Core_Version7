@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <lightning-card title={settingsPageTitle} icon-name="standard:settings">
     <div class="actions slds-p-horizontal_medium">
       <lightning-button label="再読込" onclick={load} disabled={loading}></lightning-button>
@@ -25,7 +25,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">業務に使う権限をユーザへ付ける。金額は変わらない。付与・はく奪は操作ログに書かない</span>
+            <span class="help-tip" role="tooltip">業務で使う操作の可否をユーザに付けます。金額は変わりません。付け外しは操作ログに書きません。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -37,7 +37,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">グループでまとめて付与する</span>
+            <span class="help-tip" role="tooltip">複数の権限をまとめてユーザに付けます。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -49,7 +49,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">レコードの共有。01を使う組織は必須。一覧の範囲は01／02</span>
+            <span class="help-tip" role="tooltip">レコードを誰が見られるかを決めます。一覧に出る範囲もここで変わります。</span>
           </span>
         </div>
       </section>
@@ -66,7 +66,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">契約で使う商品。新しい見積行の初期値。見積に載った行はスナップショット</span>
+            <span class="help-tip" role="tooltip">契約で使う商品を管理します。新しい見積行の初期値になります。</span>
           </span>
         </div>
       </section>
@@ -83,7 +83,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">使わない／PDFのみ／PDFとメール送付。シードはPDFのみ。発行・メールボタン、ウィザードの見積書セクション。確定では発行しない</span>
+            <span class="help-tip" role="tooltip">見積書PDFの発行、見積メール、ウィザードの見積書セクションの有無に使います。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -95,7 +95,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">見積書と同じ3択。シードはPDFのみ。確定では発行しない</span>
+            <span class="help-tip" role="tooltip">請求書PDFの発行とメールに使います。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -107,7 +107,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">見積または請求が使わない以外なら必須。発行時点のPDF。請求レコードへはコピーしない</span>
+            <span class="help-tip" role="tooltip">見積・請求のPDFに出す会社名です。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -119,7 +119,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">会社名と同じ</span>
+            <span class="help-tip" role="tooltip">見積・請求のPDFに出す住所です。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -131,7 +131,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">請求が使わない以外なら必須。請求PDFに出す</span>
+            <span class="help-tip" role="tooltip">請求PDFに出す登録番号です。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -143,7 +143,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">登録番号と同じ</span>
+            <span class="help-tip" role="tooltip">請求PDFに出す振込先です。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -155,7 +155,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">空でなければPDFに出す</span>
+            <span class="help-tip" role="tooltip">見積・請求のPDFのフッターに出します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -167,7 +167,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">空でなければPDFに出す</span>
+            <span class="help-tip" role="tooltip">見積・請求のPDFに出します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -179,7 +179,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">これから発行するPDF。有効な既定がちょうど1つなら発行・送付の初期選択</span>
+            <span class="help-tip" role="tooltip">発行する帳票の候補です。有効な既定が1つなら、発行・送付の最初の選択になります。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -191,7 +191,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">ウィザードの備考初期。自由文だけでも保存できる</span>
+            <span class="help-tip" role="tooltip">ウィザードの備考の初期値です。自由文だけでも保存できます。</span>
           </span>
         </div>
       </section>
@@ -208,7 +208,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">見積がPDFとメール送付のとき、組織送信元を使う送付のFrom。空なら自分から送れる</span>
+            <span class="help-tip" role="tooltip">見積の差出人は、組織か自分かを送れます。ここは組織を選んだときのアドレスです。空でも自分から送れます。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -220,7 +220,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">請求がPDFとメール送付なら必須。請求は組織送信元だけ</span>
+            <span class="help-tip" role="tooltip">請求の差出人は組織だけです。ここが差出人になります。空では送れません。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -232,7 +232,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">これから送るメール。初期選択の規則は帳票と同じ</span>
+            <span class="help-tip" role="tooltip">送るメールの候補です。有効な既定が1つなら、送付の最初の選択になります。</span>
           </span>
         </div>
       </section>
@@ -249,7 +249,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">Newの空終了日、手動Renewの初期終了日、自動Renew見積の延長の初期値。見積終了日は上限を超えて手入力できる</span>
+            <span class="help-tip" role="tooltip">Newで終了日が空のとき、手動Renewの初期終了日、自動Renew見積の延長の初期値に使います。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -261,7 +261,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">ウィザードが見積日から有効期限の初期値を付ける暦月数</span>
+            <span class="help-tip" role="tooltip">ウィザードが見積日から有効期限の初期値を付けるときの暦月数です。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -273,7 +273,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">ONのときだけチェックとカウント。OFFなら作成要求を拒否し自動Renew見積も作らない</span>
+            <span class="help-tip" role="tooltip">ONのときだけ、受注画面のチェックと件数の増減が動きます。OFFなら作成要求は拒否し、自動Renew見積も作りません。</span>
           </span>
         </div>
       </section>
@@ -290,7 +290,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">見積Step 2の表示・必須・初期値</span>
+            <span class="help-tip" role="tooltip">見積Step 2に出すカスタム項目、必須、初期値を指定します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -302,7 +302,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">受注・Ordered見積編集・差し戻し。見積必須とは同期しない</span>
+            <span class="help-tip" role="tooltip">受注、受注済みの見積編集、差し戻しに出すカスタム項目を指定します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -314,7 +314,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">請求情報編集・入出金登録・仕訳の追加項目</span>
+            <span class="help-tip" role="tooltip">請求情報編集、入出金登録、仕訳に出すカスタム項目を指定します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -326,7 +326,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">作成時の空欄だけコピー。壊れていれば作成系を止める</span>
+            <span class="help-tip" role="tooltip">作成時、空欄の項目だけコピーします。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -340,7 +340,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">保存とは別の任意実行。定義は編集しない。操作キーは置かない。会計方針の固定後も実行できる</span>
+            <span class="help-tip" role="tooltip">コピー定義が壊れていないかを、保存とは別に確認します。定義はここでは直しません。方針を固定したあとも実行できます。</span>
           </span>
         </div>
       </section>
@@ -366,7 +366,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">見積税額、請求ヘッダ税、配分、入出金初期配分、月次バケット金額。1択は読み取り専用の文字</span>
+            <span class="help-tip" role="tooltip">見積税額、請求ヘッダ税、配分、入出金の初期配分、月次バケット金額の計算に使います。</span>
           </span>
           <div class="row-note">
             <span class="slds-badge badge-caution">注意</span>
@@ -382,7 +382,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">丸め・按分の会社設定の行</span>
+            <span class="help-tip" role="tooltip">丸め・按分の会社設定の行を開きます。</span>
           </span>
         </div>
       </section>
@@ -399,7 +399,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">ONなら仕訳生成、会計タグ、検収終了日の標準UI。OFFでも請求・入出金は動く</span>
+            <span class="help-tip" role="tooltip">ONなら仕訳生成、会計タグ、検収終了日の標準画面が動きます。OFFでも請求と入出金は動きます。</span>
           </span>
           <div class="row-note">
             <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
@@ -417,7 +417,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">請求基準／入金連動前受基準</span>
+            <span class="help-tip" role="tooltip">仕訳で売掛と前受が立つ時点を決めます。</span>
           </span>
           <div class="row-note">
             <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
@@ -435,7 +435,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">請求時／売上計上時</span>
+            <span class="help-tip" role="tooltip">消費税の仕訳を立てる時点を決めます。</span>
           </span>
           <div class="row-note">
             <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
@@ -453,7 +453,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">未固定の変更は組織内の請求明細のバケット数を書き直す</span>
+            <span class="help-tip" role="tooltip">月次売上の期間の切れ方です。</span>
           </span>
           <div class="row-note">
             <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
@@ -471,7 +471,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">月次売上の計上日</span>
+            <span class="help-tip" role="tooltip">月次売上仕訳の計上日を決めます。</span>
           </span>
           <div class="row-note">
             <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
@@ -489,7 +489,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">月次売上・税配分の端数吸収先</span>
+            <span class="help-tip" role="tooltip">月次売上と税配分の端数を、どのバケットへ入れるかを決めます。</span>
           </span>
           <div class="row-note">
             <span class={freezePolicyBadgeClass}>{freezePolicyBadge}</span>
@@ -514,7 +514,7 @@
             </div>
             <span class="help-wrap">
               <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-              <span class="help-tip" role="tooltip">Accounting ONのときの実勘定科目。21が無ければ出さない</span>
+              <span class="help-tip" role="tooltip">仕訳で使う実勘定科目です。</span>
             </span>
           </div>
           <div class="setting-row">
@@ -526,7 +526,7 @@
             </div>
             <span class="help-wrap">
               <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-              <span class="help-tip" role="tooltip">割当を条件分けするとき。21が無ければ出さない</span>
+              <span class="help-tip" role="tooltip">割当を条件で分けるときに使います。</span>
             </span>
           </div>
           <div class="setting-row">
@@ -538,7 +538,7 @@
             </div>
             <span class="help-wrap">
               <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-              <span class="help-tip" role="tooltip">スロットから実勘定へ。21が無ければ出さない</span>
+              <span class="help-tip" role="tooltip">スロットから実勘定へつなぎます。</span>
             </span>
           </div>
           <div class="setting-row">
@@ -550,7 +550,7 @@
             </div>
             <span class="help-wrap">
               <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-              <span class="help-tip" role="tooltip">請求書単位のタグ結果。21が無ければ出さない</span>
+              <span class="help-tip" role="tooltip">請求書単位のタグ結果を付けます。</span>
             </span>
           </div>
           <div class="setting-row">
@@ -562,7 +562,7 @@
             </div>
             <span class="help-wrap">
               <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-              <span class="help-tip" role="tooltip">手動仕訳のメニュー。21が無ければ出さない</span>
+              <span class="help-tip" role="tooltip">手動仕訳のメニューです。</span>
             </span>
           </div>
         </template>
@@ -580,7 +580,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">旗の対象にした顧客入力規則だけ。Coreの整合性ガードは外れない</span>
+            <span class="help-tip" role="tooltip">この設定を参照する顧客の入力規則だけを、導入後から効かせます。パッケージ標準のテストクラスを回すときは、OFFにして回します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -592,7 +592,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">確定後に人が直せる追加項目。金額・請求日・宛名は一覧に書いても不可</span>
+            <span class="help-tip" role="tooltip">確定後に人が直せるカスタム項目を指定します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -604,7 +604,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">登録後に人が直せる追加項目。金額・日付・目的は一覧に書いても不可</span>
+            <span class="help-tip" role="tooltip">登録後に人が直せるカスタム項目を指定します。</span>
           </span>
         </div>
         <div class="setting-row">
@@ -616,7 +616,7 @@
           </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
-            <span class="help-tip" role="tooltip">Lock後に人が直せる追加項目。金額・科目・日付は一覧に書いても不可</span>
+            <span class="help-tip" role="tooltip">Lock後に人が直せるカスタム項目を指定します。</span>
           </span>
         </div>
       </section>

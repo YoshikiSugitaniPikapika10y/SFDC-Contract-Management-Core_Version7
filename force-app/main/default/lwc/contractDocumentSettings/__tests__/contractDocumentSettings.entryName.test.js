@@ -178,6 +178,47 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     expect(row.querySelector(".row-label").textContent).not.toBe("入力強制");
   });
 
+  it("shows Core 11.6 impact help texts on bang tips", async () => {
+    const element = await mount(
+      pageData({
+        hasAccountingMaster: true,
+        settingLinks: [
+          { key: "permissionSets", url: "/lightning/setup/PermSets/home" },
+          ...MASTER_LINKS
+        ]
+      })
+    );
+    const expected = {
+      "行 1.1":
+        "業務で使う操作の可否をユーザに付けます。金額は変わりません。付け外しは操作ログに書きません。",
+      "行 4.1":
+        "見積の差出人は、組織か自分かを送れます。ここは組織を選んだときのアドレスです。空でも自分から送れます。",
+      "行 4.2":
+        "請求の差出人は組織だけです。ここが差出人になります。空では送れません。",
+      "行 6.5":
+        "コピー定義が壊れていないかを、保存とは別に確認します。定義はここでは直しません。方針を固定したあとも実行できます。",
+      "行 8.1":
+        "ONなら仕訳生成、会計タグ、検収終了日の標準画面が動きます。OFFでも請求と入出金は動きます。",
+      "行 9.1":
+        "この設定を参照する顧客の入力規則だけを、導入後から効かせます。パッケージ標準のテストクラスを回すときは、OFFにして回します。"
+    };
+    for (const [rowNum, help] of Object.entries(expected)) {
+      const row = [...element.shadowRoot.querySelectorAll(".setting-row")].find(
+        (node) => node.querySelector(".row-num")?.textContent.trim() === rowNum
+      );
+      expect(row.querySelector(".help-tip").textContent.trim()).toBe(help);
+    }
+    expect(
+      [...element.shadowRoot.querySelectorAll("h2")]
+        .find((node) => node.textContent.trim() === "9. 入力とロック")
+        .closest("section")
+        .querySelector(".section-lead").textContent.trim()
+    ).toBe("入力強制とロック除外項目");
+    expect(
+      element.shadowRoot.querySelector('[name="validationEnforce"]').label
+    ).toBe("カスタム入力規則をON");
+  });
+
   it("hides accounting master links without permission 21", async () => {
     const element = await mount(
       pageData({
