@@ -203,15 +203,14 @@ private class RenewEstimateAutoCreateServiceTest {
 
       Database.SaveResult result = Database.insert(renewal, false);
 
-      System.assertEquals(false, result.isSuccess());
-      System.assert(
-        result
-          .getErrors()[0]
-          .getMessage()
-          .contains(
-            RenewEstimateAutoCreateService.CONTRACT_SERVICE_MISMATCH_MESSAGE
-          ),
-        result.getErrors()[0].getMessage()
+      System.assertEquals(
+        false,
+        result.isSuccess()
+      );
+      System.assertEquals(
+        RenewEstimateAutoCreateService.CONTRACT_SERVICE_MISMATCH_MESSAGE,
+        result.getErrors()[0].getMessage(),
+        'Core 第11.5節: 更新商談の契約サービスは元契約履歴と一致させる'
       );
     }
   }
@@ -228,14 +227,10 @@ private class RenewEstimateAutoCreateServiceTest {
       );
 
       System.assertEquals(false, result.isSuccess());
-      System.assert(
-        result
-          .getErrors()[0]
-          .getMessage()
-          .contains(
-            RenewEstimateAutoCreateService.RENEW_SOURCE_REQUIRED_MESSAGE
-          ),
-        result.getErrors()[0].getMessage()
+      System.assertEquals(
+        RenewEstimateAutoCreateService.RENEW_SOURCE_REQUIRED_MESSAGE,
+        result.getErrors()[0].getMessage(),
+        'Core 第11.5節: 更新見積自動作成には前回期間終了日に届く継続課金明細が要る'
       );
     }
   }
