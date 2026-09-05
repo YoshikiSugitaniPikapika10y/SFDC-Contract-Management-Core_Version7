@@ -458,8 +458,9 @@ private class ContractCrossControllerTest {
           ContractCrossQueryService.isAccountingEnabled();
         } catch (Exception ex) {
           thrown = true;
-          System.assert(
-            ex.getMessage().contains('Accounting会計方針がありません'),
+          System.assertEquals(
+            'Accounting会計方針がありません。',
+            ex.getMessage(),
             'Core 第1.1.10節・Accounting 第3.1節: 会計方針0件はOFFと埋めない'
           );
         }
@@ -1166,47 +1167,35 @@ private class ContractCrossControllerTest {
     Account account = ContractTestDataFactory.insertAccount(
       name + ' Acc ' + String.valueOf(Crypto.getRandomInteger())
     );
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = account.Id,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'cross@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 1,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
-    );
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+    ContractService__c service = ContractTestDataFactory.insertContractService(
       account.Id,
-      name + ' Opp'
+      name + ' Svc'
     );
-    opportunity.CloseDate = closeDate;
-    update opportunity;
-    ContractService__c service = new ContractService__c(
-      Name = name + ' Svc',
-      Account__c = account.Id,
-      BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = 0.1
-    );
-    insert service;
     ContractHistory__c history = new ContractHistory__c(
       Name = name,
       ContractService__c = service.Id,
-      Opportunity__c = opportunity.Id,
       Type__c = 'New',
       historystatus__c = status,
       Version__c = 1
     );
+    ContractTestDataFactory.applyRequiredFields(history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
     insert history;
+    Opportunity opportunity = [
+      SELECT Id, Name, AccountId, CloseDate
+      FROM Opportunity
+      WHERE Id = :history.Opportunity__c
+    ];
+    opportunity.CloseDate = closeDate;
+    update opportunity;
     HistoryFixture fixture = new HistoryFixture();
     fixture.history = history;
     fixture.opportunity = opportunity;
-    fixture.billingAccount = billingAccount;
+    fixture.billingAccount = [
+      SELECT Id, BillingEmailTo__c
+      FROM BillingAccount__c
+      WHERE Id = :service.BiilingAcccount__c
+    ];
     return fixture;
   }
 
