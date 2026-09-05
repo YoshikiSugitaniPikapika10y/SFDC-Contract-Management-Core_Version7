@@ -48,7 +48,7 @@ describe("orderInvoicePreviewTable issue/send gate (Core 11.3.1 / 11.3.2 / 7.10 
     return {
       canIssueDocument: true,
       companyBlockedReason: "",
-      defaultInvoiceDocumentTemplateKey: "StandardInvoice",
+      hasInvoiceDocumentTemplates: true,
       isBlankReasonText: proto.isBlankReasonText,
       ...overrides
     };
@@ -58,7 +58,7 @@ describe("orderInvoicePreviewTable issue/send gate (Core 11.3.1 / 11.3.2 / 7.10 
     return {
       canSendDocument: true,
       invoiceOpsContextError: "",
-      defaultInvoiceDocumentTemplateKey: "StandardInvoice",
+      hasInvoiceDocumentTemplates: true,
       orgFromResolved: true,
       isBlankReasonText: proto.isBlankReasonText,
       hasInvalidEmailList: proto.hasInvalidEmailList,
@@ -109,6 +109,38 @@ describe("orderInvoicePreviewTable issue/send gate (Core 11.3.1 / 11.3.2 / 7.10 
         false
       )
     ).toBe("");
+  });
+
+  it("既定0／2以上でもカタログがあれば発行・送付をカタログなしとして止めない (Core 4.8 / 7.10 / 11.3.2)", () => {
+    expect(
+      proto.invoiceIssueUnavailableReason.call(issueCtx(), true, false)
+    ).toBe("");
+    expect(
+      proto.invoiceSendUnavailableReason.call(
+        sendCtx(),
+        sendableInvoice,
+        true,
+        false
+      )
+    ).toBe("");
+  });
+
+  it("カタログ0件なら発行・送付を止める (Core 4.8 / 7.10 / 11.3.2)", () => {
+    expect(
+      proto.invoiceIssueUnavailableReason.call(
+        issueCtx({ hasInvoiceDocumentTemplates: false }),
+        true,
+        false
+      )
+    ).toBe("利用できる請求書テンプレートがありません。");
+    expect(
+      proto.invoiceSendUnavailableReason.call(
+        sendCtx({ hasInvoiceDocumentTemplates: false }),
+        sendableInvoice,
+        true,
+        false
+      )
+    ).toBe("利用できる請求書テンプレートがありません。");
   });
 
   it("発行画面は最新発行PDFのプレビューとダウンロードURLを出す (横断画面.md 操作21)", () => {

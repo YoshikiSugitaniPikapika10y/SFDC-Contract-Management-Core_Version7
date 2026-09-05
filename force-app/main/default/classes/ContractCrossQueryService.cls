@@ -492,9 +492,7 @@ public with sharing class ContractCrossQueryService {
         ? null
         : journal.Invoice__r.ContractHistory__c;
       dto.invoiceName = journal.Invoice__r == null ? null : journal.Invoice__r.Name;
-      dto.invoiceToken = journal.Invoice__r == null
-        ? null
-        : ContractOptimisticLockUtil.toToken(journal.Invoice__r.LastModifiedDate);
+      dto.invoiceToken = null;
       dto.debitName = journal.DebitAccount__r == null
         ? null
         : journal.DebitAccount__r.Name;
@@ -542,7 +540,36 @@ public with sharing class ContractCrossQueryService {
     for (ContractCrossController.JournalRowDto dto : result.journals) {
       dto.extraFieldValues = extraById.get(dto.id);
     }
+    fillJournalInvoiceTokens(result.journals, rows, take);
     return result;
+  }
+
+  /** 仕様: Core 第7.9.7節。横断のLock／Unlockは対象請求と配下の入出金・手動仕訳・仕訳の最大。 */
+  private static void fillJournalInvoiceTokens(
+    List<ContractCrossController.JournalRowDto> journals,
+    List<GlJournal__c> rows,
+    Integer take
+  ) {
+    Set<Id> invoiceIds = new Set<Id>();
+    Map<Id, Datetime> knownInvoiceModified = new Map<Id, Datetime>();
+    Integer bound = Math.min(take, rows.size());
+    for (Integer i = 0; i < bound; i++) {
+      GlJournal__c journal = rows[i];
+      if (journal.Invoice__c == null) {
+        continue;
+      }
+      invoiceIds.add(journal.Invoice__c);
+      if (journal.Invoice__r != null) {
+        knownInvoiceModified.put(journal.Invoice__c, journal.Invoice__r.LastModifiedDate);
+      }
+    }
+    Map<Id, Datetime> actuals = AccountingCauseLockService.resolveInvoiceOperationDatetimes(
+      invoiceIds,
+      knownInvoiceModified
+    );
+    for (ContractCrossController.JournalRowDto dto : journals) {
+      dto.invoiceToken = ContractOptimisticLockUtil.toToken(actuals.get(dto.invoiceId));
+    }
   }
 
   /** 仕様: 横断画面.md 第5節 見積書タイル。Estimateだけ出す。Ordered・Archiveは出さない。 */

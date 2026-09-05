@@ -636,6 +636,42 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void queryJournals_invoiceTokenUsesOperationSetWhenJournalIsNewer() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture fixture = insertInvoice('Confirmed');
+      Date lastMonthDay = ContractCrossQueryService.defaultJournalPostingDates()
+        .dateFrom;
+      insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        lastMonthDay,
+        'TOKENNEWER'
+      );
+      String operationToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+
+      ContractCrossController.JournalFilterDto filter = new ContractCrossController.JournalFilterDto();
+      ContractCrossQueryService.DateRange range = ContractCrossQueryService.defaultJournalPostingDates();
+      filter.postingDateFrom = range.dateFrom;
+      filter.postingDateTo = range.dateTo;
+      filter.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+
+      ContractCrossController.ListResultDto result = ContractCrossController.queryJournals(
+        filter
+      );
+      System.assertEquals(1, result.journals.size());
+      System.assertEquals(
+        operationToken,
+        result.journals[0].invoiceToken,
+        'Core 第7.9.7節: 横断Lockの版は対象請求と配下の仕訳の最大'
+      );
+    }
+  }
+
+  @IsTest
   static void queryJournals_marksCancelledInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       enableAccounting();

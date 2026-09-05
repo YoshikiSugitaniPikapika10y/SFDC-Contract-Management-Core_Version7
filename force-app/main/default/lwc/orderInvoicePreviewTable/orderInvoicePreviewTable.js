@@ -897,6 +897,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     return this.invoiceSendMode === SEND_MODE_PDF_AND_EMAIL;
   }
 
+  // 仕様: Core 第4.8節・第7.10節・第11.3.2節。カタログがあるのに既定0／2以上は未選択。カタログ無しと同じ文言にしない。
+  get hasInvoiceDocumentTemplates() {
+    return (this.invoiceDocumentTemplateOptions || []).length > 0;
+  }
+
   // 仕様: Core 第11.3.1節・第7.10節・第1.1.10節。必須の会社情報が空なら発行を止める。
   invoiceIssueUnavailableReason(confirmedOrLater, isCancelled) {
     if (!this.canIssueDocument) {
@@ -908,7 +913,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (!this.isBlankReasonText(this.companyBlockedReason)) {
       return this.companyBlockedReason;
     }
-    if (!this.defaultInvoiceDocumentTemplateKey) {
+    if (!this.hasInvoiceDocumentTemplates) {
       return "利用できる請求書テンプレートがありません。";
     }
     return "";
@@ -938,7 +943,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     ) {
       return "不正なメールアドレスがあるため送れません。";
     }
-    if (!this.defaultInvoiceDocumentTemplateKey) {
+    if (!this.hasInvoiceDocumentTemplates) {
       return "利用できる請求書テンプレートがありません。";
     }
     if (this.orgFromResolved !== true) {

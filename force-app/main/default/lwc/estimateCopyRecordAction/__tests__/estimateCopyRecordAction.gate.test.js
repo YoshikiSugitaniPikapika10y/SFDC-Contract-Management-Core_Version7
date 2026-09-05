@@ -52,6 +52,26 @@ describe("estimateCopyRecordAction (Core 4.3.1 / 4.3)", () => {
     expect(wizard.modalMode).toBe(true);
   });
 
+  it("does not show 商談向け文 while Quick Action recordId is empty (Core 4.3.1 / 4.7)", async () => {
+    const element = createElement("c-estimate-copy-record-action", {
+      is: EstimateCopyRecordAction
+    });
+    document.body.appendChild(element);
+    await Promise.resolve();
+
+    expect(element.shadowRoot.querySelector("c-estimate-create-wizard")).toBeNull();
+    expect(element.shadowRoot.textContent).not.toContain(
+      "商談IDが指定されていません"
+    );
+
+    element.recordId = "a0H000000000001AAA";
+    await Promise.resolve();
+
+    const wizard = element.shadowRoot.querySelector("c-estimate-create-wizard");
+    expect(wizard).toBeTruthy();
+    expect(wizard.copySourceHistoryId).toBe("a0H000000000001AAA");
+  });
+
   it("closes after save success without a same-turn record Navigate (Core 4.3.2 / 4.3.6)", async () => {
     const element = createElement("c-estimate-copy-record-action", {
       is: EstimateCopyRecordAction

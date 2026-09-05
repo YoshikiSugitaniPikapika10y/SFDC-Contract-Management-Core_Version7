@@ -8,9 +8,22 @@ import {
 import { resizeQuickActionPanel } from "c/quickActionPanelResize";
 
 export default class EstimateCopyRecordAction extends LightningElement {
-  @api recordId;
+  _recordId = "";
 
   pendingRecordRefresh;
+
+  // 仕様: Core 第4.3.1節、第4.7節。Quick Action の recordId は後から入ることがある。空ではウィザードを開かない。
+  @api
+  get recordId() {
+    return this._recordId;
+  }
+  set recordId(value) {
+    this._recordId = value || "";
+  }
+
+  get hasCopySourceId() {
+    return Boolean(this._recordId);
+  }
 
   get hasPermission() {
     return hasCopyEstimate === true;
