@@ -1526,7 +1526,8 @@ private class OrderCreateControllerTest {
         WHERE Id = :context.history.Id
       ];
       Date savedApplicationDate = beforeRevert.ApplicationDate__c;
-      System.assertNotEquals(null, beforeRevert.OrderDate__c);
+      Date savedOrderDate = beforeRevert.OrderDate__c;
+      System.assertNotEquals(null, savedOrderDate);
 
       Test.startTest();
       OrderCreateController.revertOrder(context.history.Id, false);
@@ -1541,12 +1542,12 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         savedApplicationDate,
         updated.ApplicationDate__c,
-        'Core 第5.3節: 画面外の差し戻しは受注日以外を触らない'
+        'Core 第5.3節: 画面外の差し戻しは追加項目を触らない'
       );
       System.assertEquals(
-        null,
+        savedOrderDate,
         updated.OrderDate__c,
-        'Core 第5.3節: 画面外の差し戻しも受注日は空'
+        'Core 第5.3節・第11.4.3節: 画面外の差し戻しは受注日も触らない'
       );
 
       ContractService__c revertedService = [
@@ -1591,18 +1592,18 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         true,
         updated.CreateRenewOpportunity__c,
-        'Core 第5.3節: 画面外の差し戻しは受注日以外を触らない'
+        'Core 第5.3節: 画面外の差し戻しは追加項目を触らない'
       );
-      System.assertEquals(
+      System.assertNotEquals(
         null,
         updated.OrderDate__c,
-        'Core 第5.3節: 画面外の差し戻しも受注日は空'
+        'Core 第5.3節・第11.4.3節: 画面外の差し戻しは受注日も触らない'
       );
     }
   }
 
   @IsTest
-  static void revertOrder_writesHistoryFieldsAndClearsOrderDate() {
+  static void revertOrder_writesHistoryFieldsIncludingOrderDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
@@ -1629,7 +1630,8 @@ private class OrderCreateControllerTest {
         ),
         JSON.serialize(
           new Map<String, Object>{
-            'ApplicationDate__c' => String.valueOf(nextApplication)
+            'ApplicationDate__c' => String.valueOf(nextApplication),
+            'OrderDate__c' => String.valueOf(orderedOn)
           }
         )
       );
@@ -1651,14 +1653,66 @@ private class OrderCreateControllerTest {
         'Core 第5.3節: 差し戻し画面の受注追加項目を保存する'
       );
       System.assertEquals(
-        null,
+        orderedOn,
         updated.OrderDate__c,
-        'Core 第5.3節: 差し戻し後の受注日は空'
+        'Core 第5.3節・第11.4.3節: 差し戻しで残した受注日は残る'
       );
       System.assertEquals(
         false,
         updated.CreateRenewOpportunity__c,
         'Core 第5.3節: 差し戻し画面では更新商談要求を落とす'
+      );
+    }
+  }
+
+  @IsTest
+  static void revertOrder_screenCanClearOrderDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Date orderedOn = Date.today().addDays(-3);
+      Date appliedOn = Date.today().addDays(-5);
+      update new ContractHistory__c(
+        Id = context.history.Id,
+        ApplicationDate__c = appliedOn,
+        OrderDate__c = orderedOn
+      );
+
+      Test.startTest();
+      OrderCreateController.revertOrder(
+        context.history.Id,
+        false,
+        ContractOptimisticLockUtil.toToken(
+          [
+            SELECT LastModifiedDate
+            FROM ContractHistory__c
+            WHERE Id = :context.history.Id
+          ]
+          .LastModifiedDate
+        ),
+        JSON.serialize(
+          new Map<String, Object>{
+            'ApplicationDate__c' => String.valueOf(appliedOn),
+            'OrderDate__c' => ''
+          }
+        )
+      );
+      Test.stopTest();
+
+      ContractHistory__c updated = [
+        SELECT ApplicationDate__c, OrderDate__c
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ];
+      System.assertEquals(
+        appliedOn,
+        updated.ApplicationDate__c,
+        'Core 第5.3節: 差し戻し画面の受注追加項目を保存する'
+      );
+      System.assertEquals(
+        null,
+        updated.OrderDate__c,
+        'Core 第5.3節・第11.4.3節: 差し戻しで空にした受注日は空'
       );
     }
   }

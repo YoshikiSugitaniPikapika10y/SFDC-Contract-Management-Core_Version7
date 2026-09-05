@@ -716,7 +716,7 @@ public without sharing class OrderCreateController {
     );
   }
 
-  /** 仕様: Core 第5.3節、第4.3.12節、第11.4.3節、第11.5節 */
+  /** 仕様: Core 第5.3節、第4.3.12節、第11.4.3節、第11.5節、第11.7節 */
   @AuraEnabled
   public static OrderSaveResult revertOrder(
     Id contractHistoryId,
@@ -780,10 +780,9 @@ public without sharing class OrderCreateController {
         throw toAuraHandled(ex.getMessage());
       }
     }
-    history.OrderDate__c = null;
     history.historystatus__c = HISTORY_STATUS_ESTIMATE;
     history.BusinessOperationKey__c = operationKey;
-    // 仕様: Core 第5.3節・第5.6節。画面外は受注日以外を触らない。
+    // 仕様: Core 第5.3節・第5.6節・第11.4.3節。画面外は追加項目を触らない。
     if (historyCustomFieldsJson != null) {
       history.CreateRenewOpportunity__c = false;
     }

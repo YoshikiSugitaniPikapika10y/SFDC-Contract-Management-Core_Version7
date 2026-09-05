@@ -41,7 +41,7 @@ public without sharing class ContractHistoryTriggerHandler {
     }
   }
 
-  /** 仕様: Core 第3.2節、第4.9節、第5.2節、第11.5節 */
+  /** 仕様: Core 第3.2節、第4.9節、第5.2節、第5.3節、第11.4.3節、第11.5節、第11.7節 */
   public static void handleBeforeUpdate(
     List<ContractHistory__c> newHistories,
     Map<Id, ContractHistory__c> oldMap
@@ -96,7 +96,7 @@ public without sharing class ContractHistoryTriggerHandler {
       if (history.historystatus__c == HISTORY_STATUS_ESTIMATE) {
         leavingOrderedHistoryIds.add(history.Id);
         revertToEstimateHistoryIds.add(history.Id);
-        history.OrderDate__c = null;
+        // 仕様: Core 第5.3節・第11.4.3節・第11.7節。受注日を空にする専用処理は持たない。
       }
     }
     if (leavingOrderedHistoryIds.isEmpty()) {

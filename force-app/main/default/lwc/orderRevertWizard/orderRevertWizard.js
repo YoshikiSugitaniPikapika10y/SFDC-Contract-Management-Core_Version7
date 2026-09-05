@@ -109,7 +109,6 @@ export default class OrderRevertWizard extends NavigationMixin(
       this.context = data;
       this._lastModifiedToken = data.lastModifiedToken || "";
       this.historyCustomFields = { ...(data.historySavedFields || {}) };
-      delete this.historyCustomFields.OrderDate__c;
       // 表示時は常に初期 ON（ユーザが意図的に外さない限り削除）
       this.deleteRenewOpportunity = true;
       this.hasManualAdjustment = await hasManualInvoiceAdjustment({
@@ -169,10 +168,10 @@ export default class OrderRevertWizard extends NavigationMixin(
     return this.isBusy || !this.canRevert;
   }
 
-  // 仕様: Core 第5.3節、第11.4.3節
+  // 仕様: Core 第5.3節、第11.4.3節。受注日も定義の表示対象。必須は差し戻しでは見ない。
   get revertHistoryFieldDefinitions() {
     return (this.context?.historyFieldDefinitions || [])
-      .filter((field) => field && field.apiName !== "OrderDate__c")
+      .filter((field) => field)
       .map((field) => ({
         ...field,
         required: false
@@ -196,7 +195,7 @@ export default class OrderRevertWizard extends NavigationMixin(
 
   handleHistoryFieldChange(event) {
     const fieldApi = event.detail?.fieldApi;
-    if (!fieldApi || fieldApi === "OrderDate__c") {
+    if (!fieldApi) {
       return;
     }
     this.historyCustomFields = {

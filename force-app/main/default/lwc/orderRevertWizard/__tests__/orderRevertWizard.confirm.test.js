@@ -159,8 +159,12 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
       OrderRevertWizard.prototype,
       "revertHistoryFieldDefinitions"
     ).get.call({ context: ORDERED });
-    expect(extraFields.map((field) => field.apiName)).toEqual(["Extra__c"]);
+    expect(extraFields.map((field) => field.apiName)).toEqual([
+      "OrderDate__c",
+      "Extra__c"
+    ]);
     expect(extraFields.every((field) => field.required === false)).toBe(true);
+    expect(element.historyCustomFields.OrderDate__c).toBe("2026-01-15");
   });
 
   it("warns that manual invoice adjustments are deleted, and defaults renew-opportunity delete on", async () => {
