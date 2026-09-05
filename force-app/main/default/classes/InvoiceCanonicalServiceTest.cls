@@ -46,6 +46,49 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void rebuild_copiesAccountPhoneToBlankInvoiceMemo() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      ContractHistory__c history = [
+        SELECT ContractService__r.Account__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
+      update new Account(
+        Id = history.ContractService__r.Account__c,
+        Phone = '0312345678'
+      );
+      insert new FieldCopyDefinition__c(
+        Name = 'BUG500_Inv_Memo_From_AccountPhone',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
+        SourceFieldApiName__c = 'Phone',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+
+      Test.startTest();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Test.stopTest();
+
+      Invoice__c invoice = [
+        SELECT Memo__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        '0312345678',
+        invoice.Memo__c,
+        '仕様: Core 第11.4.2節 請求書新規は取引先Fromの空欄へコピーする'
+      );
+    }
+  }
+
+  @IsTest
   static void updateLineAmounts_rejectsWithoutEditPermission() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();

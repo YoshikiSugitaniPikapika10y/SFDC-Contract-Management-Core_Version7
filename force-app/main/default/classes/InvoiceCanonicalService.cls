@@ -2924,6 +2924,7 @@ public without sharing class InvoiceCanonicalService {
     return String.join(parts, ',');
   }
 
+  /** 仕様: Core 第11.4.2節。請求書・請求明細のコピー元を期間明細の親子から取る。 */
   private static List<InvoiceProduct__c> queryPeriodLinesForCanonical(
     Set<Id> contractHistoryIds
   ) {
@@ -2949,6 +2950,7 @@ public without sharing class InvoiceCanonicalService {
       'ContractProduct__r.RevenueRecognitionBasis__c',
       'ContractProduct__r.Type__c',
       'ContractHistory__c',
+      'ContractHistory__r.Opportunity__c',
       'ContractHistory__r.Version__c',
       'ContractHistory__r.ContractService__c',
       'ContractHistory__r.ContractService__r.Name',
@@ -2958,27 +2960,36 @@ public without sharing class InvoiceCanonicalService {
       'ContractHistory__r.ContractService__r.Account__r.Name',
       'ContractProduct__r.Product__r.ProductCode'
     };
-    // 請求／請求明細向け CMDT のコピー元を親子リレーション経由で取得
-    for (
-      String fieldApiName : InvoiceProductFieldCopyService.getSourceFieldApiNames(
-        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
-        InvoiceProductFieldCopyService.TARGET_INVOICE
-      )
-    ) {
-      if (fieldApiName != null && fieldApiName != 'Id') {
-        selectFields.add('ContractHistory__r.' + fieldApiName);
-      }
-    }
-    for (
-      String fieldApiName : InvoiceProductFieldCopyService.getSourceFieldApiNames(
-        InvoiceProductFieldCopyService.OBJECT_CONTRACT_PRODUCT,
-        InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
-      )
-    ) {
-      if (fieldApiName != null && fieldApiName != 'Id') {
-        selectFields.add('ContractProduct__r.' + fieldApiName);
-      }
-    }
+    addCanonicalCopySourceFields(
+      selectFields,
+      'ContractHistory__r.',
+      ContractHistory__c.SObjectType,
+      InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY
+    );
+    addCanonicalCopySourceFields(
+      selectFields,
+      'ContractProduct__r.',
+      ContractProduct__c.SObjectType,
+      InvoiceProductFieldCopyService.OBJECT_CONTRACT_PRODUCT
+    );
+    addCanonicalCopySourceFields(
+      selectFields,
+      'ContractProduct__r.Product__r.',
+      Product2.SObjectType,
+      InvoiceProductFieldCopyService.OBJECT_PRODUCT
+    );
+    addCanonicalCopySourceFields(
+      selectFields,
+      'ContractHistory__r.Opportunity__r.',
+      Opportunity.SObjectType,
+      InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY
+    );
+    addCanonicalCopySourceFields(
+      selectFields,
+      'ContractHistory__r.ContractService__r.Account__r.',
+      Account.SObjectType,
+      InvoiceProductFieldCopyService.OBJECT_ACCOUNT
+    );
     List<String> selectList = new List<String>(selectFields);
     selectList.sort();
     String soql =
@@ -3090,6 +3101,16 @@ public without sharing class InvoiceCanonicalService {
     if (
       periodLine != null &&
       periodLine.ContractHistory__r != null &&
+      periodLine.ContractHistory__r.Opportunity__r != null
+    ) {
+      sources.put(
+        InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+        periodLine.ContractHistory__r.Opportunity__r
+      );
+    }
+    if (
+      periodLine != null &&
+      periodLine.ContractHistory__r != null &&
       periodLine.ContractHistory__r.ContractService__r != null &&
       periodLine.ContractHistory__r.ContractService__r.Account__r != null
     ) {
@@ -3099,6 +3120,48 @@ public without sharing class InvoiceCanonicalService {
       );
     }
     return sources;
+  }
+
+  /** 仕様: Core 第11.4.2節 */
+  private static void addCanonicalCopySourceFields(
+    Set<String> selectFields,
+    String relationshipPrefix,
+    Schema.SObjectType sourceType,
+    String sourceObjectApiName
+  ) {
+    if (
+      selectFields == null ||
+      sourceType == null ||
+      String.isBlank(relationshipPrefix) ||
+      String.isBlank(sourceObjectApiName)
+    ) {
+      return;
+    }
+    Map<String, Schema.SObjectField> fieldMap = sourceType.getDescribe()
+      .fields.getMap();
+    Set<String> fieldApiNames = new Set<String>();
+    fieldApiNames.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        sourceObjectApiName,
+        InvoiceProductFieldCopyService.TARGET_INVOICE
+      )
+    );
+    fieldApiNames.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        sourceObjectApiName,
+        InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
+      )
+    );
+    for (String fieldApiName : fieldApiNames) {
+      if (
+        String.isBlank(fieldApiName) ||
+        fieldApiName == 'Id' ||
+        !fieldMap.containsKey(fieldApiName)
+      ) {
+        continue;
+      }
+      selectFields.add(relationshipPrefix + fieldApiName);
+    }
   }
 
   /**
