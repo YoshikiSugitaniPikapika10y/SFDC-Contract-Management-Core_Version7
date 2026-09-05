@@ -14,5 +14,10 @@
         見積編集を実行する権限がありません。
       </div>
     </template>
+    <template if:true={cannotEditMessage}>
+      <div class="slds-p-around_medium slds-text-color_error" role="alert">
+        {cannotEditMessage}
+      </div>
+    </template>
   </div>
 </template>

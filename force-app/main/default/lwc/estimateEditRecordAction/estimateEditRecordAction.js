@@ -22,9 +22,24 @@ export default class EstimateEditRecordAction extends NavigationMixin(
     return hasEditEstimate === true;
   }
 
-  // 仕様: Core 第4.3節、第4.3.1節
+  /** 仕様: Core 第4.1節・第4.3.1節・第4.7節・第12.2節。Archiveは編集できない。 */
   get canOpenWizard() {
-    return this.hasPermission && Boolean(this.historyStatus);
+    return (
+      this.hasPermission &&
+      (this.historyStatus === "Estimate" || this.historyStatus === "Ordered")
+    );
+  }
+
+  get cannotEditMessage() {
+    if (
+      !this.hasPermission ||
+      !this.historyStatus ||
+      this.historyStatus === "Estimate" ||
+      this.historyStatus === "Ordered"
+    ) {
+      return "";
+    }
+    return "見積／受注済み状態の契約履歴のみ編集できます。";
   }
 
   @wire(getRecord, { recordId: "$recordId", fields: [HISTORY_STATUS_FIELD] })

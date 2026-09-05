@@ -48,4 +48,17 @@ describe("estimateEditRecordAction (Core 4.3.1)", () => {
       canOpenWizard.call({ hasPermission: false, historyStatus: "Ordered" })
     ).toBe(false);
   });
+
+  it("does not open the wizard for Archive (Core 4.1 / 4.7 / 12.2)", () => {
+    const cannotEditMessage = Object.getOwnPropertyDescriptor(
+      EstimateEditRecordAction.prototype,
+      "cannotEditMessage"
+    ).get;
+    expect(
+      canOpenWizard.call({ hasPermission: true, historyStatus: "Archive" })
+    ).toBe(false);
+    expect(
+      cannotEditMessage.call({ hasPermission: true, historyStatus: "Archive" })
+    ).toBe("見積／受注済み状態の契約履歴のみ編集できます。");
+  });
 });
