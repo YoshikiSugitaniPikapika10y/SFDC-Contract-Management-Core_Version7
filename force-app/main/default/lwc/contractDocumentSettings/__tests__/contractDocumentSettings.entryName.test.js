@@ -164,6 +164,20 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     expect(element.shadowRoot.querySelector("lightning-helptext")).toBeNull();
   });
 
+  it("shows カスタム入力規則をON as row 9.1 label", async () => {
+    const element = await mount(pageData());
+    const row = [...element.shadowRoot.querySelectorAll(".setting-row")].find(
+      (node) => node.querySelector(".row-num")?.textContent.trim() === "行 9.1"
+    );
+    expect(row.querySelector(".row-label").textContent.trim()).toBe(
+      "カスタム入力規則をON"
+    );
+    expect(row.querySelector("lightning-input").label).toBe(
+      "カスタム入力規則をON"
+    );
+    expect(row.querySelector(".row-label").textContent).not.toBe("入力強制");
+  });
+
   it("hides accounting master links without permission 21", async () => {
     const element = await mount(
       pageData({

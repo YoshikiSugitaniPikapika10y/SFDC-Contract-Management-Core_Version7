@@ -751,7 +751,7 @@ public without sharing class ContractDocumentSettingsController {
         ? null
         : locked.validationEnforce.LastModifiedDate,
       input.validationEnforceToken,
-      '入力強制'
+      'カスタム入力規則をON'
     );
     assertOptionalRecordUnchanged(
       locked.lockExempt == null || locked.lockExempt.Id == null

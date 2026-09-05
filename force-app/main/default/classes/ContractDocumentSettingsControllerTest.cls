@@ -191,7 +191,7 @@ private class ContractDocumentSettingsControllerTest {
         FROM ContractValidationEnforce__c
         WHERE SetupOwnerId != :organizationId
       ],
-      'Core 第11.6節: 入力強制は組織既定だけ'
+      'Core 第11.6節: カスタム入力規則をONは組織既定だけ'
     );
     System.assertEquals(
       0,
