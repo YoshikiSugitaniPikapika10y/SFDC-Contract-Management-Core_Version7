@@ -154,22 +154,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Ordered CF Opportunity'
       );
 
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = testAccount.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-        BillingEmailCc__c = 'cc@example.com',
-        BillingEmailBcc__c = 'bcc@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
+      BillingAccount__c billingAccount = insertBillingAccount(testAccount.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Ordered CF Product'
@@ -380,22 +365,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Ordered Empty Ctx Opportunity'
       );
 
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = testAccount.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-        BillingEmailCc__c = 'cc@example.com',
-        BillingEmailBcc__c = 'bcc@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
+      BillingAccount__c billingAccount = insertBillingAccount(testAccount.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Ordered Empty Ctx Product'
@@ -541,22 +511,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Ordered Stale Ctx Opportunity'
       );
 
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = testAccount.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-        BillingEmailCc__c = 'cc@example.com',
-        BillingEmailBcc__c = 'bcc@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
+      BillingAccount__c billingAccount = insertBillingAccount(testAccount.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Ordered Stale Ctx Product'
@@ -700,13 +655,15 @@ private class EstimateWizardCustomFieldPresetTest {
         'Ordered Cancel CF Opportunity'
       );
 
-      BillingAccount__c billingAccount = insertBillingAccount(testAccount.Id);
-      ContractService__c service = new ContractService__c(
-        Name = 'Ordered Cancel CF Service',
-        Account__c = testAccount.Id,
-        BiilingAcccount__c = billingAccount.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        testAccount.Id,
+        'Ordered Cancel CF Service'
       );
-      insert service;
+      BillingAccount__c billingAccount = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :service.BiilingAcccount__c
+      ];
 
       Date cancelDate = Date.today();
       insert new ContractHistory__c(
@@ -802,22 +759,7 @@ private class EstimateWizardCustomFieldPresetTest {
         'Ordered Missing CP Opportunity'
       );
 
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = testAccount.Id,
-        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-        BillingEmailTo__c = 'to@example.com',
-        BillingEmailCc__c = 'cc@example.com',
-        BillingEmailBcc__c = 'bcc@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
+      BillingAccount__c billingAccount = insertBillingAccount(testAccount.Id);
 
       Product2 product = ContractTestDataFactory.buildProduct(
         'Ordered Missing CP Product'
@@ -972,13 +914,15 @@ private class EstimateWizardCustomFieldPresetTest {
         'Ordered Empty Line Opportunity'
       );
 
-      BillingAccount__c billingAccount = insertBillingAccount(testAccount.Id);
-      ContractService__c service = new ContractService__c(
-        Name = 'Ordered Empty Line Service',
-        Account__c = testAccount.Id,
-        BiilingAcccount__c = billingAccount.Id
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        testAccount.Id,
+        'Ordered Empty Line Service'
       );
-      insert service;
+      BillingAccount__c billingAccount = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :service.BiilingAcccount__c
+      ];
 
       Date startDate = Date.today();
       ContractHistory__c history = new ContractHistory__c(
@@ -1185,21 +1129,7 @@ private class EstimateWizardCustomFieldPresetTest {
   }
 
   private static BillingAccount__c insertBillingAccount(Id accountId) {
-    BillingAccount__c billingAccount = new BillingAccount__c(
-      Account__c = accountId,
-      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
-      BillingEmailTo__c = 'to@example.com',
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-      InvoiceDateDayOfMonth__c = 25,
-      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-      PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
-    ContractTestDataFactory.applyRequiredFields(billingAccount);
-    insert billingAccount;
-    return billingAccount;
+    return ContractTestDataFactory.insertBillingAccount(accountId);
   }
 
   private static void ensureBillingAccountOnService(
