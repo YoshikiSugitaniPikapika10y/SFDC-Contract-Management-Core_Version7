@@ -76,13 +76,10 @@ private class OrderWizardFieldServiceTest {
       OrderWizardFieldService.getDefinitions('New');
     } catch (AuraHandledException ex) {
       failed = true;
-      System.assert(
-        ex.getMessage().contains('Bad_Product2'),
-        ex.getMessage()
-      );
-      System.assert(
-        ex.getMessage().contains('Product2'),
-        ex.getMessage()
+      System.assertEquals(
+        '受注ウィザード追加項目「Bad_Product2」の DefaultSource=Product2 は設定できません。',
+        ex.getMessage(),
+        'Core 第11.4.3節: Product2 初期値は設定できない'
       );
     }
     System.assertEquals(true, failed);
@@ -109,9 +106,10 @@ private class OrderWizardFieldServiceTest {
       OrderWizardFieldService.getDefinitions('New');
     } catch (AuraHandledException ex) {
       failed = true;
-      System.assert(
-        ex.getMessage().contains('Bad_TodayValue'),
-        ex.getMessage()
+      System.assertEquals(
+        '受注ウィザード追加項目「Bad_TodayValue」の DefaultSource=Today に DefaultValue は指定できません。',
+        ex.getMessage(),
+        'Core 第11.4.3節: Today に DefaultValue は付けない'
       );
     }
     System.assertEquals(true, failed);
@@ -171,11 +169,11 @@ private class OrderWizardFieldServiceTest {
     String error = OrderWizardFieldService.validateBillingCustomFields(
       new Map<String, Object>{ 'InvoiceDateAdjust__c' => BillingScheduleService.ADJUST_NONE }
     );
-    System.assertNotEquals(null, error);
-    System.assert(error.contains('請求先宛名'));
-    System.assert(error.contains('請求書送付先（To）'));
-    System.assert(error.contains('支払条件の計算方式'));
-    System.assert(error.contains('請求日の計算方式'));
+    System.assertEquals(
+      '請求アカウントの必須項目が未設定です。請求アカウントの正規編集画面で設定してください: 請求先宛名、請求書送付先（To）、請求日の計算方式、支払条件の計算方式、支払条件の補正',
+      error,
+      'Core 第5.2節: 請求アカウント確認の必須はハードコード'
+    );
   }
 
   @IsTest
@@ -188,9 +186,11 @@ private class OrderWizardFieldServiceTest {
         'InvoiceDateAdjust__c' => BillingScheduleService.ADJUST_NONE
       }
     );
-    System.assertNotEquals(null, error);
-    System.assert(error.contains('請求先宛名'));
-    System.assert(error.contains('請求書送付先（To）'));
+    System.assertEquals(
+      '請求アカウントの必須項目が未設定です。請求アカウントの正規編集画面で設定してください: 請求先宛名、請求書送付先（To）',
+      error,
+      'Core 第5.2節: 請求先宛名と送付先Toは必須'
+    );
   }
 
   @IsTest
@@ -235,21 +235,9 @@ private class OrderWizardFieldServiceTest {
       Account account = ContractTestDataFactory.insertAccount(
         'Order Wizard Field Label Account'
       );
-      BillingAccount__c billingAccount = new BillingAccount__c(
-        Account__c = account.Id,
-        BillingAddressee__c = '旧宛名',
-        BillingEmailTo__c = 'old@example.com',
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-        InvoiceDateDayOfMonth__c = 1,
-        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
-        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
-        PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
       );
-      ContractTestDataFactory.applyRequiredFields(billingAccount);
-      insert billingAccount;
 
       OrderWizardFieldService.applyBillingFields(
         billingAccount,
@@ -526,7 +514,11 @@ private class OrderWizardFieldServiceTest {
       OrderWizardFieldService.getDefinitions('New');
     } catch (AuraHandledException ex) {
       failed = true;
-      System.assert(ex.getMessage().contains('Bad_Source'), ex.getMessage());
+      System.assertEquals(
+        '受注ウィザード追加項目「Bad_Source」の DefaultSource「Unknown」は未対応です。空欄（静的）/ Today / Opportunity / Account のいずれかを指定してください。',
+        ex.getMessage(),
+        'Core 第11.4.3節: 未対応 DefaultSource は DeveloperName を含める'
+      );
     }
     System.assertEquals(true, failed);
     OrderWizardFieldService.resetCache();
@@ -553,7 +545,10 @@ private class OrderWizardFieldServiceTest {
     String billingError = OrderWizardFieldService.validateBillingCustomFields(
       null
     );
-    System.assertNotEquals(null, billingError);
-    System.assert(billingError.contains('請求先宛名'), billingError);
+    System.assertEquals(
+      '請求アカウントの必須項目が未設定です。請求アカウントの正規編集画面で設定してください: 請求先宛名、請求書送付先（To）、請求日の計算方式、請求日の補正、支払条件の計算方式、支払条件の補正',
+      billingError,
+      'Core 第5.2節: 未入力は正規編集へ誘導する'
+    );
   }
 }
