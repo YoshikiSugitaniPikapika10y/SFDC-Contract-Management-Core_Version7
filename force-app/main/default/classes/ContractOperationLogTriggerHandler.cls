@@ -1,5 +1,5 @@
 /**
- * 仕様: 共通基盤.md 第12章。作成は write の静的フラグだけ。更新は常に拒否。削除は 104 だけ通す。
+ * 仕様: 共通基盤.md 第12章。作成は write の静的フラグだけ。更新は常に拒否。削除は 101 だけ通す。
  */
 public without sharing class ContractOperationLogTriggerHandler {
   public static void assertInsertAllowed(List<ContractOperationLog__c> rows) {
@@ -31,7 +31,7 @@ public without sharing class ContractOperationLogTriggerHandler {
       return;
     }
     for (ContractOperationLog__c row : rows) {
-      row.addError('操作ログの削除は 104 だけです。');
+      row.addError('操作ログの削除は 101 だけです。');
     }
   }
 }

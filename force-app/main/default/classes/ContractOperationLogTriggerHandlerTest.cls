@@ -48,7 +48,7 @@ private class ContractOperationLogTriggerHandlerTest {
   }
 
   @IsTest
-  static void delete_isRejectedWithout104() {
+  static void delete_isRejectedWithout101() {
     ContractOperationLogService.write(
       'EstimateCreate',
       'op-log-handler-delete',
@@ -66,11 +66,11 @@ private class ContractOperationLogTriggerHandlerTest {
     };
     try {
       delete stored;
-      System.assert(false, '共通基盤第12章: 104無しの削除は拒否する');
+      System.assert(false, '共通基盤第12章: 101無しの削除は拒否する');
     } catch (DmlException ex) {
       System.assert(
-        ex.getMessage().contains('104'),
-        '共通基盤第12章: 操作ログの削除は 104 だけ'
+        ex.getMessage().contains('操作ログの削除は 101 だけです。'),
+        '共通基盤第12章: 操作ログの削除は 101 だけ。実際: ' + ex.getMessage()
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;
@@ -78,17 +78,17 @@ private class ContractOperationLogTriggerHandlerTest {
   }
 
   @IsTest
-  static void delete_allows104() {
+  static void delete_allows101() {
     ContractOperationLogService.write(
       'EstimateCreate',
-      'op-log-handler-delete-104',
+      'op-log-handler-delete-101',
       'ContractHistory__c',
       '001000000000004AAA'
     );
     ContractOperationLog__c stored = [
       SELECT Id
       FROM ContractOperationLog__c
-      WHERE BusinessOperationKey__c = 'op-log-handler-delete-104'
+      WHERE BusinessOperationKey__c = 'op-log-handler-delete-101'
       LIMIT 1
     ];
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
@@ -106,7 +106,7 @@ private class ContractOperationLogTriggerHandlerTest {
         FROM ContractOperationLog__c
         WHERE Id = :stored.Id
       ],
-      '共通基盤第12章: 削除は 104 だけ通す'
+      '共通基盤第12章: 削除は 101 だけ通す'
     );
   }
 }
