@@ -343,6 +343,58 @@ private class GlAccountMapResolveServiceTest {
     }
   }
 
+  @IsTest
+  static void resolve_invoiceLineOriginIncludesInvoiceContextMap() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccount__c defaultAccount = insertAccount('Map Line Default');
+      GlAccount__c invoiceAccount = insertAccount('Map Invoice Ctx');
+      insertMap(defaultAccount.Id, 10, 'Line None');
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Invoice Ctx Set',
+        EvaluationContext__c = 'Invoice',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        Aggregate__c = 'All',
+        TargetObject__c = 'InvoiceLine__c',
+        TargetField__c = 'Amount__c',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '1000'
+      );
+      insert new GlAccountMap__c(
+        Name = 'Invoice Ctx Tenant',
+        Account__c = invoiceAccount.Id,
+        SlotKey__c = 'AccountsReceivable',
+        EvaluationContext__c = 'Invoice',
+        ConditionSourceType__c = 'Tenant',
+        TenantConditionSet__c = conditionSet.Id,
+        Priority__c = 20,
+        IsActive__c = true
+      );
+      ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+      context.invoice = new Invoice__c(Amount__c = 2000);
+      context.invoiceLine = new InvoiceLine__c(Amount__c = 1000);
+      context.invoiceLines = new List<InvoiceLine__c>{
+        new InvoiceLine__c(Amount__c = 1000),
+        new InvoiceLine__c(Amount__c = 1000)
+      };
+      GlAccountMapResolveService.ResolvedAccount resolved = GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        'InvoiceLine',
+        context
+      );
+      System.assertEquals(
+        invoiceAccount.Id,
+        resolved.accountId,
+        'Accounting 第4.7節・第6.3節: 請求単位の割当は明細起点の解決に含め優先度最大を取る'
+      );
+    }
+  }
+
   private static GlAccount__c insertAccount(String name) {
     return insertAccount(name, 'Asset');
   }

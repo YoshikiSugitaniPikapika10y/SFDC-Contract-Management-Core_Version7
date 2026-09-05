@@ -414,6 +414,72 @@ private class ConditionEvaluationServiceTest {
   }
 
   @IsTest
+  static void evaluateTenant_invoiceLineAllAndAnyOverInvoiceLines() {
+    GlConditionSet__c allSet = new GlConditionSet__c(
+      Name = 'Eval All Lines',
+      EvaluationContext__c = 'Invoice',
+      Description__c = 'すべて'
+    );
+    insert allSet;
+    insert new GlConditionRule__c(
+      ConditionSet__c = allSet.Id,
+      Sequence__c = 1,
+      Aggregate__c = 'All',
+      TargetObject__c = 'InvoiceLine__c',
+      TargetField__c = 'Amount__c',
+      Operator__c = 'Equals',
+      CompareType__c = 'FixedValue',
+      CompareValue__c = '1000'
+    );
+    GlConditionSet__c anySet = new GlConditionSet__c(
+      Name = 'Eval Any Lines',
+      EvaluationContext__c = 'Invoice',
+      Description__c = 'いずれか'
+    );
+    insert anySet;
+    insert new GlConditionRule__c(
+      ConditionSet__c = anySet.Id,
+      Sequence__c = 1,
+      Aggregate__c = 'Any',
+      TargetObject__c = 'InvoiceLine__c',
+      TargetField__c = 'Amount__c',
+      Operator__c = 'Equals',
+      CompareType__c = 'FixedValue',
+      CompareValue__c = '1000'
+    );
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.invoice = new Invoice__c(Amount__c = 2000);
+    context.invoiceLine = new InvoiceLine__c(Amount__c = 1000);
+    context.invoiceLines = new List<InvoiceLine__c>{
+      new InvoiceLine__c(Amount__c = 1000),
+      new InvoiceLine__c(Amount__c = 1)
+    };
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(allSet.Id, context),
+      'Accounting 第4.7節: すべては請求明細の全件が一致する'
+    );
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(anySet.Id, context),
+      'Accounting 第4.7節: いずれかは請求明細の1件が一致すれば成立'
+    );
+    context.invoiceLines[1].Amount__c = 1000;
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(allSet.Id, context),
+      'Accounting 第4.7節: すべては全明細が一致するとき成立'
+    );
+    context.invoiceLines[0].Amount__c = 1;
+    context.invoiceLines[1].Amount__c = 1;
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(anySet.Id, context),
+      'Accounting 第4.7節: いずれかも全明細不一致なら不成立'
+    );
+  }
+
+  @IsTest
   static void evaluateTenant_textContainsAndNullOperators() {
     GlConditionSet__c conditionSet = new GlConditionSet__c(
       Name = 'Eval Text Set',

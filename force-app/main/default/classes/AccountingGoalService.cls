@@ -1356,6 +1356,9 @@ public without sharing class AccountingGoalService {
     context.invoiceLine = candidate.line;
     context.invoicePayment = candidate.payment;
     context.allocation = candidate.allocation;
+    if (candidate.invoice != null && cachedLinesByInvoice.containsKey(candidate.invoice.Id)) {
+      context.invoiceLines = cachedLinesByInvoice.get(candidate.invoice.Id).values();
+    }
     fillRelatedContext(context, candidate.invoice, candidate.line);
     if (candidate.debitAccountId == null && !String.isBlank(candidate.debitSlotKey)) {
       GlAccountMapResolveService.ResolvedAccount debit = GlAccountMapResolveService.resolve(

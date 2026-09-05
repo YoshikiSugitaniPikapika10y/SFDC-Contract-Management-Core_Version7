@@ -57,8 +57,10 @@ public without sharing class GlAccountMapResolveService {
   }
 
   /**
-   * 仕様: Accounting 第6.3節、第8.2節。
-   * 同一操作内の有効割当照会は1回にまとめ、スロットと評価コンテキストで濾る。条件一致は呼び出しごとに評価する。
+   * 仕様: Accounting 第4.7節、第6.1節、第6.3節、第8.2節。
+   * 同一操作内の有効割当照会は1回にまとめ、スロットと評価コンテキストで濾る。
+   * 請求明細起点では請求単位の割当も同じ生成単位へ含め、一致したうえで優先度最大の1件を取る。
+   * 条件一致は呼び出しごとに評価する。
    */
   private static List<GlAccountMap__c> mapsOf(String slotKey, String evaluationContext) {
     if (mapsBySlotContext == null) {
@@ -86,6 +88,15 @@ public without sharing class GlAccountMapResolveService {
         mapsBySlotContext.get(loadedKey).add(mapping);
       }
     }
+    List<GlAccountMap__c> rows = new List<GlAccountMap__c>();
+    rows.addAll(cachedMaps(slotKey, evaluationContext));
+    if (evaluationContext == 'InvoiceLine') {
+      rows.addAll(cachedMaps(slotKey, 'Invoice'));
+    }
+    return rows;
+  }
+
+  private static List<GlAccountMap__c> cachedMaps(String slotKey, String evaluationContext) {
     String cacheKey = slotKey + '\n' + evaluationContext;
     if (!mapsBySlotContext.containsKey(cacheKey)) {
       mapsBySlotContext.put(cacheKey, new List<GlAccountMap__c>());

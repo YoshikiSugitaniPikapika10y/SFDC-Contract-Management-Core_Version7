@@ -326,6 +326,81 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void goalBuild_resolvesInvoiceContextTenantMapOnConfirm() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('InvCtx');
+      enableAccounting();
+      seedMaps();
+      GlAccount__c invoiceAr = new GlAccount__c(
+        Name = 'Engine AR Invoice Ctx',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      insert invoiceAr;
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Invoice Ctx Tenant',
+        EvaluationContext__c = 'Invoice',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        Aggregate__c = 'All',
+        TargetObject__c = 'InvoiceLine__c',
+        TargetField__c = 'ProductName__c',
+        Operator__c = 'IsNotNull'
+      );
+      insert new GlAccountMap__c(
+        Name = 'Engine AR Invoice Ctx Map',
+        Account__c = invoiceAr.Id,
+        SlotKey__c = 'AccountsReceivable',
+        EvaluationContext__c = 'Invoice',
+        ConditionSourceType__c = 'Tenant',
+        TenantConditionSet__c = conditionSet.Id,
+        Priority__c = 20,
+        IsActive__c = true
+      );
+      markConfirmed(fixture.invoice);
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      Invoice__c invoice = [
+        SELECT
+          Id,
+          InvoiceDate__c,
+          InvoiceTransactionStatus__c,
+          BillingAccountSnapShot__c,
+          BillingAccountKeySnapShot__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      Test.startTest();
+      List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
+        invoice,
+        policy,
+        new List<GlJournal__c>()
+      );
+      Test.stopTest();
+      Boolean usedInvoiceAccount = false;
+      for (AccountingGoalService.GoalJournal goal : goals) {
+        if (
+          goal.record.JournalPatternKey__c == 'BILLING_BASIS_INVOICE_BODY' &&
+          goal.record.DebitAccount__c == invoiceAr.Id
+        ) {
+          usedInvoiceAccount = true;
+        }
+      }
+      System.assertEquals(
+        true,
+        usedInvoiceAccount,
+        'Accounting 第4.7節・第6.2節: 請求確定はInvoiceコンテキストの科目割当を評価する'
+      );
+    }
+  }
+
+  @IsTest
   static void goalBuild_queriesTenantInvoicePaymentConditionFields() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createPaymentFixture();

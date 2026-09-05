@@ -52,6 +52,7 @@ public without sharing class ConditionEvaluationService {
   public class Context {
     public Invoice__c invoice;
     public InvoiceLine__c invoiceLine;
+    public List<InvoiceLine__c> invoiceLines;
     public InvoicePayment__c invoicePayment;
     public InvoicePaymentAllocation__c allocation;
     public ContractProduct__c contractProduct;
@@ -94,7 +95,7 @@ public without sharing class ConditionEvaluationService {
       return true;
     }
     List<GlConditionSet__c> sets = [
-      SELECT ConditionLogic__c
+      SELECT ConditionLogic__c, EvaluationContext__c
       FROM GlConditionSet__c
       WHERE Id = :conditionSetId
       WITH SYSTEM_MODE
@@ -106,6 +107,7 @@ public without sharing class ConditionEvaluationService {
     List<GlConditionRule__c> rules = [
       SELECT
         Sequence__c,
+        Aggregate__c,
         TargetObject__c,
         TargetField__c,
         Operator__c,
@@ -123,14 +125,10 @@ public without sharing class ConditionEvaluationService {
     }
     Map<Decimal, Boolean> bySequence = new Map<Decimal, Boolean>();
     for (GlConditionRule__c rule : rules) {
-      Object left = readValue(context, rule.TargetObject__c, rule.TargetField__c);
-      Object right = null;
-      if (rule.CompareType__c == 'Field') {
-        right = readValue(context, rule.CompareObject__c, rule.CompareField__c);
-      } else if (rule.Operator__c != 'IsNull' && rule.Operator__c != 'IsNotNull') {
-        right = rule.CompareValue__c;
-      }
-      bySequence.put(rule.Sequence__c, compare(left, rule.Operator__c, right));
+      bySequence.put(
+        rule.Sequence__c,
+        evaluateTenantRule(rule, sets[0].EvaluationContext__c, context)
+      );
     }
     if (String.isBlank(sets[0].ConditionLogic__c)) {
       for (Boolean matched : bySequence.values()) {
@@ -141,6 +139,64 @@ public without sharing class ConditionEvaluationService {
       return true;
     }
     return evaluateConditionLogic(sets[0].ConditionLogic__c, bySequence);
+  }
+
+  /** 仕様: Accounting 第4.7節。請求起点の請求明細はすべて／いずれかで集約する。 */
+  private static Boolean evaluateTenantRule(
+    GlConditionRule__c rule,
+    String evaluationContext,
+    Context context
+  ) {
+    if (
+      evaluationContext == 'Invoice' &&
+      rule.TargetObject__c == 'InvoiceLine__c' &&
+      (rule.Aggregate__c == 'All' || rule.Aggregate__c == 'Any')
+    ) {
+      return evaluateInvoiceLineAggregate(rule, context);
+    }
+    return compareTenantRule(rule, context);
+  }
+
+  private static Boolean evaluateInvoiceLineAggregate(
+    GlConditionRule__c rule,
+    Context context
+  ) {
+    List<InvoiceLine__c> lines = context == null ? null : context.invoiceLines;
+    if (lines == null || lines.isEmpty()) {
+      if (context == null || context.invoiceLine == null) {
+        return rule.Aggregate__c == 'All';
+      }
+      lines = new List<InvoiceLine__c>{ context.invoiceLine };
+    }
+    InvoiceLine__c saved = context.invoiceLine;
+    Boolean isAll = rule.Aggregate__c == 'All';
+    Boolean aggregated = isAll;
+    for (InvoiceLine__c line : lines) {
+      context.invoiceLine = line;
+      Boolean hit = compareTenantRule(rule, context);
+      if (isAll) {
+        if (!hit) {
+          aggregated = false;
+          break;
+        }
+      } else if (hit) {
+        aggregated = true;
+        break;
+      }
+    }
+    context.invoiceLine = saved;
+    return aggregated;
+  }
+
+  private static Boolean compareTenantRule(GlConditionRule__c rule, Context context) {
+    Object left = readValue(context, rule.TargetObject__c, rule.TargetField__c);
+    Object right = null;
+    if (rule.CompareType__c == 'Field') {
+      right = readValue(context, rule.CompareObject__c, rule.CompareField__c);
+    } else if (rule.Operator__c != 'IsNull' && rule.Operator__c != 'IsNotNull') {
+      right = rule.CompareValue__c;
+    }
+    return compare(left, rule.Operator__c, right);
   }
 
   private static Boolean evaluateRule(
