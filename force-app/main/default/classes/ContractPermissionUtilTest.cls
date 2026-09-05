@@ -383,11 +383,258 @@ private class ContractPermissionUtilTest {
       rows.size(),
       '共通基盤 第3.4節: 101 に操作ログのオブジェクト権限がある'
     );
-    System.assertEquals(false, rows[0].PermissionsCreate);
-    System.assertEquals(true, rows[0].PermissionsEdit);
-    System.assertEquals(true, rows[0].PermissionsRead);
-    System.assertEquals(true, rows[0].PermissionsDelete);
-    System.assertEquals(true, rows[0].PermissionsViewAllRecords);
-    System.assertEquals(true, rows[0].PermissionsModifyAllRecords);
+    System.assertEquals(
+      false,
+      rows[0].PermissionsCreate,
+      '共通基盤 第3.4節・第3.6節: 101 の操作ログに Create は付けない'
+    );
+    System.assertEquals(
+      true,
+      rows[0].PermissionsEdit,
+      '共通基盤 第3.4節・第3.6節: 101 の操作ログに Edit を付ける'
+    );
+    System.assertEquals(
+      true,
+      rows[0].PermissionsRead,
+      '共通基盤 第3.4節: 101 の操作ログは Read'
+    );
+    System.assertEquals(
+      true,
+      rows[0].PermissionsDelete,
+      '共通基盤 第3.4節・第3.6節: 101 の操作ログに Delete を付ける'
+    );
+    System.assertEquals(
+      true,
+      rows[0].PermissionsViewAllRecords,
+      '共通基盤 第3.4節: 101 の操作ログは View All Records'
+    );
+    System.assertEquals(
+      true,
+      rows[0].PermissionsModifyAllRecords,
+      '共通基盤 第3.4節: 101 の操作ログは Modify All Records'
+    );
+  }
+
+  @IsTest
+  static void has_blankStringIsFalse_and09AllowsBoard_and03AllowsDocumentDefaults() {
+    System.assertEquals(
+      false,
+      ContractPermissionUtil.has(''),
+      '共通基盤 第3.2節: 空の権限名は操作できない'
+    );
+
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.VIEW_INVOICE => true
+    };
+    try {
+      ContractPermissionUtil.assertViewInvoicePreview();
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.ESTIMATE => true
+    };
+    try {
+      ContractPermissionUtil.assertEstimateDocumentDefaults();
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+  }
+
+  @IsTest
+  static void remainingAsserts_useExactMessages() {
+    ContractPermissionUtil.testAllowAll = false;
+    try {
+      assertBlocked(
+        '未確定請求を直す権限がありません。',
+        new AssertEditDraft()
+      );
+      assertBlocked(
+        '請求書を発行・送付する権限がありません。',
+        new AssertSendInvoice()
+      );
+      assertBlocked(
+        '入金する権限がありません。',
+        new AssertInvoicePayment()
+      );
+      assertBlocked(
+        '手動仕訳を実行する権限がありません。',
+        new AssertManualJournal()
+      );
+      assertBlocked(
+        '確定済み請求を取り消す権限がありません。',
+        new AssertCancelInvoice()
+      );
+      assertBlocked(
+        '仕訳をLockする権限がありません。',
+        new AssertLockJournal()
+      );
+      assertBlocked(
+        '仕訳をUnlockする権限がありません。',
+        new AssertUnlockJournal()
+      );
+      assertBlocked(
+        '契約横断を開く権限がありません。',
+        new AssertCrossWork()
+      );
+      assertBlocked(
+        '組織設定を保存する権限がありません。',
+        new AssertOrgSettings()
+      );
+      assertBlocked(
+        '見積を送る権限がありません。',
+        new AssertSendEstimates()
+      );
+      assertBlocked(
+        '見積書を発行する権限がありません。',
+        new AssertIssueEstimate()
+      );
+      Boolean blankMessage = false;
+      try {
+        ContractPermissionUtil.assertHas(ContractPermissionUtil.ORDER, null);
+      } catch (AuraHandledException ex) {
+        blankMessage = true;
+        System.assertEquals(
+          'この操作を実行する権限がありません。',
+          ex.getMessage(),
+          '共通基盤 第3.8節: 権限拒否の既定文'
+        );
+      }
+      System.assertEquals(true, blankMessage);
+    } finally {
+      ContractPermissionUtil.testAllowAll = true;
+    }
+  }
+
+  @IsTest
+  static void hasFixContract_andDeleteRecords_includeStandalone102and103() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.FIX_CONTRACT => true
+    };
+    try {
+      System.assertEquals(
+        true,
+        ContractPermissionUtil.hasFixContract(),
+        '共通基盤 第3.6節: 102 単独で契約と見積を直せる'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.DELETE_RECORDS => true
+    };
+    try {
+      System.assertEquals(
+        true,
+        ContractPermissionUtil.hasDeleteRecords(),
+        '共通基盤 第3.6節: 103 単独でレコードを消せる'
+      );
+      System.assertEquals(
+        false,
+        ContractPermissionUtil.hasMigrateAll(),
+        '共通基盤 第3.6節: 103 は 101 を含まない'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+  }
+
+  @IsTest
+  static void estimateDocumentDefaults_allow05_andInvoiceKeyAllows16() {
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.SEND_ESTIMATE => true
+    };
+    try {
+      ContractPermissionUtil.assertEstimateDocumentDefaults();
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.LOCK_JOURNAL => true
+    };
+    try {
+      ContractPermissionUtil.assertInvoiceOperationKey();
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+  }
+
+  private static void assertBlocked(String expected, AssertCall call) {
+    Boolean blocked = false;
+    try {
+      call.run();
+    } catch (AuraHandledException ex) {
+      blocked = true;
+      System.assertEquals(expected, ex.getMessage());
+    }
+    System.assertEquals(true, blocked, expected);
+  }
+
+  private interface AssertCall {
+    void run();
+  }
+  private class AssertEditDraft implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertEditDraftInvoice();
+    }
+  }
+  private class AssertSendInvoice implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertSendInvoice();
+    }
+  }
+  private class AssertInvoicePayment implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertInvoicePayment();
+    }
+  }
+  private class AssertManualJournal implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertManualJournal();
+    }
+  }
+  private class AssertCancelInvoice implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertCancelInvoice();
+    }
+  }
+  private class AssertLockJournal implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertLockJournal();
+    }
+  }
+  private class AssertUnlockJournal implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertUnlockJournal();
+    }
+  }
+  private class AssertCrossWork implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertCrossWork();
+    }
+  }
+  private class AssertOrgSettings implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertOrgSettings();
+    }
+  }
+  private class AssertSendEstimates implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertSendEstimates();
+    }
+  }
+  private class AssertIssueEstimate implements AssertCall {
+    public void run() {
+      ContractPermissionUtil.assertIssueEstimate();
+    }
   }
 }
