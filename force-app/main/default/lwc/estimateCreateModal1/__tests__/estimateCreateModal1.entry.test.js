@@ -29,21 +29,20 @@ jest.mock(
   { virtual: true }
 );
 
-const entryOptions = Object.getOwnPropertyDescriptor(
+const typeOptions = Object.getOwnPropertyDescriptor(
   EstimateCreateModal1.prototype,
-  "entryOptions"
+  "typeOptions"
 ).get;
 
 function optionsOf(state) {
-  return entryOptions.call(state);
+  return typeOptions.call(state);
 }
 
 describe("estimateCreateModal1 (Core 4.3.3 / 0.1)", () => {
   it("shows type buttons as 新規／追加変更／更新／解約", () => {
     expect(
       optionsOf({
-        isEntryNew: false,
-        isEntryContinuation: false,
+        selectedType: "",
         readOnly: false
       }).map((row) => row.label)
     ).toEqual(["新規", "追加変更", "更新", "解約"]);
@@ -52,8 +51,7 @@ describe("estimateCreateModal1 (Core 4.3.3 / 0.1)", () => {
   it("does not let Estimate edit change the type", () => {
     expect(
       optionsOf({
-        isEntryNew: true,
-        isEntryContinuation: false,
+        selectedType: "New",
         readOnly: true
       }).every((row) => row.disabled === true)
     ).toBe(true);

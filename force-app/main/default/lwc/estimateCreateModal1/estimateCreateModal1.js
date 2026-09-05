@@ -8,16 +8,21 @@ import OPP_NAME_FIELD from "@salesforce/schema/Opportunity.Name";
 import ACCOUNT_NAME_FIELD from "@salesforce/schema/Opportunity.Account.Name";
 import OPP_CONTACT_ID_FIELD from "@salesforce/schema/Opportunity.ContactId";
 
-const ENTRY_NEW = "new";
-const ENTRY_CONTINUATION = "continuation";
+// 仕様: Core 第0.1節。見積種別の画面表示名。保存値は New／Change／Renew／Cancel。
+const TYPE_OPTIONS = [
+  { value: "New", label: "新規" },
+  { value: "Change", label: "追加変更" },
+  { value: "Renew", label: "更新" },
+  { value: "Cancel", label: "解約" }
+];
 
 /**
- * Step1 入口: 商談メタ + 新規 / 続きの2択カード。
- * 操作（Change/Renew/Cancel）は契約サービス選択後に modal2 側で選ぶ。
+ * Step1 基本情報: 取引先名｜商談名｜種別。
+ * 仕様: Core 第4.3.3節・第0.1節。種別は商談名の右に均等幅の角丸ボタン。
  */
 export default class EstimateCreateModal1 extends LightningElement {
   @api recordId;
-  @api selectedType = "New";
+  @api selectedType = "";
   @api entryMode = "";
   @api serviceLifecycle = "";
   @api opportunityName = "";
@@ -30,13 +35,6 @@ export default class EstimateCreateModal1 extends LightningElement {
     }
   }
 
-  get stepDescription() {
-    if (this.readOnly) {
-      return "商談と見積の入口を確認します。編集時は入口を変更できません。";
-    }
-    return "";
-  }
-
   get accountNameDisplay() {
     return this.accountName || "—";
   }
@@ -45,39 +43,22 @@ export default class EstimateCreateModal1 extends LightningElement {
     return this.opportunityName || "—";
   }
 
-  get isEntryNew() {
-    return this.entryMode === ENTRY_NEW;
-  }
-
-  get isEntryContinuation() {
-    return this.entryMode === ENTRY_CONTINUATION;
-  }
-
-  get entryOptions() {
-    return [
-      {
-        value: ENTRY_NEW,
-        label: "新規契約を作成する",
-        iconName: "utility:new",
-        selected: this.isEntryNew && !this.isEntryContinuation,
-        pressed: this.isEntryNew && !this.isEntryContinuation ? "true" : "false"
-      },
-      {
-        value: ENTRY_CONTINUATION,
-        label: "既存契約から作成する",
-        iconName: "utility:contract_doc",
-        selected: this.isEntryContinuation,
-        pressed: this.isEntryContinuation ? "true" : "false"
-      }
-    ].map((option) => ({
-      ...option,
-      disabled: this.readOnly === true,
-      buttonClass: option.selected
-        ? "est-entry-card est-entry-card_active"
-        : this.readOnly
-          ? "est-entry-card est-entry-card_locked"
-          : "est-entry-card"
-    }));
+  /** 仕様: Core 第4.3.3節・第0.1節。新規／追加変更／更新／解約。編集時は変更できない。 */
+  get typeOptions() {
+    return TYPE_OPTIONS.map((option) => {
+      const selected = this.selectedType === option.value;
+      return {
+        ...option,
+        selected,
+        pressed: selected ? "true" : "false",
+        disabled: this.readOnly === true,
+        buttonClass: selected
+          ? "est-type-btn est-type-btn_active"
+          : this.readOnly
+            ? "est-type-btn est-type-btn_locked"
+            : "est-type-btn"
+      };
+    });
   }
 
   @wire(getRecord, {
@@ -102,25 +83,18 @@ export default class EstimateCreateModal1 extends LightningElement {
     );
   }
 
-  handleEntrySelect(event) {
+  handleTypeSelect(event) {
     if (this.readOnly) {
       return;
     }
-    const entryMode = event.currentTarget.dataset.entry;
-    if (!entryMode) {
+    const selectedType = event.currentTarget.dataset.type;
+    if (!selectedType) {
       return;
     }
     this.dispatchEvent(
-      new CustomEvent("entrychange", {
-        detail: { entryMode }
+      new CustomEvent("typechange", {
+        detail: { selectedType }
       })
     );
-    if (entryMode === ENTRY_NEW) {
-      this.dispatchEvent(
-        new CustomEvent("typechange", {
-          detail: { selectedType: "New" }
-        })
-      );
-    }
   }
 }
