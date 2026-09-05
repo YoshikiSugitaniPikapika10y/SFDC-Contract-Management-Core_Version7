@@ -4,61 +4,77 @@
     standardStylesheets="true"
     docType="html-5.0"
     lightningStylesheets="true">
+    <!-- 仕様: Core 第4.8節・第7.10節・第11.3.2節 -->
+    <style type="text/css">
+        .estimateIssueTemplate {
+            min-width: 24rem;
+            width: 100%;
+        }
+    </style>
     <apex:form>
-        <apex:pageBlock title="見積書発行">
-            <apex:pageMessages />
-            <apex:pageBlockSection columns="1" rendered="{!AND(hasContext, NOT(issueSucceeded))}">
-                <apex:pageBlockSectionItem>
-                    <apex:outputLabel value="帳票" for="documentTemplate" />
-                    <apex:selectList id="documentTemplate"
-                        value="{!selectedTemplateKey}"
-                        size="1"
-                        required="true">
-                        <apex:selectOptions value="{!templateOptions}" />
-                        <apex:actionSupport event="onchange" action="{!refreshIssueFileName}" rerender="issueFileNamePanel"/>
-                    </apex:selectList>
-                </apex:pageBlockSectionItem>
-                <apex:pageBlockSectionItem>
-                    <apex:outputLabel value="ファイル名" for="issueFileName" />
-                    <apex:outputPanel id="issueFileNamePanel">
-                        <apex:outputText id="issueFileName" value="{!issueFileName}" />
+        <apex:outputPanel id="issuePanel">
+            <apex:pageBlock title="見積書発行">
+                <apex:pageMessages />
+                <apex:pageBlockSection columns="1" rendered="{!AND(hasContext, NOT(issueSucceeded))}">
+                    <apex:pageBlockSectionItem>
+                        <apex:outputLabel value="帳票" for="documentTemplate" />
+                        <apex:selectList id="documentTemplate"
+                            styleClass="estimateIssueTemplate"
+                            value="{!selectedTemplateKey}"
+                            size="1"
+                            required="true">
+                            <apex:selectOptions value="{!templateOptions}" />
+                            <apex:actionSupport event="onchange" action="{!refreshIssueFileName}" rerender="issueFileNamePanel"/>
+                        </apex:selectList>
+                    </apex:pageBlockSectionItem>
+                    <apex:pageBlockSectionItem>
+                        <apex:outputLabel value="ファイル名" for="issueFileName" />
+                        <apex:outputPanel id="issueFileNamePanel">
+                            <apex:outputText id="issueFileName" value="{!issueFileName}" />
+                        </apex:outputPanel>
+                    </apex:pageBlockSectionItem>
+                </apex:pageBlockSection>
+                <apex:pageBlockButtons location="bottom" rendered="{!AND(hasContext, NOT(issueSucceeded), canIssuePdf)}">
+                    <apex:actionStatus id="issueStatus">
+                        <apex:facet name="start">
+                            <apex:outputText value="発行中…"/>
+                        </apex:facet>
+                        <apex:facet name="stop">
+                            <apex:commandButton value="発行する"
+                                action="{!issuePdf}"
+                                status="issueStatus"
+                                rerender="issuePanel"
+                                oncomplete="openIssuedPreviewIfAny();"/>
+                        </apex:facet>
+                    </apex:actionStatus>
+                </apex:pageBlockButtons>
+                <apex:outputPanel rendered="{!issueSucceeded}">
+                    <span id="issuedPreviewUrl" style="display:none;">{!filesPreviewUrl}</span>
+                    <p>発行したファイルは標準 Files で確認できます。</p>
+                    <p>
+                        <apex:outputLink value="{!filesPreviewUrl}" target="_blank">発行したファイルをプレビュー</apex:outputLink>
+                    </p>
+                    <apex:outputPanel rendered="{!showSendThisFile}">
+                        <button type="button"
+                            onclick="openSendThisFile('{!issuedContentDocumentId}','{!historyId}');">このファイルを送る</button>
                     </apex:outputPanel>
-                </apex:pageBlockSectionItem>
-            </apex:pageBlockSection>
-            <apex:pageBlockButtons location="bottom" rendered="{!AND(hasContext, NOT(issueSucceeded), canIssuePdf)}">
-                <!-- 仕様: Core 第7.10節、第4.8節、第4.10節、第11.3.1節。処理中、使わない、会社情報空は発行を出せない。 -->
-                <apex:commandButton value="発行する"
-                    action="{!issuePdf}"
-                    status="issueStatus"
-                    onclick="this.disabled=true;"/>
-                <apex:actionStatus id="issueStatus">
-                    <apex:facet name="start">
-                        <apex:outputText value="発行中…"/>
-                    </apex:facet>
-                </apex:actionStatus>
-            </apex:pageBlockButtons>
-            <apex:outputPanel rendered="{!issueSucceeded}">
-                <p>発行したファイルは標準 Files で確認できます。</p>
-                <p>
-                    <apex:outputLink value="{!filesPreviewUrl}" target="_blank">発行したファイルをプレビュー</apex:outputLink>
-                </p>
-                <apex:outputPanel rendered="{!showSendThisFile}">
-                    <button type="button" onclick="openSendThisFile();">このファイルを送る</button>
                 </apex:outputPanel>
-            </apex:outputPanel>
-        </apex:pageBlock>
+            </apex:pageBlock>
+        </apex:outputPanel>
     </apex:form>
     <script>
-        function openSendThisFile() {
-            var documentId = '{!issuedContentDocumentId}';
-            var historyId = '{!historyId}';
+        function openIssuedPreviewIfAny() {
+            var el = document.getElementById('issuedPreviewUrl');
+            var url = el ? String(el.textContent || '').replace(/^\s+|\s+$/g, '') : '';
+            if (url) {
+                window.open(url, '_blank');
+            }
+        }
+        function openSendThisFile(documentId, historyId) {
             try {
                 sessionStorage.setItem('cmc.estimateSend.initialContentDocumentId', documentId);
             } catch (e) {}
             window.location = '/lightning/action/quick/ContractHistory__c.Estimate_Send?recordId=' + encodeURIComponent(historyId);
-        }
-        if ({!issueSucceeded} && '{!filesPreviewUrl}') {
-            window.open('{!filesPreviewUrl}', '_blank');
         }
     </script>
 </apex:page>
