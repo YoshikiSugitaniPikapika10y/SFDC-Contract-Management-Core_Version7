@@ -1442,14 +1442,16 @@
                     onchange={handleMemoChange}
                     max-length="32768"
                   ></lightning-textarea>
-                  <button
-                    type="button"
-                    class="ghost-btn"
-                    data-invoice-id={invoice.invoiceId}
-                    onclick={handleSaveMemo}
-                  >
-                    メモを保存
-                  </button>
+                  <div class="panel-actions">
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      onclick={handleSaveMemo}
+                    >
+                      メモを保存
+                    </button>
+                  </div>
                 </template>
                 <template if:false={invoice.canEditInvoiceMemo}>
                   <span class="invoice-meta-k">請求書メモ</span>

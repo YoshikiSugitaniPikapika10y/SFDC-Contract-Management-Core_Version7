@@ -350,6 +350,13 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
       (button) => button.textContent.trim() === "メモを保存"
     );
     expect(memoSave).toBeTruthy();
+    expect(memoSave.closest(".panel-actions")).toBeTruthy();
+    const headerSave = Array.from(panel.querySelectorAll("button")).find(
+      (button) => button.textContent.trim() === "保存"
+    );
+    expect(headerSave.closest(".panel-actions")).toBeTruthy();
+    expect(headerSave.classList.contains("solid-btn")).toBe(true);
+    expect(memoSave.classList.contains("ghost-btn")).toBe(true);
   });
 
   it("未確定の請求書情報は送付内に反映を出す (Core 7.8)", async () => {
