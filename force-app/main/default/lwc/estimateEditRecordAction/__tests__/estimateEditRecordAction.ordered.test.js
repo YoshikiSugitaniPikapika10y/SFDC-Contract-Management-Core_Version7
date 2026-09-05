@@ -25,13 +25,17 @@ jest.mock(
   { virtual: true }
 );
 
-describe("estimateEditRecordAction (Core 4.3.1)", () => {
+describe("estimateEditRecordAction (Core 4.1 / 4.3.1 / 4.7 / 12.2)", () => {
   const canOpenWizard = Object.getOwnPropertyDescriptor(
     EstimateEditRecordAction.prototype,
     "canOpenWizard"
   ).get;
+  const cannotEditMessage = Object.getOwnPropertyDescriptor(
+    EstimateEditRecordAction.prototype,
+    "cannotEditMessage"
+  ).get;
 
-  it("opens the wizard for Ordered as well as Estimate", () => {
+  it("opens the wizard for Estimate (hub) and Ordered (highlight)", () => {
     expect(
       canOpenWizard.call({ hasPermission: true, historyStatus: "Ordered" })
     ).toBe(true);
@@ -49,11 +53,7 @@ describe("estimateEditRecordAction (Core 4.3.1)", () => {
     ).toBe(false);
   });
 
-  it("does not open the wizard for Archive (Core 4.1 / 4.7 / 12.2)", () => {
-    const cannotEditMessage = Object.getOwnPropertyDescriptor(
-      EstimateEditRecordAction.prototype,
-      "cannotEditMessage"
-    ).get;
+  it("does not open the wizard for Archive", () => {
     expect(
       canOpenWizard.call({ hasPermission: true, historyStatus: "Archive" })
     ).toBe(false);

@@ -200,6 +200,40 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     }
   });
 
+  it("shows Core 11.6 heading one-liners", async () => {
+    const element = await mount(
+      pageData({
+        hasAccountingMaster: true,
+        settingLinks: [
+          { key: "permissionSets", url: "/lightning/setup/PermSets/home" },
+          ...MASTER_LINKS
+        ]
+      })
+    );
+    const leads = {
+      "1. 権限と共有": "権限とレコードの共有",
+      "2. 商品": "契約で使う商品",
+      "3. 帳票":
+        "見積書・請求書の3択、会社情報。本体はリンク先。既定はカタログ",
+      "4. 送付": "組織送信元。本体はリンク先。既定はカタログ",
+      "5. 契約":
+        "継続課金の既定サイクル数、見積有効期間、更新商談スイッチ",
+      "6. 追加項目": "ウィザード・請求操作の追加項目とコピー。検証は任意",
+      "7. 金額計算": "丸め・按分。変更しても保存済みは再計算しない",
+      "8. Accounting":
+        "利用有無と方針。未固定なら変更可。固定後は参照専用。マスタはリンク先",
+      "9. 入力とロック": "入力強制とロック除外項目"
+    };
+    for (const [heading, lead] of Object.entries(leads)) {
+      const section = [...element.shadowRoot.querySelectorAll("h2")]
+        .find((node) => node.textContent.trim() === heading)
+        .closest("section");
+      expect(section.querySelector(".section-lead").textContent.trim()).toBe(
+        lead
+      );
+    }
+  });
+
   it("shows Core 11.6 impact help texts on bang tips", async () => {
     const element = await mount(
       pageData({
@@ -213,16 +247,65 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     const expected = {
       "行 1.1":
         "業務で使う操作の可否をユーザに付けます。金額は変わりません。付け外しは操作ログに書きません。",
+      "行 1.2": "複数の権限をまとめてユーザに付けます。",
+      "行 1.3":
+        "レコードを誰が見られるかを決めます。一覧に出る範囲もここで変わります。",
+      "行 2.1":
+        "契約で使う商品を管理します。新しい見積行の初期値になります。",
+      "行 3.1":
+        "見積書PDFの発行、見積メール、ウィザードの見積書セクションの有無に使います。",
+      "行 3.2": "請求書PDFの発行とメールに使います。",
+      "行 3.3": "見積・請求のPDFに出す会社名です。",
+      "行 3.4": "見積・請求のPDFに出す住所です。",
+      "行 3.5": "請求PDFに出す登録番号です。",
+      "行 3.6": "請求PDFに出す振込先です。",
+      "行 3.7": "見積・請求のPDFのフッターに出します。",
+      "行 3.8": "見積・請求のPDFに出します。",
+      "行 3.9":
+        "発行する帳票の候補です。有効な既定が1つなら、発行・送付の最初の選択になります。",
+      "行 3.10":
+        "ウィザードの備考の初期値です。自由文だけでも保存できます。",
       "行 4.1":
         "見積の差出人は、組織か自分かを送れます。ここは組織を選んだときのアドレスです。空でも自分から送れます。",
       "行 4.2":
         "請求の差出人は組織だけです。ここが差出人になります。空では送れません。",
+      "行 4.3":
+        "送るメールの候補です。有効な既定が1つなら、送付の最初の選択になります。",
+      "行 5.1":
+        "Newで終了日が空のとき、手動Renewの初期終了日、自動Renew見積の延長の初期値に使います。",
+      "行 5.2":
+        "ウィザードが見積日から有効期限の初期値を付けるときの暦月数です。",
+      "行 5.3":
+        "ONのときだけ、受注画面のチェックと件数の増減が動きます。OFFなら作成要求は拒否し、自動Renew見積も作りません。",
+      "行 6.1":
+        "見積Step 2に出すカスタム項目、必須、初期値を指定します。",
+      "行 6.2":
+        "受注、受注済みの見積編集、差し戻しに出すカスタム項目を指定します。",
+      "行 6.3":
+        "請求情報編集、入出金登録、仕訳に出すカスタム項目を指定します。",
+      "行 6.4": "作成時、空欄の項目だけコピーします。",
       "行 6.5":
         "コピー定義が壊れていないかを、保存とは別に確認します。定義はここでは直しません。方針を固定したあとも実行できます。",
+      "行 7.1":
+        "見積税額、請求ヘッダ税、配分、入出金の初期配分、月次バケット金額の計算に使います。",
+      "行 7.2": "丸め・按分の会社設定の行を開きます。",
       "行 8.1":
         "ONなら仕訳生成、会計タグ、検収終了日の標準画面が動きます。OFFでも請求と入出金は動きます。",
+      "行 8.2": "仕訳で売掛と前受が立つ時点を決めます。",
+      "行 8.3": "消費税の仕訳を立てる時点を決めます。",
+      "行 8.4": "月次売上の期間の切れ方です。",
+      "行 8.5": "月次売上仕訳の計上日を決めます。",
+      "行 8.6": "月次売上と税配分の端数を、どのバケットへ入れるかを決めます。",
+      "行 8.7": "仕訳で使う実勘定科目です。",
+      "行 8.8": "割当を条件で分けるときに使います。",
+      "行 8.9": "スロットから実勘定へつなぎます。",
+      "行 8.10": "請求書単位のタグ結果を付けます。",
+      "行 8.11": "手動仕訳のメニューです。",
       "行 9.1":
-        "この設定を参照する顧客の入力規則だけを、導入後から効かせます。パッケージ標準のテストクラスを回すときは、OFFにして回します。"
+        "この設定を参照する顧客の入力規則だけを、導入後から効かせます。パッケージ標準のテストクラスを回すときは、OFFにして回します。",
+      "行 9.2": "確定後に人が直せるカスタム項目を指定します。",
+      "行 9.3": "登録後に人が直せるカスタム項目を指定します。",
+      "行 9.4": "Lock後に人が直せるカスタム項目を指定します。"
     };
     for (const [rowNum, help] of Object.entries(expected)) {
       const row = [...element.shadowRoot.querySelectorAll(".setting-row")].find(
@@ -230,15 +313,10 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
       );
       expect(row.querySelector(".help-tip").textContent.trim()).toBe(help);
     }
-    expect(
-      [...element.shadowRoot.querySelectorAll("h2")]
-        .find((node) => node.textContent.trim() === "9. 入力とロック")
-        .closest("section")
-        .querySelector(".section-lead").textContent.trim()
-    ).toBe("入力強制とロック除外項目");
-    expect(
-      element.shadowRoot.querySelector('[name="validationEnforce"]').label
-    ).toBe("カスタム入力規則をON");
+    const enforce = [
+      ...element.shadowRoot.querySelectorAll("lightning-input")
+    ].find((node) => node.name === "validationEnforce");
+    expect(enforce.label).toBe("カスタム入力規則をON");
   });
 
   it("hides accounting master links without permission 21", async () => {
@@ -300,6 +378,9 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     const freezeHint =
       "最初の請求確定まで変えられる。確定後は101以外では戻せない";
     expect(unfrozen.shadowRoot.textContent).toContain(freezeHint);
+    expect(unfrozen.shadowRoot.textContent).not.toContain(
+      "確定後は104以外では戻せない"
+    );
     expect(unfrozen.shadowRoot.textContent.split(freezeHint).length - 1).toBe(6);
     document.body.removeChild(unfrozen);
 
@@ -315,8 +396,13 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     const text = frozen.shadowRoot.textContent;
     expect(text).toContain("変更不可");
     expect(text).not.toContain("確定後は変更不可");
-    expect(text).toContain("固定者");
-    expect(text).toContain("2026-08-01");
+    const frozenInputs = [
+      ...frozen.shadowRoot.querySelectorAll("lightning-input")
+    ];
+    const frozenBy = frozenInputs.find((node) => node.label === "固定者");
+    const frozenAt = frozenInputs.find((node) => node.label === "固定日時");
+    expect(frozenBy.value).toBe("固定者");
+    expect(frozenAt.value).toBe("2026-08-01");
   });
 });
 
@@ -372,7 +458,8 @@ describe("contractDocumentSettings copy definition validation (Core 11.6)", () =
       "コピー設定を検証"
     );
 
-    await element.handleValidateFieldCopy();
+    validateButton.click();
+    await Promise.resolve();
     expect(validateFieldCopyDefinitions).toHaveBeenCalled();
   });
 });
@@ -594,7 +681,8 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
           { name: "estimateSendMode", value: "" },
           { name: "invoiceSendMode", value: "PdfOnly" }
         ]
-      }
+      },
+      storedSendMode: proto.storedSendMode
     };
     proto.applyNamedFieldValues.call(instance);
     expect(() => proto.assertStoredSendModes.call(instance)).toThrow(
