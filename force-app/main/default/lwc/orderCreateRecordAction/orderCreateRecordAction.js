@@ -11,7 +11,16 @@ import { resizeQuickActionPanel } from "c/quickActionPanelResize";
 export default class OrderCreateRecordAction extends NavigationMixin(
   LightningElement
 ) {
-  @api recordId;
+  _recordId = "";
+
+  // 仕様: Core 第5.2節。Quick Action の recordId は後から入ることがある。
+  @api
+  get recordId() {
+    return this._recordId;
+  }
+  set recordId(value) {
+    this._recordId = value || "";
+  }
 
   pendingRecordRefresh;
   panelSize = "large";

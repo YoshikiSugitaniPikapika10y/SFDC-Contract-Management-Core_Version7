@@ -2,6 +2,7 @@ import OrderCreateWizard from "c/orderCreateWizard";
 import confirmOrder from "@salesforce/apex/OrderCreateController.confirmOrder";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
+import { handleMissingRecordActionId } from "c/orderWizardClose";
 
 jest.mock(
   "lightning/actions",
@@ -203,5 +204,26 @@ describe("orderCreateWizard cancel billing gate (Core 5.2 / 1.1.10)", () => {
     };
     proto.handleClose.call(ctx);
     expect(ctx.closeAction).not.toHaveBeenCalled();
+  });
+
+  it("empty recordId uses 指定されていません (Core 5.2)", () => {
+    const showMissing = Object.getOwnPropertyDescriptor(
+      proto,
+      "showMissingRecordError"
+    ).get;
+    expect(
+      showMissing.call({
+        recordId: "",
+        _recordActionMissingHandled: true
+      })
+    ).toBe(true);
+    const ctx = {
+      recordId: "",
+      errorMessage: "",
+      isLoading: true
+    };
+    handleMissingRecordActionId(ctx);
+    expect(ctx.errorMessage).toBe("契約履歴IDが指定されていません。");
+    expect(ctx.isLoading).toBe(false);
   });
 });

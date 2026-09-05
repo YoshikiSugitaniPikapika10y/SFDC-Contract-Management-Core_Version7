@@ -220,12 +220,13 @@ public without sharing class InvoiceOpsController {
       InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
       InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
-    /** 仕様: Accounting 第8.1節、第8.2節、Core 第7.9.7節 */
+    /** 仕様: Accounting 第8.1節、第8.2節、Core 第7.9.7節。同一処理の行ロックは1回。 */
     AccountingDiffService.applyForInvoice(
       invoice.Id,
       AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
       operationKey,
-      null
+      null,
+      invoice
     );
   }
 

@@ -292,7 +292,42 @@ private class InvoiceBoardDocumentServiceTest {
   }
 
   @IsTest
-  static void sendFromPreview_blankToken_sends() {
+  static void sendFromPreview_jsonDraftKeepsFileName() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfAndEmail';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        'InvoiceMail'
+      );
+
+      Invoice__c invoice = createConfirmedInvoice();
+      InvoiceBoardDocumentService.SendDraftDto draft = (InvoiceBoardDocumentService.SendDraftDto) JSON.deserialize(
+        '{"fileName":"from-json.pdf","subject":"件名","body":"本文","attachmentId":"NEW","toAddresses":"","ccAddresses":"","bccAddresses":""}',
+        InvoiceBoardDocumentService.SendDraftDto.class
+      );
+      System.assertEquals(
+        'from-json.pdf',
+        draft.fileName,
+        'Core 第7.10節: LWC JSONの件名・本文・添付名を受け取る'
+      );
+      InvoiceBoardDocumentService.skipEmailSend = true;
+      try {
+        InvoiceBoardDocumentService.sendFromPreview(
+          invoice.Id,
+          'StandardInvoice',
+          'InvoiceMail',
+          token(invoice.Id),
+          draft
+        );
+      } finally {
+        InvoiceBoardDocumentService.skipEmailSend = false;
+      }
+    }
+  }
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';

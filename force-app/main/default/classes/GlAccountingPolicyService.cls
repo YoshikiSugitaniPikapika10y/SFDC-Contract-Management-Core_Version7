@@ -68,6 +68,9 @@ public without sharing class GlAccountingPolicyService {
 
   /** 仕様: Accounting 第3.1節 */
   public static GlAccountingPolicy__c freezeOnFirstConfirm() {
+    if (cachedOrgPolicy != null && cachedOrgPolicy.FrozenAt__c != null) {
+      return cachedOrgPolicy;
+    }
     List<GlAccountingPolicy__c> rows = [
       SELECT
         Id,

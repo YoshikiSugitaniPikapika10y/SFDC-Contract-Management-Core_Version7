@@ -140,7 +140,7 @@ export function handleMissingRecordActionId(component) {
   component._recordActionMissingHandled = true;
   component.isLoading = false;
   if (Object.prototype.hasOwnProperty.call(component, "errorMessage")) {
-    component.errorMessage = "契約履歴IDが取得できません。";
+    component.errorMessage = "契約履歴IDが指定されていません。";
   }
 }
 

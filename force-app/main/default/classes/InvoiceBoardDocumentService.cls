@@ -16,14 +16,21 @@ public without sharing class InvoiceBoardDocumentService {
   private static Boolean skipEmailSend = false;
 
   public class SendDraftDto {
-    @AuraEnabled public String toAddresses;
-    @AuraEnabled public String ccAddresses;
-    @AuraEnabled public String bccAddresses;
-    @AuraEnabled public String subject;
-    @AuraEnabled public String body;
-    @AuraEnabled public String fileName;
+    @AuraEnabled
+    public String toAddresses { get; set; }
+    @AuraEnabled
+    public String ccAddresses { get; set; }
+    @AuraEnabled
+    public String bccAddresses { get; set; }
+    @AuraEnabled
+    public String subject { get; set; }
+    @AuraEnabled
+    public String body { get; set; }
+    @AuraEnabled
+    public String fileName { get; set; }
     /** 仕様: Core 第7.10節。NEW または ContentDocument Id。 */
-    @AuraEnabled public String attachmentId;
+    @AuraEnabled
+    public String attachmentId { get; set; }
   }
 
   public class SendPreviewDto {

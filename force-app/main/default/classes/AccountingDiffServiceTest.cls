@@ -1117,6 +1117,28 @@ private class AccountingDiffServiceTest {
   }
 
   @IsTest
+  static void applyForInvoice_knownLockedInvoice_skipsSecondLock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      seedMaps();
+      Invoice__c invoice = insertConfirmedInvoice();
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
+      AccountingDiffService.applyForInvoice(
+        invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        'TEST_KNOWN_LOCK',
+        null,
+        locked
+      );
+      System.assertEquals(
+        'Confirmed',
+        locked.InvoiceTransactionStatus__c,
+        'Accounting 第8.2節: 同一処理でロック済みの請求を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void toDisplayText_emptyReverseDates_saysNone() {
     AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
     preview.logicalDeleteCount = 2;

@@ -37,12 +37,21 @@ export default class OrderCreateWizard extends NavigationMixin(
 ) {
   _recordId;
 
+  // 仕様: Core 第5.2節。Quick Action の recordId は後から入ることがある。空では getOrderContext しない。
   @api
   get recordId() {
     return this._recordId;
   }
   set recordId(value) {
-    this._recordId = value;
+    const next = value || "";
+    if (next === (this._recordId || "")) {
+      return;
+    }
+    this._recordId = next;
+    if (next) {
+      this._recordActionMissingHandled = false;
+      scheduleRecordActionLoad(this, () => this.loadContext());
+    }
   }
 
   @track isTabView = false;

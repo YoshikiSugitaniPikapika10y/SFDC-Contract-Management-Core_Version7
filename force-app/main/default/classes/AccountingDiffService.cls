@@ -29,6 +29,19 @@ public without sharing class AccountingDiffService {
     String operationKey,
     Date cancellationDate
   ) {
+    applyForInvoice(invoiceId, eventKey, operationKey, cancellationDate, null);
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節、Core 第7.9.7節。同一処理で対象請求を行ロック済みなら取り直さない。
+   */
+  public static void applyForInvoice(
+    Id invoiceId,
+    String eventKey,
+    String operationKey,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice
+  ) {
     if (invoiceId == null) {
       throw new DiffException('請求が指定されていません。');
     }
@@ -41,7 +54,10 @@ public without sharing class AccountingDiffService {
     if (!isPaymentEvent(eventKey)) {
       AccountingGoalService.invalidateCauseCache(invoiceId);
     }
-    Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
+    Invoice__c invoice =
+      knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
+        ? knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(invoiceId);
     GlAccountingPolicy__c policy = eventKey == AccountingEventFixedCatalog.BILLING_CONFIRMED.key
       ? GlAccountingPolicyService.freezeOnFirstConfirm()
       : GlAccountingPolicyService.requireOrgPolicy();
