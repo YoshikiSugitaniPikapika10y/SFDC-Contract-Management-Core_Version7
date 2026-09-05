@@ -142,4 +142,180 @@ private class ContractServiceWriteGuardTest {
       }
     }
   }
+
+  @IsTest
+  static void assertAllowedWrite_nullAndPackageAnd101_doNotBlock() {
+    ContractServiceWriteGuard.enforceInTest = true;
+    ContractServiceWriteGuard.allowPackageWrite(false);
+    ContractServiceWriteGuard.assertAllowedWrite(null, null);
+    System.assertEquals(
+      false,
+      ContractServiceWriteGuard.isPackageWriteAllowed(),
+      'Core 第3.4.2節: パッケージ書込フラグが無い直書きは通さない'
+    );
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Write Guard 101 Acct'
+      );
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      ContractService__c service = new ContractService__c(
+        Name = 'Write Guard 101',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractServiceWriteGuard.allowPackageWrite(false);
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.MIGRATE_ALL => true
+      };
+      try {
+        service.Name = 'Write Guard 101 Renamed';
+        update service;
+        System.assertEquals(
+          'Write Guard 101 Renamed',
+          [
+            SELECT Name
+            FROM ContractService__c
+            WHERE Id = :service.Id
+          ]
+          .Name,
+          '共通基盤 第3.6節: 101 は契約サービスの更新を通す'
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+        ContractServiceWriteGuard.enforceInTest = false;
+      }
+    }
+  }
+
+  @IsTest
+  static void fixContract_rejectsLifecycleAndOrderedPointers() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Write Guard Sys Acct'
+      );
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      ContractService__c service = new ContractService__c(
+        Name = 'Write Guard Sys',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Write Guard Sys History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      ContractServiceWriteGuard.allowPackageWrite(false);
+      ContractServiceWriteGuard.enforceInTest = true;
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.FIX_CONTRACT => true
+      };
+      try {
+        Boolean lifecycleRejected = false;
+        try {
+          service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
+          update service;
+        } catch (DmlException ex) {
+          lifecycleRejected = ex.getMessage()
+            .contains(ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE);
+        }
+        System.assertEquals(
+          true,
+          lifecycleRejected,
+          'Core 第3.4節: Lifecycleは利用者が変更できない'
+        );
+        service = [
+          SELECT Id, FirstOrderedHistory__c, LatestOrderedHistory__c
+          FROM ContractService__c
+          WHERE Id = :service.Id
+        ];
+        Boolean firstRejected = false;
+        try {
+          service.FirstOrderedHistory__c = history.Id;
+          update service;
+        } catch (DmlException ex) {
+          firstRejected = ex.getMessage()
+            .contains(ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE);
+        }
+        System.assertEquals(
+          true,
+          firstRejected,
+          'Core 第3.4節: First Orderedは利用者が変更できない'
+        );
+        service = [
+          SELECT Id, LatestOrderedHistory__c
+          FROM ContractService__c
+          WHERE Id = :service.Id
+        ];
+        Boolean latestRejected = false;
+        try {
+          service.LatestOrderedHistory__c = history.Id;
+          update service;
+        } catch (DmlException ex) {
+          latestRejected = ex.getMessage()
+            .contains(ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE);
+        }
+        System.assertEquals(
+          true,
+          latestRejected,
+          'Core 第3.4節: Latest Orderedは利用者が変更できない'
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+        ContractServiceWriteGuard.enforceInTest = false;
+      }
+    }
+  }
+
+  @IsTest
+  static void delete_allows103_andCreateWithEmptyOldMapIsCreate() {
+    ContractServiceWriteGuard.enforceInTest = true;
+    ContractServiceWriteGuard.allowPackageWrite(false);
+    ContractServiceWriteGuard.assertNoDelete(null);
+    ContractService__c missingPrior = new ContractService__c(Name = 'No Prior');
+    ContractServiceWriteGuard.assertAllowedWrite(
+      new List<ContractService__c>{ null, missingPrior },
+      new Map<Id, ContractService__c>()
+    );
+    System.assertEquals(
+      true,
+      missingPrior.getErrors()[0]
+        .getMessage()
+        .contains(ContractServiceWriteGuard.CREATE_BLOCK_MESSAGE),
+      'Core 第3.4節: 新規見積以外の作成は拒否する'
+    );
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Write Guard 103 Acct'
+      );
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      ContractService__c service = new ContractService__c(
+        Name = 'Write Guard 103',
+        Account__c = account.Id
+      );
+      insert service;
+      ContractServiceWriteGuard.allowPackageWrite(false);
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.DELETE_RECORDS => true
+      };
+      try {
+        delete service;
+        System.assertEquals(
+          0,
+          [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id],
+          '共通基盤 第3.6節: 103 は契約サービスの物理削除を通す'
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+        ContractServiceWriteGuard.enforceInTest = false;
+      }
+    }
+  }
 }

@@ -109,4 +109,57 @@ private class ContractOperationLogTriggerHandlerTest {
       '共通基盤第12章: 削除は 101 だけ通す'
     );
   }
+
+  @IsTest
+  static void handler_nullLists_doNotThrow() {
+    ContractOperationLogTriggerHandler.assertInsertAllowed(null);
+    ContractOperationLogTriggerHandler.rejectMutation(null);
+    ContractOperationLogTriggerHandler.assertDeleteAllowed(null);
+    ContractOperationLogService.write(
+      'EstimateCreate',
+      'op-log-handler-null',
+      'ContractHistory__c',
+      '001000000000006AAA'
+    );
+    System.assertEquals(
+      1,
+      [
+        SELECT COUNT()
+        FROM ContractOperationLog__c
+        WHERE BusinessOperationKey__c = 'op-log-handler-null'
+      ],
+      '共通基盤 第12章: 対象行が無い呼び出しのあとでも write は通る'
+    );
+  }
+
+  @IsTest
+  static void delete_rejects103() {
+    ContractOperationLogService.write(
+      'EstimateCreate',
+      'op-log-handler-delete-103',
+      'ContractHistory__c',
+      '001000000000005AAA'
+    );
+    ContractOperationLog__c stored = [
+      SELECT Id
+      FROM ContractOperationLog__c
+      WHERE BusinessOperationKey__c = 'op-log-handler-delete-103'
+      LIMIT 1
+    ];
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.DELETE_RECORDS => true
+    };
+    try {
+      delete stored;
+      System.assert(false, '共通基盤 第12章: 103 では操作ログを消せない');
+    } catch (DmlException ex) {
+      System.assertEquals(
+        true,
+        ex.getMessage().contains('操作ログの削除は 101 だけです。'),
+        '共通基盤 第12章: 操作ログの削除は 101 だけ。103 と 22 では不可'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+  }
 }
