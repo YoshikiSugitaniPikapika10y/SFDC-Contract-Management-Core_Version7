@@ -123,6 +123,32 @@ private class BillingScheduleServiceTest {
   }
 
   @IsTest
+  static void assertSchedule_rejectsExtraPaymentFieldsForDayOffset() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applySameDayBilling(account);
+    account.PaymentTermMethod__c = BillingScheduleService.METHOD_DAY_OFFSET;
+    account.PaymentTermDayOffset__c = 0;
+    account.PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE;
+    account.PaymentTermMonthOffset__c = 1;
+    Boolean rejected = false;
+    try {
+      BillingScheduleService.assertSchedule(account);
+    } catch (BillingScheduleService.ScheduleException ex) {
+      rejected = true;
+      System.assertEquals(
+        '支払条件で月数は空にしてください。',
+        ex.getMessage(),
+        'Core 第7.5節: 入らない項目は空にする。入っている場合は保存時に拒否する'
+      );
+    }
+    System.assertEquals(
+      true,
+      rejected,
+      'Core 第7.5節: 入らない項目は空にする。入っている場合は保存時に拒否する'
+    );
+  }
+
+  @IsTest
   static void computeInvoiceDate_onOrAfterSameDayWhenAnchorMatches() {
     BillingAccount__c account = new BillingAccount__c();
     ContractTestDataFactory.applyOnOrAfterBillingDay(account, 15);

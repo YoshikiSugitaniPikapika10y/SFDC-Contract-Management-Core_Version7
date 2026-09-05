@@ -57,7 +57,9 @@
         </section>
         <section class="ba-section">
           <h2 class="ba-section-title">請求日ルール</h2>
-          <p class="ba-help">{invoiceDateHelp}</p>
+          <template if:true={hasInvoiceDateHelp}>
+            <p class="ba-help">{invoiceDateHelp}</p>
+          </template>
           <div class="ba-grid">
             <lightning-output-field
               field-name="InvoiceDateMethod__c"
@@ -89,7 +91,9 @@
         </section>
         <section class="ba-section">
           <h2 class="ba-section-title">支払条件</h2>
-          <p class="ba-help">{paymentTermHelp}</p>
+          <template if:true={hasPaymentTermHelp}>
+            <p class="ba-help">{paymentTermHelp}</p>
+          </template>
           <div class="ba-grid">
             <lightning-output-field
               field-name="PaymentTermMethod__c"
@@ -143,6 +147,7 @@
             ></lightning-input-field>
             <lightning-input-field
               field-name="Account__c"
+              value={accountIdValue}
               onchange={handleFieldChange}
             ></lightning-input-field>
             <template if:true={showKeyInput}>
@@ -190,7 +195,9 @@
         </section>
         <section class="ba-section">
           <h2 class="ba-section-title">請求日ルール</h2>
-          <p class="ba-help">{invoiceDateHelp}</p>
+          <template if:true={hasInvoiceDateHelp}>
+            <p class="ba-help">{invoiceDateHelp}</p>
+          </template>
           <div class="ba-grid">
             <lightning-input-field
               field-name="InvoiceDateMethod__c"
@@ -228,7 +235,9 @@
         </section>
         <section class="ba-section">
           <h2 class="ba-section-title">支払条件</h2>
-          <p class="ba-help">{paymentTermHelp}</p>
+          <template if:true={hasPaymentTermHelp}>
+            <p class="ba-help">{paymentTermHelp}</p>
+          </template>
           <div class="ba-grid">
             <lightning-input-field
               field-name="PaymentTermMethod__c"

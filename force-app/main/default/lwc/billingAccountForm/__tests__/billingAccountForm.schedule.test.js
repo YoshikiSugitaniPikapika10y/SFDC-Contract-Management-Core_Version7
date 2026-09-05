@@ -3,6 +3,7 @@ import {
   invoiceDateMethodHelp,
   isBillingScheduleFieldVisible,
   isInvoiceDateFieldVisible,
+  parseDefaultFieldValues,
   paymentTermMethodHelp,
   METHOD_DAY_OFFSET,
   METHOD_MONTH_OFFSET,
@@ -116,6 +117,47 @@ describe("billingAccountForm schedule visibility (Core 3.3.2 / 7.2 / 7.5)", () =
     expect(invoiceHelp + paymentHelp).not.toMatch(/\d{4}[/-]/);
     expect(invoiceHelp + paymentHelp).not.toContain("6/1");
     expect(invoiceHelp + paymentHelp).not.toContain("例:");
+  });
+
+  it("parses related-list defaults and omits key on edit save (Core 3.3.2 / 3.3.3)", () => {
+    expect(
+      parseDefaultFieldValues("Account__c=001xx000000BA01,Name=FromRelated")
+    ).toEqual({
+      Account__c: "001xx000000BA01",
+      Name: "FromRelated"
+    });
+    const form = { submit: jest.fn() };
+    BillingAccountForm.prototype.handleSubmit.call(
+      {
+        isSaving: false,
+        isNew: false,
+        draft: { InvoiceDateMethod__c: METHOD_SAME_DAY },
+        template: { querySelector: () => form }
+      },
+      {
+        preventDefault: jest.fn(),
+        detail: {
+          fields: {
+            BillingAccountKey__c: "SHOULD-NOT-SAVE",
+            Name: "Edited"
+          }
+        }
+      }
+    );
+    expect(form.submit.mock.calls[0][0].BillingAccountKey__c).toBeUndefined();
+    expect(form.submit.mock.calls[0][0].Name).toBe("Edited");
+  });
+
+  it("uses the same 7.2 / 7.5 method help as the order confirmation (Core 3.3.2 / 7.2 / 7.5)", () => {
+    expect(invoiceDateMethodHelp(METHOD_ON_OR_AFTER)).toContain(
+      "請求基準日以後で最初に到来する指定日または月末"
+    );
+    expect(invoiceDateMethodHelp(METHOD_MONTH_OFFSET)).toContain(
+      "指定した月数だけ前後へ移動した月"
+    );
+    expect(paymentTermMethodHelp(METHOD_MONTH_OFFSET)).toContain(
+      "当月、翌月、翌々月等の指定日または月末"
+    );
   });
 
   it("shows View without 19 and hides New when createable is false (共通基盤 10.4)", () => {

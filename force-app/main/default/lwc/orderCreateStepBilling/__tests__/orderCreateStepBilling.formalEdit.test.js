@@ -15,12 +15,20 @@ jest.mock(
 jest.mock(
   "lightning/uiRecordApi",
   () => {
-    function getRecord() {}
+    class GetRecordAdapter {}
     return {
-      getRecord,
+      getRecord: GetRecordAdapter,
       getFieldValue: jest.fn(),
       getRecordNotifyChange: jest.fn()
     };
+  },
+  { virtual: true }
+);
+jest.mock(
+  "lightning/uiObjectInfoApi",
+  () => {
+    class GetObjectInfoAdapter {}
+    return { getObjectInfo: GetObjectInfoAdapter };
   },
   { virtual: true }
 );
@@ -49,7 +57,8 @@ jest.mock(
           [Navigate]() {}
         },
       { Navigate }
-    )
+    ),
+    CurrentPageReference: class CurrentPageReference {}
   }),
   { virtual: true }
 );
@@ -175,5 +184,30 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
     };
     proto.handleOpenFormalEdit.call(ctx);
     expect(ctx.openBillingAccountFormalEdit).not.toHaveBeenCalled();
+  });
+
+  it("受注確認は識別・送付・請求日ルール・支払条件の4束ねで専用LWCを埋め込まない (Core 5.2 / 3.3.2)", async () => {
+    const element = createElement("c-order-create-step-billing", {
+      is: OrderCreateStepBilling
+    });
+    element.context = {
+      billingAccountId: "a00BA0000000001",
+      billingAccountName: "BA-1",
+      billingAccountKey: "KEY-1",
+      billingCustomerAccountName: "取引先A"
+    };
+    document.body.appendChild(element);
+    await Promise.resolve();
+    const titles = Array.from(
+      element.shadowRoot.querySelectorAll(".ba-bundle-title")
+    ).map((node) => node.textContent.trim());
+    expect(titles).toEqual([
+      "識別",
+      "送付",
+      "請求日ルール",
+      "支払条件"
+    ]);
+    expect(element.shadowRoot.querySelector("c-billing-account-form")).toBeFalsy();
+    expect(element.shadowRoot.querySelector("lightning-input-field")).toBeFalsy();
   });
 });

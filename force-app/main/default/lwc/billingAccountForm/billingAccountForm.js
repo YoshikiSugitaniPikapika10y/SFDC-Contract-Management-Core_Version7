@@ -212,6 +212,23 @@ export function paymentTermMethodHelp(method) {
   return "";
 }
 
+/** 仕様: Core 第3.3.2節。取引先の関連リスト新規の初期値。 */
+export function parseDefaultFieldValues(raw) {
+  if (!raw || typeof raw !== "string") {
+    return {};
+  }
+  const parsed = {};
+  raw.split(",").forEach((pair) => {
+    const idx = pair.indexOf("=");
+    if (idx < 1) {
+      return;
+    }
+    const apiName = decodeURIComponent(pair.slice(0, idx).trim());
+    parsed[apiName] = decodeURIComponent(pair.slice(idx + 1));
+  });
+  return parsed;
+}
+
 function pickFieldValue(event) {
   const raw = event.detail?.value;
   if (Array.isArray(raw)) {
@@ -236,6 +253,19 @@ export default class BillingAccountForm extends NavigationMixin(
   @wire(CurrentPageReference)
   wiredPageRef(pageRef) {
     this._pageRef = pageRef;
+    if (!pageRef || this.recordId) {
+      return;
+    }
+    const defaults = parseDefaultFieldValues(
+      pageRef.state?.defaultFieldValues
+    );
+    if (Object.keys(defaults).length === 0) {
+      return;
+    }
+    this.draft = applyClearedScheduleFields({
+      ...this.draft,
+      ...defaults
+    });
   }
 
   @wire(getObjectInfo, { objectApiName: BILLING_ACCOUNT_OBJECT })
@@ -349,8 +379,20 @@ export default class BillingAccountForm extends NavigationMixin(
     return invoiceDateMethodHelp(this.draft.InvoiceDateMethod__c);
   }
 
+  get hasInvoiceDateHelp() {
+    return Boolean(this.invoiceDateHelp);
+  }
+
   get paymentTermHelp() {
     return paymentTermMethodHelp(this.draft.PaymentTermMethod__c);
+  }
+
+  get hasPaymentTermHelp() {
+    return Boolean(this.paymentTermHelp);
+  }
+
+  get accountIdValue() {
+    return this.draft.Account__c || null;
   }
 
   get showInvoiceDayKind() {

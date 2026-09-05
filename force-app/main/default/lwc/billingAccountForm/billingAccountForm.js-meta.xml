@@ -17,7 +17,7 @@
             <objects>
                 <object>BillingAccount__c</object>
             </objects>
-            <actionType>Action</actionType>
+            <actionType>ScreenAction</actionType>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>
