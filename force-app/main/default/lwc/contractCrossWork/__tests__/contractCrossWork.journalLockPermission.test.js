@@ -1,5 +1,126 @@
 import ContractCrossWork from "c/contractCrossWork";
 
+jest.mock("c/estimateSendRecordAction");
+jest.mock("c/orderCreateWizard");
+jest.mock("c/contractCrossEstimateTile");
+jest.mock("c/orderInvoicePreviewTable");
+jest.mock(
+  "lightning/actions",
+  () => ({ CloseActionScreenEvent: class {} }),
+  { virtual: true }
+);
+jest.mock("lightning/refresh", () => ({ RefreshEvent: class {} }), {
+  virtual: true
+});
+jest.mock(
+  "@salesforce/apex/ContractCrossController.getBootstrap",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.queryEstimates",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.queryInvoices",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.queryJournals",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.getEstimateTile",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.saveJournals",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/InvoiceOpsFieldService.getDefinitions",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.getInvoicePreview",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.getBillingAccountOptionsForPreview",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.updateInvoiceLineAmounts",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.updateInvoiceLineAcceptanceEndDate",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.splitInvoiceByDate",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.splitInvoiceByBillingAccount",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.moveLinesToExistingInvoice",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.splitLinesInPlace",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.updateInvoiceHeaderAndDates",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.applyBillingAccountContent",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/OrderCreateController.cancelConfirmedFromPreview",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "lightning/platformShowToastEvent",
+  () => ({ ShowToastEvent: class {} }),
+  { virtual: true }
+);
+jest.mock(
+  "lightning/confirm",
+  () => ({
+    __esModule: true,
+    default: { open: jest.fn() }
+  }),
+  { virtual: true }
+);
+jest.mock(
+  "c/estimateValidationAlertUtils",
+  () => ({ resolveSaveErrorAlert: jest.fn() }),
+  { virtual: true }
+);
+
 describe("contractCrossWork journal lock UI (Accounting 9.5 / 共通基盤 10.4)", () => {
   const proto = ContractCrossWork.prototype;
   const showCheckColumn = Object.getOwnPropertyDescriptor(

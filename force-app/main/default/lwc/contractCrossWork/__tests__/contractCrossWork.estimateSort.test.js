@@ -193,6 +193,19 @@ describe("contractCrossWork journal memo (Core 12.2 / 7.7.3)", () => {
     canEditJournalMemoOp: true
   });
 
+  function saveCtx(overrides) {
+    return {
+      dirtyJournalEdits: proto.dirtyJournalEdits,
+      journalExtraChanged: proto.journalExtraChanged,
+      extraValuesForSave: proto.extraValuesForSave,
+      extraDrafts: {},
+      memoDrafts: {},
+      journalExtraDefinitions: [],
+      journalRows: [],
+      ...overrides
+    };
+  }
+
   it("取消済み請求の仕訳メモは編集できない", () => {
     const editable = journalCells(
       { invoiceCancelled: false, invoiceName: "INV" },
@@ -231,29 +244,34 @@ describe("contractCrossWork journal memo (Core 12.2 / 7.7.3)", () => {
   });
 
   it("取消済み請求のメモ変更は保存対象にしない", () => {
-    const drafts = proto.dirtyMemos.call({
-      journalRows: [
-        { id: "j1", invoiceId: "inv1", memo: "旧", invoiceCancelled: true }
-      ],
-      memoDrafts: { j1: "新" }
-    });
+    const drafts = proto.dirtyMemos.call(
+      saveCtx({
+        journalRows: [
+          { id: "j1", invoiceId: "inv1", memo: "旧", invoiceCancelled: true }
+        ],
+        memoDrafts: { j1: "新" }
+      })
+    );
     expect(drafts).toEqual([]);
   });
 
   it("追加項目の変更は同じ保存のpayloadに載る", () => {
-    const drafts = proto.dirtyJournalEdits.call({
-      journalRows: [
-        {
-          id: "j1",
-          invoiceId: "inv1",
-          memo: "旧",
-          extraFieldValues: { UnlockReason__c: "旧理由" }
-        }
-      ],
-      memoDrafts: {},
-      extraDrafts: { j1: { UnlockReason__c: "新理由" } },
-      journalExtraDefinitions: [{ apiName: "UnlockReason__c", label: "Unlock理由" }]
-    });
+    const drafts = proto.dirtyJournalEdits.call(
+      saveCtx({
+        journalRows: [
+          {
+            id: "j1",
+            invoiceId: "inv1",
+            memo: "旧",
+            extraFieldValues: { UnlockReason__c: "旧理由" }
+          }
+        ],
+        extraDrafts: { j1: { UnlockReason__c: "新理由" } },
+        journalExtraDefinitions: [
+          { apiName: "UnlockReason__c", label: "Unlock理由" }
+        ]
+      })
+    );
     expect(drafts).toEqual([
       {
         journalId: "j1",
@@ -265,30 +283,31 @@ describe("contractCrossWork journal memo (Core 12.2 / 7.7.3)", () => {
   });
 
   it("取消・取消済の追加項目は保存対象にしない", () => {
-    const drafts = proto.dirtyJournalEdits.call({
-      journalRows: [
-        {
-          id: "j1",
-          invoiceId: "inv1",
-          memo: "旧",
-          invoiceCancelled: true,
-          extraFieldValues: {}
+    const drafts = proto.dirtyJournalEdits.call(
+      saveCtx({
+        journalRows: [
+          {
+            id: "j1",
+            invoiceId: "inv1",
+            memo: "旧",
+            invoiceCancelled: true,
+            extraFieldValues: {}
+          },
+          {
+            id: "j2",
+            invoiceId: "inv2",
+            memo: "旧",
+            transactionStatus: "Cancelled",
+            extraFieldValues: {}
+          }
+        ],
+        extraDrafts: {
+          j1: { UnlockReason__c: "x" },
+          j2: { UnlockReason__c: "y" }
         },
-        {
-          id: "j2",
-          invoiceId: "inv2",
-          memo: "旧",
-          transactionStatus: "Cancelled",
-          extraFieldValues: {}
-        }
-      ],
-      memoDrafts: {},
-      extraDrafts: {
-        j1: { UnlockReason__c: "x" },
-        j2: { UnlockReason__c: "y" }
-      },
-      journalExtraDefinitions: [{ apiName: "UnlockReason__c" }]
-    });
+        journalExtraDefinitions: [{ apiName: "UnlockReason__c" }]
+      })
+    );
     expect(drafts).toEqual([]);
   });
 });
