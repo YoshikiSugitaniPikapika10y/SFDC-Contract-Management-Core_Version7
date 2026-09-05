@@ -136,6 +136,27 @@ public with sharing class AccountingSlotFixedCatalog {
     OtherExpense.key => OtherExpense
   };
 
+  /** 仕様: Accounting 第4.3節。画面の借貸はスロット名。未知キーはキーそのもの。 */
+  public static String nameOf(String key) {
+    if (String.isBlank(key)) {
+      return '';
+    }
+    Definition found = BY_KEY.get(key);
+    return found == null ? key : found.name;
+  }
+
+  /** 仕様: Core 第7.7.3節、共通基盤契約横断第5節。借貸はスロット名と科目。 */
+  public static String slotAndAccount(String slotKey, String accountName) {
+    String slotName = nameOf(slotKey);
+    if (String.isBlank(slotName)) {
+      return accountName;
+    }
+    if (String.isBlank(accountName)) {
+      return slotName;
+    }
+    return slotName + ' ' + accountName;
+  }
+
   /** 仕様: Accounting 第4.3節 */
   public static Definition require(String key) {
     Definition found = BY_KEY.get(key);

@@ -827,38 +827,8 @@
                 </p>
               </template>
               <template if:true={invoice.hasJournals}>
-                <div class="journal-filters" aria-label="仕訳の絞り込み">
-                  <lightning-checkbox-group
-                    name="journalEvents"
-                    label="会計イベント"
-                    options={journalEventFilterOptions}
-                    value={journalEventFilter}
-                    onchange={handleJournalEventFilterChange}
-                  ></lightning-checkbox-group>
-                  <lightning-checkbox-group
-                    name="journalStatuses"
-                    label="取引状態"
-                    options={journalStatusFilterOptions}
-                    value={journalStatusFilter}
-                    onchange={handleJournalStatusFilterChange}
-                  ></lightning-checkbox-group>
-                  <lightning-checkbox-group
-                    name="journalLocks"
-                    label="ロック状態"
-                    options={journalLockFilterOptions}
-                    value={journalLockFilter}
-                    onchange={handleJournalLockFilterChange}
-                  ></lightning-checkbox-group>
-                  <button
-                    type="button"
-                    class="ghost-btn"
-                    onclick={handleClearJournalFilters}
-                  >
-                    クリア
-                  </button>
-                </div>
                 <div class="ops-table-wrap">
-                  <table class="ops-table">
+                  <table class="ops-table ops-table_journals">
                     <thead>
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
@@ -877,7 +847,7 @@
                       <template for:each={invoice.journals} for:item="journal">
                         <tr key={journal.key} class={journal.rowClass}>
                           <td class="split-select-col">
-                            <template if:true={invoice.showJournalLockActions}>
+                            <template if:true={invoice.showJournalSelectCheckbox}>
                               <template if:true={journal.canSelectForJournalLock}>
                                 <lightning-input
                                   type="checkbox"
@@ -909,8 +879,38 @@
                           <td>{journal.postingDate}</td>
                           <td>{journal.postingPeriod}</td>
                           <td>{journal.transactionStatusLabel}</td>
-                          <td>{journal.lockLabel}</td>
-                          <td>
+                          <td class="journal-lock-cell">
+                            <template if:true={journal.showLockKey}>
+                              <template if:true={journal.lockCellLockedClickable}>
+                                <button
+                                  type="button"
+                                  class="journal-lock-key"
+                                  data-invoice-id={invoice.invoiceId}
+                                  data-journal-id={journal.journalId}
+                                  onclick={handleJournalLockCellClick}
+                                  aria-label="Unlock"
+                                >
+                                  🔒
+                                </button>
+                              </template>
+                              <template if:false={journal.lockCellLockedClickable}>
+                                <span class="journal-lock-key-static" aria-hidden="true">🔒</span>
+                              </template>
+                            </template>
+                            <template if:false={journal.showLockKey}>
+                              <template if:true={journal.lockCellUnlockedClickable}>
+                                <button
+                                  type="button"
+                                  class="journal-lock-empty"
+                                  data-invoice-id={invoice.invoiceId}
+                                  data-journal-id={journal.journalId}
+                                  onclick={handleJournalLockCellClick}
+                                  aria-label="Lock"
+                                ></button>
+                              </template>
+                            </template>
+                          </td>
+                          <td class="journal-memo-cell">
                             <template if:true={invoice.canEditJournalMemo}>
                               <lightning-input
                                 label="仕訳メモ"
@@ -921,12 +921,12 @@
                               ></lightning-input>
                               <button
                                 type="button"
-                                class="ghost-btn"
+                                class="ghost-btn journal-memo-save"
                                 data-journal-id={journal.journalId}
                                 data-invoice-id={invoice.invoiceId}
                                 onclick={handleSaveJournalMemo}
                               >
-                                メモ保存
+                                メモを保存
                               </button>
                             </template>
                             <template if:false={invoice.canEditJournalMemo}>
@@ -1028,7 +1028,7 @@
                   </table>
                 </div>
                 <div class="panel-actions">
-                  <template if:true={invoice.showJournalLockButton}>
+                  <template if:true={invoice.showJournalBulkLock}>
                     <button
                       type="button"
                       class="ghost-btn"
@@ -1039,13 +1039,7 @@
                       選んだ仕訳をLock
                     </button>
                   </template>
-                  <template if:true={invoice.showJournalUnlockButton}>
-                    <lightning-input
-                      label="Unlock理由"
-                      value={invoice.unlockReason}
-                      maxlength="255"
-                      onchange={handleUnlockReasonChange}
-                    ></lightning-input>
+                  <template if:true={invoice.showJournalBulkUnlock}>
                     <button
                       type="button"
                       class="ghost-btn"
@@ -2270,6 +2264,7 @@
                 <template for:each={invoice.tagResults} for:item="tag">
                   <lightning-badge
                     key={tag.fieldApiName}
+                    class="accounting-tag-badge"
                     label={tag.name}
                   ></lightning-badge>
                 </template>
@@ -2301,5 +2296,32 @@
 
   <template if:false={hasInvoices}>
     <p class="empty-text">請求がありません。</p>
+  </template>
+  <template if:true={journalUnlockDialog}>
+    <div class="journal-unlock-dialog" role="dialog" aria-label="Unlock理由">
+      <lightning-textarea
+        label="Unlock理由"
+        value={journalUnlockDialogReason}
+        maxlength="255"
+        onchange={handleJournalUnlockDialogReasonChange}
+      ></lightning-textarea>
+      <div class="panel-actions">
+        <button
+          type="button"
+          class="ghost-btn"
+          onclick={handleCancelJournalUnlockDialog}
+        >
+          キャンセル
+        </button>
+        <button
+          type="button"
+          class="ghost-btn"
+          disabled={journalUnlockDialogDisabled}
+          onclick={handleSubmitJournalUnlockDialog}
+        >
+          Unlock
+        </button>
+      </div>
+    </div>
   </template>
 </template>

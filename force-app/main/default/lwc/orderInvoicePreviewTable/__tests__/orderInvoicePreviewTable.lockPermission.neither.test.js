@@ -321,5 +321,8 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting ç¬¬9.5ç¯
     expect(lockButton(element)).toBeFalsy();
     expect(unlockButton(element)).toBeFalsy();
     expect(lockCheckbox(element)).toBeFalsy();
+    expect(
+      element.shadowRoot.querySelector("button.journal-lock-empty")
+    ).toBeFalsy();
   });
 });

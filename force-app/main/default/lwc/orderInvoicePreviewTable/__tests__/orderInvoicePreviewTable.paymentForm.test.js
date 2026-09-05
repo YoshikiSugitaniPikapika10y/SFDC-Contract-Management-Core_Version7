@@ -573,19 +573,18 @@ describe("orderInvoicePreviewTable payment form", () => {
     const statuses = Array.from(journalRows()).map((row) =>
       row.querySelectorAll("td")[7].textContent.trim()
     );
-    expect(statuses).toEqual(["有効"]);
+    expect(statuses).toEqual(["有効", "取消", "取消済"]);
     const periods = Array.from(journalRows()).map((row) =>
       row.querySelectorAll("td")[6].textContent.trim()
     );
-    expect(periods).toEqual(["到来済み"]);
-    const filterLabels = Array.from(
-      element.shadowRoot.querySelectorAll(
-        ".journal-filters lightning-checkbox-group"
-      )
-    ).map((group) => group.label);
-    expect(filterLabels).toEqual(["会計イベント", "取引状態", "ロック状態"]);
+    expect(periods).toEqual(["到来済み", "到来済み", "到来済み"]);
+    expect(
+      element.shadowRoot.querySelector(".journal-filters")
+    ).toBeNull();
     expect(element.shadowRoot.textContent).toContain("計上時期");
     expect(element.shadowRoot.textContent).not.toContain("確認用");
+    expect(journalRows()[1].className).toContain("journal-row_audit");
+    expect(journalRows()[2].className).toContain("journal-row_audit");
   });
 
   it("shows Lock selection checkbox only for Active journals", async () => {
@@ -600,6 +599,18 @@ describe("orderInvoicePreviewTable payment form", () => {
             debitAccountName: "売掛金",
             creditAccountName: "売上",
             amount: 1100,
+            postingDate: "2026-06-01",
+            transactionStatus: "Active",
+            isLocked: false,
+            memo: ""
+          },
+          {
+            journalId: "a03JNL000000005",
+            eventKey: "BILLING_CONFIRMED",
+            eventName: "請求確定",
+            debitAccountName: "売掛金",
+            creditAccountName: "売上",
+            amount: 200,
             postingDate: "2026-06-01",
             transactionStatus: "Active",
             isLocked: false,
@@ -652,19 +663,6 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openJournalsTab(element);
 
-    const statusFilter = await waitUntil(
-      () =>
-        element.shadowRoot.querySelectorAll("lightning-checkbox-group")[1]
-    );
-    statusFilter.dispatchEvent(
-      new CustomEvent("change", {
-        detail: {
-          value: ["Active", "LogicallyDeleted", "Cancelled", "Reversal"]
-        }
-      })
-    );
-    await flush();
-
     const rows = Array.from(
       element.shadowRoot.querySelectorAll(
         ".ops-panel .ops-table-wrap .ops-table tbody tr"
@@ -676,7 +674,8 @@ describe("orderInvoicePreviewTable payment form", () => {
     );
     expect(checkboxes[0]).toBeTruthy();
     expect(checkboxes[0].dataset.journalId).toBe("a03JNL000000001");
-    expect(checkboxes[1]).toBeNull();
+    expect(checkboxes[1]).toBeTruthy();
+    expect(checkboxes[1].dataset.journalId).toBe("a03JNL000000005");
     expect(checkboxes[2]).toBeNull();
     expect(checkboxes[3]).toBeNull();
   });
@@ -728,10 +727,10 @@ describe("orderInvoicePreviewTable payment form", () => {
         ".ops-panel .ops-table-wrap .ops-table tbody tr"
       )
     ).map((row) => row.querySelectorAll("td")[6].textContent.trim());
-    expect(periods).toEqual(["将来", "到来済み"]);
+    expect(periods).toEqual(["到来済み", "将来"]);
   });
 
-  it("filters journals by accounting event", async () => {
+  it("does not filter journals by accounting event", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({
         accountingEnabled: true,
@@ -771,20 +770,12 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openJournalsTab(element);
 
-    const eventFilter = await waitUntil(
-      () => element.shadowRoot.querySelectorAll("lightning-checkbox-group")[0]
-    );
-    eventFilter.dispatchEvent(
-      new CustomEvent("change", { detail: { value: ["MANUAL_JOURNAL"] } })
-    );
-    await flush();
-
     const rows = element.shadowRoot.querySelectorAll(
       ".ops-panel .ops-table-wrap .ops-table tbody tr"
     );
-    expect(rows).toHaveLength(1);
-    expect(rows[0].textContent).toContain("手動仕訳");
-    expect(rows[0].textContent).not.toContain("請求確定");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain("請求確定");
+    expect(rows[1].textContent).toContain("手動仕訳");
   });
 
   it("seeds invoice cancel date to the operation day when locked journals exist", async () => {

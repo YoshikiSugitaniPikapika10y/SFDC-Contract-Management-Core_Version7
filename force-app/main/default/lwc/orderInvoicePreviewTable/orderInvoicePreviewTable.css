@@ -245,14 +245,6 @@
   margin-bottom: 0.5rem;
 }
 
-.journal-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.75rem 1rem;
-  margin-bottom: 0.75rem;
-  align-items: start;
-}
-
 .ops-table-wrap {
   overflow: visible;
   margin-bottom: 0.75rem;
@@ -274,6 +266,78 @@
   border-bottom: 1px solid var(--preview-row-rule);
   text-align: left;
   vertical-align: middle;
+}
+
+.ops-table_journals th,
+.ops-table_journals td {
+  white-space: nowrap;
+}
+
+.ops-table_journals .journal-extra-row td {
+  white-space: normal;
+}
+
+.journal-row_audit {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.journal-lock-empty {
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.journal-lock-key,
+.journal-lock-key-static {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.journal-lock-key {
+  cursor: pointer;
+}
+
+.journal-memo-cell {
+  white-space: nowrap;
+}
+
+.journal-memo-cell lightning-input {
+  display: inline-block;
+  width: auto;
+  min-width: 8rem;
+  max-width: 14rem;
+  vertical-align: middle;
+}
+
+.journal-memo-save {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
+.journal-unlock-dialog {
+  position: sticky;
+  bottom: 0;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-input-radius);
+  background: var(--preview-surface);
+}
+
+.invoice-footer .summary-row_tags .accounting-tag-badge {
+  --slds-c-badge-color-background: #ea580c;
+  --slds-c-badge-text-color: #fff;
 }
 
 .ops-table th {

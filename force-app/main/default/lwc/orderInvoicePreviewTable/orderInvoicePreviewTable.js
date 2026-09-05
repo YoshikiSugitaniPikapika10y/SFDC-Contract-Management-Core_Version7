@@ -82,29 +82,6 @@ const PRODUCT_NAME_FONT_MAX_REM = 0.6875;
 const PRODUCT_NAME_FONT_MIN_REM = 0.5625;
 const PRODUCT_NAME_FONT_STEP_REM = 0.03125;
 
-/** 仕様: Accounting 第11.1節、第9.4節 */
-const JOURNAL_EVENT_FILTER_OPTIONS = [
-  { label: "請求確定", value: "BILLING_CONFIRMED" },
-  { label: "請求取消", value: "BILLING_CANCELLED" },
-  { label: "検収日変更", value: "ACCEPTANCE_DATE_CHANGED" },
-  {
-    label: "請求入出金登録（Purpose=Invoice／NonInvoiceと符号付きAmountを含む）",
-    value: "PAYMENT_RECORDED"
-  },
-  { label: "請求入出金取消", value: "PAYMENT_CANCELLED" },
-  { label: "手動仕訳", value: "MANUAL_JOURNAL" }
-];
-const JOURNAL_STATUS_FILTER_OPTIONS = [
-  { label: "有効", value: "Active" },
-  { label: "論理削除", value: "LogicallyDeleted" },
-  { label: "取消済", value: "Cancelled" },
-  { label: "取消", value: "Reversal" }
-];
-const JOURNAL_LOCK_FILTER_OPTIONS = [
-  { label: "未ロック", value: "Unlocked" },
-  { label: "ロック済み", value: "Locked" }
-];
-
 // 仕様: Accounting 第2.3節、日付仕様 第8章
 function postingPeriodLabel(postingDate, asOfDate) {
   if (!postingDate || !asOfDate) {
@@ -114,25 +91,65 @@ function postingPeriodLabel(postingDate, asOfDate) {
   return posting > asOfDate ? "将来" : "到来済み";
 }
 
-function journalMatchesFilters(journal, eventKeys, statuses, lockStatuses) {
-  if (eventKeys.length > 0 && !eventKeys.includes(journal.eventKey)) {
-    return false;
+function journalDisplayRows(journals) {
+  return (journals || [])
+    .filter((journal) => journal.transactionStatus !== "LogicallyDeleted")
+    .slice()
+    .sort(compareJournalDisplayOrder);
+}
+
+/** 仕様: Accounting 第8.7節。計上日・sameDayOrder・原因CreatedDate・回番号・原因ID。 */
+function compareJournalDisplayOrder(left, right) {
+  const dateCmp = compareIsoDate(left.postingDate, right.postingDate);
+  if (dateCmp !== 0) {
+    return dateCmp;
   }
-  // 仕様: Accounting 第2.3節・第11.1節。空＝通常表示で有効だけ。監査状態は明示選択時。
-  if (statuses.length === 0) {
-    if (journal.transactionStatus !== "Active") {
-      return false;
-    }
-  } else if (!statuses.includes(journal.transactionStatus)) {
-    return false;
+  const leftOrder = left.sameDayOrder == null ? 0 : left.sameDayOrder;
+  const rightOrder = right.sameDayOrder == null ? 0 : right.sameDayOrder;
+  if (leftOrder !== rightOrder) {
+    return leftOrder - rightOrder;
   }
-  if (lockStatuses.length > 0) {
-    const lockValue = journal.isLocked ? "Locked" : "Unlocked";
-    if (!lockStatuses.includes(lockValue)) {
-      return false;
-    }
+  const createdCmp = compareIsoDateTime(
+    left.causeCreatedDate,
+    right.causeCreatedDate
+  );
+  if (createdCmp !== 0) {
+    return createdCmp;
   }
-  return true;
+  const leftSeq = left.recognitionSequence == null ? 0 : left.recognitionSequence;
+  const rightSeq =
+    right.recognitionSequence == null ? 0 : right.recognitionSequence;
+  if (leftSeq !== rightSeq) {
+    return leftSeq - rightSeq;
+  }
+  const leftCause = left.causeRecordId || "";
+  const rightCause = right.causeRecordId || "";
+  if (leftCause !== rightCause) {
+    return leftCause < rightCause ? -1 : 1;
+  }
+  const leftId = left.journalId || "";
+  const rightId = right.journalId || "";
+  if (leftId === rightId) {
+    return 0;
+  }
+  return leftId < rightId ? -1 : 1;
+}
+
+function compareIsoDate(left, right) {
+  if (left === right) {
+    return 0;
+  }
+  if (!left) {
+    return 1;
+  }
+  if (!right) {
+    return -1;
+  }
+  return String(left) < String(right) ? -1 : 1;
+}
+
+function compareIsoDateTime(left, right) {
+  return compareIsoDate(left, right);
 }
 
 /** 仕様: Core 第7.9.6節、Accounting 第8.5節。取消系はON/OFFを問わずロック済みなら基準日。 */
@@ -234,11 +251,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   @track invoiceCancelState = null;
   @track memoDrafts = {};
   @track journalMemoDrafts = {};
-  @track journalEventFilter = [];
-  @track journalStatusFilter = [];
-  @track journalLockFilter = [];
   @track journalLockSelected = {};
-  @track unlockReason = "";
+  @track journalUnlockDialog = null;
   @track invoiceSplitState = null;
   @track invoiceMoveState = null;
   /** 仕様: Core 第7.8.1節。他の未確定があるときの新規／既存の選択。 */
@@ -1144,34 +1158,15 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     return status || "";
   }
 
-  get journalEventFilterOptions() {
-    return JOURNAL_EVENT_FILTER_OPTIONS;
+  get journalUnlockDialogReason() {
+    return this.journalUnlockDialog?.reason || "";
   }
 
-  get journalStatusFilterOptions() {
-    return JOURNAL_STATUS_FILTER_OPTIONS;
-  }
-
-  get journalLockFilterOptions() {
-    return JOURNAL_LOCK_FILTER_OPTIONS;
-  }
-
-  handleJournalEventFilterChange(event) {
-    this.journalEventFilter = event.detail.value || [];
-  }
-
-  handleJournalStatusFilterChange(event) {
-    this.journalStatusFilter = event.detail.value || [];
-  }
-
-  handleJournalLockFilterChange(event) {
-    this.journalLockFilter = event.detail.value || [];
-  }
-
-  handleClearJournalFilters() {
-    this.journalEventFilter = [];
-    this.journalStatusFilter = [];
-    this.journalLockFilter = [];
+  get journalUnlockDialogDisabled() {
+    return (
+      this.isBlankReasonText(this.journalUnlockDialog?.reason) ||
+      this.isUnlockReasonTooLong(this.journalUnlockDialog?.reason)
+    );
   }
 
   documentTemplateLabel(key) {
@@ -1990,6 +1985,21 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           paymentDraft: this.newPaymentDraft(invoiceId)
         };
         const bundle = uiState.bundle;
+        const displayedJournals = journalDisplayRows(bundle?.journals);
+        const activeJournalCount = displayedJournals.filter(
+          (journal) => journal.transactionStatus === "Active"
+        ).length;
+        const selectedActiveJournals = displayedJournals.filter(
+          (journal) =>
+            journal.transactionStatus === "Active" &&
+            this.journalLockSelected?.[invoiceId]?.[journal.journalId] === true
+        );
+        const allSelectedLocked =
+          selectedActiveJournals.length > 0 &&
+          selectedActiveJournals.every((journal) => journal.isLocked === true);
+        const allSelectedUnlocked =
+          selectedActiveJournals.length > 0 &&
+          selectedActiveJournals.every((journal) => journal.isLocked !== true);
         const activeTab = uiState.activeTab || "lines";
         const paymentTypeOptions = this.paymentPurposeOptions();
         const paymentDraft = uiState.paymentDraft;
@@ -2131,14 +2141,27 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           canEditJournalMemo: this.canEdit && !isCancelled,
           // 仕様: Accounting 第9.5節、共通基盤 第10.4節、Core 第7.7.3節・第12.2節。
           // LockとUnlockはそれぞれ専用権限。無い操作は出さない。閲覧・編集・確定では代替しない。
-          showJournalLockButton:
-            accountingEnabled && !isCancelled && this.canLockJournal,
-          showJournalUnlockButton:
-            accountingEnabled && !isCancelled && this.canUnlockJournal,
           showJournalLockActions:
             accountingEnabled &&
             !isCancelled &&
             (this.canLockJournal || this.canUnlockJournal),
+          showJournalSelectCheckbox:
+            accountingEnabled &&
+            !isCancelled &&
+            (this.canLockJournal || this.canUnlockJournal) &&
+            activeJournalCount >= 2,
+          showJournalBulkLock:
+            accountingEnabled &&
+            !isCancelled &&
+            this.canLockJournal &&
+            selectedActiveJournals.length >= 2 &&
+            allSelectedUnlocked,
+          showJournalBulkUnlock:
+            accountingEnabled &&
+            !isCancelled &&
+            this.canUnlockJournal &&
+            selectedActiveJournals.length >= 2 &&
+            allSelectedLocked,
           memoDraft:
             this.memoDrafts[invoiceId] != null
               ? this.memoDrafts[invoiceId]
@@ -2614,16 +2637,19 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             isConfirmed &&
             !isCancelled &&
             this.canManualJournalOp === true,
-          journals: (bundle?.journals || [])
-            .filter((journal) =>
-              journalMatchesFilters(
-                journal,
-                this.journalEventFilter || [],
-                this.journalStatusFilter || [],
-                this.journalLockFilter || []
-              )
-            )
-            .map((journal) => ({
+          journals: displayedJournals.map((journal) => {
+            const isAuditRow =
+              journal.transactionStatus === "Cancelled" ||
+              journal.transactionStatus === "Reversal";
+            const isActive = journal.transactionStatus === "Active";
+            const rowClasses = ["journal-row"];
+            if (journal.journalId === this.highlightJournalId) {
+              rowClasses.push("journal-row_highlight");
+            }
+            if (isAuditRow) {
+              rowClasses.push("journal-row_audit");
+            }
+            return {
             ...journal,
             key: journal.journalId,
             extraRowKey: `${journal.journalId}-extras`,
@@ -2636,7 +2662,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             transactionStatusLabel: this.journalTransactionStatusLabel(
               journal.transactionStatus
             ),
-            lockLabel: journal.isLocked ? "Lock" : "未Lock",
             extrasOpen: this.journalToggleOpen[journal.journalId] === true,
             toggleGlyph:
               this.journalToggleOpen[journal.journalId] === true ? "▾" : "▸",
@@ -2651,22 +2676,31 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             }),
             canSaveJournalExtras: this.canEdit && !isCancelled,
             // 仕様: Accounting 第2.3節・第9.5節、Core 第7.7.3節。
-            // 手動Lock／Unlockの選択は有効仕訳だけ。監査表示の論理削除・取消済・取消は選べない。
-            canSelectForJournalLock: journal.transactionStatus === "Active",
+            // 手動Lock／Unlockの選択は有効仕訳だけ。監査表示の取消済・取消は選べない。
+            canSelectForJournalLock: isActive,
             journalSelected:
-              journal.transactionStatus === "Active" &&
+              isActive &&
               this.journalLockSelected?.[invoiceId]?.[journal.journalId] ===
                 true,
+            showLockKey: journal.isLocked === true,
+            lockCellUnlockedClickable:
+              !isCancelled &&
+              isActive &&
+              journal.isLocked !== true &&
+              this.canLockJournal === true,
+            lockCellLockedClickable:
+              !isCancelled &&
+              isActive &&
+              journal.isLocked === true &&
+              this.canUnlockJournal === true,
             memoDraft:
               this.journalMemoDrafts[journal.journalId] != null
                 ? this.journalMemoDrafts[journal.journalId]
                 : journal.memo || "",
-            rowClass:
-              journal.journalId === this.highlightJournalId
-                ? "journal-row journal-row_highlight"
-                : "journal-row"
-          })),
-          hasJournals: (bundle?.journals || []).length > 0,
+            rowClass: rowClasses.join(" ")
+          };
+          }),
+          hasJournals: displayedJournals.length > 0,
           // 仕様: Core 第8.10節、Accounting 第7.6節。Trueのタグラベルを金額行直下。OFFとDraftは出さない。
           tagResults: bundle?.tagResults || [],
           showCardAccountingTags:
@@ -2682,19 +2716,16 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           })),
           hasLockedJournals: bundle?.hasLockedJournals === true,
           hasUnlockedJournals: bundle?.hasUnlockedJournals === true,
-          unlockReason: this.unlockReason,
-          // 仕様: Core 第12.2節。取消済みではLock操作を出せない。
           journalLockDisabled:
             opsBusy ||
             isCancelled ||
-            !this.selectedJournalIds(invoiceId).length,
-          // 仕様: Accounting 第9.5節・第9.1節、Core 第1.1.10節。Unlockは理由必須。255超は止める。
+            selectedActiveJournals.length < 2 ||
+            !allSelectedUnlocked,
           journalUnlockDisabled:
             opsBusy ||
             isCancelled ||
-            !this.selectedJournalIds(invoiceId).length ||
-            this.isBlankReasonText(this.unlockReason) ||
-            this.isUnlockReasonTooLong(this.unlockReason),
+            selectedActiveJournals.length < 2 ||
+            !allSelectedLocked,
           applyBillingDisabled:
             this.hasAmountDrafts ||
             this.isSplitOrMoveUiOpen ||
@@ -5945,6 +5976,33 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   async handleLockJournals(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
+    await this.lockSelectedOrRefuse(invoiceId, this.selectedJournalIds(invoiceId));
+  }
+
+  async handleJournalLockCellClick(event) {
+    const invoiceId = event.currentTarget.dataset.invoiceId;
+    const journalId = event.currentTarget.dataset.journalId;
+    if (!invoiceId || !journalId) {
+      return;
+    }
+    const journals =
+      this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
+    const target = journals.find((journal) => journal.journalId === journalId);
+    if (!target || target.transactionStatus !== "Active") {
+      return;
+    }
+    if (target.isLocked === true) {
+      this.journalUnlockDialog = {
+        invoiceId,
+        journalIds: [journalId],
+        reason: ""
+      };
+      return;
+    }
+    await this.lockSelectedOrRefuse(invoiceId, [journalId]);
+  }
+
+  async lockSelectedOrRefuse(invoiceId, journalIds) {
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -5955,11 +6013,24 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    const journalIds = this.selectedJournalIds(invoiceId);
     if (!journalIds.length) {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "Lockする仕訳を選んでください。",
+          variant: "error"
+        })
+      );
+      return;
+    }
+    const journals =
+      this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
+    const selected = journals.filter((journal) =>
+      journalIds.includes(journal.journalId)
+    );
+    if (selected.some((journal) => journal.isLocked === true)) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "LockとUnlockが混在しています",
           variant: "error"
         })
       );
@@ -6005,12 +6076,27 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
   }
 
-  handleUnlockReasonChange(event) {
-    this.unlockReason = event.detail.value;
+  handleJournalUnlockDialogReasonChange(event) {
+    if (!this.journalUnlockDialog) {
+      return;
+    }
+    this.journalUnlockDialog = {
+      ...this.journalUnlockDialog,
+      reason: event.detail.value
+    };
   }
 
-  async handleUnlockJournals(event) {
+  handleCancelJournalUnlockDialog() {
+    this.journalUnlockDialog = null;
+  }
+
+  handleUnlockJournals(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
+    const journalIds = this.selectedJournalIds(invoiceId);
+    this.openJournalUnlockDialog(invoiceId, journalIds);
+  }
+
+  openJournalUnlockDialog(invoiceId, journalIds) {
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -6021,7 +6107,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    const journalIds = this.selectedJournalIds(invoiceId);
     if (!journalIds.length) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -6031,7 +6116,35 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    if (this.isBlankReasonText(this.unlockReason)) {
+    const journals =
+      this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
+    const selected = journals.filter((journal) =>
+      journalIds.includes(journal.journalId)
+    );
+    if (selected.some((journal) => journal.isLocked !== true)) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "LockとUnlockが混在しています",
+          variant: "error"
+        })
+      );
+      return;
+    }
+    this.journalUnlockDialog = {
+      invoiceId,
+      journalIds,
+      reason: ""
+    };
+  }
+
+  async handleSubmitJournalUnlockDialog() {
+    const dialog = this.journalUnlockDialog;
+    if (!dialog) {
+      return;
+    }
+    const invoiceId = dialog.invoiceId;
+    const journalIds = dialog.journalIds || [];
+    if (this.isBlankReasonText(dialog.reason)) {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "Unlockには理由が必要です",
@@ -6040,7 +6153,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    if (this.isUnlockReasonTooLong(this.unlockReason)) {
+    if (this.isUnlockReasonTooLong(dialog.reason)) {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "Unlock理由は255文字以内で指定してください。",
@@ -6062,12 +6175,12 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       await unlockJournalsForInvoice({
         invoiceId,
         journalIds,
-        reason: this.unlockReason,
+        reason: dialog.reason,
         expectedToken: this.findInvoice(invoiceId)?.lastModifiedToken,
         businessOperationKey: key
       });
       this.clearPendingOperationKey(invoiceId);
-      this.unlockReason = "";
+      this.journalUnlockDialog = null;
       this.journalLockSelected = {
         ...this.journalLockSelected,
         [invoiceId]: {}

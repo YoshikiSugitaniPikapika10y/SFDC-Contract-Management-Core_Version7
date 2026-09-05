@@ -255,6 +255,14 @@ function lockCheckbox(element) {
   );
 }
 
+function lockEmptyButton(element) {
+  return element.shadowRoot.querySelector("button.journal-lock-empty");
+}
+
+function lockKeyButton(element) {
+  return element.shadowRoot.querySelector("button.journal-lock-key");
+}
+
 async function openJournalsTab(element) {
   const tab = await waitUntil(
     () => element.shadowRoot.querySelector("button[data-tab='journals']")
@@ -318,9 +326,11 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting ç¬¬9.5ç¯
     const element = mount(buildPreview());
     await flush();
     await openJournalsTab(element);
-    expect(lockButton(element)).toBeTruthy();
-    expect(unlockButton(element)).toBeTruthy();
-    expect(lockCheckbox(element)).toBeTruthy();
+    expect(lockButton(element)).toBeFalsy();
+    expect(unlockButton(element)).toBeFalsy();
+    expect(lockCheckbox(element)).toBeFalsy();
+    expect(lockEmptyButton(element)).toBeTruthy();
+    expect(lockKeyButton(element)).toBeFalsy();
   });
 
   it("hides Lock and Unlock on cancelled invoices even with both permissions", async () => {
@@ -338,6 +348,8 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting ç¬¬9.5ç¯
     expect(lockButton(element)).toBeFalsy();
     expect(unlockButton(element)).toBeFalsy();
     expect(lockCheckbox(element)).toBeFalsy();
+    expect(lockEmptyButton(element)).toBeFalsy();
+    expect(lockKeyButton(element)).toBeFalsy();
   });
 
   it("hides Lock and Unlock when Accounting is OFF", async () => {

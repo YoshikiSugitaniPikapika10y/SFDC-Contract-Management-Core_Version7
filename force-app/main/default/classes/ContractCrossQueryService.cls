@@ -437,7 +437,7 @@ public with sharing class ContractCrossQueryService {
     String soql =
       'SELECT Id, Amount__c, PostingDate__c, Memo__c, ConfirmationText__c, ' +
       'IsLocked__c, TransactionStatus__c, AccountingEventKey__c, ' +
-      'DebitAccount__c, DebitAccount__r.Name, CreditAccount__c, CreditAccount__r.Name, ' +
+      'DebitSlotKey__c, CreditSlotKey__c, DebitAccount__c, DebitAccount__r.Name, CreditAccount__c, CreditAccount__r.Name, ' +
       'Invoice__c, Invoice__r.Name, Invoice__r.ContractHistory__c, Invoice__r.LastModifiedDate, ' +
       'Invoice__r.InvoiceTransactionStatus__c, ' +
       'Invoice__r.BillingAccountSnapShot__c, Invoice__r.BillingAccountSnapShot__r.Name, ' +
@@ -493,12 +493,14 @@ public with sharing class ContractCrossQueryService {
         : journal.Invoice__r.ContractHistory__c;
       dto.invoiceName = journal.Invoice__r == null ? null : journal.Invoice__r.Name;
       dto.invoiceToken = null;
-      dto.debitName = journal.DebitAccount__r == null
-        ? null
-        : journal.DebitAccount__r.Name;
-      dto.creditName = journal.CreditAccount__r == null
-        ? null
-        : journal.CreditAccount__r.Name;
+      dto.debitName = AccountingSlotFixedCatalog.slotAndAccount(
+        journal.DebitSlotKey__c,
+        journal.DebitAccount__r == null ? null : journal.DebitAccount__r.Name
+      );
+      dto.creditName = AccountingSlotFixedCatalog.slotAndAccount(
+        journal.CreditSlotKey__c,
+        journal.CreditAccount__r == null ? null : journal.CreditAccount__r.Name
+      );
       dto.amount = journal.Amount__c;
       dto.confirmationText = journal.ConfirmationText__c;
       dto.memo = journal.Memo__c;

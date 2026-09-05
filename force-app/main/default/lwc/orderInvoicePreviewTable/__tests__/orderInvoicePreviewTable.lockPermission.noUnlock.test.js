@@ -255,6 +255,10 @@ function lockCheckbox(element) {
   );
 }
 
+function lockEmptyButton(element) {
+  return element.shadowRoot.querySelector("button.journal-lock-empty");
+}
+
 async function openJournalsTab(element) {
   const tab = await waitUntil(
     () => element.shadowRoot.querySelector("button[data-tab='journals']")
@@ -318,8 +322,9 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting ç¬¬9.5ç¯
     const element = mount(buildPreview());
     await flush();
     await openJournalsTab(element);
-    expect(lockButton(element)).toBeTruthy();
+    expect(lockButton(element)).toBeFalsy();
     expect(unlockButton(element)).toBeFalsy();
-    expect(lockCheckbox(element)).toBeTruthy();
+    expect(lockCheckbox(element)).toBeFalsy();
+    expect(lockEmptyButton(element)).toBeTruthy();
   });
 });

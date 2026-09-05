@@ -328,10 +328,14 @@
   color: #475569;
 }
 
-/* 仕様: 横断画面.md 第5節 */
-.confirm-cell,
-.memo-cell {
+.confirm-cell {
   white-space: normal;
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.memo-cell {
+  white-space: nowrap;
   min-width: 12rem;
   max-width: 22rem;
 }

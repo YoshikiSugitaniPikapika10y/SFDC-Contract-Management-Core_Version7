@@ -46,7 +46,7 @@ public without sharing class InvoicePreviewOpsController {
     public String invoiceToken;
   }
 
-  public class JournalRowDto {
+  public class JournalRowDto implements Comparable {
     @AuraEnabled
     public Id journalId;
     @AuraEnabled
@@ -79,6 +79,47 @@ public without sharing class InvoicePreviewOpsController {
     /** 仕様: Core 第11.4.4節。 */
     @AuraEnabled
     public Map<String, Object> extraFieldValues;
+    /** 仕様: Accounting 第8.7節。画面の同日順。 */
+    @AuraEnabled
+    public Integer sameDayOrder;
+    @AuraEnabled
+    public Datetime causeCreatedDate;
+    @AuraEnabled
+    public String causeRecordId;
+    @AuraEnabled
+    public Integer recognitionSequence;
+
+    /** 仕様: Accounting 第8.7節。計上日・sameDayOrder・原因CreatedDate・原因ID。同じ明細の同日は回番号。 */
+    public Integer compareTo(Object otherObj) {
+      JournalRowDto other = (JournalRowDto) otherObj;
+      Integer dateCmp = compareDates(postingDate, other.postingDate);
+      if (dateCmp != 0) {
+        return dateCmp;
+      }
+      Integer leftOrder = sameDayOrder == null ? 0 : sameDayOrder;
+      Integer rightOrder = other.sameDayOrder == null ? 0 : other.sameDayOrder;
+      if (leftOrder != rightOrder) {
+        return leftOrder < rightOrder ? -1 : 1;
+      }
+      Integer createdCmp = compareDatetimes(causeCreatedDate, other.causeCreatedDate);
+      if (createdCmp != 0) {
+        return createdCmp;
+      }
+      Integer leftSeq = recognitionSequence == null ? 0 : recognitionSequence;
+      Integer rightSeq = other.recognitionSequence == null ? 0 : other.recognitionSequence;
+      if (leftSeq != rightSeq) {
+        return leftSeq < rightSeq ? -1 : 1;
+      }
+      String leftId = causeRecordId == null ? '' : causeRecordId;
+      String rightId = other.causeRecordId == null ? '' : other.causeRecordId;
+      Integer idCmp = leftId.compareTo(rightId);
+      if (idCmp != 0) {
+        return idCmp;
+      }
+      String leftJournal = journalId == null ? '' : String.valueOf(journalId);
+      String rightJournal = other.journalId == null ? '' : String.valueOf(other.journalId);
+      return leftJournal.compareTo(rightJournal);
+    }
   }
 
   public class TagResultRowDto {
@@ -942,7 +983,7 @@ public without sharing class InvoicePreviewOpsController {
       true;
   }
 
-  /** 仕様: Core 第7.7.3節、Accounting 第4.2節、第9.3節 */
+  /** 仕様: Core 第7.7.3節、Accounting 第4.2節、第9.3節、第8.7節、第9.5節、第11.1節 */
   private static List<JournalRowDto> loadJournals(Id invoiceId) {
     List<JournalRowDto> rows = new List<JournalRowDto>();
     for (GlJournal__c journal : [
@@ -959,11 +1000,20 @@ public without sharing class InvoicePreviewOpsController {
         TransactionStatus__c,
         IsLocked__c,
         Memo__c,
-        ConfirmationText__c
+        ConfirmationText__c,
+        RecognitionSequence__c,
+        InvoiceLine__c,
+        InvoiceLine__r.CreatedDate,
+        InvoicePayment__c,
+        InvoicePayment__r.CreatedDate,
+        InvoicePaymentAllocation__c,
+        InvoicePaymentAllocation__r.CreatedDate,
+        GlManualJournalHeader__c,
+        GlManualJournalHeader__r.CreatedDate
       FROM GlJournal__c
       WHERE Invoice__c = :invoiceId
+      AND TransactionStatus__c != 'LogicallyDeleted'
       WITH SYSTEM_MODE
-      ORDER BY PostingDate__c ASC, CreatedDate ASC
     ]) {
       JournalRowDto row = new JournalRowDto();
       row.journalId = journal.Id;
@@ -972,20 +1022,28 @@ public without sharing class InvoicePreviewOpsController {
       row.patternKey = journal.JournalPatternKey__c;
       row.debitSlotKey = journal.DebitSlotKey__c;
       row.creditSlotKey = journal.CreditSlotKey__c;
-      row.debitAccountName = journal.DebitAccount__r == null
-        ? null
-        : journal.DebitAccount__r.Name;
-      row.creditAccountName = journal.CreditAccount__r == null
-        ? null
-        : journal.CreditAccount__r.Name;
+      row.debitAccountName = AccountingSlotFixedCatalog.slotAndAccount(
+        journal.DebitSlotKey__c,
+        journal.DebitAccount__r == null ? null : journal.DebitAccount__r.Name
+      );
+      row.creditAccountName = AccountingSlotFixedCatalog.slotAndAccount(
+        journal.CreditSlotKey__c,
+        journal.CreditAccount__r == null ? null : journal.CreditAccount__r.Name
+      );
       row.amount = journal.Amount__c;
       row.postingDate = journal.PostingDate__c;
       row.transactionStatus = journal.TransactionStatus__c;
       row.isLocked = journal.IsLocked__c == true;
       row.memo = journal.Memo__c;
       row.confirmationText = journal.ConfirmationText__c;
+      row.sameDayOrder = sameDayOrderOf(journal.JournalPatternKey__c);
+      row.recognitionSequence = journal.RecognitionSequence__c == null
+        ? 0
+        : journal.RecognitionSequence__c.intValue();
+      fillCauseSort(journal, row);
       rows.add(row);
     }
+    rows.sort();
     Set<Id> journalIds = new Set<Id>();
     for (JournalRowDto row : rows) {
       journalIds.add(row.journalId);
@@ -1133,6 +1191,76 @@ public without sharing class InvoicePreviewOpsController {
       }
     }
     return eventKey;
+  }
+
+  /** 仕様: Accounting 第8.7節。手動はパターン無し。Goalの手動sameDayOrderは80。 */
+  private static Integer sameDayOrderOf(String patternKey) {
+    if (String.isBlank(patternKey)) {
+      return 80;
+    }
+    for (JournalPatternFixedCatalog.Definition definition : JournalPatternFixedCatalog.values()) {
+      if (definition.key == patternKey) {
+        return definition.sameDayOrder;
+      }
+    }
+    return 80;
+  }
+
+  /** 仕様: Accounting 第8.7節。原因は割当／入出金／明細／手動ヘッダー。 */
+  private static void fillCauseSort(GlJournal__c journal, JournalRowDto row) {
+    if (journal.InvoicePaymentAllocation__c != null) {
+      row.causeRecordId = String.valueOf(journal.InvoicePaymentAllocation__c);
+      row.causeCreatedDate = journal.InvoicePaymentAllocation__r == null
+        ? null
+        : journal.InvoicePaymentAllocation__r.CreatedDate;
+      return;
+    }
+    if (journal.InvoicePayment__c != null) {
+      row.causeRecordId = String.valueOf(journal.InvoicePayment__c);
+      row.causeCreatedDate = journal.InvoicePayment__r == null
+        ? null
+        : journal.InvoicePayment__r.CreatedDate;
+      return;
+    }
+    if (journal.InvoiceLine__c != null) {
+      row.causeRecordId = String.valueOf(journal.InvoiceLine__c);
+      row.causeCreatedDate = journal.InvoiceLine__r == null
+        ? null
+        : journal.InvoiceLine__r.CreatedDate;
+      return;
+    }
+    if (journal.GlManualJournalHeader__c != null) {
+      row.causeRecordId = String.valueOf(journal.GlManualJournalHeader__c);
+      row.causeCreatedDate = journal.GlManualJournalHeader__r == null
+        ? null
+        : journal.GlManualJournalHeader__r.CreatedDate;
+    }
+  }
+
+  private static Integer compareDates(Date left, Date right) {
+    if (left == right) {
+      return 0;
+    }
+    if (left == null) {
+      return 1;
+    }
+    if (right == null) {
+      return -1;
+    }
+    return left < right ? -1 : 1;
+  }
+
+  private static Integer compareDatetimes(Datetime left, Datetime right) {
+    if (left == right) {
+      return 0;
+    }
+    if (left == null) {
+      return 1;
+    }
+    if (right == null) {
+      return -1;
+    }
+    return left.getTime() < right.getTime() ? -1 : 1;
   }
 
   private static Decimal nvl(Decimal value) {
