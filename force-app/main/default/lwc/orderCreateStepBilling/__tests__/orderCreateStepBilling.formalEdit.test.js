@@ -1,3 +1,4 @@
+import { createElement } from "lwc";
 import { NavigationMixin } from "lightning/navigation";
 import OrderCreateStepBilling from "c/orderCreateStepBilling";
 
@@ -78,7 +79,9 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
 
     const message =
       OrderCreateStepBilling.prototype.validateBillingFields.call(element);
-    expect(message).toContain("正規編集画面");
+    expect(message).toBe(
+      "請求アカウントの必須項目が未設定です。請求アカウントの正規編集画面で設定してください: 請求先宛名"
+    );
     expect(message).not.toContain("関連リスト");
   });
 
@@ -107,5 +110,36 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
       );
     expect(merged.BillingEmailTo__c).toBe("new@example.com");
     expect(merged.BillingAddressee__c).toBe("新しい宛名");
+  });
+
+  it("shows billing as reference-only and sends unset estimates back to the wizard (Core 5.2)", async () => {
+    const proto = OrderCreateStepBilling.prototype;
+    const hasBilling = Object.getOwnPropertyDescriptor(
+      proto,
+      "hasBillingAccount"
+    ).get;
+    const accountName = Object.getOwnPropertyDescriptor(
+      proto,
+      "billingAccountName"
+    ).get;
+    expect(hasBilling.call({ context: { billingAccountId: "a00" } })).toBe(
+      true
+    );
+    expect(hasBilling.call({ context: {} })).toBe(false);
+    expect(accountName.call({ context: {} })).toBe("—");
+
+    const element = createElement("c-order-create-step-billing", {
+      is: OrderCreateStepBilling
+    });
+    element.context = {};
+    document.body.appendChild(element);
+    await Promise.resolve();
+
+    expect(element.shadowRoot.textContent).toContain(
+      "請求アカウントはこの画面では参照のみです。必須値が不足している場合は正規編集画面で設定してください。"
+    );
+    expect(element.shadowRoot.textContent).toContain(
+      "請求アカウントが未設定です。見積作成画面で請求アカウントを設定してから受注してください。"
+    );
   });
 });
