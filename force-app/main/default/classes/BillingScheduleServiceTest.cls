@@ -86,9 +86,10 @@ private class BillingScheduleServiceTest {
       );
     } catch (BillingScheduleService.ScheduleException ex) {
       rejected = true;
-      System.assert(
-        ex.getMessage().contains('入金予定日が請求日より前'),
-        ex.getMessage()
+      System.assertEquals(
+        '入金予定日が請求日より前になる設定は使えません。',
+        ex.getMessage(),
+        'Core 第7.5節: 入金予定日が請求日より前になる設定は拒否する'
       );
     }
     System.assertEquals(
@@ -108,6 +109,11 @@ private class BillingScheduleServiceTest {
       BillingScheduleService.assertSchedule(account);
     } catch (BillingScheduleService.ScheduleException ex) {
       rejected = true;
+      System.assertEquals(
+        '請求日ルールで指定日は空にしてください。',
+        ex.getMessage(),
+        'Core 第7.2節: 入らない項目は空にする。入っている場合は保存時に拒否する'
+      );
     }
     System.assertEquals(
       true,
@@ -229,9 +235,10 @@ private class BillingScheduleServiceTest {
       BillingScheduleService.assertSchedule(account);
     } catch (BillingScheduleService.ScheduleException ex) {
       rejected = true;
-      System.assert(
-        ex.getMessage().contains('月末では指定日を空'),
-        ex.getMessage()
+      System.assertEquals(
+        '請求日ルールの月末では指定日を空にしてください。',
+        ex.getMessage(),
+        'Core 第7.2節: MonthEnd のときは指定日を空にする'
       );
     }
     System.assertEquals(
