@@ -411,10 +411,10 @@
         <template if:true={showJournalSave}>
           <div class={journalActionClass}>
             <template if:true={showJournalLockSelection}>
-              <button type="button" class="btn btn_link" onclick={handleSelectPage}>
+              <button type="button" class="btn btn_link" onclick={handleSelectPage} disabled={saving}>
                 一括選択
               </button>
-              <button type="button" class="btn btn_link" onclick={handleClearPage}>
+              <button type="button" class="btn btn_link" onclick={handleClearPage} disabled={saving}>
                 クリア
               </button>
             </template>
@@ -425,6 +425,7 @@
                 value={unlockReason}
                 maxlength="255"
                 required
+                disabled={saving}
                 onchange={handleUnlockReason}
               ></lightning-input>
             </template>
@@ -486,6 +487,7 @@
                             variant="label-hidden"
                             label="選択"
                             checked={row.checked}
+                            disabled={saving}
                             data-id={row.id}
                             onchange={handleCheck}
                           ></lightning-input>
@@ -701,26 +703,28 @@
     <template if:true={showSendOverlay}>
       <div class="overlay">
         <div class="overlay-bar">
-          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose}>
+          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose} disabled={overlayBusy}>
             閉じる
           </button>
         </div>
         <c-estimate-send-record-action
           record-id={overlayHistoryId}
           onpanelclose={handleOverlayClose}
+          onbusychange={handleOverlayBusy}
         ></c-estimate-send-record-action>
       </div>
     </template>
     <template if:true={showOrderOverlay}>
       <div class="overlay">
         <div class="overlay-bar">
-          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose}>
+          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose} disabled={overlayBusy}>
             閉じる
           </button>
         </div>
         <c-order-create-wizard
           record-id={overlayHistoryId}
           onpanelclose={handleOverlayClose}
+          onbusychange={handleOverlayBusy}
         ></c-order-create-wizard>
       </div>
     </template>

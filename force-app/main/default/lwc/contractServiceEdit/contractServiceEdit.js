@@ -118,15 +118,24 @@ export default class ContractServiceEdit extends LightningElement {
   }
 
   handleNameChange(event) {
+    if (this.saving) {
+      return;
+    }
     this.name = event.target.value;
   }
 
   handleBillingAccountChange(event) {
+    if (this.saving) {
+      return;
+    }
     this.billingAccountId = event.detail ? event.detail.recordId : "";
   }
 
   // 仕様: Core 第3.4.1節。OFFへ戻すと自取引先候補外ならクリアする。
   handleAllowOtherAccountBillingChange(event) {
+    if (this.saving) {
+      return;
+    }
     const allowOther = event.target.checked === true;
     this.allowOtherAccountBilling = allowOther;
     if (!allowOther && this.isBillingOutsideRelated(this.billingAccountId)) {
@@ -135,15 +144,24 @@ export default class ContractServiceEdit extends LightningElement {
   }
 
   handleTaxChange(event) {
+    if (this.saving) {
+      return;
+    }
     const raw = event.target.value;
     this.taxPercent = raw === "" || raw == null ? null : Number(raw);
   }
 
   handleMemoChange(event) {
+    if (this.saving) {
+      return;
+    }
     this.customerMemo = event.target.value;
   }
 
   handleCustomFieldChange(event) {
+    if (this.saving) {
+      return;
+    }
     const { fieldApi, value } = event.detail || {};
     if (!fieldApi) {
       return;
@@ -155,6 +173,9 @@ export default class ContractServiceEdit extends LightningElement {
   }
 
   handleCancel() {
+    if (this.saving) {
+      return;
+    }
     this.dispatchEvent(new CloseActionScreenEvent());
   }
 
@@ -190,6 +211,7 @@ export default class ContractServiceEdit extends LightningElement {
   }
 
   // 仕様: Core 第3.4.1節・第1.1.10節。空欄は推測して埋めない。画面で止める。
+  // 仕様: Core 第4.3.12節。画面の同時押下防止は補助。保存中は入力とキャンセルを止める。
   async handleSave() {
     if (this.saving) {
       return;

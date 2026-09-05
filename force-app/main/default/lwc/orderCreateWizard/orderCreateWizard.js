@@ -210,10 +210,16 @@ export default class OrderCreateWizard extends NavigationMixin(
   }
 
   handleCreateRenewOpportunityChange(event) {
+    if (this.isBusy) {
+      return;
+    }
     this.createRenewOpportunity = event.target.checked === true;
   }
 
   handleHistoryFieldChange(event) {
+    if (this.isBusy) {
+      return;
+    }
     const fieldApi = event.detail?.fieldApi;
     if (!fieldApi) {
       return;
@@ -244,6 +250,19 @@ export default class OrderCreateWizard extends NavigationMixin(
 
   get isBusy() {
     return this.isLoading || this.isSaving;
+  }
+
+  notifyOverlayBusy(busy) {
+    if (typeof this.dispatchEvent !== "function") {
+      return;
+    }
+    this.dispatchEvent(
+      new CustomEvent("busychange", {
+        bubbles: true,
+        composed: true,
+        detail: { busy: busy === true }
+      })
+    );
   }
 
   get isOrderDisabled() {
@@ -291,6 +310,7 @@ export default class OrderCreateWizard extends NavigationMixin(
   }
 
   // 仕様: Core 第5.2節、第1.1.10節。Cancelも請求アカウント必須検証を維持し、不足は正規編集へ誘導する。
+  // 仕様: Core 第4.3.12節。画面の同時押下防止は補助。
   async handleConfirmOrder() {
     if (this.isSaving || !this.canOrder) {
       return;
@@ -302,6 +322,7 @@ export default class OrderCreateWizard extends NavigationMixin(
     }
 
     this.isSaving = true;
+    this.notifyOverlayBusy(true);
     this.errorMessage = "";
     try {
       const historyError = this.validateHistoryFields();
@@ -309,6 +330,7 @@ export default class OrderCreateWizard extends NavigationMixin(
         this.errorMessage = historyError;
         this.showToast("入力エラー", historyError, "error");
         this.isSaving = false;
+        this.notifyOverlayBusy(false);
         return;
       }
       const validationError = this.validateBillingStep();
@@ -317,6 +339,7 @@ export default class OrderCreateWizard extends NavigationMixin(
         this.showToast("入力エラー", validationError, "error");
         this.guideToBillingAccountFormalEdit();
         this.isSaving = false;
+        this.notifyOverlayBusy(false);
         return;
       }
       const shouldCreateRenew =
@@ -356,10 +379,14 @@ export default class OrderCreateWizard extends NavigationMixin(
       }
     } finally {
       this.isSaving = false;
+      this.notifyOverlayBusy(false);
     }
   }
 
   handleClose() {
+    if (this.isBusy) {
+      return;
+    }
     this.closeAction({ refresh: false });
   }
 

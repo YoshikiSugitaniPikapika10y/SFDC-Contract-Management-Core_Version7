@@ -166,4 +166,14 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
       "請求アカウントが未設定です。見積作成画面で請求アカウントを設定してから受注してください。"
     );
   });
+
+  it("受注処理中は正規編集を開かない (Core 5.2 / 4.3.12)", () => {
+    const proto = OrderCreateStepBilling.prototype;
+    const ctx = {
+      busy: true,
+      openBillingAccountFormalEdit: jest.fn()
+    };
+    proto.handleOpenFormalEdit.call(ctx);
+    expect(ctx.openBillingAccountFormalEdit).not.toHaveBeenCalled();
+  });
 });

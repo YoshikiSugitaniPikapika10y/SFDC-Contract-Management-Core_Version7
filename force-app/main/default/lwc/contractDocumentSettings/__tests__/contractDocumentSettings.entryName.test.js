@@ -702,3 +702,30 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
     );
   });
 });
+
+describe("contractDocumentSettings save busy (Core 11.6 / 4.3.12)", () => {
+  const proto = ContractDocumentSettings.prototype;
+
+  it("保存中は項目を変えない", () => {
+    const ctx = {
+      loading: true,
+      settings: { accountingEnabled: false }
+    };
+    proto.handleChange.call(ctx, {
+      target: { name: "accountingEnabled", type: "checkbox", checked: true },
+      detail: {}
+    });
+    expect(ctx.settings.accountingEnabled).toBe(false);
+  });
+
+  it("保存中は本体を触れなくする", () => {
+    const settingsBodyClass = Object.getOwnPropertyDescriptor(
+      proto,
+      "settingsBodyClass"
+    ).get;
+    expect(settingsBodyClass.call({ loading: true })).toBe(
+      "slds-p-around_medium settings-body_busy"
+    );
+  });
+});
+

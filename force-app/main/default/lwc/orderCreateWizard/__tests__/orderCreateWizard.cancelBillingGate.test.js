@@ -195,4 +195,13 @@ describe("orderCreateWizard cancel billing gate (Core 5.2 / 1.1.10)", () => {
     await proto.loadContext.call(off);
     expect(off.createRenewOpportunity).toBe(false);
   });
+
+  it("受注処理中は閉じない (Core 5.2 / 4.3.12)", () => {
+    const ctx = {
+      isBusy: true,
+      closeAction: jest.fn()
+    };
+    proto.handleClose.call(ctx);
+    expect(ctx.closeAction).not.toHaveBeenCalled();
+  });
 });

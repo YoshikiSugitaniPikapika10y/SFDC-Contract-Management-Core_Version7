@@ -13,6 +13,7 @@
             label="名前"
             value={name}
             required
+            disabled={saving}
             onchange={handleNameChange}
           ></lightning-input>
           <!-- 仕様: Core 第3.4.1節・第4.3.3節。Newと同じ。他取引先検索ON/OFF。 -->
@@ -21,6 +22,7 @@
             object-api-name="BillingAccount__c"
             value={billingAccountId}
             required
+            disabled={saving}
             filter={billingAccountFilter}
             onchange={handleBillingAccountChange}
           ></lightning-record-picker>
@@ -28,6 +30,7 @@
             type="checkbox"
             label="他の取引先の請求アカウントも検索する"
             checked={allowOtherAccountBilling}
+            disabled={saving}
             onchange={handleAllowOtherAccountBillingChange}
           ></lightning-input>
           <lightning-input
@@ -35,11 +38,13 @@
             type="number"
             value={taxPercent}
             required
+            disabled={saving}
             onchange={handleTaxChange}
           ></lightning-input>
           <lightning-textarea
             label="備考"
             value={customerMemo}
+            disabled={saving}
             onchange={handleMemoChange}
           ></lightning-textarea>
           <template if:true={hasCustomFields}>
@@ -47,6 +52,7 @@
               <c-estimate-wizard-custom-field-grid
                 fields={customFieldInputs}
                 field-target="service"
+                disabled={saving}
                 oncustomfieldchange={handleCustomFieldChange}
               ></c-estimate-wizard-custom-field-grid>
             </div>
@@ -54,6 +60,7 @@
           <div class="slds-m-top_medium slds-grid slds-grid_align-end">
             <lightning-button
               label="キャンセル"
+              disabled={saving}
               onclick={handleCancel}
             ></lightning-button>
             <lightning-button

@@ -192,4 +192,16 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(save).toHaveBeenCalled();
   });
+
+  it("保存中はキャンセルしない (Core 3.4.1 / 4.3.12)", () => {
+    const c = { saving: true, dispatchEvent: jest.fn() };
+    proto.handleCancel.call(c);
+    expect(c.dispatchEvent).not.toHaveBeenCalled();
+  });
+
+  it("保存中は名前を変えない (Core 3.4.1 / 4.3.12)", () => {
+    const c = { saving: true, name: "元" };
+    proto.handleNameChange.call(c, { target: { value: "新" } });
+    expect(c.name).toBe("元");
+  });
 });

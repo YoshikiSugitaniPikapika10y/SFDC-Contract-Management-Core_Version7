@@ -265,15 +265,20 @@
           </div>
         </section>
         <div class="ba-toolbar">
+          <template if:true={isSaving}>
+            <p class="ba-help" role="status">保存中</p>
+          </template>
           <lightning-button
             class="slds-m-right_small"
             label="キャンセル"
+            disabled={isSaving}
             onclick={handleCancel}
           ></lightning-button>
           <lightning-button
             type="submit"
             variant="brand"
             label="保存"
+            disabled={isSaving}
           ></lightning-button>
         </div>
       </lightning-record-edit-form>

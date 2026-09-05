@@ -110,6 +110,10 @@ export default class ManualJournalEntry extends LightningElement {
     ];
   }
 
+  get inputsDisabled() {
+    return this.disabled || this.busy;
+  }
+
   // 仕様: Accounting 第10.3節。0より大きい整数円。小数は登録しない。
   get registerDisabled() {
     const amount = Number(this.amount);
@@ -171,6 +175,9 @@ export default class ManualJournalEntry extends LightningElement {
   }
 
   handleFieldChange(event) {
+    if (this.busy) {
+      return;
+    }
     const field = event.target.dataset.field;
     if (!field) {
       return;
@@ -179,8 +186,9 @@ export default class ManualJournalEntry extends LightningElement {
   }
 
   // 仕様: Accounting 第10.3節、第11.4節、第8.8節、Core 第7.9.6節
+  // 仕様: Accounting 第8.8節。実行前に件数を出して確認後に実行する。プレビュー中も止める。
   async handleRegister() {
-    if (this.registerDisabled) {
+    if (this.busy || this.registerDisabled) {
       return;
     }
     const amount = Number(this.amount);
@@ -208,6 +216,7 @@ export default class ManualJournalEntry extends LightningElement {
     const cancellationDate = this.registerRequiresDate
       ? this.registerCancelDate || null
       : null;
+    this.busy = true;
     let journalPreviewText = "";
     try {
       const preview = await previewRegisterManualJournal({
@@ -221,6 +230,7 @@ export default class ManualJournalEntry extends LightningElement {
       });
       journalPreviewText = preview?.displayText || "";
     } catch (error) {
+      this.busy = false;
       this.dispatchEvent(
         new ShowToastEvent({
           title: "手動仕訳の登録に失敗しました",
@@ -237,9 +247,9 @@ export default class ManualJournalEntry extends LightningElement {
       variant: "header"
     });
     if (!confirmed) {
+      this.busy = false;
       return;
     }
-    this.busy = true;
     try {
       if (!this.pendingOperationKey) {
         this.pendingOperationKey = await issueInvoiceOperationKey();
@@ -280,6 +290,9 @@ export default class ManualJournalEntry extends LightningElement {
   }
 
   handleStartCancel(event) {
+    if (this.busy) {
+      return;
+    }
     this.cancelHeaderId = event.currentTarget.dataset.headerId;
     this.cancelReason = "";
     this.cancelReasonText = "";
@@ -320,6 +333,7 @@ export default class ManualJournalEntry extends LightningElement {
       );
       return;
     }
+    this.busy = true;
     let journalPreviewText = "";
     try {
       const preview = await previewCancelManualJournal({
@@ -331,6 +345,7 @@ export default class ManualJournalEntry extends LightningElement {
       });
       journalPreviewText = preview?.displayText || "";
     } catch (error) {
+      this.busy = false;
       this.dispatchEvent(
         new ShowToastEvent({
           title: "手動仕訳の取消に失敗しました",
@@ -347,9 +362,9 @@ export default class ManualJournalEntry extends LightningElement {
       variant: "header"
     });
     if (!confirmed) {
+      this.busy = false;
       return;
     }
-    this.busy = true;
     try {
       if (!this.pendingOperationKey) {
         this.pendingOperationKey = await issueInvoiceOperationKey();

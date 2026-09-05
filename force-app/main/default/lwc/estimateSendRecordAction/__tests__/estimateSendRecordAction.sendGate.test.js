@@ -185,4 +185,10 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
       { label: "組織", value: "Org" }
     ]);
   });
+
+  it("送付中はキャンセルしない (Core 7.10)", () => {
+    const ctx = { isSending: true, dispatchEvent: jest.fn() };
+    proto.handleCancel.call(ctx);
+    expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+  });
 });

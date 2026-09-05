@@ -62,6 +62,7 @@
                   <c-estimate-wizard-custom-field-grid
                     fields={historyFieldInputs}
                     field-target="history"
+                    disabled={isBusy}
                     oncustomfieldchange={handleHistoryFieldChange}
                   ></c-estimate-wizard-custom-field-grid>
                 </div>
@@ -70,6 +71,7 @@
                 class="slds-hide"
                 context={context}
                 billing-custom-fields={billingCustomFields}
+                busy={isBusy}
               ></c-order-create-step-billing>
             </section>
           </template>
@@ -170,12 +172,21 @@
           </template>
 
           <template if:false={showBootstrapLoading}>
+            <template if:true={isSaving}>
+              <div class="ord-loading">
+                <lightning-spinner
+                  alternative-text="受注処理中"
+                  size="small"
+                ></lightning-spinner>
+              </div>
+            </template>
             <template if:true={showHistoryFields}>
               <section class="ord-history-fields">
                 <h2 class="ord-section-title">追加項目</h2>
                 <c-estimate-wizard-custom-field-grid
                   fields={historyFieldInputs}
                   field-target="history"
+                  disabled={isBusy}
                   oncustomfieldchange={handleHistoryFieldChange}
                 ></c-estimate-wizard-custom-field-grid>
               </section>
@@ -185,6 +196,7 @@
               <c-order-create-step-billing
                 context={context}
                 billing-custom-fields={billingCustomFields}
+                busy={isBusy}
               >
               </c-order-create-step-billing>
 

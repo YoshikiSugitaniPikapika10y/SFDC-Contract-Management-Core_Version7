@@ -730,3 +730,43 @@ describe("contractCrossWork issued icon (横断画面.md 操作23)", () => {
     expect(issued.href).toBe("");
   });
 });
+
+describe("contractCrossWork overlay and journal busy (Core 7.10 / 7.9.7)", () => {
+  const proto = ContractCrossWork.prototype;
+
+  it("処理中はオーバーレイを閉じない", () => {
+    const ctx = {
+      overlayBusy: true,
+      showSendOverlay: true,
+      showOrderOverlay: false,
+      selectedId: "a0H",
+      menu: "estimate",
+      loadEstimateTile: jest.fn()
+    };
+    proto.handleOverlayClose.call(ctx);
+    expect(ctx.showSendOverlay).toBe(true);
+    expect(ctx.loadEstimateTile).not.toHaveBeenCalled();
+  });
+
+  it("保存中は一括選択しない", () => {
+    const ctx = {
+      saving: true,
+      showJournalLockSelection: true,
+      checkedIds: {},
+      currentPageCheckable: [{ id: "j1" }]
+    };
+    proto.handleSelectPage.call(ctx);
+    expect(ctx.checkedIds).toEqual({});
+  });
+
+  it("保存中は仕訳バーを止めるクラスを付ける", () => {
+    const journalActionClass = Object.getOwnPropertyDescriptor(
+      proto,
+      "journalActionClass"
+    ).get;
+    expect(
+      journalActionClass.call({ isLockUnlocked: true, saving: true })
+    ).toBe("journal-bar lock-unlocked journal-bar_busy");
+  });
+});
+

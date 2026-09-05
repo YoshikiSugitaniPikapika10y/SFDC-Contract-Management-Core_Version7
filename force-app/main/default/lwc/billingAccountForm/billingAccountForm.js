@@ -231,6 +231,7 @@ export default class BillingAccountForm extends NavigationMixin(
   _objectInfo;
   @track draft = {};
   @track errorMessage = "";
+  isSaving = false;
 
   @wire(CurrentPageReference)
   wiredPageRef(pageRef) {
@@ -417,6 +418,9 @@ export default class BillingAccountForm extends NavigationMixin(
   }
 
   handleFieldChange(event) {
+    if (this.isSaving) {
+      return;
+    }
     const fieldName = event.target.fieldName;
     if (!fieldName) {
       return;
@@ -428,8 +432,12 @@ export default class BillingAccountForm extends NavigationMixin(
   }
 
   /** 仕様: Core 第3.3.2節。保存を止める確認ゲートは置かない。 */
+  /** 仕様: Core 第4.3.12節。画面の同時押下防止は補助。 */
   handleSubmit(event) {
     event.preventDefault();
+    if (this.isSaving) {
+      return;
+    }
     const fields = applyClearedScheduleFields({
       ...event.detail.fields,
       ...this.draft
@@ -437,10 +445,16 @@ export default class BillingAccountForm extends NavigationMixin(
     if (!this.isNew) {
       delete fields.BillingAccountKey__c;
     }
-    this.template.querySelector("lightning-record-edit-form").submit(fields);
+    const form = this.template.querySelector("lightning-record-edit-form");
+    if (!form) {
+      return;
+    }
+    this.isSaving = true;
+    form.submit(fields);
   }
 
   handleSuccess(event) {
+    this.isSaving = false;
     this.errorMessage = "";
     this.dispatchEvent(new CloseActionScreenEvent());
     const recordId = event.detail.id;
@@ -455,6 +469,7 @@ export default class BillingAccountForm extends NavigationMixin(
   }
 
   handleError(event) {
+    this.isSaving = false;
     const detail = event.detail;
     this.errorMessage =
       detail?.detail ||
@@ -464,6 +479,9 @@ export default class BillingAccountForm extends NavigationMixin(
   }
 
   handleCancel() {
+    if (this.isSaving) {
+      return;
+    }
     this.dispatchEvent(new CloseActionScreenEvent());
     if (this.recordId) {
       this[NavigationMixin.Navigate]({

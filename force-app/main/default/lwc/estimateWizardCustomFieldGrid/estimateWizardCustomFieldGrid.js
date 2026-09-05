@@ -5,6 +5,7 @@ export default class EstimateWizardCustomFieldGrid extends LightningElement {
   @api fieldTarget = "";
   /** When true, use table-cell font size (matches Step3 請求設定). */
   @api dense = false;
+  @api disabled = false;
 
   get gridClass() {
     return this.dense
@@ -17,6 +18,9 @@ export default class EstimateWizardCustomFieldGrid extends LightningElement {
   }
 
   handleFieldChange(event) {
+    if (this.disabled) {
+      return;
+    }
     const fieldApi = event.currentTarget.dataset.field;
     const fieldDef = this.fields.find((field) => field.apiName === fieldApi);
     if (!fieldDef) {

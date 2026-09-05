@@ -203,6 +203,11 @@
   gap: 0.4rem 0.6rem;
 }
 
+.journal-bar_busy,
+.table-wrap_busy {
+  pointer-events: none;
+}
+
 .icon-btn {
   width: 1.75rem;
   height: 1.75rem;

@@ -26,6 +26,7 @@ export default class OrderCreateStepBilling extends NavigationMixin(
   LightningElement
 ) {
   @api context;
+  @api busy = false;
 
   _billingCustomFields = {};
   _pendingBillingCustomFields = null;
@@ -101,6 +102,9 @@ export default class OrderCreateStepBilling extends NavigationMixin(
   }
 
   handleOpenFormalEdit() {
+    if (this.busy) {
+      return;
+    }
     this.openBillingAccountFormalEdit();
   }
 

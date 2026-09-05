@@ -7,6 +7,13 @@
       ></lightning-spinner>
     </template>
 
+    <template if:true={isSending}>
+      <lightning-spinner
+        alternative-text="送付中"
+        size="small"
+      ></lightning-spinner>
+    </template>
+
     <template if:true={estimate}>
       <div class="slds-p-horizontal_small">
         <p class="slds-text-heading_small">{estimate.historyName}</p>

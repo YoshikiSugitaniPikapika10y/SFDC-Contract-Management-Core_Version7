@@ -350,17 +350,35 @@ export default class EstimateSendRecordAction extends LightningElement {
   }
 
   handleCancel() {
+    if (this.isSending) {
+      return;
+    }
     this.dispatchEvent(
       new CustomEvent("panelclose", { bubbles: true, composed: true })
     );
     this.dispatchEvent(new CloseActionScreenEvent());
   }
 
+  notifyOverlayBusy(busy) {
+    if (typeof this.dispatchEvent !== "function") {
+      return;
+    }
+    this.dispatchEvent(
+      new CustomEvent("busychange", {
+        bubbles: true,
+        composed: true,
+        detail: { busy: busy === true }
+      })
+    );
+  }
+
+  /** 仕様: Core 第7.10節。当該契約履歴の個別送付は終わるまで待たせる。裏では回さない。 */
   async handleSend() {
     if (this.sendDisabled) {
       return;
     }
     this.isSending = true;
+    this.notifyOverlayBusy(true);
     this.errorMessage = "";
     try {
       await sendEstimate({
@@ -397,6 +415,7 @@ export default class EstimateSendRecordAction extends LightningElement {
       this.errorMessage = message;
     } finally {
       this.isSending = false;
+      this.notifyOverlayBusy(false);
     }
   }
 

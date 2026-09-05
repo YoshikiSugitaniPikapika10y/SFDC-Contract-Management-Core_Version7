@@ -147,6 +147,12 @@ export default class ContractDocumentSettings extends LightningElement {
     return "組織設定を保存しました。";
   }
 
+  get settingsBodyClass() {
+    return this.loading
+      ? "slds-p-around_medium settings-body_busy"
+      : "slds-p-around_medium";
+  }
+
   get policyFrozen() {
     return this.settings?.policyFrozen === true;
   }
@@ -311,7 +317,11 @@ export default class ContractDocumentSettings extends LightningElement {
    * 仕様: Core 第11.3節・第11.6節。3択の保存値は Unused／PdfOnly／PdfAndEmail。
    * combobox の event.target.value は表示ラベルになりうるので、detail.value を正とする。
    */
+  /** 仕様: Core 第4.3.12節。画面の同時押下防止は補助。 */
   handleChange(event) {
+    if (this.loading) {
+      return;
+    }
     const name = event.target?.name;
     if (!name) {
       return;
@@ -355,6 +365,9 @@ export default class ContractDocumentSettings extends LightningElement {
   }
 
   async handleSave() {
+    if (this.loading) {
+      return;
+    }
     this.applyNamedFieldValues();
     try {
       this.assertStoredSendModes();

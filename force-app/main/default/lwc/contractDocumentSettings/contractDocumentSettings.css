@@ -38,6 +38,10 @@ section {
   color: #fff;
 }
 
+.settings-body_busy {
+  pointer-events: none;
+}
+
 .need-required {
   background-color: #ba0517;
 }

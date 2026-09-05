@@ -377,6 +377,7 @@ export default class ContractCrossWork extends LightningElement {
   showSendOverlay = false;
   showOrderOverlay = false;
   overlayHistoryId = null;
+  overlayBusy = false;
 
   _keydown = (event) => this.handleWindowKeydown(event);
 
@@ -470,9 +471,10 @@ export default class ContractCrossWork extends LightningElement {
 
   // 仕様: 横断画面.md 第2.4節、第5節
   get tableWrapClass() {
-    return this.isJournalMenu
+    const base = this.isJournalMenu
       ? "table-wrap " + this.journalUnlockedClass
       : "table-wrap";
+    return this.saving ? base + " table-wrap_busy" : base;
   }
 
   get historyGroupOn() {
@@ -530,9 +532,10 @@ export default class ContractCrossWork extends LightningElement {
 
   // 仕様: 横断画面.md 第2.4節、第5節
   get journalActionClass() {
-    return this.isLockUnlocked
+    const base = this.isLockUnlocked
       ? "journal-bar lock-unlocked"
       : "journal-bar lock-locked";
+    return this.saving ? base + " journal-bar_busy" : base;
   }
 
   get saveDisabled() {
@@ -1270,6 +1273,9 @@ export default class ContractCrossWork extends LightningElement {
   }
 
   handleRowClick(event) {
+    if (this.saving) {
+      return;
+    }
     if (
       event.target.closest(
         "a, lightning-input, lightning-combobox, lightning-textarea, .no-open"
@@ -1292,13 +1298,16 @@ export default class ContractCrossWork extends LightningElement {
   }
 
   handleCheck(event) {
+    if (this.saving) {
+      return;
+    }
     event.stopPropagation();
     const id = event.currentTarget.dataset.id;
     this.checkedIds = { ...this.checkedIds, [id]: event.detail.checked };
   }
 
   handleSelectPage() {
-    if (this.showJournalLockSelection !== true) {
+    if (this.saving || this.showJournalLockSelection !== true) {
       return;
     }
     const next = { ...this.checkedIds };
@@ -1309,7 +1318,7 @@ export default class ContractCrossWork extends LightningElement {
   }
 
   handleClearPage() {
-    if (this.showJournalLockSelection !== true) {
+    if (this.saving || this.showJournalLockSelection !== true) {
       return;
     }
     const next = { ...this.checkedIds };
@@ -1320,15 +1329,25 @@ export default class ContractCrossWork extends LightningElement {
   }
 
   handleUnlockReason(event) {
+    if (this.saving) {
+      return;
+    }
     this.unlockReason = event.detail.value;
   }
 
   handleMemoInput(event) {
+    if (this.saving) {
+      return;
+    }
     const id = event.currentTarget.dataset.id;
     this.memoDrafts = { ...this.memoDrafts, [id]: event.detail.value };
   }
 
+  // 仕様: Core 第7.9.7節。画面の同時押下防止は補助。保存中は当該面の仕訳操作を止める。
   async handleSaveJournals() {
+    if (this.saving) {
+      return;
+    }
     const checked =
       this.showJournalLockSelection === true
         ? this.currentPageCheckable
@@ -1519,6 +1538,9 @@ export default class ContractCrossWork extends LightningElement {
   }
 
   handleJournalExtraInput(event) {
+    if (this.saving) {
+      return;
+    }
     const id = event.currentTarget.dataset.id;
     const apiName = event.currentTarget.dataset.field;
     if (!id || !apiName) {
@@ -1616,17 +1638,28 @@ export default class ContractCrossWork extends LightningElement {
 
   handleSendEstimate(event) {
     this.overlayHistoryId = event.detail.historyId;
+    this.overlayBusy = false;
     this.showSendOverlay = true;
   }
 
   handleOrderEstimate(event) {
     this.overlayHistoryId = event.detail.historyId;
+    this.overlayBusy = false;
     this.showOrderOverlay = true;
   }
 
+  handleOverlayBusy(event) {
+    this.overlayBusy = event.detail?.busy === true;
+  }
+
+  // 仕様: Core 第7.10節。個別送付は終わるまで待たせる。裏では回さない。
   handleOverlayClose() {
+    if (this.overlayBusy) {
+      return;
+    }
     this.showSendOverlay = false;
     this.showOrderOverlay = false;
+    this.overlayBusy = false;
     if (this.selectedId && this.menu === MENU_ESTIMATE) {
       this.loadEstimateTile(this.selectedId);
     }
