@@ -178,6 +178,17 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     expect(row.querySelector(".row-label").textContent).not.toBe("入力強制");
   });
 
+  it("shows checkbox rows 5.3, 8.1, 9.1 as optional", async () => {
+    const element = await mount(pageData());
+    for (const num of ["行 5.3", "行 8.1", "行 9.1"]) {
+      const row = [...element.shadowRoot.querySelectorAll(".setting-row")].find(
+        (node) => node.querySelector(".row-num")?.textContent.trim() === num
+      );
+      expect(row.querySelector(".need-optional").textContent.trim()).toBe("任意");
+      expect(row.querySelector(".need-required")).toBeNull();
+    }
+  });
+
   it("shows lock exempt rows 9.2 to 9.4 as optional", async () => {
     const element = await mount(pageData());
     for (const num of ["行 9.2", "行 9.3", "行 9.4"]) {

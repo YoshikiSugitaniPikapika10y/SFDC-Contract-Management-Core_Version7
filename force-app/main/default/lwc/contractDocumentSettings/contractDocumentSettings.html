@@ -266,7 +266,8 @@
         </div>
         <div class="setting-row">
           <span class="row-num">行 5.3</span>
-          <span class="slds-badge need need-required">必須</span>
+          <!-- 仕様: Core 第11.6節。チェックは灰任意。OFFは正式。 -->
+          <span class="slds-badge need need-optional">任意</span>
           <span class="row-label">更新商談スイッチ</span>
           <div class="row-control">
             <lightning-input type="checkbox" name="renewOpportunityEnabled" label="更新商談スイッチ" variant="label-hidden" checked={settings.renewOpportunityEnabled} onchange={handleChange}></lightning-input>
@@ -392,7 +393,8 @@
         <p class="slds-text-body_regular section-lead">利用有無と方針。未固定なら変更可。固定後は参照専用。マスタはリンク先</p>
         <div class="setting-row">
           <span class="row-num">行 8.1</span>
-          <span class="slds-badge need need-required">必須</span>
+          <!-- 仕様: Core 第11.6節。チェックは灰任意。OFFは正式。 -->
+          <span class="slds-badge need need-optional">任意</span>
           <span class="row-label">仕訳機能の利用有無</span>
           <div class="row-control">
             <lightning-input type="checkbox" name="accountingEnabled" label="仕訳機能の利用有無" variant="label-hidden" checked={settings.accountingEnabled} disabled={policyFrozen} onchange={handleChange}></lightning-input>
@@ -573,7 +575,8 @@
         <p class="slds-text-body_regular section-lead">入力強制とロック除外項目</p>
         <div class="setting-row">
           <span class="row-num">行 9.1</span>
-          <span class="slds-badge need need-required">必須</span>
+          <!-- 仕様: Core 第11.6節。チェックは灰任意。OFFは正式。 -->
+          <span class="slds-badge need need-optional">任意</span>
           <span class="row-label">カスタム入力規則をON</span>
           <div class="row-control">
             <lightning-input type="checkbox" name="validationEnforce" label="カスタム入力規則をON" variant="label-hidden" checked={settings.validationEnforce} onchange={handleChange}></lightning-input>
