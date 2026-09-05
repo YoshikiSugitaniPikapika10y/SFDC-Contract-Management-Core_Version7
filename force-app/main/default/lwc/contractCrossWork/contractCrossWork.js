@@ -40,6 +40,9 @@ const TRI_OPTIONS = [
   { label: "あり", value: "true" },
   { label: "なし", value: "false" }
 ];
+const TEXT_FILTER_NAMES = ["invName"];
+const FILTER_FETCH_DELAY_MS = 400;
+const LEFT_PANE_DEFAULT_PERCENT = 60;
 
 function formatAmount(value) {
   if (value == null || value === "") {
@@ -361,6 +364,9 @@ export default class ContractCrossWork extends LightningElement {
   @track journalColumnMode = false;
   @track journalExtraDefinitions = [];
   @track journalLockExemptFieldApiNames = [];
+  filtersOpen = false;
+  displayOpen = false;
+  leftPanePercent = LEFT_PANE_DEFAULT_PERCENT;
 
   estimateTile = null;
   estimateTileLoading = false;
@@ -388,6 +394,8 @@ export default class ContractCrossWork extends LightningElement {
 
   disconnectedCallback() {
     window.removeEventListener("keydown", this._keydown);
+    this.stopSplitDrag();
+    window.clearTimeout(this._filterFetchTimer);
   }
 
   get isEstimateMenu() {
@@ -851,9 +859,128 @@ export default class ContractCrossWork extends LightningElement {
   }
 
   get splitClass() {
-    return this.isJournalMenu && this.journalColumnMode
-      ? "split split_column-mode"
-      : "split";
+    const parts = ["split"];
+    if (this.isJournalMenu && this.journalColumnMode) {
+      parts.push("split_column-mode");
+    } else if (this.showRightPane) {
+      parts.push("has-handle");
+    }
+    return parts.join(" ");
+  }
+
+  get splitCssVars() {
+    return `--cross-left: ${this.leftPanePercent}%;`;
+  }
+
+  get showSplitHandle() {
+    return this.showRightPane === true;
+  }
+
+  get showFilterPanel() {
+    return this.filtersOpen === true;
+  }
+
+  get showDisplayPanel() {
+    return this.displayOpen === true;
+  }
+
+  get showFilterSummary() {
+    return this.filtersOpen !== true && this.filterSummaryItems.length > 0;
+  }
+
+  get filterToggleClass() {
+    return this.filtersOpen ? "chrome-btn is-open" : "chrome-btn";
+  }
+
+  get displayToggleClass() {
+    return this.displayOpen ? "chrome-btn is-open" : "chrome-btn";
+  }
+
+  get filterSummaryItems() {
+    const items = [];
+    const pushRange = (key, label, from, to) => {
+      if (!from && !to) {
+        return;
+      }
+      items.push({
+        key,
+        text: `${label} ${from || "（空）"}〜${to || "（空）"}`
+      });
+    };
+    const pushChoice = (key, label, value, options) => {
+      if (value == null || value === "") {
+        return;
+      }
+      const found = (options || []).find((item) => item.value === value);
+      items.push({
+        key,
+        text: `${label} ${found ? found.label : value}`
+      });
+    };
+    const pushLookup = (key, label, recordId) => {
+      if (!recordId) {
+        return;
+      }
+      items.push({ key, text: `${label}（指定）` });
+    };
+    if (this.isEstimateMenu) {
+      pushRange("estClose", "完了予定日", this.estCloseFrom, this.estCloseTo);
+      pushLookup("estAccount", "取引先", this.estAccountId);
+      pushLookup("estService", "契約サービス", this.estServiceId);
+      pushChoice("estType", "見積種別", this.estType, this.typeOptions);
+      if (this.showEstimateSendFilter) {
+        pushChoice("estSent", "送付", this.estSent, TRI_OPTIONS);
+      }
+      if (this.showEstimateIssueFilter) {
+        pushChoice("estIssued", "発行", this.estIssued, TRI_OPTIONS);
+      }
+      pushChoice("estAutoRenew", "自動Renew", this.estAutoRenew, TRI_OPTIONS);
+      pushRange("estValid", "有効期限", this.estValidFrom, this.estValidTo);
+    } else if (this.isInvoiceMenu) {
+      pushChoice("invStatus", "請求状態", this.invStatus, this.invoiceStatusOptions);
+      if (this.invName) {
+        items.push({ key: "invName", text: `請求名 ${this.invName}` });
+      }
+      pushLookup("invBa", "請求アカウント", this.invBillingAccountId);
+      pushLookup("invAccount", "取引先", this.invAccountId);
+      pushRange("invDate", "請求日", this.invDateFrom, this.invDateTo);
+      pushRange("invClose", "完了予定日", this.invCloseFrom, this.invCloseTo);
+      if (this.invIncludeCancelled === true) {
+        items.push({ key: "invCancelled", text: "取消済みを含める" });
+      }
+      if (this.showInvoiceSendFilter) {
+        pushChoice("invSent", "送付", this.invSent, TRI_OPTIONS);
+      }
+      if (this.showInvoiceIssueFilter) {
+        pushChoice("invIssued", "発行", this.invIssued, TRI_OPTIONS);
+      }
+      pushChoice("invOverdue", "遅延", this.invOverdue, TRI_OPTIONS);
+      pushChoice(
+        "invCollection",
+        "回収・返金状態",
+        this.invCollection,
+        this.collectionOptions
+      );
+      if (this.showAccountingInvoiceColumns) {
+        pushRange("invNext", "次の検収", this.invNextFrom, this.invNextTo);
+        (this.tagChips || []).forEach((chip) => {
+          if (chip.state === "True") {
+            items.push({ key: `tag-${chip.fieldApiName}`, text: `${chip.label} あり` });
+          } else if (chip.state === "False") {
+            items.push({ key: `tag-${chip.fieldApiName}`, text: `${chip.label} なし` });
+          }
+        });
+      }
+    } else if (this.isJournalMenu) {
+      pushRange("jouPosting", "計上日", this.jouFrom, this.jouTo);
+      pushChoice("jouLock", "Lock", this.jouLock, this.lockOptions);
+      pushChoice("jouEvent", "会計イベント", this.jouEvent, this.eventFilterOptions);
+      pushLookup("jouBa", "請求アカウント", this.jouBillingAccountId);
+      pushLookup("jouAccount", "取引先", this.jouAccountId);
+      pushLookup("jouInvoice", "請求", this.jouInvoiceId);
+      pushRange("jouClose", "完了予定日", this.jouCloseFrom, this.jouCloseTo);
+    }
+    return items;
   }
 
   get showRightPane() {
@@ -1100,6 +1227,61 @@ export default class ContractCrossWork extends LightningElement {
     this.fetchList(true);
   }
 
+  handleToggleFilters() {
+    this.filtersOpen = !this.filtersOpen;
+  }
+
+  handleToggleDisplay() {
+    this.displayOpen = !this.displayOpen;
+  }
+
+  handleOpenFilters() {
+    this.filtersOpen = true;
+  }
+
+  handleSplitPointerDown(event) {
+    event.preventDefault();
+    this._boundSplitMove = (moveEvent) => this.handleSplitPointerMove(moveEvent);
+    this._boundSplitUp = () => this.stopSplitDrag();
+    window.addEventListener("pointermove", this._boundSplitMove);
+    window.addEventListener("pointerup", this._boundSplitUp);
+  }
+
+  handleSplitPointerMove(event) {
+    const root = this.template.querySelector(".split");
+    if (!root) {
+      return;
+    }
+    const rect = root.getBoundingClientRect();
+    if (!rect.width) {
+      return;
+    }
+    const percent = ((event.clientX - rect.left) / rect.width) * 100;
+    this.leftPanePercent = Math.min(72, Math.max(32, percent));
+  }
+
+  stopSplitDrag() {
+    if (this._boundSplitMove) {
+      window.removeEventListener("pointermove", this._boundSplitMove);
+    }
+    if (this._boundSplitUp) {
+      window.removeEventListener("pointerup", this._boundSplitUp);
+    }
+    this._boundSplitMove = null;
+    this._boundSplitUp = null;
+  }
+
+  scheduleFilterFetch(name) {
+    window.clearTimeout(this._filterFetchTimer);
+    if (TEXT_FILTER_NAMES.indexOf(name) < 0) {
+      this.fetchList(true);
+      return;
+    }
+    this._filterFetchTimer = window.setTimeout(() => {
+      this.fetchList(true);
+    }, FILTER_FETCH_DELAY_MS);
+  }
+
   handleFilterChange(event) {
     const name = event.target.name || event.currentTarget.dataset.name;
     const value =
@@ -1126,7 +1308,7 @@ export default class ContractCrossWork extends LightningElement {
       return;
     }
     this[name] = value;
-    this.fetchList(true);
+    this.scheduleFilterFetch(name);
   }
 
   handleLookupChange(event) {
@@ -1561,7 +1743,8 @@ export default class ContractCrossWork extends LightningElement {
 
   // 仕様: 横断画面.md 第2.4節。列モードONでは右を出さない。
   handleJournalColumnModeChange(event) {
-    this.journalColumnMode = event.target.checked === true;
+    this.journalColumnMode =
+      event.target.checked === true || event.detail?.checked === true;
     if (this.journalColumnMode) {
       this.invoicePreview = null;
       this.selectedId = null;

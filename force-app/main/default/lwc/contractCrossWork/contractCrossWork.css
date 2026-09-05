@@ -109,10 +109,15 @@
 
 .split {
   display: grid;
-  grid-template-columns: minmax(20rem, 46%) minmax(0, 54%);
+  grid-template-columns: minmax(20rem, var(--cross-left, 60%)) minmax(12rem, 1fr);
   gap: 0;
   flex: 1 1 auto;
   min-height: 0;
+  --cross-left: 60%;
+}
+
+.split.has-handle {
+  grid-template-columns: minmax(20rem, var(--cross-left, 60%)) 0.4rem minmax(12rem, 1fr);
 }
 
 .split.split_column-mode {
@@ -121,6 +126,17 @@
 
 .split.split_column-mode .pane-left {
   border-right: 0;
+}
+
+.split-handle {
+  width: 0.4rem;
+  cursor: col-resize;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.split-handle:hover {
+  background: #0b5cab;
 }
 
 .pane {
@@ -142,21 +158,76 @@
 
 .filters,
 .group-sort,
-.journal-bar {
+.journal-bar,
+.left-chrome,
+.filter-summary {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid #e2e8f0;
   background: #ffffff;
 }
 
-.filter-grid {
+.left-chrome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+
+.chrome-btn {
+  border: 1px solid #dddbda;
+  background: #ffffff;
+  color: #181818;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chrome-btn.is-open {
+  background: #eef4ff;
+  border-color: #0b5cab;
+  color: #0b5cab;
+}
+
+.filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
+}
+
+.summary-chip {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-grid,
+.filter-primary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: 0.35rem 0.6rem;
 }
 
+.filter-primary {
+  margin-bottom: 0.35rem;
+}
+
+.filter-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.6rem;
+  grid-column: 1 / -1;
+}
+
 .column-mode-toggle {
-  max-width: 6.5rem;
-  align-self: end;
+  max-width: 7.5rem;
 }
 
 .extra-cell {
@@ -356,8 +427,14 @@
 }
 
 @media (max-width: 64rem) {
-  .split {
+  .split,
+  .split.has-handle,
+  .split.split_column-mode {
     grid-template-columns: 1fr;
+  }
+
+  .split-handle {
+    display: none;
   }
 
   .pane-left {

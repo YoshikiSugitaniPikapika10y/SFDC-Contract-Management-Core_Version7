@@ -46,11 +46,53 @@
       <div class="alert alert_warn">{truncatedMessage}</div>
     </template>
 
-    <div class={splitClass}>
+    <div class={splitClass} style={splitCssVars}>
       <aside class="pane pane-left">
+        <div class="left-chrome">
+          <button
+            type="button"
+            class={filterToggleClass}
+            onclick={handleToggleFilters}
+          >
+            絞り込み
+          </button>
+          <button
+            type="button"
+            class={displayToggleClass}
+            onclick={handleToggleDisplay}
+          >
+            表示
+          </button>
+          <template if:true={isJournalMenu}>
+            <lightning-input
+              type="toggle"
+              name="journalColumnMode"
+              label="列モード"
+              checked={journalColumnMode}
+              class="column-mode-toggle"
+              onchange={handleJournalColumnModeChange}
+            ></lightning-input>
+          </template>
+        </div>
+        <template if:true={showFilterSummary}>
+          <div class="filter-summary">
+            <template for:each={filterSummaryItems} for:item="item">
+              <button
+                key={item.key}
+                type="button"
+                class="summary-chip"
+                onclick={handleOpenFilters}
+              >
+                {item.text}
+              </button>
+            </template>
+          </div>
+        </template>
+        <template if:true={showFilterPanel}>
         <div class="filters">
           <template if:true={isEstimateMenu}>
-            <div class="filter-grid">
+            <div class="filter-primary">
+              <div class="filter-range">
               <lightning-input
                 type="date"
                 name="estCloseFrom"
@@ -67,6 +109,9 @@
                 required
                 onchange={handleFilterChange}
               ></lightning-input>
+              </div>
+            </div>
+            <div class="filter-grid">
               <lightning-record-picker
                 label="取引先"
                 object-api-name="Account"
@@ -113,6 +158,7 @@
                 options={triOptions}
                 onchange={handleFilterChange}
               ></lightning-combobox>
+              <div class="filter-range">
               <lightning-input
                 type="date"
                 name="estValidFrom"
@@ -127,11 +173,12 @@
                 value={estValidTo}
                 onchange={handleFilterChange}
               ></lightning-input>
+              </div>
             </div>
           </template>
 
           <template if:true={isInvoiceMenu}>
-            <div class="filter-grid">
+            <div class="filter-primary">
               <lightning-combobox
                 name="invStatus"
                 label="請求状態"
@@ -140,6 +187,8 @@
                 required
                 onchange={handleFilterChange}
               ></lightning-combobox>
+            </div>
+            <div class="filter-grid">
               <lightning-input
                 name="invName"
                 label="請求名"
@@ -160,6 +209,7 @@
                 data-name="invAccountId"
                 onchange={handleLookupChange}
               ></lightning-record-picker>
+              <div class="filter-range">
               <lightning-input
                 type="date"
                 name="invDateFrom"
@@ -174,6 +224,8 @@
                 value={invDateTo}
                 onchange={handleFilterChange}
               ></lightning-input>
+              </div>
+              <div class="filter-range">
               <lightning-input
                 type="date"
                 name="invCloseFrom"
@@ -188,6 +240,7 @@
                 value={invCloseTo}
                 onchange={handleFilterChange}
               ></lightning-input>
+              </div>
               <lightning-input
                 type="checkbox"
                 name="invIncludeCancelled"
@@ -228,6 +281,7 @@
                 onchange={handleFilterChange}
               ></lightning-combobox>
               <template if:true={showAccountingInvoiceColumns}>
+                <div class="filter-range">
                 <lightning-input
                   type="date"
                   name="invNextFrom"
@@ -242,6 +296,7 @@
                   value={invNextTo}
                   onchange={handleFilterChange}
                 ></lightning-input>
+                </div>
               </template>
             </div>
             <template if:true={showAccountingInvoiceColumns}>
@@ -262,15 +317,8 @@
           </template>
 
           <template if:true={isJournalMenu}>
-            <div class="filter-grid">
-              <lightning-input
-                type="checkbox"
-                name="journalColumnMode"
-                label="列モード"
-                checked={journalColumnMode}
-                class="column-mode-toggle"
-                onchange={handleJournalColumnModeChange}
-              ></lightning-input>
+            <div class="filter-primary">
+              <div class="filter-range">
               <lightning-input
                 type="date"
                 name="jouFrom"
@@ -287,6 +335,7 @@
                 required
                 onchange={handleFilterChange}
               ></lightning-input>
+              </div>
               <lightning-combobox
                 name="jouLock"
                 label="Lock"
@@ -295,6 +344,8 @@
                 required
                 onchange={handleFilterChange}
               ></lightning-combobox>
+            </div>
+            <div class="filter-grid">
               <lightning-combobox
                 name="jouEvent"
                 label="会計イベント"
@@ -320,6 +371,7 @@
                 data-name="jouInvoiceId"
                 onchange={handleLookupChange}
               ></lightning-record-picker>
+              <div class="filter-range">
               <lightning-input
                 type="date"
                 name="jouCloseFrom"
@@ -334,10 +386,13 @@
                 value={jouCloseTo}
                 onchange={handleFilterChange}
               ></lightning-input>
+              </div>
             </div>
           </template>
         </div>
+        </template>
 
+        <template if:true={showDisplayPanel}>
         <div class="group-sort">
           <template for:each={groupItems} for:item="group">
             <div key={group.id} class="group-item">
@@ -407,6 +462,7 @@
             ></lightning-combobox>
           </div>
         </div>
+        </template>
 
         <template if:true={showJournalSave}>
           <div class={journalActionClass}>
@@ -645,7 +701,14 @@
           </button>
         </div>
       </aside>
-
+      <template if:true={showSplitHandle}>
+        <div
+          class="split-handle"
+          role="separator"
+          aria-orientation="vertical"
+          onpointerdown={handleSplitPointerDown}
+        ></div>
+      </template>
       <template if:true={showRightPane}>
       <section class="pane pane-right">
         <template if:true={estimateTileLoading}>
