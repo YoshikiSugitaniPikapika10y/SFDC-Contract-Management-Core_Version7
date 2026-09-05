@@ -245,6 +245,7 @@ export default class BillingAccountForm extends NavigationMixin(
   @api objectApiName = "BillingAccount__c";
   /** 仕様: Core 第3.3.2節。Aura 上書きは new／edit。未指定はページ参照。 */
   @api formMode = "";
+  _defaultFieldValues = "";
 
   _pageRef;
   _objectInfo;
@@ -252,15 +253,28 @@ export default class BillingAccountForm extends NavigationMixin(
   @track errorMessage = "";
   isSaving = false;
 
+  // 仕様: Core 第3.3.2節。Aura 入れ子では CurrentPageReference の defaultFieldValues が空。親から受け取る。
+  @api
+  get defaultFieldValues() {
+    return this._defaultFieldValues;
+  }
+  set defaultFieldValues(value) {
+    this._defaultFieldValues = value || "";
+    this.applyDefaultFieldValues(this._defaultFieldValues);
+  }
+
   @wire(CurrentPageReference)
   wiredPageRef(pageRef) {
     this._pageRef = pageRef;
     if (!pageRef || this.recordId) {
       return;
     }
-    const defaults = parseDefaultFieldValues(
-      pageRef.state?.defaultFieldValues
-    );
+    this.applyDefaultFieldValues(pageRef.state?.defaultFieldValues);
+  }
+
+  /** 仕様: Core 第3.3.2節。取引先の関連リスト新規の初期値を draft の正とする。 */
+  applyDefaultFieldValues(raw) {
+    const defaults = parseDefaultFieldValues(raw);
     if (Object.keys(defaults).length === 0) {
       return;
     }

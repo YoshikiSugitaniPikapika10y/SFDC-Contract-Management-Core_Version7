@@ -57,6 +57,17 @@ public without sharing class AccountingGoalService {
     new Map<Id, List<GlManualJournalHeader__c>>();
   private static Map<Id, Map<Id, GlManualJournalSetting__c>> cachedSettingsByInvoice =
     new Map<Id, Map<Id, GlManualJournalSetting__c>>();
+  private static Map<Id, RelatedRecords> cachedRelatedByInvoice = new Map<Id, RelatedRecords>();
+
+  private class RelatedRecords {
+    Map<Id, ContractProduct__c> contractProducts = new Map<Id, ContractProduct__c>();
+    Map<Id, Product2> products = new Map<Id, Product2>();
+    Map<Id, ContractHistory__c> histories = new Map<Id, ContractHistory__c>();
+    Map<Id, ContractService__c> services = new Map<Id, ContractService__c>();
+    Map<Id, Opportunity> opportunities = new Map<Id, Opportunity>();
+    Map<Id, BillingAccount__c> billingAccounts = new Map<Id, BillingAccount__c>();
+    Map<Id, Account> accounts = new Map<Id, Account>();
+  }
 
   /** 仕様: Accounting 第8.2節。明細・手動ヘッダは入出金では変わらないので同一請求の再照会をまとめる。 */
   public static void invalidateCauseCache(Id invoiceId) {
@@ -66,6 +77,7 @@ public without sharing class AccountingGoalService {
     cachedLinesByInvoice.remove(invoiceId);
     cachedHeadersByInvoice.remove(invoiceId);
     cachedSettingsByInvoice.remove(invoiceId);
+    cachedRelatedByInvoice.remove(invoiceId);
   }
 
   /** 仕様: Accounting 第8.2節、第8.3節、第8.4節、第4.4節、第4.6節、第5.6節、第5.7節、第8.7節 */
@@ -84,6 +96,7 @@ public without sharing class AccountingGoalService {
     Map<String, String> reusedPatterns = reusedPatternsByCandidate(currentJournals);
     invoice = hydrateInvoiceForConditions(invoice);
     Map<Id, InvoiceLine__c> lines = loadLines(invoice.Id);
+    loadRelatedForConditions(invoice, lines);
     Map<Id, InvoicePayment__c> payments = loadPayments(invoice.Id);
     List<InvoicePaymentAllocation__c> allocations = loadAllocations(payments.keySet());
     List<GlManualJournalHeader__c> headers = loadManualHeaders(invoice.Id);
@@ -1343,6 +1356,7 @@ public without sharing class AccountingGoalService {
     context.invoiceLine = candidate.line;
     context.invoicePayment = candidate.payment;
     context.allocation = candidate.allocation;
+    fillRelatedContext(context, candidate.invoice, candidate.line);
     if (candidate.debitAccountId == null && !String.isBlank(candidate.debitSlotKey)) {
       GlAccountMapResolveService.ResolvedAccount debit = GlAccountMapResolveService.resolve(
         candidate.debitSlotKey,
@@ -1883,11 +1897,17 @@ public without sharing class AccountingGoalService {
       return invoice;
     }
     Set<String> extraFields = tenantConditionFields(Invoice__c.SObjectType);
-    if (extraFields.isEmpty()) {
+    Boolean needPath = needsRelatedTenantObjects();
+    if (extraFields.isEmpty() && !needPath) {
       return invoice;
     }
     Set<String> selectFields = new Set<String>(extraFields);
     selectFields.add('Id');
+    if (needPath) {
+      selectFields.add('ContractHistory__c');
+      selectFields.add('ContractService__c');
+      selectFields.add('BillingAccountSnapShot__c');
+    }
     Id invoiceId = invoice.Id;
     String soql =
       'SELECT ' +
@@ -1900,6 +1920,11 @@ public without sharing class AccountingGoalService {
     Invoice__c hydrated = invoice.clone(true, true, true, true);
     for (String fieldName : extraFields) {
       hydrated.put(fieldName, loaded[0].get(fieldName));
+    }
+    if (needPath) {
+      hydrated.ContractHistory__c = loaded[0].ContractHistory__c;
+      hydrated.ContractService__c = loaded[0].ContractService__c;
+      hydrated.BillingAccountSnapShot__c = loaded[0].BillingAccountSnapShot__c;
     }
     return hydrated;
   }
@@ -1930,7 +1955,14 @@ public without sharing class AccountingGoalService {
       'InvoiceLine__c' => InvoiceLine__c.SObjectType.getDescribe().fields.getMap(),
       'InvoicePayment__c' => InvoicePayment__c.SObjectType.getDescribe().fields.getMap(),
       'InvoicePaymentAllocation__c' => InvoicePaymentAllocation__c.SObjectType.getDescribe()
-        .fields.getMap()
+        .fields.getMap(),
+      'ContractProduct__c' => ContractProduct__c.SObjectType.getDescribe().fields.getMap(),
+      'Product2' => Product2.SObjectType.getDescribe().fields.getMap(),
+      'ContractHistory__c' => ContractHistory__c.SObjectType.getDescribe().fields.getMap(),
+      'ContractService__c' => ContractService__c.SObjectType.getDescribe().fields.getMap(),
+      'Opportunity' => Opportunity.SObjectType.getDescribe().fields.getMap(),
+      'BillingAccount__c' => BillingAccount__c.SObjectType.getDescribe().fields.getMap(),
+      'Account' => Account.SObjectType.getDescribe().fields.getMap()
     };
     Map<String, Set<String>> fieldsByObject = new Map<String, Set<String>>();
     for (String objectApiName : describes.keySet()) {
@@ -1998,6 +2030,27 @@ public without sharing class AccountingGoalService {
     ) {
       return 'InvoicePaymentAllocation__c';
     }
+    if (objectApiName == 'ContractProduct' || objectApiName == 'ContractProduct__c') {
+      return 'ContractProduct__c';
+    }
+    if (objectApiName == 'Product2') {
+      return 'Product2';
+    }
+    if (objectApiName == 'ContractHistory' || objectApiName == 'ContractHistory__c') {
+      return 'ContractHistory__c';
+    }
+    if (objectApiName == 'ContractService' || objectApiName == 'ContractService__c') {
+      return 'ContractService__c';
+    }
+    if (objectApiName == 'Opportunity') {
+      return 'Opportunity';
+    }
+    if (objectApiName == 'BillingAccount' || objectApiName == 'BillingAccount__c') {
+      return 'BillingAccount__c';
+    }
+    if (objectApiName == 'Account') {
+      return 'Account';
+    }
     return null;
   }
 
@@ -2015,7 +2068,9 @@ public without sharing class AccountingGoalService {
       'AcceptanceEndDate__c',
       'ServicePeriodStartDate__c',
       'ServicePeriodEndDate__c',
-      'RevenueRecognitionBasis__c'
+      'RevenueRecognitionBasis__c',
+      'ContractProduct__c',
+      'Product__c'
     };
     selectFields.addAll(tenantInvoiceLineFields());
     String soql =
@@ -2027,6 +2082,253 @@ public without sharing class AccountingGoalService {
     }
     cachedLinesByInvoice.put(invoiceId, rows);
     return rows;
+  }
+
+  /** 仕様: Accounting 第4.7節、第6.2節。ロック照会は広げず、Goalが11種の経路レコードを取る。 */
+  private static Boolean needsRelatedTenantObjects() {
+    Map<String, Set<String>> byObject = tenantConditionFieldsByObject();
+    return !byObject.get('ContractProduct__c').isEmpty() ||
+      !byObject.get('Product2').isEmpty() ||
+      !byObject.get('ContractHistory__c').isEmpty() ||
+      !byObject.get('ContractService__c').isEmpty() ||
+      !byObject.get('Opportunity').isEmpty() ||
+      !byObject.get('BillingAccount__c').isEmpty() ||
+      !byObject.get('Account').isEmpty();
+  }
+
+  private static void loadRelatedForConditions(
+    Invoice__c invoice,
+    Map<Id, InvoiceLine__c> lines
+  ) {
+    if (invoice == null || invoice.Id == null) {
+      return;
+    }
+    if (cachedRelatedByInvoice.containsKey(invoice.Id)) {
+      return;
+    }
+    RelatedRecords related = new RelatedRecords();
+    if (!needsRelatedTenantObjects()) {
+      cachedRelatedByInvoice.put(invoice.Id, related);
+      return;
+    }
+    Set<Id> contractProductIds = new Set<Id>();
+    Set<Id> productIds = new Set<Id>();
+    if (lines != null) {
+      for (InvoiceLine__c line : lines.values()) {
+        if (line.ContractProduct__c != null) {
+          contractProductIds.add(line.ContractProduct__c);
+        }
+        if (line.Product__c != null) {
+          productIds.add(line.Product__c);
+        }
+      }
+    }
+    related.contractProducts = toContractProducts(
+      queryRelated(
+        ContractProduct__c.SObjectType,
+        contractProductIds,
+        tenantConditionFields(ContractProduct__c.SObjectType),
+        null
+      )
+    );
+    related.products = toProducts(
+      queryRelated(
+        Product2.SObjectType,
+        productIds,
+        tenantConditionFields(Product2.SObjectType),
+        null
+      )
+    );
+    Set<Id> historyIds = new Set<Id>();
+    Set<Id> serviceIds = new Set<Id>();
+    Set<Id> billingIds = new Set<Id>();
+    if (invoice.ContractHistory__c != null) {
+      historyIds.add(invoice.ContractHistory__c);
+    }
+    if (invoice.ContractService__c != null) {
+      serviceIds.add(invoice.ContractService__c);
+    }
+    if (invoice.BillingAccountSnapShot__c != null) {
+      billingIds.add(invoice.BillingAccountSnapShot__c);
+    }
+    Boolean needHistory =
+      !tenantConditionFields(ContractHistory__c.SObjectType).isEmpty() ||
+      !tenantConditionFields(Opportunity.SObjectType).isEmpty();
+    Boolean needService =
+      !tenantConditionFields(ContractService__c.SObjectType).isEmpty() ||
+      !tenantConditionFields(Account.SObjectType).isEmpty();
+    if (needHistory) {
+      related.histories = toHistories(
+        queryRelated(
+          ContractHistory__c.SObjectType,
+          historyIds,
+          tenantConditionFields(ContractHistory__c.SObjectType),
+          new Set<String>{ 'Opportunity__c' }
+        )
+      );
+    }
+    if (needService) {
+      related.services = toServices(
+        queryRelated(
+          ContractService__c.SObjectType,
+          serviceIds,
+          tenantConditionFields(ContractService__c.SObjectType),
+          new Set<String>{ 'Account__c' }
+        )
+      );
+    }
+    related.billingAccounts = toBillingAccounts(
+      queryRelated(
+        BillingAccount__c.SObjectType,
+        billingIds,
+        tenantConditionFields(BillingAccount__c.SObjectType),
+        null
+      )
+    );
+    Set<Id> opportunityIds = new Set<Id>();
+    for (ContractHistory__c history : related.histories.values()) {
+      if (history.Opportunity__c != null) {
+        opportunityIds.add(history.Opportunity__c);
+      }
+    }
+    Set<Id> accountIds = new Set<Id>();
+    for (ContractService__c service : related.services.values()) {
+      if (service.Account__c != null) {
+        accountIds.add(service.Account__c);
+      }
+    }
+    related.opportunities = toOpportunities(
+      queryRelated(
+        Opportunity.SObjectType,
+        opportunityIds,
+        tenantConditionFields(Opportunity.SObjectType),
+        null
+      )
+    );
+    related.accounts = toAccounts(
+      queryRelated(
+        Account.SObjectType,
+        accountIds,
+        tenantConditionFields(Account.SObjectType),
+        null
+      )
+    );
+    cachedRelatedByInvoice.put(invoice.Id, related);
+  }
+
+  private static Map<Id, SObject> queryRelated(
+    Schema.SObjectType sobType,
+    Set<Id> ids,
+    Set<String> extraFields,
+    Set<String> pathFields
+  ) {
+    Map<Id, SObject> rows = new Map<Id, SObject>();
+    if (sobType == null || ids == null || ids.isEmpty()) {
+      return rows;
+    }
+    Set<String> selectFields = new Set<String>{ 'Id' };
+    if (extraFields != null) {
+      selectFields.addAll(extraFields);
+    }
+    if (pathFields != null) {
+      selectFields.addAll(pathFields);
+    }
+    if (selectFields.size() == 1 && (extraFields == null || extraFields.isEmpty())) {
+      return rows;
+    }
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(selectFields), ',') +
+      ' FROM ' +
+      sobType.getDescribe().getName() +
+      ' WHERE Id IN :ids';
+    for (SObject row : Database.query(soql, AccessLevel.SYSTEM_MODE)) {
+      rows.put(row.Id, row);
+    }
+    return rows;
+  }
+
+  private static Map<Id, ContractProduct__c> toContractProducts(Map<Id, SObject> rows) {
+    Map<Id, ContractProduct__c> typed = new Map<Id, ContractProduct__c>();
+    for (SObject row : rows.values()) {
+      typed.put(row.Id, (ContractProduct__c) row);
+    }
+    return typed;
+  }
+
+  private static Map<Id, Product2> toProducts(Map<Id, SObject> rows) {
+    Map<Id, Product2> typed = new Map<Id, Product2>();
+    for (SObject row : rows.values()) {
+      typed.put(row.Id, (Product2) row);
+    }
+    return typed;
+  }
+
+  private static Map<Id, ContractHistory__c> toHistories(Map<Id, SObject> rows) {
+    Map<Id, ContractHistory__c> typed = new Map<Id, ContractHistory__c>();
+    for (SObject row : rows.values()) {
+      typed.put(row.Id, (ContractHistory__c) row);
+    }
+    return typed;
+  }
+
+  private static Map<Id, ContractService__c> toServices(Map<Id, SObject> rows) {
+    Map<Id, ContractService__c> typed = new Map<Id, ContractService__c>();
+    for (SObject row : rows.values()) {
+      typed.put(row.Id, (ContractService__c) row);
+    }
+    return typed;
+  }
+
+  private static Map<Id, BillingAccount__c> toBillingAccounts(Map<Id, SObject> rows) {
+    Map<Id, BillingAccount__c> typed = new Map<Id, BillingAccount__c>();
+    for (SObject row : rows.values()) {
+      typed.put(row.Id, (BillingAccount__c) row);
+    }
+    return typed;
+  }
+
+  private static Map<Id, Opportunity> toOpportunities(Map<Id, SObject> rows) {
+    Map<Id, Opportunity> typed = new Map<Id, Opportunity>();
+    for (SObject row : rows.values()) {
+      typed.put(row.Id, (Opportunity) row);
+    }
+    return typed;
+  }
+
+  private static Map<Id, Account> toAccounts(Map<Id, SObject> rows) {
+    Map<Id, Account> typed = new Map<Id, Account>();
+    for (SObject row : rows.values()) {
+      typed.put(row.Id, (Account) row);
+    }
+    return typed;
+  }
+
+  private static void fillRelatedContext(
+    ConditionEvaluationService.Context context,
+    Invoice__c invoice,
+    InvoiceLine__c line
+  ) {
+    if (context == null || invoice == null || invoice.Id == null) {
+      return;
+    }
+    RelatedRecords related = cachedRelatedByInvoice.get(invoice.Id);
+    if (related == null) {
+      return;
+    }
+    if (line != null) {
+      context.contractProduct = related.contractProducts.get(line.ContractProduct__c);
+      context.product = related.products.get(line.Product__c);
+    }
+    context.contractHistory = related.histories.get(invoice.ContractHistory__c);
+    context.contractService = related.services.get(invoice.ContractService__c);
+    context.billingAccount = related.billingAccounts.get(invoice.BillingAccountSnapShot__c);
+    if (context.contractHistory != null) {
+      context.opportunity = related.opportunities.get(context.contractHistory.Opportunity__c);
+    }
+    if (context.contractService != null) {
+      context.account = related.accounts.get(context.contractService.Account__c);
+    }
   }
 
   private static Map<Id, InvoicePayment__c> loadPayments(Id invoiceId) {

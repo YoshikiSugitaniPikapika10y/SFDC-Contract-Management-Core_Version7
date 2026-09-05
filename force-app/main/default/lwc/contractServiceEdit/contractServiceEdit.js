@@ -19,7 +19,7 @@ const VERSION_CONFLICT_MESSAGE =
 
 // 仕様: Core 第3.4.1節
 export default class ContractServiceEdit extends LightningElement {
-  @api recordId;
+  _recordId = "";
 
   name = "";
   billingAccountId = "";
@@ -35,6 +35,20 @@ export default class ContractServiceEdit extends LightningElement {
   saving = false;
   lastModifiedToken = "";
   _pendingOperationKey = "";
+
+  // 仕様: Core 第3.4.1節。Quick Action の recordId は後から入ることがある。空では getContext しない。
+  @api
+  get recordId() {
+    return this._recordId;
+  }
+  set recordId(value) {
+    const next = value || "";
+    if (next === this._recordId) {
+      return;
+    }
+    this._recordId = next;
+    this.loadContext();
+  }
 
   connectedCallback() {
     if (this.canEditService !== true) {
@@ -80,9 +94,18 @@ export default class ContractServiceEdit extends LightningElement {
   }
 
   loadContext() {
+    if (this.canEditService !== true) {
+      this.loading = false;
+      return;
+    }
+    const serviceId = this._recordId;
+    if (!serviceId) {
+      this.loading = true;
+      return;
+    }
     this.loading = true;
     Promise.all([
-      getContext({ recordId: this.recordId }),
+      getContext({ recordId: serviceId }),
       getContractServiceFieldDefinitions()
     ])
       .then(([dto, definitions]) => {

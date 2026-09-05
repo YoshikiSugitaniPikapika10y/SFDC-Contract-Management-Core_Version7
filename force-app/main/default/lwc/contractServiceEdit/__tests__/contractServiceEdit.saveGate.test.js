@@ -1,6 +1,9 @@
+import { createElement } from "lwc";
 import ContractServiceEdit from "c/contractServiceEdit";
 import save from "@salesforce/apex/ContractServiceEditController.save";
 import issueContractServiceOperationKey from "@salesforce/apex/ContractServiceEditController.issueContractServiceOperationKey";
+import getContext from "@salesforce/apex/ContractServiceEditController.getContext";
+import getContractServiceFieldDefinitions from "@salesforce/apex/ContractWizardFieldService.getContractServiceFieldDefinitions";
 
 jest.mock(
   "lightning/actions",
@@ -55,8 +58,13 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
   afterEach(() => {
     save.mockClear();
     issueContractServiceOperationKey.mockReset();
+    getContext.mockReset();
+    getContractServiceFieldDefinitions.mockReset();
     if (window.confirm && window.confirm.mockRestore) {
       window.confirm.mockRestore();
+    }
+    while (document.body.firstChild) {
+      document.body.removeChild(document.body.firstChild);
     }
   });
 
@@ -203,5 +211,33 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
     const c = { saving: true, name: "元" };
     proto.handleNameChange.call(c, { target: { value: "新" } });
     expect(c.name).toBe("元");
+  });
+
+  it("後から入ったrecordIdで契約サービスを取り直す (Core 3.4.1)", async () => {
+    getContext.mockResolvedValue({
+      name: "サービス",
+      accountId: "001xx000000AAA1",
+      relatedBillingAccounts: [],
+      billingAccountId: "a00BA0000000001",
+      taxPercent: 10,
+      customerMemo: "",
+      customFields: {},
+      lastModifiedToken: "tok"
+    });
+    getContractServiceFieldDefinitions.mockResolvedValue([]);
+    const element = createElement("c-contract-service-edit", {
+      is: ContractServiceEdit
+    });
+    document.body.appendChild(element);
+    await Promise.resolve();
+    expect(getContext).not.toHaveBeenCalled();
+
+    element.recordId = "a0S000000000001AAA";
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getContext).toHaveBeenCalledWith({
+      recordId: "a0S000000000001AAA"
+    });
   });
 });

@@ -54,6 +54,13 @@ public without sharing class ConditionEvaluationService {
     public InvoiceLine__c invoiceLine;
     public InvoicePayment__c invoicePayment;
     public InvoicePaymentAllocation__c allocation;
+    public ContractProduct__c contractProduct;
+    public Product2 product;
+    public ContractHistory__c contractHistory;
+    public ContractService__c contractService;
+    public Opportunity opportunity;
+    public BillingAccount__c billingAccount;
+    public Account account;
   }
 
   /** 仕様: Accounting 第4.7節 */
@@ -143,6 +150,7 @@ public without sharing class ConditionEvaluationService {
     return compare(left, String.valueOf(rule.operator), right);
   }
 
+  /** 仕様: Accounting 第4.7節。11種は Context の関連レコードから読む。経路は Goal が固定で持つ。 */
   private static Object readValue(Context context, String objectApiName, String fieldApiName) {
     if (context == null || String.isBlank(objectApiName) || String.isBlank(fieldApiName)) {
       return null;
@@ -156,6 +164,20 @@ public without sharing class ConditionEvaluationService {
       record = context.invoicePayment;
     } else if (objectApiName == 'InvoicePaymentAllocation__c') {
       record = context.allocation;
+    } else if (objectApiName == 'ContractProduct__c') {
+      record = context.contractProduct;
+    } else if (objectApiName == 'Product2') {
+      record = context.product;
+    } else if (objectApiName == 'ContractHistory__c') {
+      record = context.contractHistory;
+    } else if (objectApiName == 'ContractService__c') {
+      record = context.contractService;
+    } else if (objectApiName == 'Opportunity') {
+      record = context.opportunity;
+    } else if (objectApiName == 'BillingAccount__c') {
+      record = context.billingAccount;
+    } else if (objectApiName == 'Account') {
+      record = context.account;
     }
     return record == null ? null : record.get(fieldApiName);
   }

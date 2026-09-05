@@ -1,13 +1,20 @@
 <aura:component
-  implements="lightning:actionOverride,force:hasRecordId,force:hasSObjectName"
+  implements="lightning:actionOverride,lightning:isUrlAddressable,force:hasRecordId,force:hasSObjectName"
   access="global"
 >
   <!-- 仕様: Core 第3.3.2節。New／Edit 上書き。LWC は lightning:actionOverride の Aura で包む。 -->
+  <aura:attribute name="pageReference" type="Object" />
   <aura:attribute name="formMode" type="String" default="new" />
+  <aura:attribute name="defaultFieldValues" type="String" default="" />
   <aura:handler name="init" value="{!this}" action="{!c.syncMode}" />
   <aura:handler
     name="change"
     value="{!v.recordId}"
+    action="{!c.syncMode}"
+  />
+  <aura:handler
+    name="change"
+    value="{!v.pageReference}"
     action="{!c.syncMode}"
   />
   <div class="slds-p-around_medium">
@@ -15,6 +22,7 @@
       recordId="{!v.recordId}"
       objectApiName="{!v.sObjectName}"
       formMode="{!v.formMode}"
+      defaultFieldValues="{!v.defaultFieldValues}"
     />
   </div>
 </aura:component>

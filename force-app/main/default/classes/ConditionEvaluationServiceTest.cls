@@ -152,6 +152,47 @@ private class ConditionEvaluationServiceTest {
   }
 
   @IsTest
+  static void evaluateTenant_readsRelatedAccountAndContractProduct() {
+    GlConditionSet__c conditionSet = new GlConditionSet__c(
+      Name = 'Eval Related Set',
+      EvaluationContext__c = 'InvoiceLine',
+      Description__c = '関連11種'
+    );
+    insert conditionSet;
+    insert new List<GlConditionRule__c>{
+      new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'Account',
+        TargetField__c = 'Name',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '関連取引先'
+      ),
+      new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 2,
+        TargetObject__c = 'ContractProduct__c',
+        TargetField__c = 'Name',
+        Operator__c = 'IsNotNull'
+      )
+    };
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第4.7節: Contextに関連が無ければ空として評価する'
+    );
+    context.account = new Account(Name = '関連取引先');
+    context.contractProduct = new ContractProduct__c(Name = '関連契約商品');
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第4.7節: 関連レコードの項目を評価する'
+    );
+  }
+
+  @IsTest
   static void validateRule_requiresAggregateForInvoiceLineOnInvoiceContext() {
     GlConditionRule__c rule = new GlConditionRule__c(
       TargetObject__c = 'InvoiceLine__c',

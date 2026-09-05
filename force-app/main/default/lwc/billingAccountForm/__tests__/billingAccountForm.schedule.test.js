@@ -148,6 +148,22 @@ describe("billingAccountForm schedule visibility (Core 3.3.2 / 7.2 / 7.5)", () =
     expect(form.submit.mock.calls[0][0].Name).toBe("Edited");
   });
 
+  it("applies Aura defaultFieldValues onto Account (Core 3.3.2)", () => {
+    const proto = BillingAccountForm.prototype;
+    const self = { draft: {} };
+    proto.applyDefaultFieldValues.call(
+      self,
+      "Account__c=001xx000000BA01,Name=FromRelated"
+    );
+    expect(self.draft.Account__c).toBe("001xx000000BA01");
+    expect(self.draft.Name).toBe("FromRelated");
+    const accountIdValue = Object.getOwnPropertyDescriptor(
+      proto,
+      "accountIdValue"
+    ).get;
+    expect(accountIdValue.call(self)).toBe("001xx000000BA01");
+  });
+
   it("uses the same 7.2 / 7.5 method help as the order confirmation (Core 3.3.2 / 7.2 / 7.5)", () => {
     expect(invoiceDateMethodHelp(METHOD_ON_OR_AFTER)).toContain(
       "請求基準日以後で最初に到来する指定日または月末"
