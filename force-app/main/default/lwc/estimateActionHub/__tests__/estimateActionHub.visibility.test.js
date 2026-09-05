@@ -2,17 +2,17 @@ import EstimateActionHub from "c/estimateActionHub";
 
 jest.mock(
   "@salesforce/customPermission/Loop_03_Can_Estimate",
-  () => ({ default: true }),
+  () => ({ __esModule: true, default: true }),
   { virtual: true }
 );
 jest.mock(
   "@salesforce/customPermission/Loop_04_Can_IssueEstimate",
-  () => ({ default: true }),
+  () => ({ __esModule: true, default: true }),
   { virtual: true }
 );
 jest.mock(
   "@salesforce/customPermission/Loop_05_Can_SendEstimate",
-  () => ({ default: true }),
+  () => ({ __esModule: true, default: true }),
   { virtual: true }
 );
 jest.mock(
@@ -39,40 +39,45 @@ jest.mock("lightning/actions", () => ({ CloseActionScreenEvent: class {} }), {
   virtual: true
 });
 
-function keysOf(ctx) {
-  return EstimateActionHub.prototype.visibleActions
-    .get.call(ctx)
-    .map((row) => row.key);
+const visibleActions = Object.getOwnPropertyDescriptor(
+  EstimateActionHub.prototype,
+  "visibleActions"
+).get;
+
+function actionsOf(overrides) {
+  const ctx = Object.create(EstimateActionHub.prototype);
+  Object.assign(ctx, overrides);
+  return visibleActions.call(ctx);
 }
 
-describe("estimateActionHub (Core 4.3.1)", () => {
+describe("estimateActionHub (Core 4.3.1 / 共通基盤 10.4)", () => {
   it("lists hub actions for Estimate when send mode is PDF and email", () => {
     expect(
-      keysOf({
+      actionsOf({
         historyStatus: "Estimate",
         estimateSendMode: "PdfAndEmail"
-      })
-    ).toEqual(["edit", "copy", "archive", "issue", "send"]);
+      }).map((row) => row.label)
+    ).toEqual(["編集", "コピー", "アーカイブ", "見積書発行", "見積を送る"]);
   });
 
   it("hides send when estimate documents are PDF only, and hides issue when unused", () => {
     expect(
-      keysOf({
+      actionsOf({
         historyStatus: "Estimate",
         estimateSendMode: "PdfOnly"
-      })
-    ).toEqual(["edit", "copy", "archive", "issue"]);
+      }).map((row) => row.label)
+    ).toEqual(["編集", "コピー", "アーカイブ", "見積書発行"]);
     expect(
-      keysOf({
+      actionsOf({
         historyStatus: "Estimate",
         estimateSendMode: "Unused"
-      })
-    ).toEqual(["edit", "copy", "archive"]);
+      }).map((row) => row.label)
+    ).toEqual(["編集", "コピー", "アーカイブ"]);
   });
 
   it("does not list Estimate hub actions for Ordered", () => {
     expect(
-      keysOf({
+      actionsOf({
         historyStatus: "Ordered",
         estimateSendMode: "PdfAndEmail"
       })
