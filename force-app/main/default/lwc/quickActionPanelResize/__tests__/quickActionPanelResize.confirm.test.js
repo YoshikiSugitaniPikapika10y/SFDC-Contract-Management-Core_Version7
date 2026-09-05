@@ -29,4 +29,43 @@ describe("quickActionPanelResize confirm (Core 4.3.1 / 5.2 / 5.3)", () => {
     expect(styleEl.textContent).toContain("min(100% - 2rem, 48rem)");
     expect(styleEl.textContent).toContain("height: auto");
   });
+
+  it("estimate wizard large panel min-height is 95vh from open (Core 4.3.1 / 4.3.2 / 4.3.3)", () => {
+    jest.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cb();
+      return 0;
+    });
+
+    const container = document.createElement("div");
+    container.className = "slds-modal__container";
+    const host = document.createElement("c-estimate-create-record-action");
+    container.appendChild(host);
+    document.body.appendChild(container);
+
+    resizeQuickActionPanel({ template: { host } }, "large");
+
+    expect(container.style.getPropertyValue("min-height")).toBe("95vh");
+    expect(container.style.getPropertyValue("height")).toBe("95vh");
+    const styleEl = document.getElementById("c-quick-action-panel-resize-style");
+    expect(styleEl.textContent).toContain("c-estimate-create-record-action");
+    expect(styleEl.textContent).toContain("min-height: 95vh");
+  });
+
+  it("order large panel does not lock min-height to 95vh", () => {
+    jest.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cb();
+      return 0;
+    });
+
+    const container = document.createElement("div");
+    container.className = "slds-modal__container";
+    const host = document.createElement("c-order-create-record-action");
+    container.appendChild(host);
+    document.body.appendChild(container);
+
+    resizeQuickActionPanel({ template: { host } }, "large");
+
+    expect(container.style.getPropertyValue("min-height")).toBe("0");
+    expect(container.style.getPropertyValue("height")).toBe("95vh");
+  });
 });

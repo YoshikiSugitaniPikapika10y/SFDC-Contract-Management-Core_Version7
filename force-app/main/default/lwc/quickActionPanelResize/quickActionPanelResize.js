@@ -15,6 +15,13 @@ const LARGE_ACTION_HOST_SELECTORS = [
   "c-order-invoice-preview-record-action"
 ];
 
+/** 仕様: Core 第4.3.1節・第4.3.2節・第4.3.3節。見積作成・編集・コピーの外枠は開いた直後から固定。受注は対象外。 */
+const ESTIMATE_WIZARD_ACTION_HOST_SELECTORS = [
+  "c-estimate-create-record-action",
+  "c-estimate-edit-record-action",
+  "c-estimate-copy-record-action"
+];
+
 /** Compact confirmation dialogs (archive / revert). */
 const CONFIRM_ACTION_HOST_SELECTORS = [
   "c-estimate-archive-record-action",
@@ -40,6 +47,16 @@ function buildCss() {
   );
   const largePanelHas = joinHasSelectors(
     LARGE_ACTION_HOST_SELECTORS,
+    (sel) =>
+      `runtime_platform_actions-quick-action-panel:has(${sel}), .uiPanel:has(${sel})`
+  );
+
+  const estimateContainerHas = joinHasSelectors(
+    ESTIMATE_WIZARD_ACTION_HOST_SELECTORS,
+    (sel) => `.slds-modal__container:has(${sel})`
+  );
+  const estimatePanelHas = joinHasSelectors(
+    ESTIMATE_WIZARD_ACTION_HOST_SELECTORS,
     (sel) =>
       `runtime_platform_actions-quick-action-panel:has(${sel}), .uiPanel:has(${sel})`
   );
@@ -111,6 +128,11 @@ ${confirmPanelHas} {
     margin: 0 auto !important;
     transform: none !important;
     box-sizing: border-box !important;
+}
+
+${estimateContainerHas},
+${estimatePanelHas} {
+    min-height: ${LARGE_HEIGHT} !important;
 }
 
 ${largeContainerHas} .slds-modal__content,
@@ -221,7 +243,19 @@ function findModalContainer(host) {
   return found;
 }
 
-function applyInlineLayout(container, size) {
+function isEstimateWizardActionHost(host) {
+  let node = host;
+  for (let depth = 0; depth < 50 && node; depth++) {
+    const tagName = node.tagName ? node.tagName.toLowerCase() : "";
+    if (ESTIMATE_WIZARD_ACTION_HOST_SELECTORS.indexOf(tagName) >= 0) {
+      return true;
+    }
+    node = node.parentNode || node.host;
+  }
+  return false;
+}
+
+function applyInlineLayout(container, size, host) {
   if (!container || !container.style) {
     return;
   }
@@ -235,7 +269,9 @@ function applyInlineLayout(container, size) {
   const width = isConfirm ? `min(100% - 2rem, ${CONFIRM_WIDTH})` : LARGE_WIDTH;
   const height = isConfirm ? "auto" : LARGE_HEIGHT;
   const maxHeight = isConfirm ? CONFIRM_MAX_HEIGHT : LARGE_HEIGHT;
-  const minHeight = isConfirm ? "0" : "0";
+  /* 仕様: Core 第4.3.1節・第4.3.2節・第4.3.3節。見積ウィザード外枠は内容に追随しない。 */
+  const minHeight =
+    isConfirm || !isEstimateWizardActionHost(host) ? "0" : LARGE_HEIGHT;
 
   target.style.setProperty("width", width, "important");
   target.style.setProperty(
@@ -326,12 +362,12 @@ function applyOnce(host, size) {
   ensureGlobalStyle();
   const container = findModalContainer(host);
   if (container) {
-    applyInlineLayout(container, size);
+    applyInlineLayout(container, size, host);
   }
 }
 
 /**
- * 仕様: Core 第4.3.1節、第5.2節、第5.3節
+ * 仕様: Core 第4.3.1節、第4.3.2節、第4.3.3節、第5.2節、第5.3節
  * Resize the Salesforce Quick Action modal.
  * @param {LightningElement} component
  * @param {'large'|'confirm'} [size='large'] large ≈ 95vw×95vh wizard; confirm = compact dialog
