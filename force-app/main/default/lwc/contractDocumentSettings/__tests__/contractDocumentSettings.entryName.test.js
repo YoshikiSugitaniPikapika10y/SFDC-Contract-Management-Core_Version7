@@ -287,7 +287,7 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     const unfrozen = await mount(pageData({ settings: { policyFrozen: false } }));
     expect(unfrozen.shadowRoot.textContent).toContain("確定後は変更不可");
     const freezeHint =
-      "最初の請求確定まで変えられる。確定後は104以外では戻せない";
+      "最初の請求確定まで変えられる。確定後は101以外では戻せない";
     expect(unfrozen.shadowRoot.textContent).toContain(freezeHint);
     expect(unfrozen.shadowRoot.textContent.split(freezeHint).length - 1).toBe(6);
     document.body.removeChild(unfrozen);

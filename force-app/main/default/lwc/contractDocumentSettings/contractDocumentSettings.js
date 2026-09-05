@@ -165,10 +165,11 @@ export default class ContractDocumentSettings extends LightningElement {
       : "slds-badge badge-will-lock";
   }
 
+  /** 仕様: Core 第11.6節。確定後は101以外では戻せない。 */
   get freezePolicyHint() {
     return this.policyFrozen
       ? null
-      : "最初の請求確定まで変えられる。確定後は104以外では戻せない";
+      : "最初の請求確定まで変えられる。確定後は101以外では戻せない";
   }
 
   get showFrozenBy() {
