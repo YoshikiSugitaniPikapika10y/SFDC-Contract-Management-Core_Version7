@@ -344,6 +344,24 @@ public without sharing class FieldCopyDefinitionService {
     }
   }
 
+  /** 仕様: Core 第11.4.2節。コピー元 SOQL に載せる From 項目。 */
+  public static Set<String> sourceFieldApiNames(String sourceObjectApiName) {
+    Set<String> names = new Set<String>{ 'Id' };
+    if (String.isBlank(sourceObjectApiName)) {
+      return names;
+    }
+    for (FieldCopyDefinition__c definition : loadAllDefinitions()) {
+      if (
+        definition != null &&
+        definition.SourceObject__c == sourceObjectApiName &&
+        String.isNotBlank(definition.SourceFieldApiName__c)
+      ) {
+        names.add(definition.SourceFieldApiName__c);
+      }
+    }
+    return names;
+  }
+
   /** 仕様: Accounting 第8.7節 */
   public static List<String> targetFieldApiNames(String targetObjectApiName) {
     Set<String> names = new Set<String>();

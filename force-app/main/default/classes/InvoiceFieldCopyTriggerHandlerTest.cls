@@ -138,6 +138,40 @@ private class InvoiceFieldCopyTriggerHandlerTest {
   }
 
   @IsTest
+  static void invoiceBeforeInsert_copiesBlankMemoFromHistoryName() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('HistName');
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Inv_Memo_From_HistoryName',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+      Invoice__c invoice = new Invoice__c(
+        ContractHistory__c = fixture.history.Id,
+        ContractService__c = fixture.service.Id,
+        InvoiceDate__c = Date.today(),
+        Amount__c = 1000
+      );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+
+      Test.startTest();
+      insert invoice;
+      Test.stopTest();
+
+      Invoice__c loaded = [SELECT Memo__c FROM Invoice__c WHERE Id = :invoice.Id];
+      System.assertEquals(
+        fixture.history.Name,
+        loaded.Memo__c,
+        '仕様: Core 第11.4.2節 insertコピーは契約履歴のコピー元項目を読んで空欄へ書く'
+      );
+    }
+  }
+
+  @IsTest
   static void invoiceLineBeforeInsert_fillsBlankProductUnit() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Line');

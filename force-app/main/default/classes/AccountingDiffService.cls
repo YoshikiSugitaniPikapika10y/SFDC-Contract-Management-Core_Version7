@@ -92,8 +92,7 @@ public without sharing class AccountingDiffService {
         activeByLine.put(journal.JournalLineKey__c, journal);
       }
     }
-    Map<Id, InvoiceLine__c> lineById = loadCopyLines(goals);
-    Map<Id, InvoicePayment__c> paymentById = loadCopyPayments(goals);
+    CopySourceBundle copySources = loadCopySources(invoice, goals);
     Set<String> goalKeys = new Set<String>();
     PersistPlan plan = new PersistPlan();
     plan.inserts = new List<GlJournal__c>();
@@ -103,7 +102,7 @@ public without sharing class AccountingDiffService {
       GlJournal__c next = goal.record;
       next.AccountingEventKey__c = eventKey;
       next.BusinessOperationKey__c = operationKey;
-      applyJournalCopy(next, invoice, lineById, paymentById);
+      applyJournalCopy(next, copySources);
       goalKeys.add(next.JournalLineKey__c);
       GlJournal__c existing = activeByLine.get(next.JournalLineKey__c);
       if (existing == null) {
@@ -888,62 +887,298 @@ public without sharing class AccountingDiffService {
     return hashKey(new List<String>{ operationKey, journalLineKey, 'ORIGINAL' });
   }
 
-  private static Map<Id, InvoiceLine__c> loadCopyLines(
+  private class CopySourceBundle {
+    Invoice__c invoice;
+    Map<Id, InvoiceLine__c> lines = new Map<Id, InvoiceLine__c>();
+    Map<Id, InvoicePayment__c> payments = new Map<Id, InvoicePayment__c>();
+    Map<Id, InvoicePaymentAllocation__c> allocations = new Map<Id, InvoicePaymentAllocation__c>();
+    Map<Id, ContractProduct__c> contractProducts = new Map<Id, ContractProduct__c>();
+    Map<Id, Product2> products = new Map<Id, Product2>();
+    Map<Id, BillingAccount__c> billingAccounts = new Map<Id, BillingAccount__c>();
+    Map<Id, ContractHistory__c> histories = new Map<Id, ContractHistory__c>();
+    Map<Id, Opportunity> opportunities = new Map<Id, Opportunity>();
+    Map<Id, Account> accounts = new Map<Id, Account>();
+  }
+
+  /** 仕様: Core 第11.4.2節。仕訳コピーの From を定義どおり SOQL する。行ロック照会は使わない。 */
+  private static CopySourceBundle loadCopySources(
+    Invoice__c lockedInvoice,
     List<AccountingGoalService.GoalJournal> goals
   ) {
-    Set<Id> ids = new Set<Id>();
+    CopySourceBundle bundle = new CopySourceBundle();
+    Set<Id> lineIds = new Set<Id>();
+    Set<Id> paymentIds = new Set<Id>();
+    Set<Id> allocationIds = new Set<Id>();
     for (AccountingGoalService.GoalJournal goal : goals) {
+      if (goal == null || goal.record == null) {
+        continue;
+      }
       if (goal.record.InvoiceLine__c != null) {
-        ids.add(goal.record.InvoiceLine__c);
+        lineIds.add(goal.record.InvoiceLine__c);
       }
-    }
-    if (ids.isEmpty()) {
-      return new Map<Id, InvoiceLine__c>();
-    }
-    return new Map<Id, InvoiceLine__c>(
-      [
-        SELECT Id, Invoice__c, ContractProduct__c, Product__c, Amount__c
-        FROM InvoiceLine__c
-        WHERE Id IN :ids
-        WITH SYSTEM_MODE
-      ]
-    );
-  }
-
-  private static Map<Id, InvoicePayment__c> loadCopyPayments(
-    List<AccountingGoalService.GoalJournal> goals
-  ) {
-    Set<Id> ids = new Set<Id>();
-    for (AccountingGoalService.GoalJournal goal : goals) {
       if (goal.record.InvoicePayment__c != null) {
-        ids.add(goal.record.InvoicePayment__c);
+        paymentIds.add(goal.record.InvoicePayment__c);
+      }
+      if (goal.record.InvoicePaymentAllocation__c != null) {
+        allocationIds.add(goal.record.InvoicePaymentAllocation__c);
       }
     }
-    if (ids.isEmpty()) {
-      return new Map<Id, InvoicePayment__c>();
+    if (lockedInvoice != null && lockedInvoice.Id != null) {
+      List<Invoice__c> invoices = (List<Invoice__c>) queryCopySources(
+        'Invoice__c',
+        new Set<Id>{ lockedInvoice.Id },
+        new Set<String>{
+          'BillingAccountSnapShot__c',
+          'ContractHistory__c',
+          'ContractService__c'
+        }
+      );
+      if (!invoices.isEmpty()) {
+        bundle.invoice = invoices[0];
+      }
     }
-    return new Map<Id, InvoicePayment__c>(
-      [
-        SELECT Id, Invoice__c, Amount__c, PaymentPurpose__c, PaymentDate__c
-        FROM InvoicePayment__c
-        WHERE Id IN :ids
-        WITH SYSTEM_MODE
-      ]
+    bundle.lines = new Map<Id, InvoiceLine__c>(
+      (List<InvoiceLine__c>) queryCopySources(
+        'InvoiceLine__c',
+        lineIds,
+        new Set<String>{
+          'Invoice__c',
+          'ContractProduct__c',
+          'Product__c',
+          'Amount__c'
+        }
+      )
+    );
+    bundle.payments = new Map<Id, InvoicePayment__c>(
+      (List<InvoicePayment__c>) queryCopySources(
+        'InvoicePayment__c',
+        paymentIds,
+        new Set<String>{
+          'Invoice__c',
+          'Amount__c',
+          'PaymentPurpose__c',
+          'PaymentDate__c',
+          'Memo__c'
+        }
+      )
+    );
+    bundle.allocations = new Map<Id, InvoicePaymentAllocation__c>(
+      (List<InvoicePaymentAllocation__c>) queryCopySources(
+        'InvoicePaymentAllocation__c',
+        allocationIds,
+        new Set<String>{ 'InvoiceLine__c', 'InvoicePayment__c', 'Amount__c' }
+      )
+    );
+    Set<Id> contractProductIds = new Set<Id>();
+    Set<Id> productIds = new Set<Id>();
+    for (InvoiceLine__c line : bundle.lines.values()) {
+      if (line.ContractProduct__c != null) {
+        contractProductIds.add(line.ContractProduct__c);
+      }
+      if (line.Product__c != null) {
+        productIds.add(line.Product__c);
+      }
+    }
+    bundle.contractProducts = new Map<Id, ContractProduct__c>(
+      (List<ContractProduct__c>) queryCopySources(
+        'ContractProduct__c',
+        contractProductIds,
+        new Set<String>{ 'Product__c', 'ContractHistory__c' }
+      )
+    );
+    for (ContractProduct__c contractProduct : bundle.contractProducts.values()) {
+      if (contractProduct.Product__c != null) {
+        productIds.add(contractProduct.Product__c);
+      }
+    }
+    bundle.products = new Map<Id, Product2>(
+      (List<Product2>) queryCopySources(
+        'Product2',
+        productIds,
+        new Set<String>{ 'ProductCode' }
+      )
+    );
+    Set<Id> billingIds = new Set<Id>();
+    Set<Id> historyIds = new Set<Id>();
+    if (bundle.invoice != null) {
+      if (bundle.invoice.BillingAccountSnapShot__c != null) {
+        billingIds.add(bundle.invoice.BillingAccountSnapShot__c);
+      }
+      if (bundle.invoice.ContractHistory__c != null) {
+        historyIds.add(bundle.invoice.ContractHistory__c);
+      }
+    }
+    bundle.histories = new Map<Id, ContractHistory__c>(
+      (List<ContractHistory__c>) queryCopySources(
+        'ContractHistory__c',
+        historyIds,
+        new Set<String>{ 'Opportunity__c', 'ContractService__c' }
+      )
+    );
+    Set<Id> opportunityIds = new Set<Id>();
+    Set<Id> accountIds = new Set<Id>();
+    for (ContractHistory__c history : bundle.histories.values()) {
+      if (history.Opportunity__c != null) {
+        opportunityIds.add(history.Opportunity__c);
+      }
+    }
+    bundle.opportunities = new Map<Id, Opportunity>(
+      (List<Opportunity>) queryCopySources(
+        'Opportunity',
+        opportunityIds,
+        new Set<String>{ 'AccountId' }
+      )
+    );
+    for (Opportunity opportunity : bundle.opportunities.values()) {
+      if (opportunity.AccountId != null) {
+        accountIds.add(opportunity.AccountId);
+      }
+    }
+    bundle.billingAccounts = new Map<Id, BillingAccount__c>(
+      (List<BillingAccount__c>) queryCopySources(
+        'BillingAccount__c',
+        billingIds,
+        new Set<String>{ 'Account__c' }
+      )
+    );
+    for (BillingAccount__c billingAccount : bundle.billingAccounts.values()) {
+      if (billingAccount.Account__c != null) {
+        accountIds.add(billingAccount.Account__c);
+      }
+    }
+    bundle.accounts = new Map<Id, Account>(
+      (List<Account>) queryCopySources('Account', accountIds, new Set<String>())
+    );
+    return bundle;
+  }
+
+  private static List<SObject> queryCopySources(
+    String objectApiName,
+    Set<Id> recordIds,
+    Set<String> extraFields
+  ) {
+    if (recordIds == null || recordIds.isEmpty() || String.isBlank(objectApiName)) {
+      return new List<SObject>();
+    }
+    Schema.SObjectType sobjectType = Schema.getGlobalDescribe().get(objectApiName);
+    if (sobjectType == null) {
+      return new List<SObject>();
+    }
+    Map<String, Schema.SObjectField> fieldMap = sobjectType.getDescribe().fields.getMap();
+    Set<String> names = new Set<String>{ 'Id' };
+    if (extraFields != null) {
+      names.addAll(extraFields);
+    }
+    names.addAll(FieldCopyDefinitionService.sourceFieldApiNames(objectApiName));
+    List<String> selectFields = new List<String>();
+    Set<String> used = new Set<String>();
+    for (String fieldApiName : names) {
+      if (String.isBlank(fieldApiName)) {
+        continue;
+      }
+      String key = fieldApiName.toLowerCase();
+      if (used.contains(key)) {
+        continue;
+      }
+      if (!fieldMap.containsKey(fieldApiName) && !fieldApiName.contains('.')) {
+        continue;
+      }
+      used.add(key);
+      selectFields.add(fieldApiName);
+    }
+    if (selectFields.isEmpty()) {
+      selectFields.add('Id');
+    }
+    selectFields.sort();
+    return Database.query(
+      'SELECT ' +
+        String.join(selectFields, ',') +
+        ' FROM ' +
+        String.escapeSingleQuotes(objectApiName) +
+        ' WHERE Id IN :recordIds WITH SYSTEM_MODE'
     );
   }
 
-  private static void applyJournalCopy(
-    GlJournal__c journal,
-    Invoice__c invoice,
-    Map<Id, InvoiceLine__c> lineById,
-    Map<Id, InvoicePayment__c> paymentById
-  ) {
-    Map<String, SObject> sources = new Map<String, SObject>{ 'Invoice__c' => invoice };
-    if (journal.InvoiceLine__c != null && lineById.containsKey(journal.InvoiceLine__c)) {
-      sources.put('InvoiceLine__c', lineById.get(journal.InvoiceLine__c));
+  /** 仕様: Core 第11.4.2節。明細仕訳の From は明細・見積商品・商品・入出金・割当・請求書・請求アカウント・契約履歴・商談・取引先。 */
+  private static void applyJournalCopy(GlJournal__c journal, CopySourceBundle bundle) {
+    Map<String, SObject> sources = new Map<String, SObject>();
+    if (bundle != null && bundle.invoice != null) {
+      sources.put('Invoice__c', bundle.invoice);
+      Id billingId = bundle.invoice.BillingAccountSnapShot__c;
+      if (billingId != null && bundle.billingAccounts.containsKey(billingId)) {
+        sources.put('BillingAccount__c', bundle.billingAccounts.get(billingId));
+      }
+      Id historyId = bundle.invoice.ContractHistory__c;
+      if (historyId != null && bundle.histories.containsKey(historyId)) {
+        ContractHistory__c history = bundle.histories.get(historyId);
+        sources.put('ContractHistory__c', history);
+        if (
+          history.Opportunity__c != null &&
+          bundle.opportunities.containsKey(history.Opportunity__c)
+        ) {
+          Opportunity opportunity = bundle.opportunities.get(history.Opportunity__c);
+          sources.put('Opportunity', opportunity);
+          if (
+            opportunity.AccountId != null &&
+            bundle.accounts.containsKey(opportunity.AccountId)
+          ) {
+            sources.put('Account', bundle.accounts.get(opportunity.AccountId));
+          }
+        }
+      }
+      if (
+        !sources.containsKey('Account') &&
+        billingId != null &&
+        bundle.billingAccounts.containsKey(billingId)
+      ) {
+        BillingAccount__c billingAccount = bundle.billingAccounts.get(billingId);
+        if (
+          billingAccount.Account__c != null &&
+          bundle.accounts.containsKey(billingAccount.Account__c)
+        ) {
+          sources.put('Account', bundle.accounts.get(billingAccount.Account__c));
+        }
+      }
     }
-    if (journal.InvoicePayment__c != null && paymentById.containsKey(journal.InvoicePayment__c)) {
-      sources.put('InvoicePayment__c', paymentById.get(journal.InvoicePayment__c));
+    if (journal.InvoiceLine__c != null && bundle != null && bundle.lines.containsKey(journal.InvoiceLine__c)) {
+      InvoiceLine__c line = bundle.lines.get(journal.InvoiceLine__c);
+      sources.put('InvoiceLine__c', line);
+      if (
+        line.ContractProduct__c != null &&
+        bundle.contractProducts.containsKey(line.ContractProduct__c)
+      ) {
+        ContractProduct__c contractProduct = bundle.contractProducts.get(
+          line.ContractProduct__c
+        );
+        sources.put('ContractProduct__c', contractProduct);
+        if (
+          line.Product__c == null &&
+          contractProduct.Product__c != null &&
+          bundle.products.containsKey(contractProduct.Product__c)
+        ) {
+          sources.put('Product2', bundle.products.get(contractProduct.Product__c));
+        }
+      }
+      if (line.Product__c != null && bundle.products.containsKey(line.Product__c)) {
+        sources.put('Product2', bundle.products.get(line.Product__c));
+      }
+    }
+    if (
+      journal.InvoicePayment__c != null &&
+      bundle != null &&
+      bundle.payments.containsKey(journal.InvoicePayment__c)
+    ) {
+      sources.put('InvoicePayment__c', bundle.payments.get(journal.InvoicePayment__c));
+    }
+    if (
+      journal.InvoicePaymentAllocation__c != null &&
+      bundle != null &&
+      bundle.allocations.containsKey(journal.InvoicePaymentAllocation__c)
+    ) {
+      sources.put(
+        'InvoicePaymentAllocation__c',
+        bundle.allocations.get(journal.InvoicePaymentAllocation__c)
+      );
     }
     String context = journal.InvoiceLine__c == null
       ? FieldCopyDefinitionService.CONTEXT_NON_LINE_JOURNAL

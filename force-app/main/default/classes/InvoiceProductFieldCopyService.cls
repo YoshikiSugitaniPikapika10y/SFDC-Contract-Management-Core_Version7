@@ -134,6 +134,7 @@ public without sharing class InvoiceProductFieldCopyService {
   @TestVisible
   private static List<FieldCopyDefinition__c> cachedDefinitions;
   private static Map<Id, ContractHistory__c> cachedHistoriesById = new Map<Id, ContractHistory__c>();
+  private static Map<Id, Set<String>> cachedHistoryFieldsById = new Map<Id, Set<String>>();
   private static Map<Id, ContractService__c> cachedServicesById = new Map<Id, ContractService__c>();
   private static Map<Id, ContractProduct__c> cachedContractProductsById = new Map<Id, ContractProduct__c>();
   private static Map<Id, Set<String>> cachedContractProductFieldsById = new Map<Id, Set<String>>();
@@ -150,6 +151,7 @@ public without sharing class InvoiceProductFieldCopyService {
   static void resetCache() {
     cachedDefinitions = null;
     cachedHistoriesById = new Map<Id, ContractHistory__c>();
+    cachedHistoryFieldsById = new Map<Id, Set<String>>();
     cachedServicesById = new Map<Id, ContractService__c>();
     cachedContractProductsById = new Map<Id, ContractProduct__c>();
     cachedContractProductFieldsById = new Map<Id, Set<String>>();
@@ -215,6 +217,10 @@ public without sharing class InvoiceProductFieldCopyService {
     if (sobjectType == ContractHistory__c.SObjectType) {
       ContractHistory__c history = (ContractHistory__c) record;
       cachedHistoriesById.put(history.Id, history);
+      cachedHistoryFieldsById.put(
+        history.Id,
+        coverageFields(record, queriedFields, cachedHistoryFieldsById.get(history.Id))
+      );
       if (history.getSObject('ContractService__r') != null) {
         rememberRecord(history.getSObject('ContractService__r'));
       }
@@ -659,65 +665,8 @@ public without sharing class InvoiceProductFieldCopyService {
       }
     }
 
-    if (!contractHistoryIds.isEmpty()) {
-      Set<Id> missingHistoryIds = new Set<Id>();
-      for (Id historyId : contractHistoryIds) {
-        if (cachedHistoriesById.containsKey(historyId)) {
-          maps.contractHistoryById.put(historyId, cachedHistoriesById.get(historyId));
-        } else {
-          missingHistoryIds.add(historyId);
-        }
-      }
-      if (!missingHistoryIds.isEmpty()) {
-        for (ContractHistory__c history : [
-          SELECT
-            Id,
-            Opportunity__c,
-            ContractService__c,
-            ContractService__r.BiilingAcccount__c,
-            ContractService__r.Account__c
-          FROM ContractHistory__c
-          WHERE Id IN :missingHistoryIds
-          WITH SYSTEM_MODE
-        ]) {
-          cachedHistoriesById.put(history.Id, history);
-          maps.contractHistoryById.put(history.Id, history);
-        }
-      }
-      for (ContractHistory__c history : maps.contractHistoryById.values()) {
-        if (
-          history.ContractService__r != null &&
-          history.ContractService__r.BiilingAcccount__c != null
-        ) {
-          maps.billingAccountIdByHistoryId.put(
-            history.Id,
-            history.ContractService__r.BiilingAcccount__c
-          );
-          billingAccountIds.add(history.ContractService__r.BiilingAcccount__c);
-        }
-        if (
-          history.ContractService__c != null &&
-          history.ContractService__r != null &&
-          history.ContractService__r.BiilingAcccount__c != null
-        ) {
-          maps.billingAccountIdByServiceId.put(
-            history.ContractService__c,
-            history.ContractService__r.BiilingAcccount__c
-          );
-        }
-        if (
-          history.ContractService__c != null &&
-          history.ContractService__r != null &&
-          history.ContractService__r.Account__c != null
-        ) {
-          maps.accountIdByServiceId.put(
-            history.ContractService__c,
-            history.ContractService__r.Account__c
-          );
-          accountIds.add(history.ContractService__r.Account__c);
-        }
-      }
-    }
+    queryHistoriesForInsert(contractHistoryIds, maps, targetObjectApiName);
+    collectHistoryRelationIds(maps, billingAccountIds, accountIds);
 
     if (!contractServiceIds.isEmpty()) {
       Set<Id> missingServiceIds = new Set<Id>();
@@ -807,32 +756,8 @@ public without sharing class InvoiceProductFieldCopyService {
         missingHistoryIds.add(histId);
       }
     }
-    if (!missingHistoryIds.isEmpty()) {
-      for (ContractHistory__c history : [
-        SELECT
-          Id,
-          Opportunity__c,
-          ContractService__c,
-          ContractService__r.BiilingAcccount__c,
-          ContractService__r.Account__c
-        FROM ContractHistory__c
-        WHERE Id IN :missingHistoryIds
-        WITH SYSTEM_MODE
-      ]) {
-        cachedHistoriesById.put(history.Id, history);
-        maps.contractHistoryById.put(history.Id, history);
-        if (
-          history.ContractService__r != null &&
-          history.ContractService__r.BiilingAcccount__c != null
-        ) {
-          maps.billingAccountIdByHistoryId.put(
-            history.Id,
-            history.ContractService__r.BiilingAcccount__c
-          );
-          billingAccountIds.add(history.ContractService__r.BiilingAcccount__c);
-        }
-      }
-    }
+    queryHistoriesForInsert(missingHistoryIds, maps, targetObjectApiName);
+    collectHistoryRelationIds(maps, billingAccountIds, accountIds);
 
     Set<Id> productIds = new Set<Id>();
     Set<Id> opportunityIds = new Set<Id>();
@@ -984,6 +909,106 @@ public without sharing class InvoiceProductFieldCopyService {
     }
 
     return maps;
+  }
+
+  /** 仕様: Core 第11.4.2節。insert コピーの From=契約履歴項目を SELECT に足す。 */
+  private static Set<String> historyInsertSelectFields(String targetObjectApiName) {
+    Set<String> names = new Set<String>{
+      'Id',
+      'Opportunity__c',
+      'ContractService__c',
+      'ContractService__r.BiilingAcccount__c',
+      'ContractService__r.Account__c'
+    };
+    Map<String, Schema.SObjectField> fieldMap = ContractHistory__c.SObjectType.getDescribe()
+      .fields.getMap();
+    for (
+      String apiName : getSourceFieldApiNames(OBJECT_CONTRACT_HISTORY, targetObjectApiName)
+    ) {
+      if (fieldMap.containsKey(apiName)) {
+        names.add(apiName);
+      }
+    }
+    return names;
+  }
+
+  private static void queryHistoriesForInsert(
+    Set<Id> historyIds,
+    InsertSourceMaps maps,
+    String targetObjectApiName
+  ) {
+    if (historyIds == null || historyIds.isEmpty()) {
+      return;
+    }
+    Set<String> needed = historyInsertSelectFields(targetObjectApiName);
+    Set<Id> missingHistoryIds = new Set<Id>();
+    for (Id historyId : historyIds) {
+      if (maps.contractHistoryById.containsKey(historyId)) {
+        continue;
+      }
+      if (
+        cachedHistoriesById.containsKey(historyId) &&
+        cacheCovers(cachedHistoryFieldsById.get(historyId), needed)
+      ) {
+        maps.contractHistoryById.put(historyId, cachedHistoriesById.get(historyId));
+      } else {
+        missingHistoryIds.add(historyId);
+      }
+    }
+    if (missingHistoryIds.isEmpty()) {
+      return;
+    }
+    List<String> selectFields = new List<String>(needed);
+    selectFields.sort();
+    String soql =
+      'SELECT ' +
+      String.join(selectFields, ',') +
+      ' FROM ContractHistory__c WHERE Id IN :missingHistoryIds WITH SYSTEM_MODE';
+    for (ContractHistory__c history : Database.query(soql)) {
+      cachedHistoriesById.put(history.Id, history);
+      cachedHistoryFieldsById.put(history.Id, new Set<String>(needed));
+      maps.contractHistoryById.put(history.Id, history);
+    }
+  }
+
+  private static void collectHistoryRelationIds(
+    InsertSourceMaps maps,
+    Set<Id> billingAccountIds,
+    Set<Id> accountIds
+  ) {
+    for (ContractHistory__c history : maps.contractHistoryById.values()) {
+      if (
+        history.ContractService__r != null &&
+        history.ContractService__r.BiilingAcccount__c != null
+      ) {
+        maps.billingAccountIdByHistoryId.put(
+          history.Id,
+          history.ContractService__r.BiilingAcccount__c
+        );
+        billingAccountIds.add(history.ContractService__r.BiilingAcccount__c);
+      }
+      if (
+        history.ContractService__c != null &&
+        history.ContractService__r != null &&
+        history.ContractService__r.BiilingAcccount__c != null
+      ) {
+        maps.billingAccountIdByServiceId.put(
+          history.ContractService__c,
+          history.ContractService__r.BiilingAcccount__c
+        );
+      }
+      if (
+        history.ContractService__c != null &&
+        history.ContractService__r != null &&
+        history.ContractService__r.Account__c != null
+      ) {
+        maps.accountIdByServiceId.put(
+          history.ContractService__c,
+          history.ContractService__r.Account__c
+        );
+        accountIds.add(history.ContractService__r.Account__c);
+      }
+    }
   }
 
   private static Map<String, SObject> resolveInsertSources(
@@ -1406,6 +1431,14 @@ public without sharing class InvoiceProductFieldCopyService {
       'BillingAccountSnapShot__c'
     );
     addWalkField(selectFields, fieldMap, objectApiName, OBJECT_INVOICE, 'ContractHistory__c');
+    addWalkField(
+      selectFields,
+      fieldMap,
+      objectApiName,
+      OBJECT_INVOICE_LINE,
+      'ContractProduct__c'
+    );
+    addWalkField(selectFields, fieldMap, objectApiName, OBJECT_INVOICE_LINE, 'Product__c');
     if (selectFields.isEmpty()) {
       selectFields.add('Id');
     }

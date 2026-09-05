@@ -194,6 +194,151 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void applyForInvoice_copiesJournalSourcesFromUnqueriedFields() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('CopySrc');
+      enableAccounting();
+      seedMaps();
+      InvoiceLine__c line = [
+        SELECT ProductName__c, ContractProduct__c
+        FROM InvoiceLine__c
+        WHERE Id = :fixture.line.Id
+      ];
+      ContractProduct__c contractProduct = [
+        SELECT Product__c
+        FROM ContractProduct__c
+        WHERE Id = :line.ContractProduct__c
+      ];
+      update new Product2(Id = contractProduct.Product__c, ProductCode = 'PC-510');
+      update new Invoice__c(Id = fixture.invoice.Id, Memo__c = 'INV-MEMO-509');
+      insert new List<FieldCopyDefinition__c>{
+        new FieldCopyDefinition__c(
+          Name = 'Test_Journal_Line_Name',
+          TargetObject__c = 'GlJournal__c',
+          Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+          SourceObject__c = 'InvoiceLine__c',
+          SourceFieldApiName__c = 'ProductName__c',
+          TargetFieldApiName__c = 'Memo__c'
+        ),
+        new FieldCopyDefinition__c(
+          Name = 'Test_Journal_Invoice_Memo',
+          TargetObject__c = 'GlJournal__c',
+          Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+          SourceObject__c = 'Invoice__c',
+          SourceFieldApiName__c = 'Memo__c',
+          TargetFieldApiName__c = 'UnlockReason__c'
+        ),
+        new FieldCopyDefinition__c(
+          Name = 'Test_Journal_Product_Code',
+          TargetObject__c = 'GlJournal__c',
+          Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+          SourceObject__c = 'Product2',
+          SourceFieldApiName__c = 'ProductCode',
+          TargetFieldApiName__c = 'ProductCodeSnapShot__c'
+        )
+      };
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+      markConfirmed(fixture.invoice);
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      Test.startTest();
+      AccountingDiffService.applyForInvoice(
+        fixture.invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        'TEST_COPY_SRC',
+        null
+      );
+      Test.stopTest();
+      List<GlJournal__c> journals = [
+        SELECT Memo__c, UnlockReason__c, ProductCodeSnapShot__c, InvoiceLine__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id AND InvoiceLine__c != NULL
+      ];
+      System.assertEquals(false, journals.isEmpty());
+      for (GlJournal__c journal : journals) {
+        System.assertEquals(
+          'Engine Line',
+          journal.Memo__c,
+          '仕様: Core 第11.4.2節 明細仕訳は請求明細のコピー元項目を読んで空欄へ書く'
+        );
+        System.assertEquals(
+          'INV-MEMO-509',
+          journal.UnlockReason__c,
+          '仕様: Core 第11.4.2節 明細仕訳は請求書のコピー元項目を読んで空欄へ書く'
+        );
+        System.assertEquals(
+          'PC-510',
+          journal.ProductCodeSnapShot__c,
+          '仕様: Core 第11.4.2節 Sample_Journal_ProductCode は From=Product2 が届く'
+        );
+      }
+    }
+  }
+
+  @IsTest
+  static void applyForInvoice_copiesPaymentMemoOnPaymentJournals() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createPaymentFixture();
+      enableAccounting();
+      seedMaps();
+      seedPaymentMaps();
+      confirmWithJournals(fixture.invoice);
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Journal_Pay_Memo',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        SourceObject__c = 'InvoicePayment__c',
+        SourceFieldApiName__c = 'Memo__c',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+      InvoicePayment__c payment = new InvoicePayment__c(
+        Invoice__c = fixture.invoice.Id,
+        Amount__c = 100000,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_INVOICE,
+        PaymentDate__c = Date.newInstance(2026, 6, 20),
+        PaymentTransactionStatus__c = InvoicePaymentService.STATUS_ACTIVE,
+        BillingAccount__c = fixture.invoice.BillingAccountSnapShot__c,
+        Memo__c = 'PAY-MEMO-508'
+      );
+      insertInvoicePurpose(payment);
+      insert new InvoicePaymentAllocation__c(
+        InvoicePayment__c = payment.Id,
+        InvoiceLine__c = fixture.line.Id,
+        Amount__c = 100000,
+        HistoricalUacAmount__c = 0,
+        HistoricalSpAmount__c = 0
+      );
+      Test.startTest();
+      AccountingDiffService.applyForInvoice(
+        fixture.invoice.Id,
+        AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
+        'TEST_PAY_COPY',
+        null
+      );
+      Test.stopTest();
+      List<GlJournal__c> paymentJournals = [
+        SELECT Memo__c
+        FROM GlJournal__c
+        WHERE
+          Invoice__c = :fixture.invoice.Id
+          AND InvoicePayment__c = :payment.Id
+          AND TransactionStatus__c = 'Active'
+      ];
+      System.assertEquals(false, paymentJournals.isEmpty());
+      for (GlJournal__c journal : paymentJournals) {
+        System.assertEquals(
+          'PAY-MEMO-508',
+          journal.Memo__c,
+          '仕様: Core 第11.4.2節 仕訳コピーは入出金のコピー元項目を読んで空欄へ書く'
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void applyForInvoice_matchingLockedCurrent_isKept() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('KeepLock');
