@@ -20,6 +20,16 @@ describe("estimateCreateModal2 service picker (Core 第0.1節)", () => {
     );
     expect(option.versionLabel).toBe("版3");
     expect(option.versionLabel).not.toMatch(/^V/);
+    expect(option.taxLabel).toBe("税率: 未設定");
+  });
+
+  it("shows tax percent on the service picker (Core 4.3.3)", () => {
+    const option = EstimateCreateModal2.prototype.buildServicePickerOption.call(
+      {},
+      { id: "svc1", name: "Service", version: 1, taxPercent: 10 },
+      "svc1"
+    );
+    expect(option.taxLabel).toBe("税率: 10%");
   });
 });
 
@@ -47,5 +57,84 @@ describe("estimateCreateModal2 other-account billing (Core 第3.2節・第1.1.10
         allowOtherAccountBilling: true
       })
     ).toBe(false);
+  });
+
+  it("offers other-account billing search for New when opportunity account is set (Core 4.3.3)", () => {
+    expect(
+      canSearch.call({
+        opportunityAccountId: "001000000000001AAA",
+        orderedCustomFieldsOnly: false
+      })
+    ).toBe(true);
+  });
+
+  it("does not offer other-account billing on Ordered custom-field edit (Core 4.3)", () => {
+    expect(
+      canSearch.call({
+        opportunityAccountId: "001000000000001AAA",
+        orderedCustomFieldsOnly: true
+      })
+    ).toBe(false);
+    expect(
+      Object.getOwnPropertyDescriptor(proto, "showEstimateSendContact").get.call({
+        orderedCustomFieldsOnly: true
+      })
+    ).toBe(false);
+    expect(
+      Object.getOwnPropertyDescriptor(proto, "isStandardFieldsReadonly").get.call({
+        orderedCustomFieldsOnly: true
+      })
+    ).toBe(true);
+  });
+});
+
+describe("estimateCreateModal2 New vs continuation (Core 4.3 / 4.3.3)", () => {
+  const proto = EstimateCreateModal2.prototype;
+  const isNewType = Object.getOwnPropertyDescriptor(proto, "isNewType").get;
+  const cardTitle = Object.getOwnPropertyDescriptor(proto, "cardTitle").get;
+  const displayNew = Object.getOwnPropertyDescriptor(
+    proto,
+    "displayNewHistoryVersion"
+  ).get;
+  const identityReadonly = Object.getOwnPropertyDescriptor(
+    proto,
+    "isServiceIdentityReadonly"
+  ).get;
+  const showSend = Object.getOwnPropertyDescriptor(
+    proto,
+    "showEstimateSendContact"
+  ).get;
+  const taxDisplay = Object.getOwnPropertyDescriptor(
+    proto,
+    "taxPercentDisplayValue"
+  ).get;
+
+  it("New shows create version 1 and editable service identity", () => {
+    const neu = {
+      effectiveWizardType: "New",
+      isNewType: true,
+      orderedCustomFieldsOnly: false
+    };
+    expect(isNewType.call(neu)).toBe(true);
+    expect(cardTitle.call(neu)).toBe("新規契約の作成");
+    expect(displayNew.call(neu)).toBe("1");
+    expect(identityReadonly.call(neu)).toBe(false);
+    expect(showSend.call(neu)).toBe(true);
+  });
+
+  it("Change/Renew/Cancel keep service name, billing, and tax read-only (Core 4.3)", () => {
+    const change = {
+      effectiveWizardType: "Change",
+      isNewType: false,
+      orderedCustomFieldsOnly: false
+    };
+    expect(isNewType.call(change)).toBe(false);
+    expect(cardTitle.call(change)).toBe("既存契約の選択");
+    expect(identityReadonly.call(change)).toBe(true);
+  });
+
+  it("shows 未設定 when tax percent is empty (Core 4.3.3)", () => {
+    expect(taxDisplay.call({ taxPercent: "" })).toBe("未設定");
+    expect(taxDisplay.call({ taxPercent: 10 })).toBe("10%");
   });
 });
