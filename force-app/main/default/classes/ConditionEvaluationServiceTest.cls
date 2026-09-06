@@ -15,7 +15,9 @@ private class ConditionEvaluationServiceTest {
   @IsTest
   static void evaluate_payInvoiceCurrentUsesPaymentDate() {
     ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
-    context.invoice = new Invoice__c(InvoiceDate__c = Date.newInstance(2026, 6, 1));
+    context.invoice = new Invoice__c(
+      InvoiceDate__c = Date.newInstance(2026, 6, 1)
+    );
     context.invoicePayment = new InvoicePayment__c(
       PaymentPurpose__c = 'Invoice',
       PaymentDate__c = Date.newInstance(2026, 6, 15)
@@ -74,9 +76,9 @@ private class ConditionEvaluationServiceTest {
     );
     System.assert(
       ConditionEvaluationService.validateConditionLogic(
-        '1 AND 2 OR 3',
-        new Set<Decimal>{ 1, 2, 3 }
-      )
+          '1 AND 2 OR 3',
+          new Set<Decimal>{ 1, 2, 3 }
+        )
         .contains('括弧'),
       'Accounting 第4.7節: ANDとORの混在時は括弧が必要'
     );
@@ -256,7 +258,9 @@ private class ConditionEvaluationServiceTest {
       'Accounting 第4.7節: 保存値はAPI値'
     );
     ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
-    context.invoicePayment = new InvoicePayment__c(PaymentPurpose__c = 'Invoice');
+    context.invoicePayment = new InvoicePayment__c(
+      PaymentPurpose__c = 'Invoice'
+    );
     System.assertEquals(
       true,
       ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
@@ -295,7 +299,8 @@ private class ConditionEvaluationServiceTest {
       CompareValue__c = 'x'
     );
     System.assert(
-      ConditionEvaluationService.validateRule(rule, 'Invoice').contains('空判定'),
+      ConditionEvaluationService.validateRule(rule, 'Invoice')
+        .contains('空判定'),
       'Accounting 第4.7節: 空判定では比較関連項目を空にする'
     );
   }
@@ -329,7 +334,9 @@ private class ConditionEvaluationServiceTest {
   @IsTest
   static void evaluate_historicalInvoiceSetsUsePaymentDateAndAllocation() {
     ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
-    context.invoice = new Invoice__c(InvoiceDate__c = Date.newInstance(2026, 6, 1));
+    context.invoice = new Invoice__c(
+      InvoiceDate__c = Date.newInstance(2026, 6, 1)
+    );
     context.invoicePayment = new InvoicePayment__c(
       PaymentPurpose__c = 'Invoice',
       PaymentDate__c = Date.newInstance(2026, 5, 1)
@@ -504,7 +511,10 @@ private class ConditionEvaluationServiceTest {
       'Accounting 第4.7節: 含むはテキスト'
     );
     context.invoice.Memo__c = '摘要なし';
-    System.assertEquals(false, ConditionEvaluationService.evaluateTenant(conditionSet.Id, context));
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context)
+    );
   }
 
   @IsTest
@@ -517,7 +527,8 @@ private class ConditionEvaluationServiceTest {
       CompareValue__c = '0'
     );
     System.assert(
-      ConditionEvaluationService.validateRule(unreachable, 'Invoice').contains('到達'),
+      ConditionEvaluationService.validateRule(unreachable, 'Invoice')
+        .contains('到達'),
       'Accounting 第4.7節: 評価コンテキストから到達できない対象は拒否'
     );
     GlConditionRule__c noType = new GlConditionRule__c(
@@ -526,7 +537,8 @@ private class ConditionEvaluationServiceTest {
       Operator__c = 'Equals'
     );
     System.assert(
-      ConditionEvaluationService.validateRule(noType, 'Invoice').contains('比較種別'),
+      ConditionEvaluationService.validateRule(noType, 'Invoice')
+        .contains('比較種別'),
       'Accounting 第4.7節: 比較種別を指定する'
     );
   }
@@ -555,6 +567,76 @@ private class ConditionEvaluationServiceTest {
         'NOT 1',
         new Set<Decimal>{ 1 }
       )
+    );
+  }
+
+  @IsTest
+  static void evaluateTenant_doesNotRequeryCollectedSet() {
+    GlConditionSet__c conditionSet = new GlConditionSet__c(
+      Name = 'Eval Cache Set',
+      EvaluationContext__c = 'InvoiceLine',
+      Description__c = '収集1回'
+    );
+    insert conditionSet;
+    insert new GlConditionRule__c(
+      ConditionSet__c = conditionSet.Id,
+      Sequence__c = 1,
+      TargetObject__c = 'InvoiceLine__c',
+      TargetField__c = 'Amount__c',
+      Operator__c = 'Equals',
+      CompareType__c = 'FixedValue',
+      CompareValue__c = '100'
+    );
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.invoiceLine = new InvoiceLine__c(Amount__c = 100);
+    ConditionEvaluationService.evaluateTenant(conditionSet.Id, context);
+    Integer afterFirst = Limits.getQueries();
+    Boolean second = ConditionEvaluationService.evaluateTenant(
+      conditionSet.Id,
+      context
+    );
+    System.assertEquals(
+      true,
+      second,
+      'Accounting 第8.2節: 収集済み条件の評価結果は変えない'
+    );
+    System.assertEquals(
+      afterFirst,
+      Limits.getQueries(),
+      'Accounting 第8.2節: 同一処理で条件セットとルールを取り直さない'
+    );
+  }
+
+  @IsTest
+  static void collectedTenantRules_feedsEvaluateWithoutSecondQuery() {
+    GlConditionSet__c conditionSet = new GlConditionSet__c(
+      Name = 'Eval Shared Collect Set',
+      EvaluationContext__c = 'InvoiceLine',
+      Description__c = '項目収集と評価'
+    );
+    insert conditionSet;
+    insert new GlConditionRule__c(
+      ConditionSet__c = conditionSet.Id,
+      Sequence__c = 1,
+      TargetObject__c = 'InvoiceLine__c',
+      TargetField__c = 'Amount__c',
+      Operator__c = 'Equals',
+      CompareType__c = 'FixedValue',
+      CompareValue__c = '100'
+    );
+    ConditionEvaluationService.collectedTenantRules();
+    Integer afterCollect = Limits.getQueries();
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.invoiceLine = new InvoiceLine__c(Amount__c = 100);
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第8.2節: 条件項目用のルール照会も同じ収集を使う'
+    );
+    System.assertEquals(
+      afterCollect,
+      Limits.getQueries(),
+      'Accounting 第8.2節: 条件項目用のルール照会のあと評価で取り直さない'
     );
   }
 }

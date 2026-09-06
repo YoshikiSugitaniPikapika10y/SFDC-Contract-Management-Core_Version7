@@ -51,17 +51,12 @@ public without sharing class AccountingGoalService {
     Decimal signedAmount;
   }
 
-  private static Map<Id, Map<Id, InvoiceLine__c>> cachedLinesByInvoice =
-    new Map<Id, Map<Id, InvoiceLine__c>>();
-  private static Map<Id, List<GlManualJournalHeader__c>> cachedHeadersByInvoice =
-    new Map<Id, List<GlManualJournalHeader__c>>();
-  private static Map<Id, Map<Id, GlManualJournalSetting__c>> cachedSettingsByInvoice =
-    new Map<Id, Map<Id, GlManualJournalSetting__c>>();
+  private static Map<Id, Map<Id, InvoiceLine__c>> cachedLinesByInvoice = new Map<Id, Map<Id, InvoiceLine__c>>();
+  private static Map<Id, List<GlManualJournalHeader__c>> cachedHeadersByInvoice = new Map<Id, List<GlManualJournalHeader__c>>();
+  private static Map<Id, Map<Id, GlManualJournalSetting__c>> cachedSettingsByInvoice = new Map<Id, Map<Id, GlManualJournalSetting__c>>();
   private static Map<Id, RelatedRecords> cachedRelatedByInvoice = new Map<Id, RelatedRecords>();
-  private static Map<Id, Map<Id, InvoicePayment__c>> collectedPaymentsByInvoice =
-    new Map<Id, Map<Id, InvoicePayment__c>>();
-  private static Map<Id, Map<Id, InvoicePaymentAllocation__c>> collectedAllocationsByInvoice =
-    new Map<Id, Map<Id, InvoicePaymentAllocation__c>>();
+  private static Map<Id, Map<Id, InvoicePayment__c>> collectedPaymentsByInvoice = new Map<Id, Map<Id, InvoicePayment__c>>();
+  private static Map<Id, Map<Id, InvoicePaymentAllocation__c>> collectedAllocationsByInvoice = new Map<Id, Map<Id, InvoicePaymentAllocation__c>>();
 
   private class RelatedRecords {
     Map<Id, ContractProduct__c> contractProducts = new Map<Id, ContractProduct__c>();
@@ -99,7 +94,9 @@ public without sharing class AccountingGoalService {
   }
 
   /** 仕様: Accounting 第8.2節 */
-  public static Map<Id, InvoicePaymentAllocation__c> collectedAllocations(Id invoiceId) {
+  public static Map<Id, InvoicePaymentAllocation__c> collectedAllocations(
+    Id invoiceId
+  ) {
     Map<Id, InvoicePaymentAllocation__c> rows = collectedAllocationsByInvoice.get(
       invoiceId
     );
@@ -107,7 +104,9 @@ public without sharing class AccountingGoalService {
   }
 
   /** 仕様: Accounting 第8.2節 */
-  public static Map<Id, ContractProduct__c> collectedContractProducts(Id invoiceId) {
+  public static Map<Id, ContractProduct__c> collectedContractProducts(
+    Id invoiceId
+  ) {
     RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
     return related == null
       ? new Map<Id, ContractProduct__c>()
@@ -135,7 +134,9 @@ public without sharing class AccountingGoalService {
   }
 
   /** 仕様: Accounting 第8.2節 */
-  public static Map<Id, BillingAccount__c> collectedBillingAccounts(Id invoiceId) {
+  public static Map<Id, BillingAccount__c> collectedBillingAccounts(
+    Id invoiceId
+  ) {
     RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
     return related == null
       ? new Map<Id, BillingAccount__c>()
@@ -160,21 +161,30 @@ public without sharing class AccountingGoalService {
     if (InvoiceTransactionStatusService.isCancelled(invoice)) {
       return new List<GoalJournal>();
     }
-    Set<String> allowed = GlAccountingPolicyService.deriveAllowedPatternKeys(policy);
-    Map<String, String> reusedPatterns = reusedPatternsByCandidate(currentJournals);
+    Set<String> allowed = GlAccountingPolicyService.deriveAllowedPatternKeys(
+      policy
+    );
+    Map<String, String> reusedPatterns = reusedPatternsByCandidate(
+      currentJournals
+    );
     invoice = hydrateInvoiceForConditions(invoice);
     Map<Id, InvoiceLine__c> lines = loadLines(invoice.Id);
     loadRelatedForConditions(invoice, lines);
     Map<Id, InvoicePayment__c> payments = loadPayments(invoice.Id);
     collectedPaymentsByInvoice.put(invoice.Id, payments);
-    List<InvoicePaymentAllocation__c> allocations = loadAllocations(payments.keySet());
+    List<InvoicePaymentAllocation__c> allocations = loadAllocations(
+      payments.keySet()
+    );
     Map<Id, InvoicePaymentAllocation__c> allocationsById = new Map<Id, InvoicePaymentAllocation__c>();
     for (InvoicePaymentAllocation__c allocation : allocations) {
       allocationsById.put(allocation.Id, allocation);
     }
     collectedAllocationsByInvoice.put(invoice.Id, allocationsById);
     List<GlManualJournalHeader__c> headers = loadManualHeaders(invoice.Id);
-    Map<Id, GlManualJournalSetting__c> settings = loadSettings(invoice.Id, headers);
+    Map<Id, GlManualJournalSetting__c> settings = loadSettings(
+      invoice.Id,
+      headers
+    );
     List<Candidate> candidates = new List<Candidate>();
     for (InvoiceLine__c line : lines.values()) {
       candidates.addAll(
@@ -182,7 +192,9 @@ public without sharing class AccountingGoalService {
       );
     }
     for (InvoicePayment__c payment : payments.values()) {
-      if (payment.PaymentPurpose__c == InvoicePaymentService.PURPOSE_NON_INVOICE) {
+      if (
+        payment.PaymentPurpose__c == InvoicePaymentService.PURPOSE_NON_INVOICE
+      ) {
         addPaymentCandidate(
           candidates,
           invoice,
@@ -206,7 +218,13 @@ public without sharing class AccountingGoalService {
       );
     }
     for (GlManualJournalHeader__c header : headers) {
-      candidates.add(manualCandidate(invoice, header, settings.get(header.GlManualJournalSetting__c)));
+      candidates.add(
+        manualCandidate(
+          invoice,
+          header,
+          settings.get(header.GlManualJournalSetting__c)
+        )
+      );
     }
     sortCandidates(candidates);
     Map<Id, LineBook> books = new Map<Id, LineBook>();
@@ -383,7 +401,14 @@ public without sharing class AccountingGoalService {
     if (pattern == null) {
       return;
     }
-    Decimal amount = resolveAmount(pattern, line, payment, allocation, sourceAmount, invoice);
+    Decimal amount = resolveAmount(
+      pattern,
+      line,
+      payment,
+      allocation,
+      sourceAmount,
+      invoice
+    );
     if (amount == null || amount == 0) {
       return;
     }
@@ -400,8 +425,12 @@ public without sharing class AccountingGoalService {
     candidate.sameDayOrder = pattern.sameDayOrder;
     candidate.candidateKey = candidateKey;
     assignCause(candidate, line, payment, allocation, null);
-    candidate.debitSlotKey = pattern.debitSlot == null ? null : pattern.debitSlot.key;
-    candidate.creditSlotKey = pattern.creditSlot == null ? null : pattern.creditSlot.key;
+    candidate.debitSlotKey = pattern.debitSlot == null
+      ? null
+      : pattern.debitSlot.key;
+    candidate.creditSlotKey = pattern.creditSlot == null
+      ? null
+      : pattern.creditSlot.key;
     candidate.isManual = false;
     rows.add(candidate);
   }
@@ -418,7 +447,9 @@ public without sharing class AccountingGoalService {
     if (payment == null) {
       return;
     }
-    for (JournalPatternFixedCatalog.Definition pattern : JournalPatternFixedCatalog.values()) {
+    for (
+      JournalPatternFixedCatalog.Definition pattern : JournalPatternFixedCatalog.values()
+    ) {
       if (!allowed.contains(pattern.key) || pattern.exclusiveGroup != null) {
         continue;
       }
@@ -442,24 +473,43 @@ public without sharing class AccountingGoalService {
       context.invoiceLine = line;
       context.invoicePayment = payment;
       context.allocation = allocation;
-      if (reused == null && !ConditionEvaluationService.evaluate(pattern.conditionSet, context)) {
+      if (
+        reused == null &&
+        !ConditionEvaluationService.evaluate(pattern.conditionSet, context)
+      ) {
         continue;
       }
-      Decimal amount = resolveAmount(pattern, line, payment, allocation, null, invoice);
+      Decimal amount = resolveAmount(
+        pattern,
+        line,
+        payment,
+        allocation,
+        null,
+        invoice
+      );
       // 仕様: Accounting 第8.2節手順3〜6・第5.2.15節・第5.2.16節。
       // No.15／16は製品固定条件（Purpose＋入出金日＜請求日）通過後に候補化し、
       // 金額は現預金段階のあと同じ Goal のメモリ内訳で埋める。登録時0でも候補から落とさない。
       Boolean pendingHistorical =
-        (pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalUacAmount ||
-          pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalSpAmount) &&
-        (amount == null || amount == 0);
+        (pattern.amountItem ==
+        JournalAmountItemFixedCatalog.HistoricalUacAmount ||
+        pattern.amountItem ==
+        JournalAmountItemFixedCatalog.HistoricalSpAmount) &&
+        (amount == null ||
+        amount == 0);
       if ((amount == null || amount == 0) && !pendingHistorical) {
         continue;
       }
-      if (pattern.postingDateItem == JournalPostingDateFixedCatalog.PaymentDate && payment.PaymentDate__c == null) {
+      if (
+        pattern.postingDateItem == JournalPostingDateFixedCatalog.PaymentDate &&
+        payment.PaymentDate__c == null
+      ) {
         throw new GoalException('入出金日が空のため仕訳を生成できません。');
       }
-      if (pattern.postingDateItem == JournalPostingDateFixedCatalog.BillingDate && invoice.InvoiceDate__c == null) {
+      if (
+        pattern.postingDateItem == JournalPostingDateFixedCatalog.BillingDate &&
+        invoice.InvoiceDate__c == null
+      ) {
         throw new GoalException('請求日が空のため仕訳を生成できません。');
       }
       Candidate candidate = new Candidate();
@@ -470,15 +520,20 @@ public without sharing class AccountingGoalService {
       candidate.pattern = pattern;
       candidate.role = pattern.candidateRole;
       candidate.recognitionSequence = 0;
-      candidate.postingDate = pattern.postingDateItem == JournalPostingDateFixedCatalog.BillingDate
+      candidate.postingDate = pattern.postingDateItem ==
+        JournalPostingDateFixedCatalog.BillingDate
         ? invoice.InvoiceDate__c
         : payment.PaymentDate__c;
       candidate.amount = amount;
       candidate.sameDayOrder = pattern.sameDayOrder;
       assignCause(candidate, line, payment, allocation, null);
       candidate.candidateKey = candidateKey;
-      candidate.debitSlotKey = pattern.debitSlot == null ? null : pattern.debitSlot.key;
-      candidate.creditSlotKey = pattern.creditSlot == null ? null : pattern.creditSlot.key;
+      candidate.debitSlotKey = pattern.debitSlot == null
+        ? null
+        : pattern.debitSlot.key;
+      candidate.creditSlotKey = pattern.creditSlot == null
+        ? null
+        : pattern.creditSlot.key;
       candidate.isManual = false;
       rows.add(candidate);
     }
@@ -539,11 +594,18 @@ public without sharing class AccountingGoalService {
     Map<String, String> reusedPatterns
   ) {
     if (reusedPatterns.containsKey(candidateKey)) {
-      return JournalPatternFixedCatalog.require(reusedPatterns.get(candidateKey));
+      return JournalPatternFixedCatalog.require(
+        reusedPatterns.get(candidateKey)
+      );
     }
     JournalPatternFixedCatalog.Definition chosen = null;
-    for (JournalPatternFixedCatalog.Definition pattern : JournalPatternFixedCatalog.values()) {
-      if (!allowed.contains(pattern.key) || pattern.exclusiveGroup != exclusiveGroup) {
+    for (
+      JournalPatternFixedCatalog.Definition pattern : JournalPatternFixedCatalog.values()
+    ) {
+      if (
+        !allowed.contains(pattern.key) ||
+        pattern.exclusiveGroup != exclusiveGroup
+      ) {
         continue;
       }
       if (pattern.candidateRole != role) {
@@ -576,7 +638,9 @@ public without sharing class AccountingGoalService {
     if (pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceSubtotal) {
       return nvl(line == null ? null : line.Amount__c);
     }
-    if (pattern.amountItem == JournalAmountItemFixedCatalog.AllocatedInvoiceTax) {
+    if (
+      pattern.amountItem == JournalAmountItemFixedCatalog.AllocatedInvoiceTax
+    ) {
       return nvl(line == null ? null : line.AllocatedTaxAmount__c);
     }
     if (pattern.amountItem == JournalAmountItemFixedCatalog.RecognizedRevenue) {
@@ -588,22 +652,33 @@ public without sharing class AccountingGoalService {
     if (pattern.amountItem == JournalAmountItemFixedCatalog.PaymentAmount) {
       return payment == null ? 0 : payment.Amount__c;
     }
-    if (pattern.amountItem == JournalAmountItemFixedCatalog.PaymentAllocationAmount) {
+    if (
+      pattern.amountItem ==
+      JournalAmountItemFixedCatalog.PaymentAllocationAmount
+    ) {
       return allocation == null ? 0 : allocation.Amount__c;
     }
     // 仕様: Accounting 第4.4節・第5.2.15節・第5.2.16節・第8.2節。
     // 登録時スナップショット（割当の保存値）は使わない。常に null。
     // 同じ Goal の現預金段階で決めた内訳は fillHistoricalTransferAmount（メモリ地図）で載せる。
-    if (pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalUacAmount) {
+    if (
+      pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalUacAmount
+    ) {
       return null;
     }
-    if (pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalSpAmount) {
+    if (
+      pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalSpAmount
+    ) {
       return null;
     }
-    if (pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceBodyCtaTransfer) {
+    if (
+      pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceBodyCtaTransfer
+    ) {
       return sourceAmount;
     }
-    if (pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceTaxCtaTransfer) {
+    if (
+      pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceTaxCtaTransfer
+    ) {
       return sourceAmount;
     }
     return sourceAmount;
@@ -618,10 +693,16 @@ public without sharing class AccountingGoalService {
     if (candidate.allocation == null || candidate.pattern == null) {
       return;
     }
-    if (candidate.pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalUacAmount) {
+    if (
+      candidate.pattern.amountItem ==
+      JournalAmountItemFixedCatalog.HistoricalUacAmount
+    ) {
       candidate.amount = nvl(uacByAllocation.get(candidate.allocation.Id));
     }
-    if (candidate.pattern.amountItem == JournalAmountItemFixedCatalog.HistoricalSpAmount) {
+    if (
+      candidate.pattern.amountItem ==
+      JournalAmountItemFixedCatalog.HistoricalSpAmount
+    ) {
       candidate.amount = nvl(spByAllocation.get(candidate.allocation.Id));
     }
   }
@@ -635,7 +716,11 @@ public without sharing class AccountingGoalService {
     Map<Id, Decimal> uacByAllocation,
     Map<Id, Decimal> spByAllocation
   ) {
-    if (candidate.pattern != null && candidate.pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceBodyCtaTransfer) {
+    if (
+      candidate.pattern != null &&
+      candidate.pattern.amountItem ==
+      JournalAmountItemFixedCatalog.InvoiceBodyCtaTransfer
+    ) {
       candidate.amount = signedCtaTransfer(
         bookOf(books, candidate.line).recognizedBody,
         bookOf(books, candidate.line).billedBody,
@@ -648,7 +733,11 @@ public without sharing class AccountingGoalService {
         'Body'
       );
     }
-    if (candidate.pattern != null && candidate.pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceTaxCtaTransfer) {
+    if (
+      candidate.pattern != null &&
+      candidate.pattern.amountItem ==
+      JournalAmountItemFixedCatalog.InvoiceTaxCtaTransfer
+    ) {
       candidate.amount = signedCtaTransfer(
         bookOf(books, candidate.line).recognizedTax,
         bookOf(books, candidate.line).billedTax,
@@ -663,11 +752,16 @@ public without sharing class AccountingGoalService {
     if (candidate.amount == null || candidate.amount == 0) {
       return new List<Candidate>();
     }
-    if (candidate.pattern == null || candidate.pattern.slotPriorityType == null) {
+    if (
+      candidate.pattern == null ||
+      candidate.pattern.slotPriorityType == null
+    ) {
       return new List<Candidate>{ candidate };
     }
     Boolean debitEmpty = candidate.debitSlotKey == null;
-    String sourceKey = debitEmpty ? candidate.creditSlotKey : candidate.debitSlotKey;
+    String sourceKey = debitEmpty
+      ? candidate.creditSlotKey
+      : candidate.debitSlotKey;
     LineBook before = snapshot(bookOf(books, candidate.line));
     applyFacts(candidate, books, policy);
     LineBook after = snapshot(bookOf(books, candidate.line));
@@ -675,7 +769,11 @@ public without sharing class AccountingGoalService {
     Decimal remaining = candidate.amount.abs();
     Integer sign = candidate.amount < 0 ? -1 : 1;
     List<Candidate> splits = new List<Candidate>();
-    for (SlotPriorityRuleFixedCatalog.Definition rule : rulesOf(candidate.pattern.slotPriorityType)) {
+    for (
+      SlotPriorityRuleFixedCatalog.Definition rule : rulesOf(
+        candidate.pattern.slotPriorityType
+      )
+    ) {
       if (rule.sourceSlot.key != sourceKey || remaining <= 0) {
         continue;
       }
@@ -703,7 +801,9 @@ public without sharing class AccountingGoalService {
       remaining -= take;
     }
     if (remaining > 0) {
-      throw new GoalException('スロット優先ルールで金額を説明できませんでした。');
+      throw new GoalException(
+        'スロット優先ルールで金額を説明できませんでした。'
+      );
     }
     return splits;
   }
@@ -748,8 +848,9 @@ public without sharing class AccountingGoalService {
     Boolean negativeCash =
       split.pattern != null &&
       split.pattern.key ==
-        JournalPatternFixedCatalog.PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH.key;
-    Boolean cashDebit = split.debitSlotKey == AccountingSlotFixedCatalog.Cash.key;
+      JournalPatternFixedCatalog.PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH.key;
+    Boolean cashDebit =
+      split.debitSlotKey == AccountingSlotFixedCatalog.Cash.key;
     String counterpart = cashDebit ? split.creditSlotKey : split.debitSlotKey;
     Decimal magnitude = split.amount == null ? 0 : split.amount.abs();
     if (counterpart == AccountingSlotFixedCatalog.UnappliedCash.key) {
@@ -778,17 +879,21 @@ public without sharing class AccountingGoalService {
   ) {
     AccountingCatalogTypes.SlotPriorityType type = candidate.pattern.slotPriorityType;
     if (
-      type == AccountingCatalogTypes.SlotPriorityType.PositiveCashTemporaryAllocation ||
-      type == AccountingCatalogTypes.SlotPriorityType.NegativeCashTemporaryAllocation
+      type ==
+      AccountingCatalogTypes.SlotPriorityType.PositiveCashTemporaryAllocation ||
+      type ==
+      AccountingCatalogTypes.SlotPriorityType.NegativeCashTemporaryAllocation
     ) {
       Decimal existing = nvl(invoiceBook.slots.get(targetSlot));
       if (targetSlot == AccountingSlotFixedCatalog.SuspensePayment.key) {
-        return type == AccountingCatalogTypes.SlotPriorityType.PositiveCashTemporaryAllocation
+        return type ==
+          AccountingCatalogTypes.SlotPriorityType.PositiveCashTemporaryAllocation
           ? max(existing, 0)
           : Decimal.valueOf(999999999);
       }
       if (targetSlot == AccountingSlotFixedCatalog.UnappliedCash.key) {
-        return type == AccountingCatalogTypes.SlotPriorityType.NegativeCashTemporaryAllocation
+        return type ==
+          AccountingCatalogTypes.SlotPriorityType.NegativeCashTemporaryAllocation
           ? max(existing, 0)
           : Decimal.valueOf(999999999);
       }
@@ -859,19 +964,29 @@ public without sharing class AccountingGoalService {
     GlAccountingPolicy__c policy,
     Candidate candidate
   ) {
-    if (candidate != null && candidate.pattern != null && candidate.pattern.slotPriorityType != null) {
+    if (
+      candidate != null &&
+      candidate.pattern != null &&
+      candidate.pattern.slotPriorityType != null
+    ) {
       AccountingCatalogTypes.SlotPriorityType priorityType = candidate.pattern.slotPriorityType;
       if (
-        priorityType == AccountingCatalogTypes.SlotPriorityType.BillingBasisInvoiceAllocation ||
-        priorityType == AccountingCatalogTypes.SlotPriorityType.BillingBasisRecognitionAllocation
+        priorityType ==
+        AccountingCatalogTypes.SlotPriorityType.BillingBasisInvoiceAllocation ||
+        priorityType ==
+        AccountingCatalogTypes.SlotPriorityType.BillingBasisRecognitionAllocation
       ) {
         return true;
       }
-      if (priorityType == AccountingCatalogTypes.SlotPriorityType.CashBasisRecognitionAllocation) {
+      if (
+        priorityType ==
+        AccountingCatalogTypes.SlotPriorityType.CashBasisRecognitionAllocation
+      ) {
         return false;
       }
     }
-    return policy != null && policy.RevenueRecognitionBasis__c == 'BillingBasis';
+    return policy != null &&
+      policy.RevenueRecognitionBasis__c == 'BillingBasis';
   }
 
   /**
@@ -896,14 +1011,17 @@ public without sharing class AccountingGoalService {
 
   private static Boolean isBodyFactRole(Candidate candidate) {
     return candidate != null &&
-      (candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceBody ||
-        candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody);
+      (candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.InvoiceBody ||
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.RevenueBody);
   }
 
   private static Boolean isTaxFactRole(Candidate candidate) {
     return candidate != null &&
-      (candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceTax ||
-        candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax);
+      (candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.InvoiceTax ||
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax);
   }
 
   /** 仕様: Accounting 第4.6節、第4.4節 */
@@ -914,25 +1032,42 @@ public without sharing class AccountingGoalService {
   ) {
     LineBook book = bookOf(books, candidate.line);
     Integer dir = factSign(candidate.line);
-    if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceBody) {
+    if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceBody
+    ) {
       book.billedBody += nvl(candidate.line.Amount__c) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceTax) {
+    } else if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceTax
+    ) {
       Decimal tax = nvl(candidate.line.AllocatedTaxAmount__c) * dir;
       book.billedTax += tax;
       if (policy != null && policy.TaxRecognitionTiming__c == 'AtInvoice') {
         book.recognizedTax += tax;
       }
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody) {
+    } else if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody
+    ) {
       book.recognizedBody += nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax) {
+    } else if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax
+    ) {
       book.recognizedTax += nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.CurrentInvoicePayment) {
+    } else if (
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.CurrentInvoicePayment
+    ) {
       // 仕様: Accounting 第4.6節。Pは明細方向へ正規化した非負。
       book.paid += nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.HistoricalUacTransfer) {
+    } else if (
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.HistoricalUacTransfer
+    ) {
       // 仕様: Accounting 第5.2.16節。正規化 HistoricalUacAmount__c を P へ加える。
       book.paid += nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.HistoricalSpTransfer) {
+    } else if (
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.HistoricalSpTransfer
+    ) {
       // 仕様: Accounting 第5.2.16節。正規化 -HistoricalSpAmount__c を P へ加える。
       book.paid += -nvl(candidate.amount) * dir;
     }
@@ -946,23 +1081,40 @@ public without sharing class AccountingGoalService {
   ) {
     LineBook book = bookOf(books, candidate.line);
     Integer dir = factSign(candidate.line);
-    if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceBody) {
+    if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceBody
+    ) {
       book.billedBody -= nvl(candidate.line.Amount__c) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceTax) {
+    } else if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceTax
+    ) {
       Decimal tax = nvl(candidate.line.AllocatedTaxAmount__c) * dir;
       book.billedTax -= tax;
       if (policy != null && policy.TaxRecognitionTiming__c == 'AtInvoice') {
         book.recognizedTax -= tax;
       }
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody) {
+    } else if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody
+    ) {
       book.recognizedBody -= nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax) {
+    } else if (
+      candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax
+    ) {
       book.recognizedTax -= nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.CurrentInvoicePayment) {
+    } else if (
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.CurrentInvoicePayment
+    ) {
       book.paid -= nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.HistoricalUacTransfer) {
+    } else if (
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.HistoricalUacTransfer
+    ) {
       book.paid -= nvl(candidate.amount) * dir;
-    } else if (candidate.role == AccountingCatalogTypes.JournalCandidateRole.HistoricalSpTransfer) {
+    } else if (
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.HistoricalSpTransfer
+    ) {
       book.paid -= -nvl(candidate.amount) * dir;
     }
   }
@@ -1052,10 +1204,16 @@ public without sharing class AccountingGoalService {
     if (!isAccountStampSlot(slotKey)) {
       return;
     }
-    AccountingSlotFixedCatalog.Definition slot = AccountingSlotFixedCatalog.require(slotKey);
+    AccountingSlotFixedCatalog.Definition slot = AccountingSlotFixedCatalog.require(
+      slotKey
+    );
     Decimal signed = debitSide
-      ? (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Debit ? amount : -amount)
-      : (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit ? amount : -amount);
+      ? (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Debit
+          ? amount
+          : -amount)
+      : (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit
+          ? amount
+          : -amount);
     if (!book.accountStamps.containsKey(slotKey)) {
       book.accountStamps.put(slotKey, new Map<String, AccountStamp>());
     }
@@ -1084,18 +1242,20 @@ public without sharing class AccountingGoalService {
       candidate == null ||
       candidate.role == null ||
       (slotKey != AccountingSlotFixedCatalog.ContractAsset.key &&
-        slotKey != AccountingSlotFixedCatalog.DeferredRevenue.key)
+      slotKey != AccountingSlotFixedCatalog.DeferredRevenue.key)
     ) {
       return null;
     }
     if (
-      candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceBody ||
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.InvoiceBody ||
       candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody
     ) {
       return 'Body';
     }
     if (
-      candidate.role == AccountingCatalogTypes.JournalCandidateRole.InvoiceTax ||
+      candidate.role ==
+      AccountingCatalogTypes.JournalCandidateRole.InvoiceTax ||
       candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax
     ) {
       return 'Tax';
@@ -1103,7 +1263,10 @@ public without sharing class AccountingGoalService {
     return null;
   }
 
-  private static Boolean isLineFinalSettlement(Candidate candidate, Map<Id, LineBook> books) {
+  private static Boolean isLineFinalSettlement(
+    Candidate candidate,
+    Map<Id, LineBook> books
+  ) {
     if (candidate.allocation == null || candidate.line == null) {
       return false;
     }
@@ -1166,7 +1329,10 @@ public without sharing class AccountingGoalService {
    * CTAは常に本体／税。請求基準のDEF取り崩し（No.6・8）も本体／税。
    * 入金連動前受のDEF・AR税込プールは役割で分けない。
    */
-  private static String bodyTaxDrawdownOrigin(Candidate split, String targetSlot) {
+  private static String bodyTaxDrawdownOrigin(
+    Candidate split,
+    String targetSlot
+  ) {
     if (targetSlot == AccountingSlotFixedCatalog.ContractAsset.key) {
       return stampOriginKind(split, targetSlot);
     }
@@ -1174,7 +1340,7 @@ public without sharing class AccountingGoalService {
       targetSlot == AccountingSlotFixedCatalog.DeferredRevenue.key &&
       split.pattern != null &&
       split.pattern.slotPriorityType ==
-        AccountingCatalogTypes.SlotPriorityType.BillingBasisRecognitionAllocation
+      AccountingCatalogTypes.SlotPriorityType.BillingBasisRecognitionAllocation
     ) {
       return stampOriginKind(split, targetSlot);
     }
@@ -1182,13 +1348,23 @@ public without sharing class AccountingGoalService {
   }
 
   private static String ctaTransferOrigin(Candidate candidate) {
-    if (candidate == null || candidate.pattern == null || candidate.pattern.amountItem == null) {
+    if (
+      candidate == null ||
+      candidate.pattern == null ||
+      candidate.pattern.amountItem == null
+    ) {
       return null;
     }
-    if (candidate.pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceBodyCtaTransfer) {
+    if (
+      candidate.pattern.amountItem ==
+      JournalAmountItemFixedCatalog.InvoiceBodyCtaTransfer
+    ) {
       return 'Body';
     }
-    if (candidate.pattern.amountItem == JournalAmountItemFixedCatalog.InvoiceTaxCtaTransfer) {
+    if (
+      candidate.pattern.amountItem ==
+      JournalAmountItemFixedCatalog.InvoiceTaxCtaTransfer
+    ) {
       return 'Tax';
     }
     return null;
@@ -1253,7 +1429,9 @@ public without sharing class AccountingGoalService {
     if (available <= 0) {
       return 0;
     }
-    Decimal take = businessAmount.abs() < available ? businessAmount.abs() : available;
+    Decimal take = businessAmount.abs() < available
+      ? businessAmount.abs()
+      : available;
     return take * sign;
   }
 
@@ -1265,7 +1443,7 @@ public without sharing class AccountingGoalService {
     return (debitSide &&
       slot.normalBalance == AccountingCatalogTypes.NormalBalance.Debit) ||
       (!debitSide &&
-        slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit);
+      slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit);
   }
 
   private static List<AccountStamp> drawdownBalances(
@@ -1289,7 +1467,9 @@ public without sharing class AccountingGoalService {
     }
     for (Integer i = 0; i < rows.size(); i++) {
       for (Integer j = i + 1; j < rows.size(); j++) {
-        if (String.valueOf(rows[j].accountId) < String.valueOf(rows[i].accountId)) {
+        if (
+          String.valueOf(rows[j].accountId) < String.valueOf(rows[i].accountId)
+        ) {
           AccountStamp swap = rows[i];
           rows[i] = rows[j];
           rows[j] = swap;
@@ -1327,7 +1507,9 @@ public without sharing class AccountingGoalService {
       assigned += remaining;
     }
     if (assigned != parentAbs) {
-      throw new GoalException('最終決済の科目別残額合計が親割当額と一致しません。');
+      throw new GoalException(
+        '最終決済の科目別残額合計が親割当額と一致しません。'
+      );
     }
     return amounts;
   }
@@ -1388,7 +1570,8 @@ public without sharing class AccountingGoalService {
         Decimal rightFrac = theoretical[indexes[j]] - truncated[indexes[j]];
         if (
           rightFrac > leftFrac ||
-          (rightFrac == leftFrac && indexes[j] < indexes[i])
+          (rightFrac == leftFrac &&
+          indexes[j] < indexes[i])
         ) {
           Integer swap = indexes[i];
           indexes[i] = indexes[j];
@@ -1399,14 +1582,25 @@ public without sharing class AccountingGoalService {
     return indexes;
   }
 
-  private static void addSlot(LineBook book, String slotKey, Decimal amount, Boolean debitSide) {
+  private static void addSlot(
+    LineBook book,
+    String slotKey,
+    Decimal amount,
+    Boolean debitSide
+  ) {
     if (String.isBlank(slotKey) || amount == null) {
       return;
     }
-    AccountingSlotFixedCatalog.Definition slot = AccountingSlotFixedCatalog.require(slotKey);
+    AccountingSlotFixedCatalog.Definition slot = AccountingSlotFixedCatalog.require(
+      slotKey
+    );
     Decimal signed = debitSide
-      ? (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Debit ? amount : -amount)
-      : (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit ? amount : -amount);
+      ? (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Debit
+          ? amount
+          : -amount)
+      : (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit
+          ? amount
+          : -amount);
     book.slots.put(slotKey, nvl(book.slots.get(slotKey)) + signed);
   }
 
@@ -1430,11 +1624,18 @@ public without sharing class AccountingGoalService {
     context.invoiceLine = candidate.line;
     context.invoicePayment = candidate.payment;
     context.allocation = candidate.allocation;
-    if (candidate.invoice != null && cachedLinesByInvoice.containsKey(candidate.invoice.Id)) {
-      context.invoiceLines = cachedLinesByInvoice.get(candidate.invoice.Id).values();
+    if (
+      candidate.invoice != null &&
+      cachedLinesByInvoice.containsKey(candidate.invoice.Id)
+    ) {
+      context.invoiceLines = cachedLinesByInvoice.get(candidate.invoice.Id)
+        .values();
     }
     fillRelatedContext(context, candidate.invoice, candidate.line);
-    if (candidate.debitAccountId == null && !String.isBlank(candidate.debitSlotKey)) {
+    if (
+      candidate.debitAccountId == null &&
+      !String.isBlank(candidate.debitSlotKey)
+    ) {
       GlAccountMapResolveService.ResolvedAccount debit = GlAccountMapResolveService.resolve(
         candidate.debitSlotKey,
         contextName,
@@ -1443,7 +1644,10 @@ public without sharing class AccountingGoalService {
       candidate.debitAssignmentId = debit.assignmentId;
       candidate.debitAccountId = debit.accountId;
     }
-    if (candidate.creditAccountId == null && !String.isBlank(candidate.creditSlotKey)) {
+    if (
+      candidate.creditAccountId == null &&
+      !String.isBlank(candidate.creditSlotKey)
+    ) {
       GlAccountMapResolveService.ResolvedAccount credit = GlAccountMapResolveService.resolve(
         candidate.creditSlotKey,
         contextName,
@@ -1472,7 +1676,11 @@ public without sharing class AccountingGoalService {
     if (currentJournals == null || currentJournals.isEmpty()) {
       return false;
     }
-    String generation = generationUnitKey(candidate, candidate.invoice, allocatedSlot(candidate));
+    String generation = generationUnitKey(
+      candidate,
+      candidate.invoice,
+      allocatedSlot(candidate)
+    );
     for (GlJournal__c journal : currentJournals) {
       // 仕様: 第1.8.1節。論理削除・取消済・取消仕訳はCurrentの有効元仕訳ではない。
       if (
@@ -1485,8 +1693,14 @@ public without sharing class AccountingGoalService {
       Map<String, Id> assignments = new Map<String, Id>();
       accounts.put(journal.DebitSlotKey__c, journal.DebitAccount__c);
       accounts.put(journal.CreditSlotKey__c, journal.CreditAccount__c);
-      assignments.put(journal.DebitSlotKey__c, journal.DebitAccountAssignment__c);
-      assignments.put(journal.CreditSlotKey__c, journal.CreditAccountAssignment__c);
+      assignments.put(
+        journal.DebitSlotKey__c,
+        journal.DebitAccountAssignment__c
+      );
+      assignments.put(
+        journal.CreditSlotKey__c,
+        journal.CreditAccountAssignment__c
+      );
       if (
         !accounts.containsKey(candidate.debitSlotKey) ||
         !accounts.containsKey(candidate.creditSlotKey)
@@ -1503,7 +1717,10 @@ public without sharing class AccountingGoalService {
   }
 
   private static String allocatedSlot(Candidate candidate) {
-    if (candidate.pattern == null || candidate.pattern.slotPriorityType == null) {
+    if (
+      candidate.pattern == null ||
+      candidate.pattern.slotPriorityType == null
+    ) {
       return null;
     }
     if (candidate.pattern.debitSlot == null) {
@@ -1524,20 +1741,27 @@ public without sharing class AccountingGoalService {
       new List<String>{
         String.valueOf(invoice.Id),
         candidate.line == null ? '' : String.valueOf(candidate.line.Id),
-        candidate.recognitionSequence == null || candidate.recognitionSequence == 0
+        candidate.recognitionSequence == null ||
+          candidate.recognitionSequence == 0
           ? ''
           : String.valueOf(candidate.recognitionSequence),
         candidate.payment == null ||
-          candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody ||
-          candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax
+          candidate.role ==
+          AccountingCatalogTypes.JournalCandidateRole.RevenueBody ||
+          candidate.role ==
+          AccountingCatalogTypes.JournalCandidateRole.RevenueTax
           ? ''
           : String.valueOf(candidate.payment.Id),
         candidate.allocation == null ||
-          candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody ||
-          candidate.role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax
+          candidate.role ==
+          AccountingCatalogTypes.JournalCandidateRole.RevenueBody ||
+          candidate.role ==
+          AccountingCatalogTypes.JournalCandidateRole.RevenueTax
           ? ''
           : String.valueOf(candidate.allocation.Id),
-        candidate.isManual || candidate.pattern == null ? '' : candidate.pattern.key,
+        candidate.isManual || candidate.pattern == null
+          ? ''
+          : candidate.pattern.key,
         candidate.setting == null ? '' : String.valueOf(candidate.setting.Id),
         candidate.header == null ? '' : String.valueOf(candidate.header.Id),
         allocated == null ? '' : allocated
@@ -1545,7 +1769,11 @@ public without sharing class AccountingGoalService {
     );
   }
 
-  private static GoalJournal toGoal(Candidate candidate, Invoice__c invoice, Boolean flip) {
+  private static GoalJournal toGoal(
+    Candidate candidate,
+    Invoice__c invoice,
+    Boolean flip
+  ) {
     String debit = candidate.debitSlotKey;
     String credit = candidate.creditSlotKey;
     Id debitAccount = candidate.debitAccountId;
@@ -1587,11 +1815,21 @@ public without sharing class AccountingGoalService {
       BillingAccount__c = invoice.BillingAccountSnapShot__c,
       BillingAccountKeySnapShot__c = invoice.BillingAccountKeySnapShot__c,
       InvoiceLine__c = candidate.line == null ? null : candidate.line.Id,
-      InvoicePayment__c = candidate.payment == null ? null : candidate.payment.Id,
-      InvoicePaymentAllocation__c = candidate.allocation == null ? null : candidate.allocation.Id,
-      GlManualJournalHeader__c = candidate.header == null ? null : candidate.header.Id,
-      GlManualJournalSetting__c = candidate.setting == null ? null : candidate.setting.Id,
-      JournalPatternKey__c = candidate.pattern == null ? null : candidate.pattern.key,
+      InvoicePayment__c = candidate.payment == null
+        ? null
+        : candidate.payment.Id,
+      InvoicePaymentAllocation__c = candidate.allocation == null
+        ? null
+        : candidate.allocation.Id,
+      GlManualJournalHeader__c = candidate.header == null
+        ? null
+        : candidate.header.Id,
+      GlManualJournalSetting__c = candidate.setting == null
+        ? null
+        : candidate.setting.Id,
+      JournalPatternKey__c = candidate.pattern == null
+        ? null
+        : candidate.pattern.key,
       DebitSlotKey__c = debit,
       CreditSlotKey__c = credit,
       DebitAccountAssignment__c = debitAssign,
@@ -1622,7 +1860,10 @@ public without sharing class AccountingGoalService {
   }
 
   /** 仕様: Accounting 第3.2節、第8.5節、Core 第11.9節 */
-  private static List<Recognition> recognitions(InvoiceLine__c line, GlAccountingPolicy__c policy) {
+  private static List<Recognition> recognitions(
+    InvoiceLine__c line,
+    GlAccountingPolicy__c policy
+  ) {
     String basis = ContractMetadataService.normalizeRevenueRecognitionBasis(
       line.RevenueRecognitionBasis__c
     );
@@ -1645,14 +1886,24 @@ public without sharing class AccountingGoalService {
     if (line.AcceptanceEndDate__c != null) {
       throw new GoalException('月次計上に検収終了日は設定できません。');
     }
-    if (line.ServicePeriodStartDate__c == null || line.ServicePeriodEndDate__c == null) {
+    if (
+      line.ServicePeriodStartDate__c == null ||
+      line.ServicePeriodEndDate__c == null
+    ) {
       throw new GoalException('月次計上のサービス期間が空です。');
     }
-    List<MonthlyBillingPeriodUtil.BillingPeriod> periods = monthlyPeriods(line, policy);
+    List<MonthlyBillingPeriodUtil.BillingPeriod> periods = monthlyPeriods(
+      line,
+      policy
+    );
     if (periods.isEmpty()) {
       throw new GoalException('月次計上のバケットを作れませんでした。');
     }
-    List<Decimal> bodies = splitAmount(nvl(line.Amount__c), periods.size(), policy.RoundingTargetBucket__c);
+    List<Decimal> bodies = splitAmount(
+      nvl(line.Amount__c),
+      periods.size(),
+      policy.RoundingTargetBucket__c
+    );
     List<Decimal> taxes = allocateTaxBySignedRevenue(
       nvl(line.AllocatedTaxAmount__c),
       bodies,
@@ -1661,7 +1912,12 @@ public without sharing class AccountingGoalService {
     for (Integer i = 0; i < periods.size(); i++) {
       Recognition row = new Recognition();
       row.sequence = i + 1;
-      row.postingDate = recognitionDate(periods[i], i == periods.size() - 1, line, policy);
+      row.postingDate = recognitionDate(
+        periods[i],
+        i == periods.size() - 1,
+        line,
+        policy
+      );
       row.bodyAmount = bodies[i];
       row.taxAmount = taxes[i];
       rows.add(row);
@@ -1678,12 +1934,24 @@ public without sharing class AccountingGoalService {
     Date endDate = line.ServicePeriodEndDate__c;
     String method = policy.MonthlyBucketMethod__c;
     if (method == 'CalendarMonth') {
-      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(startDate, endDate);
+      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(
+        startDate,
+        endDate
+      );
     }
-    if (method == 'Auto' && MonthlyBillingPeriodUtil.countMonthlyCycles(startDate, endDate) < 0) {
-      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(startDate, endDate);
+    if (
+      method == 'Auto' &&
+      MonthlyBillingPeriodUtil.countMonthlyCycles(startDate, endDate) < 0
+    ) {
+      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(
+        startDate,
+        endDate
+      );
     }
-    return MonthlyBillingPeriodUtil.buildMonthlyPeriodsCoveringEnd(startDate, endDate);
+    return MonthlyBillingPeriodUtil.buildMonthlyPeriodsCoveringEnd(
+      startDate,
+      endDate
+    );
   }
 
   private static Date recognitionDate(
@@ -1704,12 +1972,18 @@ public without sharing class AccountingGoalService {
         period.endDate.month(),
         Date.daysInMonth(period.endDate.year(), period.endDate.month())
       );
-      return monthEnd > line.ServicePeriodEndDate__c ? line.ServicePeriodEndDate__c : monthEnd;
+      return monthEnd > line.ServicePeriodEndDate__c
+        ? line.ServicePeriodEndDate__c
+        : monthEnd;
     }
     return period.endDate;
   }
 
-  private static List<Decimal> splitAmount(Decimal total, Integer parts, String roundingTarget) {
+  private static List<Decimal> splitAmount(
+    Decimal total,
+    Integer parts,
+    String roundingTarget
+  ) {
     List<Decimal> values = new List<Decimal>();
     if (parts <= 0) {
       return values;
@@ -1749,7 +2023,9 @@ public without sharing class AccountingGoalService {
         }
         return values;
       }
-      throw new GoalException('税抜売上が0のため税額をスケジュールへ配分できません。');
+      throw new GoalException(
+        '税抜売上が0のため税額をスケジュールへ配分できません。'
+      );
     }
     List<Integer> truncated = new List<Integer>();
     Integer assigned = 0;
@@ -1830,8 +2106,12 @@ public without sharing class AccountingGoalService {
       return left.causeCreatedDate < right.causeCreatedDate;
     }
     if (sameLineSameDayRevenue(left, right)) {
-      Integer leftSequence = left.recognitionSequence == null ? 0 : left.recognitionSequence;
-      Integer rightSequence = right.recognitionSequence == null ? 0 : right.recognitionSequence;
+      Integer leftSequence = left.recognitionSequence == null
+        ? 0
+        : left.recognitionSequence;
+      Integer rightSequence = right.recognitionSequence == null
+        ? 0
+        : right.recognitionSequence;
       if (leftSequence != rightSequence) {
         return leftSequence < rightSequence;
       }
@@ -1839,7 +2119,10 @@ public without sharing class AccountingGoalService {
     return causeIdKey(left) < causeIdKey(right);
   }
 
-  private static Boolean sameLineSameDayRevenue(Candidate left, Candidate right) {
+  private static Boolean sameLineSameDayRevenue(
+    Candidate left,
+    Candidate right
+  ) {
     return left.line != null &&
       right.line != null &&
       left.line.Id == right.line.Id &&
@@ -1848,13 +2131,17 @@ public without sharing class AccountingGoalService {
       isRevenueRole(right.role);
   }
 
-  private static Boolean isRevenueRole(AccountingCatalogTypes.JournalCandidateRole role) {
+  private static Boolean isRevenueRole(
+    AccountingCatalogTypes.JournalCandidateRole role
+  ) {
     return role == AccountingCatalogTypes.JournalCandidateRole.RevenueBody ||
       role == AccountingCatalogTypes.JournalCandidateRole.RevenueTax;
   }
 
   private static String causeIdKey(Candidate candidate) {
-    return candidate.causeRecordId == null ? '' : String.valueOf(candidate.causeRecordId);
+    return candidate.causeRecordId == null
+      ? ''
+      : String.valueOf(candidate.causeRecordId);
   }
 
   private static void assignCause(
@@ -1886,7 +2173,9 @@ public without sharing class AccountingGoalService {
   }
 
   /** 仕様: Accounting 第1.8.1節・第8.2節手順3・第8.7節。Current上の有効な元仕訳（Active）だけをパターン再利用に使う。 */
-  private static Map<String, String> reusedPatternsByCandidate(List<GlJournal__c> currentJournals) {
+  private static Map<String, String> reusedPatternsByCandidate(
+    List<GlJournal__c> currentJournals
+  ) {
     Map<String, Set<String>> allKeys = new Map<String, Set<String>>();
     Map<String, Set<String>> activeKeys = new Map<String, Set<String>>();
     if (currentJournals == null) {
@@ -1903,7 +2192,9 @@ public without sharing class AccountingGoalService {
       String candidateKey = causeKey(
         journal.Invoice__c,
         journal.InvoiceLine__c,
-        journal.RecognitionSequence__c == null ? 0 : Integer.valueOf(journal.RecognitionSequence__c),
+        journal.RecognitionSequence__c == null
+          ? 0
+          : Integer.valueOf(journal.RecognitionSequence__c),
         journal.InvoicePayment__c,
         journal.InvoicePaymentAllocation__c,
         patternRole(journal.JournalPatternKey__c),
@@ -1926,19 +2217,26 @@ public without sharing class AccountingGoalService {
     for (String candidateKey : allKeys.keySet()) {
       Set<String> patterns = allKeys.get(candidateKey);
       if (patterns.size() > 1) {
-        throw new GoalException('同じ原因候補に複数の仕訳パターンが残っています。');
+        throw new GoalException(
+          '同じ原因候補に複数の仕訳パターンが残っています。'
+        );
       }
       // 仕様: 第1.8.1節・第8.2節。Currentに有効元仕訳が無い（論理削除だけ等）ときは初回生成。
       if (!activeKeys.containsKey(candidateKey)) {
         continue;
       }
-      reused.put(candidateKey, new List<String>(activeKeys.get(candidateKey))[0]);
+      reused.put(
+        candidateKey,
+        new List<String>(activeKeys.get(candidateKey))[0]
+      );
     }
     return reused;
   }
 
   private static String patternRole(String patternKey) {
-    return String.valueOf(JournalPatternFixedCatalog.require(patternKey).candidateRole);
+    return String.valueOf(
+      JournalPatternFixedCatalog.require(patternKey).candidateRole
+    );
   }
 
   private static String causeKey(
@@ -2059,33 +2357,41 @@ public without sharing class AccountingGoalService {
     return byObject.get(objectApiName);
   }
 
+  /**
+   * 仕様: Accounting 第8.2節手順2。
+   * 条件項目の対象は収集済み条件ルールから取り、ルールを取り直さない。
+   */
   private static Map<String, Set<String>> tenantConditionFieldsByObject() {
     if (cachedTenantConditionFieldsByObject != null) {
       return cachedTenantConditionFieldsByObject;
     }
     Map<String, Map<String, Schema.SObjectField>> describes = new Map<String, Map<String, Schema.SObjectField>>{
       'Invoice__c' => Invoice__c.SObjectType.getDescribe().fields.getMap(),
-      'InvoiceLine__c' => InvoiceLine__c.SObjectType.getDescribe().fields.getMap(),
-      'InvoicePayment__c' => InvoicePayment__c.SObjectType.getDescribe().fields.getMap(),
+      'InvoiceLine__c' => InvoiceLine__c.SObjectType.getDescribe()
+        .fields.getMap(),
+      'InvoicePayment__c' => InvoicePayment__c.SObjectType.getDescribe()
+        .fields.getMap(),
       'InvoicePaymentAllocation__c' => InvoicePaymentAllocation__c.SObjectType.getDescribe()
         .fields.getMap(),
-      'ContractProduct__c' => ContractProduct__c.SObjectType.getDescribe().fields.getMap(),
+      'ContractProduct__c' => ContractProduct__c.SObjectType.getDescribe()
+        .fields.getMap(),
       'Product2' => Product2.SObjectType.getDescribe().fields.getMap(),
-      'ContractHistory__c' => ContractHistory__c.SObjectType.getDescribe().fields.getMap(),
-      'ContractService__c' => ContractService__c.SObjectType.getDescribe().fields.getMap(),
+      'ContractHistory__c' => ContractHistory__c.SObjectType.getDescribe()
+        .fields.getMap(),
+      'ContractService__c' => ContractService__c.SObjectType.getDescribe()
+        .fields.getMap(),
       'Opportunity' => Opportunity.SObjectType.getDescribe().fields.getMap(),
-      'BillingAccount__c' => BillingAccount__c.SObjectType.getDescribe().fields.getMap(),
+      'BillingAccount__c' => BillingAccount__c.SObjectType.getDescribe()
+        .fields.getMap(),
       'Account' => Account.SObjectType.getDescribe().fields.getMap()
     };
     Map<String, Set<String>> fieldsByObject = new Map<String, Set<String>>();
     for (String objectApiName : describes.keySet()) {
       fieldsByObject.put(objectApiName, new Set<String>());
     }
-    for (GlConditionRule__c rule : [
-      SELECT TargetObject__c, TargetField__c, CompareObject__c, CompareField__c
-      FROM GlConditionRule__c
-      WITH SYSTEM_MODE
-    ]) {
+    for (
+      GlConditionRule__c rule : ConditionEvaluationService.collectedTenantRules()
+    ) {
       addTenantConditionField(
         fieldsByObject,
         describes,
@@ -2134,7 +2440,10 @@ public without sharing class AccountingGoalService {
     if (objectApiName == 'InvoiceLine' || objectApiName == 'InvoiceLine__c') {
       return 'InvoiceLine__c';
     }
-    if (objectApiName == 'InvoicePayment' || objectApiName == 'InvoicePayment__c') {
+    if (
+      objectApiName == 'InvoicePayment' ||
+      objectApiName == 'InvoicePayment__c'
+    ) {
       return 'InvoicePayment__c';
     }
     if (
@@ -2143,22 +2452,34 @@ public without sharing class AccountingGoalService {
     ) {
       return 'InvoicePaymentAllocation__c';
     }
-    if (objectApiName == 'ContractProduct' || objectApiName == 'ContractProduct__c') {
+    if (
+      objectApiName == 'ContractProduct' ||
+      objectApiName == 'ContractProduct__c'
+    ) {
       return 'ContractProduct__c';
     }
     if (objectApiName == 'Product2') {
       return 'Product2';
     }
-    if (objectApiName == 'ContractHistory' || objectApiName == 'ContractHistory__c') {
+    if (
+      objectApiName == 'ContractHistory' ||
+      objectApiName == 'ContractHistory__c'
+    ) {
       return 'ContractHistory__c';
     }
-    if (objectApiName == 'ContractService' || objectApiName == 'ContractService__c') {
+    if (
+      objectApiName == 'ContractService' ||
+      objectApiName == 'ContractService__c'
+    ) {
       return 'ContractService__c';
     }
     if (objectApiName == 'Opportunity') {
       return 'Opportunity';
     }
-    if (objectApiName == 'BillingAccount' || objectApiName == 'BillingAccount__c') {
+    if (
+      objectApiName == 'BillingAccount' ||
+      objectApiName == 'BillingAccount__c'
+    ) {
       return 'BillingAccount__c';
     }
     if (objectApiName == 'Account') {
@@ -2346,7 +2667,9 @@ public without sharing class AccountingGoalService {
     if (pathFields != null) {
       selectFields.addAll(pathFields);
     }
-    if (selectFields.size() == 1 && (extraFields == null || extraFields.isEmpty())) {
+    if (
+      selectFields.size() == 1 && (extraFields == null || extraFields.isEmpty())
+    ) {
       return rows;
     }
     String soql =
@@ -2361,7 +2684,9 @@ public without sharing class AccountingGoalService {
     return rows;
   }
 
-  private static Map<Id, ContractProduct__c> toContractProducts(Map<Id, SObject> rows) {
+  private static Map<Id, ContractProduct__c> toContractProducts(
+    Map<Id, SObject> rows
+  ) {
     Map<Id, ContractProduct__c> typed = new Map<Id, ContractProduct__c>();
     for (SObject row : rows.values()) {
       typed.put(row.Id, (ContractProduct__c) row);
@@ -2377,7 +2702,9 @@ public without sharing class AccountingGoalService {
     return typed;
   }
 
-  private static Map<Id, ContractHistory__c> toHistories(Map<Id, SObject> rows) {
+  private static Map<Id, ContractHistory__c> toHistories(
+    Map<Id, SObject> rows
+  ) {
     Map<Id, ContractHistory__c> typed = new Map<Id, ContractHistory__c>();
     for (SObject row : rows.values()) {
       typed.put(row.Id, (ContractHistory__c) row);
@@ -2393,7 +2720,9 @@ public without sharing class AccountingGoalService {
     return typed;
   }
 
-  private static Map<Id, BillingAccount__c> toBillingAccounts(Map<Id, SObject> rows) {
+  private static Map<Id, BillingAccount__c> toBillingAccounts(
+    Map<Id, SObject> rows
+  ) {
     Map<Id, BillingAccount__c> typed = new Map<Id, BillingAccount__c>();
     for (SObject row : rows.values()) {
       typed.put(row.Id, (BillingAccount__c) row);
@@ -2430,17 +2759,25 @@ public without sharing class AccountingGoalService {
       return;
     }
     if (line != null) {
-      context.contractProduct = related.contractProducts.get(line.ContractProduct__c);
+      context.contractProduct = related.contractProducts.get(
+        line.ContractProduct__c
+      );
       context.product = related.products.get(line.Product__c);
     }
     context.contractHistory = related.histories.get(invoice.ContractHistory__c);
     context.contractService = related.services.get(invoice.ContractService__c);
-    context.billingAccount = related.billingAccounts.get(invoice.BillingAccountSnapShot__c);
+    context.billingAccount = related.billingAccounts.get(
+      invoice.BillingAccountSnapShot__c
+    );
     if (context.contractHistory != null) {
-      context.opportunity = related.opportunities.get(context.contractHistory.Opportunity__c);
+      context.opportunity = related.opportunities.get(
+        context.contractHistory.Opportunity__c
+      );
     }
     if (context.contractService != null) {
-      context.account = related.accounts.get(context.contractService.Account__c);
+      context.account = related.accounts.get(
+        context.contractService.Account__c
+      );
     }
   }
 
@@ -2460,13 +2797,17 @@ public without sharing class AccountingGoalService {
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +
       ' FROM InvoicePayment__c WHERE Invoice__c = :invoiceId AND PaymentTransactionStatus__c = \'Active\'';
-    for (InvoicePayment__c payment : Database.query(soql, AccessLevel.SYSTEM_MODE)) {
+    for (
+      InvoicePayment__c payment : Database.query(soql, AccessLevel.SYSTEM_MODE)
+    ) {
       rows.put(payment.Id, payment);
     }
     return rows;
   }
 
-  private static List<InvoicePaymentAllocation__c> loadAllocations(Set<Id> paymentIds) {
+  private static List<InvoicePaymentAllocation__c> loadAllocations(
+    Set<Id> paymentIds
+  ) {
     if (paymentIds == null || paymentIds.isEmpty()) {
       return new List<InvoicePaymentAllocation__c>();
     }
@@ -2479,7 +2820,9 @@ public without sharing class AccountingGoalService {
       'HistoricalUacAmount__c',
       'HistoricalSpAmount__c'
     };
-    selectFields.addAll(tenantConditionFields(InvoicePaymentAllocation__c.SObjectType));
+    selectFields.addAll(
+      tenantConditionFields(InvoicePaymentAllocation__c.SObjectType)
+    );
     String soql =
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +
@@ -2487,7 +2830,9 @@ public without sharing class AccountingGoalService {
     return Database.query(soql, AccessLevel.SYSTEM_MODE);
   }
 
-  private static List<GlManualJournalHeader__c> loadManualHeaders(Id invoiceId) {
+  private static List<GlManualJournalHeader__c> loadManualHeaders(
+    Id invoiceId
+  ) {
     if (cachedHeadersByInvoice.containsKey(invoiceId)) {
       return cachedHeadersByInvoice.get(invoiceId);
     }
@@ -2525,7 +2870,13 @@ public without sharing class AccountingGoalService {
     } else {
       rows = new Map<Id, GlManualJournalSetting__c>(
         [
-          SELECT Id, DebitSlotKey__c, CreditSlotKey__c, DebitAccount__c, CreditAccount__c, IsActive__c
+          SELECT
+            Id,
+            DebitSlotKey__c,
+            CreditSlotKey__c,
+            DebitAccount__c,
+            CreditAccount__c,
+            IsActive__c
           FROM GlManualJournalSetting__c
           WHERE Id IN :ids
           WITH SYSTEM_MODE
@@ -2554,7 +2905,10 @@ public without sharing class AccountingGoalService {
     copy.paid = source.paid;
     copy.slots = source.slots.clone();
     for (String slotKey : source.accountStamps.keySet()) {
-      copy.accountStamps.put(slotKey, source.accountStamps.get(slotKey).clone());
+      copy.accountStamps.put(
+        slotKey,
+        source.accountStamps.get(slotKey).clone()
+      );
     }
     return copy;
   }
@@ -2563,7 +2917,9 @@ public without sharing class AccountingGoalService {
     AccountingCatalogTypes.SlotPriorityType priorityType
   ) {
     List<SlotPriorityRuleFixedCatalog.Definition> rules = new List<SlotPriorityRuleFixedCatalog.Definition>();
-    for (SlotPriorityRuleFixedCatalog.Definition rule : SlotPriorityRuleFixedCatalog.values()) {
+    for (
+      SlotPriorityRuleFixedCatalog.Definition rule : SlotPriorityRuleFixedCatalog.values()
+    ) {
       if (rule.priorityType == priorityType) {
         rules.add(rule);
       }

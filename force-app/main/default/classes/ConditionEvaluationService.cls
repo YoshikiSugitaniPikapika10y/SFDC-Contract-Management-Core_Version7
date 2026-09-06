@@ -73,7 +73,9 @@ public without sharing class ConditionEvaluationService {
       return true;
     }
     List<FixedConditionRuleFixedCatalog.Definition> rules = new List<FixedConditionRuleFixedCatalog.Definition>();
-    for (FixedConditionRuleFixedCatalog.Definition rule : FixedConditionRuleFixedCatalog.values()) {
+    for (
+      FixedConditionRuleFixedCatalog.Definition rule : FixedConditionRuleFixedCatalog.values()
+    ) {
       if (rule.conditionSet.key == conditionSet.key) {
         rules.add(rule);
       }
@@ -89,23 +91,75 @@ public without sharing class ConditionEvaluationService {
     return true;
   }
 
-  /** 仕様: Accounting 第4.7節、第6章。空欄なら全条件AND。番号は ConditionLogic の AND／OR／NOT・括弧。 */
+  private class TenantSetDefinition {
+    String conditionLogic;
+    String evaluationContext;
+    List<GlConditionRule__c> rules = new List<GlConditionRule__c>();
+  }
+
+  private static Boolean tenantDefinitionsLoaded;
+  private static Map<Id, TenantSetDefinition> tenantSetsById;
+  private static List<GlConditionRule__c> collectedRules;
+
+  /**
+   * 仕様: Accounting 第8.2節手順2。
+   * 同一処理で条件セットと条件ルールを取り直さない。
+   */
+  public static List<GlConditionRule__c> collectedTenantRules() {
+    ensureTenantDefinitionsLoaded();
+    return collectedRules;
+  }
+
+  /** 仕様: Accounting 第4.7節、第6章、第8.2節。空欄なら全条件AND。番号は ConditionLogic の AND／OR／NOT・括弧。 */
   public static Boolean evaluateTenant(Id conditionSetId, Context context) {
     if (conditionSetId == null) {
       return true;
     }
-    List<GlConditionSet__c> sets = [
-      SELECT ConditionLogic__c, EvaluationContext__c
-      FROM GlConditionSet__c
-      WHERE Id = :conditionSetId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (sets.isEmpty()) {
+    ensureTenantDefinitionsLoaded();
+    TenantSetDefinition loaded = tenantSetsById.get(conditionSetId);
+    if (loaded == null) {
       throw new EvaluationException('条件セットがありません。');
     }
-    List<GlConditionRule__c> rules = [
+    if (loaded.rules.isEmpty()) {
+      throw new EvaluationException('条件が0件の条件セットは参照できません。');
+    }
+    Map<Decimal, Boolean> bySequence = new Map<Decimal, Boolean>();
+    for (GlConditionRule__c rule : loaded.rules) {
+      bySequence.put(
+        rule.Sequence__c,
+        evaluateTenantRule(rule, loaded.evaluationContext, context)
+      );
+    }
+    if (String.isBlank(loaded.conditionLogic)) {
+      for (Boolean matched : bySequence.values()) {
+        if (matched != true) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return evaluateConditionLogic(loaded.conditionLogic, bySequence);
+  }
+
+  private static void ensureTenantDefinitionsLoaded() {
+    if (tenantDefinitionsLoaded == true) {
+      return;
+    }
+    tenantSetsById = new Map<Id, TenantSetDefinition>();
+    collectedRules = new List<GlConditionRule__c>();
+    for (GlConditionSet__c conditionSet : [
+      SELECT Id, ConditionLogic__c, EvaluationContext__c
+      FROM GlConditionSet__c
+      WITH SYSTEM_MODE
+    ]) {
+      TenantSetDefinition loaded = new TenantSetDefinition();
+      loaded.conditionLogic = conditionSet.ConditionLogic__c;
+      loaded.evaluationContext = conditionSet.EvaluationContext__c;
+      tenantSetsById.put(conditionSet.Id, loaded);
+    }
+    for (GlConditionRule__c rule : [
       SELECT
+        ConditionSet__c,
         Sequence__c,
         Aggregate__c,
         TargetObject__c,
@@ -116,29 +170,16 @@ public without sharing class ConditionEvaluationService {
         CompareObject__c,
         CompareField__c
       FROM GlConditionRule__c
-      WHERE ConditionSet__c = :conditionSetId
       WITH SYSTEM_MODE
       ORDER BY Sequence__c
-    ];
-    if (rules.isEmpty()) {
-      throw new EvaluationException('条件が0件の条件セットは参照できません。');
-    }
-    Map<Decimal, Boolean> bySequence = new Map<Decimal, Boolean>();
-    for (GlConditionRule__c rule : rules) {
-      bySequence.put(
-        rule.Sequence__c,
-        evaluateTenantRule(rule, sets[0].EvaluationContext__c, context)
-      );
-    }
-    if (String.isBlank(sets[0].ConditionLogic__c)) {
-      for (Boolean matched : bySequence.values()) {
-        if (matched != true) {
-          return false;
-        }
+    ]) {
+      collectedRules.add(rule);
+      TenantSetDefinition loaded = tenantSetsById.get(rule.ConditionSet__c);
+      if (loaded != null) {
+        loaded.rules.add(rule);
       }
-      return true;
     }
-    return evaluateConditionLogic(sets[0].ConditionLogic__c, bySequence);
+    tenantDefinitionsLoaded = true;
   }
 
   /** 仕様: Accounting 第4.7節。請求起点の請求明細はすべて／いずれかで集約する。 */
@@ -150,7 +191,8 @@ public without sharing class ConditionEvaluationService {
     if (
       evaluationContext == 'Invoice' &&
       rule.TargetObject__c == 'InvoiceLine__c' &&
-      (rule.Aggregate__c == 'All' || rule.Aggregate__c == 'Any')
+      (rule.Aggregate__c == 'All' ||
+      rule.Aggregate__c == 'Any')
     ) {
       return evaluateInvoiceLineAggregate(rule, context);
     }
@@ -188,12 +230,18 @@ public without sharing class ConditionEvaluationService {
     return aggregated;
   }
 
-  private static Boolean compareTenantRule(GlConditionRule__c rule, Context context) {
+  private static Boolean compareTenantRule(
+    GlConditionRule__c rule,
+    Context context
+  ) {
     Object left = readValue(context, rule.TargetObject__c, rule.TargetField__c);
     Object right = null;
     if (rule.CompareType__c == 'Field') {
       right = readValue(context, rule.CompareObject__c, rule.CompareField__c);
-    } else if (rule.Operator__c != 'IsNull' && rule.Operator__c != 'IsNotNull') {
+    } else if (
+      rule.Operator__c != 'IsNull' &&
+      rule.Operator__c != 'IsNotNull'
+    ) {
       right = rule.CompareValue__c;
     }
     return compare(left, rule.Operator__c, right);
@@ -225,8 +273,16 @@ public without sharing class ConditionEvaluationService {
   }
 
   /** 仕様: Accounting 第4.7節。11種は Context の関連レコードから読む。経路は Goal が固定で持つ。 */
-  private static Object readValue(Context context, String objectApiName, String fieldApiName) {
-    if (context == null || String.isBlank(objectApiName) || String.isBlank(fieldApiName)) {
+  private static Object readValue(
+    Context context,
+    String objectApiName,
+    String fieldApiName
+  ) {
+    if (
+      context == null ||
+      String.isBlank(objectApiName) ||
+      String.isBlank(fieldApiName)
+    ) {
       return null;
     }
     SObject record;
@@ -256,7 +312,11 @@ public without sharing class ConditionEvaluationService {
     return record == null ? null : record.get(fieldApiName);
   }
 
-  private static Boolean compare(Object left, String operatorName, Object right) {
+  private static Boolean compare(
+    Object left,
+    String operatorName,
+    Object right
+  ) {
     if (operatorName == 'IsNull' || operatorName == '空である') {
       return left == null || String.valueOf(left) == '';
     }
@@ -304,10 +364,14 @@ public without sharing class ConditionEvaluationService {
     String leftText = stringify(left);
     String rightText = stringify(right);
     if (operatorName == 'Contains' || operatorName == '含む') {
-      return leftText != null && rightText != null && leftText.contains(rightText);
+      return leftText != null &&
+        rightText != null &&
+        leftText.contains(rightText);
     }
     if (operatorName == 'NotContains' || operatorName == '含まない') {
-      return leftText == null || rightText == null || !leftText.contains(rightText);
+      return leftText == null ||
+        rightText == null ||
+        !leftText.contains(rightText);
     }
     throw new EvaluationException('条件を評価できません: ' + operatorName);
   }
@@ -356,7 +420,9 @@ public without sharing class ConditionEvaluationService {
     if (rule == null) {
       return '条件ルールがありません。';
     }
-    Boolean isNullOp = rule.Operator__c == 'IsNull' || rule.Operator__c == 'IsNotNull';
+    Boolean isNullOp =
+      rule.Operator__c == 'IsNull' ||
+      rule.Operator__c == 'IsNotNull';
     if (isNullOp) {
       if (
         String.isNotBlank(rule.CompareType__c) ||
@@ -370,11 +436,17 @@ public without sharing class ConditionEvaluationService {
       if (String.isBlank(rule.CompareValue__c)) {
         return '固定値比較では比較値を指定してください。';
       }
-      if (String.isNotBlank(rule.CompareObject__c) || String.isNotBlank(rule.CompareField__c)) {
+      if (
+        String.isNotBlank(rule.CompareObject__c) ||
+        String.isNotBlank(rule.CompareField__c)
+      ) {
         return '固定値比較では比較値だけを指定してください。';
       }
     } else if (rule.CompareType__c == 'Field') {
-      if (String.isBlank(rule.CompareObject__c) || String.isBlank(rule.CompareField__c)) {
+      if (
+        String.isBlank(rule.CompareObject__c) ||
+        String.isBlank(rule.CompareField__c)
+      ) {
         return '項目比較では比較対象オブジェクトと比較対象項目を指定してください。';
       }
       if (String.isNotBlank(rule.CompareValue__c)) {
@@ -384,10 +456,7 @@ public without sharing class ConditionEvaluationService {
       return '比較種別を指定してください。';
     }
     Set<String> reachable = REACHABLE_OBJECTS.get(evaluationContext);
-    if (
-      reachable == null ||
-      !reachable.contains(rule.TargetObject__c)
-    ) {
+    if (reachable == null || !reachable.contains(rule.TargetObject__c)) {
       return '評価コンテキストから到達できません。';
     }
     if (
@@ -429,7 +498,10 @@ public without sharing class ConditionEvaluationService {
   }
 
   /** 仕様: Accounting 第4.7節 */
-  public static String validateConditionLogic(String logic, Set<Decimal> sequences) {
+  public static String validateConditionLogic(
+    String logic,
+    Set<Decimal> sequences
+  ) {
     if (String.isBlank(logic)) {
       return null;
     }
@@ -491,7 +563,12 @@ public without sharing class ConditionEvaluationService {
     String source = logic.trim();
     while (index < source.length()) {
       String current = source.substring(index, index + 1);
-      if (current == ' ' || current == '\t' || current == '\n' || current == '\r') {
+      if (
+        current == ' ' ||
+        current == '\t' ||
+        current == '\n' ||
+        current == '\r'
+      ) {
         index++;
         continue;
       }
@@ -611,7 +688,11 @@ public without sharing class ConditionEvaluationService {
   }
 
   private static String logicPeek(LogicCursor cursor) {
-    if (cursor == null || cursor.tokens == null || cursor.index >= cursor.tokens.size()) {
+    if (
+      cursor == null ||
+      cursor.tokens == null ||
+      cursor.index >= cursor.tokens.size()
+    ) {
       return null;
     }
     return cursor.tokens[cursor.index];
@@ -624,11 +705,13 @@ public without sharing class ConditionEvaluationService {
     if (String.isBlank(objectApiName) || String.isBlank(fieldApiName)) {
       return null;
     }
-    Schema.SObjectType objectType = Schema.getGlobalDescribe().get(objectApiName);
+    Schema.SObjectType objectType = Schema.getGlobalDescribe()
+      .get(objectApiName);
     if (objectType == null) {
       return null;
     }
-    Map<String, Schema.SObjectField> fields = objectType.getDescribe().fields.getMap();
+    Map<String, Schema.SObjectField> fields = objectType.getDescribe()
+      .fields.getMap();
     if (!fields.containsKey(fieldApiName)) {
       return null;
     }

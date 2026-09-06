@@ -94,7 +94,7 @@ private class GlAccountMapResolveServiceTest {
         System.assert(
           ex.getMessage().contains('科目が無効'),
           'Accounting 第4.1節・第6.2節: 初回生成は無効科目を飛ばさずエラーにする。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -137,9 +137,10 @@ private class GlAccountMapResolveServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('無効な勘定科目を新しく割り当てることはできません。'),
+          ex.getMessage()
+            .contains('無効な勘定科目を新しく割り当てることはできません。'),
           'Accounting 第4.1節: 既存割当の科目を無効科目へ付け替えない。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -153,16 +154,14 @@ private class GlAccountMapResolveServiceTest {
       GlAccountMap__c mapping = insertMap(asset.Id, 10, 'Slot Change');
       Boolean thrown = false;
       try {
-        update new GlAccountMap__c(
-          Id = mapping.Id,
-          SlotKey__c = 'Revenue'
-        );
+        update new GlAccountMap__c(Id = mapping.Id, SlotKey__c = 'Revenue');
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('スロットと科目の勘定区分が一致していません。'),
+          ex.getMessage()
+            .contains('スロットと科目の勘定区分が一致していません。'),
           'Accounting 第6.2節: 既存割当でもスロット変更時は勘定区分を一致させる。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -188,9 +187,10 @@ private class GlAccountMapResolveServiceTest {
       } catch (DmlException ex) {
         inactiveThrown = true;
         System.assert(
-          ex.getMessage().contains('無効な勘定科目を新しく割り当てることはできません。'),
+          ex.getMessage()
+            .contains('無効な勘定科目を新しく割り当てることはできません。'),
           'Accounting 第4.1節: 新規割当に無効科目を指定できない。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, inactiveThrown);
@@ -201,9 +201,10 @@ private class GlAccountMapResolveServiceTest {
       } catch (DmlException ex) {
         categoryThrown = true;
         System.assert(
-          ex.getMessage().contains('スロットと科目の勘定区分が一致していません。'),
+          ex.getMessage()
+            .contains('スロットと科目の勘定区分が一致していません。'),
           'Accounting 第6.2節: スロットと実勘定の勘定区分を一致させる。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, categoryThrown);
@@ -232,9 +233,10 @@ private class GlAccountMapResolveServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('スロットと科目の勘定区分が一致していません。'),
+          ex.getMessage()
+            .contains('スロットと科目の勘定区分が一致していません。'),
           'Accounting 第6.2節: 負債スロットへ資産科目は割り当てられない。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -265,7 +267,11 @@ private class GlAccountMapResolveServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccount__c inactiveHigh = insertAccount('Map Inactive High');
       GlAccount__c activeLow = insertAccount('Map Active Low');
-      GlAccountMap__c inactiveMap = insertMap(inactiveHigh.Id, 20, 'Inactive High');
+      GlAccountMap__c inactiveMap = insertMap(
+        inactiveHigh.Id,
+        20,
+        'Inactive High'
+      );
       inactiveMap.IsActive__c = false;
       update inactiveMap;
       GlAccountMap__c chosen = insertMap(activeLow.Id, 10, 'Active Low');
@@ -395,6 +401,55 @@ private class GlAccountMapResolveServiceTest {
     }
   }
 
+  @IsTest
+  static void resolve_doesNotRequeryTenantSetOnSecondCall() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccount__c account = insertAccount('Map Tenant Cache');
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Tenant Cache Set',
+        EvaluationContext__c = 'InvoiceLine',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'InvoiceLine__c',
+        TargetField__c = 'Amount__c',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '1000'
+      );
+      GlAccountMap__c mapping = insertMap(account.Id, 10, 'Tenant Cache');
+      mapping.ConditionSourceType__c = 'Tenant';
+      mapping.TenantConditionSet__c = conditionSet.Id;
+      update mapping;
+      ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+      context.invoiceLine = new InvoiceLine__c(Amount__c = 1000);
+      GlAccountMapResolveService.ResolvedAccount first = GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        'InvoiceLine',
+        context
+      );
+      Integer afterFirst = Limits.getQueries();
+      GlAccountMapResolveService.ResolvedAccount second = GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        'InvoiceLine',
+        context
+      );
+      System.assertEquals(
+        first.assignmentId,
+        second.assignmentId,
+        'Accounting 第8.2節: 同じ評価の科目結果は変えない'
+      );
+      System.assertEquals(
+        afterFirst,
+        Limits.getQueries(),
+        'Accounting 第8.2節: 同一処理でテナント条件セットとルールを取り直さない'
+      );
+    }
+  }
+
   private static GlAccount__c insertAccount(String name) {
     return insertAccount(name, 'Asset');
   }
@@ -409,7 +464,11 @@ private class GlAccountMapResolveServiceTest {
     return account;
   }
 
-  private static GlAccountMap__c insertMap(Id accountId, Integer priority, String name) {
+  private static GlAccountMap__c insertMap(
+    Id accountId,
+    Integer priority,
+    String name
+  ) {
     return insertMap(accountId, priority, name, 'AccountsReceivable');
   }
 
