@@ -11,9 +11,9 @@ public without sharing class ContractProductTriggerHandler {
   }
 
   /**
-   * Account と請求アンカーに必要な履歴を1回で取得する。
-   * 以前は同じ履歴を2回SOQLしており、複数バージョンを同一トランザクションで
-   * 作るライフサイクル処理のクエリ上限を圧迫していた。
+   * 仕様: Core 第4.5節、第12.4節。
+   * 見積商品の取引先は契約サービスの取引先。Trigger は空のときだけ埋める。
+   * insert で本体が Account と請求アンカーを書いた行は、同じ履歴を取り直さない。
    */
   private static void populateDerivedFieldsFromContractHistory(
     List<ContractProduct__c> products
@@ -23,7 +23,7 @@ public without sharing class ContractProductTriggerHandler {
     }
     Set<Id> historyIds = new Set<Id>();
     for (ContractProduct__c product : products) {
-      if (product.ContractHistory__c != null) {
+      if (needsHistoryLookup(product)) {
         historyIds.add(product.ContractHistory__c);
       }
     }
@@ -37,6 +37,9 @@ public without sharing class ContractProductTriggerHandler {
       WITH SYSTEM_MODE
     ]);
     for (ContractProduct__c product : products) {
+      if (!needsHistoryLookup(product)) {
+        continue;
+      }
       ContractHistory__c history = historyById.get(product.ContractHistory__c);
       if (
         product.Account__c == null &&
@@ -51,6 +54,20 @@ public without sharing class ContractProductTriggerHandler {
         history == null ? null : history.EffectiveDate__c
       );
     }
+  }
+
+  private static Boolean needsHistoryLookup(ContractProduct__c product) {
+    if (product == null || product.ContractHistory__c == null) {
+      return false;
+    }
+    if (
+      product.Id == null &&
+      product.Account__c != null &&
+      product.InvoiceAnchorDate__c != null
+    ) {
+      return false;
+    }
+    return true;
   }
 
   public static void populateInvoiceAnchorFields(

@@ -179,6 +179,67 @@ private class ContractProductTriggerHandlerTest {
   }
 
   @IsTest
+  static void handleBeforeInsert_skipsHistoryQueryWhenAccountAndAnchorSet() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Skip History Account'
+      );
+      ContractService__c service = insertService(
+        account.Id,
+        'Skip History Service'
+      );
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2027, 5, 31);
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Skip History',
+        'New',
+        1,
+        termStart,
+        termEnd,
+        null
+      );
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Skip History Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      EstimateCreateController.ProductLineItem line = new EstimateCreateController.ProductLineItem();
+      line.productId = product.Id;
+      line.quantity = 1;
+      line.unitPrice = 1000;
+      line.amount = 12000;
+      line.startDate = String.valueOf(termStart);
+      line.endDate = String.valueOf(termEnd);
+      line.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      line.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      line.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      ContractProduct__c built = EstimateSaveService.buildContractProduct(
+        history.Id,
+        account.Id,
+        line,
+        product,
+        'New',
+        termStart
+      );
+      System.assertEquals(account.Id, built.Account__c);
+      System.assertNotEquals(null, built.InvoiceAnchorDate__c);
+      Integer queriesBefore = Limits.getQueries();
+      ContractProductTriggerHandler.handleBeforeInsertOrUpdate(
+        new List<ContractProduct__c>{ built }
+      );
+      System.assertEquals(
+        queriesBefore,
+        Limits.getQueries(),
+        'Core 第12.4節: insert で本体が書いた Account と請求アンカーがある行は履歴を取り直さない'
+      );
+      System.assertEquals(account.Id, built.Account__c);
+      System.assertEquals(termStart, built.InvoiceAnchorDate__c);
+    }
+  }
+
+  @IsTest
   static void amount_isNotRecalculatedByTrigger() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
