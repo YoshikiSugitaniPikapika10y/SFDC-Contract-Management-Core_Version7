@@ -1665,7 +1665,7 @@ Accountingは算出済みの請求日を仕訳計上日と時系列残高解決�
 - Accounting OFFで検収日を業務として残したい場合は、請求書のメモ`Memo__c`を使う。検収終了日項目は使わない。
 - 月次計上では使用せず入力対象にもならない。値が設定された場合は、黙ってクリアせずエラーにする。
 - 既存請求明細の売上計上基準は受注時の値のまま変更しない。画面、Apex、API、Data Loader等の全更新経路で変更を拒否する。変えたい場合は第4.4.3節に従う。
-- Accounting ONでは、請求確定後も別の日付へ変更できるが、空欄への変更は拒否する。金額、請求日、宛名、税率および手動調整状態は変更しない。ロック済み仕訳が1件以上ある場合は取消基準日を1つ入力する。初期値は操作日、未入力はエラー。実際の逆仕訳日は第7.9.6節。操作キーと版比較は第7.9.7節。
+- Accounting ONでは、請求確定後も別の日付へ変更できるが、空欄への変更は拒否する。金額、請求日、宛名、税率および手動調整状態は変更しない。取消基準日は第7.9.6節。この操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ取る。初期値は操作日、未入力はエラー。実際の逆仕訳日は第7.9.6節。操作キーと版比較は第7.9.7節。
 - Accounting OFFで過去の関連仕訳が1件以上残る場合は、画面外更新を含む変更を拒否する。数え方はAccounting第1.1節に従い、対象請求書のCurrentが1件以上あるとき残ると判定する。標準機能ではAccountingをONへ戻せない。
 - Accounting OFFで過去の関連仕訳がなければ、画面外更新で日付だけ変えられるが仕訳イベントは起動しない。標準画面からは起動しない。
 - 請求を再生成した場合は、手入力値ではなく生成時の初期値へ戻る。
@@ -1961,7 +1961,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 - 対象請求の有効な手動仕訳ヘッダーが0件である。存在する場合は先に個別取消する。
 - 画面取得後に対象請求または配下が更新されていない。第7.9.7節。
 - 第7.9.5節の取消理由を指定する。
-- ロック済み仕訳が1件以上ある場合は、AccountingのON/OFFを問わず第7.9.6節の取消基準日を指定する。
+- 取消基準日は第7.9.6節。この操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ、AccountingのON/OFFを問わず指定する。請求書の他原因Lockだけでは取らない。
 
 取消では元請求を直接編集可能な未確定へ戻さず、次を同じトランザクションで行う。
 
@@ -1978,7 +1978,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>Invoice__c.BusinessOperationKey__c</code>
 ／ 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceCancelService.cancelConfirmed</code>
 ／ 状態更新は<code>InvoiceTransactionStatusService.applyCancelled</code>。仕訳は<code>AccountingDiffService.applyForInvoice</code>（イベント<code>BILLING_CANCELLED</code>）。
-／ 入口は<code>OrderCreateController.cancelConfirmedFromPreview</code>、<code>orderInvoicePreviewTable</code>。
+／ 入口は<code>OrderCreateController.cancelConfirmedFromPreview</code>、<code>orderInvoicePreviewTable</code>。取消基準日の要否は第7.9.6節。請求書のActive Lock全体では見ない。
 </div>
 
 #### 7.9.4 訂正用請求とVersion全体の再生成
@@ -2001,16 +2001,16 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 
 #### 7.9.6 取消基準日とAccounting結果
 
-ロック済み仕訳が1件以上ある取消では、AccountingのON/OFFを問わず取消基準日を入力する。初期値は組織タイムゾーンの操作日とする。未入力ならエラーにし、操作日を黙って使わない。関連仕訳がすべて未ロックなら論理削除だけを行い、取消基準日は求めない。Accounting OFFで過去の関連仕訳がなければ仕訳処理を行わない。残りの判定はAccounting第1.1節。
+取消基準日は、その操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ取る。請求書内の他原因のLockだけでは取らない。入出金Lookupだけでも足りない。請求入出金取消では入金連動前受で戻す売上・税仕訳のLockも含める。請求取消・請求入出金取消・手動仕訳取消はAccountingのON/OFFを問わず同じ。初期値は組織タイムゾーンの操作日とする。未入力ならエラーにし、操作日を黙って使わない。逆仕訳が無いなら取消基準日は求めない。Accounting OFFで過去の関連仕訳がなければ仕訳処理を行わない。残りの判定はAccounting第1.1節。
 
 各ロック済み仕訳の逆仕訳日は「取消基準日と元仕訳日の遅い方」とする。将来日付の元仕訳より前へ取消仕訳を置かない。入力した取消基準日を、元より前だからといってエラーにはしない。同じ操作から複数の実際の逆仕訳日が生じることを許す。確認は業務の確認と必要な取消基準日だけとし、論理削除件数・逆仕訳件数・日付ごとの件数・将来日付は出さない。実行後の成功表示にも同じ件数・内訳を出さない。パッケージは外部会計システムの締め期間を判定しない。
 
-請求入出金の登録および検収終了日変更では、Accounting ONかつロック済み仕訳が1件以上あるときだけ同じ取消基準日を取る。OFFの入金登録では出さない。検収終了日変更はOFFでは標準画面から出さない。
+請求入出金の登録および検収終了日変更では、Accounting ONのときだけ同じ規則で取消基準日を取る。OFFの入金登録では出さない。検収終了日変更はOFFでは標準画面から出さない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderCreateController.previewInvoiceLineAcceptanceEndDate</code>、<code>orderInvoicePreviewTable.handleAcceptanceEndDateChange</code> / <code>handleAcceptanceCancelSave</code>
-／ 確認は業務確認と、ONかつロック済みのときの取消基準日。件数・日付内訳は出さない。
+／ 確認は業務確認と、この操作の逆仕訳対象にLockがあるときの取消基準日。件数・日付内訳は出さない。入出金取消は`InvoicePaymentService.cancel`／`orderInvoicePreviewTable.handlePaymentCancelSave`。請求取消は`InvoiceCancelService.cancelConfirmed`。手動取消は`ManualJournalService.cancel`。入金登録は`InvoicePaymentService.register`。請求書のActive Lock全体では見ない。
 </div>
 
 #### 7.9.7 操作キーと版比較
@@ -2207,7 +2207,13 @@ Purpose=Invoiceの入力額が上限を超える場合、その登録全体を�
 
 取消理由は第7.9.5節の共通選択肢から必須指定する。取消保存直後に「この現預金移動を別の請求書へ記録する必要がある場合は、対象請求書で新しく請求入出金を登録してください。」と表示する。システムは取消目的を推測せず、別請求への再登録、次の再生成との関連付けおよび未再登録額の追跡を行わない。
 
-Accounting ONでは関連仕訳がすべて未ロックなら論理削除し、1件でもロック済みならロック済み分を逆仕訳、未ロック分を論理削除する。ロック済み仕訳がある取消ではON/OFFを問わず取消基準日を入力し、初期値は操作日、未入力はエラーとする。実際の逆仕訳日はAccounting仕様に従う。Accounting OFFで過去の関連仕訳がなければ仕訳処理を行わない。残りの判定はAccounting第1.1節。未ロック仕訳だけなら論理削除し、取消基準日を設定しない。Coreは取消元との関連、取引状態、請求金額Net・全入出金Netおよび監査情報の再計算を保証する。
+Accounting ONでは、この取消のDiffで逆仕訳になる仕訳がすべて未ロックなら論理削除し、1件でもロック済みならロック済み分を逆仕訳、未ロック分を論理削除する。請求書の他原因のLockだけでは取消基準日を取らない。入出金Lookupだけでも足りない（入金連動前受で戻す売上・税を含む）。逆仕訳になる仕訳にLockがある取消ではON/OFFを問わず取消基準日を入力し、初期値は操作日、未入力はエラーとする。実際の逆仕訳日はAccounting仕様に従う。Accounting OFFで過去の関連仕訳がなければ仕訳処理を行わない。残りの判定はAccounting第1.1節。逆仕訳が無いなら論理削除だけとし、取消基準日を設定しない。Coreは取消元との関連、取引状態、請求金額Net・全入出金Netおよび監査情報の再計算を保証する。
+
+<div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
+<strong style="color:#1a5276;">ToBe</strong>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePaymentService.cancel</code>、<code>orderInvoicePreviewTable.handlePaymentCancelSave</code>
+／ 取消基準日の要否は第7.9.6節。請求書のActive Lock全体でも入出金Lookupだけでもない。
+</div>
 
 ### 8.6 請求明細への割当
 
@@ -2247,7 +2253,7 @@ Purpose=Invoiceについて入力額が登録上限を超える場合は保存�
 
 AccountingがONの場合は、Coreの請求金額Net上限に加え、Goalの業務容量（前受の新設を含む）も検証する。現行のAR・DEF残高だけを上限にしない。いずれかの上限を超える場合は、請求入出金、明細別割当および仕訳をすべてロールバックする。第8.6節。
 
-Accounting ONでロック済み仕訳が1件以上ある入金登録では、入金取消と同じく取消基準日を1つ入力する。初期値は組織タイムゾーンの操作日、未入力はエラー、空を操作日で埋めない。実際の逆仕訳日は第7.9.6節。検収日変更も同じ。日付仕様第7.3節。Accounting OFFの入金登録では取消基準日を出さず、仕訳を触らない。残仕訳があっても同じ。Accounting第1.1節。
+Accounting ONの入金登録では、取消基準日を第7.9.6節と同じ規則で取る。この操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ1つ入力する。初期値は組織タイムゾーンの操作日、未入力はエラー、空を操作日で埋めない。実際の逆仕訳日は第7.9.6節。検収日変更も同じ。日付仕様第7.3節。Accounting OFFの入金登録では取消基準日を出さず、仕訳を触らない。残仕訳があっても同じ。Accounting第1.1節。
 
 請求入出金の登録・取消は第7.9.7節の操作キーと版比較に従う。登録フォームには第11.4.4節の追加項目を出す。Purposeごとに表示ON/OFF。デフォルトは登録画面の初期値である。
 
