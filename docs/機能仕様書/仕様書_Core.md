@@ -1966,7 +1966,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 取消では元請求を直接編集可能な未確定へ戻さず、次を同じトランザクションで行う。
 
 1. 元請求と請求明細を変更せず、請求取引状態を取消済みにする。
-2. 元請求の現在のヘッダー、請求明細、金額、税率、日付、請求アカウント、宛名・メール・届け方、検収終了日、手動調整結果、由来情報およびルールスナップショットをコピーして、新しい未確定請求を作る。
+2. 元請求の現在のヘッダー、請求明細、金額、税率、日付、請求アカウント、宛名・メール・届け方、検収終了日、手動調整結果、由来情報、ルールスナップショットおよび顧客追加項目をコピーして、新しい未確定請求を作る。顧客追加項目は元の値を載せ、空欄だけ定義スタンプする。分割の新請求とは別である。
 3. 新しい請求には新しい`Invoice__c.Name`を自動採番し、請求取引状態を`Draft`、回収・返金状態を`NotStarted`とする。送付状態は通常の未確定請求と同じ初期化を行う。請求書3択が`PDFとメール送付`なら`Unsent`、`使わない`と`PDFのみ`なら`NotApplicable`とする。元請求の確定・送付・回収状態、PDF、請求入出金、仕訳、会計タグ、取消情報、外部連携情報および確定時の明細税額配分を引き継がない。
 4. Accounting ONでは`BILLING_CANCELLED`を起動し、必要仕訳と会計タグを同じトランザクションで更新する。Accounting OFFでは会計タグを更新せず、過去の関連仕訳が残る場合だけ同じイベントの取消処理として未ロック仕訳を論理削除し、ロック済み仕訳を逆仕訳する。残りの判定はAccounting第1.1節。
 5. 同じ業務操作キーを元請求、訂正用請求、および関連仕訳へ書く。実行者・日時はSalesforceの監査項目。理由は元請求の取消理由。操作ログは第2.5節。
@@ -1979,6 +1979,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 ／ 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceCancelService.cancelConfirmed</code>
 ／ 状態更新は<code>InvoiceTransactionStatusService.applyCancelled</code>。仕訳は<code>AccountingDiffService.applyForInvoice</code>（イベント<code>BILLING_CANCELLED</code>）。
 ／ 入口は<code>OrderCreateController.cancelConfirmedFromPreview</code>、<code>orderInvoicePreviewTable</code>。取消基準日の要否は第7.9.6節。請求書のActive Lock全体では見ない。
+／ 訂正用の顧客追加項目は元請求・明細からコピーする。空欄だけ<code>FieldCopyDefinitionService.apply</code>／<code>InvoiceFieldCopyTriggerHandler</code>。会計タグは引き継がない。分割の新請求は第11.4.2節・第11.4.4節。
 </div>
 
 #### 7.9.4 訂正用請求とVersion全体の再生成
@@ -2553,7 +2554,7 @@ To×コンテキストの可否、To×Fromの可否、仕訳コンテキスト�
 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>FieldCopyDefinition__c.TargetObject__c</code>、<code>Context__c</code>（<code>AutoRenew</code>／<code>NotAutoRenew</code>／<code>LineJournal</code>／<code>NonLineJournal</code>）、<code>SourceObject__c</code>、<code>SourceFieldApiName__c</code>、<code>TargetFieldApiName__c</code>
 ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>GlJournal__c.ProductCodeSnapShot__c</code>（表示名「商品コード SnapShot」。拒否リストに入れない）
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>FieldCopyDefinitionService.apply</code> / <code>validateDefinition</code>、<code>GlAccountInstallService.seedFieldCopySamples</code>（初回インストールだけ。アップグレードでは消した見本を戻さない）
-／ 旧<code>InvoiceProductFieldCopyService</code>から移す。Triggerは<code>InvoiceFieldCopyTriggerHandler</code>が新サービスを呼ぶ。
+／ 旧<code>InvoiceProductFieldCopyService</code>から移す。Triggerは<code>InvoiceFieldCopyTriggerHandler</code>が新サービスを呼ぶ。請求取消の訂正用は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceCancelService.cancelConfirmed</code>。元の顧客追加項目をコピーしたあと空欄だけスタンプ。分割の新請求はボードで直した値を引き継がない。
 </div>
 
 ##### 共通原則
@@ -2561,6 +2562,7 @@ To×コンテキストの可否、To×Fromの可否、仕訳コンテキスト�
 - 空欄だけコピーする。既にあれば上書きしない。
 - コピー元を後から変えても、既存レコードは動かない。
 - 請求ボードで直した追加項目は当該レコードだけに残る。分けて作る新請求へは自動で引き継がない。
+- 請求取消の訂正用請求は分割ではない。元請求書・請求明細の顧客追加項目をコピーし、空欄だけ定義スタンプする。会計タグは引き継がない。第7.9.3節。
 - 定義が壊れていたら、見積の新規作成、自動Renew見積作成、受注、請求生成、分割、入出金登録、仕訳生成を止め、一意キーを出す。黙って飛ばさない。
 - 組織設定の見出し6から、存在する全コピー定義の検証を任意実行できる。保存とは別。定義の編集はしない。操作キーは置かない。会計方針の固定後も実行できる。第11.6節。
 - To項目は拒否リストに無いものだけ許す。許可リストは持たない。顧客が運用で足した項目は、拒否リストに無ければその時点からToにできる。
@@ -2711,7 +2713,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 
 ##### 請求書
 
-追加項目は「請求書情報」の追加項目セクションに載せる。請求書対象だけを1行5項目で出す。6件目から次行。入出金・仕訳の追加項目は出さない。定義が無ければセクションごと出さない。カードの常時セクションには出さない。確定後もボタンを出す。取消済みは出さない。確定後は請求日・入金予定日・請求アカウントを非活性にし、Apexも拒否する。税率は未確定でも変えない。画面にも出さない。追加項目の確定後編集は既存の請求ロック除外`InvoiceLockExemptFields__c`へ人がAPI名を足したときだけ許す。デフォルトは請求情報編集を開いたとき空なら見せ、保存までDBに書かない。保存は請求情報編集と同じ操作キー・版である。第7.8節・第7.9.7節。分割で増える新請求は作成時コピーだけ空欄へスタンプする。ボードで直した値は引き継がない。第11.4.2節。
+追加項目は「請求書情報」の追加項目セクションに載せる。請求書対象だけを1行5項目で出す。6件目から次行。入出金・仕訳の追加項目は出さない。定義が無ければセクションごと出さない。カードの常時セクションには出さない。確定後もボタンを出す。取消済みは出さない。確定後は請求日・入金予定日・請求アカウントを非活性にし、Apexも拒否する。税率は未確定でも変えない。画面にも出さない。追加項目の確定後編集は既存の請求ロック除外`InvoiceLockExemptFields__c`へ人がAPI名を足したときだけ許す。デフォルトは請求情報編集を開いたとき空なら見せ、保存までDBに書かない。保存は請求情報編集と同じ操作キー・版である。第7.8節・第7.9.7節。分割で増える新請求は作成時コピーだけ空欄へスタンプする。ボードで直した値は引き継がない。請求取消の訂正用請求は第7.9.3節。元の顧客追加項目をコピーし、空欄だけ定義スタンプする。第11.4.2節。
 
 ##### 入出金
 
@@ -2734,6 +2736,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoiceOpsFieldService.getDefinitions</code>
 ／ 請求は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceCanonicalService.updateInvoiceHeaderAndDates</code>、<code>OrderCreateController.updateInvoiceHeaderAndDates</code>、<code>orderInvoicePreviewTable</code>
+／ 訂正用請求の顧客追加項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceCancelService.cancelConfirmed</code>。分割の新請求とは別。
 ／ 入出金は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewOpsController.savePaymentFromPreview</code> ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePreviewOpsController.updatePaymentFromPreview</code>
 ／ 仕訳ボードは <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewOpsController.updateJournalMemo</code>
 ／ 横断は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractCrossController.saveJournals</code>、<code>contractCrossWork</code>
