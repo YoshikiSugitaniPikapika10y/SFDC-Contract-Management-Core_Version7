@@ -46,15 +46,10 @@ public without sharing class EstimateRevertInvoiceService {
       return;
     }
     List<ContractHistory__c> toArchive = new List<ContractHistory__c>();
-    for (ContractHistory__c estimate : [
-      SELECT Id, ContractService__c, Version__c
-      FROM ContractHistory__c
-      WHERE
-        ContractService__c IN :minVersionByServiceId.keySet()
-        AND historystatus__c = :HISTORY_STATUS_ESTIMATE
-        AND Id NOT IN :revertedIds
-      WITH SYSTEM_MODE
-    ]) {
+    for (ContractHistory__c estimate : queryEstimatesNewerThanRevertedVersion(
+      minVersionByServiceId,
+      revertedIds
+    )) {
       Decimal baseline = minVersionByServiceId.get(estimate.ContractService__c);
       if (
         baseline != null &&
@@ -75,6 +70,39 @@ public without sharing class EstimateRevertInvoiceService {
     if (!toArchive.isEmpty()) {
       SystemContextAccess.updateRecords(toArchive);
     }
+  }
+
+  /** 仕様: Core 第5.3節、第5.5節、第12.4節。自分より新しいVersionのEstimateだけ取る。 */
+  private static List<ContractHistory__c> queryEstimatesNewerThanRevertedVersion(
+    Map<Id, Decimal> minVersionByServiceId,
+    Set<Id> revertedIds
+  ) {
+    List<String> serviceClauses = new List<String>();
+    for (Id serviceId : minVersionByServiceId.keySet()) {
+      Decimal version = minVersionByServiceId.get(serviceId);
+      if (serviceId == null || version == null) {
+        continue;
+      }
+      serviceClauses.add(
+        '(ContractService__c = \'' +
+          String.escapeSingleQuotes(String.valueOf(serviceId)) +
+          '\' AND Version__c > ' +
+          String.valueOf(version) +
+          ')'
+      );
+    }
+    if (serviceClauses.isEmpty()) {
+      return new List<ContractHistory__c>();
+    }
+    String soql =
+      'SELECT Id, ContractService__c, Version__c FROM ContractHistory__c WHERE historystatus__c = :HISTORY_STATUS_ESTIMATE AND (' +
+      String.join(serviceClauses, ' OR ') +
+      ')';
+    if (revertedIds != null && !revertedIds.isEmpty()) {
+      soql += ' AND Id NOT IN :revertedIds';
+    }
+    soql += ' WITH SYSTEM_MODE';
+    return Database.query(soql);
   }
 
   public static void adjustForRevertedToEstimateHistories(

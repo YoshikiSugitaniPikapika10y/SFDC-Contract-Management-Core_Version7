@@ -200,6 +200,65 @@ private class ContractHistoryArchiveServiceTest {
   }
 
   @IsTest
+  static void archiveSupersededEstimates_doesNotReadHigherVersionOnOtherService() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Scope Account'
+      );
+      ContractService__c serviceA = insertServiceWithBillingAccount(
+        account,
+        'Archive Scope A'
+      );
+      ContractService__c serviceB = insertServiceWithBillingAccount(
+        account,
+        'Archive Scope B'
+      );
+      ContractHistory__c estAHigh = buildEstimateHistory(
+        serviceA.Id,
+        account.Id,
+        'A-v3',
+        3
+      );
+      ContractHistory__c estBLow = buildEstimateHistory(
+        serviceB.Id,
+        account.Id,
+        'B-v1',
+        1
+      );
+      insert new List<ContractHistory__c>{ estAHigh, estBLow };
+
+      Test.startTest();
+      ContractHistoryArchiveService.archiveSupersededEstimates(
+        new List<ContractHistory__c>{
+          new ContractHistory__c(
+            Id = fakeId(ContractHistory__c.SObjectType, 81),
+            ContractService__c = serviceA.Id,
+            Version__c = 1
+          ),
+          new ContractHistory__c(
+            Id = fakeId(ContractHistory__c.SObjectType, 82),
+            ContractService__c = serviceB.Id,
+            Version__c = 5
+          )
+        }
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        'Estimate',
+        [SELECT historystatus__c FROM ContractHistory__c WHERE Id = :estAHigh.Id]
+        .historystatus__c,
+        'Core 第5.2節: 受注Version以下の他EstimateだけArchive'
+      );
+      System.assertEquals(
+        'Archive',
+        [SELECT historystatus__c FROM ContractHistory__c WHERE Id = :estBLow.Id]
+        .historystatus__c
+      );
+    }
+  }
+
+  @IsTest
   static void archiveSupersededEstimates_copiesParentOperationKey() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(

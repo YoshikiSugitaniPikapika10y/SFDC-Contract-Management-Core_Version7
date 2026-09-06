@@ -564,6 +564,65 @@ private class EstimateRevertInvoiceServiceTest {
     }
   }
 
+  @IsTest
+  static void archiveNewerEstimates_onlySelectsNewerVersion() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Revert Newer Scope Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Revert Newer Scope Service'
+      );
+      ContractHistory__c lower = new ContractHistory__c(
+        Name = 'Lower Estimate',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(lower);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(lower, account.Id);
+      ContractHistory__c higher = new ContractHistory__c(
+        Name = 'Higher Estimate',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 3
+      );
+      ContractTestDataFactory.applyRequiredFields(higher);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        higher,
+        account.Id
+      );
+      insert new List<ContractHistory__c>{ lower, higher };
+
+      Test.startTest();
+      EstimateRevertInvoiceService.archiveNewerEstimates(
+        new List<ContractHistory__c>{
+          new ContractHistory__c(
+            Id = lower.Id,
+            ContractService__c = service.Id,
+            Version__c = 2
+          )
+        }
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        'Estimate',
+        [SELECT historystatus__c FROM ContractHistory__c WHERE Id = :lower.Id]
+        .historystatus__c
+      );
+      System.assertEquals(
+        'Archive',
+        [SELECT historystatus__c FROM ContractHistory__c WHERE Id = :higher.Id]
+        .historystatus__c,
+        'Core 第5.5節: 自分より新しいVersionのEstimate'
+      );
+    }
+  }
+
   private class TestContext {
     public Id accountId;
     public Id billingAccountId;

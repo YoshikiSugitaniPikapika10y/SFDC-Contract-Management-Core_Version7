@@ -5,6 +5,7 @@ public without sharing class ContractHistoryArchiveService {
   private static final String HISTORY_STATUS_ESTIMATE = ContractDomainConstants.HISTORY_STATUS_ESTIMATE;
   private static final String HISTORY_STATUS_ARCHIVE = ContractDomainConstants.HISTORY_STATUS_ARCHIVE;
 
+  /** 仕様: Core 第5.2節、第5.5節、第12.4節 */
   public static void archiveSupersededEstimates(
     List<ContractHistory__c> newlyOrderedHistories
   ) {
@@ -44,25 +45,11 @@ public without sharing class ContractHistoryArchiveService {
       return;
     }
 
-    Set<Id> serviceIds = maxOrderedVersionByServiceId.keySet();
-    Decimal maxVersionOverall = null;
-    for (Decimal version : maxOrderedVersionByServiceId.values()) {
-      if (maxVersionOverall == null || version > maxVersionOverall) {
-        maxVersionOverall = version;
-      }
-    }
-
     List<ContractHistory__c> historiesToArchive = new List<ContractHistory__c>();
-    for (ContractHistory__c estimateHistory : [
-      SELECT Id, ContractService__c, Version__c
-      FROM ContractHistory__c
-      WHERE
-        ContractService__c IN :serviceIds
-        AND historystatus__c = :HISTORY_STATUS_ESTIMATE
-        AND Version__c <= :maxVersionOverall
-        AND Id NOT IN :orderedHistoryIds
-      WITH SYSTEM_MODE
-    ]) {
+    for (ContractHistory__c estimateHistory : queryEstimatesAtOrBelowOrderedVersion(
+      maxOrderedVersionByServiceId,
+      orderedHistoryIds
+    )) {
       Decimal serviceMax = maxOrderedVersionByServiceId.get(
         estimateHistory.ContractService__c
       );
@@ -89,5 +76,38 @@ public without sharing class ContractHistoryArchiveService {
     if (!historiesToArchive.isEmpty()) {
       SystemContextAccess.updateRecords(historiesToArchive);
     }
+  }
+
+  /** 仕様: Core 第5.2節、第5.5節、第12.4節。受注Version以下の他Estimateだけ取る。 */
+  private static List<ContractHistory__c> queryEstimatesAtOrBelowOrderedVersion(
+    Map<Id, Decimal> maxOrderedVersionByServiceId,
+    Set<Id> orderedHistoryIds
+  ) {
+    List<String> serviceClauses = new List<String>();
+    for (Id serviceId : maxOrderedVersionByServiceId.keySet()) {
+      Decimal version = maxOrderedVersionByServiceId.get(serviceId);
+      if (serviceId == null || version == null) {
+        continue;
+      }
+      serviceClauses.add(
+        '(ContractService__c = \'' +
+          String.escapeSingleQuotes(String.valueOf(serviceId)) +
+          '\' AND Version__c <= ' +
+          String.valueOf(version) +
+          ')'
+      );
+    }
+    if (serviceClauses.isEmpty()) {
+      return new List<ContractHistory__c>();
+    }
+    String soql =
+      'SELECT Id, ContractService__c, Version__c FROM ContractHistory__c WHERE historystatus__c = :HISTORY_STATUS_ESTIMATE AND (' +
+      String.join(serviceClauses, ' OR ') +
+      ')';
+    if (orderedHistoryIds != null && !orderedHistoryIds.isEmpty()) {
+      soql += ' AND Id NOT IN :orderedHistoryIds';
+    }
+    soql += ' WITH SYSTEM_MODE';
+    return Database.query(soql);
   }
 }
