@@ -43,7 +43,7 @@ public without sharing class InvoiceOpsController {
     Invoice__c knownLockedInvoice
   ) {
     ContractPermissionUtil.assertConfirmInvoice();
-    assertInvoicesInScope(contractHistoryId, invoiceIds);
+    assertInvoicesInScope(contractHistoryId, invoiceIds, knownLockedInvoice);
     return applyLockDates(
       invoiceIds,
       integrationDate,
@@ -61,12 +61,20 @@ public without sharing class InvoiceOpsController {
     Id contractHistoryId,
     List<Id> invoiceIds
   ) {
+    assertInvoicesInScope(contractHistoryId, invoiceIds, null);
+  }
+
+  /**
+   * 仕様: Core 第7.7.3節、第12.4節。
+   * ロック済み請求があれば契約サービス範囲を取り直さない。
+   */
+  public static void assertInvoicesInScope(
+    Id contractHistoryId,
+    List<Id> invoiceIds,
+    Invoice__c knownLockedInvoice
+  ) {
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return;
-    }
-    Id serviceId = resolveContractServiceId(contractHistoryId);
-    if (serviceId == null) {
-      throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
     }
     Set<Id> targetIds = new Set<Id>();
     for (Id invoiceId : invoiceIds) {
@@ -77,6 +85,19 @@ public without sharing class InvoiceOpsController {
     if (targetIds.isEmpty()) {
       return;
     }
+    if (
+      tryAssertScopeFromLockedInvoice(
+        contractHistoryId,
+        targetIds,
+        knownLockedInvoice
+      )
+    ) {
+      return;
+    }
+    Id serviceId = resolveContractServiceId(contractHistoryId);
+    if (serviceId == null) {
+      throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
+    }
     Integer inScope = [
       SELECT COUNT()
       FROM Invoice__c
@@ -86,6 +107,29 @@ public without sharing class InvoiceOpsController {
     if (inScope != targetIds.size()) {
       throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
     }
+  }
+
+  private static Boolean tryAssertScopeFromLockedInvoice(
+    Id contractHistoryId,
+    Set<Id> targetIds,
+    Invoice__c knownLockedInvoice
+  ) {
+    if (
+      knownLockedInvoice == null ||
+      knownLockedInvoice.Id == null ||
+      targetIds.size() != 1 ||
+      !targetIds.contains(knownLockedInvoice.Id)
+    ) {
+      return false;
+    }
+    if (
+      contractHistoryId == null ||
+      knownLockedInvoice.ContractHistory__c != contractHistoryId ||
+      knownLockedInvoice.ContractService__c == null
+    ) {
+      throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
+    }
+    return true;
   }
 
   private static Id resolveContractServiceId(Id contractHistoryId) {

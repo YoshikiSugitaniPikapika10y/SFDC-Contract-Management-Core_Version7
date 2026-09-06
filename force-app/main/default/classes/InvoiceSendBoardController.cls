@@ -134,7 +134,7 @@ public without sharing class InvoiceSendBoardController {
     );
   }
 
-  /** 仕様: Core 第7.7.3節、第7.9節、第7.9.7節、第7.10節、第11.3節。確定はPDFを付けない。 */
+  /** 仕様: Core 第7.7.3節、第7.9節、第7.9.7節、第7.10節、第11.3節、第12.4節。確定はPDFを付けない。 */
   @AuraEnabled
   public static ConfirmResultDto confirmInvoiceFromPreview(
     Id invoiceId,
@@ -153,6 +153,7 @@ public without sharing class InvoiceSendBoardController {
     );
   }
 
+  /** 仕様: Core 第7.7.3節、第7.9.7節、第12.4節、Accounting 第8.2節。 */
   private static ConfirmResultDto confirmInvoiceFromPreview(
     Id invoiceId,
     Date confirmationDate,
@@ -189,7 +190,8 @@ public without sharing class InvoiceSendBoardController {
       }
       AccountingCauseLockService.assertInvoiceOperationUnchanged(
         invoiceId,
-        expectedToken
+        expectedToken,
+        invoice.LastModifiedDate
       );
       if (!InvoiceTransactionStatusService.isDraft(invoice)) {
         throw handledMessage('未確定の請求のみ確定できます。');

@@ -376,6 +376,57 @@ private class InvoiceOpsControllerTest {
   }
 
   @IsTest
+  static void assertInvoicesInScope_usesLockedInvoiceContractService() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertOpsInvoice('Lock Scope', null, null, null);
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
+      Integer beforeKnown = Limits.getQueries();
+      InvoiceOpsController.assertInvoicesInScope(
+        locked.ContractHistory__c,
+        new List<Id>{ locked.Id },
+        locked
+      );
+      Integer usedKnown = Limits.getQueries() - beforeKnown;
+      Integer beforeFull = Limits.getQueries();
+      InvoiceOpsController.assertInvoicesInScope(
+        locked.ContractHistory__c,
+        new List<Id>{ locked.Id }
+      );
+      Integer usedFull = Limits.getQueries() - beforeFull;
+      System.assertEquals(
+        0,
+        usedKnown,
+        'Core 第12.4節・第7.7.3節: ロック済み請求の契約サービス範囲を取り直さない'
+      );
+      System.assert(
+        usedKnown < usedFull,
+        'Core 第12.4節: 範囲確認の履歴・COUNT照会を重ねない'
+      );
+
+      Invoice__c other = insertOpsInvoice('Lock Scope Other', null, null, null);
+      Boolean rejected = false;
+      try {
+        InvoiceOpsController.assertInvoicesInScope(
+          other.ContractHistory__c,
+          new List<Id>{ locked.Id },
+          locked
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assertEquals(
+          InvoiceOpsController.SCOPE_MISMATCH_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第7.7.3節: 契約サービスをまたぐ請求は確定できない'
+      );
+    }
+  }
+
+  @IsTest
   static void markInvoiced_emptyIds_returnsZero() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       System.assertEquals(

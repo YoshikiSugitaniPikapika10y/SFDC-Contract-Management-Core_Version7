@@ -481,6 +481,42 @@ private class InvoiceSendBoardControllerTest {
   }
 
   @IsTest
+  static void confirmInvoiceFromPreview_reusesLockedInvoiceVersionCheck() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createInvoice(
+        '確定版再利用取引先',
+        'Draft',
+        'confirm-reuse@example.com'
+      );
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
+      String expectedToken = ContractOptimisticLockUtil.toToken(
+        AccountingCauseLockService.resolveInvoiceOperationDatetimes(
+            new Set<Id>{ locked.Id },
+            new Map<Id, Datetime>{ locked.Id => locked.LastModifiedDate }
+          )
+          .get(locked.Id)
+      );
+      Integer beforeKnown = Limits.getQueries();
+      AccountingCauseLockService.assertInvoiceOperationUnchanged(
+        locked.Id,
+        expectedToken,
+        locked.LastModifiedDate
+      );
+      Integer usedKnown = Limits.getQueries() - beforeKnown;
+      Integer beforeFull = Limits.getQueries();
+      AccountingCauseLockService.assertInvoiceOperationUnchanged(
+        locked.Id,
+        expectedToken
+      );
+      Integer usedFull = Limits.getQueries() - beforeFull;
+      System.assert(
+        usedKnown < usedFull,
+        'Core 第12.4節・第7.9.7節: 確定はロック済み請求の版比較を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void confirmInvoiceFromPreview_rejectsInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c own = createInvoice(

@@ -202,9 +202,22 @@ public without sharing class AccountingCauseLockService {
     Id invoiceId,
     String expectedToken
   ) {
+    assertInvoiceOperationUnchanged(invoiceId, expectedToken, null);
+  }
+
+  /** 仕様: Core 第7.9.7節、第12.4節。ロック済み請求の更新日時は取り直さない。 */
+  public static void assertInvoiceOperationUnchanged(
+    Id invoiceId,
+    String expectedToken,
+    Datetime knownInvoiceModified
+  ) {
     Map<Id, String> tokens = new Map<Id, String>();
     tokens.put(invoiceId, expectedToken);
-    assertInvoiceOperationsUnchanged(tokens, null);
+    Map<Id, Datetime> known = null;
+    if (knownInvoiceModified != null) {
+      known = new Map<Id, Datetime>{ invoiceId => knownInvoiceModified };
+    }
+    assertInvoiceOperationsUnchanged(tokens, known);
   }
 
   /**

@@ -146,6 +146,34 @@ private class AccountingCauseLockServiceTest {
   }
 
   @IsTest
+  static void resolveInvoiceOperationDatetimes_usesKnownInvoiceModified() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertDraftInvoice();
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
+      Integer beforeKnown = Limits.getQueries();
+      Map<Id, Datetime> withKnown = AccountingCauseLockService.resolveInvoiceOperationDatetimes(
+        new Set<Id>{ locked.Id },
+        new Map<Id, Datetime>{ locked.Id => locked.LastModifiedDate }
+      );
+      Integer usedKnown = Limits.getQueries() - beforeKnown;
+      Integer beforeFull = Limits.getQueries();
+      Map<Id, Datetime> withoutKnown = AccountingCauseLockService.resolveInvoiceOperationDatetimes(
+        new Set<Id>{ locked.Id }
+      );
+      Integer usedFull = Limits.getQueries() - beforeFull;
+      System.assertEquals(
+        withoutKnown.get(locked.Id),
+        withKnown.get(locked.Id),
+        'Core 第7.9.7節: ロック済み請求の更新日時でも版は同じ'
+      );
+      System.assert(
+        usedKnown < usedFull,
+        'Core 第12.4節: 同一処理でロック済み請求の版比較を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void resolveInvoiceOperationDatetime_nullAndEmptyStayEmpty() {
     System.assertEquals(
       null,
