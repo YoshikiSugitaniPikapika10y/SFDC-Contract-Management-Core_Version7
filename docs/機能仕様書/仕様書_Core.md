@@ -1385,7 +1385,7 @@ Lifecycle=Termでは、`ServiceStartDate__c`（サービス開始日）はFirst 
 
 ### 5.7 契約履歴の進捗表示（StatusPath）
 
-契約履歴ページ上部の進捗表示（StatusPath）は、見積から入金完了までの現在位置を示す。業務状態と請求の回収状態から自動計算し、利用者が直接変更することはできない。状態が混在するときは、完了していない前の段階に留める。不採用（Archive）は進捗表示の対象外とする。
+契約履歴ページ上部の進捗表示（StatusPath）は、見積から入金完了までの現在位置を示す。業務状態と請求の回収状態から自動計算し、利用者が直接変更することはできない。状態が混在するときは、完了していない前の段階に留める。不採用（Archive）は進捗表示の対象外とする。商談レコードページの契約履歴関連リストは、同じ進捗を列に出す。業務状態（historystatus）は同リストの列に出さない。契約サービスなど他オブジェクトの関連リストは本項の対象ではない。
 
 | 利用者向け表示   | 内部値（API） | 条件                                                                                       |
 | ---------------- | ------------- | ------------------------------------------------------------------------------------------ |
@@ -1405,9 +1405,10 @@ Cancelの「02_受注」は、解約の注文を受け付けて受注済みに�
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractHistoryStatusPathService.resolvePath</code> / <code>applyOnBeforeWrite</code> / <code>syncForInvoiceParents</code>。件数は取消済み除外。Cancelは02で止める。
+／ 商談の契約履歴関連リストは<code>FlexiPage3</code>の<code>OpportunityHistories__r</code>。列は<code>StatusPath__c</code>。業務状態<code>historystatus__c</code>は同リストに出さない。
 </div>
 
-**実装仕様（開発者向け）:** 契約履歴`FlexiPage122`へ標準Pathを配置し、対象項目`StatusPath__c`、設定`ContractHistory_StatusPath`、Record Type `Default`、`Hide path update button = true`とする。Archive選択肢`99_アーカイブ`はPath本線とDefault RTから外し、Archive時はグレー案内だけを表示する。
+**実装仕様（開発者向け）:** 契約履歴`FlexiPage122`へ標準Pathを配置し、対象項目`StatusPath__c`、設定`ContractHistory_StatusPath`、Record Type `Default`、`Hide path update button = true`とする。Archive選択肢`99_アーカイブ`はPath本線とDefault RTから外し、Archive時はグレー案内だけを表示する。商談`FlexiPage3`の`OpportunityHistories__r`は列に`StatusPath__c`を含み、`historystatus__c`を含めない。
 
 各段階の案内文は「請求対応中」「入金待ち」等の利用者向け用語を使う。「確定」「消込」「請求済」「送付中」を契約履歴の進捗段階として追加しない。「入金待ち」の案内には「社外への請求書送付は別作業」と明記する。
 
