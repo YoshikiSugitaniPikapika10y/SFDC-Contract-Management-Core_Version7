@@ -2548,6 +2548,97 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void buildSaveResult_reusesWrittenHistoryAndProducts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Save Result Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Save Result Opportunity'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Save Result Service'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Save Result History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        BusinessOperationKey__c = 'save-result-key'
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Result Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c line = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = account.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New',
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      ContractTestDataFactory.applyRequiredFields(line);
+      insert line;
+      history = [
+        SELECT Id, LastModifiedDate, BusinessOperationKey__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      line = [
+        SELECT Id, LastModifiedDate
+        FROM ContractProduct__c
+        WHERE Id = :line.Id
+      ];
+      Integer queriesBefore = Limits.getQueries();
+      EstimateCreateController.EstimateSaveResult result = EstimateSaveService.buildSaveResult(
+        service.Id,
+        history,
+        new List<ContractProduct__c>{ line }
+      );
+      System.assertEquals(
+        queriesBefore,
+        Limits.getQueries(),
+        'Core 第12.4節: 書いた履歴と見積商品の版を取り直さない'
+      );
+      System.assertEquals(history.Id, result.contractHistoryId);
+      System.assertEquals(
+        new List<Id>{ line.Id },
+        result.contractProductIds
+      );
+      System.assertEquals(
+        EstimateQueryService.copyPresetToken(
+          history.LastModifiedDate,
+          new List<ContractProduct__c>{ line }
+        ),
+        result.lastModifiedToken
+      );
+      System.assertEquals('save-result-key', result.businessOperationKey);
+    }
+  }
+
+  @IsTest
   static void saveEditedEstimate_staleAfterProductUpdate_throws() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(

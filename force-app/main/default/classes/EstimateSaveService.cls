@@ -420,8 +420,8 @@ public without sharing class EstimateSaveService {
     if (existing.BusinessOperationKey__c == request.businessOperationKey) {
       return buildSaveResult(
         existing.ContractService__c,
-        existing.Id,
-        existing.Id
+        existing,
+        existing.ContractHistoryContractProducts__r
       );
     }
     ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
@@ -518,7 +518,8 @@ public without sharing class EstimateSaveService {
         ContractService__c,
         PreviousHistory__c,
         LastModifiedDate,
-        BusinessOperationKey__c
+        BusinessOperationKey__c,
+        (SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r)
       FROM ContractHistory__c
       WHERE Id = :editHistoryId
       WITH SYSTEM_MODE
@@ -575,12 +576,15 @@ public without sharing class EstimateSaveService {
     applyDisplayedServiceCustomFields(serviceId, request);
     SystemContextAccess.updateRecords(new List<SObject>{ historyUpdate });
 
-    updateOrderedProductCustomFieldsOnly(existing.Id, request);
+    List<ContractProduct__c> updatedProducts = updateOrderedProductCustomFieldsOnly(
+      existing.Id,
+      request
+    );
 
-    return buildSaveResult(serviceId, existing.Id, existing.Id);
+    return buildSaveResult(serviceId, historyUpdate, updatedProducts);
   }
 
-  public static void updateOrderedProductCustomFieldsOnly(
+  public static List<ContractProduct__c> updateOrderedProductCustomFieldsOnly(
     Id contractHistoryId,
     EstimateCreateController.EstimateSaveRequest request
   ) {
@@ -591,7 +595,7 @@ public without sharing class EstimateSaveService {
       request.products.isEmpty() ||
       request.selectedType == 'Cancel'
     ) {
-      return;
+      return new List<ContractProduct__c>();
     }
 
     Map<Id, EstimateCreateController.ProductLineItem> lineByProductId = new Map<Id, EstimateCreateController.ProductLineItem>();
@@ -607,7 +611,7 @@ public without sharing class EstimateSaveService {
       lineByProductId.put(line.contractProductId, line);
     }
     if (lineByProductId.isEmpty()) {
-      return;
+      return new List<ContractProduct__c>();
     }
 
     Set<Id> productIds = lineByProductId.keySet();
@@ -670,6 +674,7 @@ public without sharing class EstimateSaveService {
     if (!toUpdate.isEmpty()) {
       SystemContextAccess.updateRecords(toUpdate);
     }
+    return toUpdate;
   }
 
   public static EstimateCreateController.EstimateSaveResult updateNewEstimate(
@@ -733,9 +738,12 @@ public without sharing class EstimateSaveService {
     applyOperationKey(existing, request);
     SystemContextAccess.updateRecords(new List<SObject>{ existing });
 
-    replaceEstimateProducts(existing.Id, opportunity.AccountId, request);
-
-    return buildSaveResult(serviceId, existing.Id, existing.Id);
+    List<ContractProduct__c> replaced = replaceEstimateProducts(
+      existing.Id,
+      opportunity.AccountId,
+      request
+    );
+    return buildSaveResult(serviceId, existing, replaced);
   }
 
   /** 仕様: Core 第3.4.2節、第4.9節 */
@@ -789,9 +797,12 @@ public without sharing class EstimateSaveService {
       );
     }
 
-    replaceEstimateProducts(existing.Id, services[0].Account__c, request);
-
-    return buildSaveResult(serviceId, existing.Id, existing.Id);
+    List<ContractProduct__c> replaced = replaceEstimateProducts(
+      existing.Id,
+      services[0].Account__c,
+      request
+    );
+    return buildSaveResult(serviceId, existing, replaced);
   }
 
   public static EstimateCreateController.EstimateSaveResult updateCancelEstimate(
@@ -821,16 +832,19 @@ public without sharing class EstimateSaveService {
 
     applyDisplayedServiceCustomFields(existing.ContractService__c, request);
 
-    replaceEstimateProducts(existing.Id, null, request);
-
+    List<ContractProduct__c> replaced = replaceEstimateProducts(
+      existing.Id,
+      null,
+      request
+    );
     return buildSaveResult(
       existing.ContractService__c,
-      existing.Id,
-      existing.Id
+      existing,
+      replaced
     );
   }
 
-  public static void replaceEstimateProducts(
+  public static List<ContractProduct__c> replaceEstimateProducts(
     Id contractHistoryId,
     Id accountId,
     EstimateCreateController.EstimateSaveRequest request
@@ -849,7 +863,7 @@ public without sharing class EstimateSaveService {
       ContractArrCalculationService.rememberEmptyProductsForRecalc(
         contractHistoryId
       );
-      return;
+      return new List<ContractProduct__c>();
     }
 
     List<ContractProduct__c> built = buildContractProducts(
@@ -859,6 +873,7 @@ public without sharing class EstimateSaveService {
     );
     SystemContextAccess.insertRecords(built);
     ContractArrCalculationService.rememberProductsForRecalc(built);
+    return built;
   }
 
   /** 仕様: Core 第3.4.2節、第4.9節 */
@@ -943,8 +958,8 @@ public without sharing class EstimateSaveService {
 
     return buildSaveResult(
       contractService.Id,
-      contractHistory.Id,
-      contractHistory.Id
+      contractHistory,
+      newProducts
     );
   }
 
@@ -1013,8 +1028,8 @@ public without sharing class EstimateSaveService {
 
     return buildSaveResult(
       request.contractServiceId,
-      contractHistory.Id,
-      contractHistory.Id
+      contractHistory,
+      changeProducts
     );
   }
 
@@ -1081,8 +1096,8 @@ public without sharing class EstimateSaveService {
 
     return buildSaveResult(
       request.contractServiceId,
-      contractHistory.Id,
-      contractHistory.Id
+      contractHistory,
+      new List<ContractProduct__c>()
     );
   }
 
@@ -1311,42 +1326,32 @@ public without sharing class EstimateSaveService {
     return selectedType;
   }
 
+  /** 仕様: Core 第4.3.12節、第12.4節。書いた履歴と見積商品の版を取り直さない。 */
   public static EstimateCreateController.EstimateSaveResult buildSaveResult(
     Id contractServiceId,
-    Id contractHistoryId,
-    Id historyIdForProducts
+    ContractHistory__c history,
+    List<ContractProduct__c> savedProducts
   ) {
-    List<ContractProduct__c> savedProducts = [
-      SELECT Id, LastModifiedDate
-      FROM ContractProduct__c
-      WHERE ContractHistory__c = :historyIdForProducts
-      WITH SYSTEM_MODE
-    ];
-
+    List<ContractProduct__c> products = savedProducts == null
+      ? new List<ContractProduct__c>()
+      : savedProducts;
     List<Id> productIds = new List<Id>();
-    for (ContractProduct__c contractProduct : savedProducts) {
-      productIds.add(contractProduct.Id);
+    for (ContractProduct__c contractProduct : products) {
+      if (contractProduct != null && contractProduct.Id != null) {
+        productIds.add(contractProduct.Id);
+      }
     }
 
     EstimateCreateController.EstimateSaveResult result = new EstimateCreateController.EstimateSaveResult();
     result.contractServiceId = contractServiceId;
-    result.contractHistoryId = contractHistoryId;
+    result.contractHistoryId = history == null ? null : history.Id;
     result.contractProductIds = productIds;
-    if (contractHistoryId != null) {
-      List<ContractHistory__c> stamped = [
-        SELECT LastModifiedDate, BusinessOperationKey__c
-        FROM ContractHistory__c
-        WHERE Id = :contractHistoryId
-        WITH SYSTEM_MODE
-        LIMIT 1
-      ];
-      if (!stamped.isEmpty()) {
-        result.lastModifiedToken = EstimateQueryService.copyPresetToken(
-          stamped[0].LastModifiedDate,
-          savedProducts
-        );
-        result.businessOperationKey = stamped[0].BusinessOperationKey__c;
-      }
+    if (history != null) {
+      result.lastModifiedToken = EstimateQueryService.copyPresetToken(
+        history.LastModifiedDate,
+        products
+      );
+      result.businessOperationKey = history.BusinessOperationKey__c;
     }
     return result;
   }
@@ -1397,7 +1402,12 @@ public without sharing class EstimateSaveService {
       return null;
     }
     List<ContractHistory__c> found = [
-      SELECT Id, ContractService__c
+      SELECT
+        Id,
+        ContractService__c,
+        LastModifiedDate,
+        BusinessOperationKey__c,
+        (SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r)
       FROM ContractHistory__c
       WHERE BusinessOperationKey__c = :operationKey
       WITH SYSTEM_MODE
@@ -1406,7 +1416,11 @@ public without sharing class EstimateSaveService {
     if (found.isEmpty()) {
       return null;
     }
-    return buildSaveResult(found[0].ContractService__c, found[0].Id, found[0].Id);
+    return buildSaveResult(
+      found[0].ContractService__c,
+      found[0],
+      found[0].ContractHistoryContractProducts__r
+    );
   }
 
   public static void applyContractServiceCustomFields(
