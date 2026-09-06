@@ -854,7 +854,7 @@ Change列のOriginal・Remakeおよび変更後行はTermだけに適用する�
 
 マスタ設定だけは画面表示を速くするため一時保存した値を利用できるが、画面を開いた時に最新内容へ更新する。業務データの読込に失敗した場合は、古い内容を表示し続けず、エラーと「再読み込み」を表示する。
 
-**実装仕様（開発者向け）:** 画面を開くたびに`beginFreshContentSession`で前回の確認・保存成功・検証アラートを初期化し、セッション連番が古いpreset応答を破棄する。サービス・請求アカウント候補、請求設定、追加項目定義、商談初期値は`refreshApex`、商談・サービス・税率は`getRecordNotifyChange`で更新する。編集・コピー初期値、前回履歴・商品、商品初期値および備考マスタ文言は非cacheableのimperative取得とする。受注は`getOrderContext`、請求ボードと差し戻しも非cacheableで業務データを再取得する。設定wireだけcacheableを許す。商品record-pickerの検索インデックス反映遅延は保証対象外とする。
+**実装仕様（開発者向け）:** 画面を開くたびに`beginFreshContentSession`で前回の確認・保存成功・検証アラートを初期化し、セッション連番が古いpreset応答を破棄する。サービス・請求アカウント候補、請求設定、追加項目定義、商談初期値は`refreshApex`、商談・サービス・税率は`getRecordNotifyChange`で更新する。編集・コピー初期値、前回履歴・商品、商品初期値および備考マスタ文言は非cacheableのimperative取得とする。受注は`getOrderContext`、請求ボードと差し戻しも非cacheableで業務データを再取得する。設定wireだけcacheableを許す。商品record-pickerの検索インデックス反映遅延は保証対象外とする。**1回の取得リクエストの内部では、対象の契約履歴・請求・見積商品と設定定義を取り直さない。**返す画面データは本節どおりであり、照会回数のために変えない。
 
 #### 4.3.12 同時編集の検知（楽観ロック）
 
@@ -1259,7 +1259,7 @@ EstimateをOrderedにできるのは、次をすべて満たす場合だけで�
 
 操作キーと契約履歴の行ロックは第4.3.12節。版は契約履歴と配下の見積商品。受注に伴う他Estimateの自動Archiveは、別キーにしない。
 
-**受注時は、次を1つの処理として実行し、一部だけを残さない。**
+**受注時は、次を1つの処理として実行し、一部だけを残さない。**同一処理で見積商品・請求アカウント・コピー定義を取り直さない。生成結果は本節どおりであり、照会回数のために変えない。
 
 1. 受注条件を再確認する。
 2. 契約履歴をOrderedにする。
@@ -1705,7 +1705,7 @@ Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewIntegrityService.assertSameHistory</code>
-／ <code>OrderCreateController.getInvoicePreview</code>の取得直後。不一致なら表示・編集・確定を止める。
+／ <code>OrderCreateController.getInvoicePreview</code>の取得直後。不一致なら表示・編集・確定を止める。同一取得リクエストで対象請求・明細・定義を取り直さない。返すカードは本節どおり。
 ／ 3入口は<code>OrderCreateController.resolvePreviewScope</code>。<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code> / <code>orderInvoicePreviewTable</code>。部品は枠に載せない。「差額あり／なし」フィルタは出さない。
 </div>
 
@@ -2977,7 +2977,16 @@ Accountingの利用有無、売上計上方針、税認識方針および月次�
 
 受注、差し戻し、請求再生成、請求確定・取消、請求分割・移動、請求入出金、送付に伴うデータベース更新およびAccounting境界処理は、必要な結果がすべて成立した場合だけ保存する。設定不正、権限不足、状態不正、ロック、同時編集の競合、入力不整合または関連処理失敗があれば、その対象行のデータベース更新全体を取り消す。メール送信の外部副作用は第7.10節に従う。
 
+**同一処理で対象レコードと設定定義を取り直さない。**保存する結果は本節および各操作の本文どおりであり、照会回数のために変えない。画面を開くたびにサーバから読むこと（第4.3.11節）は維持する。1回の取得リクエストの内部で同じ対象と定義を重ねて照会しない。非同期へ逃がさない。件数上限は設けない。
+
 エラーは利用者が修正できる対象と理由を示す。例えば、請求アカウントまたは請求先情報の不足、商品不足、数量0、金額未確定、古いベースVersion、期間境界不一致、請求設定不整合、Original・Remake不整合、確定済み請求、他利用者の先行更新、および追加項目コピー設定不正を区別する。Changeで正しい打消しを作れない場合は、静かに行を省略せずChange全体を失敗させる。
+
+<div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
+<strong style="color:#1a5276;">ToBe</strong>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 保存 <code>OrderCreateController.confirmOrder</code> / <code>revertOrder</code>、<code>InvoiceProductGenerationService.generateForHistories</code>、<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>、<code>InvoiceCancelService</code>、<code>InvoicePaymentService.register</code> / <code>cancel</code>、<code>ManualJournalService</code>、<code>AccountingDiffService.applyForInvoice</code>
+／ 開く <code>OrderCreateController.getInvoicePreview</code> / <code>getOrderContext</code>、<code>InvoiceSendBoardController.getBoardContext</code>、<code>EstimateSendBoardController.getBoardContext</code>、<code>ContractCrossQueryService</code>
+／ 同一処理・同一取得リクエストで対象と定義を取り直さない。結果は変えない。
+</div>
 
 ## 13. 導入時の代表要件
 
