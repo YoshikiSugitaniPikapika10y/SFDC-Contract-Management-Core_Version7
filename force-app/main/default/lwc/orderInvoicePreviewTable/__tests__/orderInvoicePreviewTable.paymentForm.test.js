@@ -832,7 +832,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     ).toBeNull();
   });
 
-  it("seeds payment register cancel date to the operation day when locked journals exist", async () => {
+  it("omits payment register cancel date when the invoice only has other locked journals", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: true, hasLockedJournals: true })
     );
@@ -844,11 +844,11 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openPaymentsTab(element);
 
-    const dateInput = element.shadowRoot.querySelector(
-      'lightning-input[data-field="cancellationDate"]'
-    );
-    expect(dateInput).not.toBeNull();
-    expect(dateInput.value).toBe("2026-08-29");
+    expect(
+      element.shadowRoot.querySelector(
+        'lightning-input[data-field="cancellationDate"]'
+      )
+    ).toBeNull();
   });
 
   it("omits payment register cancel date when Accounting is off even if locked journals exist", async () => {
@@ -923,12 +923,13 @@ describe("orderInvoicePreviewTable payment form", () => {
     ).toBeNull();
   });
 
-  it("does not save a locked payment register when cancel date is cleared", async () => {
+  it("asks for payment register cancel date after preview finds reversals", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: true, hasLockedJournals: true })
     );
     previewRegisterFromPreview.mockResolvedValue({
-      displayText: "論理削除件数: 0"
+      reverseCount: 1,
+      displayText: "逆仕訳件数: 1"
     });
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
@@ -938,20 +939,19 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openPaymentsTab(element);
 
-    const dateInput = element.shadowRoot.querySelector(
-      'lightning-input[data-field="cancellationDate"]'
-    );
-    dateInput.dispatchEvent(new CustomEvent("change", { detail: { value: "" } }));
-    await flush();
-
     const saveButton = Array.from(
       element.shadowRoot.querySelectorAll("button.solid-btn")
     ).find((button) => button.textContent.trim() === "追加");
-    expect(saveButton.disabled).toBe(true);
     saveButton.click();
     await flush();
+    await flush();
+
     expect(savePaymentFromPreview).not.toHaveBeenCalled();
-    expect(previewRegisterFromPreview).not.toHaveBeenCalled();
+    const dateInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="cancellationDate"]'
+    );
+    expect(dateInput).not.toBeNull();
+    expect(dateInput.value).toBe("2026-08-29");
   });
 
   it("omits invoice cancel date when only cancelled locked journals exist", async () => {
@@ -991,7 +991,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     ).toBeNull();
   });
 
-  it("shows journal cancel preview counts before confirming invoice cancel", async () => {
+  it("asks business confirm without journal counts before invoice cancel", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({ hasLockedJournals: false, payments: [] })
     );
@@ -1036,17 +1036,11 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
 
     expect(previewCancelConfirmed).toHaveBeenCalled();
-    expect(LightningConfirm.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining("論理削除件数: 1")
-      })
-    );
-    expect(LightningConfirm.open.mock.calls[0][0].message).toContain(
-      "逆仕訳件数: 2"
-    );
-    expect(LightningConfirm.open.mock.calls[0][0].message).toContain(
-      "将来日付: あり"
-    );
+    const confirmMessage = LightningConfirm.open.mock.calls[0][0].message;
+    expect(confirmMessage).toContain("同じ内容の未確定請求を作ります");
+    expect(confirmMessage).not.toContain("論理削除件数");
+    expect(confirmMessage).not.toContain("逆仕訳件数");
+    expect(confirmMessage).not.toContain("将来日付");
   });
 
   it("shows customer cancel notice for sent invoices before and on the cancel panel", async () => {
@@ -1096,6 +1090,9 @@ describe("orderInvoicePreviewTable payment form", () => {
 
     expect(LightningConfirm.open.mock.calls[0][0].message).toContain(
       "顧客への取消連絡が必要です。"
+    );
+    expect(LightningConfirm.open.mock.calls[0][0].message).not.toContain(
+      "論理削除件数"
     );
   });
 
@@ -1161,6 +1158,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     element.shadowRoot
       .querySelector("button[data-payment-id='a02PAY000000001']")
       .click();
+    await flush();
     await flush();
 
     const reason = element.shadowRoot.querySelector(
@@ -1243,13 +1241,14 @@ describe("orderInvoicePreviewTable payment form", () => {
     ).toBe("a0H000000000001AAA");
   });
 
-  it("shows journal count preview for unlocked Accounting ON acceptance date change", async () => {
+  it("asks business confirm without journal counts for unlocked Accounting ON acceptance date change", async () => {
     previewInvoiceLineAcceptanceEndDate.mockClear();
     LightningConfirm.open.mockClear();
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: true, hasLockedJournals: false })
     );
     previewInvoiceLineAcceptanceEndDate.mockResolvedValue({
+      reverseCount: 0,
       displayText: "論理削除件数: 2\n逆仕訳件数: 0"
     });
     LightningConfirm.open.mockResolvedValue(true);
@@ -1281,20 +1280,24 @@ describe("orderInvoicePreviewTable payment form", () => {
     ).toBeNull();
     expect(LightningConfirm.open).toHaveBeenCalled();
     expect(LightningConfirm.open.mock.calls[0][0].message).toContain(
-      "論理削除件数: 2"
+      "検収終了日を変更します"
+    );
+    expect(LightningConfirm.open.mock.calls[0][0].message).not.toContain(
+      "論理削除件数"
     );
     const saveEvent = dispatchSpy.mock.calls
       .map((call) => call[0])
       .find((event) => event.type === "saveacceptanceenddate");
     expect(saveEvent.detail.cancellationDate).toBeNull();
-    expect(saveEvent.detail.journalPreviewText).toContain("論理削除件数: 2");
+    expect(saveEvent.detail.journalPreviewText).toBeUndefined();
   });
 
-  it("shows journal count preview for unlocked Accounting ON payment register", async () => {
+  it("asks business confirm without journal counts for unlocked Accounting ON payment register", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: true, hasLockedJournals: false })
     );
     previewRegisterFromPreview.mockResolvedValue({
+      reverseCount: 0,
       displayText: "論理削除件数: 2\n逆仕訳件数: 0"
     });
     savePaymentFromPreview.mockResolvedValue("a02PAY000000099");
@@ -1323,7 +1326,10 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(previewRegisterFromPreview).toHaveBeenCalled();
     expect(LightningConfirm.open).toHaveBeenCalled();
     expect(LightningConfirm.open.mock.calls[0][0].message).toContain(
-      "論理削除件数: 2"
+      "この入出金を登録します"
+    );
+    expect(LightningConfirm.open.mock.calls[0][0].message).not.toContain(
+      "論理削除件数"
     );
     expect(savePaymentFromPreview).toHaveBeenCalled();
     expect(savePaymentFromPreview.mock.calls[0][0].cancellationDate).toBeNull();
@@ -1385,11 +1391,12 @@ describe("orderInvoicePreviewTable payment form", () => {
     );
   });
 
-  it("shows reverse-journal result after locked payment register", async () => {
+  it("omits journal counts from payment register success toast", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: true, hasLockedJournals: true })
     );
     previewRegisterFromPreview.mockResolvedValue({
+      reverseCount: 1,
       displayText: "論理削除件数: 0\n逆仕訳件数: 1"
     });
     savePaymentFromPreview.mockResolvedValue("a02PAY000000099");
@@ -1426,13 +1433,11 @@ describe("orderInvoicePreviewTable payment form", () => {
     const toast = await waitUntil(() =>
       dispatchSpy.mock.calls
         .map((args) => args[0])
-        .find(
-          (evt) =>
-            evt?.detail?.title === "入出金を追加しました" &&
-            String(evt?.detail?.message || "").includes("逆仕訳件数: 1")
-        )
+        .find((evt) => evt?.detail?.title === "入出金を追加しました")
     );
     expect(toast).toBeTruthy();
+    expect(String(toast.detail.message || "")).not.toContain("逆仕訳件数");
+    expect(String(toast.detail.message || "")).not.toContain("論理削除件数");
     expect(savePaymentFromPreview).toHaveBeenCalled();
     expect(savePaymentFromPreview.mock.calls[0][0].businessOperationKey).toBe(
       "op-key-1"
@@ -1502,7 +1507,7 @@ describe("orderInvoicePreviewTable payment form", () => {
 
   it("入出金取消はその他理由テキストが空白のみなら保存できない (Core 7.9.5 / 1.1.10)", async () => {
     getOpsBundle.mockResolvedValue(mockBundle());
-    previewCancelPaymentFromPreview.mockClear();
+    previewCancelPaymentFromPreview.mockResolvedValue({ reverseCount: 0, displayText: "" });
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -1514,6 +1519,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     element.shadowRoot
       .querySelector("button[data-payment-id='a02PAY000000001']")
       .click();
+    await flush();
     await flush();
 
     const reason = element.shadowRoot.querySelector(

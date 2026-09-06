@@ -552,6 +552,14 @@ public without sharing class InvoiceCanonicalService {
         expectedToken
       );
     }
+    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
+    AccountingDiffService.CancelPreview datePreview = previewLineAcceptanceEndDates(
+      acceptanceEndDateByLineId,
+      cancellationDate
+    );
+    if (datePreview.reverseCount > 0 && cancellationDate == null) {
+      throw new InvoiceEditException('ロック済み仕訳がある取消では取消基準日が必要です。');
+    }
     for (InvoiceLine__c line : lines) {
       line.AcceptanceEndDate__c = acceptanceEndDateByLineId.get(line.Id);
     }
@@ -798,18 +806,6 @@ public without sharing class InvoiceCanonicalService {
     Map<Id, Invoice__c> lockedById = AccountingCauseLockService.lockInvoices(
       allInvoiceIds
     );
-    if (!allInvoiceIds.isEmpty()) {
-      for (Id invoiceId : allInvoiceIds) {
-        if (
-          AccountingCurrentService.hasActiveLocked(invoiceId) &&
-          cancellationDate == null
-        ) {
-          throw new InvoiceEditException(
-            'ロック済み仕訳がある取消では取消基準日が必要です。'
-          );
-        }
-      }
-    }
     return lockedById;
   }
 

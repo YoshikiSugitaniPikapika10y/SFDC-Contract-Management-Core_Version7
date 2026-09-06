@@ -369,12 +369,12 @@ private class InvoicePaymentServiceTest {
       Boolean thrown = false;
       try {
         InvoicePaymentService.register(request);
-      } catch (InvoicePaymentService.PaymentException ex) {
+      } catch (Exception ex) {
         thrown = true;
         System.assertEquals(
           'ロック済み仕訳がある取消では取消基準日が必要です。',
           ex.getMessage(),
-          'Accounting 第8.5節: ONかつロック済みなら取消基準日必須'
+          'Accounting 第8.5節: ONかつこの操作のDiffで逆仕訳になるLockなら取消基準日必須'
         );
       }
       System.assertEquals(true, thrown);

@@ -152,7 +152,7 @@ function compareIsoDateTime(left, right) {
   return compareIsoDate(left, right);
 }
 
-/** 仕様: Core 第7.9.6節、Accounting 第8.5節。取消系はON/OFFを問わずロック済みなら基準日。 */
+/** 仕様: Core 第7.9.6節、Accounting 第8.5節。取消系はON/OFFを問わず、この操作のDiffで逆仕訳になるLockだけ基準日。 */
 function requiresCancelDate(bundle) {
   const journals = bundle?.journals || [];
   if (journals.length > 0) {
@@ -161,6 +161,10 @@ function requiresCancelDate(bundle) {
     );
   }
   return bundle?.hasLockedJournals === true;
+}
+
+function diffRequiresCancelDate(preview) {
+  return (preview?.reverseCount || 0) > 0;
 }
 
 function extraFieldInputType(fieldType) {
@@ -205,12 +209,12 @@ function extraFieldChecked(raw) {
   return raw === true || raw === "true" || raw === "1" || raw === 1;
 }
 
-/** 仕様: Accounting 第1.1節・第8.5節。入金登録だけONかつロック済みのとき取消基準日。 */
-function requiresPaymentRegisterCancelDate(bundle) {
-  if (bundle == null || bundle.accountingEnabled !== true) {
-    return false;
+/** 仕様: Accounting 第1.1節・第8.5節。入金登録だけONかつこの操作のDiffで逆仕訳になるLockのとき取消基準日。 */
+function requiresPaymentRegisterCancelDate(draft, preview) {
+  if (draft?.requiresDate === true) {
+    return true;
   }
-  return requiresCancelDate(bundle);
+  return diffRequiresCancelDate(preview);
 }
 
 export default class OrderInvoicePreviewTable extends LightningElement {
@@ -229,7 +233,20 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
   }
   @api initialVersion;
-  @api initialInvoiceId;
+  _initialInvoiceId;
+  _hasInitialInvoiceIdBound = false;
+  _appliedInitialInvoiceId = null;
+  _readyToApplyDefaultFilter = false;
+  // 仕様: Core 第7.7.0節。起動時に請求書を指定したら子フィルタはその請求書。preview 先着でも後着の指定を落とさない。
+  @api
+  get initialInvoiceId() {
+    return this._initialInvoiceId;
+  }
+  set initialInvoiceId(value) {
+    this._initialInvoiceId = value;
+    this._hasInitialInvoiceIdBound = true;
+    this.applyDefaultVersionFilter();
+  }
   /** 仕様: Core 第7.7.3節 */
   @api contractHistoryId;
   /** 仕様: 横断画面.md 第2.2節。横断では受注直後に戻すを置かない。 */
@@ -344,8 +361,10 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   };
 
   connectedCallback() {
+    this._readyToApplyDefaultFilter = true;
     this.loadInvoiceOpsContext();
     this.loadInvoiceOpsFieldDefinitions();
+    this.applyDefaultVersionFilter();
   }
 
   @api
@@ -564,15 +583,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         draft.amount === "" || draft.amount == null
           ? this.newPaymentDraft(invoiceId, remaining, bundle?.paymentLines)
           : draft;
-      const requiresDate = requiresPaymentRegisterCancelDate(bundle);
       this.updateInvoiceUiState(invoiceId, {
         bundle,
-        paymentDraft: {
-          ...nextDraft,
-          cancellationDate: requiresDate
-            ? nextDraft.cancellationDate || this.todayLocalIso()
-            : ""
-        },
+        paymentDraft: nextDraft,
         loading: false,
         error: ""
       });
@@ -586,35 +599,58 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
   /**
    * 入口の初期フィルタ。ユーザー切替後／保存後の再取得では維持。
+   * 仕様: Core 第7.7.0節、横断画面.md 第2.4節・第5節
    */
   applyDefaultVersionFilter() {
-    if (this._defaultVersionApplied || !this._preview) {
+    if (!this._preview) {
       return;
     }
-    const requestedVersion =
-      this.initialVersion != null && this.initialVersion !== ""
-        ? String(this.initialVersion)
+    if (!this._hasInitialInvoiceIdBound && !this._readyToApplyDefaultFilter) {
+      return;
+    }
+    if (!this._defaultVersionApplied) {
+      const requestedVersion =
+        this.initialVersion != null && this.initialVersion !== ""
+          ? String(this.initialVersion)
+          : "";
+      if (requestedVersion === ALL_VERSIONS) {
+        this.selectedVersion = ALL_VERSIONS;
+      } else {
+        const raw = requestedVersion || this._preview.sourceHistoryVersion;
+        if (raw != null && raw !== "") {
+          const value = String(raw);
+          const exists = (this._preview.versionOptions || []).some(
+            (option) => String(option?.value) === value
+          );
+          this.selectedVersion = exists ? value : ALL_VERSIONS;
+        }
+      }
+      this.applyInitialInvoiceSelection();
+      this._defaultVersionApplied = true;
+      this._appliedInitialInvoiceId = this.initialInvoiceId
+        ? String(this.initialInvoiceId)
         : "";
-    if (requestedVersion === ALL_VERSIONS) {
-      this.selectedVersion = ALL_VERSIONS;
-    } else {
-      const raw = requestedVersion || this._preview.sourceHistoryVersion;
-      if (raw != null && raw !== "") {
-        const value = String(raw);
-        const exists = (this._preview.versionOptions || []).some(
-          (option) => String(option?.value) === value
-        );
-        this.selectedVersion = exists ? value : ALL_VERSIONS;
-      }
+      return;
     }
-    if (this.initialInvoiceId) {
-      this.selectedInvoiceId = this.initialInvoiceId;
-      const initial = this.findInvoice(this.initialInvoiceId);
-      if (this.isCancelledInvoice(initial)) {
-        this.includeCancelled = true;
-      }
+    if (
+      this.initialInvoiceId &&
+      String(this._appliedInitialInvoiceId || "") !==
+        String(this.initialInvoiceId)
+    ) {
+      this.applyInitialInvoiceSelection();
+      this._appliedInitialInvoiceId = String(this.initialInvoiceId);
     }
-    this._defaultVersionApplied = true;
+  }
+
+  applyInitialInvoiceSelection() {
+    if (!this.initialInvoiceId) {
+      return;
+    }
+    this.selectedInvoiceId = this.initialInvoiceId;
+    const initial = this.findInvoice(this.initialInvoiceId);
+    if (this.isCancelledInvoice(initial)) {
+      this.includeCancelled = true;
+    }
   }
 
   async loadInvoiceOpsContext() {
@@ -2568,7 +2604,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
                   requireExemptToEdit: true
                 })
               : [],
-          paymentRegisterRequiresDate: requiresPaymentRegisterCancelDate(bundle),
+          paymentRegisterRequiresDate: requiresPaymentRegisterCancelDate(
+            paymentDraft
+          ),
           paymentRegisterCancelDate: paymentDraft?.cancellationDate || "",
           paymentFormTitle: "入出金を追加",
           paymentSaveLabel: "追加",
@@ -2617,7 +2655,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             amountNotInteger ||
             !purpose ||
             !paymentDraft?.paymentDate ||
-            (requiresPaymentRegisterCancelDate(bundle) &&
+            (requiresPaymentRegisterCancelDate(paymentDraft) &&
               !paymentDraft?.cancellationDate) ||
             sameSignOverflow ||
             signMismatch ||
@@ -3485,17 +3523,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     ) {
       return;
     }
-    const requiresDate = requiresPaymentRegisterCancelDate(bundle);
-    if (requiresDate && !draft.cancellationDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-          variant: "error"
-        })
-      );
-      return;
-    }
     const paymentArgs = {
       paymentId: null,
       invoiceId,
@@ -3520,16 +3547,16 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               amount: Number(row.amount)
             }))
           : [],
-      cancellationDate: requiresDate ? draft.cancellationDate || null : null,
+      cancellationDate: draft.cancellationDate || null,
       contractHistoryId: this.contractHistoryId
     };
-    let journalPreviewText = "";
-    // 仕様: Accounting 第8.8節。ONの入金登録は未Lockでも実行前に件数を出し確認する。OFFは件数プレビューを出さない。
+    // 仕様: Core 第7.9.6節、Accounting 第8.8節。確認は業務確認と必要な取消基準日だけ。件数・日付内訳は出さない。
+
     const showJournalPreview = bundle?.accountingEnabled === true;
     if (showJournalPreview) {
+      let preview;
       try {
-        const preview = await previewRegisterFromPreview(paymentArgs);
-        journalPreviewText = preview?.displayText || "";
+        preview = await previewRegisterFromPreview(paymentArgs);
       } catch (error) {
         this.dispatchEvent(
           new ShowToastEvent({
@@ -3540,10 +3567,27 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         );
         return;
       }
+      if (diffRequiresCancelDate(preview) && !draft.cancellationDate) {
+        const current = this.invoiceUiState[invoiceId] || {};
+        this.updateInvoiceUiState(invoiceId, {
+          paymentDraft: {
+            ...current.paymentDraft,
+            requiresDate: true,
+            cancellationDate: this.todayLocalIso()
+          }
+        });
+        this.dispatchEvent(
+          new ShowToastEvent({
+            title: "請求操作エラー",
+            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
+            variant: "error"
+          })
+        );
+        return;
+      }
       const confirmed = await LightningConfirm.open({
         label: "入出金を追加",
-        message:
-          "この入出金を登録します。よろしいですか？\n\n" + journalPreviewText,
+        message: "この入出金を登録します。よろしいですか？",
         variant: "header"
       });
       if (!confirmed) {
@@ -3561,12 +3605,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         paymentDraft: this.newPaymentDraft(invoiceId),
         cancelDraft: null
       });
-      return journalPreviewText
-        ? {
-            title: "入出金を追加しました",
-            message: journalPreviewText
-          }
-        : "入出金を追加しました";
+      return "入出金を追加しました";
     });
   }
 
@@ -3671,7 +3710,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     });
   }
 
-  handlePaymentCancel(event) {
+  async handlePaymentCancel(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
     const paymentId = event.currentTarget.dataset.paymentId;
     const bundle = this.invoiceUiState[invoiceId]?.bundle;
@@ -3682,7 +3721,25 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     if (!payment || this.invoiceOpsProcessingId != null) {
       return;
     }
-    const requiresDate = requiresCancelDate(bundle);
+    let requiresDate = false;
+    try {
+      const preview = await previewCancelPaymentFromPreview({
+        paymentId: payment.paymentId,
+        invoiceId,
+        cancelDate: null,
+        contractHistoryId: this.contractHistoryId
+      });
+      requiresDate = diffRequiresCancelDate(preview);
+    } catch (error) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "請求操作エラー",
+          message: this.reduceInvoiceOpsError(error),
+          variant: "error"
+        })
+      );
+      return;
+    }
     this.updateInvoiceUiState(invoiceId, {
       cancelDraft: {
         invoiceId,
@@ -3764,7 +3821,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    let journalPreviewText = "";
     try {
       const preview = await previewCancelPaymentFromPreview({
         paymentId: draft.paymentId,
@@ -3772,7 +3828,24 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         cancelDate: draft.requiresDate ? draft.cancelDate : null,
         contractHistoryId: this.contractHistoryId
       });
-      journalPreviewText = preview?.displayText || "";
+      if (diffRequiresCancelDate(preview) && !draft.requiresDate) {
+        const current = this.invoiceUiState[invoiceId] || {};
+        this.updateInvoiceUiState(invoiceId, {
+          cancelDraft: {
+            ...current.cancelDraft,
+            requiresDate: true,
+            cancelDate: this.todayLocalIso()
+          }
+        });
+        this.dispatchEvent(
+          new ShowToastEvent({
+            title: "請求操作エラー",
+            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
+            variant: "error"
+          })
+        );
+        return;
+      }
     } catch (error) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -3785,8 +3858,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
     const confirmed = await LightningConfirm.open({
       label: "入出金を取消",
-      message:
-        "この入出金を取り消します。よろしいですか？\n\n" + journalPreviewText,
+      message: "この入出金を取り消します。よろしいですか？",
       theme: "warning",
       variant: "header"
     });
@@ -3806,10 +3878,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         contractHistoryId: this.contractHistoryId
       });
       this.updateInvoiceUiState(invoiceId, { cancelDraft: null });
-      return {
-        title: "入出金を取消しました",
-        message: journalPreviewText
-      };
+      return "入出金を取消しました";
     });
   }
 
@@ -4045,19 +4114,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    const bundle = this.invoiceUiState[invoiceId]?.bundle;
-    if (requiresCancelDate(bundle)) {
-      this.updateInvoiceUiState(invoiceId, {
-        acceptanceDraft: {
-          lineId,
-          nextDate: next,
-          cancellationDate: this.todayLocalIso(),
-          requiresDate: true
-        }
-      });
-      return;
-    }
-    let journalPreviewText = "";
     try {
       const preview = await previewInvoiceLineAcceptanceEndDate({
         lineId,
@@ -4065,7 +4121,17 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         cancellationDate: null,
         contractHistoryId: this.contractHistoryId
       });
-      journalPreviewText = preview?.displayText || "";
+      if (diffRequiresCancelDate(preview)) {
+        this.updateInvoiceUiState(invoiceId, {
+          acceptanceDraft: {
+            lineId,
+            nextDate: next,
+            cancellationDate: this.todayLocalIso(),
+            requiresDate: true
+          }
+        });
+        return;
+      }
     } catch (error) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -4078,8 +4144,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
     const confirmed = await LightningConfirm.open({
       label: "検収終了日を変更",
-      message:
-        "検収終了日を変更します。よろしいですか？\n\n" + journalPreviewText,
+      message: "検収終了日を変更します。よろしいですか？",
       variant: "header"
     });
     if (!confirmed) {
@@ -4091,7 +4156,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           lineId,
           acceptanceEndDate: next,
           cancellationDate: null,
-          journalPreviewText,
           expectedContentVersion: this.findInvoice(invoiceId)?.lastModifiedToken,
           businessOperationKey: await this.resolvePendingOperationKey(invoiceId)
         }
@@ -4138,7 +4202,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    let journalPreviewText = "";
     try {
       const preview = await previewInvoiceLineAcceptanceEndDate({
         lineId: draft.lineId,
@@ -4146,7 +4209,23 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         cancellationDate: draft.requiresDate ? draft.cancellationDate || null : null,
         contractHistoryId: this.contractHistoryId
       });
-      journalPreviewText = preview?.displayText || "";
+      if (diffRequiresCancelDate(preview) && !draft.requiresDate) {
+        this.updateInvoiceUiState(invoiceId, {
+          acceptanceDraft: {
+            ...draft,
+            requiresDate: true,
+            cancellationDate: this.todayLocalIso()
+          }
+        });
+        this.dispatchEvent(
+          new ShowToastEvent({
+            title: "請求操作エラー",
+            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
+            variant: "error"
+          })
+        );
+        return;
+      }
     } catch (error) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -4159,8 +4238,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     }
     const confirmed = await LightningConfirm.open({
       label: "検収終了日を変更",
-      message:
-        "検収終了日を変更します。よろしいですか？\n\n" + journalPreviewText,
+      message: "検収終了日を変更します。よろしいですか？",
       variant: "header"
     });
     if (!confirmed) {
@@ -4173,7 +4251,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           lineId: draft.lineId,
           acceptanceEndDate: draft.nextDate,
           cancellationDate: draft.requiresDate ? draft.cancellationDate : null,
-          journalPreviewText,
           expectedContentVersion: this.findInvoice(invoiceId)?.lastModifiedToken,
           businessOperationKey: await this.resolvePendingOperationKey(invoiceId)
         }
@@ -5778,16 +5855,14 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    let journalPreviewText = "";
     try {
-      const preview = await previewCancelConfirmed({
+      await previewCancelConfirmed({
         invoiceId: this.invoiceCancelState.invoiceId,
         cancellationDate: requiresDate
           ? this.invoiceCancelState.cancellationDate || null
           : null,
         contractHistoryId: this.contractHistoryId
       });
-      journalPreviewText = preview?.displayText || "";
     } catch (error) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -5807,7 +5882,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       label: "確定済み請求を取消",
       message: [
         "この請求を取消済みにし、同じ内容の未確定請求を作ります。よろしいですか？",
-        journalPreviewText,
         customerNotice
       ]
         .filter((part) => part)
@@ -5828,7 +5902,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           cancellationDate: requiresDate
             ? this.invoiceCancelState.cancellationDate || null
             : null,
-          journalPreviewText,
           requiresCustomerNotice,
           customerNotice,
           expectedContentVersion: this.findInvoice(

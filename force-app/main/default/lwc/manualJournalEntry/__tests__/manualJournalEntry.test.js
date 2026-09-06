@@ -140,6 +140,10 @@ describe("manualJournalEntry", () => {
   });
 
   it("seeds cancel date to the operation day only when the header has locked journals", async () => {
+    previewCancelManualJournal.mockResolvedValue({
+      reverseCount: 1,
+      displayText: ""
+    });
     const element = createElement("c-manual-journal-entry", {
       is: ManualJournalEntry
     });
@@ -162,6 +166,7 @@ describe("manualJournalEntry", () => {
     element.shadowRoot
       .querySelector("button[data-header-id='a05MJH000000001']")
       .click();
+    await flush();
     await flush();
 
     const dateInput = element.shadowRoot.querySelector(
@@ -187,6 +192,10 @@ describe("manualJournalEntry", () => {
   });
 
   it("omits cancel date when the header has no locked journals", async () => {
+    previewCancelManualJournal.mockResolvedValue({
+      reverseCount: 0,
+      displayText: ""
+    });
     const element = createElement("c-manual-journal-entry", {
       is: ManualJournalEntry
     });
@@ -217,8 +226,9 @@ describe("manualJournalEntry", () => {
     ).toBeNull();
   });
 
-  it("shows journal cancel preview counts before confirming manual journal cancel", async () => {
+  it("asks business confirm without journal counts before manual journal cancel", async () => {
     previewCancelManualJournal.mockResolvedValue({
+      reverseCount: 0,
       displayText: "論理削除件数: 1\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし"
     });
     LightningConfirm.open.mockResolvedValue(true);
@@ -267,8 +277,11 @@ describe("manualJournalEntry", () => {
     });
     expect(LightningConfirm.open).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining("論理削除件数: 1")
+        message: expect.stringContaining("この手動仕訳を取り消します")
       })
+    );
+    expect(LightningConfirm.open.mock.calls[0][0].message).not.toContain(
+      "論理削除件数"
     );
   });
 
@@ -336,7 +349,7 @@ describe("manualJournalEntry", () => {
     ).toBeNull();
   });
 
-  it("shows journal preview counts before confirming manual journal register (CHANGE-245)", async () => {
+  it("asks business confirm without journal counts before manual journal register (CHANGE-245)", async () => {
     previewRegisterManualJournal.mockResolvedValue({
       displayText: "論理削除件数: 1\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし"
     });
@@ -384,7 +397,7 @@ describe("manualJournalEntry", () => {
     });
     expect(LightningConfirm.open).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining("論理削除件数: 1")
+        message: expect.stringContaining("この手動仕訳を登録します")
       })
     );
     expect(registerManualJournal).toHaveBeenCalledWith(

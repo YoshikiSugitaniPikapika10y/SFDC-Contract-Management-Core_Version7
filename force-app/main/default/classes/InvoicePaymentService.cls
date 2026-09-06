@@ -205,16 +205,7 @@ public without sharing class InvoicePaymentService {
       }
     }
     // 仕様: Accounting 第1.1節・第8.5節、Core 第7.9.6節。
-    // 入金登録の取消基準日は Accounting ON かつロック済み仕訳があるときだけ。OFFは仕訳を触らない。
-    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    if (policy.AccountingEnabled__c == true) {
-      if (
-        AccountingCurrentService.hasActiveLocked(invoice.Id) &&
-        request.cancellationDate == null
-      ) {
-        throw new PaymentException('ロック済み仕訳がある取消では取消基準日が必要です。');
-      }
-    }
+    // 入金登録の取消基準日は Accounting ON かつこの操作のDiffで逆仕訳になるLockがあるときだけ。OFFは仕訳を触らない。
     return invoice;
   }
 
@@ -324,13 +315,15 @@ public without sharing class InvoicePaymentService {
     if (original.PaymentTransactionStatus__c != STATUS_ACTIVE) {
       throw new PaymentException('有効な入出金だけ取消できます。');
     }
-    if (
-      AccountingCurrentService.hasActiveLocked(original.Invoice__c) &&
-      request.cancelDate == null
-    ) {
+    AccountingDiffService.CancelPreview preview = previewCancel(
+      original.Id,
+      request.cancelDate,
+      lockedInvoice
+    );
+    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
+    if (preview.reverseCount > 0 && request.cancelDate == null) {
       throw new PaymentException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
-    previewCancel(original.Id, request.cancelDate, lockedInvoice);
     Savepoint savepoint = Database.setSavepoint();
     Boolean previousWrite = allowLifecycleWrite;
     allowLifecycleWrite = true;

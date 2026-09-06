@@ -217,9 +217,8 @@ export default class ManualJournalEntry extends LightningElement {
       ? this.registerCancelDate || null
       : null;
     this.busy = true;
-    let journalPreviewText = "";
     try {
-      const preview = await previewRegisterManualJournal({
+      await previewRegisterManualJournal({
         invoiceId: this.invoiceId,
         settingId: this.settingId,
         postingDate: this.postingDate,
@@ -228,7 +227,6 @@ export default class ManualJournalEntry extends LightningElement {
         expectedToken: this.expectedToken,
         contractHistoryId: this.contractHistoryId
       });
-      journalPreviewText = preview?.displayText || "";
     } catch (error) {
       this.busy = false;
       this.dispatchEvent(
@@ -242,8 +240,7 @@ export default class ManualJournalEntry extends LightningElement {
     }
     const confirmed = await LightningConfirm.open({
       label: "手動仕訳を登録",
-      message:
-        "この手動仕訳を登録します。よろしいですか？\n\n" + journalPreviewText,
+      message: "この手動仕訳を登録します。よろしいですか？",
       variant: "header"
     });
     if (!confirmed) {
@@ -268,9 +265,7 @@ export default class ManualJournalEntry extends LightningElement {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "手動仕訳を登録しました",
-          message: journalPreviewText,
-          variant: "success",
-          mode: journalPreviewText ? "sticky" : "dismissable"
+          variant: "success"
         })
       );
       this.settingId = "";
@@ -289,19 +284,32 @@ export default class ManualJournalEntry extends LightningElement {
     }
   }
 
-  handleStartCancel(event) {
+  async handleStartCancel(event) {
     if (this.busy) {
       return;
     }
     this.cancelHeaderId = event.currentTarget.dataset.headerId;
     this.cancelReason = "";
     this.cancelReasonText = "";
-    const header = (this.headers || []).find(
-      (row) => row.headerId === this.cancelHeaderId
-    );
-    // 仕様: Accounting 第10.3節、第10.4節、日付仕様 第7.3節、第8節
-    this.cancelRequiresDate = header?.hasLockedJournals === true;
-    this.cancelDate = this.cancelRequiresDate ? this.todayLocalIso() : "";
+    this.cancelRequiresDate = false;
+    this.cancelDate = "";
+    try {
+      const preview = await previewCancelManualJournal({
+        headerId: this.cancelHeaderId,
+        cancellationDate: null,
+        contractHistoryId: this.contractHistoryId
+      });
+      this.cancelRequiresDate = (preview?.reverseCount || 0) > 0;
+      this.cancelDate = this.cancelRequiresDate ? this.todayLocalIso() : "";
+    } catch (error) {
+      this.dispatchEvent(
+        new ShowToastEvent({
+          title: "手動仕訳エラー",
+          message: this.reduceError(error),
+          variant: "error"
+        })
+      );
+    }
   }
 
   // 仕様: Core 第7.9.6節、Accounting 第10.4節、第8.5節、日付仕様 第7.3節
@@ -334,7 +342,6 @@ export default class ManualJournalEntry extends LightningElement {
       return;
     }
     this.busy = true;
-    let journalPreviewText = "";
     try {
       const preview = await previewCancelManualJournal({
         headerId: this.cancelHeaderId,
@@ -343,7 +350,19 @@ export default class ManualJournalEntry extends LightningElement {
           : null,
         contractHistoryId: this.contractHistoryId
       });
-      journalPreviewText = preview?.displayText || "";
+      if ((preview?.reverseCount || 0) > 0 && this.cancelRequiresDate !== true) {
+        this.cancelRequiresDate = true;
+        this.cancelDate = this.todayLocalIso();
+        this.busy = false;
+        this.dispatchEvent(
+          new ShowToastEvent({
+            title: "手動仕訳の取消に失敗しました",
+            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
+            variant: "error"
+          })
+        );
+        return;
+      }
     } catch (error) {
       this.busy = false;
       this.dispatchEvent(
@@ -357,8 +376,7 @@ export default class ManualJournalEntry extends LightningElement {
     }
     const confirmed = await LightningConfirm.open({
       label: "手動仕訳を取消",
-      message:
-        "この手動仕訳を取り消します。よろしいですか？\n\n" + journalPreviewText,
+      message: "この手動仕訳を取り消します。よろしいですか？",
       variant: "header"
     });
     if (!confirmed) {
@@ -384,9 +402,7 @@ export default class ManualJournalEntry extends LightningElement {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "手動仕訳を取り消しました",
-          message: journalPreviewText,
-          variant: "success",
-          mode: journalPreviewText ? "sticky" : "dismissable"
+          variant: "success"
         })
       );
       this.cancelHeaderId = "";

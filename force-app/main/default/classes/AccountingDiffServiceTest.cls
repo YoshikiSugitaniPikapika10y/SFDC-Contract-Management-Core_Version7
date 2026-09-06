@@ -459,23 +459,18 @@ private class AccountingDiffServiceTest {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertConfirmedInvoice();
       insertActiveJournal(invoice.Id, 'preview-locked', true);
-      Boolean thrown = false;
-      try {
-        AccountingDiffService.previewCancel(
-          invoice.Id,
-          AccountingEventFixedCatalog.BILLING_CANCELLED.key,
-          null,
-          null,
-          null
-        );
-      } catch (Exception ex) {
-        thrown = true;
-        System.assert(
-          ex.getMessage().contains('取消基準日が必要'),
-          'Accounting 第8.5節: ロック済み仕訳がある取消プレビューは取消基準日が必要'
-        );
-      }
-      System.assertEquals(true, thrown);
+      AccountingDiffService.CancelPreview preview = AccountingDiffService.previewCancel(
+        invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CANCELLED.key,
+        null,
+        null,
+        null
+      );
+      System.assertEquals(
+        1,
+        preview.reverseCount,
+        'Accounting 第8.5節: ロック済み仕訳がある取消プレビューは逆仕訳件数を返す。未入力の拒否は保存時'
+      );
     }
   }
 

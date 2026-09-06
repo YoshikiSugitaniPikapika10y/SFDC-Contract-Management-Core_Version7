@@ -1170,16 +1170,20 @@ public without sharing class InvoicePreviewOpsController {
       WITH SYSTEM_MODE
       ORDER BY PostingDate__c ASC, CreatedDate ASC
     ];
-    // 仕様: Accounting 第8.5節。取消基準日要否は請求書単位の Active Lock（入金取消と同じ）。
-    Boolean invoiceHasLocked = [
-      SELECT COUNT()
+    // 仕様: Accounting 第8.5節。取消基準日要否はこのヘッダーのDiffで逆仕訳になるLock。請求書全体では見ない。
+    Map<Id, Boolean> lockedByHeaderId = new Map<Id, Boolean>();
+    for (GlJournal__c journal : [
+      SELECT GlManualJournalHeader__c
       FROM GlJournal__c
       WHERE
         Invoice__c = :invoiceId
         AND IsLocked__c = TRUE
         AND TransactionStatus__c = 'Active'
+        AND GlManualJournalHeader__c != NULL
       WITH SYSTEM_MODE
-    ] > 0;
+    ]) {
+      lockedByHeaderId.put(journal.GlManualJournalHeader__c, true);
+    }
     for (GlManualJournalHeader__c header : headers) {
       ManualJournalRowDto row = new ManualJournalRowDto();
       row.headerId = header.Id;
@@ -1193,7 +1197,7 @@ public without sharing class InvoicePreviewOpsController {
         header.TransactionStatus__c
       );
       row.canCancel = header.TransactionStatus__c == 'Active';
-      row.hasLockedJournals = invoiceHasLocked;
+      row.hasLockedJournals = lockedByHeaderId.get(header.Id) == true;
       rows.add(row);
     }
     return rows;

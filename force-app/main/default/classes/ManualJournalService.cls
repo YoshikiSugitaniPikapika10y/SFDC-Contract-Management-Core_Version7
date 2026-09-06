@@ -218,15 +218,15 @@ public without sharing class ManualJournalService {
     if (header.TransactionStatus__c != 'Active') {
       throw new ManualJournalException('有効な手動仕訳だけ取消できます。');
     }
-    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。
-    // 取消基準日要否は請求書単位の Active Lock（入金取消と同じ）。ヘッダー配下だけ見ない。
-    if (
-      AccountingCurrentService.hasActiveLocked(header.Invoice__c) &&
-      request.cancellationDate == null
-    ) {
+    AccountingDiffService.CancelPreview preview = previewCancel(
+      header.Id,
+      request.cancellationDate,
+      lockedInvoice
+    );
+    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
+    if (preview.reverseCount > 0 && request.cancellationDate == null) {
       throw new ManualJournalException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
-    previewCancel(header.Id, request.cancellationDate, lockedInvoice);
     header.TransactionStatus__c = 'Cancelled';
     header.CancellationReason__c = request.cancellationReason;
     header.CancellationReasonText__c = request.cancellationReasonText;

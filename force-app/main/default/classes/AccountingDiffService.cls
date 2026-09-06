@@ -228,6 +228,8 @@ public without sharing class AccountingDiffService {
       eventKey,
       operationKey
     );
+    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
+    assertCancellationDateIfReversals(plan.reversals, cancellationDate);
     Boolean previous = GlJournalTriggerHandler.allowEngineWrite;
     GlJournalTriggerHandler.allowEngineWrite = true;
     try {
@@ -383,9 +385,6 @@ public without sharing class AccountingDiffService {
         unlocked.add(journal);
       }
     }
-    if (!locked.isEmpty() && cancellationDate == null) {
-      throw new DiffException('ロック済み仕訳がある取消では取消基準日が必要です。');
-    }
     CancelPreview preview = new CancelPreview();
     preview.logicalDeleteCount = unlocked.size();
     preview.reverseCount = locked.size();
@@ -425,9 +424,6 @@ public without sharing class AccountingDiffService {
     List<GlJournal__c> reversals,
     Date cancellationDate
   ) {
-    if (!reversals.isEmpty() && cancellationDate == null) {
-      throw new DiffException('ロック済み仕訳がある取消では取消基準日が必要です。');
-    }
     CancelPreview preview = new CancelPreview();
     preview.logicalDeleteCount = logicalDeletes == null ? 0 : logicalDeletes.size();
     preview.reverseCount = reversals == null ? 0 : reversals.size();
@@ -482,6 +478,16 @@ public without sharing class AccountingDiffService {
     return String.join(lines, '\n');
   }
 
+  /** 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。保存時だけ未入力を拒否する。プレビューは件数を返す。 */
+  private static void assertCancellationDateIfReversals(
+    List<GlJournal__c> reversals,
+    Date cancellationDate
+  ) {
+    if (reversals != null && !reversals.isEmpty() && cancellationDate == null) {
+      throw new DiffException('ロック済み仕訳がある取消では取消基準日が必要です。');
+    }
+  }
+
   private static Boolean isCancelEvent(String eventKey) {
     return eventKey == AccountingEventFixedCatalog.BILLING_CANCELLED.key ||
       eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key ||
@@ -519,9 +525,7 @@ public without sharing class AccountingDiffService {
         unlocked.add(journal);
       }
     }
-    if (!locked.isEmpty() && cancellationDate == null) {
-      throw new DiffException('ロック済み仕訳がある取消では取消基準日が必要です。');
-    }
+    assertCancellationDateIfReversals(locked, cancellationDate);
     applyCancelAuditToJournals(unlocked, invoiceId, eventKey, operationKey);
     Boolean previous = GlJournalTriggerHandler.allowEngineWrite;
     GlJournalTriggerHandler.allowEngineWrite = true;

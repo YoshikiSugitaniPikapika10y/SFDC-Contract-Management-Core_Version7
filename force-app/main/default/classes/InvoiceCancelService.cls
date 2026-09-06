@@ -67,16 +67,14 @@ public without sharing class InvoiceCancelService {
     if (activeManuals > 0) {
       throw new CancelException('有効な手動仕訳がある請求は取消できません。');
     }
-    if (
-      AccountingCurrentService.hasActiveLocked(invoice.Id) &&
-      request.cancellationDate == null
-    ) {
-      throw new CancelException('ロック済み仕訳がある取消では取消基準日が必要です。');
-    }
     AccountingDiffService.CancelPreview journalPreview = previewConfirmed(
       invoice.Id,
       request.cancellationDate
     );
+    // 仕様: Core 第7.9.6節、Accounting 第8.5節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
+    if (journalPreview.reverseCount > 0 && request.cancellationDate == null) {
+      throw new CancelException('ロック済み仕訳がある取消では取消基準日が必要です。');
+    }
     Invoice__c original = queryOriginalInvoiceForCorrection(invoice.Id);
     InvoiceTransactionStatusService.applyCancelled(new List<Invoice__c>{ original });
     // 仕様: Core 第7.9.3節手順5・第7.9.5節。理由は元請求へ保持。取消者・日時は監査項目。
