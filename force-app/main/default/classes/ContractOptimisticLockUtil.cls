@@ -141,7 +141,15 @@ public with sharing class ContractOptimisticLockUtil {
 
   /** 仕様: Core 第4.3.12節 */
   public static String toHistoryProductToken(Id historyId) {
-    return toToken(resolveHistoryProductDatetime(historyId));
+    return toHistoryProductToken(historyId, null);
+  }
+
+  /** 仕様: Core 第4.3.11節、第4.3.12節、第12.4節。読んだ契約履歴の更新日時は取り直さない。 */
+  public static String toHistoryProductToken(
+    Id historyId,
+    Datetime knownHistoryModified
+  ) {
+    return toToken(resolveHistoryProductDatetime(historyId, knownHistoryModified));
   }
 
   /** 仕様: Core 第4.3.12節、第5.2節、第12.4節 */

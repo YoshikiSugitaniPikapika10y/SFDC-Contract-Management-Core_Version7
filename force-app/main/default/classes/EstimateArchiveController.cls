@@ -27,7 +27,7 @@ public without sharing class EstimateArchiveController {
     public String businessOperationKey;
   }
 
-  /** 仕様: Core 第4.3.12節、第5.5節 */
+  /** 仕様: Core 第4.3.11節、第4.3.12節、第5.5節、第12.4節。1回の取得で契約履歴を取り直さない。 */
   @AuraEnabled
   public static ArchiveContext getArchiveContext(Id contractHistoryId) {
     ContractPermissionUtil.assertArchiveEstimate();
@@ -35,7 +35,7 @@ public without sharing class EstimateArchiveController {
       throw toAuraHandled('契約履歴IDが指定されていません。');
     }
     List<ContractHistory__c> histories = [
-      SELECT Id, historystatus__c
+      SELECT Id, historystatus__c, LastModifiedDate
       FROM ContractHistory__c
       WHERE Id = :contractHistoryId
       WITH SYSTEM_MODE
@@ -48,7 +48,8 @@ public without sharing class EstimateArchiveController {
     context.contractHistoryId = histories[0].Id;
     context.historyStatus = histories[0].historystatus__c;
     context.lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
-      histories[0].Id
+      histories[0].Id,
+      histories[0].LastModifiedDate
     );
     return context;
   }

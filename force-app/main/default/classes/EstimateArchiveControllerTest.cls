@@ -28,16 +28,31 @@ private class EstimateArchiveControllerTest {
         null
       );
 
+      history = [
+        SELECT Id, LastModifiedDate, historystatus__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
       Test.startTest();
+      EstimateArchiveController.getArchiveContext(history.Id);
+      Integer queriesBefore = Limits.getQueries();
       EstimateArchiveController.ArchiveContext context = EstimateArchiveController.getArchiveContext(
         history.Id
+      );
+      System.assertEquals(
+        2,
+        Limits.getQueries() - queriesBefore,
+        'Core 第4.3.11節: 1回の取得で契約履歴を取り直さない'
       );
       Test.stopTest();
 
       System.assertEquals(history.Id, context.contractHistoryId);
       System.assertEquals('Estimate', context.historyStatus);
       System.assertEquals(
-        ContractOptimisticLockUtil.toHistoryProductToken(history.Id),
+        ContractOptimisticLockUtil.toHistoryProductToken(
+          history.Id,
+          history.LastModifiedDate
+        ),
         context.lastModifiedToken,
         'Core 第4.3.12節: 手動Archiveの比較値は履歴と商品'
       );
