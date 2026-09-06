@@ -352,6 +352,7 @@ private class AccountingEngineTest {
         'Accounting 第4.5節・第8.2節: 使い回したロック行の請求日を読む'
       );
       locked.get('BillingAccountKeySnapShot__c');
+      locked.get('ContractHistory__c');
       System.assertEquals(
         1000,
         locked.Amount__c,

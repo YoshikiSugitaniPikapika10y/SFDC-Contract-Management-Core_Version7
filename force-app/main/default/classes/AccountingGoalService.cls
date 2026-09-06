@@ -2285,6 +2285,10 @@ public without sharing class AccountingGoalService {
     extraFields.add('Amount__c');
     extraFields.add('TaxAmount__c');
     extraFields.add('TaxInclusiveAmount__c');
+    // 仕様: Accounting 第8.2節、開発ルール第13節。fillRelatedContextが請求の履歴・サービス・請求アカウント参照を読む。
+    extraFields.add('ContractHistory__c');
+    extraFields.add('ContractService__c');
+    extraFields.add('BillingAccountSnapShot__c');
     Boolean needPath = needsRelatedTenantObjects() || needsRelatedCopyObjects();
     if (hasInvoiceConditionFields(invoice, extraFields, needPath)) {
       return invoice;
@@ -2305,34 +2309,30 @@ public without sharing class AccountingGoalService {
     if (loaded.isEmpty()) {
       return invoice;
     }
-    for (String fieldName : extraFields) {
-      putIfMissing(invoice, loaded[0], fieldName);
-    }
-    if (needPath) {
-      putIfMissing(invoice, loaded[0], 'ContractHistory__c');
-      putIfMissing(invoice, loaded[0], 'ContractService__c');
-      putIfMissing(invoice, loaded[0], 'BillingAccountSnapShot__c');
-    }
-    return invoice;
+    // SOQL行へ未SELECT項目をputしても後続のgetが落ちる。取り直した行をメモリ行へ載せる。
+    Invoice__c hydrated = new Invoice__c();
+    copyPopulatedFields(hydrated, invoice);
+    copyPopulatedFields(hydrated, loaded[0]);
+    return hydrated;
   }
 
-  private static void putIfMissing(
+  private static void copyPopulatedFields(
     Invoice__c target,
-    Invoice__c source,
-    String fieldName
+    Invoice__c source
   ) {
-    if (
-      target == null ||
-      source == null ||
-      String.isBlank(fieldName) ||
-      hasQueriedField(target, fieldName)
-    ) {
+    if (target == null || source == null) {
       return;
     }
-    try {
-      target.put(fieldName, source.get(fieldName));
-    } catch (SObjectException ex) {
-      return;
+    Map<String, Object> populated = source.getPopulatedFieldsAsMap();
+    for (String fieldName : populated.keySet()) {
+      if (String.isBlank(fieldName)) {
+        continue;
+      }
+      try {
+        target.put(fieldName, populated.get(fieldName));
+      } catch (SObjectException ex) {
+        continue;
+      }
     }
   }
 

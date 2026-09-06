@@ -61,6 +61,8 @@ public without sharing class AccountingDiffService {
     GlAccountingPolicy__c policy = eventKey == AccountingEventFixedCatalog.BILLING_CONFIRMED.key
       ? GlAccountingPolicyService.freezeOnFirstConfirm()
       : GlAccountingPolicyService.requireOrgPolicy();
+    // 仕様: Accounting 第8.2節手順2。この処理のロック後に仕訳を収集する。前の処理のCurrentは使わない。
+    AccountingCurrentService.invalidate(invoiceId);
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
     if (policy.AccountingEnabled__c != true) {
@@ -243,6 +245,8 @@ public without sharing class AccountingDiffService {
         ? knownLockedInvoice
         : AccountingCauseLockService.lockInvoice(invoiceId);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+    // 仕様: Accounting 第8.2節手順2。この処理のロック後に仕訳を収集する。前の処理のCurrentは使わない。
+    AccountingCurrentService.invalidate(invoiceId);
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
     if (policy.AccountingEnabled__c != true) {

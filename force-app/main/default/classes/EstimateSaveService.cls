@@ -1366,7 +1366,7 @@ public without sharing class EstimateSaveService {
     );
   }
 
-  /** 仕様: Core 第3.4.2節、第4.3.3節、第11.4.1節。名前・請求アカウント・税率・備考は載せず、表示中の契約サービス追加項目だけ書く。 */
+  /** 仕様: Core 第3.4.2節、第4.3.3節、第11.4.1節。Change・Renew・Cancelは備考を載せず表示中の追加項目だけ。New（Ordered編集を含む）は備考も書く。 */
   public static void applyDisplayedServiceCustomFields(
     Id serviceId,
     EstimateCreateController.EstimateSaveRequest request
@@ -1380,10 +1380,20 @@ public without sharing class EstimateSaveService {
       null,
       request.selectedType
     );
-    if (visible == null || visible.isEmpty()) {
+    Boolean writeNewMemo =
+      request.selectedType == 'New' &&
+      request.contractServiceCustomFields != null &&
+      request.contractServiceCustomFields.containsKey('CustomerMemo__c');
+    if ((visible == null || visible.isEmpty()) && !writeNewMemo) {
       return;
     }
     ContractService__c contractService = new ContractService__c(Id = serviceId);
+    if (writeNewMemo) {
+      Object memo = request.contractServiceCustomFields.get('CustomerMemo__c');
+      contractService.CustomerMemo__c = memo == null
+        ? null
+        : String.valueOf(memo);
+    }
     applyContractServiceCustomFields(contractService, request);
     Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
     ContractServiceWriteGuard.allowPackageWrite(true);
