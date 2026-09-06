@@ -832,11 +832,11 @@
                     <thead>
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
-                        <th scope="col">イベント</th>
+                        <th scope="col">計上日</th>
                         <th scope="col">借方</th>
                         <th scope="col">貸方</th>
                         <th class="num-col" scope="col">金額</th>
-                        <th scope="col">計上日</th>
+                        <th scope="col">イベント</th>
                         <th scope="col">計上時期</th>
                         <th scope="col">状態</th>
                         <th scope="col">Lock</th>
@@ -861,6 +861,10 @@
                               </template>
                             </template>
                           </td>
+                          <td>{journal.postingDate}</td>
+                          <td>{journal.debitAccountName}</td>
+                          <td>{journal.creditAccountName}</td>
+                          <td class="num-col">{journal.amount}</td>
                           <td>
                             <button
                               type="button"
@@ -873,10 +877,6 @@
                             </button>
                             {journal.eventName}
                           </td>
-                          <td>{journal.debitAccountName}</td>
-                          <td>{journal.creditAccountName}</td>
-                          <td class="num-col">{journal.amount}</td>
-                          <td>{journal.postingDate}</td>
                           <td>{journal.postingPeriod}</td>
                           <td>{journal.transactionStatusLabel}</td>
                           <td class="journal-lock-cell">
@@ -2208,7 +2208,8 @@
           </template>
           </template>
 
-          <footer class="invoice-footer" aria-label="請求金額">
+          <footer class="invoice-footer" aria-label={invoice.footerAriaLabel}>
+            <template if:true={invoice.showInvoiceMoneyFooter}>
             <div class="summary-row summary-row_totals">
               <div class="money-item">
                 <span class="money-label">税抜</span>
@@ -2259,6 +2260,25 @@
                 </span>
               </div>
             </div>
+            </template>
+            <template if:true={invoice.showJournalSlotFooter}>
+            <div class="summary-row summary-row_totals" aria-label="スロット残高">
+              <template for:each={invoice.slotNets} for:item="slotNet">
+                <div key={slotNet.key} class="money-item">
+                  <span class="money-label">{slotNet.abbreviation}</span>
+                  <span class="money-value money-value_secondary">
+                    <lightning-formatted-number
+                      value={slotNet.amount}
+                      format-style="currency"
+                      currency-code="JPY"
+                      maximum-fraction-digits="0"
+                    >
+                    </lightning-formatted-number>
+                  </span>
+                </div>
+              </template>
+            </div>
+            </template>
             <template if:true={invoice.showCardAccountingTags}>
               <div class="summary-row summary-row_tags" aria-label="会計タグ">
                 <template for:each={invoice.tagResults} for:item="tag">

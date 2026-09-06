@@ -65,6 +65,40 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_slotNetsAndAbbreviationDisplay() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'SLOTNET');
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        bundle.journals.size(),
+        'Core 第7.7.3節: 仕訳タブは仕訳を返す'
+      );
+      System.assertEquals(
+        'CASH SLOTNET Debit',
+        bundle.journals[0].debitAccountName,
+        'Accounting 第4.3節: 借方は略称と科目'
+      );
+      System.assertEquals(
+        'UAC SLOTNET Credit',
+        bundle.journals[0].creditAccountName,
+        'Accounting 第4.3節: 貸方は略称と科目'
+      );
+      System.assertEquals(2, bundle.slotNets.size(), 'Core 第8.10節: 0円スロットは出さない');
+      System.assertEquals('CASH', bundle.slotNets[0].abbreviation);
+      System.assertEquals(1, bundle.slotNets[0].amount);
+      System.assertEquals('UAC', bundle.slotNets[1].abbreviation);
+      System.assertEquals(1, bundle.slotNets[1].amount);
+    }
+  }
+
+  @IsTest
   static void getOpsBundle_manualSettings_useNameAsLabelAndKeepDescription() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

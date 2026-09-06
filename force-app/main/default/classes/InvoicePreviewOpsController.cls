@@ -33,6 +33,8 @@ public without sharing class InvoicePreviewOpsController {
     @AuraEnabled
     public List<JournalRowDto> journals;
     @AuraEnabled
+    public List<SlotNetRowDto> slotNets;
+    @AuraEnabled
     public List<TagResultRowDto> tagResults;
     @AuraEnabled
     public List<ManualJournalRowDto> manualJournals;
@@ -120,6 +122,16 @@ public without sharing class InvoicePreviewOpsController {
       String rightJournal = other.journalId == null ? '' : String.valueOf(other.journalId);
       return leftJournal.compareTo(rightJournal);
     }
+  }
+
+  /** 仕様: Core 第8.10節、Accounting 第7.3節。 */
+  public class SlotNetRowDto {
+    @AuraEnabled
+    public String key;
+    @AuraEnabled
+    public String abbreviation;
+    @AuraEnabled
+    public Decimal amount;
   }
 
   public class TagResultRowDto {
@@ -263,6 +275,7 @@ public without sharing class InvoicePreviewOpsController {
     bundle.paymentLines = loadPaymentLines(invoice.Id);
     bundle.payments = loadPayments(invoice.Id);
     bundle.journals = loadJournals(invoice.Id);
+    bundle.slotNets = slotNetsFromJournalRows(bundle.journals);
     bundle.tagResults = loadTagResults(invoice.Id);
     bundle.manualJournals = loadManualJournals(invoice.Id);
     bundle.manualSettings = loadManualSettings();
@@ -1054,6 +1067,42 @@ public without sharing class InvoicePreviewOpsController {
       row.extraFieldValues = extraById.get(row.journalId);
     }
     return rows;
+  }
+
+  /** 仕様: Core 第8.10節、Accounting 第7.3節。 */
+  private static List<SlotNetRowDto> slotNetsFromJournalRows(
+    List<JournalRowDto> rows
+  ) {
+    List<GlJournal__c> records = new List<GlJournal__c>();
+    if (rows != null) {
+      for (JournalRowDto row : rows) {
+        records.add(
+          new GlJournal__c(
+            Amount__c = row.amount,
+            DebitSlotKey__c = row.debitSlotKey,
+            CreditSlotKey__c = row.creditSlotKey,
+            TransactionStatus__c = row.transactionStatus
+          )
+        );
+      }
+    }
+    Map<String, Decimal> nets = AccountingTagEvaluationService.slotAbbreviationNets(
+      records
+    );
+    List<SlotNetRowDto> out = new List<SlotNetRowDto>();
+    for (
+      AccountingSlotFixedCatalog.Definition slot : AccountingSlotFixedCatalog.values()
+    ) {
+      if (!nets.containsKey(slot.abbreviation)) {
+        continue;
+      }
+      SlotNetRowDto dto = new SlotNetRowDto();
+      dto.key = slot.abbreviation;
+      dto.abbreviation = slot.abbreviation;
+      dto.amount = nets.get(slot.abbreviation);
+      out.add(dto);
+    }
+    return out;
   }
 
   private static List<GlAccountingTagRule__c> cachedEnabledTagRules;

@@ -1,6 +1,7 @@
 import { createElement } from "lwc";
 import OrderInvoicePreviewTable from "c/orderInvoicePreviewTable";
 import getOpsBundle from "@salesforce/apex/InvoicePreviewOpsController.getOpsBundle";
+import getBoardContext from "@salesforce/apex/InvoiceSendBoardController.getBoardContext";
 
 jest.mock(
   "@salesforce/customPermission/Loop_16_Can_LockJournal",
@@ -1203,5 +1204,75 @@ describe("orderInvoicePreviewTable lock note (Core 7.8 / 7.8.2 / 7.11)", () => {
       "確定済み・取消済みの請求は編集できません。"
     );
     expect(element.shadowRoot.textContent).not.toContain("連携済または消込済");
+  });
+});
+
+describe("orderInvoicePreviewTable journal footer (Core 8.10)", () => {
+  afterEach(() => {
+    while (document.body.firstChild) {
+      document.body.removeChild(document.body.firstChild);
+    }
+    getOpsBundle.mockResolvedValue(null);
+  });
+
+  it("仕訳タブのフッタはスロットNetで請求ヘッダー金額は出さない", async () => {
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: true,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      journals: [
+        {
+          journalId: "a03JNL000000001",
+          eventName: "請求確定",
+          debitAccountName: "AR 売掛金",
+          creditAccountName: "DEF 前受収益",
+          amount: 1000,
+          postingDate: "2026-06-01",
+          transactionStatus: "Active",
+          isLocked: false
+        }
+      ],
+      slotNets: [
+        { key: "AR", abbreviation: "AR", amount: 1000 },
+        { key: "DEF", abbreviation: "DEF", amount: 1000 }
+      ],
+      tagResults: [],
+      payments: [],
+      paymentLines: []
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview({
+      amountTotal: 1000,
+      taxTotal: 100,
+      clearedAmount: 0,
+      sourceHistoryVersion: "1"
+    });
+    preview.invoices[0].invoiceTransactionStatus = "Confirmed";
+    element.preview = preview;
+    document.body.appendChild(element);
+    const journalsTab = await waitUntil(
+      () => element.shadowRoot.querySelector('button[data-tab="journals"]')
+    );
+    journalsTab.click();
+    await waitUntil(
+      () =>
+        element.shadowRoot.querySelector(
+          'footer.invoice-footer [aria-label="スロット残高"]'
+        )
+    );
+    const footer = element.shadowRoot.querySelector("footer.invoice-footer");
+    expect(footer.getAttribute("aria-label")).toBe("スロット残高");
+    expect(footer.textContent).toContain("AR");
+    expect(footer.textContent).toContain("DEF");
+    expect(footer.textContent).not.toContain("税抜");
+    expect(footer.textContent).not.toContain("未入金額");
+    expect(footer.textContent).not.toContain("借方合計");
   });
 });

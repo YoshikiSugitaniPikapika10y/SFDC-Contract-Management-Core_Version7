@@ -344,6 +344,23 @@ public without sharing class AccountingTagEvaluationService {
     return balances;
   }
 
+  /** 仕様: Accounting 第7.3節。画面のスロットNet。0とヘッダ略称は含めない。 */
+  public static Map<String, Decimal> slotAbbreviationNets(
+    List<GlJournal__c> journals
+  ) {
+    Map<String, Decimal> all = slotBalancesFrom(journals);
+    Map<String, Decimal> result = new Map<String, Decimal>();
+    for (
+      AccountingSlotFixedCatalog.Definition slot : AccountingSlotFixedCatalog.values()
+    ) {
+      Decimal amount = all.get(slot.abbreviation);
+      if (amount != null && amount != 0) {
+        result.put(slot.abbreviation, amount);
+      }
+    }
+    return result;
+  }
+
   private static void addBalance(
     Map<String, Decimal> balances,
     String slotKey,

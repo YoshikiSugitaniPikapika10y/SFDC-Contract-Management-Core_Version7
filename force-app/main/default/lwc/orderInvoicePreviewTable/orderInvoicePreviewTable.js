@@ -2508,6 +2508,13 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           isPaymentsTab: activeTab === "payments",
           // 仕様: Accounting 第1.1節。OFFは仕訳タブ内容を出さない。
           isJournalsTab: accountingEnabled && activeTab === "journals",
+          showInvoiceMoneyFooter: !(accountingEnabled && activeTab === "journals"),
+          showJournalSlotFooter: accountingEnabled && activeTab === "journals",
+          footerAriaLabel:
+            accountingEnabled && activeTab === "journals"
+              ? "スロット残高"
+              : "請求金額",
+          slotNets: bundle?.slotNets || [],
           linesTabClass:
             activeTab === "lines" ? "invoice-tab invoice-tab_active" : "invoice-tab",
           paymentsTabClass:

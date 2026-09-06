@@ -486,6 +486,7 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
       .map((th) => th.textContent.trim())
       .join(" ");
     expect(headerText).not.toContain("確認用");
+    expect(headerText).toContain("選択 計上日 借方 貸方 金額 イベント");
     expect(element.shadowRoot.textContent).not.toContain("明細税抜 1,100円");
   });
 

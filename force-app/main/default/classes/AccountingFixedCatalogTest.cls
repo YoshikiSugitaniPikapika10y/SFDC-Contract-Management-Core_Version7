@@ -258,6 +258,21 @@ private class AccountingFixedCatalogTest {
       abbreviationFailed = true;
     }
     System.assert(abbreviationFailed, '略称はスロットキーではない');
+    System.assertEquals(
+      'AR 売掛金',
+      AccountingSlotFixedCatalog.slotAndAccount(
+        AccountingSlotFixedCatalog.AccountsReceivable.key,
+        '売掛金'
+      ),
+      'Accounting 第4.3節: 借貸は略称と科目'
+    );
+    System.assertEquals(
+      '売掛債権',
+      AccountingSlotFixedCatalog.nameOf(
+        AccountingSlotFixedCatalog.AccountsReceivable.key
+      ),
+      'Accounting 第4.3節: GlSlotKeyラベルはnameのまま'
+    );
   }
 
   @IsTest
