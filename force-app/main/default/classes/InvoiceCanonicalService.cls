@@ -2977,6 +2977,7 @@ public without sharing class InvoiceCanonicalService {
       'ContractProduct__r.Type__c',
       'ContractHistory__c',
       'ContractHistory__r.Opportunity__c',
+      'ContractHistory__r.Opportunity__r.Id',
       'ContractHistory__r.Version__c',
       'ContractHistory__r.ContractService__c',
       'ContractHistory__r.ContractService__r.Name',

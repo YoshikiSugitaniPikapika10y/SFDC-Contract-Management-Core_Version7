@@ -136,6 +136,7 @@ public without sharing class InvoiceProductFieldCopyService {
   private static Map<Id, ContractHistory__c> cachedHistoriesById = new Map<Id, ContractHistory__c>();
   private static Map<Id, Set<String>> cachedHistoryFieldsById = new Map<Id, Set<String>>();
   private static Map<Id, ContractService__c> cachedServicesById = new Map<Id, ContractService__c>();
+  private static Map<Id, Set<String>> cachedServiceFieldsById = new Map<Id, Set<String>>();
   private static Map<Id, ContractProduct__c> cachedContractProductsById = new Map<Id, ContractProduct__c>();
   private static Map<Id, Set<String>> cachedContractProductFieldsById = new Map<Id, Set<String>>();
   private static Map<Id, BillingAccount__c> cachedBillingAccountsById = new Map<Id, BillingAccount__c>();
@@ -153,6 +154,7 @@ public without sharing class InvoiceProductFieldCopyService {
     cachedHistoriesById = new Map<Id, ContractHistory__c>();
     cachedHistoryFieldsById = new Map<Id, Set<String>>();
     cachedServicesById = new Map<Id, ContractService__c>();
+    cachedServiceFieldsById = new Map<Id, Set<String>>();
     cachedContractProductsById = new Map<Id, ContractProduct__c>();
     cachedContractProductFieldsById = new Map<Id, Set<String>>();
     cachedBillingAccountsById = new Map<Id, BillingAccount__c>();
@@ -228,6 +230,14 @@ public without sharing class InvoiceProductFieldCopyService {
     }
     if (sobjectType == ContractService__c.SObjectType) {
       cachedServicesById.put(record.Id, (ContractService__c) record);
+      cachedServiceFieldsById.put(
+        record.Id,
+        coverageFields(
+          record,
+          queriedFields,
+          cachedServiceFieldsById.get(record.Id)
+        )
+      );
       return;
     }
     if (sobjectType == ContractProduct__c.SObjectType) {
@@ -306,7 +316,10 @@ public without sharing class InvoiceProductFieldCopyService {
     if (objectApiName == OBJECT_CONTRACT_HISTORY) {
       return cachedHistoriesById.get(recordId);
     }
-    if (objectApiName == OBJECT_CONTRACT_SERVICE) {
+    if (
+      objectApiName == OBJECT_CONTRACT_SERVICE &&
+      cacheCovers(cachedServiceFieldsById.get(recordId), neededFields)
+    ) {
       return cachedServicesById.get(recordId);
     }
     if (
@@ -692,7 +705,10 @@ public without sharing class InvoiceProductFieldCopyService {
           WHERE Id IN :missingServiceIds
           WITH SYSTEM_MODE
         ]) {
-          cachedServicesById.put(service.Id, service);
+          rememberRecord(
+            service,
+            new Set<String>{ 'Id', 'BiilingAcccount__c', 'Account__c' }
+          );
           if (service.BiilingAcccount__c != null) {
             maps.billingAccountIdByServiceId.put(
               service.Id,
@@ -1423,6 +1439,18 @@ public without sharing class InvoiceProductFieldCopyService {
       OBJECT_CONTRACT_HISTORY,
       'ContractService__c'
     );
+    // 仕様: Core 第11.4.2節。契約履歴のコピー元は契約サービス関係をSELECTする。
+    if (objectApiName == OBJECT_CONTRACT_HISTORY) {
+      if (!selectFields.contains('ContractService__r.Id')) {
+        selectFields.add('ContractService__r.Id');
+      }
+      if (!selectFields.contains('ContractService__r.Account__c')) {
+        selectFields.add('ContractService__r.Account__c');
+      }
+      if (!selectFields.contains('ContractService__r.BiilingAcccount__c')) {
+        selectFields.add('ContractService__r.BiilingAcccount__c');
+      }
+    }
     addWalkField(
       selectFields,
       fieldMap,
@@ -1453,7 +1481,7 @@ public without sharing class InvoiceProductFieldCopyService {
     if (rows.isEmpty()) {
       return null;
     }
-    rememberRecord(rows[0]);
+    rememberRecord(rows[0], new Set<String>(selectFields));
     return rows[0];
   }
 

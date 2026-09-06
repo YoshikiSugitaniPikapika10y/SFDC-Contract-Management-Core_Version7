@@ -227,12 +227,15 @@ public without sharing class InvoiceOpsController {
       invoices = [
         SELECT
           Id,
+          InvoiceDate__c,
           InvoiceTransactionStatus__c,
           DeliveryStatus__c,
           CollectionRefundStatus__c,
+          Amount__c,
           TaxAmount__c,
           TaxInclusiveAmount__c,
           InvoicePaymentNet__c,
+          BillingAccountKeySnapShot__c,
           SystemIntegrationDate__c,
           PaymentClearingCompletedDate__c,
           InvoiceDeliveryMethodSnapShot__c,

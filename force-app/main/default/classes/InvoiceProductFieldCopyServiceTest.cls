@@ -763,4 +763,94 @@ private class InvoiceProductFieldCopyServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void querySourceRecord_contractHistory_selectsContractServiceRelation() {
+    ContractTestDataFactory.initTestContext();
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Copy History Acc');
+      BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Copy History Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billing.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Copy History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+      insert history;
+      InvoiceProductFieldCopyService.resetCache();
+      SObject loaded = InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+        history.Id
+      );
+      System.assertNotEquals(null, loaded, '契約履歴を読む');
+      SObject related = loaded.getSObject('ContractService__r');
+      System.assertNotEquals(
+        null,
+        related,
+        '仕様: Core 第11.4.2節。契約履歴のコピー元はContractService__rをSELECTする'
+      );
+      System.assertEquals(service.Id, related.Id);
+    }
+  }
+
+  @IsTest
+  static void querySourceRecord_contractService_doesNotReuseThinCache() {
+    ContractTestDataFactory.initTestContext();
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Thin Service Acc');
+      BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Thin Service Name',
+        Account__c = account.Id,
+        BiilingAcccount__c = billing.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Thin_Service_Name',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_AUTO_RENEW,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Note__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      ContractService__c thin = [
+        SELECT Id, TaxPercent__c, Account__c, BiilingAcccount__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      InvoiceProductFieldCopyService.rememberRecords(
+        new List<SObject>{ thin }
+      );
+      SObject loaded = InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
+        service.Id
+      );
+      System.assertEquals(
+        'Thin Service Name',
+        (String) loaded.get('Name'),
+        '仕様: Core 第11.4.2節。薄い契約サービスキャッシュではFromを読まない'
+      );
+    }
+  }
 }

@@ -666,6 +666,59 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void applyNotAutoRenewFieldCopy_readsServiceAfterThinRemember() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Account account = ContractTestDataFactory.insertAccount('薄いサービス取引先');
+      BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        '薄いサービス商談'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = '薄いサービス名',
+        Account__c = account.Id,
+        BiilingAcccount__c = billing.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Thin_Service_Note',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Note__c'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Opportunity__c = opportunity.Id,
+        ContractService__c = service.Id
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      ContractService__c thin = [
+        SELECT Id, TaxPercent__c, Account__c, BiilingAcccount__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      InvoiceProductFieldCopyService.rememberRecords(new List<SObject>{ thin });
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      EstimateSaveService.applyNotAutoRenewFieldCopy(history, request);
+      System.assertEquals(
+        '薄いサービス名',
+        history.Note__c,
+        '仕様: Core 第11.4.2節・第4.9節。薄い契約サービスキャッシュではFromを取り直す'
+      );
+    }
+  }
+
+  @IsTest
   static void applyNotAutoRenewFieldCopy_doesNotFillDisplayedSendContact() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.ensureOrgDocumentSetting();

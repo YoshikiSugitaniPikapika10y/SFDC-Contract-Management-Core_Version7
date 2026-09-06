@@ -2278,17 +2278,19 @@ public without sharing class AccountingGoalService {
     }
     Set<String> extraFields = tenantConditionFields(Invoice__c.SObjectType);
     extraFields.addAll(copySourceFields(Invoice__c.SObjectType));
+    // 仕様: Accounting 第4.5節・第8.2節・第9.1節・第7.5節、Core 第12.4節。
+    // 確定仕訳の計上日は請求日。キーは請求スナップショット。タグはヘッダ金額。
+    extraFields.add('InvoiceDate__c');
+    extraFields.add('BillingAccountKeySnapShot__c');
+    extraFields.add('Amount__c');
+    extraFields.add('TaxAmount__c');
+    extraFields.add('TaxInclusiveAmount__c');
     Boolean needPath = needsRelatedTenantObjects() || needsRelatedCopyObjects();
-    if (extraFields.isEmpty() && !needPath) {
-      return invoice;
-    }
     if (hasInvoiceConditionFields(invoice, extraFields, needPath)) {
       return invoice;
     }
     Set<String> selectFields = new Set<String>(extraFields);
     selectFields.add('Id');
-    // 仕様: Accounting 第4.5節、第8.2節、Core 第12.4節。確定仕訳の計上日は請求日。
-    selectFields.add('InvoiceDate__c');
     if (needPath) {
       selectFields.add('ContractHistory__c');
       selectFields.add('ContractService__c');
@@ -2306,7 +2308,6 @@ public without sharing class AccountingGoalService {
     for (String fieldName : extraFields) {
       putIfMissing(invoice, loaded[0], fieldName);
     }
-    putIfMissing(invoice, loaded[0], 'InvoiceDate__c');
     if (needPath) {
       putIfMissing(invoice, loaded[0], 'ContractHistory__c');
       putIfMissing(invoice, loaded[0], 'ContractService__c');

@@ -326,6 +326,42 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void goalBuild_reusedLockInvoiceKeepsDateKeyAndAmounts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('LockReuse');
+      enableAccounting();
+      seedMaps();
+      markConfirmed(fixture.invoice);
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(
+        fixture.invoice.Id
+      );
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      Test.startTest();
+      List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
+        locked,
+        policy,
+        new List<GlJournal__c>()
+      );
+      Test.stopTest();
+      System.assertEquals(
+        Date.newInstance(2026, 6, 1),
+        locked.InvoiceDate__c,
+        'Accounting 第4.5節・第8.2節: 使い回したロック行の請求日を読む'
+      );
+      locked.get('BillingAccountKeySnapShot__c');
+      System.assertEquals(
+        1000,
+        locked.Amount__c,
+        'Accounting 第7.5節: 使い回したロック行のヘッダ税抜を読む'
+      );
+      System.assertEquals(false, goals.isEmpty());
+    }
+  }
+
+  @IsTest
   static void goalBuild_resolvesInvoiceContextTenantMapOnConfirm() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('InvCtx');
