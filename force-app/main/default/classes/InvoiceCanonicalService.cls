@@ -520,10 +520,11 @@ public without sharing class InvoiceCanonicalService {
     String expectedToken
   ) {
     List<InvoiceLine__c> lines = loadAcceptanceLines(acceptanceEndDateByLineId);
-    Set<Id> confirmedInvoiceIds = lockConfirmedAcceptanceInvoices(
+    Map<Id, Invoice__c> lockedById = lockConfirmedAcceptanceInvoices(
       lines,
       cancellationDate
     );
+    Set<Id> confirmedInvoiceIds = confirmedAcceptanceInvoiceIds(lines);
     Set<Id> invoiceIds = new Set<Id>();
     for (InvoiceLine__c line : lines) {
       invoiceIds.add(line.Invoice__c);
@@ -533,14 +534,8 @@ public without sharing class InvoiceCanonicalService {
     );
     if (String.isNotBlank(businessOperationKey) && invoiceIds.size() == 1) {
       Id invoiceId = new List<Id>(invoiceIds)[0];
-      Invoice__c locked = [
-        SELECT BusinessOperationKey__c
-        FROM Invoice__c
-        WHERE Id = :invoiceId
-        WITH SYSTEM_MODE
-        LIMIT 1
-      ];
-      if (locked.BusinessOperationKey__c == operationKey) {
+      Invoice__c locked = lockedById.get(invoiceId);
+      if (locked != null && locked.BusinessOperationKey__c == operationKey) {
         return;
       }
     }
@@ -558,7 +553,8 @@ public without sharing class InvoiceCanonicalService {
     applyAcceptanceAccounting(
       confirmedInvoiceIds,
       cancellationDate,
-      businessOperationKey
+      businessOperationKey,
+      lockedById
     );
   }
 
@@ -568,10 +564,11 @@ public without sharing class InvoiceCanonicalService {
     Date cancellationDate
   ) {
     List<InvoiceLine__c> lines = loadAcceptanceLines(acceptanceEndDateByLineId);
-    Set<Id> confirmedInvoiceIds = lockConfirmedAcceptanceInvoices(
+    Map<Id, Invoice__c> lockedById = lockConfirmedAcceptanceInvoices(
       lines,
       cancellationDate
     );
+    Set<Id> confirmedInvoiceIds = confirmedAcceptanceInvoiceIds(lines);
     if (!isAccountingEnabledForAcceptance(confirmedInvoiceIds)) {
       AccountingDiffService.CancelPreview empty = new AccountingDiffService.CancelPreview();
       empty.logicalDeleteCount = 0;
@@ -597,7 +594,8 @@ public without sharing class InvoiceCanonicalService {
         AccountingDiffService.CancelPreview one = AccountingDiffService.previewApply(
           invoiceId,
           AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key,
-          cancellationDate
+          cancellationDate,
+          lockedById.get(invoiceId)
         );
         preview.logicalDeleteCount += one.logicalDeleteCount == null
           ? 0
@@ -640,7 +638,8 @@ public without sharing class InvoiceCanonicalService {
   private static void applyAcceptanceAccounting(
     Set<Id> invoiceIds,
     Date cancellationDate,
-    String businessOperationKey
+    String businessOperationKey,
+    Map<Id, Invoice__c> lockedById
   ) {
     if (!isAccountingEnabledForAcceptance(invoiceIds)) {
       return;
@@ -654,7 +653,8 @@ public without sharing class InvoiceCanonicalService {
         invoiceId,
         AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key,
         operationKey,
-        cancellationDate
+        cancellationDate,
+        lockedById == null ? null : lockedById.get(invoiceId)
       );
     }
   }
@@ -740,37 +740,38 @@ public without sharing class InvoiceCanonicalService {
     return lines;
   }
 
-  private static Set<Id> lockConfirmedAcceptanceInvoices(
+  private static Map<Id, Invoice__c> lockConfirmedAcceptanceInvoices(
     List<InvoiceLine__c> lines,
     Date cancellationDate
   ) {
-    Set<Id> confirmedInvoiceIds = new Set<Id>();
     Set<Id> allInvoiceIds = new Set<Id>();
     for (InvoiceLine__c line : lines) {
       allInvoiceIds.add(line.Invoice__c);
-      if (InvoiceTransactionStatusService.isConfirmed(line.Invoice__r)) {
-        confirmedInvoiceIds.add(line.Invoice__c);
+    }
+    Map<Id, Invoice__c> lockedById = AccountingCauseLockService.lockInvoices(allInvoiceIds);
+    if (!allInvoiceIds.isEmpty()) {
+      for (Id invoiceId : allInvoiceIds) {
+        if (
+          AccountingCurrentService.hasActiveLocked(invoiceId) &&
+          cancellationDate == null
+        ) {
+          throw new InvoiceEditException(
+            'ロック済み仕訳がある取消では取消基準日が必要です。'
+          );
+        }
       }
     }
-    List<Id> lockOrder = new List<Id>(allInvoiceIds);
-    lockOrder.sort();
-    for (Id invoiceId : lockOrder) {
-      AccountingCauseLockService.lockInvoice(invoiceId);
+    return lockedById;
+  }
+
+  private static Set<Id> confirmedAcceptanceInvoiceIds(List<InvoiceLine__c> lines) {
+    Set<Id> confirmedInvoiceIds = new Set<Id>();
+    if (lines == null) {
+      return confirmedInvoiceIds;
     }
-    if (!allInvoiceIds.isEmpty()) {
-      Integer lockedJournals = [
-        SELECT COUNT()
-        FROM GlJournal__c
-        WHERE
-          Invoice__c IN :allInvoiceIds
-          AND IsLocked__c = TRUE
-          AND TransactionStatus__c = 'Active'
-        WITH SYSTEM_MODE
-      ];
-      if (lockedJournals > 0 && cancellationDate == null) {
-        throw new InvoiceEditException(
-          'ロック済み仕訳がある取消では取消基準日が必要です。'
-        );
+    for (InvoiceLine__c line : lines) {
+      if (InvoiceTransactionStatusService.isConfirmed(line.Invoice__r)) {
+        confirmedInvoiceIds.add(line.Invoice__c);
       }
     }
     return confirmedInvoiceIds;

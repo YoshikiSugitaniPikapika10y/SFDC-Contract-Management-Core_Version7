@@ -68,7 +68,8 @@ public without sharing class ManualJournalService {
         request.invoiceId,
         AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
         operationKey,
-        request.cancellationDate
+        request.cancellationDate,
+        invoice
       );
     } catch (Exception ex) {
       Database.rollback(savepoint);
@@ -98,7 +99,8 @@ public without sharing class ManualJournalService {
       AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
         invoice.Id,
         AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
-        request.cancellationDate
+        request.cancellationDate,
+        invoice
       );
       Database.rollback(savepoint);
       return preview;
@@ -129,16 +131,10 @@ public without sharing class ManualJournalService {
     }
     // 仕様: Accounting 第8.2節・第8.5節・第8.8節、Core 第7.9.6節。
     // 手動登録も Goal/Diff/Lock。請求書単位の Active Lock があるとき取消基準日必須（入金登録と同じ）。
-    Integer lockedJournals = [
-      SELECT COUNT()
-      FROM GlJournal__c
-      WHERE
-        Invoice__c = :invoice.Id
-        AND IsLocked__c = TRUE
-        AND TransactionStatus__c = 'Active'
-      WITH SYSTEM_MODE
-    ];
-    if (lockedJournals > 0 && request.cancellationDate == null) {
+    if (
+      AccountingCurrentService.hasActiveLocked(invoice.Id) &&
+      request.cancellationDate == null
+    ) {
       throw new ManualJournalException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
     GlManualJournalSetting__c setting = [
@@ -197,7 +193,7 @@ public without sharing class ManualJournalService {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    AccountingCauseLockService.lockInvoice(header.Invoice__c);
+    Invoice__c lockedInvoice = AccountingCauseLockService.lockInvoice(header.Invoice__c);
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       request.businessOperationKey
     );
@@ -224,19 +220,13 @@ public without sharing class ManualJournalService {
     }
     // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。
     // 取消基準日要否は請求書単位の Active Lock（入金取消と同じ）。ヘッダー配下だけ見ない。
-    Integer locked = [
-      SELECT COUNT()
-      FROM GlJournal__c
-      WHERE
-        Invoice__c = :header.Invoice__c
-        AND IsLocked__c = TRUE
-        AND TransactionStatus__c = 'Active'
-      WITH SYSTEM_MODE
-    ];
-    if (locked > 0 && request.cancellationDate == null) {
+    if (
+      AccountingCurrentService.hasActiveLocked(header.Invoice__c) &&
+      request.cancellationDate == null
+    ) {
       throw new ManualJournalException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
-    previewCancel(header.Id, request.cancellationDate);
+    previewCancel(header.Id, request.cancellationDate, lockedInvoice);
     header.TransactionStatus__c = 'Cancelled';
     header.CancellationReason__c = request.cancellationReason;
     header.CancellationReasonText__c = request.cancellationReasonText;
@@ -255,7 +245,8 @@ public without sharing class ManualJournalService {
         header.Invoice__c,
         AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
         operationKey,
-        request.cancellationDate
+        request.cancellationDate,
+        lockedInvoice
       );
     } catch (Exception ex) {
       Database.rollback(savepoint);
@@ -281,6 +272,15 @@ public without sharing class ManualJournalService {
   public static AccountingDiffService.CancelPreview previewCancel(
     Id headerId,
     Date cancellationDate
+  ) {
+    return previewCancel(headerId, cancellationDate, null);
+  }
+
+  /** 仕様: Accounting 第8.2節。同一処理でロック済みならプレビューも取り直さない。 */
+  public static AccountingDiffService.CancelPreview previewCancel(
+    Id headerId,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice
   ) {
     ContractPermissionUtil.assertManualJournal();
     if (headerId == null) {
@@ -311,7 +311,8 @@ public without sharing class ManualJournalService {
       AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
         header.Invoice__c,
         AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
-        cancellationDate
+        cancellationDate,
+        knownLockedInvoice
       );
       Database.rollback(savepoint);
       return preview;

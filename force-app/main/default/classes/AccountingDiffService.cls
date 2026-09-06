@@ -82,7 +82,11 @@ public without sharing class AccountingDiffService {
     );
     persistDiff(invoice, goals, current, eventKey, operationKey, cancellationDate);
     persistHistoricalBreakdown(goals);
-    AccountingTagEvaluationService.evaluateForInvoice(invoiceId);
+    AccountingTagEvaluationService.evaluateForInvoice(
+      invoiceId,
+      invoice,
+      AccountingCurrentService.load(invoiceId)
+    );
   }
 
   private class PersistPlan {
@@ -200,9 +204,12 @@ public without sharing class AccountingDiffService {
       if (!plan.inserts.isEmpty()) {
         insert plan.inserts;
       }
+      rememberCurrentAfterPersist(invoice.Id, current, plan);
+    } catch (Exception ex) {
+      AccountingCurrentService.invalidate(invoice.Id);
+      throw ex;
     } finally {
       GlJournalTriggerHandler.allowEngineWrite = previous;
-      AccountingCurrentService.invalidate(invoice.Id);
     }
   }
 
@@ -212,6 +219,18 @@ public without sharing class AccountingDiffService {
     String eventKey,
     Date cancellationDate
   ) {
+    return previewApply(invoiceId, eventKey, cancellationDate, null);
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節。同一処理で行ロック済みならプレビューも取り直さない。
+   */
+  public static CancelPreview previewApply(
+    Id invoiceId,
+    String eventKey,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice
+  ) {
     if (invoiceId == null) {
       throw new DiffException('請求が指定されていません。');
     }
@@ -219,7 +238,10 @@ public without sharing class AccountingDiffService {
     if (!isPaymentEvent(eventKey)) {
       AccountingGoalService.invalidateCauseCache(invoiceId);
     }
-    Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
+    Invoice__c invoice =
+      knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
+        ? knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(invoiceId);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
@@ -445,9 +467,16 @@ public without sharing class AccountingDiffService {
       if (!inserts.isEmpty()) {
         insert inserts;
       }
+      PersistPlan plan = new PersistPlan();
+      plan.inserts = inserts;
+      plan.logicalDeletes = unlocked;
+      plan.reversals = locked;
+      rememberCurrentAfterPersist(invoiceId, current, plan);
+    } catch (Exception ex) {
+      AccountingCurrentService.invalidate(invoiceId);
+      throw ex;
     } finally {
       GlJournalTriggerHandler.allowEngineWrite = previous;
-      AccountingCurrentService.invalidate(invoiceId);
     }
   }
 
@@ -940,22 +969,37 @@ public without sharing class AccountingDiffService {
       }
     }
     if (lockedInvoice != null && lockedInvoice.Id != null) {
-      List<Invoice__c> invoices = (List<Invoice__c>) queryCopySources(
-        'Invoice__c',
-        new Set<Id>{ lockedInvoice.Id },
-        new Set<String>{
-          'BillingAccountSnapShot__c',
-          'ContractHistory__c',
-          'ContractService__c'
+      Set<String> invoiceCopyFields = new Set<String>{
+        'BillingAccountSnapShot__c',
+        'ContractHistory__c',
+        'ContractService__c'
+      };
+      invoiceCopyFields.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
+      if (hasAllQueriedFields(lockedInvoice, invoiceCopyFields)) {
+        bundle.invoice = lockedInvoice;
+      } else {
+        List<Invoice__c> invoices = (List<Invoice__c>) queryCopySources(
+          'Invoice__c',
+          new Set<Id>{ lockedInvoice.Id },
+          new Set<String>{
+            'BillingAccountSnapShot__c',
+            'ContractHistory__c',
+            'ContractService__c'
+          }
+        );
+        if (!invoices.isEmpty()) {
+          bundle.invoice = invoices[0];
         }
-      );
-      if (!invoices.isEmpty()) {
-        bundle.invoice = invoices[0];
       }
     }
-    bundle.lines = new Map<Id, InvoiceLine__c>(
-      (List<InvoiceLine__c>) queryCopySources(
+    bundle.lines = toLineMap(
+      reuseOrQueryCopy(
         'InvoiceLine__c',
+        copyToSObject(
+          AccountingGoalService.collectedLines(
+            lockedInvoice == null ? null : lockedInvoice.Id
+          ).values()
+        ),
         lineIds,
         new Set<String>{
           'Invoice__c',
@@ -965,9 +1009,14 @@ public without sharing class AccountingDiffService {
         }
       )
     );
-    bundle.payments = new Map<Id, InvoicePayment__c>(
-      (List<InvoicePayment__c>) queryCopySources(
+    bundle.payments = toPaymentMap(
+      reuseOrQueryCopy(
         'InvoicePayment__c',
+        copyToSObject(
+          AccountingGoalService.collectedPayments(
+            lockedInvoice == null ? null : lockedInvoice.Id
+          ).values()
+        ),
         paymentIds,
         new Set<String>{
           'Invoice__c',
@@ -978,9 +1027,14 @@ public without sharing class AccountingDiffService {
         }
       )
     );
-    bundle.allocations = new Map<Id, InvoicePaymentAllocation__c>(
-      (List<InvoicePaymentAllocation__c>) queryCopySources(
+    bundle.allocations = toAllocationMap(
+      reuseOrQueryCopy(
         'InvoicePaymentAllocation__c',
+        copyToSObject(
+          AccountingGoalService.collectedAllocations(
+            lockedInvoice == null ? null : lockedInvoice.Id
+          ).values()
+        ),
         allocationIds,
         new Set<String>{ 'InvoiceLine__c', 'InvoicePayment__c', 'Amount__c' }
       )
@@ -995,9 +1049,13 @@ public without sharing class AccountingDiffService {
         productIds.add(line.Product__c);
       }
     }
-    bundle.contractProducts = new Map<Id, ContractProduct__c>(
-      (List<ContractProduct__c>) queryCopySources(
+    Id collectedId = lockedInvoice == null ? null : lockedInvoice.Id;
+    bundle.contractProducts = toContractProductMap(
+      reuseOrQueryCopy(
         'ContractProduct__c',
+        copyToSObject(
+          AccountingGoalService.collectedContractProducts(collectedId).values()
+        ),
         contractProductIds,
         new Set<String>{ 'Product__c', 'ContractHistory__c' }
       )
@@ -1007,9 +1065,10 @@ public without sharing class AccountingDiffService {
         productIds.add(contractProduct.Product__c);
       }
     }
-    bundle.products = new Map<Id, Product2>(
-      (List<Product2>) queryCopySources(
+    bundle.products = toProductMap(
+      reuseOrQueryCopy(
         'Product2',
+        copyToSObject(AccountingGoalService.collectedProducts(collectedId).values()),
         productIds,
         new Set<String>{ 'ProductCode' }
       )
@@ -1024,9 +1083,10 @@ public without sharing class AccountingDiffService {
         historyIds.add(bundle.invoice.ContractHistory__c);
       }
     }
-    bundle.histories = new Map<Id, ContractHistory__c>(
-      (List<ContractHistory__c>) queryCopySources(
+    bundle.histories = toHistoryMap(
+      reuseOrQueryCopy(
         'ContractHistory__c',
+        copyToSObject(AccountingGoalService.collectedHistories(collectedId).values()),
         historyIds,
         new Set<String>{ 'Opportunity__c', 'ContractService__c' }
       )
@@ -1038,9 +1098,12 @@ public without sharing class AccountingDiffService {
         opportunityIds.add(history.Opportunity__c);
       }
     }
-    bundle.opportunities = new Map<Id, Opportunity>(
-      (List<Opportunity>) queryCopySources(
+    bundle.opportunities = toOpportunityMap(
+      reuseOrQueryCopy(
         'Opportunity',
+        copyToSObject(
+          AccountingGoalService.collectedOpportunities(collectedId).values()
+        ),
         opportunityIds,
         new Set<String>{ 'AccountId' }
       )
@@ -1050,9 +1113,12 @@ public without sharing class AccountingDiffService {
         accountIds.add(opportunity.AccountId);
       }
     }
-    bundle.billingAccounts = new Map<Id, BillingAccount__c>(
-      (List<BillingAccount__c>) queryCopySources(
+    bundle.billingAccounts = toBillingAccountMap(
+      reuseOrQueryCopy(
         'BillingAccount__c',
+        copyToSObject(
+          AccountingGoalService.collectedBillingAccounts(collectedId).values()
+        ),
         billingIds,
         new Set<String>{ 'Account__c' }
       )
@@ -1062,10 +1128,222 @@ public without sharing class AccountingDiffService {
         accountIds.add(billingAccount.Account__c);
       }
     }
-    bundle.accounts = new Map<Id, Account>(
-      (List<Account>) queryCopySources('Account', accountIds, new Set<String>())
+    bundle.accounts = toAccountMap(
+      reuseOrQueryCopy(
+        'Account',
+        copyToSObject(AccountingGoalService.collectedAccounts(collectedId).values()),
+        accountIds,
+        new Set<String>()
+      )
     );
     return bundle;
+  }
+
+  /** 仕様: Accounting 第8.2節。Goalが収集した原因にコピー項目があれば取り直さない。 */
+  private static List<SObject> reuseOrQueryCopy(
+    String objectApiName,
+    Map<Id, SObject> collected,
+    Set<Id> recordIds,
+    Set<String> extraFields
+  ) {
+    Set<String> needed = extraFields == null
+      ? new Set<String>()
+      : new Set<String>(extraFields);
+    needed.addAll(FieldCopyDefinitionService.sourceFieldApiNames(objectApiName));
+    if (recordIds == null || recordIds.isEmpty()) {
+      return new List<SObject>();
+    }
+    Boolean reusable = collected != null;
+    if (reusable) {
+      for (Id recordId : recordIds) {
+        if (!hasAllQueriedFields(collected.get(recordId), needed)) {
+          reusable = false;
+          break;
+        }
+      }
+    }
+    if (reusable) {
+      List<SObject> rows = new List<SObject>();
+      for (Id recordId : recordIds) {
+        rows.add(collected.get(recordId));
+      }
+      return rows;
+    }
+    return queryCopySources(objectApiName, recordIds, extraFields);
+  }
+
+  private static Map<Id, SObject> copyToSObject(SObject[] rows) {
+    Map<Id, SObject> mapped = new Map<Id, SObject>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      if (row != null && row.Id != null) {
+        mapped.put(row.Id, row);
+      }
+    }
+    return mapped;
+  }
+
+  private static Map<Id, InvoiceLine__c> toLineMap(List<SObject> rows) {
+    Map<Id, InvoiceLine__c> mapped = new Map<Id, InvoiceLine__c>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (InvoiceLine__c) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, InvoicePayment__c> toPaymentMap(List<SObject> rows) {
+    Map<Id, InvoicePayment__c> mapped = new Map<Id, InvoicePayment__c>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (InvoicePayment__c) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, InvoicePaymentAllocation__c> toAllocationMap(
+    List<SObject> rows
+  ) {
+    Map<Id, InvoicePaymentAllocation__c> mapped = new Map<Id, InvoicePaymentAllocation__c>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (InvoicePaymentAllocation__c) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, ContractProduct__c> toContractProductMap(List<SObject> rows) {
+    Map<Id, ContractProduct__c> mapped = new Map<Id, ContractProduct__c>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (ContractProduct__c) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, Product2> toProductMap(List<SObject> rows) {
+    Map<Id, Product2> mapped = new Map<Id, Product2>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (Product2) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, ContractHistory__c> toHistoryMap(List<SObject> rows) {
+    Map<Id, ContractHistory__c> mapped = new Map<Id, ContractHistory__c>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (ContractHistory__c) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, Opportunity> toOpportunityMap(List<SObject> rows) {
+    Map<Id, Opportunity> mapped = new Map<Id, Opportunity>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (Opportunity) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, BillingAccount__c> toBillingAccountMap(List<SObject> rows) {
+    Map<Id, BillingAccount__c> mapped = new Map<Id, BillingAccount__c>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (BillingAccount__c) row);
+    }
+    return mapped;
+  }
+
+  private static Map<Id, Account> toAccountMap(List<SObject> rows) {
+    Map<Id, Account> mapped = new Map<Id, Account>();
+    if (rows == null) {
+      return mapped;
+    }
+    for (SObject row : rows) {
+      mapped.put(row.Id, (Account) row);
+    }
+    return mapped;
+  }
+
+  private static Boolean hasAllQueriedFields(SObject record, Set<String> fieldNames) {
+    if (record == null || fieldNames == null) {
+      return false;
+    }
+    for (String fieldName : fieldNames) {
+      if (String.isBlank(fieldName) || fieldName.contains('.')) {
+        return false;
+      }
+      try {
+        record.get(fieldName);
+      } catch (SObjectException ex) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節。
+   * Diff保存後のCurrentは保存結果で置き、仕訳を取り直さない。
+   */
+  private static void rememberCurrentAfterPersist(
+    Id invoiceId,
+    List<GlJournal__c> current,
+    PersistPlan plan
+  ) {
+    Map<Id, GlJournal__c> byId = new Map<Id, GlJournal__c>();
+    if (current != null) {
+      for (GlJournal__c row : current) {
+        if (row != null && row.Id != null) {
+          byId.put(row.Id, row);
+        }
+      }
+    }
+    if (plan != null) {
+      if (plan.logicalDeletes != null) {
+        for (GlJournal__c row : plan.logicalDeletes) {
+          if (row != null && row.Id != null) {
+            byId.put(row.Id, row);
+          }
+        }
+      }
+      if (plan.reversals != null) {
+        for (GlJournal__c row : plan.reversals) {
+          if (row != null && row.Id != null) {
+            byId.put(row.Id, row);
+          }
+        }
+      }
+      if (plan.inserts != null) {
+        for (GlJournal__c row : plan.inserts) {
+          if (row != null && row.Id != null) {
+            byId.put(row.Id, row);
+          }
+        }
+      }
+    }
+    AccountingCurrentService.replace(invoiceId, byId.values());
   }
 
   private static List<SObject> queryCopySources(

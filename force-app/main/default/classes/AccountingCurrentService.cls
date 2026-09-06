@@ -8,6 +8,30 @@ public without sharing class AccountingCurrentService {
     }
   }
 
+  /**
+   * 仕様: Accounting 第8.2節。
+   * Diff保存後の仕訳はメモリ上の収集結果で置き、Currentを取り直さない。
+   */
+  public static void replace(Id invoiceId, List<GlJournal__c> rows) {
+    if (invoiceId == null) {
+      return;
+    }
+    cachedByInvoiceId.put(invoiceId, copyOf(rows));
+  }
+
+  /** 仕様: Accounting 第8.2節、第8.5節。収集済みCurrentから Active かつ Lock を見る。 */
+  public static Boolean hasActiveLocked(Id invoiceId) {
+    if (invoiceId == null) {
+      return false;
+    }
+    for (GlJournal__c journal : load(invoiceId)) {
+      if (journal.IsLocked__c == true && journal.TransactionStatus__c == 'Active') {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** 仕様: Accounting 第8.2節、第8.7節 */
   public static List<GlJournal__c> load(Id invoiceId) {
     if (invoiceId == null) {

@@ -638,6 +638,51 @@ private class AccountingTagEvaluationServiceTest {
   }
 
   @IsTest
+  static void evaluateForInvoice_reusesKnownInvoiceAndJournals() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      insert new GlAccountingTagRule__c(
+        Name = '税込一致再利用',
+        TagKey__c = 'incl-reuse',
+        TagLabel__c = '税込1100',
+        Expression__c = 'INCL',
+        ComparisonOperator__c = 'EQ',
+        ComparisonValue__c = 1100,
+        TargetFieldApiName__c = 'IsSplitMoved__c',
+        IsEnabled__c = true
+      );
+      Invoice__c known = [
+        SELECT Amount__c, TaxAmount__c, TaxInclusiveAmount__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      AccountingTagEvaluationService.evaluateForInvoice(
+        invoice.Id,
+        known,
+        new List<GlJournal__c>()
+      );
+      AccountingTagEvaluationService.evaluateForInvoice(
+        invoice.Id,
+        known,
+        new List<GlJournal__c>()
+      );
+      Invoice__c stored = [
+        SELECT IsSplitMoved__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        true,
+        stored.IsSplitMoved__c,
+        'Accounting 第8.2節: 収集済み請求とCurrentで評価しても INCL の結果は変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void save_rejectsDuplicateTargetsInSameDml() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Boolean thrown = false;

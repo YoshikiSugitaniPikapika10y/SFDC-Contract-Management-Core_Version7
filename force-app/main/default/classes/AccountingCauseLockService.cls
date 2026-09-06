@@ -96,6 +96,8 @@ public without sharing class AccountingCauseLockService {
         Id,
         InvoiceDate__c,
         InvoiceTransactionStatus__c,
+        Amount__c,
+        TaxAmount__c,
         TaxInclusiveAmount__c,
         InvoicePaymentNet__c,
         BillingAccountSnapShot__c,

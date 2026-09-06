@@ -35,8 +35,20 @@ public without sharing class AccountingTagEvaluationService {
     return cachedEnabledRules;
   }
 
-  /** 仕様: Accounting 第7.3節、第7.5節 */
+  /** 仕様: Accounting 第7.3節、第7.5節、第8.2節 */
   public static void evaluateForInvoice(Id invoiceId) {
+    evaluateForInvoice(invoiceId, null, null);
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節手順11。
+   * 同一処理で収集した請求とCurrentがあれば取り直さない。
+   */
+  public static void evaluateForInvoice(
+    Id invoiceId,
+    Invoice__c knownInvoice,
+    List<GlJournal__c> knownJournals
+  ) {
     if (invoiceId == null) {
       return;
     }
@@ -48,8 +60,11 @@ public without sharing class AccountingTagEvaluationService {
     if (rules.isEmpty()) {
       return;
     }
-    Map<String, Decimal> balances = slotBalances(invoiceId);
-    putHeaderAmountTokens(balances, invoiceId);
+    List<GlJournal__c> journals = knownJournals != null
+      ? knownJournals
+      : AccountingCurrentService.load(invoiceId);
+    Map<String, Decimal> balances = slotBalancesFrom(journals);
+    putHeaderAmountTokens(balances, invoiceId, knownInvoice);
     Invoice__c invoice = new Invoice__c(Id = invoiceId);
     Map<String, Schema.SObjectField> invoiceFields = Invoice__c.SObjectType.getDescribe()
       .fields.getMap();
@@ -236,31 +251,46 @@ public without sharing class AccountingTagEvaluationService {
    * 仕様: Accounting 第7.3節。
    * AMT＝Amount__c、INVTAX＝TaxAmount__c、INCL＝TaxInclusiveAmount__c。保存値を円の整数で入れる。
    */
-  private static void putHeaderAmountTokens(Map<String, Decimal> balances, Id invoiceId) {
-    Invoice__c invoice = [
-      SELECT Amount__c, TaxAmount__c, TaxInclusiveAmount__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+  private static void putHeaderAmountTokens(
+    Map<String, Decimal> balances,
+    Id invoiceId,
+    Invoice__c knownInvoice
+  ) {
+    Invoice__c invoice = knownInvoice;
+    if (invoice == null || !hasHeaderAmountFields(invoice)) {
+      invoice = [
+        SELECT Amount__c, TaxAmount__c, TaxInclusiveAmount__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     balances.put(HEADER_AMOUNT_AMT, nvl(invoice.Amount__c));
     balances.put(HEADER_AMOUNT_INVTAX, nvl(invoice.TaxAmount__c));
     balances.put(HEADER_AMOUNT_INCL, nvl(invoice.TaxInclusiveAmount__c));
   }
 
-  private static Map<String, Decimal> slotBalances(Id invoiceId) {
+  private static Boolean hasHeaderAmountFields(Invoice__c invoice) {
+    if (invoice == null) {
+      return false;
+    }
+    try {
+      invoice.get('Amount__c');
+      invoice.get('TaxAmount__c');
+      invoice.get('TaxInclusiveAmount__c');
+      return true;
+    } catch (SObjectException ex) {
+      return false;
+    }
+  }
+
+  private static Map<String, Decimal> slotBalancesFrom(List<GlJournal__c> journals) {
     Map<String, Decimal> balances = emptySlotBalances();
-    for (GlJournal__c journal : [
-      SELECT
-        DebitSlotKey__c,
-        CreditSlotKey__c,
-        Amount__c,
-        TransactionStatus__c
-      FROM GlJournal__c
-      WHERE Invoice__c = :invoiceId
-      WITH SYSTEM_MODE
-    ]) {
+    if (journals == null) {
+      return balances;
+    }
+    for (GlJournal__c journal : journals) {
       if (journal.TransactionStatus__c == 'LogicallyDeleted') {
         continue;
       }

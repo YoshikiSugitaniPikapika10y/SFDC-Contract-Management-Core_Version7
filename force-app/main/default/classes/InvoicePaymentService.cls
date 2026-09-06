@@ -94,7 +94,8 @@ public without sharing class InvoicePaymentService {
         invoice.Id,
         AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
         operationKey,
-        request.cancellationDate
+        request.cancellationDate,
+        invoice
       );
       return paymentId;
     } catch (Exception ex) {
@@ -133,7 +134,8 @@ public without sharing class InvoicePaymentService {
       AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
         invoice.Id,
         AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
-        request.cancellationDate
+        request.cancellationDate,
+        invoice
       );
       Database.rollback(savepoint);
       return preview;
@@ -206,16 +208,10 @@ public without sharing class InvoicePaymentService {
     // 入金登録の取消基準日は Accounting ON かつロック済み仕訳があるときだけ。OFFは仕訳を触らない。
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
     if (policy.AccountingEnabled__c == true) {
-      Integer lockedJournals = [
-        SELECT COUNT()
-        FROM GlJournal__c
-        WHERE
-          Invoice__c = :invoice.Id
-          AND IsLocked__c = TRUE
-          AND TransactionStatus__c = 'Active'
-        WITH SYSTEM_MODE
-      ];
-      if (lockedJournals > 0 && request.cancellationDate == null) {
+      if (
+        AccountingCurrentService.hasActiveLocked(invoice.Id) &&
+        request.cancellationDate == null
+      ) {
         throw new PaymentException('ロック済み仕訳がある取消では取消基準日が必要です。');
       }
     }
@@ -293,7 +289,7 @@ public without sharing class InvoicePaymentService {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    AccountingCauseLockService.lockInvoice(original.Invoice__c);
+    Invoice__c lockedInvoice = AccountingCauseLockService.lockInvoice(original.Invoice__c);
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       request.businessOperationKey
     );
@@ -328,19 +324,13 @@ public without sharing class InvoicePaymentService {
     if (original.PaymentTransactionStatus__c != STATUS_ACTIVE) {
       throw new PaymentException('有効な入出金だけ取消できます。');
     }
-    Integer lockedJournals = [
-      SELECT COUNT()
-      FROM GlJournal__c
-      WHERE
-        Invoice__c = :original.Invoice__c
-        AND IsLocked__c = TRUE
-        AND TransactionStatus__c = 'Active'
-      WITH SYSTEM_MODE
-    ];
-    if (lockedJournals > 0 && request.cancelDate == null) {
+    if (
+      AccountingCurrentService.hasActiveLocked(original.Invoice__c) &&
+      request.cancelDate == null
+    ) {
       throw new PaymentException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
-    previewCancel(original.Id, request.cancelDate);
+    previewCancel(original.Id, request.cancelDate, lockedInvoice);
     Savepoint savepoint = Database.setSavepoint();
     Boolean previousWrite = allowLifecycleWrite;
     allowLifecycleWrite = true;
@@ -371,7 +361,8 @@ public without sharing class InvoicePaymentService {
         original.Invoice__c,
         AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
         operationKey,
-        request.cancelDate
+        request.cancelDate,
+        lockedInvoice
       );
       ContractOperationLogService.write(
         'CancelPayment',
@@ -400,6 +391,15 @@ public without sharing class InvoicePaymentService {
   public static AccountingDiffService.CancelPreview previewCancel(
     Id paymentId,
     Date cancelDate
+  ) {
+    return previewCancel(paymentId, cancelDate, null);
+  }
+
+  /** 仕様: Accounting 第8.2節。同一処理でロック済みならプレビューも取り直さない。 */
+  public static AccountingDiffService.CancelPreview previewCancel(
+    Id paymentId,
+    Date cancelDate,
+    Invoice__c knownLockedInvoice
   ) {
     if (paymentId == null) {
       throw new PaymentException('取消する入出金が指定されていません。');
@@ -431,7 +431,8 @@ public without sharing class InvoicePaymentService {
       AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
         payment.Invoice__c,
         AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
-        cancelDate
+        cancelDate,
+        knownLockedInvoice
       );
       Database.rollback(savepoint);
       return preview;

@@ -1122,19 +1122,30 @@ private class AccountingDiffServiceTest {
       enableAccounting();
       seedMaps();
       Invoice__c invoice = insertConfirmedInvoice();
-      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
-      AccountingDiffService.applyForInvoice(
-        invoice.Id,
-        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
-        'TEST_KNOWN_LOCK',
-        null,
-        locked
-      );
-      System.assertEquals(
-        'Confirmed',
-        locked.InvoiceTransactionStatus__c,
-        'Accounting 第8.2節: 同一処理でロック済みの請求を取り直さない'
-      );
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
+    AccountingDiffService.applyForInvoice(
+      invoice.Id,
+      AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+      'TEST_KNOWN_LOCK',
+      null,
+      locked
+    );
+    System.assertEquals(
+      'Confirmed',
+      locked.InvoiceTransactionStatus__c,
+      'Accounting 第8.2節: 同一処理でロック済みの請求を取り直さない'
+    );
+    GlAccountingPolicyService.requireOrgPolicy();
+    FieldCopyDefinitionService.validateAllDefinitions();
+    Integer beforeReuse = Limits.getQueries();
+    AccountingCurrentService.load(invoice.Id);
+    GlAccountingPolicyService.requireOrgPolicy();
+    FieldCopyDefinitionService.validateAllDefinitions();
+    System.assertEquals(
+      beforeReuse,
+      Limits.getQueries(),
+      'Accounting 第8.2節: 同一処理で収集したCurrent・利用設定・コピー定義を取り直さない'
+    );
     }
   }
 

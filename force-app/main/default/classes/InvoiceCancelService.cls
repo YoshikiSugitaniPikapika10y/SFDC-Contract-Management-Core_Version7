@@ -67,13 +67,10 @@ public without sharing class InvoiceCancelService {
     if (activeManuals > 0) {
       throw new CancelException('有効な手動仕訳がある請求は取消できません。');
     }
-    Integer lockedJournals = [
-      SELECT COUNT()
-      FROM GlJournal__c
-      WHERE Invoice__c = :invoice.Id AND IsLocked__c = TRUE AND TransactionStatus__c = 'Active'
-      WITH SYSTEM_MODE
-    ];
-    if (lockedJournals > 0 && request.cancellationDate == null) {
+    if (
+      AccountingCurrentService.hasActiveLocked(invoice.Id) &&
+      request.cancellationDate == null
+    ) {
       throw new CancelException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
     AccountingDiffService.CancelPreview journalPreview = previewConfirmed(
@@ -205,7 +202,8 @@ public without sharing class InvoiceCancelService {
       original.Id,
       AccountingEventFixedCatalog.BILLING_CANCELLED.key,
       operationKey,
-      request.cancellationDate
+      request.cancellationDate,
+      original
     );
     ContractOperationLogService.write(
       'CancelInvoice',

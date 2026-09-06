@@ -58,6 +58,10 @@ public without sharing class AccountingGoalService {
   private static Map<Id, Map<Id, GlManualJournalSetting__c>> cachedSettingsByInvoice =
     new Map<Id, Map<Id, GlManualJournalSetting__c>>();
   private static Map<Id, RelatedRecords> cachedRelatedByInvoice = new Map<Id, RelatedRecords>();
+  private static Map<Id, Map<Id, InvoicePayment__c>> collectedPaymentsByInvoice =
+    new Map<Id, Map<Id, InvoicePayment__c>>();
+  private static Map<Id, Map<Id, InvoicePaymentAllocation__c>> collectedAllocationsByInvoice =
+    new Map<Id, Map<Id, InvoicePaymentAllocation__c>>();
 
   private class RelatedRecords {
     Map<Id, ContractProduct__c> contractProducts = new Map<Id, ContractProduct__c>();
@@ -78,6 +82,70 @@ public without sharing class AccountingGoalService {
     cachedHeadersByInvoice.remove(invoiceId);
     cachedSettingsByInvoice.remove(invoiceId);
     cachedRelatedByInvoice.remove(invoiceId);
+    collectedPaymentsByInvoice.remove(invoiceId);
+    collectedAllocationsByInvoice.remove(invoiceId);
+  }
+
+  /** 仕様: Accounting 第8.2節。同一処理のコピーは Goal が収集した原因を使う。 */
+  public static Map<Id, InvoiceLine__c> collectedLines(Id invoiceId) {
+    Map<Id, InvoiceLine__c> rows = cachedLinesByInvoice.get(invoiceId);
+    return rows == null ? new Map<Id, InvoiceLine__c>() : rows;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, InvoicePayment__c> collectedPayments(Id invoiceId) {
+    Map<Id, InvoicePayment__c> rows = collectedPaymentsByInvoice.get(invoiceId);
+    return rows == null ? new Map<Id, InvoicePayment__c>() : rows;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, InvoicePaymentAllocation__c> collectedAllocations(Id invoiceId) {
+    Map<Id, InvoicePaymentAllocation__c> rows = collectedAllocationsByInvoice.get(
+      invoiceId
+    );
+    return rows == null ? new Map<Id, InvoicePaymentAllocation__c>() : rows;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, ContractProduct__c> collectedContractProducts(Id invoiceId) {
+    RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
+    return related == null
+      ? new Map<Id, ContractProduct__c>()
+      : related.contractProducts;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, Product2> collectedProducts(Id invoiceId) {
+    RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
+    return related == null ? new Map<Id, Product2>() : related.products;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, ContractHistory__c> collectedHistories(Id invoiceId) {
+    RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
+    return related == null
+      ? new Map<Id, ContractHistory__c>()
+      : related.histories;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, Opportunity> collectedOpportunities(Id invoiceId) {
+    RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
+    return related == null ? new Map<Id, Opportunity>() : related.opportunities;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, BillingAccount__c> collectedBillingAccounts(Id invoiceId) {
+    RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
+    return related == null
+      ? new Map<Id, BillingAccount__c>()
+      : related.billingAccounts;
+  }
+
+  /** 仕様: Accounting 第8.2節 */
+  public static Map<Id, Account> collectedAccounts(Id invoiceId) {
+    RelatedRecords related = cachedRelatedByInvoice.get(invoiceId);
+    return related == null ? new Map<Id, Account>() : related.accounts;
   }
 
   /** 仕様: Accounting 第8.2節、第8.3節、第8.4節、第4.4節、第4.6節、第5.6節、第5.7節、第8.7節 */
@@ -98,7 +166,13 @@ public without sharing class AccountingGoalService {
     Map<Id, InvoiceLine__c> lines = loadLines(invoice.Id);
     loadRelatedForConditions(invoice, lines);
     Map<Id, InvoicePayment__c> payments = loadPayments(invoice.Id);
+    collectedPaymentsByInvoice.put(invoice.Id, payments);
     List<InvoicePaymentAllocation__c> allocations = loadAllocations(payments.keySet());
+    Map<Id, InvoicePaymentAllocation__c> allocationsById = new Map<Id, InvoicePaymentAllocation__c>();
+    for (InvoicePaymentAllocation__c allocation : allocations) {
+      allocationsById.put(allocation.Id, allocation);
+    }
+    collectedAllocationsByInvoice.put(invoice.Id, allocationsById);
     List<GlManualJournalHeader__c> headers = loadManualHeaders(invoice.Id);
     Map<Id, GlManualJournalSetting__c> settings = loadSettings(invoice.Id, headers);
     List<Candidate> candidates = new List<Candidate>();
@@ -1904,6 +1978,9 @@ public without sharing class AccountingGoalService {
     if (extraFields.isEmpty() && !needPath) {
       return invoice;
     }
+    if (hasInvoiceConditionFields(invoice, extraFields, needPath)) {
+      return invoice;
+    }
     Set<String> selectFields = new Set<String>(extraFields);
     selectFields.add('Id');
     if (needPath) {
@@ -1930,6 +2007,39 @@ public without sharing class AccountingGoalService {
       hydrated.BillingAccountSnapShot__c = loaded[0].BillingAccountSnapShot__c;
     }
     return hydrated;
+  }
+
+  /** 仕様: Accounting 第8.2節。ロック済み請求に条件項目があれば取り直さない。 */
+  private static Boolean hasInvoiceConditionFields(
+    Invoice__c invoice,
+    Set<String> extraFields,
+    Boolean needPath
+  ) {
+    if (extraFields != null) {
+      for (String fieldName : extraFields) {
+        if (!hasQueriedField(invoice, fieldName)) {
+          return false;
+        }
+      }
+    }
+    if (needPath == true) {
+      return hasQueriedField(invoice, 'ContractHistory__c') &&
+        hasQueriedField(invoice, 'ContractService__c') &&
+        hasQueriedField(invoice, 'BillingAccountSnapShot__c');
+    }
+    return true;
+  }
+
+  private static Boolean hasQueriedField(SObject record, String fieldName) {
+    if (record == null || String.isBlank(fieldName)) {
+      return false;
+    }
+    try {
+      record.get(fieldName);
+      return true;
+    } catch (SObjectException ex) {
+      return false;
+    }
   }
 
   /** 仕様: Accounting 第4.7節、第6.2節、第8.2節。明細単位の科目割当は請求明細の対象項目・比較対象項目を評価する。 */
