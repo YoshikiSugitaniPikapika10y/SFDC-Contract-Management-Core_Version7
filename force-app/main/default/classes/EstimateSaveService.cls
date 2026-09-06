@@ -860,13 +860,17 @@ public without sharing class EstimateSaveService {
   ) {
     // 仕様: Core 第11.4.2節
     FieldCopyDefinitionService.validateAllDefinitions();
-    Opportunity opportunity = [
-      SELECT Id, AccountId
-      FROM Opportunity
-      WHERE Id = :request.opportunityId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Opportunity opportunity = (Opportunity) InvoiceProductFieldCopyService.querySourceRecord(
+      InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+      request.opportunityId,
+      new Set<String>{ 'AccountId' }
+    );
+    if (opportunity == null) {
+      throw EstimateValidationService.estSaveNewException(
+        '001',
+        '商談に取引先が設定されていません。'
+      );
+    }
 
     if (opportunity.AccountId == null) {
       throw EstimateValidationService.estSaveNewException(
@@ -998,22 +1002,19 @@ public without sharing class EstimateSaveService {
   ) {
     // 仕様: Core 第11.4.2節
     FieldCopyDefinitionService.validateAllDefinitions();
-    Opportunity opportunity = [
-      SELECT Id
-      FROM Opportunity
-      WHERE Id = :request.opportunityId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Opportunity opportunity = (Opportunity) InvoiceProductFieldCopyService.querySourceRecord(
+      InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+      request.opportunityId,
+      new Set<String>{ 'AccountId' }
+    );
+    if (opportunity == null) {
+      throw EstimateValidationService.wrapAura('商談が見つかりません。');
+    }
 
-    List<ContractService__c> services = [
-      SELECT Id
-      FROM ContractService__c
-      WHERE Id = :request.contractServiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (services.isEmpty()) {
+    ContractService__c service = EstimateValidationService.loadContinuationService(
+      request.contractServiceId
+    );
+    if (service == null) {
       throw EstimateValidationService.wrapAura(
         '契約サービスが見つかりません。'
       );

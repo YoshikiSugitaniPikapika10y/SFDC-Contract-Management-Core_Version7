@@ -790,6 +790,131 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void applyNotAutoRenewFieldCopy_reusesOpportunityAndAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Account account = ContractTestDataFactory.insertAccount('再用水先取引先');
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        '再用水先商談'
+      );
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Reuse_Opp_Account_Note',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Note__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      Opportunity loaded = (Opportunity) InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+        opportunity.Id,
+        new Set<String>{ 'AccountId' }
+      );
+      System.assertEquals(opportunity.Id, loaded.Id);
+      Integer queriesBefore = Limits.getQueries();
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+        opportunity.Id,
+        new Set<String>{ 'AccountId' }
+      );
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
+        account.Id
+      );
+      System.assertEquals(
+        queriesBefore,
+        Limits.getQueries(),
+        '仕様: Core 第12.4節・第11.4.2節。検証で読んだ商談・取引先を取り直さない'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Opportunity__c = opportunity.Id
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      EstimateSaveService.applyNotAutoRenewFieldCopy(history, request);
+      System.assertEquals('再用水先取引先', history.Note__c);
+    }
+  }
+
+  @IsTest
+  static void applyNotAutoRenewFieldCopy_reusesContinuationServiceAndBilling() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Account account = ContractTestDataFactory.insertAccount('続き再利用取引先');
+      BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        '続き再利用商談'
+      );
+      ContractService__c service = new ContractService__c(
+        Name = '続き再利用サービス',
+        Account__c = account.Id,
+        BiilingAcccount__c = billing.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Reuse_Service_Note',
+        TargetObject__c = 'ContractHistory__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Note__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+        opportunity.Id,
+        new Set<String>{ 'AccountId' }
+      );
+      ContractService__c loaded = EstimateValidationService.loadContinuationService(
+        service.Id
+      );
+      System.assertEquals('続き再利用サービス', loaded.Name);
+      Integer queriesBefore = Limits.getQueries();
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
+        service.Id,
+        new Set<String>{
+          'Name',
+          'Account__c',
+          'BiilingAcccount__c',
+          'TaxPercent__c',
+          'Lifecycle__c'
+        }
+      );
+      InvoiceProductFieldCopyService.querySourceRecord(
+        InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+        billing.Id
+      );
+      System.assertEquals(
+        queriesBefore,
+        Limits.getQueries(),
+        '仕様: Core 第12.4節・第11.4.2節。検証で読んだ契約サービス・請求アカウントを取り直さない'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Opportunity__c = opportunity.Id,
+        ContractService__c = service.Id
+      );
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'Change';
+      EstimateSaveService.applyNotAutoRenewFieldCopy(history, request);
+      System.assertEquals('続き再利用サービス', history.Note__c);
+    }
+  }
+
+  @IsTest
   static void applyNotAutoRenewFieldCopy_doesNotFillDisplayedSendContact() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.ensureOrgDocumentSetting();

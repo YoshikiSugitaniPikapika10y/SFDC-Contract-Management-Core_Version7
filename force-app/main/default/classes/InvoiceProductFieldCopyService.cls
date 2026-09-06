@@ -313,7 +313,10 @@ public without sharing class InvoiceProductFieldCopyService {
     if (recordId == null || String.isBlank(objectApiName)) {
       return null;
     }
-    if (objectApiName == OBJECT_CONTRACT_HISTORY) {
+    if (
+      objectApiName == OBJECT_CONTRACT_HISTORY &&
+      cacheCovers(cachedHistoryFieldsById.get(recordId), neededFields)
+    ) {
       return cachedHistoriesById.get(recordId);
     }
     if (
@@ -1392,11 +1395,23 @@ public without sharing class InvoiceProductFieldCopyService {
   }
 
   public static SObject querySourceRecord(String objectApiName, Id recordId) {
+    return querySourceRecord(objectApiName, recordId, null);
+  }
+
+  /** 仕様: Core 第12.4節、第11.4.2節。同一処理で読んだコピーFromは取り直さない。 */
+  public static SObject querySourceRecord(
+    String objectApiName,
+    Id recordId,
+    Set<String> extraFields
+  ) {
     if (recordId == null || !ALLOWED_SOURCE_OBJECTS.contains(objectApiName)) {
       return null;
     }
 
     Set<String> neededFields = getSourceFieldApiNames(objectApiName);
+    if (extraFields != null) {
+      neededFields.addAll(extraFields);
+    }
     SObject cached = findCachedSource(objectApiName, recordId, neededFields);
     if (cached != null) {
       return cached;
@@ -1411,7 +1426,7 @@ public without sharing class InvoiceProductFieldCopyService {
     Map<String, Schema.SObjectField> fieldMap = sobjectType.getDescribe()
       .fields.getMap();
     List<String> selectFields = new List<String>();
-    for (String fieldApiName : getSourceFieldApiNames(objectApiName)) {
+    for (String fieldApiName : neededFields) {
       if (fieldMap.containsKey(fieldApiName)) {
         selectFields.add(fieldApiName);
       }
@@ -1467,6 +1482,21 @@ public without sharing class InvoiceProductFieldCopyService {
       'ContractProduct__c'
     );
     addWalkField(selectFields, fieldMap, objectApiName, OBJECT_INVOICE_LINE, 'Product__c');
+    if (objectApiName == OBJECT_CONTRACT_SERVICE) {
+      addRelatedCopySelectFields(
+        selectFields,
+        'Account__r',
+        OBJECT_ACCOUNT
+      );
+      addRelatedCopySelectFields(
+        selectFields,
+        'BiilingAcccount__r',
+        OBJECT_BILLING_ACCOUNT
+      );
+    }
+    if (objectApiName == OBJECT_OPPORTUNITY) {
+      addRelatedCopySelectFields(selectFields, 'Account', OBJECT_ACCOUNT);
+    }
     if (selectFields.isEmpty()) {
       selectFields.add('Id');
     }
@@ -1482,7 +1512,60 @@ public without sharing class InvoiceProductFieldCopyService {
       return null;
     }
     rememberRecord(rows[0], new Set<String>(selectFields));
+    rememberRelatedCopySources(rows[0], objectApiName);
     return rows[0];
+  }
+
+  private static void addRelatedCopySelectFields(
+    List<String> selectFields,
+    String relationshipName,
+    String relatedObjectApiName
+  ) {
+    if (selectFields == null || String.isBlank(relationshipName)) {
+      return;
+    }
+    Schema.SObjectType relatedType = Schema.getGlobalDescribe()
+      .get(relatedObjectApiName);
+    if (relatedType == null) {
+      return;
+    }
+    Map<String, Schema.SObjectField> relatedFields = relatedType.getDescribe()
+      .fields.getMap();
+    for (String fieldApiName : getSourceFieldApiNames(relatedObjectApiName)) {
+      if (!relatedFields.containsKey(fieldApiName)) {
+        continue;
+      }
+      String path = relationshipName + '.' + fieldApiName;
+      if (!selectFields.contains(path)) {
+        selectFields.add(path);
+      }
+    }
+  }
+
+  private static void rememberRelatedCopySources(
+    SObject row,
+    String objectApiName
+  ) {
+    if (row == null) {
+      return;
+    }
+    if (objectApiName == OBJECT_CONTRACT_SERVICE) {
+      rememberRecord(
+        row.getSObject('Account__r'),
+        getSourceFieldApiNames(OBJECT_ACCOUNT)
+      );
+      rememberRecord(
+        row.getSObject('BiilingAcccount__r'),
+        getSourceFieldApiNames(OBJECT_BILLING_ACCOUNT)
+      );
+      return;
+    }
+    if (objectApiName == OBJECT_OPPORTUNITY) {
+      rememberRecord(
+        row.getSObject('Account'),
+        getSourceFieldApiNames(OBJECT_ACCOUNT)
+      );
+    }
   }
 
   /** 仕様: Core 第11.4.2節 */

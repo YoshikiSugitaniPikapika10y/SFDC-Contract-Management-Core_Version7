@@ -32,7 +32,7 @@ public without sharing class EstimateValidationService {
   private static Map<Id, ContractService__c> continuationServiceById = new Map<Id, ContractService__c>();
   private static Map<Id, ContractHistory__c> previousHistoryById = new Map<Id, ContractHistory__c>();
 
-  /** 仕様: Core 第4.3.3節。同一保存処理内の契約サービス照会を再利用する。 */
+  /** 仕様: Core 第4.3.3節、第12.4節。同一保存処理内の契約サービス照会を再利用する。 */
   public static ContractService__c loadContinuationService(Id contractServiceId) {
     if (contractServiceId == null) {
       return null;
@@ -40,24 +40,22 @@ public without sharing class EstimateValidationService {
     if (continuationServiceById.containsKey(contractServiceId)) {
       return continuationServiceById.get(contractServiceId);
     }
-    List<ContractService__c> services = [
-      SELECT
-        Id,
-        Name,
-        Account__c,
-        BiilingAcccount__c,
-        TaxPercent__c,
-        Lifecycle__c
-      FROM ContractService__c
-      WHERE Id = :contractServiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (services.isEmpty()) {
+    ContractService__c service = (ContractService__c) InvoiceProductFieldCopyService.querySourceRecord(
+      InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
+      contractServiceId,
+      new Set<String>{
+        'Name',
+        'Account__c',
+        'BiilingAcccount__c',
+        'TaxPercent__c',
+        'Lifecycle__c'
+      }
+    );
+    if (service == null) {
       return null;
     }
-    continuationServiceById.put(contractServiceId, services[0]);
-    return services[0];
+    continuationServiceById.put(contractServiceId, service);
+    return service;
   }
 
   public static final String REMAKE_INVOICE_LOCKED_MESSAGE = '変更後の行の請求設定は前回の版と同じにしてください。';
@@ -2187,13 +2185,14 @@ public without sharing class EstimateValidationService {
       throw estSaveNewException('003', '請求アカウントを入力してください。');
     }
 
-    List<BillingAccount__c> billingAccounts = [
-      SELECT Id
-      FROM BillingAccount__c
-      WHERE Id = :request.billingAccountId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    List<BillingAccount__c> billingAccounts = new List<BillingAccount__c>();
+    BillingAccount__c billing = (BillingAccount__c) InvoiceProductFieldCopyService.querySourceRecord(
+      InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+      request.billingAccountId
+    );
+    if (billing != null) {
+      billingAccounts.add(billing);
+    }
     if (billingAccounts.isEmpty()) {
       throw estSaveNewException('002', '請求アカウントが見つかりません。');
     }
@@ -2276,13 +2275,15 @@ public without sharing class EstimateValidationService {
     if (service == null) {
       return;
     }
-    List<Opportunity> opportunities = [
-      SELECT Id, AccountId
-      FROM Opportunity
-      WHERE Id = :request.opportunityId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    List<Opportunity> opportunities = new List<Opportunity>();
+    Opportunity opportunity = (Opportunity) InvoiceProductFieldCopyService.querySourceRecord(
+      InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+      request.opportunityId,
+      new Set<String>{ 'AccountId' }
+    );
+    if (opportunity != null) {
+      opportunities.add(opportunity);
+    }
     if (opportunities.isEmpty()) {
       return;
     }

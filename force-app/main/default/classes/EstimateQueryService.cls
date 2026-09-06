@@ -224,36 +224,52 @@ public without sharing class EstimateQueryService {
     }
     latestOrderedQueriedServiceIds.add(contractServiceId);
 
-    List<ContractHistory__c> histories = [
-      SELECT
-        Id,
-        Name,
-        Version__c,
-        Type__c,
-        ContractService__c,
-        CurrentTermStartDate__c,
-        CurrentTermEndDate__c,
-        EstimateSendContact__c
-      FROM ContractHistory__c
-      WHERE
-        ContractService__c = :contractServiceId
-        AND historystatus__c = :HISTORY_STATUS_ORDERED
-        AND Type__c IN (
-          :HISTORY_TYPE_NEW,
-          :HISTORY_TYPE_CHANGE,
-          :HISTORY_TYPE_RENEW,
-          :HISTORY_TYPE_CANCEL,
-          :LEGACY_HISTORY_TYPE_ADD
-        )
-      WITH SYSTEM_MODE
-      ORDER BY Version__c DESC NULLS LAST
-      LIMIT 1
-    ];
+    Set<String> selectFields = new Set<String>{
+      'Id',
+      'Name',
+      'Version__c',
+      'Type__c',
+      'ContractService__c',
+      'CurrentTermStartDate__c',
+      'CurrentTermEndDate__c',
+      'EstimateSendContact__c'
+    };
+    selectFields.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY
+      )
+    );
+    Map<String, Schema.SObjectField> fieldMap = ContractHistory__c.SObjectType.getDescribe()
+      .fields.getMap();
+    List<String> selectList = new List<String>();
+    for (String fieldApiName : selectFields) {
+      if (fieldMap.containsKey(fieldApiName)) {
+        selectList.add(fieldApiName);
+      }
+    }
+    String soql =
+      'SELECT ' +
+      String.join(selectList, ',') +
+      ' FROM ContractHistory__c' +
+      ' WHERE ContractService__c = :contractServiceId' +
+      ' AND historystatus__c = :HISTORY_STATUS_ORDERED' +
+      ' AND Type__c IN (' +
+      ':HISTORY_TYPE_NEW, :HISTORY_TYPE_CHANGE, :HISTORY_TYPE_RENEW, :HISTORY_TYPE_CANCEL, :LEGACY_HISTORY_TYPE_ADD)' +
+      ' WITH SYSTEM_MODE' +
+      ' ORDER BY Version__c DESC NULLS LAST' +
+      ' LIMIT 1';
+    List<ContractHistory__c> histories = (List<ContractHistory__c>) Database.query(
+      soql
+    );
     if (histories.isEmpty()) {
       return null;
     }
 
     latestOrderedByServiceId.put(contractServiceId, histories[0]);
+    InvoiceProductFieldCopyService.rememberRecords(
+      new List<SObject>{ histories[0] },
+      new Set<String>(selectList)
+    );
     return histories[0];
   }
 
