@@ -996,14 +996,14 @@ public without sharing class AccountingGoalService {
 
   /**
    * 仕様: Accounting 第4.6節・第6.2節。
-   * 本体／税で濾るスロットは作成元スタンプ合計。それ以外はスロット実行残高。
+   * 本体／税で濾るのはCTAと請求基準DEF取り崩し。入金連動前受のDEF／ARは税込プールなのでスロット実行残高。
    */
   private static Decimal attributedSlotBalance(
     LineBook book,
     String slotKey,
     Candidate candidate
   ) {
-    String originKind = stampOriginKind(candidate, slotKey);
+    String originKind = bodyTaxDrawdownOrigin(candidate, slotKey);
     if (originKind == null) {
       return nvl(book.slots.get(slotKey));
     }
@@ -1326,7 +1326,7 @@ public without sharing class AccountingGoalService {
       stampTargetAccount(row, targetSlot, balances[i]);
       rows.add(row);
     }
-    return rows;
+    return mergeSameAccountSplits(rows);
   }
 
   /**
@@ -1482,6 +1482,37 @@ public without sharing class AccountingGoalService {
       }
     }
     return rows;
+  }
+
+  /**
+   * 仕様: Accounting 第6.2節。同じ借貸科目ペアへ分かれた金額は1つの候補内で合計して1行にする。
+   */
+  private static List<Candidate> mergeSameAccountSplits(List<Candidate> rows) {
+    if (rows == null || rows.size() <= 1) {
+      return rows;
+    }
+    Map<String, Candidate> merged = new Map<String, Candidate>();
+    for (Candidate row : rows) {
+      String mergeKey =
+        String.valueOf(row.debitSlotKey) +
+        ':' +
+        String.valueOf(row.debitAccountId) +
+        ':' +
+        String.valueOf(row.debitAssignmentId) +
+        ':' +
+        String.valueOf(row.creditSlotKey) +
+        ':' +
+        String.valueOf(row.creditAccountId) +
+        ':' +
+        String.valueOf(row.creditAssignmentId);
+      Candidate existing = merged.get(mergeKey);
+      if (existing == null) {
+        merged.put(mergeKey, row);
+      } else {
+        existing.amount = nvl(existing.amount) + nvl(row.amount);
+      }
+    }
+    return merged.values();
   }
 
   private static void stampTargetAccount(
