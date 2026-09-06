@@ -2401,21 +2401,44 @@ private class OrderCreateControllerTest {
       OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
         context.history.Id
       );
-      System.assertEquals(true, dto.canRevert);
-      System.assertEquals(null, dto.revertBlockedReason);
-
-      Test.startTest();
-      OrderCreateController.revertOrder(context.history.Id, false);
-      Test.stopTest();
+      System.assertEquals(false, dto.canRevert);
       System.assertEquals(
-        'Estimate',
+        EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE,
+        dto.revertBlockedReason
+      );
+
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        OrderCreateController.revertOrder(context.history.Id, false);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        'Ordered',
         [
           SELECT historystatus__c
           FROM ContractHistory__c
           WHERE Id = :context.history.Id
         ]
         .historystatus__c,
-        '?????????????????E Archive'
+        'Core 第5.3節: 上のVersionのEstimateが残れば差し戻さない'
+      );
+      System.assertEquals(
+        'Estimate',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :newerEstimate.Id
+        ]
+        .historystatus__c,
+        'Core 第5.3節・第5.5節: 差し戻しは後続Estimateを自動Archiveしない'
       );
     }
   }

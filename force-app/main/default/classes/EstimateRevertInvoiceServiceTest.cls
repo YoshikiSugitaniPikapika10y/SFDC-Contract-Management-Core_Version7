@@ -435,18 +435,30 @@ private class EstimateRevertInvoiceServiceTest {
       );
       insert newer;
 
-      context.changeHistory.historystatus__c = 'Estimate';
-      update context.changeHistory;
+      Boolean thrown = false;
+      try {
+        context.changeHistory.historystatus__c = 'Estimate';
+        update context.changeHistory;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assertEquals(
+          EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE,
+          ex.getDmlMessage(0)
+        );
+      }
       Test.stopTest();
-
-      ContractHistory__c reverted = [
-        SELECT historystatus__c
-        FROM ContractHistory__c
-        WHERE Id = :context.changeHistory.Id
-      ];
-      System.assertEquals('Estimate', reverted.historystatus__c);
+      System.assertEquals(true, thrown, 'Core 第5.3節: 上のVersionのEstimateが残れば差し戻し禁止');
       System.assertEquals(
-        'Archive',
+        'Ordered',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :context.changeHistory.Id
+        ]
+        .historystatus__c
+      );
+      System.assertEquals(
+        'Estimate',
         [
           SELECT historystatus__c
           FROM ContractHistory__c
@@ -454,7 +466,62 @@ private class EstimateRevertInvoiceServiceTest {
           LIMIT 1
         ]
         .historystatus__c,
-        'Core 第4.9節: 差し戻しはより新しい Estimate を先に Archive にする'
+        'Core 第5.3節・第5.5節: 差し戻しは後続Estimateを自動Archiveしない'
+      );
+    }
+  }
+
+  @IsTest
+  static void revertToEstimate_allowsWhenNewerEstimateIsArchived() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestContext context = createTwoVersionContext(
+        Date.newInstance(2026, 10, 1)
+      );
+      context.changeHistory.historystatus__c = 'Ordered';
+      update context.changeHistory;
+
+      ContractHistory__c newer = new ContractHistory__c(
+        Name = 'Archived Estimate v3',
+        ContractService__c = context.changeHistory.ContractService__c,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 3,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+        EffectiveDate__c = Date.newInstance(2026, 12, 1),
+        PreviousHistory__c = context.changeHistory.Id
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        newer,
+        context.accountId
+      );
+      insert newer;
+      newer.historystatus__c = 'Archive';
+      update newer;
+
+      Test.startTest();
+      context.changeHistory.historystatus__c = 'Estimate';
+      update context.changeHistory;
+      Test.stopTest();
+
+      System.assertEquals(
+        'Estimate',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :context.changeHistory.Id
+        ]
+        .historystatus__c,
+        'Core 第5.3節: 後続がすべてArchiveなら差し戻せる'
+      );
+      System.assertEquals(
+        'Archive',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :newer.Id
+        ]
+        .historystatus__c
       );
     }
   }

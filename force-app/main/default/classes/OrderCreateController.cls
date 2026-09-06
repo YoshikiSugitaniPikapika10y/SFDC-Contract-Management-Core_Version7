@@ -2298,10 +2298,15 @@ public without sharing class OrderCreateController {
     if (String.isNotBlank(lockedReason)) {
       return lockedReason;
     }
-    if (
-      !EstimateRevertInvoiceService.isLatestOrderedHistory(contractHistoryId)
-    ) {
+    EstimateRevertInvoiceService.RevertBlockSets revertBlocks = EstimateRevertInvoiceService.queryRevertBlockSets(
+      new Set<Id>{ contractHistoryId }
+    );
+    if (revertBlocks.nonLatestOrderedHistoryIds.contains(contractHistoryId)) {
       return EstimateRevertInvoiceService.NON_LATEST_ORDERED_REVERT_MESSAGE;
+    }
+    // 仕様: Core 第5.3節・第5.5節。上のVersionのEstimateが残っていれば差し戻し禁止。
+    if (revertBlocks.newerEstimateHistoryIds.contains(contractHistoryId)) {
+      return EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE;
     }
     return null;
   }

@@ -322,7 +322,7 @@ private class ContractHistoryTriggerHandlerTest {
   }
 
   @IsTest
-  static void beforeUpdate_archivesNewerEstimateWhenReverting() {
+  static void beforeUpdate_blocksWhenNewerEstimateVersionExists() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Revert Newer Estimate Account'
@@ -365,10 +365,20 @@ private class ContractHistoryTriggerHandlerTest {
         WHERE Name = 'Revert Newer Estimate History v2'
         LIMIT 1
       ];
-      orderedHistory.historystatus__c = 'Estimate';
-      update orderedHistory;
+      Boolean thrown = false;
+      try {
+        orderedHistory.historystatus__c = 'Estimate';
+        update orderedHistory;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assertEquals(
+          EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE,
+          dmlMessage(ex)
+        );
+      }
+      System.assertEquals(true, thrown);
       System.assertEquals(
-        'Estimate',
+        'Ordered',
         [
           SELECT historystatus__c
           FROM ContractHistory__c
@@ -377,14 +387,14 @@ private class ContractHistoryTriggerHandlerTest {
         .historystatus__c
       );
       System.assertEquals(
-        'Archive',
+        'Estimate',
         [
           SELECT historystatus__c
           FROM ContractHistory__c
           WHERE Id = :newer.Id
         ]
         .historystatus__c,
-        '?? Estimate ??????????? Archive ??'
+        'Core 第5.3節・第5.5節: 差し戻しは後続Estimateを自動Archiveしない'
       );
     }
   }

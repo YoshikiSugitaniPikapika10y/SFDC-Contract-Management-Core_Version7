@@ -7,6 +7,8 @@ public without sharing class EstimateRevertInvoiceService {
 
   public static final String NON_LATEST_ORDERED_REVERT_MESSAGE = '後続の受注済バージョンがあるため差し戻せません。新しい方から順に差し戻してください。';
 
+  public static final String NEWER_ESTIMATE_REVERT_MESSAGE = '後続の見積バージョンがあるため差し戻せません。後続の見積を先にアーカイブしてください。';
+
   public static final String DRAFT_JOURNAL_REVERT_MESSAGE = '未確定請求に仕訳が残っているため差し戻せません。';
 
   /** 仕様: Core 第4.9節、第5.3節、Accounting 第2.5節。消す未確定を参照する仕訳は請求削除の前に物理削除する。 */

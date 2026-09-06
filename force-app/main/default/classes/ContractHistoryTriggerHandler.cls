@@ -107,6 +107,7 @@ public without sharing class ContractHistoryTriggerHandler {
       leavingOrderedHistoryIds
     );
     Set<Id> nonLatestHistoryIds = revertBlocks.nonLatestOrderedHistoryIds;
+    Set<Id> newerEstimateHistoryIds = revertBlocks.newerEstimateHistoryIds;
     Set<Id> lockedInvoiceHistoryIds = InvoiceLockUtil.queryHistoryIdsWithLockedInvoices(
       revertToEstimateHistoryIds
     );
@@ -117,6 +118,13 @@ public without sharing class ContractHistoryTriggerHandler {
       if (nonLatestHistoryIds.contains(history.Id)) {
         history.addError(
           EstimateRevertInvoiceService.NON_LATEST_ORDERED_REVERT_MESSAGE
+        );
+        continue;
+      }
+      // 仕様: Core 第5.3節・第5.5節。上のVersionのEstimateが残っていれば差し戻し禁止。
+      if (newerEstimateHistoryIds.contains(history.Id)) {
+        history.addError(
+          EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE
         );
         continue;
       }
@@ -175,7 +183,7 @@ public without sharing class ContractHistoryTriggerHandler {
     ContractIrregularOperationLog.logDelete(oldHistories);
   }
 
-  /** 仕様: Core 第6.1節 */
+  /** 仕様: Core 第5.3節、第6.1節 */
   public static void handleAfterUpdate(
     List<ContractHistory__c> newHistories,
     Map<Id, ContractHistory__c> oldMap
@@ -223,10 +231,8 @@ public without sharing class ContractHistoryTriggerHandler {
       }
     }
 
+    // 仕様: Core 第5.3節・第5.5節。差し戻しは後続Estimateを自動Archiveしない。
     if (!revertToEstimateHistoryIds.isEmpty()) {
-      EstimateRevertInvoiceService.archiveNewerEstimates(
-        revertToEstimateHistories
-      );
       EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories(
         revertToEstimateHistories
       );
