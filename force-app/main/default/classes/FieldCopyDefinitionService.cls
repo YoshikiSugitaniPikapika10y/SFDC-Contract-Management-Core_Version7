@@ -201,10 +201,22 @@ public without sharing class FieldCopyDefinitionService {
   /** 受注1処理（Core 第5.2節）で定義照会と検証を繰り返さない。 */
   private static List<FieldCopyDefinition__c> cachedDefinitions;
   private static Boolean catalogValidated;
+  private static Map<String, Schema.SObjectType> cachedGlobalDescribe;
+  private static Map<String, Map<String, Schema.SObjectField>> cachedFieldMaps;
+  private static Map<String, Schema.DescribeFieldResult> cachedFieldDescribes;
+  private static Map<String, List<FieldCopyDefinition__c>> cachedMatchingDefinitions;
+  private static Set<String> validatedMatchKeys;
+  private static Map<String, Map<String, Object>> cachedStampValues;
 
   public static void resetCache() {
     cachedDefinitions = null;
     catalogValidated = false;
+    cachedGlobalDescribe = null;
+    cachedFieldMaps = null;
+    cachedFieldDescribes = null;
+    cachedMatchingDefinitions = null;
+    validatedMatchKeys = null;
+    cachedStampValues = null;
   }
 
   private static List<FieldCopyDefinition__c> loadAllDefinitions() {
@@ -259,9 +271,8 @@ public without sharing class FieldCopyDefinitionService {
     if (!TARGET_OBJECTS.contains(definition.TargetObject__c)) {
       throw new FieldCopyException('Toオブジェクトがありません: ' + key);
     }
-    Map<String, Schema.SObjectType> globalDescribe = Schema.getGlobalDescribe();
-    Schema.SObjectType targetType = globalDescribe.get(definition.TargetObject__c);
-    Schema.SObjectType sourceType = globalDescribe.get(definition.SourceObject__c);
+    Schema.SObjectType targetType = objectType(definition.TargetObject__c);
+    Schema.SObjectType sourceType = objectType(definition.SourceObject__c);
     if (targetType == null) {
       throw new FieldCopyException('Toオブジェクトがありません: ' + key);
     }
@@ -270,8 +281,8 @@ public without sharing class FieldCopyDefinitionService {
     }
     assertContext(definition, key);
     assertAllowedSource(definition, key);
-    Map<String, Schema.SObjectField> targetFields = targetType.getDescribe().fields.getMap();
-    Map<String, Schema.SObjectField> sourceFields = sourceType.getDescribe().fields.getMap();
+    Map<String, Schema.SObjectField> targetFields = fieldMap(definition.TargetObject__c);
+    Map<String, Schema.SObjectField> sourceFields = fieldMap(definition.SourceObject__c);
     if (
       String.isBlank(definition.TargetFieldApiName__c) ||
       !targetFields.containsKey(definition.TargetFieldApiName__c)
@@ -284,10 +295,14 @@ public without sharing class FieldCopyDefinitionService {
     ) {
       throw new FieldCopyException('From項目がありません: ' + key);
     }
-    Schema.DescribeFieldResult targetDescribe = targetFields.get(definition.TargetFieldApiName__c)
-      .getDescribe();
-    Schema.DescribeFieldResult sourceDescribe = sourceFields.get(definition.SourceFieldApiName__c)
-      .getDescribe();
+    Schema.DescribeFieldResult targetDescribe = fieldDescribe(
+      definition.TargetObject__c,
+      definition.TargetFieldApiName__c
+    );
+    Schema.DescribeFieldResult sourceDescribe = fieldDescribe(
+      definition.SourceObject__c,
+      definition.SourceFieldApiName__c
+    );
     if (!targetDescribe.isUpdateable() || isForbiddenTargetType(targetDescribe)) {
       throw new FieldCopyException('To項目へ書けません: ' + key);
     }
@@ -308,7 +323,7 @@ public without sharing class FieldCopyDefinitionService {
     assertUniqueTarget(definition, batch, key, checkAgainstStoredRows);
   }
 
-  /** 仕様: Core 第11.4.2節 */
+  /** 仕様: Core 第11.4.2節、Accounting 第8.2節手順2。定義の検証は同一処理で対象コンテキスト1回。値は同じ原因レコードなら使い回す。 */
   public static void apply(
     SObject target,
     String targetObjectApiName,
@@ -321,26 +336,23 @@ public without sharing class FieldCopyDefinitionService {
     if (sourceByObject == null) {
       sourceByObject = new Map<String, SObject>();
     }
-    List<FieldCopyDefinition__c> catalog = loadAllDefinitions();
-    for (FieldCopyDefinition__c definition : catalog) {
-      if (definition.TargetObject__c != targetObjectApiName) {
-        continue;
-      }
-      if (!contextMatches(definition.Context__c, context, targetObjectApiName)) {
-        continue;
-      }
-      validateDefinition(definition, catalog, false);
-      Object current = target.get(definition.TargetFieldApiName__c);
+    List<FieldCopyDefinition__c> matching = matchingDefinitions(
+      targetObjectApiName,
+      context
+    );
+    ensureMatchingValidated(targetObjectApiName, context, matching);
+    Map<String, Object> stamps = stampValues(
+      targetObjectApiName,
+      context,
+      sourceByObject,
+      matching
+    );
+    for (String fieldApiName : stamps.keySet()) {
+      Object current = target.get(fieldApiName);
       if (current != null && String.valueOf(current) != '') {
         continue;
       }
-      SObject source = sourceByObject.get(definition.SourceObject__c);
-      if (source == null) {
-        continue;
-      }
-      Object value = source.get(definition.SourceFieldApiName__c);
-      assertValueFits(definition, value);
-      target.put(definition.TargetFieldApiName__c, value);
+      target.put(fieldApiName, stamps.get(fieldApiName));
     }
   }
 
@@ -368,11 +380,11 @@ public without sharing class FieldCopyDefinitionService {
     if (String.isBlank(targetObjectApiName)) {
       return new List<String>();
     }
-    Schema.SObjectType targetType = Schema.getGlobalDescribe().get(targetObjectApiName);
+    Schema.SObjectType targetType = objectType(targetObjectApiName);
     if (targetType == null) {
       return new List<String>();
     }
-    Map<String, Schema.SObjectField> fields = targetType.getDescribe().fields.getMap();
+    Map<String, Schema.SObjectField> fields = fieldMap(targetObjectApiName);
     for (FieldCopyDefinition__c definition : loadAllDefinitions()) {
       if (definition.TargetObject__c != targetObjectApiName) {
         continue;
@@ -393,6 +405,139 @@ public without sharing class FieldCopyDefinitionService {
       records,
       targetObjectApiName
     );
+  }
+
+  /** 仕様: Accounting 第8.2節手順2。同一処理の Schema は取り直さない。 */
+  private static Schema.SObjectType objectType(String objectApiName) {
+    if (String.isBlank(objectApiName)) {
+      return null;
+    }
+    if (cachedGlobalDescribe == null) {
+      cachedGlobalDescribe = Schema.getGlobalDescribe();
+    }
+    return cachedGlobalDescribe.get(objectApiName);
+  }
+
+  private static Map<String, Schema.SObjectField> fieldMap(String objectApiName) {
+    if (cachedFieldMaps == null) {
+      cachedFieldMaps = new Map<String, Map<String, Schema.SObjectField>>();
+    }
+    if (!cachedFieldMaps.containsKey(objectApiName)) {
+      Schema.SObjectType sobjectType = objectType(objectApiName);
+      cachedFieldMaps.put(
+        objectApiName,
+        sobjectType == null
+          ? new Map<String, Schema.SObjectField>()
+          : sobjectType.getDescribe().fields.getMap()
+      );
+    }
+    return cachedFieldMaps.get(objectApiName);
+  }
+
+  private static Schema.DescribeFieldResult fieldDescribe(
+    String objectApiName,
+    String fieldApiName
+  ) {
+    if (cachedFieldDescribes == null) {
+      cachedFieldDescribes = new Map<String, Schema.DescribeFieldResult>();
+    }
+    String key = objectApiName + '.' + fieldApiName;
+    if (!cachedFieldDescribes.containsKey(key)) {
+      Schema.SObjectField field = fieldMap(objectApiName).get(fieldApiName);
+      cachedFieldDescribes.put(key, field == null ? null : field.getDescribe());
+    }
+    return cachedFieldDescribes.get(key);
+  }
+
+  private static List<FieldCopyDefinition__c> matchingDefinitions(
+    String targetObjectApiName,
+    String context
+  ) {
+    if (cachedMatchingDefinitions == null) {
+      cachedMatchingDefinitions = new Map<String, List<FieldCopyDefinition__c>>();
+    }
+    String matchKey = targetObjectApiName + '\n' + String.valueOf(context);
+    if (!cachedMatchingDefinitions.containsKey(matchKey)) {
+      List<FieldCopyDefinition__c> matching = new List<FieldCopyDefinition__c>();
+      for (FieldCopyDefinition__c definition : loadAllDefinitions()) {
+        if (definition.TargetObject__c != targetObjectApiName) {
+          continue;
+        }
+        if (!contextMatches(definition.Context__c, context, targetObjectApiName)) {
+          continue;
+        }
+        matching.add(definition);
+      }
+      cachedMatchingDefinitions.put(matchKey, matching);
+    }
+    return cachedMatchingDefinitions.get(matchKey);
+  }
+
+  private static void ensureMatchingValidated(
+    String targetObjectApiName,
+    String context,
+    List<FieldCopyDefinition__c> matching
+  ) {
+    if (validatedMatchKeys == null) {
+      validatedMatchKeys = new Set<String>();
+    }
+    String matchKey = targetObjectApiName + '\n' + String.valueOf(context);
+    if (validatedMatchKeys.contains(matchKey)) {
+      return;
+    }
+    List<FieldCopyDefinition__c> catalog = loadAllDefinitions();
+    for (FieldCopyDefinition__c definition : matching) {
+      validateDefinition(definition, catalog, false);
+    }
+    validatedMatchKeys.add(matchKey);
+  }
+
+  private static Map<String, Object> stampValues(
+    String targetObjectApiName,
+    String context,
+    Map<String, SObject> sourceByObject,
+    List<FieldCopyDefinition__c> matching
+  ) {
+    if (cachedStampValues == null) {
+      cachedStampValues = new Map<String, Map<String, Object>>();
+    }
+    String stampKey =
+      targetObjectApiName +
+      '\n' +
+      String.valueOf(context) +
+      '\n' +
+      sourceStampKey(sourceByObject);
+    if (!cachedStampValues.containsKey(stampKey)) {
+      Map<String, Object> values = new Map<String, Object>();
+      for (FieldCopyDefinition__c definition : matching) {
+        SObject source = sourceByObject.get(definition.SourceObject__c);
+        if (source == null) {
+          continue;
+        }
+        Object value = source.get(definition.SourceFieldApiName__c);
+        assertValueFits(definition, value);
+        values.put(definition.TargetFieldApiName__c, value);
+      }
+      cachedStampValues.put(stampKey, values);
+    }
+    return cachedStampValues.get(stampKey);
+  }
+
+  private static String sourceStampKey(Map<String, SObject> sourceByObject) {
+    List<String> objectNames = new List<String>(sourceByObject.keySet());
+    objectNames.sort();
+    List<String> parts = new List<String>();
+    for (String objectName : objectNames) {
+      SObject row = sourceByObject.get(objectName);
+      String identity = '';
+      if (row != null) {
+        identity = row.Id != null
+          ? String.valueOf(row.Id)
+          : String.valueOf(row.getPopulatedFieldsAsMap());
+      }
+      parts.add(objectName + '=' + identity);
+    }
+    return String.join(parts, ';');
   }
 
   private static Boolean contextMatches(
@@ -441,7 +586,7 @@ public without sharing class FieldCopyDefinitionService {
 
   private static Set<String> requiredJournalCustomFieldApiNames() {
     Set<String> names = new Set<String>();
-    Schema.SObjectType journalType = Schema.getGlobalDescribe().get('GlJournal__c');
+    Schema.SObjectType journalType = objectType('GlJournal__c');
     if (journalType == null) {
       return names;
     }

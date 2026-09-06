@@ -395,6 +395,59 @@ private class FieldCopyDefinitionServiceTest {
   }
 
   @IsTest
+  static void apply_sameCauseSources_stampEachJournalWithoutRedefining() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Journal_ProductCode_Reuse',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        SourceObject__c = 'Product2',
+        SourceFieldApiName__c = 'ProductCode',
+        TargetFieldApiName__c = 'ProductCodeSnapShot__c'
+      );
+      FieldCopyDefinitionService.resetCache();
+      Product2 product = new Product2(Name = 'コード元', ProductCode = 'SKU-194');
+      Map<String, SObject> sources = new Map<String, SObject>{ 'Product2' => product };
+      GlJournal__c first = new GlJournal__c();
+      GlJournal__c second = new GlJournal__c();
+      FieldCopyDefinitionService.apply(
+        first,
+        'GlJournal__c',
+        FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        sources
+      );
+      FieldCopyDefinitionService.apply(
+        second,
+        'GlJournal__c',
+        FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        sources
+      );
+      System.assertEquals(
+        'SKU-194',
+        first.ProductCodeSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄へコピー'
+      );
+      System.assertEquals(
+        'SKU-194',
+        second.ProductCodeSnapShot__c,
+        '仕様: Accounting 第8.2節 同じ原因の仕訳へ同じコピー値'
+      );
+      second.ProductCodeSnapShot__c = '人手';
+      FieldCopyDefinitionService.apply(
+        second,
+        'GlJournal__c',
+        FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        sources
+      );
+      System.assertEquals(
+        '人手',
+        second.ProductCodeSnapShot__c,
+        '仕様: Core 第11.4.2節 空欄だけ'
+      );
+    }
+  }
+
+  @IsTest
   static void validateAllDefinitions_acceptsRequiredJournalCoveredByBothContexts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = new Set<String>{
