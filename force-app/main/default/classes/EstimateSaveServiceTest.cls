@@ -1383,6 +1383,7 @@ private class EstimateSaveServiceTest {
 
       lineItem.quantity = 3;
       lineItem.amount = 30000;
+      lineItem.contractProductId = created.contractProductIds[0];
       productsJson = JSON.serialize(
         new List<EstimateCreateController.ProductLineItem>{ lineItem }
       );
@@ -1446,11 +1447,16 @@ private class EstimateSaveServiceTest {
       Test.stopTest();
 
       ContractProduct__c savedProduct = [
-        SELECT Quantity__c, Amount__c, InvoiceAnchorDate__c
+        SELECT Id, Quantity__c, Amount__c, InvoiceAnchorDate__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :updated.contractHistoryId
         LIMIT 1
       ];
+      System.assertEquals(
+        created.contractProductIds[0],
+        savedProduct.Id,
+        '仕様: Core 第4.7節・第12.4節。編集は見積商品を作り直さない'
+      );
       System.assertEquals(3, savedProduct.Quantity__c);
       System.assertEquals(30000, savedProduct.Amount__c);
       System.assertEquals(termStart, savedProduct.InvoiceAnchorDate__c);
@@ -1464,6 +1470,120 @@ private class EstimateSaveServiceTest {
         clearedRemarks.Note__c,
         '備考クリア保存で Note__c が消えること'
       );
+    }
+  }
+
+  @IsTest
+  static void replaceEstimateProducts_updatesExistingInsteadOfDeleteAll() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Replace Product Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Replace Product Opportunity'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Replace Product Service'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Replace Product History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Replace Product Catalog'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c existing = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = account.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 10000,
+        Amount__c = 10000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New',
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      ContractTestDataFactory.applyRequiredFields(existing);
+      insert existing;
+      existing = [
+        SELECT Id, Quantity__c
+        FROM ContractProduct__c
+        WHERE Id = :existing.Id
+      ];
+
+      EstimateCreateController.ProductLineItem keepLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      keepLine.quantity = 2;
+      keepLine.unitPrice = 10000;
+      keepLine.amount = 20000;
+      keepLine.contractProductId = existing.Id;
+      EstimateCreateController.ProductLineItem addLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      addLine.quantity = 1;
+      addLine.unitPrice = 10000;
+      addLine.amount = 10000;
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      request.effectiveDate = String.valueOf(termStart);
+      request.products = new List<EstimateCreateController.ProductLineItem>{
+        keepLine,
+        addLine
+      };
+
+      Test.startTest();
+      List<ContractProduct__c> saved = EstimateSaveService.replaceEstimateProducts(
+        history.Id,
+        account.Id,
+        request
+      );
+      Test.stopTest();
+
+      System.assertEquals(2, saved.size());
+      System.assertEquals(existing.Id, saved[0].Id);
+      System.assertEquals(2, saved[0].Quantity__c);
+      System.assertEquals(1, saved[1].Quantity__c);
+      System.assertNotEquals(existing.Id, saved[1].Id);
+      List<ContractProduct__c> remaining = [
+        SELECT Id, Quantity__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :history.Id
+        ORDER BY Quantity__c DESC
+      ];
+      System.assertEquals(2, remaining.size());
+      System.assertEquals(existing.Id, remaining[0].Id);
+      System.assertEquals(2, remaining[0].Quantity__c);
     }
   }
 

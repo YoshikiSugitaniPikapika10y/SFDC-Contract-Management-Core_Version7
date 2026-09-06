@@ -844,36 +844,94 @@ public without sharing class EstimateSaveService {
     );
   }
 
+  /** 仕様: Core 第4.3節、第4.7節、第12.4節。編集は配下見積商品を全削除して作り直さない。 */
   public static List<ContractProduct__c> replaceEstimateProducts(
     Id contractHistoryId,
     Id accountId,
     EstimateCreateController.EstimateSaveRequest request
   ) {
-    List<ContractProduct__c> existingProducts = [
-      SELECT Id
-      FROM ContractProduct__c
-      WHERE ContractHistory__c = :contractHistoryId
-      WITH SYSTEM_MODE
-    ];
-    if (!existingProducts.isEmpty()) {
-      SystemContextAccess.deleteRecords(existingProducts);
-    }
+    Map<Id, ContractProduct__c> existingById = new Map<Id, ContractProduct__c>(
+      [
+        SELECT Id
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :contractHistoryId
+        WITH SYSTEM_MODE
+      ]
+    );
 
-    if (request.selectedType == 'Cancel') {
+    if (request != null && request.selectedType == 'Cancel') {
+      if (!existingById.isEmpty()) {
+        SystemContextAccess.deleteRecords(existingById.values());
+      }
       ContractArrCalculationService.rememberEmptyProductsForRecalc(
         contractHistoryId
       );
       return new List<ContractProduct__c>();
     }
 
-    List<ContractProduct__c> built = buildContractProducts(
-      contractHistoryId,
-      accountId,
-      request
+    List<ContractProduct__c> toUpdate = new List<ContractProduct__c>();
+    List<ContractProduct__c> toInsert = new List<ContractProduct__c>();
+    Set<Id> keptIds = new Set<Id>();
+    Map<Id, Product2> productById = loadProductBillingTypes(
+      request == null ? null : request.products
     );
-    SystemContextAccess.insertRecords(built);
-    ContractArrCalculationService.rememberProductsForRecalc(built);
-    return built;
+    Date effectiveDate = request == null
+      ? null
+      : EstimateCreateSupport.parseDate(request.effectiveDate);
+    String selectedType = request == null ? null : request.selectedType;
+    if (request != null && request.products != null) {
+      for (EstimateCreateController.ProductLineItem line : request.products) {
+        if (line == null || line.productId == null) {
+          continue;
+        }
+        ContractProduct__c built = buildContractProduct(
+          contractHistoryId,
+          accountId,
+          line,
+          productById.get(line.productId),
+          selectedType,
+          effectiveDate
+        );
+        if (
+          line.contractProductId != null &&
+          existingById.containsKey(line.contractProductId)
+        ) {
+          built.Id = line.contractProductId;
+          toUpdate.add(built);
+          keptIds.add(line.contractProductId);
+        } else {
+          toInsert.add(built);
+        }
+      }
+    }
+
+    List<ContractProduct__c> toDelete = new List<ContractProduct__c>();
+    for (ContractProduct__c existingProduct : existingById.values()) {
+      if (!keptIds.contains(existingProduct.Id)) {
+        toDelete.add(existingProduct);
+      }
+    }
+    if (!toDelete.isEmpty()) {
+      SystemContextAccess.deleteRecords(toDelete);
+    }
+    if (!toUpdate.isEmpty()) {
+      SystemContextAccess.updateRecords(toUpdate);
+    }
+    if (!toInsert.isEmpty()) {
+      SystemContextAccess.insertRecords(toInsert);
+    }
+
+    List<ContractProduct__c> saved = new List<ContractProduct__c>();
+    saved.addAll(toUpdate);
+    saved.addAll(toInsert);
+    if (saved.isEmpty()) {
+      ContractArrCalculationService.rememberEmptyProductsForRecalc(
+        contractHistoryId
+      );
+    } else {
+      ContractArrCalculationService.rememberProductsForRecalc(saved);
+    }
+    return saved;
   }
 
   /** 仕様: Core 第3.4.2節、第4.9節 */
