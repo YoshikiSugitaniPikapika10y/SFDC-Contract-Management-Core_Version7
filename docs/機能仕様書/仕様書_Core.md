@@ -57,7 +57,7 @@
 
 見積種別の「追加変更」は、一回課金を足す場合も、継続課金の条件を書き換える場合も、同じ種別の表示である。行種別の「追加」は Type=New の行だけを指し、見積種別の「追加変更」とは別である。
 
-ウィザードの種別チップ、行バッジ、一覧、検索、コンパクトレイアウト、選択リストも同じ表示名を使う。Cancelの契約履歴名の末尾は `Churn` ではなく「解約」とする。画面に Version と出す箇所は Version とする。カタカナの「バージョン」にはしない。版比較、訂正版PDF、修正版仕訳、追加項目定義の「出す版」は Version にしない。追加項目定義の「Newで表示」等は「新規で表示」等とする。`Add` の表示は持たず、見積種別 Add の削除は`CHANGE-001`とする。
+ウィザードの種別チップ、行バッジ、一覧、検索、コンパクトレイアウト、選択リストも同じ表示名を使う。Cancelの契約履歴名の末尾は `Churn` ではなく「解約」とする。画面に Version と出す箇所は Version とする。カタカナの「バージョン」にはしない。例外として、請求ボード明細表の Version 列のセルは番号だけを出す（`1`）。`Version1` も `V1` も出さない。Version フィルタの選択肢と他画面は本節どおり `Version1` とする。版比較、訂正版PDF、修正版仕訳、追加項目定義の「出す版」は Version にしない。追加項目定義の「Newで表示」等は「新規で表示」等とする。`Add` の表示は持たず、見積種別 Add の削除は`CHANGE-001`とする。
 
 請求取引状態の表示は未確定／確定済み／取消済み、Lifecycleの表示は期間契約／都度契約、Pathの表示は現行の「01_見積」等のままとする。`InvoicePaymentNet__c`の表示名は「請求金額Net」とする。
 
@@ -66,7 +66,7 @@
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 対象オブジェクトの選択リストラベル、ウィザード／ボードの表示文字列、<code>EstimateDocumentService.resolveHistoryTypeLabel</code> / <code>resolveProductTypeLabel</code>、<code>ContractHistory_StatusPath</code>のPath表示。保存値は変えない。
-／ Versionの画面文字は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceProductMergeService.formatHistoryVersionLabel</code>、<code>estimateCreateModal2</code>、<code>orderInvoicePreviewTable</code>、<code>contractCrossWork</code>、<code>ContractHistory__c.Version__c</code> と <code>InvoiceLine__c.HistoryVersionLabel__c</code> の表示名。API名は変えない。
+／ Versionの画面文字は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceProductMergeService.formatHistoryVersionLabel</code>、<code>estimateCreateModal2</code>、<code>orderInvoicePreviewTable</code>、<code>contractCrossWork</code>、<code>ContractHistory__c.Version__c</code> と <code>InvoiceLine__c.HistoryVersionLabel__c</code> の表示名。API名は変えない。請求ボード明細表の Version 列セルだけ番号。<code>orderInvoicePreviewTable</code>。フィルタと <code>formatHistoryVersionLabel</code> は <code>Version1</code> のまま。
 </div>
 
 ## 1. 機能原則と正解判定
@@ -1687,7 +1687,7 @@ Accountingは算出済みの請求日を仕訳計上日と時系列残高解決�
 
 フィルタは親子2段とする。親がVersion、子が請求書である。子の候補は、親で選んだVersionに属する請求書だけとする。親を「全Version」にしたときは、その契約サービスの全受注済みVersionの請求書を候補にする。親を変えたときは、子を「全請求書」へ戻す。ただし起動時に請求書を指定した場合は、その請求書のVersionと請求書を初期値にする。利用者が変えたフィルタは、保存・再取得のあとでも維持する。
 
-Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する。請求書フィルタは`Invoice__c.Id`で判定する。選択に一致する請求カードを配下明細ごと表示し、明細単位では間引かない。金額は常に請求書ヘッダーの正本金額を使用する。
+Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する。請求書フィルタは`Invoice__c.Id`で判定する。選択に一致する請求カードを配下明細ごと表示し、明細単位では間引かない。金額は常に請求書ヘッダーの正本金額を使用する。明細表の Version 列のセルは番号だけを出す（`1`）。`Version1` も `V1` も出さない。フィルタの選択肢は第0.1節どおり `Version1` とする。
 
 | 開いた場所   | 初期の親（Version）             | 初期の子（請求書） |
 | ------------ | ------------------------------- | ------------------ |
@@ -1708,7 +1708,7 @@ Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewIntegrityService.assertSameHistory</code>
 ／ <code>OrderCreateController.getInvoicePreview</code>の取得直後。不一致なら表示・編集・確定を止める。同一取得リクエストで対象請求・明細・定義を取り直さない。返すカードは本節どおり。
-／ 3入口は<code>OrderCreateController.resolvePreviewScope</code>。<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code> / <code>orderInvoicePreviewTable</code>。部品は枠に載せない。「差額あり／なし」フィルタは出さない。
+／ 3入口は<code>OrderCreateController.resolvePreviewScope</code>。<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code> / <code>orderInvoicePreviewTable</code>。部品は枠に載せない。「差額あり／なし」フィルタは出さない。明細表の Version 列セルは番号のみ。
 </div>
 
 - ボード自身がビューポート実測値から高さを決めた縦スクローラを1本だけ持つ。カード、表、タブに入れ子スクローラを作らない。combobox等ポインタ直下の小スクローラだけを優先する。
