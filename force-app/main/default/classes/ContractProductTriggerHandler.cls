@@ -160,11 +160,10 @@ public without sharing class ContractProductTriggerHandler {
     List<ContractProduct__c> newProducts,
     Map<Id, ContractProduct__c> oldMap
   ) {
-    Set<Id> historyIds = collectHistoryIds(newProducts, oldMap);
+    // 仕様: Core 第5.4節、第12.4節。Lifecycle は V1 受注で確定。見積商品 after では判定しない。
     ContractArrCalculationService.recalculateForHistories(
       collectArrHistoryIds(newProducts, oldMap)
     );
-    ContractServiceLifecycleService.ensureLifecycleForHistories(historyIds);
   }
 
   public static void handleAfterDelete(List<ContractProduct__c> oldProducts) {

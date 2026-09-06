@@ -523,4 +523,63 @@ private class ContractProductTriggerHandlerTest {
       );
     }
   }
+
+  @IsTest
+  static void handleAfterChange_skipsLifecycleQueryForEstimateProducts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Skip Lifecycle Account'
+      );
+      ContractService__c service = insertService(
+        account.Id,
+        'Skip Lifecycle Service'
+      );
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2027, 5, 31);
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Skip Lifecycle History',
+        'New',
+        1,
+        termStart,
+        termEnd,
+        null
+      );
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Skip Lifecycle Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c line = new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Account__c = account.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New',
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      Integer queriesBeforeArr = Limits.getQueries();
+      ContractArrCalculationService.recalculateForHistories(
+        new Set<Id>{ history.Id }
+      );
+      Integer arrQueries = Limits.getQueries() - queriesBeforeArr;
+      Integer queriesBeforeHandler = Limits.getQueries();
+      ContractProductTriggerHandler.handleAfterChange(
+        new List<ContractProduct__c>{ line },
+        null
+      );
+      System.assertEquals(
+        arrQueries,
+        Limits.getQueries() - queriesBeforeHandler,
+        'Core 第5.4節: 未受注 Estimate の見積商品 after は Lifecycle 判定で履歴を照会しない'
+      );
+    }
+  }
 }
