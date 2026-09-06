@@ -846,12 +846,19 @@ public without sharing class EstimateSaveService {
     }
 
     if (request.selectedType == 'Cancel') {
+      ContractArrCalculationService.rememberEmptyProductsForRecalc(
+        contractHistoryId
+      );
       return;
     }
 
-    SystemContextAccess.insertRecords(
-      buildContractProducts(contractHistoryId, accountId, request)
+    List<ContractProduct__c> built = buildContractProducts(
+      contractHistoryId,
+      accountId,
+      request
     );
+    SystemContextAccess.insertRecords(built);
+    ContractArrCalculationService.rememberProductsForRecalc(built);
   }
 
   /** 仕様: Core 第3.4.2節、第4.9節 */
@@ -922,10 +929,17 @@ public without sharing class EstimateSaveService {
     applyNotAutoRenewFieldCopy(contractHistory, request);
     applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
-
-    SystemContextAccess.insertRecords(
-      buildContractProducts(contractHistory.Id, opportunity.AccountId, request)
+    ContractArrCalculationService.rememberHistoriesForRecalc(
+      new List<ContractHistory__c>{ contractHistory }
     );
+
+    List<ContractProduct__c> newProducts = buildContractProducts(
+      contractHistory.Id,
+      opportunity.AccountId,
+      request
+    );
+    SystemContextAccess.insertRecords(newProducts);
+    ContractArrCalculationService.rememberProductsForRecalc(newProducts);
 
     return buildSaveResult(
       contractService.Id,
@@ -977,6 +991,9 @@ public without sharing class EstimateSaveService {
     applyNotAutoRenewFieldCopy(contractHistory, request);
     applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
+    ContractArrCalculationService.rememberHistoriesForRecalc(
+      new List<ContractHistory__c>{ contractHistory }
+    );
 
     applyDisplayedServiceCustomFields(request.contractServiceId, request);
 
@@ -986,9 +1003,13 @@ public without sharing class EstimateSaveService {
       );
     }
 
-    SystemContextAccess.insertRecords(
-      buildContractProducts(contractHistory.Id, service.Account__c, request)
+    List<ContractProduct__c> changeProducts = buildContractProducts(
+      contractHistory.Id,
+      service.Account__c,
+      request
     );
+    SystemContextAccess.insertRecords(changeProducts);
+    ContractArrCalculationService.rememberProductsForRecalc(changeProducts);
 
     return buildSaveResult(
       request.contractServiceId,
@@ -1049,6 +1070,12 @@ public without sharing class EstimateSaveService {
     applyNotAutoRenewFieldCopy(contractHistory, request);
     applyOperationKey(contractHistory, request);
     SystemContextAccess.insertRecords(new List<SObject>{ contractHistory });
+    ContractArrCalculationService.rememberHistoriesForRecalc(
+      new List<ContractHistory__c>{ contractHistory }
+    );
+    ContractArrCalculationService.rememberEmptyProductsForRecalc(
+      contractHistory.Id
+    );
 
     applyDisplayedServiceCustomFields(request.contractServiceId, request);
 
@@ -1160,6 +1187,9 @@ public without sharing class EstimateSaveService {
     contractProduct.Amount__c = AmountCalculationSettingService.roundAmount(
       line.amount
     );
+    if (product != null) {
+      contractProduct.putSObject('Product__r', product);
+    }
     InvoiceAnchorDateUtil.applyToContractProduct(
       contractProduct,
       selectedType,
@@ -1219,7 +1249,8 @@ public without sharing class EstimateSaveService {
         'BillingType__c',
         'RevenueRecognitionBasis__c',
         'UnitName__c',
-        'AvailableForContract__c'
+        'AvailableForContract__c',
+        'IncludeInARR__c'
       };
       selectFields.addAll(
         ContractWizardFieldService.getReferencedProduct2FieldApiNames()

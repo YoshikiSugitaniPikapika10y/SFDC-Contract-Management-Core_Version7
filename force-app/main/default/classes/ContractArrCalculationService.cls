@@ -11,8 +11,14 @@ public without sharing class ContractArrCalculationService {
 
   private static Integer recalcDeferDepth = 0;
   private static Set<Id> deferredRecalcHistoryIds = new Set<Id>();
+  private static Map<Id, ContractHistory__c> rememberedHistoriesById = new Map<Id, ContractHistory__c>();
+  private static Map<Id, List<ContractProduct__c>> rememberedProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
+  private static Set<Id> rememberedProductHistoryIds = new Set<Id>();
 
   public static void beginRecalcDefer() {
+    if (recalcDeferDepth == 0) {
+      clearRememberedRows();
+    }
     recalcDeferDepth++;
   }
 
@@ -23,8 +29,66 @@ public without sharing class ContractArrCalculationService {
     if (recalcDeferDepth == 0 && !deferredRecalcHistoryIds.isEmpty()) {
       Set<Id> pending = deferredRecalcHistoryIds;
       deferredRecalcHistoryIds = new Set<Id>();
-      recalculateForHistoriesNow(pending);
+      try {
+        recalculateForHistoriesNow(pending);
+      } finally {
+        clearRememberedRows();
+      }
     }
+  }
+
+  /** 仕様: Core 第10.1節、第12.4節。同一処理で書いた履歴を取り直さない。 */
+  public static void rememberHistoriesForRecalc(
+    List<ContractHistory__c> histories
+  ) {
+    if (histories == null) {
+      return;
+    }
+    for (ContractHistory__c history : histories) {
+      if (history == null || history.Id == null) {
+        continue;
+      }
+      rememberedHistoriesById.put(history.Id, history);
+    }
+  }
+
+  /** 仕様: Core 第10.1節、第12.4節。同一処理で生成した見積商品を取り直さない。 */
+  public static void rememberProductsForRecalc(
+    List<ContractProduct__c> products
+  ) {
+    if (products == null) {
+      return;
+    }
+    for (ContractProduct__c product : products) {
+      if (product == null || product.ContractHistory__c == null) {
+        continue;
+      }
+      if (!rememberedProductsByHistoryId.containsKey(product.ContractHistory__c)) {
+        rememberedProductsByHistoryId.put(
+          product.ContractHistory__c,
+          new List<ContractProduct__c>()
+        );
+      }
+      rememberedProductsByHistoryId.get(product.ContractHistory__c).add(product);
+      rememberedProductHistoryIds.add(product.ContractHistory__c);
+    }
+  }
+
+  public static void rememberEmptyProductsForRecalc(Id contractHistoryId) {
+    if (contractHistoryId == null) {
+      return;
+    }
+    rememberedProductsByHistoryId.put(
+      contractHistoryId,
+      new List<ContractProduct__c>()
+    );
+    rememberedProductHistoryIds.add(contractHistoryId);
+  }
+
+  private static void clearRememberedRows() {
+    rememberedHistoriesById.clear();
+    rememberedProductsByHistoryId.clear();
+    rememberedProductHistoryIds.clear();
   }
 
   /** 仕様: Core 第1.1.10節、第10.1節 */
@@ -46,19 +110,14 @@ public without sharing class ContractArrCalculationService {
 
     Map<Id, Decimal> arrByHistoryId = new Map<Id, Decimal>();
     Map<Id, Decimal> aveArrByHistoryId = new Map<Id, Decimal>();
+    Map<Id, ContractHistory__c> histories = loadHistoriesForRecalc(
+      contractHistoryIds
+    );
     calculateArrMetricsByHistoryId(
       contractHistoryIds,
+      histories,
       arrByHistoryId,
       aveArrByHistoryId
-    );
-
-    Map<Id, ContractHistory__c> histories = new Map<Id, ContractHistory__c>(
-      [
-        SELECT Id, ARR__c, AveARR__c
-        FROM ContractHistory__c
-        WHERE Id IN :contractHistoryIds
-        WITH SYSTEM_MODE
-      ]
     );
 
     List<ContractHistory__c> historiesToUpdate = new List<ContractHistory__c>();
@@ -102,28 +161,47 @@ public without sharing class ContractArrCalculationService {
     }
   }
 
-  private static void calculateArrMetricsByHistoryId(
-    Set<Id> contractHistoryIds,
-    Map<Id, Decimal> arrByHistoryId,
-    Map<Id, Decimal> aveArrByHistoryId
+  private static Map<Id, ContractHistory__c> loadHistoriesForRecalc(
+    Set<Id> contractHistoryIds
   ) {
-    Map<Id, Date> termStartDateByHistoryId = new Map<Id, Date>();
-    Map<Id, Date> termEndDateByHistoryId = new Map<Id, Date>();
-    Map<Id, Decimal> avePeriodAmountByHistoryId = new Map<Id, Decimal>();
-
-    for (ContractHistory__c history : [
-      SELECT Id, CurrentTermStartDate__c, CurrentTermEndDate__c
-      FROM ContractHistory__c
-      WHERE Id IN :contractHistoryIds
-      WITH SYSTEM_MODE
-    ]) {
-      arrByHistoryId.put(history.Id, 0);
-      avePeriodAmountByHistoryId.put(history.Id, 0);
-      termStartDateByHistoryId.put(history.Id, history.CurrentTermStartDate__c);
-      termEndDateByHistoryId.put(history.Id, history.CurrentTermEndDate__c);
+    if (rememberedHistoriesById.keySet().containsAll(contractHistoryIds)) {
+      Map<Id, ContractHistory__c> remembered = new Map<Id, ContractHistory__c>();
+      for (Id historyId : contractHistoryIds) {
+        remembered.put(historyId, rememberedHistoriesById.get(historyId));
+      }
+      return remembered;
     }
+    return new Map<Id, ContractHistory__c>(
+      [
+        SELECT
+          Id,
+          ARR__c,
+          AveARR__c,
+          CurrentTermStartDate__c,
+          CurrentTermEndDate__c
+        FROM ContractHistory__c
+        WHERE Id IN :contractHistoryIds
+        WITH SYSTEM_MODE
+      ]
+    );
+  }
 
-    for (ContractProduct__c product : [
+  private static List<ContractProduct__c> loadProductsForRecalc(
+    Set<Id> contractHistoryIds
+  ) {
+    if (rememberedProductHistoryIds.containsAll(contractHistoryIds)) {
+      List<ContractProduct__c> remembered = new List<ContractProduct__c>();
+      for (Id historyId : contractHistoryIds) {
+        List<ContractProduct__c> rows = rememberedProductsByHistoryId.get(
+          historyId
+        );
+        if (rows != null) {
+          remembered.addAll(rows);
+        }
+      }
+      return remembered;
+    }
+    return [
       SELECT
         ContractHistory__c,
         Amount__c,
@@ -141,7 +219,30 @@ public without sharing class ContractArrCalculationService {
         AND Type__c != :PRODUCT_TYPE_ORIGINAL
         AND Quantity__c > 0
       WITH SYSTEM_MODE
-    ]) {
+    ];
+  }
+
+  private static void calculateArrMetricsByHistoryId(
+    Set<Id> contractHistoryIds,
+    Map<Id, ContractHistory__c> histories,
+    Map<Id, Decimal> arrByHistoryId,
+    Map<Id, Decimal> aveArrByHistoryId
+  ) {
+    Map<Id, Date> termStartDateByHistoryId = new Map<Id, Date>();
+    Map<Id, Date> termEndDateByHistoryId = new Map<Id, Date>();
+    Map<Id, Decimal> avePeriodAmountByHistoryId = new Map<Id, Decimal>();
+
+    for (ContractHistory__c history : histories.values()) {
+      if (history == null) {
+        continue;
+      }
+      arrByHistoryId.put(history.Id, 0);
+      avePeriodAmountByHistoryId.put(history.Id, 0);
+      termStartDateByHistoryId.put(history.Id, history.CurrentTermStartDate__c);
+      termEndDateByHistoryId.put(history.Id, history.CurrentTermEndDate__c);
+    }
+
+    for (ContractProduct__c product : loadProductsForRecalc(contractHistoryIds)) {
       Date termEndDate = termEndDateByHistoryId.get(product.ContractHistory__c);
       Decimal lineArr = calculateProductArr(product, termEndDate);
       Decimal currentArr = arrByHistoryId.get(product.ContractHistory__c);
