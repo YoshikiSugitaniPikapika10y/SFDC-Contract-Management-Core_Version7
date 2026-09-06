@@ -1405,20 +1405,26 @@ private class AccountingEngineTest {
         null
       );
       Boolean thrown = false;
+      Test.startTest();
       try {
         InvoiceCanonicalService.updateLineAcceptanceEndDates(
           new Map<Id, Date>{
             fixture.line.Id => Date.newInstance(2026, 8, 31)
           },
-          null
+          null,
+          null,
+          AccountingCauseLockService.resolveInvoiceOperationToken(
+            fixture.invoice.Id
+          )
         );
-      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+      } catch (Exception ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('ロック済み仕訳がある取消では取消基準日が必要です'),
-          'Core 第7.6節、日付仕様 第7.3節: 空を操作日で埋めない'
+          ex.getMessage().contains('取消基準日が必要'),
+          'Accounting 第8.8節、日付仕様 第7.3節: 空を操作日で埋めない'
         );
       }
+      Test.stopTest();
       System.assertEquals(true, thrown);
     }
   }

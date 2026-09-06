@@ -27,6 +27,7 @@ private class ContractLifecycleScenarioTest {
 
   private class ScenarioContext {
     public Account account;
+    public Opportunity opportunity;
     public ContractService__c service;
     public BillingAccount__c billingAccount;
     public Product2 product;
@@ -165,6 +166,7 @@ private class ContractLifecycleScenarioTest {
         Type__c = 'Renew',
         historystatus__c = 'Estimate',
         Version__c = 3,
+        Opportunity__c = base.opportunity.Id,
         CurrentTermStartDate__c = renewStart,
         CurrentTermEndDate__c = renewEnd,
         EffectiveDate__c = renewStart,
@@ -193,6 +195,7 @@ private class ContractLifecycleScenarioTest {
         Type__c = 'Cancel',
         historystatus__c = 'Ordered',
         Version__c = 4,
+        Opportunity__c = base.opportunity.Id,
         CurrentTermStartDate__c = cancelDate,
         CurrentTermEndDate__c = cancelDate,
         EffectiveDate__c = cancelDate,
@@ -751,6 +754,7 @@ private class ContractLifecycleScenarioTest {
         Type__c = 'New',
         historystatus__c = 'Ordered',
         Version__c = 1,
+        Opportunity__c = base.opportunity.Id,
         CurrentTermStartDate__c = termStart,
         CurrentTermEndDate__c = termEnd,
         EffectiveDate__c = termStart
@@ -867,6 +871,7 @@ private class ContractLifecycleScenarioTest {
         Type__c = 'New',
         historystatus__c = 'Ordered',
         Version__c = 1,
+        Opportunity__c = base.opportunity.Id,
         CurrentTermStartDate__c = headerStart,
         CurrentTermEndDate__c = headerEnd,
         EffectiveDate__c = headerStart
@@ -1085,6 +1090,7 @@ private class ContractLifecycleScenarioTest {
         Type__c = 'Renew',
         historystatus__c = 'Estimate',
         Version__c = 3,
+        Opportunity__c = base.opportunity.Id,
         CurrentTermStartDate__c = renewStart,
         CurrentTermEndDate__c = renewEnd,
         EffectiveDate__c = renewStart,
@@ -1232,6 +1238,11 @@ private class ContractLifecycleScenarioTest {
     );
     insert service;
 
+    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+      account.Id,
+      name + ' Opportunity'
+    );
+
     Product2 product = ContractTestDataFactory.buildProduct(name + ' Product');
     product.BillingType__c = BILLING_TYPE_RECURRING;
     product.invoicetype__c = invoiceSetting;
@@ -1239,6 +1250,7 @@ private class ContractLifecycleScenarioTest {
 
     ScenarioContext context = new ScenarioContext();
     context.account = account;
+    context.opportunity = opportunity;
     context.service = service;
     context.billingAccount = billingAccount;
     context.product = product;
@@ -1260,6 +1272,7 @@ private class ContractLifecycleScenarioTest {
       Type__c = 'New',
       historystatus__c = 'Ordered',
       Version__c = version,
+      Opportunity__c = base.opportunity.Id,
       CurrentTermStartDate__c = termStart,
       CurrentTermEndDate__c = termEnd,
       EffectiveDate__c = termStart
@@ -1309,6 +1322,7 @@ private class ContractLifecycleScenarioTest {
       Type__c = 'Change',
       historystatus__c = 'Estimate',
       Version__c = version,
+      Opportunity__c = base.opportunity.Id,
       CurrentTermStartDate__c = termStart,
       CurrentTermEndDate__c = termEnd,
       EffectiveDate__c = effectiveDate,
@@ -1321,7 +1335,7 @@ private class ContractLifecycleScenarioTest {
         Product__c = base.product.Id,
         Quantity__c = priorQty,
         UnitPrice__c = priorUnitPrice,
-        Amount__c = priorUnitPrice * priorQty,
+        Amount__c = -(priorUnitPrice * priorQty),
         StartDate__c = termStart,
         Enddate__c = termEnd,
         InvoiceSetting__c = INVOICE_SETTING_PREPAID,
@@ -1378,6 +1392,7 @@ private class ContractLifecycleScenarioTest {
       Type__c = 'Change',
       historystatus__c = 'Estimate',
       Version__c = version,
+      Opportunity__c = prior.Opportunity__c,
       CurrentTermStartDate__c = termStart,
       CurrentTermEndDate__c = termEnd,
       EffectiveDate__c = effectiveDate,
@@ -1394,7 +1409,7 @@ private class ContractLifecycleScenarioTest {
           Product__c = products[i].Id,
           Quantity__c = 1,
           UnitPrice__c = priorPrice,
-          Amount__c = priorPrice,
+          Amount__c = -priorPrice,
           StartDate__c = termStart,
           Enddate__c = termEnd,
           InvoiceSetting__c = INVOICE_SETTING_PREPAID,
@@ -1483,6 +1498,7 @@ private class ContractLifecycleScenarioTest {
       Type__c = 'Change',
       historystatus__c = 'Estimate',
       Version__c = version,
+      Opportunity__c = priorChange.Opportunity__c,
       CurrentTermStartDate__c = termStart,
       CurrentTermEndDate__c = termEnd,
       EffectiveDate__c = effectiveDate,
@@ -1513,7 +1529,7 @@ private class ContractLifecycleScenarioTest {
           Product__c = product.Id,
           Quantity__c = 1,
           UnitPrice__c = preRemake.UnitPrice__c,
-          Amount__c = preRemake.UnitPrice__c,
+          Amount__c = -preRemake.UnitPrice__c,
           StartDate__c = termStart,
           Enddate__c = priorPreEnd,
           InvoiceSetting__c = INVOICE_SETTING_PREPAID,
@@ -1543,7 +1559,7 @@ private class ContractLifecycleScenarioTest {
           Product__c = product.Id,
           Quantity__c = 1,
           UnitPrice__c = priorPrice,
-          Amount__c = priorPrice,
+          Amount__c = -priorPrice,
           StartDate__c = priorEffective,
           Enddate__c = termEnd,
           InvoiceSetting__c = INVOICE_SETTING_PREPAID,
@@ -1588,8 +1604,129 @@ private class ContractLifecycleScenarioTest {
   }
 
   private static void orderHistory(ContractHistory__c history) {
+    if (history != null && history.PreviousHistory__c != null) {
+      stampRevenueRecognitionBasis(new Set<Id>{ history.PreviousHistory__c });
+    }
+    stampRevenueRecognitionBasis(new Set<Id>{ history.Id });
+    if (history != null && history.Type__c == 'Change') {
+      syncChangeOriginalsToPrevious(history.Id);
+      syncChangeRemakeLockedFieldsToPrevious(history.Id);
+    }
     history.historystatus__c = 'Ordered';
     update history;
+  }
+
+  private static void stampRevenueRecognitionBasis(Set<Id> historyIds) {
+    if (historyIds == null || historyIds.isEmpty()) {
+      return;
+    }
+    List<ContractProduct__c> rows = [
+      SELECT Id, Product__r.RevenueRecognitionBasis__c, RevenueRecognitionBasis__c
+      FROM ContractProduct__c
+      WHERE ContractHistory__c IN :historyIds AND RevenueRecognitionBasis__c = NULL
+    ];
+    for (ContractProduct__c row : rows) {
+      row.RevenueRecognitionBasis__c = row.Product__r.RevenueRecognitionBasis__c;
+    }
+    if (!rows.isEmpty()) {
+      update rows;
+    }
+  }
+
+  private static void syncChangeOriginalsToPrevious(Id changeHistoryId) {
+    List<ContractProduct__c> originals = [
+      SELECT Id, PreviousContractProduct__c, UnitPrice__c
+      FROM ContractProduct__c
+      WHERE ContractHistory__c = :changeHistoryId AND Type__c = 'Original'
+    ];
+    Set<Id> previousIds = new Set<Id>();
+    for (ContractProduct__c original : originals) {
+      if (original.PreviousContractProduct__c != null) {
+        previousIds.add(original.PreviousContractProduct__c);
+      }
+    }
+    if (previousIds.isEmpty()) {
+      return;
+    }
+    Map<Id, ContractProduct__c> previousById = new Map<Id, ContractProduct__c>(
+      [
+        SELECT
+          Product__c,
+          Quantity__c,
+          UnitPrice__c,
+          Amount__c,
+          StartDate__c,
+          Enddate__c,
+          InvoiceSetting__c,
+          BillingType__c,
+          RevenueRecognitionBasis__c,
+          Unit__c
+        FROM ContractProduct__c
+        WHERE Id IN :previousIds
+      ]
+    );
+    List<ContractProduct__c> updates = new List<ContractProduct__c>();
+    for (ContractProduct__c original : originals) {
+      ContractProduct__c source = previousById.get(
+        original.PreviousContractProduct__c
+      );
+      if (source == null) {
+        continue;
+      }
+      original.Product__c = source.Product__c;
+      original.Quantity__c = source.Quantity__c;
+      original.UnitPrice__c = source.UnitPrice__c;
+      original.Amount__c = source.Amount__c == null ? null : -source.Amount__c;
+      original.StartDate__c = source.StartDate__c;
+      original.Enddate__c = source.Enddate__c;
+      original.Unit__c = source.Unit__c;
+      original.InvoiceSetting__c = source.InvoiceSetting__c;
+      original.BillingType__c = source.BillingType__c;
+      original.RevenueRecognitionBasis__c = source.RevenueRecognitionBasis__c;
+      updates.add(original);
+    }
+    if (!updates.isEmpty()) {
+      update updates;
+    }
+  }
+
+  private static void syncChangeRemakeLockedFieldsToPrevious(Id changeHistoryId) {
+    List<ContractProduct__c> remakes = [
+      SELECT Id, PreviousContractProduct__c
+      FROM ContractProduct__c
+      WHERE ContractHistory__c = :changeHistoryId AND Type__c = 'Remake'
+    ];
+    Set<Id> previousIds = new Set<Id>();
+    for (ContractProduct__c remake : remakes) {
+      if (remake.PreviousContractProduct__c != null) {
+        previousIds.add(remake.PreviousContractProduct__c);
+      }
+    }
+    if (previousIds.isEmpty()) {
+      return;
+    }
+    Map<Id, ContractProduct__c> previousById = new Map<Id, ContractProduct__c>(
+      [
+        SELECT InvoiceSetting__c, RevenueRecognitionBasis__c
+        FROM ContractProduct__c
+        WHERE Id IN :previousIds
+      ]
+    );
+    List<ContractProduct__c> updates = new List<ContractProduct__c>();
+    for (ContractProduct__c remake : remakes) {
+      ContractProduct__c source = previousById.get(
+        remake.PreviousContractProduct__c
+      );
+      if (source == null) {
+        continue;
+      }
+      remake.InvoiceSetting__c = source.InvoiceSetting__c;
+      remake.RevenueRecognitionBasis__c = source.RevenueRecognitionBasis__c;
+      updates.add(remake);
+    }
+    if (!updates.isEmpty()) {
+      update updates;
+    }
   }
 
   private static void lockInvoiceCoveringPeriodStart(
