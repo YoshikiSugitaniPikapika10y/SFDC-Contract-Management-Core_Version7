@@ -200,6 +200,61 @@ private class EstimateArchiveControllerTest {
   }
 
   @IsTest
+  static void archiveEstimate_reusesLockedHistoryLastModified() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Lock Lmd Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Archive Lock Lmd Service'
+      );
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Lock Lmd History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
+      );
+      history = [
+        SELECT Id, LastModifiedDate
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      String token = ContractOptimisticLockUtil.toHistoryProductToken(
+        history.Id,
+        history.LastModifiedDate
+      );
+      Test.startTest();
+      ContractHistory__c locked = AccountingCauseLockService.lockHistory(
+        history.Id
+      );
+      Integer queriesBefore = Limits.getQueries();
+      ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+        locked.Id,
+        token,
+        locked.LastModifiedDate
+      );
+      System.assertEquals(
+        1,
+        Limits.getQueries() - queriesBefore,
+        'Core 第12.4節: ロック済み契約履歴の更新日時は取り直さない'
+      );
+      EstimateArchiveController.ArchiveResult result = EstimateArchiveController.archiveEstimate(
+        history.Id,
+        token,
+        'archive-lock-lmd-key'
+      );
+      Test.stopTest();
+      System.assertEquals('Archive', result.historyStatus);
+    }
+  }
+
+  @IsTest
   static void archiveEstimate_blocksNonEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(

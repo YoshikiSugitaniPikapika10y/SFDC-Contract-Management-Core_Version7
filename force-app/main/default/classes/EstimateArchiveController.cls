@@ -97,7 +97,8 @@ public without sharing class EstimateArchiveController {
     }
     ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
       history.Id,
-      expectedLastModifiedToken
+      expectedLastModifiedToken,
+      history.LastModifiedDate
     );
 
     history.historystatus__c = HISTORY_STATUS_ARCHIVE;
