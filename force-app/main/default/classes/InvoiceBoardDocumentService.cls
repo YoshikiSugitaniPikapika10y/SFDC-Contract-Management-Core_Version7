@@ -6,10 +6,8 @@ public without sharing class InvoiceBoardDocumentService {
   public static final String SEND_MODE_BLOCK_MESSAGE = '請求書設定がPDFとメール送付のときだけ送付できます。';
   public static final String CANCELLED_BLOCK_MESSAGE = '取消済みの請求は発行・送付できません。';
   public static final String DRAFT_BLOCK_MESSAGE = '確定済みの請求だけ発行・送付できます。';
-  public static final String MISSING_ATTACHMENT_MESSAGE =
-    '添付ファイルを選択してください。';
-  public static final String MISSING_ATTACHMENT_NAME_MESSAGE =
-    '添付ファイル名を設定してください。';
+  public static final String MISSING_ATTACHMENT_MESSAGE = '添付ファイルを選択してください。';
+  public static final String MISSING_ATTACHMENT_NAME_MESSAGE = '添付ファイル名を設定してください。';
   public static final String ATTACHMENT_NEW = EstimateDocumentService.ATTACHMENT_NEW;
 
   @TestVisible
@@ -34,19 +32,32 @@ public without sharing class InvoiceBoardDocumentService {
   }
 
   public class SendPreviewDto {
-    @AuraEnabled public String fromLabel;
-    @AuraEnabled public String orgWideEmailAddress;
-    @AuraEnabled public String toAddresses;
-    @AuraEnabled public String ccAddresses;
-    @AuraEnabled public String bccAddresses;
-    @AuraEnabled public String subject;
-    @AuraEnabled public String body;
-    @AuraEnabled public String fileName;
-    @AuraEnabled public String documentTemplateKey;
-    @AuraEnabled public String emailTemplateApiName;
-    @AuraEnabled public String attachmentId;
-    @AuraEnabled public List<EstimateDocumentService.FileOptionDto> attachmentOptions;
-    @AuraEnabled public String newIssueFileName;
+    @AuraEnabled
+    public String fromLabel;
+    @AuraEnabled
+    public String orgWideEmailAddress;
+    @AuraEnabled
+    public String toAddresses;
+    @AuraEnabled
+    public String ccAddresses;
+    @AuraEnabled
+    public String bccAddresses;
+    @AuraEnabled
+    public String subject;
+    @AuraEnabled
+    public String body;
+    @AuraEnabled
+    public String fileName;
+    @AuraEnabled
+    public String documentTemplateKey;
+    @AuraEnabled
+    public String emailTemplateApiName;
+    @AuraEnabled
+    public String attachmentId;
+    @AuraEnabled
+    public List<EstimateDocumentService.FileOptionDto> attachmentOptions;
+    @AuraEnabled
+    public String newIssueFileName;
   }
 
   public class DocumentResultDto {
@@ -98,13 +109,15 @@ public without sharing class InvoiceBoardDocumentService {
       String resolvedKey = String.isNotBlank(documentTemplateKey)
         ? documentTemplateKey.trim()
         : null;
-      ContractDocumentTemplateService.TemplateDefinition template =
-        ContractDocumentTemplateService.resolveTemplate(
-          ContractDocumentTemplateService.TYPE_INVOICE,
-          resolvedKey
-        );
+      ContractDocumentTemplateService.TemplateDefinition template = ContractDocumentTemplateService.resolveTemplate(
+        ContractDocumentTemplateService.TYPE_INVOICE,
+        resolvedKey
+      );
       DocumentResultDto preview = new DocumentResultDto();
-      preview.fileName = InvoiceDocumentService.buildFileName(invoice, template);
+      preview.fileName = InvoiceDocumentService.buildFileName(
+        invoice,
+        template
+      );
       preview.documentTemplateKey = template.templateKey;
       return preview;
     } catch (AuraHandledException ex) {
@@ -144,7 +157,9 @@ public without sharing class InvoiceBoardDocumentService {
       assertIssuable(invoice, false);
       InvoiceDocumentService.IssueResult issued = InvoiceDocumentService.issueInvoiceDocument(
         invoice.Id,
-        documentTemplateKey
+        documentTemplateKey,
+        null,
+        invoice
       );
       return toResult(issued);
     } catch (AuraHandledException ex) {
@@ -306,11 +321,10 @@ public without sharing class InvoiceBoardDocumentService {
       String resolvedKey = String.isNotBlank(documentTemplateKey)
         ? documentTemplateKey.trim()
         : null;
-      ContractDocumentTemplateService.TemplateDefinition template =
-        ContractDocumentTemplateService.resolveTemplate(
-          ContractDocumentTemplateService.TYPE_INVOICE,
-          resolvedKey
-        );
+      ContractDocumentTemplateService.TemplateDefinition template = ContractDocumentTemplateService.resolveTemplate(
+        ContractDocumentTemplateService.TYPE_INVOICE,
+        resolvedKey
+      );
       SendPreviewDto preview = new SendPreviewDto();
       preview.orgWideEmailAddress = sender.address;
       preview.fromLabel = ContractEmailTemplateService.formatOrgWideFrom(
@@ -386,7 +400,9 @@ public without sharing class InvoiceBoardDocumentService {
       String.isNotBlank(resolvedDocumentTemplateKey) &&
       resolvedDocumentTemplateKey.length() > 80
     ) {
-      throw handledMessage('帳票テンプレートキーは80文字以内で指定してください。');
+      throw handledMessage(
+        '帳票テンプレートキーは80文字以内で指定してください。'
+      );
     }
 
     String attachmentFileName = draft != null &&
@@ -398,7 +414,7 @@ public without sharing class InvoiceBoardDocumentService {
     }
     String attachmentId = draft == null ? null : draft.attachmentId;
     ContentVersion versionRecord = resolveSendContent(
-      invoice.Id,
+      invoice,
       attachmentId,
       resolvedDocumentTemplateKey,
       attachmentFileName
@@ -484,11 +500,15 @@ public without sharing class InvoiceBoardDocumentService {
 
   /** 仕様: Core 第7.10節。未選択では送れない。新しく発行するは送るときに作る。 */
   private static ContentVersion resolveSendContent(
-    Id invoiceId,
+    Invoice__c invoice,
     String attachmentId,
     String documentTemplateKey,
     String attachmentFileName
   ) {
+    if (invoice == null || invoice.Id == null) {
+      throw handledMessage('請求IDが指定されていません。');
+    }
+    Id invoiceId = invoice.Id;
     if (String.isBlank(attachmentId)) {
       throw handledMessage(MISSING_ATTACHMENT_MESSAGE);
     }
@@ -500,7 +520,8 @@ public without sharing class InvoiceBoardDocumentService {
         issued = InvoiceDocumentService.issueInvoiceDocument(
           invoiceId,
           documentTemplateKey,
-          attachmentFileName
+          attachmentFileName,
+          invoice
         );
       } finally {
         ContractOperationLogService.suppressIssueLog = previous;
@@ -528,7 +549,7 @@ public without sharing class InvoiceBoardDocumentService {
     List<ContentVersion> versions = [
       SELECT Id, ContentDocumentId, VersionData
       FROM ContentVersion
-      WHERE ContentDocumentId = :documentId AND IsLatest = true
+      WHERE ContentDocumentId = :documentId AND IsLatest = TRUE
       WITH SYSTEM_MODE
       LIMIT 1
     ];
@@ -539,10 +560,7 @@ public without sharing class InvoiceBoardDocumentService {
   }
 
   /** 仕様: Core 第4.3.12節、第7.10節。個別発行・送付は比較なし。 */
-  private static void assertIssuable(
-    Invoice__c invoice,
-    Boolean forSend
-  ) {
+  private static void assertIssuable(Invoice__c invoice, Boolean forSend) {
     String mode = ContractDocumentSettingService.requireSendMode('Invoice');
     if (mode == ContractDocumentSettingService.MODE_UNUSED) {
       throw handledMessage(UNUSED_BLOCK_MESSAGE);
@@ -551,7 +569,9 @@ public without sharing class InvoiceBoardDocumentService {
       throw handledMessage(SEND_MODE_BLOCK_MESSAGE);
     }
     if (forSend && !InvoiceDeliveryMethodService.allowsEmailSend(invoice)) {
-      throw handledMessage(InvoiceDeliveryMethodService.SEND_NOT_ALLOWED_MESSAGE);
+      throw handledMessage(
+        InvoiceDeliveryMethodService.SEND_NOT_ALLOWED_MESSAGE
+      );
     }
     if (InvoiceTransactionStatusService.isCancelled(invoice)) {
       throw handledMessage(CANCELLED_BLOCK_MESSAGE);
@@ -582,6 +602,12 @@ public without sharing class InvoiceBoardDocumentService {
             BillingEmailCcSnapShot__c,
             BillingEmailBccSnapShot__c,
             InvoiceDeliveryMethodSnapShot__c,
+            PaymentScheduledDate__c,
+            BillingAccountSnapShot__c,
+            PaymentTermMethodSnapShot__c,
+            Amount__c,
+            TaxAmount__c,
+            TaxInclusiveAmount__c,
             LastModifiedDate
           FROM Invoice__c
           WHERE Id = :invoiceId
@@ -600,6 +626,12 @@ public without sharing class InvoiceBoardDocumentService {
             BillingEmailCcSnapShot__c,
             BillingEmailBccSnapShot__c,
             InvoiceDeliveryMethodSnapShot__c,
+            PaymentScheduledDate__c,
+            BillingAccountSnapShot__c,
+            PaymentTermMethodSnapShot__c,
+            Amount__c,
+            TaxAmount__c,
+            TaxInclusiveAmount__c,
             LastModifiedDate
           FROM Invoice__c
           WHERE Id = :invoiceId
@@ -612,16 +644,13 @@ public without sharing class InvoiceBoardDocumentService {
     return records[0];
   }
 
+  /** 仕様: Core 第12.4節、第7.10節。組織設定は収集済みを使う。 */
   private static ContractDocumentSetting__c loadSendSetting() {
-    List<ContractDocumentSetting__c> settings = [
-      SELECT
-        InvoiceOrgWideEmailAddress__c
-      FROM ContractDocumentSetting__c
-      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    return settings.isEmpty() ? new ContractDocumentSetting__c() : settings[0];
+    try {
+      return ContractDocumentSettingService.requireOrgSetting();
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      return new ContractDocumentSetting__c();
+    }
   }
 
   /** 仕様: Core 第7.10節。カンマ区切り。255文字以内。前後空白除去。空の区切りは無視。 */
@@ -645,7 +674,9 @@ public without sharing class InvoiceBoardDocumentService {
           address
         )
       ) {
-        throw handledMessage(label + 'に不正なメールアドレスがあります: ' + address);
+        throw handledMessage(
+          label + 'に不正なメールアドレスがあります: ' + address
+        );
       }
       String key = address.toLowerCase();
       if (!seen.contains(key)) {

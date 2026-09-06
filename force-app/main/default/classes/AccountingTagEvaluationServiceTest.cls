@@ -26,6 +26,27 @@ private class AccountingTagEvaluationServiceTest {
   }
 
   @IsTest
+  static void collectedEnabledTargetFieldApiNames_reusesEnabledRules() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insertEnabledRule('reuse-target', 'IsSplitMoved__c');
+      Set<String> first = AccountingTagEvaluationService.collectedEnabledTargetFieldApiNames();
+      Integer afterFirst = Limits.getQueries();
+      Set<String> second = AccountingTagEvaluationService.collectedEnabledTargetFieldApiNames();
+      System.assertEquals(true, first.contains('IsSplitMoved__c'));
+      System.assertEquals(
+        first,
+        second,
+        'Core 第12.4節: 有効タグルールの保存先は収集結果を変えない'
+      );
+      System.assertEquals(
+        afterFirst,
+        Limits.getQueries(),
+        'Core 第12.4節: 同一処理で有効タグルールを取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void save_rejectsMissingTargetWhenEnabled() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Boolean thrown = false;
@@ -39,7 +60,7 @@ private class AccountingTagEvaluationServiceTest {
               '会計タグルール「AR残」の保存先項目がありません: Missing_Tag_Target__c'
             ),
           'Accounting 第7.4節: 有効=Trueの保存で保存先の存在を検証する。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -56,9 +77,10 @@ private class AccountingTagEvaluationServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('同じ保存先項目を複数の有効タグルールが更新しています。'),
+          ex.getMessage()
+            .contains('同じ保存先項目を複数の有効タグルールが更新しています。'),
           'Accounting 第7.4節: 同じ保存先を複数の有効ルールが更新してはならない。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -136,9 +158,11 @@ private class AccountingTagEvaluationServiceTest {
         thrown = true;
         System.assert(
           ex.getMessage()
-            .contains('会計タグルール「字句」の式に未知のトークンがあります: AR-DEF'),
+            .contains(
+              '会計タグルール「字句」の式に未知のトークンがあります: AR-DEF'
+            ),
           'Accounting 第7.3節・第7.4節: 有効時は式の字句・構文を検証する。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -155,8 +179,11 @@ private class AccountingTagEvaluationServiceTest {
         thrown = true;
         System.assert(
           ex.getMessage()
-            .contains('会計タグルール「AR残」の保存先はチェックボックスではありません。'),
-          'Accounting 第7.4節: 保存先はチェックボックス型。実際: ' + ex.getMessage()
+            .contains(
+              '会計タグルール「AR残」の保存先はチェックボックスではありません。'
+            ),
+          'Accounting 第7.4節: 保存先はチェックボックス型。実際: ' +
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -223,9 +250,11 @@ private class AccountingTagEvaluationServiceTest {
         thrown = true;
         System.assert(
           ex.getMessage()
-            .contains('有効な会計タグルールは削除できません。無効にしてから削除してください。'),
+            .contains(
+              '有効な会計タグルールは削除できません。無効にしてから削除してください。'
+            ),
           'Accounting 第7.2節: ルール削除は有効=Falseの場合だけ許可する。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -339,7 +368,8 @@ private class AccountingTagEvaluationServiceTest {
         System.assertEquals(
           StatusCode.DUPLICATE_VALUE,
           ex.getDmlType(0),
-          'Accounting 第7.4節: タグキーの一意性を検証する。実際: ' + ex.getMessage()
+          'Accounting 第7.4節: タグキーの一意性を検証する。実際: ' +
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -364,7 +394,8 @@ private class AccountingTagEvaluationServiceTest {
         thrown = true;
         System.assert(
           ex.getMessage().contains('タグラベル'),
-          'Accounting 第7.2節: 有効時はタグラベルを必須にする。実際: ' + ex.getMessage()
+          'Accounting 第7.2節: 有効時はタグラベルを必須にする。実際: ' +
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -400,9 +431,9 @@ private class AccountingTagEvaluationServiceTest {
         thrown = true;
         System.assert(
           ex.getMessage().contains('未知のトークン') ||
-            ex.getMessage().contains('式が不正'),
+          ex.getMessage().contains('式が不正'),
           'Accounting 第7.4節: 検出可能な不備があればルールを有効にしない。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -714,7 +745,7 @@ private class AccountingTagEvaluationServiceTest {
         System.assert(
           ex.getMessage().contains('同じ保存先項目'),
           'Accounting 第7.4節: 同一保存の複数行でも保存先重複を検出する。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -1039,7 +1070,10 @@ private class AccountingTagEvaluationServiceTest {
       Version__c = 1
     );
     ContractTestDataFactory.applyRequiredFields(history);
-    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     insert history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,

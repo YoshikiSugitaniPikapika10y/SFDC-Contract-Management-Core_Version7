@@ -4,11 +4,9 @@
  * 会社名・住所は ContractDocumentSetting__c の発行時点の値を使う。
  */
 public without sharing class EstimateDocumentService {
-
   /** 仕様: Core 第0.1節、第4.8節 */
   @TestVisible
-  private static final String ESTIMATE_STATUS_REQUIRED_MESSAGE =
-    '見積書の表示・発行はステータスが見積の契約履歴のみ利用できます。';
+  private static final String ESTIMATE_STATUS_REQUIRED_MESSAGE = '見積書の表示・発行はステータスが見積の契約履歴のみ利用できます。';
 
   public class LineDto {
     public String productName;
@@ -145,43 +143,64 @@ public without sharing class EstimateDocumentService {
   }
 
   public static DocumentContext loadContext(Id contractHistoryId) {
+    return loadContext(contractHistoryId, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節、第7.10節。
+   * ロック済み契約履歴があれば取り直さない。
+   */
+  public static DocumentContext loadContext(
+    Id contractHistoryId,
+    ContractHistory__c knownHistory
+  ) {
     if (contractHistoryId == null) {
       throw new EstimateDocumentException('契約履歴IDが指定されていません。');
     }
 
-    List<ContractHistory__c> histories = [
-      SELECT
-        Id,
-        Name,
-        Type__c,
-        historystatus__c,
-        EstimateTitleName__c,
-        EstimateDate__c,
-        EstimateValidDate__c,
-        EstimateIssueDate__c,
-        Note__c,
-        CurrentTermStartDate__c,
-        CurrentTermEndDate__c,
-        DeltaAmountSum__c,
-        EstimateNoteMaster__r.NoteText__c,
-        Opportunity__c,
-        Opportunity__r.Name,
-        Opportunity__r.Owner.Name,
-        ContractService__r.TaxPercent__c,
-        ContractService__r.Account__r.Name,
-        ContractService__r.BiilingAcccount__r.BillingAddressee__c
-      FROM ContractHistory__c
-      WHERE Id = :contractHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (histories.isEmpty()) {
-      throw new EstimateDocumentException('契約履歴が見つかりません。');
+    ContractHistory__c history;
+    if (
+      knownHistory != null &&
+      knownHistory.Id == contractHistoryId &&
+      knownHistory.isSet(ContractHistory__c.Type__c)
+    ) {
+      history = knownHistory;
+    } else {
+      List<ContractHistory__c> histories = [
+        SELECT
+          Id,
+          Name,
+          Type__c,
+          historystatus__c,
+          EstimateTitleName__c,
+          EstimateDate__c,
+          EstimateValidDate__c,
+          EstimateIssueDate__c,
+          Note__c,
+          CurrentTermStartDate__c,
+          CurrentTermEndDate__c,
+          DeltaAmountSum__c,
+          EstimateNoteMaster__r.NoteText__c,
+          Opportunity__c,
+          Opportunity__r.Name,
+          Opportunity__r.Owner.Name,
+          ContractService__r.TaxPercent__c,
+          ContractService__r.Account__r.Name,
+          ContractService__r.BiilingAcccount__r.BillingAddressee__c
+        FROM ContractHistory__c
+        WHERE Id = :contractHistoryId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      if (histories.isEmpty()) {
+        throw new EstimateDocumentException('契約履歴が見つかりません。');
+      }
+      history = histories[0];
     }
-    assertEstimateStatusForDocument(histories[0]);
+    assertEstimateStatusForDocument(history);
 
     DocumentContext context = new DocumentContext();
-    context.history = histories[0];
+    context.history = history;
     ContractDocumentSetting__c orgSetting = loadDocumentOrgSetting();
     context.companyName = orgDocumentText(orgSetting.CompanyName__c);
     context.companyPostalCode = '';
@@ -286,8 +305,8 @@ public without sharing class EstimateDocumentService {
         ContractDocumentSettingService.withDocumentSendHeading(ex.getMessage())
       );
     }
-    lockHistoryForDocumentIssue(contractHistoryId);
-    DocumentContext context = loadContext(contractHistoryId);
+    ContractHistory__c locked = lockHistoryForDocumentIssue(contractHistoryId);
+    DocumentContext context = loadContext(contractHistoryId, locked);
     Date issueDate = ensureIssueDate(context.history);
     context.history.EstimateIssueDate__c = issueDate;
     context.issueDateLabel = formatDisplayDate(issueDate);
@@ -323,13 +342,34 @@ public without sharing class EstimateDocumentService {
     return result;
   }
 
-  /** 仕様: Core 第7.10節。個別発行・送付は開始時に行ロックし、同時の後着を失敗させる。 */
-  private static void lockHistoryForDocumentIssue(Id contractHistoryId) {
+  /** 仕様: Core 第7.10節、第12.4節。個別発行・送付は開始時に行ロックし、同時の後着を失敗させる。 */
+  private static ContractHistory__c lockHistoryForDocumentIssue(
+    Id contractHistoryId
+  ) {
     if (contractHistoryId == null) {
       throw new EstimateDocumentException('契約履歴が指定されていません。');
     }
     List<ContractHistory__c> locked = [
-      SELECT Id
+      SELECT
+        Id,
+        Name,
+        Type__c,
+        historystatus__c,
+        EstimateTitleName__c,
+        EstimateDate__c,
+        EstimateValidDate__c,
+        EstimateIssueDate__c,
+        Note__c,
+        CurrentTermStartDate__c,
+        CurrentTermEndDate__c,
+        DeltaAmountSum__c,
+        EstimateNoteMaster__r.NoteText__c,
+        Opportunity__c,
+        Opportunity__r.Name,
+        Opportunity__r.Owner.Name,
+        ContractService__r.TaxPercent__c,
+        ContractService__r.Account__r.Name,
+        ContractService__r.BiilingAcccount__r.BillingAddressee__c
       FROM ContractHistory__c
       WHERE Id = :contractHistoryId
       WITH SYSTEM_MODE
@@ -338,6 +378,7 @@ public without sharing class EstimateDocumentService {
     if (locked.isEmpty()) {
       throw new EstimateDocumentException('契約履歴が見つかりません。');
     }
+    return locked[0];
   }
 
   /**
@@ -381,10 +422,7 @@ public without sharing class EstimateDocumentService {
     String rendered = pattern
       .replace('{TemplateKey}', sanitizeFileName(template.templateKey))
       .replace('{Title}', sanitizeFileName(resolveDocumentTitle(history)))
-      .replace(
-        '{DocumentType}',
-        sanitizeFileName(template.documentType)
-      )
+      .replace('{DocumentType}', sanitizeFileName(template.documentType))
       .replace('{yyyyMMdd}', formatCompactFileDate(targetIssueDate));
     rendered = sanitizeFileName(rendered);
     if (!rendered.toLowerCase().endsWith('.pdf')) {
@@ -481,9 +519,13 @@ public without sharing class EstimateDocumentService {
   /**
    * 仕様: Core 第7.10節。請求プレビュー・横断一覧は発行ファイルを一括で取る。
    */
-  public static Map<Id, Id> latestIssuedContentDocumentIds(Set<Id> linkedEntityIds) {
+  public static Map<Id, Id> latestIssuedContentDocumentIds(
+    Set<Id> linkedEntityIds
+  ) {
     Map<Id, Id> result = new Map<Id, Id>();
-    Map<Id, ContentVersion> latestByEntity = latestIssuedVersions(linkedEntityIds);
+    Map<Id, ContentVersion> latestByEntity = latestIssuedVersions(
+      linkedEntityIds
+    );
     for (Id linkedId : latestByEntity.keySet()) {
       ContentVersion latest = latestByEntity.get(linkedId);
       if (latest != null) {
@@ -497,10 +539,13 @@ public without sharing class EstimateDocumentService {
     if (linkedEntityId == null) {
       return null;
     }
-    return latestIssuedVersions(new Set<Id>{ linkedEntityId }).get(linkedEntityId);
+    return latestIssuedVersions(new Set<Id>{ linkedEntityId })
+      .get(linkedEntityId);
   }
 
-  private static Map<Id, ContentVersion> latestIssuedVersions(Set<Id> linkedEntityIds) {
+  private static Map<Id, ContentVersion> latestIssuedVersions(
+    Set<Id> linkedEntityIds
+  ) {
     Map<Id, ContentVersion> latestByEntity = new Map<Id, ContentVersion>();
     if (linkedEntityIds == null || linkedEntityIds.isEmpty()) {
       return latestByEntity;
@@ -539,8 +584,8 @@ public without sharing class EstimateDocumentService {
       FROM ContentVersion
       WHERE
         ContentDocumentId IN :documentIds
-        AND IsLatest = true
-        AND ContractDocumentIssued__c = true
+        AND IsLatest = TRUE
+        AND ContractDocumentIssued__c = TRUE
       WITH SYSTEM_MODE
       ORDER BY CreatedDate DESC, Id DESC
     ]) {
@@ -634,10 +679,7 @@ public without sharing class EstimateDocumentService {
     return generatePdfBlob(contractHistoryId, template);
   }
 
-  public static Blob generatePdfBlob(
-    Id contractHistoryId,
-    String templateKey
-  ) {
+  public static Blob generatePdfBlob(Id contractHistoryId, String templateKey) {
     ContractDocumentTemplateService.TemplateDefinition template = resolveIssueTemplate(
       templateKey
     );
@@ -694,7 +736,9 @@ public without sharing class EstimateDocumentService {
     List<LineDto> lines = new List<LineDto>();
     for (ContractProduct__c product : products) {
       LineDto line = new LineDto();
-      line.billingType = ContractMetadataService.resolveLineBillingType(product);
+      line.billingType = ContractMetadataService.resolveLineBillingType(
+        product
+      );
       line.productName = product.Product__r == null
         ? ''
         : product.Product__r.Name;
@@ -1122,7 +1166,9 @@ public without sharing class EstimateDocumentService {
 
   /** 仕様: Core 第4.8節、第11.9節。数量は OrgDefault。HALF_UP 直書きしない。 */
   private static GroupedLineDto toGroupedLine(ContractProduct__c product) {
-    String billingType = ContractMetadataService.resolveLineBillingType(product);
+    String billingType = ContractMetadataService.resolveLineBillingType(
+      product
+    );
 
     GroupedLineDto item = new GroupedLineDto();
     item.breakdown = String.isNotBlank(product.Description__c)
@@ -1243,8 +1289,13 @@ public without sharing class EstimateDocumentService {
       );
     } catch (ContractDocumentTemplateService.DocumentTemplateException ex) {
       String message = ex.getMessage();
-      if (message == ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE) {
-        message = ContractDocumentSettingService.withDocumentSendHeading(message);
+      if (
+        message ==
+        ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE
+      ) {
+        message = ContractDocumentSettingService.withDocumentSendHeading(
+          message
+        );
       }
       throw new EstimateDocumentException(message);
     }
@@ -1255,23 +1306,13 @@ public without sharing class EstimateDocumentService {
     return String.isBlank(value) ? '' : value;
   }
 
+  /** 仕様: Core 第12.4節、第7.10節。組織設定は収集済みを使う。 */
   private static ContractDocumentSetting__c loadDocumentOrgSetting() {
-    List<ContractDocumentSetting__c> settings = [
-      SELECT
-        CompanyName__c,
-        Address__c,
-        InvoiceRegistrationNumber__c,
-        BankTransferInfo__c,
-        DocumentFooter__c,
-        PrivacyPolicyUrl__c
-      FROM ContractDocumentSetting__c
-      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    return settings.isEmpty()
-      ? new ContractDocumentSetting__c()
-      : settings[0];
+    try {
+      return ContractDocumentSettingService.requireOrgSetting();
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      return new ContractDocumentSetting__c();
+    }
   }
 
   /** 仕様: Core 第4.10節、第4.8節、第1.1.10節。備考空はマスタ本文で埋めない。 */

@@ -22,9 +22,34 @@ public without sharing class InvoiceOpsController {
     Date integrationDate,
     String businessOperationKey
   ) {
+    return markInvoiced(
+      contractHistoryId,
+      invoiceIds,
+      integrationDate,
+      businessOperationKey,
+      null
+    );
+  }
+
+  /**
+   * 仕様: Core 第12.4節、Accounting 第8.2節。
+   * 先行ロック済み請求があれば取り直さない。
+   */
+  public static Integer markInvoiced(
+    Id contractHistoryId,
+    List<Id> invoiceIds,
+    Date integrationDate,
+    String businessOperationKey,
+    Invoice__c knownLockedInvoice
+  ) {
     ContractPermissionUtil.assertConfirmInvoice();
     assertInvoicesInScope(contractHistoryId, invoiceIds);
-    return applyLockDates(invoiceIds, integrationDate, businessOperationKey);
+    return applyLockDates(
+      invoiceIds,
+      integrationDate,
+      businessOperationKey,
+      knownLockedInvoice
+    );
   }
 
   /**
@@ -134,36 +159,46 @@ public without sharing class InvoiceOpsController {
     return value == null ? 0 : value;
   }
 
-  /** 仕様: Core 第7.9節、第7.9.1節、日付仕様 第8章 */
+  /** 仕様: Core 第7.9節、第7.9.1節、第12.4節、日付仕様 第8章 */
   private static Integer applyLockDates(
     List<Id> invoiceIds,
     Date integrationDate,
-    String businessOperationKey
+    String businessOperationKey,
+    Invoice__c knownLockedInvoice
   ) {
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return 0;
     }
-    // 仕様: Core 第7.9節。確定日は組織TZの操作日。空をユーザーTZの今日で埋めない。
     Date value = integrationDate == null
       ? InvoiceTransactionStatusService.organizationToday()
       : integrationDate;
-    List<Invoice__c> invoices = [
-      SELECT
-        Id,
-        InvoiceTransactionStatus__c,
-        DeliveryStatus__c,
-        CollectionRefundStatus__c,
-        TaxAmount__c,
-        TaxInclusiveAmount__c,
-        InvoicePaymentNet__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c,
-        InvoiceDeliveryMethodSnapShot__c
-      FROM Invoice__c
-      WHERE Id IN :invoiceIds
-      WITH SYSTEM_MODE
-      ORDER BY Id ASC
-    ];
+    List<Invoice__c> invoices;
+    if (
+      knownLockedInvoice != null &&
+      invoiceIds.size() == 1 &&
+      invoiceIds[0] == knownLockedInvoice.Id
+    ) {
+      invoices = new List<Invoice__c>{ knownLockedInvoice };
+    } else {
+      invoices = [
+        SELECT
+          Id,
+          InvoiceTransactionStatus__c,
+          DeliveryStatus__c,
+          CollectionRefundStatus__c,
+          TaxAmount__c,
+          TaxInclusiveAmount__c,
+          InvoicePaymentNet__c,
+          SystemIntegrationDate__c,
+          PaymentClearingCompletedDate__c,
+          InvoiceDeliveryMethodSnapShot__c,
+          ContractHistory__c
+        FROM Invoice__c
+        WHERE Id IN :invoiceIds
+        WITH SYSTEM_MODE
+        ORDER BY Id ASC
+      ];
+    }
 
     Integer succeeded = 0;
     List<String> failures = new List<String>();
@@ -173,13 +208,16 @@ public without sharing class InvoiceOpsController {
         String keyForInvoice = invoices.size() == 1
           ? businessOperationKey
           : null;
-        confirmOneInvoice(invoice, value, keyForInvoice);
+        confirmOneInvoice(
+          invoice,
+          value,
+          keyForInvoice,
+          knownLockedInvoice != null && invoice.Id == knownLockedInvoice.Id
+        );
         succeeded++;
       } catch (Exception ex) {
         Database.rollback(sp);
-        failures.add(
-          String.valueOf(invoice.Id) + ': ' + ex.getMessage()
-        );
+        failures.add(String.valueOf(invoice.Id) + ': ' + ex.getMessage());
       }
     }
     if (succeeded == 0 && !failures.isEmpty()) {
@@ -190,25 +228,37 @@ public without sharing class InvoiceOpsController {
     return succeeded;
   }
 
-  /** 仕様: Accounting 第3.1節、第8.2節、Core 第7.9.7節 */
+  /** 仕様: Accounting 第3.1節、第8.2節、Core 第7.9.7節、第12.4節 */
   private static void confirmOneInvoice(
     Invoice__c invoice,
     Date integrationDate,
-    String businessOperationKey
+    String businessOperationKey,
+    Boolean alreadyLocked
   ) {
-    AccountingCauseLockService.lockInvoice(invoice.Id);
+    if (alreadyLocked != true) {
+      AccountingCauseLockService.lockInvoice(invoice.Id);
+    }
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
     );
-    assertAcceptanceEndDatesPresent(invoice);
-    assertEstimateTotalsMatch(new Set<Id>{ invoice.Id });
+    Map<Id, InvoiceLine__c> collected = AccountingGoalService.collectLines(
+      invoice.Id
+    );
+    List<Id> lineIds = new List<Id>(collected.keySet());
+    lineIds.sort();
+    List<InvoiceLine__c> lines = new List<InvoiceLine__c>();
+    for (Id lineId : lineIds) {
+      lines.add(collected.get(lineId));
+    }
+    assertAcceptanceEndDatesPresent(lines);
+    assertEstimateTotalsMatch(new List<Invoice__c>{ invoice });
     InvoiceDeliveryMethodService.assertRequiredOnConfirm(invoice);
     GlAccountingPolicyService.freezeOnFirstConfirm();
     InvoiceTransactionStatusService.applyConfirmed(
       new List<Invoice__c>{ invoice },
       integrationDate
     );
-    InvoiceTaxAllocationService.allocateOnConfirm(invoice);
+    InvoiceTaxAllocationService.allocateOnConfirm(invoice, lines);
     invoice.BusinessOperationKey__c = operationKey;
     Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
     Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
@@ -220,7 +270,6 @@ public without sharing class InvoiceOpsController {
       InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
       InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
-    /** 仕様: Accounting 第8.1節、第8.2節、Core 第7.9.7節。同一処理の行ロックは1回。 */
     AccountingDiffService.applyForInvoice(
       invoice.Id,
       AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
@@ -230,13 +279,14 @@ public without sharing class InvoiceOpsController {
     );
   }
 
-  private static void assertAcceptanceEndDatesPresent(Invoice__c invoice) {
-    for (InvoiceLine__c line : [
-      SELECT AcceptanceEndDate__c, RevenueRecognitionBasis__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :invoice.Id
-      WITH SYSTEM_MODE
-    ]) {
+  /** 仕様: Core 第12.4節。同一処理で収集した明細を取り直さない。 */
+  private static void assertAcceptanceEndDatesPresent(
+    List<InvoiceLine__c> lines
+  ) {
+    if (lines == null) {
+      return;
+    }
+    for (InvoiceLine__c line : lines) {
       if (
         ContractMetadataService.normalizeRevenueRecognitionBasis(
           line.RevenueRecognitionBasis__c
@@ -250,22 +300,34 @@ public without sharing class InvoiceOpsController {
     }
   }
 
-  /** 仕様: Core 第7.9.1節 */
-  private static void assertEstimateTotalsMatch(Set<Id> invoiceIds) {
+  /** 仕様: Core 第7.9.1節、第12.4節 */
+  private static void assertEstimateTotalsMatch(List<Invoice__c> invoices) {
     Set<Id> historyIds = new Set<Id>();
-    for (Invoice__c invoice : [
-      SELECT ContractHistory__c FROM Invoice__c
-      WHERE Id IN :invoiceIds WITH SYSTEM_MODE
-    ]) {
-      if (invoice.ContractHistory__c != null) historyIds.add(invoice.ContractHistory__c);
+    Set<Id> invoiceIds = new Set<Id>();
+    for (Invoice__c invoice : invoices) {
+      if (invoice == null) {
+        continue;
+      }
+      invoiceIds.add(invoice.Id);
+      if (invoice.ContractHistory__c != null) {
+        historyIds.add(invoice.ContractHistory__c);
+      }
+    }
+    if (historyIds.isEmpty() && !invoiceIds.isEmpty()) {
+      for (Invoice__c invoice : [
+        SELECT ContractHistory__c
+        FROM Invoice__c
+        WHERE Id IN :invoiceIds
+        WITH SYSTEM_MODE
+      ]) {
+        if (invoice.ContractHistory__c != null) {
+          historyIds.add(invoice.ContractHistory__c);
+        }
+      }
     }
     Map<Id, Decimal> invoiceExclTotals = new Map<Id, Decimal>();
     for (Invoice__c invoice : [
-      SELECT
-        Amount__c,
-        TaxAmount__c,
-        TaxPercent__c,
-        ContractHistory__c
+      SELECT Amount__c, TaxAmount__c, TaxPercent__c, ContractHistory__c
       FROM Invoice__c
       WHERE
         ContractHistory__c IN :historyIds
@@ -304,7 +366,9 @@ public without sharing class InvoiceOpsController {
       WHERE Id IN :historyIds
       WITH SYSTEM_MODE
     ]) {
-      if (nvl(history.DeltaAmountSum__c) != nvl(invoiceExclTotals.get(history.Id))) {
+      if (
+        nvl(history.DeltaAmountSum__c) != nvl(invoiceExclTotals.get(history.Id))
+      ) {
         throw new InvoiceOpsException(
           '見積合計と請求合計（税抜）が一致しないため確定できません。'
         );
@@ -312,7 +376,8 @@ public without sharing class InvoiceOpsController {
     }
   }
 
-  private class InvoiceOpsException extends Exception {}
+  private class InvoiceOpsException extends Exception {
+  }
 
   private static AuraHandledException toAuraHandled(String message) {
     String resolved = String.isNotBlank(message)

@@ -128,9 +128,7 @@ public without sharing class InvoiceCanonicalService {
 
   public static void assertCanEditInvoicePreview() {
     if (!canEditInvoicePreview()) {
-      throw new InvoiceEditException(
-        '未確定請求を直す権限がありません。'
-      );
+      throw new InvoiceEditException('未確定請求を直す権限がありません。');
     }
   }
 
@@ -156,6 +154,7 @@ public without sharing class InvoiceCanonicalService {
   /** 仕様: Core 第5.2節。同一処理内の Ordered 再照会を1回にする。 */
   private static Set<Id> lastRetainInputIds;
   private static Set<Id> lastRetainOrderedIds;
+  private static Map<String, Map<Id, InvoiceProduct__c>> periodsBySourceKey;
 
   /** 引数のうち historystatus = Ordered の履歴 ID だけ残す。 */
   public static Set<Id> retainOrderedHistoryIds(Set<Id> contractHistoryIds) {
@@ -386,7 +385,10 @@ public without sharing class InvoiceCanonicalService {
         line.ServicePeriodStartDate__c = ml.servicePeriodStartDate;
         line.ServicePeriodEndDate__c = ml.servicePeriodEndDate;
         line.RevenueRecognitionBasis__c = ml.revenueRecognitionBasis;
-        line.AcceptanceEndDate__c = acceptanceEndDateForNewLine(ml.revenueRecognitionBasis, ml.servicePeriodEndDate);
+        line.AcceptanceEndDate__c = acceptanceEndDateForNewLine(
+          ml.revenueRecognitionBasis,
+          ml.servicePeriodEndDate
+        );
         ContractProduct__c sourceContractProduct = null;
         if (ml.sourceProducts != null && !ml.sourceProducts.isEmpty()) {
           InvoiceProduct__c sourcePeriod = ml.sourceProducts[0];
@@ -495,7 +497,11 @@ public without sharing class InvoiceCanonicalService {
     Map<Id, Date> acceptanceEndDateByLineId,
     Date cancellationDate
   ) {
-    updateLineAcceptanceEndDates(acceptanceEndDateByLineId, cancellationDate, null);
+    updateLineAcceptanceEndDates(
+      acceptanceEndDateByLineId,
+      cancellationDate,
+      null
+    );
   }
 
   /** 仕様: Core 第7.6節、第7.9.6節、第7.9.7節、日付仕様 第6.1節・第7.3節、Accounting 第8.2節、第8.5節、第8.8節 */
@@ -607,7 +613,9 @@ public without sharing class InvoiceCanonicalService {
         if (one.reverseDateCounts == null) {
           continue;
         }
-        for (AccountingDiffService.ReverseDateCount row : one.reverseDateCounts) {
+        for (
+          AccountingDiffService.ReverseDateCount row : one.reverseDateCounts
+        ) {
           Integer currentCount = countByDate.containsKey(row.reverseDate)
             ? countByDate.get(row.reverseDate)
             : 0;
@@ -660,7 +668,10 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /** 仕様: Core 第7.9.7節 */
-  private static void writeInvoiceOperationKey(Id invoiceId, String operationKey) {
+  private static void writeInvoiceOperationKey(
+    Id invoiceId,
+    String operationKey
+  ) {
     if (invoiceId == null || String.isBlank(operationKey)) {
       return;
     }
@@ -703,7 +714,9 @@ public without sharing class InvoiceCanonicalService {
     Map<Id, Date> acceptanceEndDateByLineId
   ) {
     assertCanEditInvoicePreview();
-    if (acceptanceEndDateByLineId == null || acceptanceEndDateByLineId.isEmpty()) {
+    if (
+      acceptanceEndDateByLineId == null || acceptanceEndDateByLineId.isEmpty()
+    ) {
       throw new InvoiceEditException('明細は必須です。');
     }
     List<InvoiceLine__c> lines = [
@@ -727,14 +740,18 @@ public without sharing class InvoiceCanonicalService {
       }
       // 仕様: Core 第1.1.5節・第7.6節・第12.2節。取消済みは編集対象にしない。
       if (InvoiceTransactionStatusService.isCancelled(line.Invoice__r)) {
-        throw new InvoiceEditException('取消済み請求の検収終了日は変更できません。');
+        throw new InvoiceEditException(
+          '取消済み請求の検収終了日は変更できません。'
+        );
       }
       if (
         ContractMetadataService.normalizeRevenueRecognitionBasis(
           line.RevenueRecognitionBasis__c
         ) == ContractMetadataService.REVENUE_BASIS_OVER_TIME
       ) {
-        throw new InvoiceEditException('月次計上に検収終了日は設定できません。');
+        throw new InvoiceEditException(
+          '月次計上に検収終了日は設定できません。'
+        );
       }
     }
     return lines;
@@ -748,7 +765,9 @@ public without sharing class InvoiceCanonicalService {
     for (InvoiceLine__c line : lines) {
       allInvoiceIds.add(line.Invoice__c);
     }
-    Map<Id, Invoice__c> lockedById = AccountingCauseLockService.lockInvoices(allInvoiceIds);
+    Map<Id, Invoice__c> lockedById = AccountingCauseLockService.lockInvoices(
+      allInvoiceIds
+    );
     if (!allInvoiceIds.isEmpty()) {
       for (Id invoiceId : allInvoiceIds) {
         if (
@@ -764,7 +783,9 @@ public without sharing class InvoiceCanonicalService {
     return lockedById;
   }
 
-  private static Set<Id> confirmedAcceptanceInvoiceIds(List<InvoiceLine__c> lines) {
+  private static Set<Id> confirmedAcceptanceInvoiceIds(
+    List<InvoiceLine__c> lines
+  ) {
     Set<Id> confirmedInvoiceIds = new Set<Id>();
     if (lines == null) {
       return confirmedInvoiceIds;
@@ -860,7 +881,9 @@ public without sharing class InvoiceCanonicalService {
       LIMIT 1
     ];
     if (InvoiceTransactionStatusService.isCancelled(invoice)) {
-      throw new InvoiceEditException(InvoiceLockUtil.INVOICE_EDIT_BLOCK_MESSAGE);
+      throw new InvoiceEditException(
+        InvoiceLockUtil.INVOICE_EDIT_BLOCK_MESSAGE
+      );
     }
     Boolean confirmed = InvoiceTransactionStatusService.isConfirmed(invoice);
     if (!confirmed) {
@@ -889,7 +912,9 @@ public without sharing class InvoiceCanonicalService {
       markInvoiceHeaderTouched(invoice);
       invoice.MergeKey__c = null;
     }
-    Set<String> extraAllowed = InvoiceOpsFieldService.fieldApiNames('Invoice__c');
+    Set<String> extraAllowed = InvoiceOpsFieldService.fieldApiNames(
+      'Invoice__c'
+    );
     if (confirmed) {
       extraAllowed.retainAll(InvoiceLockUtil.resolveLockExemptFieldNames());
       extraAllowed.add(InvoiceLockUtil.PRODUCT_FIXED_EXEMPT_FIELD);
@@ -3194,7 +3219,8 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /**
-   * 期間 ID リストからサービス期間を再計算。リストが空／同一なら source をコピー。
+   * 仕様: Core 第12.4節、第7.8節。
+   * 期間 ID リストからサービス期間を再計算。同一処理で期間明細を取り直さない。
    */
   private static void applyServicePeriodSnapshot(
     InvoiceLine__c target,
@@ -3204,13 +3230,16 @@ public without sharing class InvoiceCanonicalService {
     if (target == null) {
       return;
     }
-    DateRange bounds = resolveServicePeriodBounds(sourcePeriodLineIds);
+    Map<Id, InvoiceProduct__c> periodById = loadPeriodsByIds(
+      sourcePeriodLineIds
+    );
+    DateRange bounds = resolveServicePeriodBounds(periodById);
     if (bounds != null) {
       target.ServicePeriodStartDate__c = bounds.startDate;
       target.ServicePeriodEndDate__c = bounds.endDate;
       InvoiceProductMergeService.assertPeriodIdsContiguous(
         sourcePeriodLineIds,
-        loadPeriodsByIds(sourcePeriodLineIds)
+        periodById
       );
       return;
     }
@@ -3225,9 +3254,16 @@ public without sharing class InvoiceCanonicalService {
     public Date endDate;
   }
 
-  private static DateRange resolveServicePeriodBounds(String sourcePeriodLineIds) {
-    Map<Id, InvoiceProduct__c> periodById = loadPeriodsByIds(sourcePeriodLineIds);
-    if (periodById.isEmpty()) {
+  private static DateRange resolveServicePeriodBounds(
+    String sourcePeriodLineIds
+  ) {
+    return resolveServicePeriodBounds(loadPeriodsByIds(sourcePeriodLineIds));
+  }
+
+  private static DateRange resolveServicePeriodBounds(
+    Map<Id, InvoiceProduct__c> periodById
+  ) {
+    if (periodById == null || periodById.isEmpty()) {
       return null;
     }
     Date minStart;
@@ -3235,13 +3271,15 @@ public without sharing class InvoiceCanonicalService {
     for (InvoiceProduct__c period : periodById.values()) {
       if (
         period.StartDate__c != null &&
-        (minStart == null || period.StartDate__c < minStart)
+        (minStart == null ||
+        period.StartDate__c < minStart)
       ) {
         minStart = period.StartDate__c;
       }
       if (
         period.Enddate__c != null &&
-        (maxEnd == null || period.Enddate__c > maxEnd)
+        (maxEnd == null ||
+        period.Enddate__c > maxEnd)
       ) {
         maxEnd = period.Enddate__c;
       }
@@ -3257,11 +3295,20 @@ public without sharing class InvoiceCanonicalService {
     return bounds;
   }
 
+  /** 仕様: Core 第12.4節。同一処理で同じ期間IDの期間明細を取り直さない。 */
   private static Map<Id, InvoiceProduct__c> loadPeriodsByIds(
     String sourcePeriodLineIds
   ) {
+    if (periodsBySourceKey == null) {
+      periodsBySourceKey = new Map<String, Map<Id, InvoiceProduct__c>>();
+    }
+    String cacheKey = sourcePeriodLineIds == null ? '' : sourcePeriodLineIds;
+    if (periodsBySourceKey.containsKey(cacheKey)) {
+      return periodsBySourceKey.get(cacheKey);
+    }
     Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>();
     if (String.isBlank(sourcePeriodLineIds)) {
+      periodsBySourceKey.put(cacheKey, periodById);
       return periodById;
     }
     Set<Id> ids = new Set<Id>();
@@ -3272,6 +3319,7 @@ public without sharing class InvoiceCanonicalService {
       ids.add(Id.valueOf(token.trim()));
     }
     if (ids.isEmpty()) {
+      periodsBySourceKey.put(cacheKey, periodById);
       return periodById;
     }
     for (InvoiceProduct__c period : [
@@ -3282,6 +3330,7 @@ public without sharing class InvoiceCanonicalService {
     ]) {
       periodById.put(period.Id, period);
     }
+    periodsBySourceKey.put(cacheKey, periodById);
     return periodById;
   }
 
@@ -3367,11 +3416,16 @@ public without sharing class InvoiceCanonicalService {
       if (line == null) {
         continue;
       }
-      InvoiceLine__c prior = oldMap == null || line.Id == null
+      InvoiceLine__c prior = oldMap == null ||
+        line.Id == null
         ? null
         : oldMap.get(line.Id);
       String basis = ContractMetadataService.normalizeRevenueRecognitionBasis(
-        (String) recognitionField(line, prior, InvoiceLine__c.RevenueRecognitionBasis__c)
+        (String) recognitionField(
+          line,
+          prior,
+          InvoiceLine__c.RevenueRecognitionBasis__c
+        )
       );
       if (basis == ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME) {
         line.RecognitionBucketCount__c = 1;
@@ -3403,7 +3457,9 @@ public without sharing class InvoiceCanonicalService {
         endDate,
         method
       );
-      line.RecognitionBucketCount__c = periods.isEmpty() ? null : periods.size();
+      line.RecognitionBucketCount__c = periods.isEmpty()
+        ? null
+        : periods.size();
     }
   }
 
@@ -3417,7 +3473,9 @@ public without sharing class InvoiceCanonicalService {
         continue;
       }
       Decimal body = line.Amount__c == null ? 0 : line.Amount__c;
-      Decimal tax = line.AllocatedTaxAmount__c == null ? 0 : line.AllocatedTaxAmount__c;
+      Decimal tax = line.AllocatedTaxAmount__c == null
+        ? 0
+        : line.AllocatedTaxAmount__c;
       line.AmountCommaText__c = yenCommaText(body);
       line.AllocatedTaxCommaText__c = yenCommaText(tax);
       line.TaxInclusiveCommaText__c = yenCommaText(body + tax);
@@ -3489,9 +3547,12 @@ public without sharing class InvoiceCanonicalService {
     }
   }
 
-  private static Date acceptanceEndDateForNewLine(String basis, Date servicePeriodEndDate) {
+  private static Date acceptanceEndDateForNewLine(
+    String basis,
+    Date servicePeriodEndDate
+  ) {
     return ContractMetadataService.normalizeRevenueRecognitionBasis(basis) ==
-        ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+      ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
       ? servicePeriodEndDate
       : null;
   }
@@ -3525,11 +3586,23 @@ public without sharing class InvoiceCanonicalService {
     String method
   ) {
     if (method == 'CalendarMonth') {
-      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(startDate, endDate);
+      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(
+        startDate,
+        endDate
+      );
     }
-    if (method == 'Auto' && MonthlyBillingPeriodUtil.countMonthlyCycles(startDate, endDate) < 0) {
-      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(startDate, endDate);
+    if (
+      method == 'Auto' &&
+      MonthlyBillingPeriodUtil.countMonthlyCycles(startDate, endDate) < 0
+    ) {
+      return MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(
+        startDate,
+        endDate
+      );
     }
-    return MonthlyBillingPeriodUtil.buildMonthlyPeriodsCoveringEnd(startDate, endDate);
+    return MonthlyBillingPeriodUtil.buildMonthlyPeriodsCoveringEnd(
+      startDate,
+      endDate
+    );
   }
 }

@@ -5,12 +5,10 @@
  */
 public without sharing class InvoiceLockUtil {
   /** 仕様: Core 第7.11節。行の内容変更・削除を止める。確定済みと取消済み。 */
-  public static final String SOQL_IS_LOCKED =
-    '(InvoiceTransactionStatus__c IN (\'Confirmed\',\'Cancelled\'))';
+  public static final String SOQL_IS_LOCKED = '(InvoiceTransactionStatus__c IN (\'Confirmed\',\'Cancelled\'))';
 
   /** 仕様: Core 第1.1.5節。Version再生成・差し戻しを止めるのは有効な確定済みだけ。 */
-  public static final String SOQL_IS_ACTIVE_CONFIRMED =
-    '(InvoiceTransactionStatus__c = \'Confirmed\')';
+  public static final String SOQL_IS_ACTIVE_CONFIRMED = '(InvoiceTransactionStatus__c = \'Confirmed\')';
 
   /** 仕様: Core 第1.1.5節、第5.3節、第7.9.2節。差し戻し・再生成は有効な確定済み。 */
   public static final String LOCKED_HISTORY_BLOCK_MESSAGE = '有効な確定済み請求があるため、この契約履歴の請求を削除・再生成できません。';
@@ -27,12 +25,10 @@ public without sharing class InvoiceLockUtil {
   public static final String PRODUCT_FIXED_EXEMPT_FIELD = 'Memo__c';
 
   /** @deprecated Core 第11.6節。初回インストールでは組織既定を作らない。実行時の空欄代替にも使わない。 */
-  public static final String SEED_LOCK_EXEMPT_FIELDS =
-    'InvoiceTransactionStatus__c,DeliveryStatus__c,CollectionRefundStatus__c,InvoicePaymentNet__c,PaymentInclusiveTotal__c,PaymentClearingCompletedDate__c,SystemIntegrationDate__c,SentDate__c,Memo__c';
+  public static final String SEED_LOCK_EXEMPT_FIELDS = 'InvoiceTransactionStatus__c,DeliveryStatus__c,CollectionRefundStatus__c,InvoicePaymentNet__c,PaymentInclusiveTotal__c,PaymentClearingCompletedDate__c,SystemIntegrationDate__c,SentDate__c,Memo__c';
 
   /** 仕様: Core 第11.6節。確定後の請求日・入金予定日・税率・請求アカウントは除外一覧に書いても拒否する。 */
-  public static final String CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE =
-    '確定済み請求の請求日・入金予定日・税率・請求アカウントは変更できません。';
+  public static final String CONFIRMED_CORE_FIELDS_BLOCK_MESSAGE = '確定済み請求の請求日・入金予定日・税率・請求アカウントは変更できません。';
 
   private static final Set<String> NEVER_EXEMPT_WHEN_LOCKED = new Set<String>{
     'InvoiceDate__c',
@@ -167,7 +163,8 @@ public without sharing class InvoiceLockUtil {
     String raw = testLockExemptFieldApiNames;
     if (raw == null) {
       InvoiceLockExemptFields__c setting = InvoiceLockExemptFields__c.getOrgDefaults();
-      raw = setting == null || setting.Id == null
+      raw = setting == null ||
+        setting.Id == null
         ? null
         : setting.FieldApiNames__c;
     }
@@ -190,18 +187,7 @@ public without sharing class InvoiceLockUtil {
   }
 
   private static Set<String> enabledAccountingTagTargetFields() {
-    Set<String> targets = new Set<String>();
-    for (GlAccountingTagRule__c rule : [
-      SELECT TargetFieldApiName__c
-      FROM GlAccountingTagRule__c
-      WHERE IsEnabled__c = TRUE
-      WITH SYSTEM_MODE
-    ]) {
-      if (String.isNotBlank(rule.TargetFieldApiName__c)) {
-        targets.add(rule.TargetFieldApiName__c);
-      }
-    }
-    return targets;
+    return AccountingTagEvaluationService.collectedEnabledTargetFieldApiNames();
   }
 
   @TestVisible

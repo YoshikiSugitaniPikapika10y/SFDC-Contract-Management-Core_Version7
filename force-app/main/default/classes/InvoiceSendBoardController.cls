@@ -6,24 +6,36 @@ public without sharing class InvoiceSendBoardController {
   public static final Integer LIST_LIMIT = 500;
 
   public class SelectOptionDto {
-    @AuraEnabled public String label;
-    @AuraEnabled public String value;
+    @AuraEnabled
+    public String label;
+    @AuraEnabled
+    public String value;
   }
 
   public class BoardContextDto {
-    @AuraEnabled public Boolean canSend;
-    @AuraEnabled public Boolean featureEnabled;
+    @AuraEnabled
+    public Boolean canSend;
+    @AuraEnabled
+    public Boolean featureEnabled;
     /** 仕様: Core 第7.7.2節、Accounting 第3.1節 */
-    @AuraEnabled public Boolean accountingEnabled;
-    @AuraEnabled public List<SelectOptionDto> documentTemplateOptions;
-    @AuraEnabled public List<SelectOptionDto> emailTemplateOptions;
-    @AuraEnabled public String defaultDocumentTemplateKey;
-    @AuraEnabled public String defaultEmailTemplateApiName;
+    @AuraEnabled
+    public Boolean accountingEnabled;
+    @AuraEnabled
+    public List<SelectOptionDto> documentTemplateOptions;
+    @AuraEnabled
+    public List<SelectOptionDto> emailTemplateOptions;
+    @AuraEnabled
+    public String defaultDocumentTemplateKey;
+    @AuraEnabled
+    public String defaultEmailTemplateApiName;
     /** 仕様: Core 第11.3.1節・第7.10節 */
-    @AuraEnabled public String companyBlockedReason;
+    @AuraEnabled
+    public String companyBlockedReason;
     /** 仕様: Core 第11.3.2節・第7.10節 */
-    @AuraEnabled public Boolean orgFromResolved;
-    @AuraEnabled public Integer listLimit;
+    @AuraEnabled
+    public Boolean orgFromResolved;
+    @AuraEnabled
+    public Integer listLimit;
   }
 
   /** 仕様: Core 第11.3.1節、第11.3.2節、第7.10節、第4.3.11節。設定wireだけcacheable。 */
@@ -43,8 +55,7 @@ public without sharing class InvoiceSendBoardController {
         true;
       result.documentTemplateOptions = new List<SelectOptionDto>();
       for (
-        ContractDocumentTemplateService.TemplateDefinition definition :
-        ContractDocumentTemplateService.getActiveTemplates(
+        ContractDocumentTemplateService.TemplateDefinition definition : ContractDocumentTemplateService.getActiveTemplates(
           ContractDocumentTemplateService.TYPE_INVOICE
         )
       ) {
@@ -54,8 +65,7 @@ public without sharing class InvoiceSendBoardController {
       }
       result.emailTemplateOptions = new List<SelectOptionDto>();
       for (
-        ContractEmailTemplateService.EmailTemplateDefinition definition :
-        ContractEmailTemplateService.getActiveTemplates(
+        ContractEmailTemplateService.EmailTemplateDefinition definition : ContractEmailTemplateService.getActiveTemplates(
           ContractEmailTemplateService.TYPE_INVOICE
         )
       ) {
@@ -63,14 +73,12 @@ public without sharing class InvoiceSendBoardController {
           option(definition.label, definition.apiName)
         );
       }
-      result.defaultDocumentTemplateKey =
-        ContractDocumentTemplateService.initialSelectionKey(
-          ContractDocumentTemplateService.TYPE_INVOICE
-        );
-      result.defaultEmailTemplateApiName =
-        ContractEmailTemplateService.initialSelectionApiName(
-          ContractEmailTemplateService.TYPE_INVOICE
-        );
+      result.defaultDocumentTemplateKey = ContractDocumentTemplateService.initialSelectionKey(
+        ContractDocumentTemplateService.TYPE_INVOICE
+      );
+      result.defaultEmailTemplateApiName = ContractEmailTemplateService.initialSelectionApiName(
+        ContractEmailTemplateService.TYPE_INVOICE
+      );
       result.orgFromResolved = String.isNotBlank(
         setting.InvoiceOrgWideEmailAddress__c
       );
@@ -89,9 +97,12 @@ public without sharing class InvoiceSendBoardController {
   }
 
   public class ConfirmResultDto {
-    @AuraEnabled public Integer confirmedCount;
-    @AuraEnabled public String issueWarning;
-    @AuraEnabled public String businessOperationKey;
+    @AuraEnabled
+    public Integer confirmedCount;
+    @AuraEnabled
+    public String issueWarning;
+    @AuraEnabled
+    public String businessOperationKey;
   }
 
   public static ConfirmResultDto confirmInvoiceFromPreview(
@@ -186,9 +197,9 @@ public without sharing class InvoiceSendBoardController {
       Integer confirmedCount = InvoiceOpsController.markInvoiced(
         invoice.ContractHistory__c,
         new List<Id>{ invoice.Id },
-        // 仕様: Core 第7.9節。画面の日付引数では書かない。確定処理が組織TZの操作日を書く。
         InvoiceTransactionStatusService.organizationToday(),
-        operationKey
+        operationKey,
+        invoice
       );
       ConfirmResultDto result = new ConfirmResultDto();
       result.confirmedCount = confirmedCount;
@@ -250,10 +261,7 @@ public without sharing class InvoiceSendBoardController {
     return item;
   }
 
-  private static AuraHandledException handled(
-    String prefix,
-    Exception source
-  ) {
+  private static AuraHandledException handled(String prefix, Exception source) {
     String message = prefix;
     if (source != null && String.isNotBlank(source.getMessage())) {
       message += ' ' + source.getMessage();

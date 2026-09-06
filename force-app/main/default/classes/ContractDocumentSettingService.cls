@@ -7,23 +7,16 @@ public without sharing class ContractDocumentSettingService {
   public static final String MODE_PDF_AND_EMAIL = 'PdfAndEmail';
   public static final String MISSING_SETTING_MESSAGE = '契約帳票・送付設定の組織既定がありません。';
   public static final String INVALID_SEND_MODE_MESSAGE = '見積書・請求書の3択が無い、空、または不正です。';
-  public static final String INVALID_ESTIMATE_VALID_MONTHS_MESSAGE =
-    '見積有効期間は1～12の整数で設定してください。';
-  public static final String INVALID_DEFAULT_CYCLES_MESSAGE =
-    '既定サイクル数は1～36の整数で設定してください。';
+  public static final String INVALID_ESTIMATE_VALID_MONTHS_MESSAGE = '見積有効期間は1～12の整数で設定してください。';
+  public static final String INVALID_DEFAULT_CYCLES_MESSAGE = '既定サイクル数は1～36の整数で設定してください。';
   public static final String MISSING_COMPANY_NAME_MESSAGE = '会社名を設定してください。';
   public static final String MISSING_ADDRESS_MESSAGE = '住所を設定してください。';
-  public static final String MISSING_REGISTRATION_NUMBER_MESSAGE =
-    '適格請求書発行事業者登録番号を設定してください。';
+  public static final String MISSING_REGISTRATION_NUMBER_MESSAGE = '適格請求書発行事業者登録番号を設定してください。';
   public static final String MISSING_BANK_TRANSFER_MESSAGE = '振込先を設定してください。';
-  public static final String MISSING_DEFAULT_DOCUMENT_MESSAGE =
-    'PDFのみ／PDFとメール送付のとき、既定帳票を選んでください。';
-  public static final String MISSING_ORG_SENDER_MESSAGE =
-    'PDFとメール送付のとき、組織の送信元を選んでください。';
-  public static final String ORG_SENDER_NOT_FOUND_MESSAGE =
-    '保存した組織送信元アドレスに一致する検証済みの組織ワイドメールがありません。';
-  public static final String ORG_SENDER_AMBIGUOUS_MESSAGE =
-    '保存した組織送信元アドレスに一致する検証済みの組織ワイドメールが複数あります。';
+  public static final String MISSING_DEFAULT_DOCUMENT_MESSAGE = 'PDFのみ／PDFとメール送付のとき、既定帳票を選んでください。';
+  public static final String MISSING_ORG_SENDER_MESSAGE = 'PDFとメール送付のとき、組織の送信元を選んでください。';
+  public static final String ORG_SENDER_NOT_FOUND_MESSAGE = '保存した組織送信元アドレスに一致する検証済みの組織ワイドメールがありません。';
+  public static final String ORG_SENDER_AMBIGUOUS_MESSAGE = '保存した組織送信元アドレスに一致する検証済みの組織ワイドメールが複数あります。';
   public static final String DOCUMENT_SEND_HEADING = '帳票・送付';
 
   private static ContractDocumentSetting__c cachedOrgSetting;
@@ -173,7 +166,9 @@ public without sharing class ContractDocumentSettingService {
         InvoiceRegistrationNumber__c,
         BankTransferInfo__c,
         EstimateOrgWideEmailAddress__c,
-        InvoiceOrgWideEmailAddress__c
+        InvoiceOrgWideEmailAddress__c,
+        DocumentFooter__c,
+        PrivacyPolicyUrl__c
       FROM ContractDocumentSetting__c
       WHERE SetupOwnerId = :organizationId
       WITH SYSTEM_MODE

@@ -35,6 +35,17 @@ public without sharing class AccountingTagEvaluationService {
     return cachedEnabledRules;
   }
 
+  /** 仕様: Accounting 第8.2節。同一処理の有効タグルールを取り直さない。 */
+  public static Set<String> collectedEnabledTargetFieldApiNames() {
+    Set<String> targets = new Set<String>();
+    for (GlAccountingTagRule__c rule : enabledRules()) {
+      if (String.isNotBlank(rule.TargetFieldApiName__c)) {
+        targets.add(rule.TargetFieldApiName__c);
+      }
+    }
+    return targets;
+  }
+
   /** 仕様: Accounting 第7.3節、第7.5節、第8.2節 */
   public static void evaluateForInvoice(Id invoiceId) {
     evaluateForInvoice(invoiceId, null, null);
@@ -71,22 +82,35 @@ public without sharing class AccountingTagEvaluationService {
     Set<String> targets = new Set<String>();
     for (GlAccountingTagRule__c rule : rules) {
       if (targets.contains(rule.TargetFieldApiName__c)) {
-        throw new TagException('同じ保存先項目を複数の有効タグルールが更新しています。');
+        throw new TagException(
+          '同じ保存先項目を複数の有効タグルールが更新しています。'
+        );
       }
       targets.add(rule.TargetFieldApiName__c);
       if (!invoiceFields.containsKey(rule.TargetFieldApiName__c)) {
         throw new TagException(
-          '会計タグルール「' + rule.Name + '」の保存先項目がありません: ' + rule.TargetFieldApiName__c
+          '会計タグルール「' +
+            rule.Name +
+            '」の保存先項目がありません: ' +
+            rule.TargetFieldApiName__c
         );
       }
-      Schema.DescribeFieldResult field = invoiceFields.get(rule.TargetFieldApiName__c)
+      Schema.DescribeFieldResult field = invoiceFields.get(
+          rule.TargetFieldApiName__c
+        )
         .getDescribe();
       if (field.getType() != Schema.DisplayType.BOOLEAN) {
         throw new TagException(
-          '会計タグルール「' + rule.Name + '」の保存先はチェックボックスではありません。'
+          '会計タグルール「' +
+            rule.Name +
+            '」の保存先はチェックボックスではありません。'
         );
       }
-      Decimal amount = evaluateExpression(rule.Expression__c, balances, rule.Name);
+      Decimal amount = evaluateExpression(
+        rule.Expression__c,
+        balances,
+        rule.Name
+      );
       invoice.put(
         rule.TargetFieldApiName__c,
         compare(amount, rule.ComparisonOperator__c, rule.ComparisonValue__c)
@@ -123,13 +147,17 @@ public without sharing class AccountingTagEvaluationService {
   }
 
   /** 仕様: Accounting 第7.2節。有効ルールの削除は許可しない。 */
-  public static void preventEnabledDelete(List<GlAccountingTagRule__c> oldRecords) {
+  public static void preventEnabledDelete(
+    List<GlAccountingTagRule__c> oldRecords
+  ) {
     if (oldRecords == null) {
       return;
     }
     for (GlAccountingTagRule__c rule : oldRecords) {
       if (rule.IsEnabled__c == true) {
-        rule.addError('有効な会計タグルールは削除できません。無効にしてから削除してください。');
+        rule.addError(
+          '有効な会計タグルールは削除できません。無効にしてから削除してください。'
+        );
       }
     }
   }
@@ -161,7 +189,10 @@ public without sharing class AccountingTagEvaluationService {
       ) {
         continue;
       }
-      existingTargets.put(existing.TargetFieldApiName__c.toLowerCase(), existing.Id);
+      existingTargets.put(
+        existing.TargetFieldApiName__c.toLowerCase(),
+        existing.Id
+      );
     }
     Set<String> batchTargets = new Set<String>();
     Set<String> allowedOperators = new Set<String>{
@@ -207,11 +238,15 @@ public without sharing class AccountingTagEvaluationService {
               rule.TargetFieldApiName__c
           );
         }
-        Schema.DescribeFieldResult field = invoiceFields.get(rule.TargetFieldApiName__c)
+        Schema.DescribeFieldResult field = invoiceFields.get(
+            rule.TargetFieldApiName__c
+          )
           .getDescribe();
         if (field.getType() != Schema.DisplayType.BOOLEAN) {
           throw new TagException(
-            '会計タグルール「' + rule.Name + '」の保存先はチェックボックスではありません。'
+            '会計タグルール「' +
+              rule.Name +
+              '」の保存先はチェックボックスではありません。'
           );
         }
         String targetKey = rule.TargetFieldApiName__c.toLowerCase();
@@ -219,7 +254,9 @@ public without sharing class AccountingTagEvaluationService {
           existingTargets.containsKey(targetKey) ||
           batchTargets.contains(targetKey)
         ) {
-          throw new TagException('同じ保存先項目を複数の有効タグルールが更新しています。');
+          throw new TagException(
+            '同じ保存先項目を複数の有効タグルールが更新しています。'
+          );
         }
         batchTargets.add(targetKey);
       } catch (TagException ex) {
@@ -237,7 +274,9 @@ public without sharing class AccountingTagEvaluationService {
 
   private static Map<String, Decimal> emptySlotBalances() {
     Map<String, Decimal> balances = new Map<String, Decimal>();
-    for (AccountingSlotFixedCatalog.Definition slot : AccountingSlotFixedCatalog.values()) {
+    for (
+      AccountingSlotFixedCatalog.Definition slot : AccountingSlotFixedCatalog.values()
+    ) {
       balances.put(slot.abbreviation, 0);
     }
     // 仕様: Accounting 第7.3節。請求ヘッダ略称3個。保存検証は0、評価時は請求書の整数円。
@@ -285,7 +324,9 @@ public without sharing class AccountingTagEvaluationService {
     }
   }
 
-  private static Map<String, Decimal> slotBalancesFrom(List<GlJournal__c> journals) {
+  private static Map<String, Decimal> slotBalancesFrom(
+    List<GlJournal__c> journals
+  ) {
     Map<String, Decimal> balances = emptySlotBalances();
     if (journals == null) {
       return balances;
@@ -312,10 +353,16 @@ public without sharing class AccountingTagEvaluationService {
     if (String.isBlank(slotKey)) {
       return;
     }
-    AccountingSlotFixedCatalog.Definition slot = AccountingSlotFixedCatalog.require(slotKey);
+    AccountingSlotFixedCatalog.Definition slot = AccountingSlotFixedCatalog.require(
+      slotKey
+    );
     Decimal signed = debitSide
-      ? (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Debit ? amount : -amount)
-      : (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit ? amount : -amount);
+      ? (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Debit
+          ? amount
+          : -amount)
+      : (slot.normalBalance == AccountingCatalogTypes.NormalBalance.Credit
+          ? amount
+          : -amount);
     balances.put(slot.abbreviation, balances.get(slot.abbreviation) + signed);
   }
 
@@ -325,17 +372,23 @@ public without sharing class AccountingTagEvaluationService {
     String ruleName
   ) {
     if (String.isBlank(expression)) {
-      throw new TagException('会計タグルール「' + ruleName + '」の式が空です。');
+      throw new TagException(
+        '会計タグルール「' + ruleName + '」の式が空です。'
+      );
     }
     List<String> tokens = expression.normalizeSpace().split(' ');
     if (tokens.isEmpty()) {
-      throw new TagException('会計タグルール「' + ruleName + '」の式が空です。');
+      throw new TagException(
+        '会計タグルール「' + ruleName + '」の式が空です。'
+      );
     }
     ParseState state = new ParseState();
     state.index = 0;
     Decimal value = parseSum(tokens, state, balances, ruleName);
     if (state.index < tokens.size()) {
-      throw new TagException('会計タグルール「' + ruleName + '」の式が不正です。');
+      throw new TagException(
+        '会計タグルール「' + ruleName + '」の式が不正です。'
+      );
     }
     return value;
   }
@@ -370,24 +423,33 @@ public without sharing class AccountingTagEvaluationService {
     String ruleName
   ) {
     if (state.index >= tokens.size()) {
-      throw new TagException('会計タグルール「' + ruleName + '」の式が不正です。');
+      throw new TagException(
+        '会計タグルール「' + ruleName + '」の式が不正です。'
+      );
     }
     String token = tokens[state.index];
     if (token == '(') {
       state.index++;
       Decimal value = parseSum(tokens, state, balances, ruleName);
       if (state.index >= tokens.size() || tokens[state.index] != ')') {
-        throw new TagException('会計タグルール「' + ruleName + '」の括弧が対応していません。');
+        throw new TagException(
+          '会計タグルール「' + ruleName + '」の括弧が対応していません。'
+        );
       }
       state.index++;
       return value;
     }
     if (token == ')' || token == '+' || token == '-') {
-      throw new TagException('会計タグルール「' + ruleName + '」の式が不正です。');
+      throw new TagException(
+        '会計タグルール「' + ruleName + '」の式が不正です。'
+      );
     }
     if (!balances.containsKey(token)) {
       throw new TagException(
-        '会計タグルール「' + ruleName + '」の式に未知のトークンがあります: ' + token
+        '会計タグルール「' +
+          ruleName +
+          '」の式に未知のトークンがあります: ' +
+          token
       );
     }
     state.index++;
@@ -395,7 +457,11 @@ public without sharing class AccountingTagEvaluationService {
   }
 
   /** 仕様: Accounting 第7.2節 */
-  private static Boolean compare(Decimal amount, String operatorName, Decimal comparisonValue) {
+  private static Boolean compare(
+    Decimal amount,
+    String operatorName,
+    Decimal comparisonValue
+  ) {
     Decimal right = comparisonValue == null ? 0 : comparisonValue;
     if (operatorName == 'NE') {
       return amount != right;

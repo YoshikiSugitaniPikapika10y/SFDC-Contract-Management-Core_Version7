@@ -10,19 +10,32 @@ public without sharing class InvoiceTaxAllocationService {
 
   /** 仕様: Core 第11.9節、第1.1.10節、Accounting 第3.2節 */
   public static void allocateOnConfirm(Invoice__c invoice) {
+    allocateOnConfirm(invoice, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節。
+   * 同一処理で収集した明細があれば取り直さない。
+   */
+  public static void allocateOnConfirm(
+    Invoice__c invoice,
+    List<InvoiceLine__c> knownLines
+  ) {
     if (invoice == null || invoice.Id == null) {
       throw new TaxAllocationException(MISSING_INVOICE_MESSAGE);
     }
     GlAccountingSetting__mdt setting = AmountCalculationSettingService.requireOrgDefault();
     invoice.AppliedTaxRoundingMode__c = setting.TaxRoundingMode__c;
     Decimal headerTax = resolveHeaderTax(invoice);
-    List<InvoiceLine__c> lines = [
-      SELECT Id, Amount__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :invoice.Id
-      WITH SYSTEM_MODE
-      ORDER BY Id
-    ];
+    List<InvoiceLine__c> lines = knownLines != null
+      ? knownLines
+      : [
+          SELECT Id, Amount__c
+          FROM InvoiceLine__c
+          WHERE Invoice__c = :invoice.Id
+          WITH SYSTEM_MODE
+          ORDER BY Id
+        ];
     if (lines.isEmpty()) {
       if (headerTax != 0) {
         throw new TaxAllocationException(EMPTY_LINES_TAX_MESSAGE);
@@ -47,9 +60,7 @@ public without sharing class InvoiceTaxAllocationService {
         ? 0
         : headerTax * line.Amount__c / weightTotal;
       theoretical.add(theory);
-      Integer cut = theory >= 0
-        ? theory.intValue()
-        : -((-theory).intValue());
+      Integer cut = theory >= 0 ? theory.intValue() : -((-theory).intValue());
       truncated.add(cut);
       assigned += cut;
     }
@@ -91,7 +102,8 @@ public without sharing class InvoiceTaxAllocationService {
         Decimal rightFrac = theoretical[indexes[j]] - truncated[indexes[j]];
         if (
           rightFrac > leftFrac ||
-          (rightFrac == leftFrac && indexes[j] < indexes[i])
+          (rightFrac == leftFrac &&
+          indexes[j] < indexes[i])
         ) {
           Integer swap = indexes[i];
           indexes[i] = indexes[j];

@@ -48,11 +48,7 @@ public without sharing class AccountingCauseLockService {
       throw new LockException('契約サービスが指定されていません。');
     }
     List<ContractService__c> services = [
-      SELECT
-        Id,
-        Account__c,
-        LastModifiedDate,
-        BusinessOperationKey__c
+      SELECT Id, Account__c, LastModifiedDate, BusinessOperationKey__c
       FROM ContractService__c
       WHERE Id = :serviceId
       WITH SYSTEM_MODE
@@ -105,7 +101,10 @@ public without sharing class AccountingCauseLockService {
         ContractHistory__c,
         ContractService__c,
         BusinessOperationKey__c,
-        DeliveryStatus__c,
+        CollectionRefundStatus__c,
+        SystemIntegrationDate__c,
+        PaymentClearingCompletedDate__c,
+        InvoiceDeliveryMethodSnapShot__c,
         LastModifiedDate
       FROM Invoice__c
       WHERE Id IN :compact
@@ -215,7 +214,9 @@ public without sharing class AccountingCauseLockService {
     Map<Id, String> expectedTokenByInvoiceId,
     Map<Id, Datetime> knownInvoiceModified
   ) {
-    if (expectedTokenByInvoiceId == null || expectedTokenByInvoiceId.isEmpty()) {
+    if (
+      expectedTokenByInvoiceId == null || expectedTokenByInvoiceId.isEmpty()
+    ) {
       throw ContractOptimisticLockUtil.conflict('請求');
     }
     Set<Id> invoiceIds = new Set<Id>();

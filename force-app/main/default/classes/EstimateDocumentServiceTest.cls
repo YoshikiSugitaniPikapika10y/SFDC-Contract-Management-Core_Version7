@@ -74,7 +74,11 @@ private class EstimateDocumentServiceTest {
           'Core 第4.3.4節・第1.1.10節: 契約サービスの税率が空なら税込を計算せずエラー。0%としては扱わない'
         );
       }
-      System.assertEquals(true, thrown, '税率空は見積書コンテキストを作らないこと');
+      System.assertEquals(
+        true,
+        thrown,
+        '税率空は見積書コンテキストを作らないこと'
+      );
     }
   }
 
@@ -370,8 +374,9 @@ private class EstimateDocumentServiceTest {
   static void listLinkedFiles_issuedOnlyAndInitialSelection() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();
-      List<EstimateDocumentService.FileOptionDto> emptyOptions =
-        EstimateDocumentService.listLinkedFiles(fixture.history.Id);
+      List<EstimateDocumentService.FileOptionDto> emptyOptions = EstimateDocumentService.listLinkedFiles(
+        fixture.history.Id
+      );
       System.assertEquals(
         1,
         emptyOptions.size(),
@@ -387,9 +392,14 @@ private class EstimateDocumentServiceTest {
         'Core 第7.10節: 0件なら新しく発行する'
       );
 
-      Id handUploadId = insertLinkedFile(fixture.history.Id, 'hand-upload', false);
-      List<EstimateDocumentService.FileOptionDto> afterHand =
-        EstimateDocumentService.listLinkedFiles(fixture.history.Id);
+      Id handUploadId = insertLinkedFile(
+        fixture.history.Id,
+        'hand-upload',
+        false
+      );
+      List<EstimateDocumentService.FileOptionDto> afterHand = EstimateDocumentService.listLinkedFiles(
+        fixture.history.Id
+      );
       System.assertEquals(
         1,
         afterHand.size(),
@@ -405,13 +415,20 @@ private class EstimateDocumentServiceTest {
       );
       System.assertEquals(
         null,
-        EstimateDocumentService.latestIssuedContentDocumentId(fixture.history.Id),
+        EstimateDocumentService.latestIssuedContentDocumentId(
+          fixture.history.Id
+        ),
         'Core 第7.7.3節: 手アップロードは出さない'
       );
 
-      Id firstIssuedId = insertLinkedFile(fixture.history.Id, 'issued-one', true);
-      List<EstimateDocumentService.FileOptionDto> oneIssued =
-        EstimateDocumentService.listLinkedFiles(fixture.history.Id);
+      Id firstIssuedId = insertLinkedFile(
+        fixture.history.Id,
+        'issued-one',
+        true
+      );
+      List<EstimateDocumentService.FileOptionDto> oneIssued = EstimateDocumentService.listLinkedFiles(
+        fixture.history.Id
+      );
       System.assertEquals(2, oneIssued.size());
       System.assertEquals(
         String.valueOf(firstIssuedId),
@@ -424,9 +441,14 @@ private class EstimateDocumentServiceTest {
         'Core 第7.10節: 印は画面に出さない'
       );
 
-      Id secondIssuedId = insertLinkedFile(fixture.history.Id, 'issued-two', true);
-      List<EstimateDocumentService.FileOptionDto> twoIssued =
-        EstimateDocumentService.listLinkedFiles(fixture.history.Id);
+      Id secondIssuedId = insertLinkedFile(
+        fixture.history.Id,
+        'issued-two',
+        true
+      );
+      List<EstimateDocumentService.FileOptionDto> twoIssued = EstimateDocumentService.listLinkedFiles(
+        fixture.history.Id
+      );
       Id latestIssuedId = EstimateDocumentService.latestIssuedContentDocumentId(
         fixture.history.Id
       );
@@ -1023,7 +1045,9 @@ private class EstimateDocumentServiceTest {
       );
       System.assertEquals(true, controller.issueSucceeded);
       System.assertEquals(
-        EstimateDocumentService.latestIssuedContentDocumentId(fixture.history.Id),
+        EstimateDocumentService.latestIssuedContentDocumentId(
+          fixture.history.Id
+        ),
         controller.issuedContentDocumentId
       );
       System.assert(
@@ -1129,8 +1153,8 @@ private class EstimateDocumentServiceTest {
     );
 
     EstimateDocumentService.EstimateDocumentTextDto fallback = EstimateDocumentService.buildEstimateDocumentText(
-        history
-      );
+      history
+    );
 
     System.assertEquals('フォールバック見積', fallback.estimateTitle);
     System.assertEquals('備考テキスト', fallback.noteSentence);
@@ -1373,7 +1397,9 @@ private class EstimateDocumentServiceTest {
     }
   }
 
-  private static void insertContractProducts(List<ContractProduct__c> products) {
+  private static void insertContractProducts(
+    List<ContractProduct__c> products
+  ) {
     if (products == null) {
       return;
     }
@@ -1400,7 +1426,8 @@ private class EstimateDocumentServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 
@@ -1483,7 +1510,9 @@ private class EstimateDocumentServiceTest {
       BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
       Type__c = 'New'
     );
-    insertContractProducts(new List<ContractProduct__c>{ priorUnchanged, priorChanged });
+    insertContractProducts(
+      new List<ContractProduct__c>{ priorUnchanged, priorChanged }
+    );
 
     ContractHistory__c changeHistory = new ContractHistory__c(
       Name = 'CHANGE-EST',
@@ -1592,7 +1621,8 @@ private class EstimateDocumentServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 
@@ -1721,7 +1751,8 @@ private class EstimateDocumentServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 
@@ -1802,4 +1833,27 @@ private class EstimateDocumentServiceTest {
     return fixture;
   }
 
+  @IsTest
+  static void loadContext_reusesKnownHistoryWithoutSecondHeaderQuery() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      EstimateDocumentService.DocumentContext first = EstimateDocumentService.loadContext(
+        fixture.history.Id
+      );
+      Integer afterFirst = Limits.getQueries();
+      EstimateDocumentService.DocumentContext second = EstimateDocumentService.loadContext(
+        fixture.history.Id,
+        first.history
+      );
+      System.assertEquals(
+        first.lineTotal,
+        second.lineTotal,
+        'Core 第12.4節: ロック済み履歴の発行結果は変えない'
+      );
+      System.assert(
+        Limits.getQueries() - afterFirst < afterFirst,
+        'Core 第12.4節: 同一処理でロック済み契約履歴を取り直さない'
+      );
+    }
+  }
 }

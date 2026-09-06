@@ -4,8 +4,7 @@
 public without sharing class InvoiceDocumentService {
   /** 仕様: Core 第0.1節、第7.10節、第7.11節 */
   @TestVisible
-  private static final String STATUS_REQUIRED_MESSAGE =
-    '請求書の表示・発行は請求取引状態が確定済みの請求のみ利用できます。';
+  private static final String STATUS_REQUIRED_MESSAGE = '請求書の表示・発行は請求取引状態が確定済みの請求のみ利用できます。';
 
   public class DocumentContext {
     public Invoice__c invoice { get; set; }
@@ -31,31 +30,51 @@ public without sharing class InvoiceDocumentService {
   }
 
   public static DocumentContext loadContext(Id invoiceId) {
+    return loadContext(invoiceId, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節、第7.10節。
+   * ロック済み請求があれば取り直さない。
+   */
+  public static DocumentContext loadContext(
+    Id invoiceId,
+    Invoice__c knownInvoice
+  ) {
     if (invoiceId == null) {
       throw new InvoiceDocumentException('請求IDが指定されていません。');
     }
-    List<Invoice__c> invoices = [
-      SELECT
-        Id,
-        Name,
-        InvoiceDate__c,
-        PaymentScheduledDate__c,
-        InvoiceTransactionStatus__c,
-        BillingAccountSnapShot__c,
-        BillingAddresseeSnapShot__c,
-        PaymentTermMethodSnapShot__c,
-        Amount__c,
-        TaxAmount__c,
-        TaxInclusiveAmount__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (invoices.isEmpty()) {
-      throw new InvoiceDocumentException('請求が見つかりません。');
+    Invoice__c invoice;
+    if (
+      knownInvoice != null &&
+      knownInvoice.Id == invoiceId &&
+      knownInvoice.isSet(Invoice__c.Amount__c)
+    ) {
+      invoice = knownInvoice;
+    } else {
+      List<Invoice__c> invoices = [
+        SELECT
+          Id,
+          Name,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          InvoiceTransactionStatus__c,
+          BillingAccountSnapShot__c,
+          BillingAddresseeSnapShot__c,
+          PaymentTermMethodSnapShot__c,
+          Amount__c,
+          TaxAmount__c,
+          TaxInclusiveAmount__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      if (invoices.isEmpty()) {
+        throw new InvoiceDocumentException('請求が見つかりません。');
+      }
+      invoice = invoices[0];
     }
-    Invoice__c invoice = invoices[0];
     if (!InvoiceTransactionStatusService.isConfirmed(invoice)) {
       throw new InvoiceDocumentException(STATUS_REQUIRED_MESSAGE);
     }
@@ -106,6 +125,24 @@ public without sharing class InvoiceDocumentService {
     String templateKey,
     String attachmentFileName
   ) {
+    return issueInvoiceDocument(
+      invoiceId,
+      templateKey,
+      attachmentFileName,
+      null
+    );
+  }
+
+  /**
+   * 仕様: Core 第12.4節、第7.10節。
+   * ロック済み請求があれば loadContext で取り直さない。
+   */
+  public static IssueResult issueInvoiceDocument(
+    Id invoiceId,
+    String templateKey,
+    String attachmentFileName,
+    Invoice__c knownInvoice
+  ) {
     ContractDocumentTemplateService.TemplateDefinition template = resolveIssueTemplate(
       templateKey
     );
@@ -124,7 +161,7 @@ public without sharing class InvoiceDocumentService {
         ContractDocumentSettingService.withDocumentSendHeading(ex.getMessage())
       );
     }
-    DocumentContext context = loadContext(invoiceId);
+    DocumentContext context = loadContext(invoiceId, knownInvoice);
     String fileName = String.isNotBlank(attachmentFileName)
       ? attachmentFileName.trim()
       : buildFileName(context.invoice, template);
@@ -176,14 +213,14 @@ public without sharing class InvoiceDocumentService {
     Invoice__c invoice,
     ContractDocumentTemplateService.TemplateDefinition template
   ) {
-    String pattern =
-      template == null || String.isBlank(template.fileNamePattern)
-        ? '{TemplateKey}_{Title}_{yyyyMMdd}.pdf'
-        : template.fileNamePattern;
-    Date targetDate =
-      invoice != null && invoice.InvoiceDate__c != null
-        ? invoice.InvoiceDate__c
-        : InvoiceTransactionStatusService.organizationToday();
+    String pattern = template == null ||
+      String.isBlank(template.fileNamePattern)
+      ? '{TemplateKey}_{Title}_{yyyyMMdd}.pdf'
+      : template.fileNamePattern;
+    Date targetDate = invoice != null &&
+      invoice.InvoiceDate__c != null
+      ? invoice.InvoiceDate__c
+      : InvoiceTransactionStatusService.organizationToday();
     String title = resolveTitle(invoice);
     String rendered = pattern
       .replace(
@@ -208,7 +245,9 @@ public without sharing class InvoiceDocumentService {
     Blob pdfBody
   ) {
     if (invoiceId == null) {
-      throw new InvoiceDocumentException('保存先の請求IDが指定されていません。');
+      throw new InvoiceDocumentException(
+        '保存先の請求IDが指定されていません。'
+      );
     }
     if (pdfBody == null || pdfBody.size() == 0) {
       throw new InvoiceDocumentException('PDFデータが空です。');
@@ -248,22 +287,11 @@ public without sharing class InvoiceDocumentService {
   }
 
   private static ContractDocumentSetting__c loadDocumentSetting() {
-    List<ContractDocumentSetting__c> settings = [
-      SELECT
-        CompanyName__c,
-        Address__c,
-        InvoiceRegistrationNumber__c,
-        BankTransferInfo__c,
-        DocumentFooter__c,
-        PrivacyPolicyUrl__c
-      FROM ContractDocumentSetting__c
-      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    return settings.isEmpty()
-      ? new ContractDocumentSetting__c()
-      : settings[0];
+    try {
+      return ContractDocumentSettingService.requireOrgSetting();
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      return new ContractDocumentSetting__c();
+    }
   }
 
   /** 仕様: Core 第7.10節・第11.3.2節。キー空は発行できない。組織既定も既定印も使わない。 */
@@ -277,8 +305,13 @@ public without sharing class InvoiceDocumentService {
       );
     } catch (ContractDocumentTemplateService.DocumentTemplateException ex) {
       String message = ex.getMessage();
-      if (message == ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE) {
-        message = ContractDocumentSettingService.withDocumentSendHeading(message);
+      if (
+        message ==
+        ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE
+      ) {
+        message = ContractDocumentSettingService.withDocumentSendHeading(
+          message
+        );
       }
       throw new InvoiceDocumentException(message);
     }
@@ -291,8 +324,10 @@ public without sharing class InvoiceDocumentService {
     if (Test.isRunningTest()) {
       return Blob.valueOf('%PDF-1.4 invoice test');
     }
-    PageReference pdfPage =
-      ContractDocumentTemplateService.buildPageReference(template, invoiceId);
+    PageReference pdfPage = ContractDocumentTemplateService.buildPageReference(
+      template,
+      invoiceId
+    );
     return pdfPage.getContentAsPDF();
   }
 

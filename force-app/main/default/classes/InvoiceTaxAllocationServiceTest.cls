@@ -13,15 +13,16 @@ private class InvoiceTaxAllocationServiceTest {
         Account__c = account.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 1,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 1,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL,
         PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
         PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
         PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -226,6 +227,36 @@ private class InvoiceTaxAllocationServiceTest {
     }
   }
 
+  @IsTest
+  static void allocateOnConfirm_reusesKnownLinesWithoutSecondLineQuery() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertAllocationInvoice('Known Lines Alloc', 100);
+      insertAllocationLines(invoice.Id, new List<Decimal>{ 600, 400 });
+      AmountCalculationSettingService.requireOrgDefault();
+      List<InvoiceLine__c> known = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        ORDER BY Id
+      ];
+      Integer before = Limits.getQueries();
+      InvoiceTaxAllocationService.allocateOnConfirm(invoice, known);
+      System.assertEquals(
+        before,
+        Limits.getQueries(),
+        'Core 第12.4節: 同一処理で収集した明細を税配賦で取り直さない'
+      );
+      List<InvoiceLine__c> lines = [
+        SELECT AllocatedTaxAmount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        ORDER BY Amount__c DESC
+      ];
+      System.assertEquals(60, lines[0].AllocatedTaxAmount__c);
+      System.assertEquals(40, lines[1].AllocatedTaxAmount__c);
+    }
+  }
+
   private static Invoice__c insertAllocationInvoice(String label, Decimal tax) {
     Account account = ContractTestDataFactory.insertAccount(label + ' Acct');
     BillingAccount__c billingAccount = new BillingAccount__c(
@@ -240,7 +271,8 @@ private class InvoiceTaxAllocationServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 

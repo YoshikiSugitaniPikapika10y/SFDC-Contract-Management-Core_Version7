@@ -81,6 +81,11 @@ public without sharing class AccountingGoalService {
     collectedAllocationsByInvoice.remove(invoiceId);
   }
 
+  /** 仕様: Accounting 第8.2節、Core 第12.4節。同一処理のコピーは Goal が収集した原因を使う。 */
+  public static Map<Id, InvoiceLine__c> collectLines(Id invoiceId) {
+    return loadLines(invoiceId);
+  }
+
   /** 仕様: Accounting 第8.2節。同一処理のコピーは Goal が収集した原因を使う。 */
   public static Map<Id, InvoiceLine__c> collectedLines(Id invoiceId) {
     Map<Id, InvoiceLine__c> rows = cachedLinesByInvoice.get(invoiceId);
@@ -2272,7 +2277,8 @@ public without sharing class AccountingGoalService {
       return invoice;
     }
     Set<String> extraFields = tenantConditionFields(Invoice__c.SObjectType);
-    Boolean needPath = needsRelatedTenantObjects();
+    extraFields.addAll(copySourceFields(Invoice__c.SObjectType));
+    Boolean needPath = needsRelatedTenantObjects() || needsRelatedCopyObjects();
     if (extraFields.isEmpty() && !needPath) {
       return invoice;
     }
@@ -2507,15 +2513,35 @@ public without sharing class AccountingGoalService {
       'Product__c'
     };
     selectFields.addAll(tenantInvoiceLineFields());
+    selectFields.addAll(copySourceFields(InvoiceLine__c.SObjectType));
     String soql =
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +
-      ' FROM InvoiceLine__c WHERE Invoice__c = :invoiceId';
+      ' FROM InvoiceLine__c WHERE Invoice__c = :invoiceId ORDER BY Id';
     for (InvoiceLine__c line : Database.query(soql, AccessLevel.SYSTEM_MODE)) {
       rows.put(line.Id, line);
     }
     cachedLinesByInvoice.put(invoiceId, rows);
     return rows;
+  }
+
+  private static Set<String> copySourceFields(Schema.SObjectType sobType) {
+    if (sobType == null) {
+      return new Set<String>();
+    }
+    return FieldCopyDefinitionService.sourceFieldApiNames(
+      sobType.getDescribe().getName()
+    );
+  }
+
+  private static Boolean needsRelatedCopyObjects() {
+    return !copySourceFields(ContractProduct__c.SObjectType).isEmpty() ||
+      !copySourceFields(Product2.SObjectType).isEmpty() ||
+      !copySourceFields(ContractHistory__c.SObjectType).isEmpty() ||
+      !copySourceFields(ContractService__c.SObjectType).isEmpty() ||
+      !copySourceFields(Opportunity.SObjectType).isEmpty() ||
+      !copySourceFields(BillingAccount__c.SObjectType).isEmpty() ||
+      !copySourceFields(Account.SObjectType).isEmpty();
   }
 
   /** 仕様: Accounting 第4.7節、第6.2節。ロック照会は広げず、Goalが11種の経路レコードを取る。 */
@@ -2541,7 +2567,7 @@ public without sharing class AccountingGoalService {
       return;
     }
     RelatedRecords related = new RelatedRecords();
-    if (!needsRelatedTenantObjects()) {
+    if (!needsRelatedTenantObjects() && !needsRelatedCopyObjects()) {
       cachedRelatedByInvoice.put(invoice.Id, related);
       return;
     }
@@ -2664,6 +2690,7 @@ public without sharing class AccountingGoalService {
     if (extraFields != null) {
       selectFields.addAll(extraFields);
     }
+    selectFields.addAll(copySourceFields(sobType));
     if (pathFields != null) {
       selectFields.addAll(pathFields);
     }

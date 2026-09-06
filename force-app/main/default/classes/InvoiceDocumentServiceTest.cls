@@ -11,8 +11,9 @@ private class InvoiceDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Confirmed');
 
-      InvoiceDocumentService.DocumentContext context =
-        InvoiceDocumentService.loadContext(fixture.invoice.Id);
+      InvoiceDocumentService.DocumentContext context = InvoiceDocumentService.loadContext(
+        fixture.invoice.Id
+      );
 
       System.assertEquals('帳票取引先 請求担当', context.addressee);
       System.assertEquals('2026年06月30日', context.invoiceDateLabel);
@@ -21,10 +22,19 @@ private class InvoiceDocumentServiceTest {
       System.assertEquals(1000, context.taxAmount);
       System.assertEquals(11000, context.amountIncludingTax);
       System.assertEquals(1, context.lines.size());
-      System.assertEquals('スナップショット商品', context.lines[0].ProductName__c);
+      System.assertEquals(
+        'スナップショット商品',
+        context.lines[0].ProductName__c
+      );
       System.assertEquals('2026年6月分', context.lines[0].PeriodLabel__c);
-      System.assertEquals('帳票発行株式会社', context.documentSetting.CompanyName__c);
-      System.assertEquals('T1234567890123', context.documentSetting.InvoiceRegistrationNumber__c);
+      System.assertEquals(
+        '帳票発行株式会社',
+        context.documentSetting.CompanyName__c
+      );
+      System.assertEquals(
+        'T1234567890123',
+        context.documentSetting.InvoiceRegistrationNumber__c
+      );
       System.assertEquals(
         '振込手数料は貴社にてご負担ください。',
         context.documentSetting.DocumentFooter__c,
@@ -34,6 +44,30 @@ private class InvoiceDocumentServiceTest {
         'https://example.com/privacy',
         context.documentSetting.PrivacyPolicyUrl__c,
         'Core 第11.3.1節: プライバシーポリシーURLは空でなければ請求PDFへ出す'
+      );
+    }
+  }
+
+  @IsTest
+  static void loadContext_reusesKnownInvoiceWithoutSecondHeaderQuery() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('Confirmed');
+      InvoiceDocumentService.DocumentContext first = InvoiceDocumentService.loadContext(
+        fixture.invoice.Id
+      );
+      Integer afterFirst = Limits.getQueries();
+      InvoiceDocumentService.DocumentContext second = InvoiceDocumentService.loadContext(
+        fixture.invoice.Id,
+        first.invoice
+      );
+      System.assertEquals(
+        first.amountExcludingTax,
+        second.amountExcludingTax,
+        'Core 第12.4節: ロック済み請求の発行結果は変えない'
+      );
+      System.assert(
+        Limits.getQueries() - afterFirst < afterFirst,
+        'Core 第12.4節: 同一処理でロック済み請求を取り直さない'
       );
     }
   }
@@ -86,11 +120,10 @@ private class InvoiceDocumentServiceTest {
       Fixture fixture = createFixture('Confirmed');
 
       Test.startTest();
-      InvoiceDocumentService.IssueResult result =
-        InvoiceDocumentService.issueInvoiceDocument(
-          fixture.invoice.Id,
-          'StandardInvoice'
-        );
+      InvoiceDocumentService.IssueResult result = InvoiceDocumentService.issueInvoiceDocument(
+        fixture.invoice.Id,
+        'StandardInvoice'
+      );
       Test.stopTest();
 
       System.assertNotEquals(null, result.contentVersionId);
@@ -140,8 +173,7 @@ private class InvoiceDocumentServiceTest {
       pageReference.getParameters().put('id', fixture.invoice.Id);
       Test.setCurrentPage(pageReference);
 
-      InvoiceDocumentPdfController controller =
-        new InvoiceDocumentPdfController();
+      InvoiceDocumentPdfController controller = new InvoiceDocumentPdfController();
 
       System.assertEquals(true, controller.hasContext);
       System.assertEquals(fixture.invoice.Id, controller.context.invoice.Id);
@@ -153,22 +185,18 @@ private class InvoiceDocumentServiceTest {
   static void pdfController_handlesMissingInvalidAndDraftIds() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Test.setCurrentPage(Page.InvoiceDocumentPdf);
-      InvoiceDocumentPdfController missingController =
-        new InvoiceDocumentPdfController();
+      InvoiceDocumentPdfController missingController = new InvoiceDocumentPdfController();
       System.assertEquals(false, missingController.hasContext);
 
       ApexPages.currentPage().getParameters().put('id', 'invalid');
-      InvoiceDocumentPdfController invalidController =
-        new InvoiceDocumentPdfController();
+      InvoiceDocumentPdfController invalidController = new InvoiceDocumentPdfController();
       System.assertEquals(false, invalidController.hasContext);
 
       Fixture draftFixture = createFixture('Draft');
-      ApexPages.currentPage().getParameters().put(
-        'id',
-        String.valueOf(draftFixture.invoice.Id)
-      );
-      InvoiceDocumentPdfController draftController =
-        new InvoiceDocumentPdfController();
+      ApexPages.currentPage()
+        .getParameters()
+        .put('id', String.valueOf(draftFixture.invoice.Id));
+      InvoiceDocumentPdfController draftController = new InvoiceDocumentPdfController();
       System.assertEquals(false, draftController.hasContext);
       System.assertEquals(1, ApexPages.getMessages().size());
       System.assertEquals(
@@ -312,7 +340,8 @@ private class InvoiceDocumentServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 
@@ -336,7 +365,10 @@ private class InvoiceDocumentServiceTest {
       EffectiveDate__c = Date.newInstance(2026, 6, 1)
     );
     ContractTestDataFactory.applyRequiredFields(history);
-    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     insert history;
     Product2 product = ContractTestDataFactory.buildProduct(
       'Invoice Document Product ' + String.valueOf(Crypto.getRandomInteger())
