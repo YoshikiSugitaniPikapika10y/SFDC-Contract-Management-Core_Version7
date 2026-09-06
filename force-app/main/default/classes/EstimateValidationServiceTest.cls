@@ -3506,4 +3506,103 @@ private class EstimateValidationServiceTest {
       assertRejected('請求アカウントを入力してください', ex);
     }
   }
+
+  @IsTest
+  static void continuationSave_reusesPreviousHistoryLifecycleAndVersion() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Reuse Prev Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Reuse Prev Opportunity'
+      );
+      BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Reuse Prev Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billing.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Reuse Prev History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyRequiredFields(previous);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        previous,
+        account.Id
+      );
+      insert previous;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Reuse Prev Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c previousProduct = new ContractProduct__c(
+        ContractHistory__c = previous.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        Type__c = 'New',
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      ContractTestDataFactory.applyRequiredFields(previousProduct);
+      insert previousProduct;
+
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = opportunity.Id;
+      request.contractServiceId = service.Id;
+      request.previousHistoryId = previous.Id;
+      request.selectedType = 'Renew';
+      request.contractStartDate = String.valueOf(termEnd.addDays(1));
+
+      EstimateValidationService.validatePreviousHistory(request);
+      EstimateValidationService.loadContinuationService(service.Id);
+      Integer queriesBeforeEligibility = Limits.getQueries();
+      EstimateValidationService.validateRenewEligibility(previous.Id);
+      Integer queriesAfterEligibility = Limits.getQueries();
+      System.assertEquals(
+        1,
+        queriesAfterEligibility - queriesBeforeEligibility,
+        '仕様: Core 第12.4節。前回見積商品は1回取る'
+      );
+      EstimateValidationService.validateRenewPeriodStartDate(request);
+      EstimateValidationService.assertServiceLifecycle(
+        service.Id,
+        ContractDomainConstants.LIFECYCLE_TERM,
+        'Renew'
+      );
+      Decimal nextVersion = EstimateSaveService.resolveEstimateHistoryVersion(
+        service.Id,
+        null
+      );
+      EstimateValidationService.loadChangeSourceProducts(previous.Id);
+      System.assertEquals(
+        queriesAfterEligibility,
+        Limits.getQueries(),
+        '仕様: Core 第12.4節。検証済みの前回履歴・Lifecycle・Version・見積商品を取り直さない'
+      );
+      System.assertEquals(2, nextVersion);
+    }
+  }
 }

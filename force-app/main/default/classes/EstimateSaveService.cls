@@ -426,7 +426,8 @@ public without sharing class EstimateSaveService {
     }
     ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
       existing.Id,
-      request.expectedLastModifiedToken
+      request.expectedLastModifiedToken,
+      existing.LastModifiedDate
     );
     if (existing.Opportunity__c != request.opportunityId) {
       throw EstimateValidationService.wrapAura(

@@ -31,6 +31,7 @@ public without sharing class EstimateValidationService {
 
   private static Map<Id, ContractService__c> continuationServiceById = new Map<Id, ContractService__c>();
   private static Map<Id, ContractHistory__c> previousHistoryById = new Map<Id, ContractHistory__c>();
+  private static Map<Id, List<ContractProduct__c>> changeSourceProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
 
   /** 仕様: Core 第4.3.3節、第12.4節。同一保存処理内の契約サービス照会を再利用する。 */
   public static ContractService__c loadContinuationService(Id contractServiceId) {
@@ -799,14 +800,18 @@ public without sharing class EstimateValidationService {
     return histories[0];
   }
 
+  /** 仕様: Core 第12.4節。同一処理で前回見積商品を取り直さない。 */
   public static List<ContractProduct__c> loadChangeSourceProducts(
     Id contractHistoryId
   ) {
     if (contractHistoryId == null) {
       return new List<ContractProduct__c>();
     }
+    if (changeSourceProductsByHistoryId.containsKey(contractHistoryId)) {
+      return changeSourceProductsByHistoryId.get(contractHistoryId);
+    }
 
-    return [
+    List<ContractProduct__c> products = [
       SELECT
         Id,
         Product__c,
@@ -832,6 +837,8 @@ public without sharing class EstimateValidationService {
       WITH SYSTEM_MODE
       ORDER BY Name ASC
     ];
+    changeSourceProductsByHistoryId.put(contractHistoryId, products);
+    return products;
   }
 
   public static void validateChangePeriodDates(
@@ -1879,18 +1886,8 @@ public without sharing class EstimateValidationService {
     Id previousHistoryId,
     String targetOperation
   ) {
-    List<ContractHistory__c> histories = [
-      SELECT Id, Type__c, CurrentTermEndDate__c
-      FROM ContractHistory__c
-      WHERE Id = :previousHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (histories.isEmpty()) {
-      throw wrapAura('前回契約履歴が見つかりません。');
-    }
+    ContractHistory__c history = loadPreviousHistoryTerm(previousHistoryId);
 
-    ContractHistory__c history = histories[0];
     if (history.Type__c == HISTORY_TYPE_CANCEL) {
       if (targetOperation == 'Renew') {
         throw wrapAura(
@@ -1901,10 +1898,7 @@ public without sharing class EstimateValidationService {
     }
     if (
       history.CurrentTermEndDate__c == null ||
-      EstimateQueryService.countRenewSourceRecurringProducts(
-        history.Id,
-        history.CurrentTermEndDate__c
-      ) == 0
+      !EstimateQueryService.isRenewEligibleHistory(history)
     ) {
       if (targetOperation == 'Renew') {
         throw estS3CodedException(
@@ -1922,18 +1916,14 @@ public without sharing class EstimateValidationService {
   public static void validateRenewPeriodStartDate(
     EstimateCreateController.EstimateSaveRequest request
   ) {
-    List<ContractHistory__c> histories = [
-      SELECT CurrentTermEndDate__c
-      FROM ContractHistory__c
-      WHERE Id = :request.previousHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (histories.isEmpty() || histories[0].CurrentTermEndDate__c == null) {
+    ContractHistory__c previous = loadPreviousHistoryTerm(
+      request.previousHistoryId
+    );
+    if (previous.CurrentTermEndDate__c == null) {
       throw wrapAura('前回契約履歴の期間終了日が取得できません。');
     }
 
-    Date expectedStartDate = histories[0].CurrentTermEndDate__c.addDays(1);
+    Date expectedStartDate = previous.CurrentTermEndDate__c.addDays(1);
     Date serviceStartDate = EstimateCreateSupport.parseDate(
       request.contractStartDate
     );
@@ -2049,6 +2039,7 @@ public without sharing class EstimateValidationService {
     }
   }
 
+  /** 仕様: Core 第12.4節。同一処理で読んだ Lifecycle を取り直さない。 */
   public static void assertServiceLifecycle(
     Id contractServiceId,
     String expectedLifecycle,
@@ -2057,18 +2048,12 @@ public without sharing class EstimateValidationService {
     if (contractServiceId == null) {
       throw wrapAura('契約サービスを選択してください。');
     }
-    List<ContractService__c> services = [
-      SELECT Id, Lifecycle__c
-      FROM ContractService__c
-      WHERE Id = :contractServiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (services.isEmpty()) {
+    ContractService__c service = loadContinuationService(contractServiceId);
+    if (service == null) {
       throw wrapAura('契約サービスが見つかりません。');
     }
     assertLoadedLifecycle(
-      services[0].Lifecycle__c,
+      service.Lifecycle__c,
       expectedLifecycle,
       operationLabel
     );
@@ -2134,18 +2119,14 @@ public without sharing class EstimateValidationService {
   public static void validateCancelPeriodDates(
     EstimateCreateController.EstimateSaveRequest request
   ) {
-    List<ContractHistory__c> histories = [
-      SELECT CurrentTermEndDate__c
-      FROM ContractHistory__c
-      WHERE Id = :request.previousHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (histories.isEmpty() || histories[0].CurrentTermEndDate__c == null) {
+    ContractHistory__c previous = loadPreviousHistoryTerm(
+      request.previousHistoryId
+    );
+    if (previous.CurrentTermEndDate__c == null) {
       throw wrapAura('前回契約履歴の期間終了日が取得できません。');
     }
 
-    Date expectedCancelDate = histories[0].CurrentTermEndDate__c.addDays(1);
+    Date expectedCancelDate = previous.CurrentTermEndDate__c.addDays(1);
     Date cancelStartDate = EstimateCreateSupport.parseDate(
       request.contractStartDate
     );
@@ -2718,14 +2699,34 @@ public without sharing class EstimateValidationService {
     if (sourceIds.isEmpty()) {
       return;
     }
-    Map<Id, ContractProduct__c> sourceById = new Map<Id, ContractProduct__c>(
-      [
-        SELECT Id, InvoiceSetting__c, RevenueRecognitionBasis__c
-        FROM ContractProduct__c
-        WHERE Id IN :sourceIds
-        WITH SYSTEM_MODE
-      ]
-    );
+    Map<Id, ContractProduct__c> sourceById = new Map<Id, ContractProduct__c>();
+    for (Id historyId : changeSourceProductsByHistoryId.keySet()) {
+      for (ContractProduct__c source : changeSourceProductsByHistoryId.get(
+        historyId
+      )) {
+        if (source != null && sourceIds.contains(source.Id)) {
+          sourceById.put(source.Id, source);
+        }
+      }
+    }
+    Set<Id> missingIds = new Set<Id>();
+    for (Id sourceId : sourceIds) {
+      if (!sourceById.containsKey(sourceId)) {
+        missingIds.add(sourceId);
+      }
+    }
+    if (!missingIds.isEmpty()) {
+      sourceById.putAll(
+        new Map<Id, ContractProduct__c>(
+          [
+            SELECT Id, InvoiceSetting__c, RevenueRecognitionBasis__c
+            FROM ContractProduct__c
+            WHERE Id IN :missingIds
+            WITH SYSTEM_MODE
+          ]
+        )
+      );
+    }
     for (Integer i = 0; i < products.size(); i++) {
       EstimateCreateController.ProductLineItem line = products[i];
       if (

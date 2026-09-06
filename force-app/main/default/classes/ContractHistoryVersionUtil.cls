@@ -55,13 +55,17 @@ public without sharing class ContractHistoryVersionUtil {
     return currentMax == null || currentMax == 0 ? 1 : currentMax + 1;
   }
 
+  /** 仕様: Core 第4.3節、第12.4節。最新 Ordered の Version を取り直さない。 */
   public static Decimal getNextHistoryVersion(Id contractServiceId) {
     if (contractServiceId == null) {
       return 1;
     }
-    Map<Id, Decimal> allocator = buildVersionAllocator(
-      new Set<Id>{ contractServiceId }
+    ContractHistory__c latest = EstimateQueryService.queryLatestActiveOrderedHistory(
+      contractServiceId
     );
-    return allocateNextVersion(allocator, contractServiceId);
+    if (latest == null || latest.Version__c == null || latest.Version__c == 0) {
+      return 1;
+    }
+    return latest.Version__c + 1;
   }
 }

@@ -222,7 +222,6 @@ public without sharing class EstimateQueryService {
     if (latestOrderedQueriedServiceIds.contains(contractServiceId)) {
       return latestOrderedByServiceId.get(contractServiceId);
     }
-    latestOrderedQueriedServiceIds.add(contractServiceId);
 
     Set<String> selectFields = new Set<String>{
       'Id',
@@ -247,6 +246,7 @@ public without sharing class EstimateQueryService {
         selectList.add(fieldApiName);
       }
     }
+    selectList.add('ContractService__r.Id');
     String soql =
       'SELECT ' +
       String.join(selectList, ',') +
@@ -265,6 +265,7 @@ public without sharing class EstimateQueryService {
       return null;
     }
 
+    latestOrderedQueriedServiceIds.add(contractServiceId);
     latestOrderedByServiceId.put(contractServiceId, histories[0]);
     InvoiceProductFieldCopyService.rememberRecords(
       new List<SObject>{ histories[0] },
@@ -877,10 +878,17 @@ public without sharing class EstimateQueryService {
     ) {
       return false;
     }
-    return countRenewSourceRecurringProducts(
-        history.Id,
-        history.CurrentTermEndDate__c
-      ) > 0;
+    Date termEndDate = history.CurrentTermEndDate__c;
+    for (
+      ContractProduct__c product : EstimateValidationService.loadChangeSourceProducts(
+        history.Id
+      )
+    ) {
+      if (product.Enddate__c == termEndDate) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public static Integer countRenewSourceRecurringProducts(
