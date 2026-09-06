@@ -8,6 +8,20 @@ public without sharing class ContractHistoryOpportunityGuard {
   private static Map<Id, Id> opportunityAccountById = new Map<Id, Id>();
   private static Map<Id, Id> serviceAccountById = new Map<Id, Id>();
 
+  public static void rememberOpportunityAccount(Id opportunityId, Id accountId) {
+    if (opportunityId == null) {
+      return;
+    }
+    opportunityAccountById.put(opportunityId, accountId);
+  }
+
+  public static void rememberServiceAccount(Id serviceId, Id accountId) {
+    if (serviceId == null) {
+      return;
+    }
+    serviceAccountById.put(serviceId, accountId);
+  }
+
   /** 仕様: Core 第3.2節 */
   public static void assertRequired(List<ContractHistory__c> histories) {
     if (histories == null || histories.isEmpty()) {
@@ -31,7 +45,7 @@ public without sharing class ContractHistoryOpportunityGuard {
     assertAccountMatches(histories);
   }
 
-  /** 仕様: Core 第3.2節 */
+  /** 仕様: Core 第3.2節、第12.4節。検証で読んだ商談・契約サービスを取り直さない。 */
   public static void assertAccountMatches(List<ContractHistory__c> histories) {
     if (histories == null || histories.isEmpty()) {
       return;

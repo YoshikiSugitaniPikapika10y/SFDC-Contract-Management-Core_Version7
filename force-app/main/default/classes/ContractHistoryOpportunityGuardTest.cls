@@ -114,4 +114,55 @@ private class ContractHistoryOpportunityGuardTest {
       Test.stopTest();
     }
   }
+
+  @IsTest
+  static void assertAccountMatches_reusesValidationOpportunityAndService() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Guard Reuse Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Guard Reuse Opportunity'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Guard Reuse Service'
+      );
+      service = [
+        SELECT Id, Account__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      opportunity = [
+        SELECT Id, AccountId
+        FROM Opportunity
+        WHERE Id = :opportunity.Id
+      ];
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.contractServiceId = service.Id;
+      request.opportunityId = opportunity.Id;
+      Test.startTest();
+      EstimateValidationService.validateContractServiceAccountMatchesOpportunity(
+        request
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_CHANGE,
+        Opportunity__c = opportunity.Id,
+        ContractService__c = service.Id
+      );
+      Integer queriesBefore = Limits.getQueries();
+      ContractHistoryOpportunityGuard.assertAccountMatches(
+        new List<ContractHistory__c>{ history }
+      );
+      System.assertEquals(
+        queriesBefore,
+        Limits.getQueries(),
+        'Core 第12.4節: 検証で読んだ商談と契約サービスを取り直さない'
+      );
+      System.assertEquals(false, history.hasErrors());
+      Test.stopTest();
+    }
+  }
 }

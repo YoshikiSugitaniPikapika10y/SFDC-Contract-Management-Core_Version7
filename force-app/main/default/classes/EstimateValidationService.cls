@@ -39,7 +39,14 @@ public without sharing class EstimateValidationService {
       return null;
     }
     if (continuationServiceById.containsKey(contractServiceId)) {
-      return continuationServiceById.get(contractServiceId);
+      ContractService__c cached = continuationServiceById.get(contractServiceId);
+      if (cached != null) {
+        ContractHistoryOpportunityGuard.rememberServiceAccount(
+          cached.Id,
+          cached.Account__c
+        );
+      }
+      return cached;
     }
     ContractService__c service = (ContractService__c) InvoiceProductFieldCopyService.querySourceRecord(
       InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
@@ -56,6 +63,10 @@ public without sharing class EstimateValidationService {
       return null;
     }
     continuationServiceById.put(contractServiceId, service);
+    ContractHistoryOpportunityGuard.rememberServiceAccount(
+      service.Id,
+      service.Account__c
+    );
     return service;
   }
 
@@ -2264,6 +2275,10 @@ public without sharing class EstimateValidationService {
     );
     if (opportunity != null) {
       opportunities.add(opportunity);
+      ContractHistoryOpportunityGuard.rememberOpportunityAccount(
+        opportunity.Id,
+        opportunity.AccountId
+      );
     }
     if (opportunities.isEmpty()) {
       return;
