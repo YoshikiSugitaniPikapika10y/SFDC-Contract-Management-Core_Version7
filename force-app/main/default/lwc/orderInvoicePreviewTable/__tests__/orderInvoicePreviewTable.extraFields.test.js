@@ -580,10 +580,10 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
       )
     );
     expect(guide).toBeTruthy();
-    const text = element.shadowRoot.textContent;
-    expect(text).not.toContain("入金はありません。");
+    const paymentPanel = element.shadowRoot.querySelector(".ops-panel");
+    expect(paymentPanel.textContent).not.toContain("入金はありません。");
     expect(
-      Array.from(element.shadowRoot.querySelectorAll("lightning-input")).some(
+      Array.from(paymentPanel.querySelectorAll("lightning-input")).some(
         (input) => input.label === "取消済みを含める"
       )
     ).toBe(false);

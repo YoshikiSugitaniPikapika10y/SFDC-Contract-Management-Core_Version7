@@ -39,13 +39,15 @@ jest.mock(
 
 function hubContext(recordId) {
   const dispatched = [];
-  const ctx = Object.create(EstimateActionHub.prototype);
-  Object.assign(ctx, {
+  const proto = EstimateActionHub.prototype;
+  const ctx = {
     recordId,
     dispatchEvent(event) {
       dispatched.push(event.type);
-    }
-  });
+    },
+    urlForSelectedAction: proto.urlForSelectedAction,
+    scheduleOpenSelectedAction: proto.scheduleOpenSelectedAction
+  };
   return { ctx, dispatched };
 }
 

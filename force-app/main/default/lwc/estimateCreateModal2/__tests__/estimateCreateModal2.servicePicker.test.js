@@ -19,7 +19,7 @@ describe("estimateCreateModal2 service picker (Core 第0.1節)", () => {
       ""
     );
     expect(option.versionLabel).toBe("Version3");
-    expect(option.versionLabel).not.toMatch(/^V/);
+    expect(option.versionLabel).not.toMatch(/^V\d/);
     expect(option.taxLabel).toBe("税率: 未設定");
   });
 

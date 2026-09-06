@@ -16,14 +16,28 @@ jest.mock(
 );
 jest.mock(
   "lightning/uiRecordApi",
-  () => ({ getRecordNotifyChange: jest.fn() }),
+  () => {
+    class GetRecordAdapter {}
+    return {
+      getRecord: GetRecordAdapter,
+      getRecordNotifyChange: jest.fn()
+    };
+  },
+  { virtual: true }
+);
+jest.mock(
+  "lightning/uiObjectInfoApi",
+  () => {
+    class GetObjectInfoAdapter {}
+    return { getObjectInfo: GetObjectInfoAdapter };
+  },
   { virtual: true }
 );
 jest.mock(
   "lightning/navigation",
   () => ({
     NavigationMixin: (Base) => class extends Base {},
-    CurrentPageReference: jest.fn()
+    CurrentPageReference: class CurrentPageReference {}
   }),
   { virtual: true }
 );
@@ -72,6 +86,7 @@ describe("orderCreateWizard cancel billing gate (Core 5.2 / 1.1.10)", () => {
       validateHistoryFields: () => null,
       validateBillingStep: () => missing,
       guideToBillingAccountFormalEdit: jest.fn(),
+      notifyOverlayBusy: jest.fn(),
       showToast: jest.fn()
     };
     await proto.handleConfirmOrder.call(ctx);
@@ -86,6 +101,7 @@ describe("orderCreateWizard cancel billing gate (Core 5.2 / 1.1.10)", () => {
       canOrder: true,
       hasBillingAccount: false,
       errorMessage: "",
+      notifyOverlayBusy: jest.fn(),
       showToast: jest.fn()
     };
     await proto.handleConfirmOrder.call(ctx);

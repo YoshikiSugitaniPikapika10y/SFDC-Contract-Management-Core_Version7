@@ -30,17 +30,23 @@ jest.mock(
 );
 jest.mock(
   "lightning/confirm",
-  () => ({ default: { open: jest.fn() } }),
-  { virtual: true }
-);
-jest.mock(
-  "lightning/platformShowToastEvent",
-  () => ({ ShowToastEvent: class ShowToastEvent {} }),
+  () => {
+    const open = jest.fn();
+    return {
+      __esModule: true,
+      default: { open },
+      open
+    };
+  },
   { virtual: true }
 );
 
 describe("manualJournalEntry preview busy (Accounting 10.3 / 8.8)", () => {
   const proto = ManualJournalEntry.prototype;
+
+  beforeEach(() => {
+    LightningConfirm.open.mockResolvedValue(false);
+  });
 
   afterEach(() => {
     previewRegisterManualJournal.mockReset();
@@ -49,6 +55,7 @@ describe("manualJournalEntry preview busy (Accounting 10.3 / 8.8)", () => {
   });
 
   it("件数プレビュー中の二度目の登録は動かない", async () => {
+    LightningConfirm.open.mockResolvedValue(false);
     let resolvePreview;
     previewRegisterManualJournal.mockReturnValue(
       new Promise((resolve) => {
@@ -72,12 +79,12 @@ describe("manualJournalEntry preview busy (Accounting 10.3 / 8.8)", () => {
     await proto.handleRegister.call(ctx);
     expect(previewRegisterManualJournal).toHaveBeenCalledTimes(1);
     resolvePreview({ displayText: "論理削除件数: 0" });
-    LightningConfirm.open.mockResolvedValue(false);
     await first;
     expect(ctx.busy).toBe(false);
   });
 
   it("件数プレビュー中の二度目の取消は動かない", async () => {
+    LightningConfirm.open.mockResolvedValue(false);
     let resolvePreview;
     previewCancelManualJournal.mockReturnValue(
       new Promise((resolve) => {
@@ -98,7 +105,6 @@ describe("manualJournalEntry preview busy (Accounting 10.3 / 8.8)", () => {
     await proto.handleCancel.call(ctx);
     expect(previewCancelManualJournal).toHaveBeenCalledTimes(1);
     resolvePreview({ displayText: "逆仕訳件数: 0" });
-    LightningConfirm.open.mockResolvedValue(false);
     await first;
     expect(ctx.busy).toBe(false);
   });
