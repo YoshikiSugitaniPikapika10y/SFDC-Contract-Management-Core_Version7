@@ -57,6 +57,7 @@ public without sharing class AccountingGoalService {
   private static Map<Id, RelatedRecords> cachedRelatedByInvoice = new Map<Id, RelatedRecords>();
   private static Map<Id, Map<Id, InvoicePayment__c>> collectedPaymentsByInvoice = new Map<Id, Map<Id, InvoicePayment__c>>();
   private static Map<Id, Map<Id, InvoicePaymentAllocation__c>> collectedAllocationsByInvoice = new Map<Id, Map<Id, InvoicePaymentAllocation__c>>();
+  private static Map<String, List<GlJournal__c>> activeJournalsByGeneration;
 
   private class RelatedRecords {
     Map<Id, ContractProduct__c> contractProducts = new Map<Id, ContractProduct__c>();
@@ -160,6 +161,19 @@ public without sharing class AccountingGoalService {
     GlAccountingPolicy__c policy,
     List<GlJournal__c> currentJournals
   ) {
+    return build(invoice, policy, currentJournals, null);
+  }
+
+  /**
+   * 仕様: Accounting 第8.1節・第8.2節・第8.8節。
+   * restrictLineIds があるときはその請求明細に紐づく候補だけをGoalにする。
+   */
+  public static List<GoalJournal> build(
+    Invoice__c invoice,
+    GlAccountingPolicy__c policy,
+    List<GlJournal__c> currentJournals,
+    Set<Id> restrictLineIds
+  ) {
     if (invoice == null || policy == null) {
       throw new GoalException('Goalの対象請求または会計方針がありません。');
     }
@@ -174,6 +188,15 @@ public without sharing class AccountingGoalService {
     );
     invoice = hydrateInvoiceForConditions(invoice);
     Map<Id, InvoiceLine__c> lines = loadLines(invoice.Id);
+    if (restrictLineIds != null && !restrictLineIds.isEmpty()) {
+      Map<Id, InvoiceLine__c> scoped = new Map<Id, InvoiceLine__c>();
+      for (Id lineId : restrictLineIds) {
+        if (lines.containsKey(lineId)) {
+          scoped.put(lineId, lines.get(lineId));
+        }
+      }
+      lines = scoped;
+    }
     loadRelatedForConditions(invoice, lines);
     Map<Id, InvoicePayment__c> payments = loadPayments(invoice.Id);
     collectedPaymentsByInvoice.put(invoice.Id, payments);
@@ -190,28 +213,38 @@ public without sharing class AccountingGoalService {
       invoice.Id,
       headers
     );
+    Boolean scopedLines =
+      restrictLineIds != null && !restrictLineIds.isEmpty();
     List<Candidate> candidates = new List<Candidate>();
     for (InvoiceLine__c line : lines.values()) {
       candidates.addAll(
         lineCandidates(invoice, line, policy, allowed, reusedPatterns)
       );
     }
-    for (InvoicePayment__c payment : payments.values()) {
-      if (
-        payment.PaymentPurpose__c == InvoicePaymentService.PURPOSE_NON_INVOICE
-      ) {
-        addPaymentCandidate(
-          candidates,
-          invoice,
-          null,
-          payment,
-          null,
-          allowed,
-          reusedPatterns
-        );
+    if (!scopedLines) {
+      for (InvoicePayment__c payment : payments.values()) {
+        if (
+          payment.PaymentPurpose__c == InvoicePaymentService.PURPOSE_NON_INVOICE
+        ) {
+          addPaymentCandidate(
+            candidates,
+            invoice,
+            null,
+            payment,
+            null,
+            allowed,
+            reusedPatterns
+          );
+        }
       }
     }
     for (InvoicePaymentAllocation__c allocation : allocations) {
+      if (
+        scopedLines &&
+        !restrictLineIds.contains(allocation.InvoiceLine__c)
+      ) {
+        continue;
+      }
       addPaymentCandidate(
         candidates,
         invoice,
@@ -222,18 +255,26 @@ public without sharing class AccountingGoalService {
         reusedPatterns
       );
     }
-    for (GlManualJournalHeader__c header : headers) {
-      candidates.add(
-        manualCandidate(
-          invoice,
-          header,
-          settings.get(header.GlManualJournalSetting__c)
-        )
-      );
+    if (!scopedLines) {
+      for (GlManualJournalHeader__c header : headers) {
+        candidates.add(
+          manualCandidate(
+            invoice,
+            header,
+            settings.get(header.GlManualJournalSetting__c)
+          )
+        );
+      }
     }
     sortCandidates(candidates);
+    activeJournalsByGeneration = indexActiveJournals(currentJournals);
     Map<Id, LineBook> books = new Map<Id, LineBook>();
     LineBook invoiceBook = new LineBook();
+    seedInvoiceBookFromOutsideLines(
+      invoiceBook,
+      currentJournals,
+      restrictLineIds
+    );
     Map<Id, Decimal> uacByAllocation = new Map<Id, Decimal>();
     Map<Id, Decimal> spByAllocation = new Map<Id, Decimal>();
     List<GoalJournal> goals = new List<GoalJournal>();
@@ -1124,6 +1165,59 @@ public without sharing class AccountingGoalService {
     }
   }
 
+  /**
+   * 仕様: Accounting 第8.2節。検収日変更で対象外CurrentのSP／UACを請求書単位帳簿へ先に載せる。
+   */
+  private static void seedInvoiceBookFromOutsideLines(
+    LineBook invoiceBook,
+    List<GlJournal__c> currentJournals,
+    Set<Id> restrictLineIds
+  ) {
+    if (
+      invoiceBook == null ||
+      currentJournals == null ||
+      restrictLineIds == null ||
+      restrictLineIds.isEmpty()
+    ) {
+      return;
+    }
+    for (GlJournal__c journal : currentJournals) {
+      if (journal == null || journal.TransactionStatus__c != 'Active') {
+        continue;
+      }
+      if (
+        journal.InvoiceLine__c != null &&
+        restrictLineIds.contains(journal.InvoiceLine__c)
+      ) {
+        continue;
+      }
+      Decimal amount = journal.Amount__c;
+      if (amount == null || amount == 0) {
+        continue;
+      }
+      addSlot(invoiceBook, journal.DebitSlotKey__c, amount, true);
+      addSlot(invoiceBook, journal.CreditSlotKey__c, amount, false);
+      addAccountStamp(
+        invoiceBook,
+        journal.DebitSlotKey__c,
+        journal.DebitAccount__c,
+        journal.DebitAccountAssignment__c,
+        amount,
+        true,
+        null
+      );
+      addAccountStamp(
+        invoiceBook,
+        journal.CreditSlotKey__c,
+        journal.CreditAccount__c,
+        journal.CreditAccountAssignment__c,
+        amount,
+        false,
+        null
+      );
+    }
+  }
+
   private static void applySlotBalance(
     Candidate candidate,
     Map<Id, LineBook> books,
@@ -1709,7 +1803,10 @@ public without sharing class AccountingGoalService {
     Candidate candidate,
     List<GlJournal__c> currentJournals
   ) {
-    if (currentJournals == null || currentJournals.isEmpty()) {
+    if (
+      activeJournalsByGeneration == null ||
+      activeJournalsByGeneration.isEmpty()
+    ) {
       return false;
     }
     String generation = generationUnitKey(
@@ -1717,14 +1814,12 @@ public without sharing class AccountingGoalService {
       candidate.invoice,
       allocatedSlot(candidate)
     );
-    for (GlJournal__c journal : currentJournals) {
+    List<GlJournal__c> matched = activeJournalsByGeneration.get(generation);
+    if (matched == null || matched.isEmpty()) {
+      return false;
+    }
+    for (GlJournal__c journal : matched) {
       // 仕様: 第1.8.1節。論理削除・取消済・取消仕訳はCurrentの有効元仕訳ではない。
-      if (
-        journal.GenerationUnitKey__c != generation ||
-        journal.TransactionStatus__c != 'Active'
-      ) {
-        continue;
-      }
       Map<String, Id> accounts = new Map<String, Id>();
       Map<String, Id> assignments = new Map<String, Id>();
       accounts.put(journal.DebitSlotKey__c, journal.DebitAccount__c);
@@ -1750,6 +1845,32 @@ public without sharing class AccountingGoalService {
       return true;
     }
     return false;
+  }
+
+  /** 仕様: Accounting 第1.8.1節、第8.2節。有効元仕訳の対応付け結果は変えない。同一処理で生成単位の走査を取り直さない。 */
+  private static Map<String, List<GlJournal__c>> indexActiveJournals(
+    List<GlJournal__c> currentJournals
+  ) {
+    Map<String, List<GlJournal__c>> indexed = new Map<String, List<GlJournal__c>>();
+    if (currentJournals == null) {
+      return indexed;
+    }
+    for (GlJournal__c journal : currentJournals) {
+      if (journal == null || journal.TransactionStatus__c != 'Active') {
+        continue;
+      }
+      String generation = journal.GenerationUnitKey__c;
+      if (String.isBlank(generation)) {
+        continue;
+      }
+      List<GlJournal__c> rows = indexed.get(generation);
+      if (rows == null) {
+        rows = new List<GlJournal__c>();
+        indexed.put(generation, rows);
+      }
+      rows.add(journal);
+    }
+    return indexed;
   }
 
   private static String allocatedSlot(Candidate candidate) {

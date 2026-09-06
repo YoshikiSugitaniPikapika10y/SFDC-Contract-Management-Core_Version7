@@ -557,6 +557,7 @@ public without sharing class InvoiceCanonicalService {
     }
     SystemContextAccess.updateRecords(lines);
     applyAcceptanceAccounting(
+      lines,
       confirmedInvoiceIds,
       cancellationDate,
       businessOperationKey,
@@ -596,12 +597,17 @@ public without sharing class InvoiceCanonicalService {
       preview.reverseDateCounts = new List<AccountingDiffService.ReverseDateCount>();
       preview.hasFutureReverseDate = false;
       Map<Date, Integer> countByDate = new Map<Date, Integer>();
+      Map<Id, Set<Id>> lineIdsByInvoice = acceptanceLineIdsByInvoice(
+        lines,
+        confirmedInvoiceIds
+      );
       for (Id invoiceId : confirmedInvoiceIds) {
         AccountingDiffService.CancelPreview one = AccountingDiffService.previewApply(
           invoiceId,
           AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key,
           cancellationDate,
-          lockedById.get(invoiceId)
+          lockedById.get(invoiceId),
+          lineIdsByInvoice.get(invoiceId)
         );
         preview.logicalDeleteCount += one.logicalDeleteCount == null
           ? 0
@@ -644,6 +650,7 @@ public without sharing class InvoiceCanonicalService {
 
   /** 仕様: Core 第1.1.10節、第7.6節、Accounting 第8.2節、第1.1節、第1.8.1節、第8.5節、第8.8節 */
   private static void applyAcceptanceAccounting(
+    List<InvoiceLine__c> lines,
     Set<Id> invoiceIds,
     Date cancellationDate,
     String businessOperationKey,
@@ -652,6 +659,7 @@ public without sharing class InvoiceCanonicalService {
     if (!isAccountingEnabledForAcceptance(invoiceIds)) {
       return;
     }
+    Map<Id, Set<Id>> lineIdsByInvoice = acceptanceLineIdsByInvoice(lines, invoiceIds);
     for (Id invoiceId : invoiceIds) {
       String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
         invoiceIds.size() == 1 ? businessOperationKey : null
@@ -662,9 +670,31 @@ public without sharing class InvoiceCanonicalService {
         AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key,
         operationKey,
         cancellationDate,
-        lockedById == null ? null : lockedById.get(invoiceId)
+        lockedById == null ? null : lockedById.get(invoiceId),
+        lineIdsByInvoice.get(invoiceId)
       );
     }
+  }
+
+  /** 仕様: Accounting 第8.1節・第8.8節 */
+  private static Map<Id, Set<Id>> acceptanceLineIdsByInvoice(
+    List<InvoiceLine__c> lines,
+    Set<Id> invoiceIds
+  ) {
+    Map<Id, Set<Id>> lineIdsByInvoice = new Map<Id, Set<Id>>();
+    if (lines == null || invoiceIds == null) {
+      return lineIdsByInvoice;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line == null || !invoiceIds.contains(line.Invoice__c)) {
+        continue;
+      }
+      if (!lineIdsByInvoice.containsKey(line.Invoice__c)) {
+        lineIdsByInvoice.put(line.Invoice__c, new Set<Id>());
+      }
+      lineIdsByInvoice.get(line.Invoice__c).add(line.Id);
+    }
+    return lineIdsByInvoice;
   }
 
   /** 仕様: Core 第7.9.7節 */

@@ -1469,6 +1469,77 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void acceptance_doesNotTouchOtherLineJournals() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('AccScope');
+      enableAccounting();
+      seedMaps();
+      InvoiceLine__c other = new InvoiceLine__c(
+        Invoice__c = fixture.invoice.Id,
+        ContractProduct__c = fixture.line.ContractProduct__c,
+        ProductName__c = 'Other Lump',
+        Amount__c = 500,
+        Quantity__c = 1,
+        UnitPrice__c = 500,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+        AcceptanceEndDate__c = Date.newInstance(2026, 6, 30),
+        ServicePeriodStartDate__c = Date.newInstance(2026, 6, 1),
+        ServicePeriodEndDate__c = Date.newInstance(2026, 6, 30)
+      );
+      insert other;
+      fixture.invoice.TaxAmount__c = 150;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      confirmWithJournals(fixture.invoice);
+      Map<Id, GlJournal__c> otherBefore = new Map<Id, GlJournal__c>(
+        [
+          SELECT Id, TransactionStatus__c, PostingDate__c, JournalLineKey__c
+          FROM GlJournal__c
+          WHERE
+            Invoice__c = :fixture.invoice.Id
+            AND InvoiceLine__c = :other.Id
+            AND TransactionStatus__c = 'Active'
+        ]
+      );
+      System.assert(
+        !otherBefore.isEmpty(),
+        '他明細の仕訳があること'
+      );
+      Test.startTest();
+      InvoiceCanonicalService.updateLineAcceptanceEndDates(
+        new Map<Id, Date>{
+          fixture.line.Id => Date.newInstance(2026, 8, 31)
+        },
+        null,
+        null,
+        AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id)
+      );
+      Test.stopTest();
+      List<GlJournal__c> otherAfter = [
+        SELECT Id, TransactionStatus__c, PostingDate__c, JournalLineKey__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id AND InvoiceLine__c = :other.Id
+      ];
+      System.assertEquals(
+        otherBefore.size(),
+        otherAfter.size(),
+        'Accounting 第8.8節: 他明細の仕訳本数は変えない'
+      );
+      for (GlJournal__c row : otherAfter) {
+        System.assertEquals(
+          true,
+          otherBefore.containsKey(row.Id),
+          'Accounting 第8.8節: 他明細の仕訳を差し替えない'
+        );
+        System.assertEquals(
+          'Active',
+          row.TransactionStatus__c,
+          'Accounting 第8.8節: 他明細の仕訳は維持する'
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void acceptance_rejectsExistingBasisChangeToMonthly() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('SwitchM');

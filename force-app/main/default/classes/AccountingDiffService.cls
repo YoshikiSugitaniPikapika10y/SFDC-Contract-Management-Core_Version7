@@ -42,6 +42,28 @@ public without sharing class AccountingDiffService {
     Date cancellationDate,
     Invoice__c knownLockedInvoice
   ) {
+    applyForInvoice(
+      invoiceId,
+      eventKey,
+      operationKey,
+      cancellationDate,
+      knownLockedInvoice,
+      null
+    );
+  }
+
+  /**
+   * 仕様: Accounting 第8.1節・第8.2節・第8.8節。
+   * restrictLineIds がある検収日変更は、その請求明細に紐づく仕訳だけをDiffする。
+   */
+  public static void applyForInvoice(
+    Id invoiceId,
+    String eventKey,
+    String operationKey,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice,
+    Set<Id> restrictLineIds
+  ) {
     if (invoiceId == null) {
       throw new DiffException('請求が指定されていません。');
     }
@@ -77,13 +99,23 @@ public without sharing class AccountingDiffService {
     ) {
       return;
     }
+    List<GlJournal__c> diffCurrent = journalsForLines(current, restrictLineIds);
     List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
       invoice,
       policy,
-      current
+      current,
+      restrictLineIds
     );
-    persistDiff(invoice, goals, current, eventKey, operationKey, cancellationDate);
-    persistHistoricalBreakdown(goals);
+    persistDiff(
+      invoice,
+      goals,
+      diffCurrent,
+      current,
+      eventKey,
+      operationKey,
+      cancellationDate
+    );
+    persistHistoricalBreakdown(goals, restrictLineIds);
     AccountingTagEvaluationService.evaluateForInvoice(
       invoiceId,
       invoice,
@@ -169,10 +201,30 @@ public without sharing class AccountingDiffService {
     String operationKey,
     Date cancellationDate
   ) {
-    PersistPlan plan = collectPersistDiff(
+    persistDiff(
       invoice,
       goals,
       current,
+      current,
+      eventKey,
+      operationKey,
+      cancellationDate
+    );
+  }
+
+  private static void persistDiff(
+    Invoice__c invoice,
+    List<AccountingGoalService.GoalJournal> goals,
+    List<GlJournal__c> diffCurrent,
+    List<GlJournal__c> rememberCurrent,
+    String eventKey,
+    String operationKey,
+    Date cancellationDate
+  ) {
+    PersistPlan plan = collectPersistDiff(
+      invoice,
+      goals,
+      diffCurrent,
       eventKey,
       operationKey
     );
@@ -206,7 +258,7 @@ public without sharing class AccountingDiffService {
       if (!plan.inserts.isEmpty()) {
         insert plan.inserts;
       }
-      rememberCurrentAfterPersist(invoice.Id, current, plan);
+      rememberCurrentAfterPersist(invoice.Id, rememberCurrent, plan);
     } catch (Exception ex) {
       AccountingCurrentService.invalidate(invoice.Id);
       throw ex;
@@ -233,6 +285,25 @@ public without sharing class AccountingDiffService {
     Date cancellationDate,
     Invoice__c knownLockedInvoice
   ) {
+    return previewApply(
+      invoiceId,
+      eventKey,
+      cancellationDate,
+      knownLockedInvoice,
+      null
+    );
+  }
+
+  /**
+   * 仕様: Accounting 第8.1節・第8.2節・第8.8節。
+   */
+  public static CancelPreview previewApply(
+    Id invoiceId,
+    String eventKey,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice,
+    Set<Id> restrictLineIds
+  ) {
     if (invoiceId == null) {
       throw new DiffException('請求が指定されていません。');
     }
@@ -258,15 +329,17 @@ public without sharing class AccountingDiffService {
     ) {
       return emptyPreview();
     }
+    List<GlJournal__c> diffCurrent = journalsForLines(current, restrictLineIds);
     List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
       invoice,
       policy,
-      current
+      current,
+      restrictLineIds
     );
     PersistPlan plan = collectPersistDiff(
       invoice,
       goals,
-      current,
+      diffCurrent,
       eventKey,
       'PREVIEW'
     );
@@ -799,8 +872,40 @@ public without sharing class AccountingDiffService {
       : original.PostingDate__c;
   }
 
+  /**
+   * 仕様: Accounting 第8.2節・第8.8節。検収日変更は変えた請求明細のCurrentだけをDiffする。
+   */
+  private static List<GlJournal__c> journalsForLines(
+    List<GlJournal__c> current,
+    Set<Id> restrictLineIds
+  ) {
+    if (restrictLineIds == null || restrictLineIds.isEmpty() || current == null) {
+      return current;
+    }
+    List<GlJournal__c> scoped = new List<GlJournal__c>();
+    for (GlJournal__c journal : current) {
+      if (
+        journal != null &&
+        journal.InvoiceLine__c != null &&
+        restrictLineIds.contains(journal.InvoiceLine__c)
+      ) {
+        scoped.add(journal);
+      }
+    }
+    return scoped;
+  }
+
   /** 仕様: Accounting 第4.4節、第5.2.15節、第5.2.16節、第8.2節、第8.4節、Core 第8.6節 */
-  private static void persistHistoricalBreakdown(List<AccountingGoalService.GoalJournal> goals) {
+  private static void persistHistoricalBreakdown(
+    List<AccountingGoalService.GoalJournal> goals
+  ) {
+    persistHistoricalBreakdown(goals, null);
+  }
+
+  private static void persistHistoricalBreakdown(
+    List<AccountingGoalService.GoalJournal> goals,
+    Set<Id> restrictLineIds
+  ) {
     if (goals == null || goals.isEmpty()) {
       return;
     }
@@ -810,7 +915,7 @@ public without sharing class AccountingDiffService {
     }
     Map<Id, InvoicePaymentAllocation__c> updates = new Map<Id, InvoicePaymentAllocation__c>();
     for (InvoicePaymentAllocation__c allocation : [
-      SELECT Id, Amount__c, HistoricalUacAmount__c, HistoricalSpAmount__c
+      SELECT Id, Amount__c, HistoricalUacAmount__c, HistoricalSpAmount__c, InvoiceLine__c
       FROM InvoicePaymentAllocation__c
       WHERE
         InvoicePayment__r.Invoice__c = :invoiceId
@@ -818,6 +923,13 @@ public without sharing class AccountingDiffService {
         AND InvoicePayment__r.PaymentPurpose__c = 'Invoice'
       WITH SYSTEM_MODE
     ]) {
+      if (
+        restrictLineIds != null &&
+        !restrictLineIds.isEmpty() &&
+        !restrictLineIds.contains(allocation.InvoiceLine__c)
+      ) {
+        continue;
+      }
       allocation.HistoricalUacAmount__c = 0;
       allocation.HistoricalSpAmount__c = 0;
       updates.put(allocation.Id, allocation);
@@ -1484,7 +1596,9 @@ public without sharing class AccountingDiffService {
     FieldCopyDefinitionService.apply(journal, 'GlJournal__c', context, sources);
   }
 
-  /** 仕様: Accounting 第8.7節、第9.1節 */
+  private static Map<String, String> hashedKeysByJoined;
+
+  /** 仕様: Accounting 第8.7節、第9.1節。ダイジェスト結果は変えない。同一処理の同じ結合文字列は取り直さない。 */
   public static String hashKey(List<String> parts) {
     String joined = 'V1';
     if (parts != null) {
@@ -1492,7 +1606,17 @@ public without sharing class AccountingDiffService {
         joined += String.isBlank(part) ? '-' : part;
       }
     }
-    return EncodingUtil.convertToHex(Crypto.generateDigest('SHA-256', Blob.valueOf(joined)))
+    if (hashedKeysByJoined != null && hashedKeysByJoined.containsKey(joined)) {
+      return hashedKeysByJoined.get(joined);
+    }
+    String digest = EncodingUtil.convertToHex(
+        Crypto.generateDigest('SHA-256', Blob.valueOf(joined))
+      )
       .toLowerCase();
+    if (hashedKeysByJoined == null) {
+      hashedKeysByJoined = new Map<String, String>();
+    }
+    hashedKeysByJoined.put(joined, digest);
+    return digest;
   }
 }
