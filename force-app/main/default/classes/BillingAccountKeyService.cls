@@ -96,6 +96,7 @@ public without sharing class BillingAccountKeyService {
    */
   private static Integer referenceRefreshDeferDepth = 0;
   private static Set<Id> deferredReferenceRefreshIds = new Set<Id>();
+  private static Set<Id> deferredMarkTrueIds = new Set<Id>();
   private static Set<Id> markedHasReferenceTrueIds = new Set<Id>();
 
   public static void beginReferenceRefreshDefer() {
@@ -106,10 +107,19 @@ public without sharing class BillingAccountKeyService {
     if (referenceRefreshDeferDepth > 0) {
       referenceRefreshDeferDepth--;
     }
-    if (referenceRefreshDeferDepth == 0 && !deferredReferenceRefreshIds.isEmpty()) {
-      Set<Id> pending = deferredReferenceRefreshIds;
-      deferredReferenceRefreshIds = new Set<Id>();
-      refreshHasReferenceNow(pending);
+    if (referenceRefreshDeferDepth != 0) {
+      return;
+    }
+    Set<Id> toRefresh = deferredReferenceRefreshIds;
+    deferredReferenceRefreshIds = new Set<Id>();
+    Set<Id> toMark = deferredMarkTrueIds;
+    deferredMarkTrueIds = new Set<Id>();
+    toMark.removeAll(toRefresh);
+    if (!toMark.isEmpty()) {
+      markHasReferenceTrue(toMark);
+    }
+    if (!toRefresh.isEmpty()) {
+      refreshHasReferenceNow(toRefresh);
     }
   }
 
@@ -121,7 +131,7 @@ public without sharing class BillingAccountKeyService {
       return;
     }
     if (referenceRefreshDeferDepth > 0) {
-      deferredReferenceRefreshIds.addAll(billingAccountIds);
+      deferredMarkTrueIds.addAll(billingAccountIds);
       return;
     }
     List<BillingAccount__c> updates = new List<BillingAccount__c>();

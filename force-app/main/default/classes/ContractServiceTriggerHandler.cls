@@ -32,6 +32,49 @@ public without sharing class ContractServiceTriggerHandler {
     return ids;
   }
 
+  /** 仕様: Core 第3.3.3節。請求アカウント不変の更新は参照増加として ON にするだけ。 */
+  public static void refreshHasReferenceAfterServiceUpdate(
+    List<ContractService__c> records,
+    Map<Id, ContractService__c> oldMap
+  ) {
+    Set<Id> unchangedIds = new Set<Id>();
+    Set<Id> changedIds = new Set<Id>();
+    if (records == null) {
+      return;
+    }
+    for (ContractService__c record : records) {
+      if (record == null) {
+        continue;
+      }
+      Id newBillingAccountId = record.BiilingAcccount__c;
+      Id oldBillingAccountId = null;
+      if (oldMap != null) {
+        ContractService__c prior = oldMap.get(record.Id);
+        if (prior != null) {
+          oldBillingAccountId = prior.BiilingAcccount__c;
+        }
+      }
+      if (newBillingAccountId == oldBillingAccountId) {
+        if (newBillingAccountId != null) {
+          unchangedIds.add(newBillingAccountId);
+        }
+      } else {
+        if (newBillingAccountId != null) {
+          changedIds.add(newBillingAccountId);
+        }
+        if (oldBillingAccountId != null) {
+          changedIds.add(oldBillingAccountId);
+        }
+      }
+    }
+    if (!unchangedIds.isEmpty()) {
+      BillingAccountKeyService.markHasReferenceTrue(unchangedIds);
+    }
+    if (!changedIds.isEmpty()) {
+      BillingAccountKeyService.refreshHasReference(changedIds);
+    }
+  }
+
   /** 仕様: 共通基盤 第3.6節。物理削除は 101／103（hasDeleteRecords。101 は 103 を含む）。 */
   public static void handleBeforeDelete(List<ContractService__c> oldServices) {
     if (oldServices == null || oldServices.isEmpty()) {

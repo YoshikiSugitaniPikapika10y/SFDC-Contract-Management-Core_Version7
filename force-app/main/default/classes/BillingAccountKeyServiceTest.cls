@@ -161,10 +161,66 @@ private class BillingAccountKeyServiceTest {
         WHERE Id = :stored.Id
       ];
       System.assertEquals(
-        false,
+        true,
         afterDefer.HasReference__c,
-        'Core 第3.3.3節: 契約サービスも請求書も0件なら OFF'
+        'Core 第3.3.3節: 参照の増加は ON にするだけで全件再走査しない'
       );
+    }
+  }
+
+  @IsTest
+  static void serviceUpdate_sameBillingAccount_marksWithoutRescan() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      BillingAccount__c stored = insertBillingAccount('Same BA Ref');
+      Account account = [
+        SELECT Id
+        FROM Account
+        WHERE Id = :stored.Account__c
+      ];
+      ContractService__c service = new ContractService__c(
+        Name = 'Same BA Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = stored.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      try {
+        insert service;
+      } finally {
+        ContractServiceWriteGuard.allowPackageWrite(previousWrite);
+      }
+      service = [
+        SELECT Id, BiilingAcccount__c, Name
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      ContractService__c prior = [
+        SELECT Id, BiilingAcccount__c, Name
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      service.Name = 'Same BA Service Updated';
+      Test.startTest();
+      BillingAccountKeyService.beginReferenceRefreshDefer();
+      Integer queriesBefore = Limits.getQueries();
+      ContractServiceTriggerHandler.refreshHasReferenceAfterServiceUpdate(
+        new List<ContractService__c>{ service },
+        new Map<Id, ContractService__c>{ prior.Id => prior }
+      );
+      BillingAccountKeyService.endReferenceRefreshDefer();
+      System.assertEquals(
+        queriesBefore,
+        Limits.getQueries(),
+        'Core 第12.4節・第3.3.3節: 請求アカウント不変の更新は全請求を再走査しない'
+      );
+      Test.stopTest();
+      BillingAccount__c afterUpdate = [
+        SELECT HasReference__c
+        FROM BillingAccount__c
+        WHERE Id = :stored.Id
+      ];
+      System.assertEquals(true, afterUpdate.HasReference__c);
     }
   }
 

@@ -26,11 +26,9 @@ trigger ContractServiceTrigger on ContractService__c(
     ContractIrregularOperationLog.logCreate(Trigger.new);
   }
   if (Trigger.isAfter && Trigger.isUpdate) {
-    BillingAccountKeyService.refreshHasReference(
-      ContractServiceTriggerHandler.collectBillingAccountIds(
-        Trigger.new,
-        Trigger.oldMap
-      )
+    ContractServiceTriggerHandler.refreshHasReferenceAfterServiceUpdate(
+      Trigger.new,
+      Trigger.oldMap
     );
     ContractIrregularOperationLog.logUpdate(Trigger.new);
   }
