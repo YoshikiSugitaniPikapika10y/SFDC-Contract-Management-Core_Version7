@@ -103,6 +103,9 @@ public without sharing class EstimateArchiveController {
 
     history.historystatus__c = HISTORY_STATUS_ARCHIVE;
     history.BusinessOperationKey__c = operationKey;
+    Boolean previousSkipArchive =
+      ContractIrregularOperationLog.skipEstimateArchivePath;
+    ContractIrregularOperationLog.skipEstimateArchivePath = true;
     try {
       SystemContextAccess.updateRecords(
         new List<ContractHistory__c>{ history }
@@ -111,6 +114,8 @@ public without sharing class EstimateArchiveController {
       throw toAuraHandled(
         ex.getNumDml() > 0 ? ex.getDmlMessage(0) : ex.getMessage()
       );
+    } finally {
+      ContractIrregularOperationLog.skipEstimateArchivePath = previousSkipArchive;
     }
 
     ArchiveResult result = new ArchiveResult();

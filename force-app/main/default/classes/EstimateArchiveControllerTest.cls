@@ -200,6 +200,82 @@ private class EstimateArchiveControllerTest {
   }
 
   @IsTest
+  static void archiveEstimate_doesNotWriteIrregularUpdateWith102() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Irreg Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Archive Irreg Service'
+      );
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Irreg History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
+      );
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.FIX_CONTRACT => true
+      };
+      try {
+        Test.startTest();
+        EstimateArchiveController.archiveEstimate(
+          history.Id,
+          ContractOptimisticLockUtil.toHistoryProductToken(history.Id),
+          'archive-irreg-key'
+        );
+        Test.stopTest();
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+
+      String id18 = String.valueOf(history.Id);
+      String id15 = id18.substring(0, 15);
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'EstimateArchive'
+            AND (
+              TargetRecordId__c = :id18
+              OR TargetRecordId__c = :id15
+            )
+        ],
+        '共通基盤第12章: 手動ArchiveはEstimateArchive 1行'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'IrregularUpdate'
+            AND (
+              TargetRecordId__c = :id18
+              OR TargetRecordId__c = :id15
+            )
+        ],
+        '共通基盤第12章: 正規Archiveは102付きでもIrregularUpdateを書かない'
+      );
+      ContractHistory__c archived = [
+        SELECT historystatus__c, PreviousHistory__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      System.assertEquals('Archive', archived.historystatus__c);
+      System.assertEquals(null, archived.PreviousHistory__c);
+    }
+  }
+
+  @IsTest
   static void archiveEstimate_reusesLockedHistoryLastModified() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
