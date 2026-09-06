@@ -892,7 +892,7 @@ Change列のOriginal・Remakeおよび変更後行はTermだけに適用する�
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractHistory__c.BusinessOperationKey__c</code>
 ／ 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>AccountingCauseLockService.issueOperationKey</code> / <code>lockHistory</code>、<code>ContractOptimisticLockUtil.resolveHistoryProductDatetime</code> / <code>assertRequiredHistoryProductsUnchanged</code>
 ／ 入口 <code>EstimateCreateController.issueEstimateOperationKey</code> / <code>saveEstimate</code>、<code>OrderCreateController.issueOrderOperationKey</code> / <code>confirmOrder</code> / <code>revertOrder</code>、<code>EstimateArchiveController.getArchiveContext</code> / <code>archiveEstimate</code>
-／ 自動Archive <code>ContractHistoryArchiveService.archiveSupersededEstimates</code>、<code>EstimateRevertInvoiceService.archiveNewerEstimates</code>
+／ 自動Archive <code>ContractHistoryArchiveService.archiveSupersededEstimates</code>（受注時）。差し戻しは後続を自動Archiveしない。
 </div>
 
 #### 4.3.13 初期値・追加項目・Change表示
@@ -1287,7 +1287,7 @@ EstimateをOrderedにできるのは、次をすべて満たす場合だけで�
 
 受注画面を開くたびに、請求アカウントの最新情報をサーバから読み込み、第3.3.2節と同じ4束ねで参照表示する。送付は宛名・To・Cc・Bcc・届け方である。請求日ルールと支払条件は第7.2節・第7.5節の方式に必要な項目だけ出す。空にする項目は出さない。計算は変えない。契約履歴の追加項目セクションを出す。定義は第11.4.3節。履歴備考の編集Stepは設けない。通常の受注画面を閉じる時は、確認を出さず入力内容を破棄する。
 
-受注の保存と同じ処理で追加項目を契約履歴へ書く。一部だけ残さない。表示中の必須は画面とサーバで同じエラーにする。空欄で出している項目は空を保存する。画面、API、ステータス変更およびData Loaderを含む全受注経路で同じ定義を検証する。契約横断は一括受注を持たない。個別受注は見積一覧の右に置く。`docs/横断画面.md`。第9章。
+受注の保存と同じ処理で追加項目を契約履歴へ書く。一部だけ残さない。表示中の必須は、受注画面とOrdered見積編集で項目を出しているときだけ、画面とサーバで同じエラーにする。画面外のOrdered化（API・ステータス変更・Data Loader）では必須を見ない。空欄で出している項目は空を保存する。DB必須は第11.7節の見本入力規則（既定OFF）。契約横断は一括受注を持たない。個別受注は見積一覧の右に置く。`docs/横断画面.md`。第9章。
 
 **実装仕様（開発者向け）:** 受注画面の接続ごとに`OrderCreateController.getOrderContext`を非cacheableで再取得する。追加項目定義は`OrderWizardField__mdt`を`OrderWizardFieldService`が読む。請求アカウント確認の必須項目は本定義に含めず、現行どおり参照確認用にハードコードする。
 
@@ -1308,29 +1308,28 @@ OrderedをEstimateへ差し戻せるのは、次をすべて満たす場合だ�
 | ------------- | -------------------------------------------------------------------------- |
 | Orderedの順序 | 同じ契約サービスでVersionが最大のLatest Orderedである                      |
 | 後続Ordered   | 存在しない                                                                 |
-| 後続Estimate  | 自分より新しいVersionのEstimateが存在しない。存在する場合は先にArchiveする |
+| 後続Estimate  | 自分より上のVersionのEstimateが存在しない。残っていれば差し戻し禁止。すべてArchiveしてあれば可 |
 | 請求ロック    | 第1.1.5節の原則に従い、当該Versionに有効な確定済み請求が1件もない          |
 | 権限          | 差し戻し権限を持つ                                                         |
 
 差し戻し画面は取消の確認である。受注と同じ追加項目セクションを出す。定義は第11.4.3節。Orderedのまま成立記録だけ直す入口は第4.3.1節の見積編集であり、差し戻しにはしない。
 
-操作キーと契約履歴の行ロックは第4.3.12節。版は契約履歴と配下の見積商品。後続Estimateの自動Archiveは、別キーにしない。
+操作キーと契約履歴の行ロックは第4.3.12節。版は契約履歴と配下の見積商品。差し戻しは後続Estimateを自動Archiveしない。
 
-差し戻し時は、次を1つの処理として実行する。
+差し戻し時は、次を1つの処理として実行する。後続Estimateの自動Archiveはしない。
 
-1. 自分より新しいVersionのEstimateをArchiveする。自動Renew見積を含む。受注を取り消すと同じ前提の次見積は無効だからである。見積は物理削除しない。後続がすでにOrderedなら、差し戻し対象はそちらであり、本処理の対象ではない。
-2. 契約履歴をEstimateに戻す。差し戻し画面では受注と同じ`OrderWizardField__mdt`の表示対象を出す。初期値は保存済み。人は空にも変更にもでき、同じ処理で契約履歴へ書く。必須は差し戻しでは見ない。画面外の差し戻しは追加項目を触らない。再受注では、空なら定義の初期値を付ける。保存済みがあれば初期値で上書きしない。
-3. 当該Versionの契約期間明細と未確定請求・請求明細を削除する。未確定を参照する仕訳は、請求を消す前に同じ処理で物理削除する。取消済み請求・請求明細、PDFおよび取消監査情報と、取消済み請求を参照する仕訳は元契約履歴に紐づけたまま保持する。
-4. 契約サービスのFirst Ordered、Latest Ordered、Lifecycleおよび状態を再計算する。
-5. 差し戻し画面で「更新商談を削除する」が選択され、紐づく更新商談がある場合は、手順1でArchiveした見積の`Opportunity__c`を外してから更新商談を削除する。商談だけ先に消さない。削除に失敗した場合は差し戻し全体を取り消す。差し戻し画面を通さずOrderedからEstimateへ戻した場合は、後続見積のArchiveは行うが、更新商談は削除せずカウントも変えない。
+1. 契約履歴をEstimateに戻す。差し戻し画面では受注と同じ`OrderWizardField__mdt`の表示対象を出す。初期値は保存済み。人は空にも変更にもでき、同じ処理で契約履歴へ書く。必須は差し戻しでは見ない。画面外の差し戻しは追加項目を触らない。再受注では、空なら定義の初期値を付ける。保存済みがあれば初期値で上書きしない。
+2. 当該Versionの契約期間明細と未確定請求・請求明細を削除する。未確定を参照する仕訳は、請求を消す前に同じ処理で物理削除する。取消済み請求・請求明細、PDFおよび取消監査情報と、取消済み請求を参照する仕訳は元契約履歴に紐づけたまま保持する。
+3. 契約サービスのFirst Ordered、Latest Ordered、Lifecycleおよび状態を再計算する。
+4. 差し戻し画面で「更新商談を削除する」が選択され、紐づく更新商談がある場合は、Archive済み見積の`Opportunity__c`を外してから更新商談を削除する。商談だけ先に消さない。削除に失敗した場合は差し戻し全体を取り消す。差し戻し画面を通さずOrderedからEstimateへ戻した場合は、更新商談は削除せずカウントも変えない。後続見積の自動Archiveもしない。
 
 端数調整、分割、移動または請求情報編集を行った未確定請求も差し戻せるが、それらの調整結果はすべて削除される。実行前にその旨を表示して確認する。有効な確定済み請求が1件でもある場合は、未確定請求だけを削除する部分的な差し戻しを行わない。差し戻しが必要な場合は、請求入出金と手動仕訳を先に個別取消し、確定済み請求を請求書単位ですべて取消してから実行する。
 
-Accountingは未確定の請求に仕訳を作成しない。正規操作で未確定請求ができるのは、受注時の生成と、確定取消の訂正用コピー（第7.9.3節）の2つである。どちらも仕訳は切らない。取消時の仕訳は元の取消済み請求に残し、訂正用未確定へは引き継がない。後続EstimateのArchive（手順1）も見積を消さず、仕訳を作らない。したがって差し戻しで消す未確定に仕訳レコードがあることは理論上ない。手順3の仕訳物理削除はその場合の処理であり、正規経路では対象0件である。差し戻し可否は有効な確定済み請求の有無だけで判定し、未確定に仕訳が付いているかでは止めない。手順3で未確定請求を物理削除する前に、その未確定を参照する仕訳を取引状態を問わず同じ処理で物理削除する。取消済み請求を参照する仕訳は削除しない。`GlJournal__c.Invoice__c`は必須かつRestrictのままとする。
+Accountingは未確定の請求に仕訳を作成しない。正規操作で未確定請求ができるのは、受注時の生成と、確定取消の訂正用コピー（第7.9.3節）の2つである。どちらも仕訳は切らない。取消時の仕訳は元の取消済み請求に残し、訂正用未確定へは引き継がない。差し戻しは見積を消さず、仕訳を作らない。後続Estimateは手動Archiveする（第5.5節）。したがって差し戻しで消す未確定に仕訳レコードがあることは理論上ない。手順2の仕訳物理削除はその場合の処理であり、正規経路では対象0件である。差し戻し可否は有効な確定済み請求の有無だけで判定し、未確定に仕訳が付いているかでは止めない。手順2で未確定請求を物理削除する前に、その未確定を参照する仕訳を取引状態を問わず同じ処理で物理削除する。取消済み請求を参照する仕訳は削除しない。`GlJournal__c.Invoice__c`は必須かつRestrictのままとする。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 入口 <code>orderRevertRecordAction</code> / <code>orderRevertWizard</code>、<code>OrderCreateController.revertOrder</code>、<code>OrderWizardFieldService.getDefinitions</code>。後続Archive <code>EstimateArchiveController.archiveEstimate</code>を差し戻しと同じTXで先に呼ぶ。請求削除 <code>EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories</code>。消す未確定を参照する仕訳は請求削除の前に同じ処理で物理削除する。仕訳の有無では差し戻しを拒否しない。<code>GlJournal__c.Invoice__c</code>は必須かつRestrict。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 入口 <code>orderRevertRecordAction</code> / <code>orderRevertWizard</code>、<code>OrderCreateController.revertOrder</code>、<code>OrderWizardFieldService.getDefinitions</code>。後続Estimateの自動Archiveはしない。上のVersionのEstimateが残っていれば拒否。請求削除 <code>EstimateRevertInvoiceService.adjustForRevertedToEstimateHistories</code>。消す未確定を参照する仕訳は請求削除の前に同じ処理で物理削除する。仕訳の有無では差し戻しを拒否しない。<code>GlJournal__c.Invoice__c</code>は必須かつRestrict。
 </div>
 
 ### 5.4 契約状態
@@ -1364,7 +1363,7 @@ Lifecycle=Termでは、`ServiceStartDate__c`（サービス開始日）はFirst 
 
 - 手動でArchiveにできるのはEstimateだけである。操作キーと契約履歴の行ロックは第4.3.12節。版は契約履歴と配下の見積商品。自動Archiveは親操作のキーに含め、別の版比較をしない。
 - 受注時は、同じ契約サービスにある受注Version以下の他のEstimateを自動的にArchiveにする。
-- 差し戻し時は、同じ契約サービスにある自分より新しいEstimateを自動的にArchiveにする。第5.3節。
+- 差し戻しは後続Estimateを自動Archiveしない。自分より上のVersionのEstimateが残っていれば差し戻し禁止。第5.3節。
 - Archiveにした契約履歴は、前回契約履歴との参照を外す。
 - ArchiveからEstimate・Orderedその他の状態へ復活できない。
 - OrderedをArchiveにできない。受注を取り消す場合は、条件を満たしたうえでEstimateへ差し戻す。
@@ -1381,7 +1380,7 @@ Lifecycle=Termでは、`ServiceStartDate__c`（サービス開始日）はFirst 
 
 - 既存の更新商談があっても、作成ONで再受注した場合はカウントを再度増やし、旧Lookupを外す。旧商談自体は残す。テナント側が新しい商談を作り、Lookupを書き直す。
 - 契約横断は一括受注を持たない。更新商談は個別受注だけである。`docs/横断画面.md`。第9章。
-- 差し戻し画面では紐づく更新商談がある場合だけ削除選択を表示し、初期値をONとする。後続見積のArchiveは削除選択と独立し、差し戻し本体が行う。画面外の直接差し戻しではカウントも商談削除もしない。削除ONなら、Archive済み見積の`Opportunity__c`を外してからパッケージが商談を削除し、`RenewalOpportunity__c`を空にし、カウントを1つ減らす（0未満にはしない）。見積は消さない。削除はテナント実装に任せない。
+- 差し戻し画面では紐づく更新商談がある場合だけ削除選択を表示し、初期値をONとする。差し戻しは後続見積を自動Archiveしない。上のVersionのEstimateが残っていれば差し戻し禁止。第5.3節。画面外の直接差し戻しではカウントも商談削除もしない。削除ONなら、Archive済み見積の`Opportunity__c`を外してからパッケージが商談を削除し、`RenewalOpportunity__c`を空にし、カウントを1つ減らす（0未満にはしない）。見積は消さない。削除はテナント実装に任せない。
 - 作成チェックONなのに同じ処理のあとLookupが空、または選択された削除に失敗した場合は、受注または差し戻し全体を取り消す。
 
 ### 5.7 契約履歴の進捗表示（StatusPath）
@@ -2636,7 +2635,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 | 設定             | 動作                                                                                               |
 | ---------------- | -------------------------------------------------------------------------------------------------- |
 | 表示する見積種別 | New・Change・Renew・Cancelごとに表示可否を指定する。指定がなければ表示しない                       |
-| 必須             | 画面に表示されている場合だけ必須とする。入力強制の旗とは別。申込日だけの専用画面ロジックは持たない |
+| 必須             | 受注画面とOrdered見積編集で画面に表示されている場合だけ必須とする。画面外のOrdered化では見ない。入力強制の旗とは別。申込日だけの専用画面ロジックは持たない |
 | 初期値           | 固定値、操作日、商談、取引先。商品は選べない                                                       |
 
 - 受注画面に契約履歴の追加項目セクションを出す。請求アカウント確認の必須項目は本定義に含めない。
@@ -2681,7 +2680,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 その他 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardField__mdt</code> シード <code>Order_ApplicationDate</code> / <code>Order_OrderDate</code>（同梱CMDT。Apexのpost-installでは作らない）
 一覧 表示ラベル、有効、出す版、並び順、DeveloperName（後ろ）。対象列は置かない。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。必須は画面に出している受注・Ordered見積編集だけ。画面外のOrdered化では見ない。
 </div>
 
 自動Renew見積は申込日を前Orderedからコピーしない。作成日でも埋めない。ウィザード追加項目の初期値は自動Renewでは走らせない。コピー定義のToに申込日・受注日を置いてよい。標準シードのコピー行は置かない。`自動Renew`で申込日をコピーする定義を置いた会社だけが前Versionの日付を空欄へ入れる。
@@ -2757,13 +2756,13 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 
 作成ONの受注では、履歴更新のあと同じ処理内で`RenewalOpportunity__c`を再読込する。空、または`SourceContractHistory__c`・`ContractService__c`・取引先が一致しない場合は受注全体を失敗させる。テナント自動化が例外なら、そのDML失敗で受注も戻る。
 
-`ContractHistory__c.CreateRenewOpportunity__c`は画面・API共通の作成要求とする。元見積商談の`Opportunity__c`は上書きしない。契約横断は一括受注を持たない。更新商談の作成要求は個別受注だけである。`docs/横断画面.md`。第9章。差し戻し時は要求OFFへ戻す。削除選択ONならパッケージが`SourceContractHistory__c`で商談を削除し、参照をnullにし、カウントを減らす。`RenewOpportunityCreateService.deleteBySourceHistory`を使う。テナント削除は呼ばない。
+`ContractHistory__c.CreateRenewOpportunity__c`は画面・API共通の作成要求とする。元見積商談の`Opportunity__c`は上書きしない。契約横断は一括受注を持たない。更新商談の作成要求は個別受注だけである。`docs/横断画面.md`。第9章。画面の差し戻しだけ要求をOFFへ戻す。画面外（API・Data Loader・状態直書き）はフラグを触らない。削除選択ONならパッケージが`SourceContractHistory__c`で商談を削除し、参照をnullにし、カウントを減らす。`RenewOpportunityCreateService.deleteBySourceHistory`を使う。テナント削除は呼ばない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractHistory__c.RenewOpportunityRequestCount__c</code>、<code>CreateRenewOpportunity__c</code>、<code>RenewalOpportunity__c</code>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>RenewOpportunityCreateService.findBySourceHistory</code> / <code>deleteBySourceHistory</code>、<code>ContractDocumentSettingService.requireRenewOpportunitySwitch</code>
-／ 受注入口は第5.2節の<code>OrderCreateController.confirmOrder</code>。
+／ 受注入口は第5.2節の<code>OrderCreateController.confirmOrder</code>。差し戻しは<code>OrderCreateController.revertOrder</code>。画面の差し戻しだけ<code>CreateRenewOpportunity__c</code>をOFF。画面外は触らない。
 </div>
 
 ### 11.6 組織設定とロック除外
