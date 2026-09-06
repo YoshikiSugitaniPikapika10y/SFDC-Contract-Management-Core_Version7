@@ -49,7 +49,9 @@ private class FieldCopyDefinitionServiceTest {
         autoRenew,
         'ContractHistory__c',
         FieldCopyDefinitionService.CONTEXT_AUTO_RENEW,
-        new Map<String, SObject>{ 'Account' => new Account(Name = 'コピー元取引先') }
+        new Map<String, SObject>{
+          'Account' => new Account(Name = 'コピー元取引先')
+        }
       );
       System.assertEquals(
         null,
@@ -62,7 +64,9 @@ private class FieldCopyDefinitionServiceTest {
         notAuto,
         'ContractHistory__c',
         FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
-        new Map<String, SObject>{ 'Account' => new Account(Name = 'コピー元取引先') }
+        new Map<String, SObject>{
+          'Account' => new Account(Name = 'コピー元取引先')
+        }
       );
       System.assertEquals(
         'コピー元取引先',
@@ -90,7 +94,11 @@ private class FieldCopyDefinitionServiceTest {
         FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
         new Map<String, SObject>{ 'Account' => new Account(Name = 'コピー元') }
       );
-      System.assertEquals('画面の値', history.Note__c, '仕様: Core 第11.4.2節 空欄だけ');
+      System.assertEquals(
+        '画面の値',
+        history.Note__c,
+        '仕様: Core 第11.4.2節 空欄だけ'
+      );
     }
   }
 
@@ -189,7 +197,10 @@ private class FieldCopyDefinitionServiceTest {
         FieldCopyDefinitionService.validateDefinition(definition);
       } catch (FieldCopyDefinitionService.FieldCopyException ex) {
         rejected = true;
-        System.assert(ex.getMessage().contains('Test_Denied_Amount'), ex.getMessage());
+        System.assert(
+          ex.getMessage().contains('Test_Denied_Amount'),
+          ex.getMessage()
+        );
       }
       System.assertEquals(true, rejected, '仕様: Core 第11.4.2節 拒否リスト');
     }
@@ -273,7 +284,11 @@ private class FieldCopyDefinitionServiceTest {
         rejected = true;
         System.assert(ex.getMessage().contains('桁'), ex.getMessage());
       }
-      System.assertEquals(true, rejected, '仕様: Core 第11.4.2節 文字超過は切らない');
+      System.assertEquals(
+        true,
+        rejected,
+        '仕様: Core 第11.4.2節 文字超過は切らない'
+      );
       System.assertEquals(null, payment.Memo__c);
     }
   }
@@ -366,7 +381,10 @@ private class FieldCopyDefinitionServiceTest {
         SourceFieldApiName__c = 'ProductCode',
         TargetFieldApiName__c = 'ProductCodeSnapShot__c'
       );
-      Product2 product = new Product2(Name = 'コード元', ProductCode = 'SKU-193');
+      Product2 product = new Product2(
+        Name = 'コード元',
+        ProductCode = 'SKU-193'
+      );
       GlJournal__c journal = new GlJournal__c();
       FieldCopyDefinitionService.apply(
         journal,
@@ -406,8 +424,13 @@ private class FieldCopyDefinitionServiceTest {
         TargetFieldApiName__c = 'ProductCodeSnapShot__c'
       );
       FieldCopyDefinitionService.resetCache();
-      Product2 product = new Product2(Name = 'コード元', ProductCode = 'SKU-194');
-      Map<String, SObject> sources = new Map<String, SObject>{ 'Product2' => product };
+      Product2 product = new Product2(
+        Name = 'コード元',
+        ProductCode = 'SKU-194'
+      );
+      Map<String, SObject> sources = new Map<String, SObject>{
+        'Product2' => product
+      };
       GlJournal__c first = new GlJournal__c();
       GlJournal__c second = new GlJournal__c();
       FieldCopyDefinitionService.apply(
@@ -469,5 +492,419 @@ private class FieldCopyDefinitionServiceTest {
         FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = null;
       }
     }
+  }
+
+  @IsTest
+  static void apply_allowedHistoryFromToContext_stampsBlank() {
+    stampAllowedRows('ContractHistory__c', null, 10);
+  }
+
+  @IsTest
+  static void apply_allowedInvoiceProductFromToContext_stampsBlank() {
+    stampAllowedRows('InvoiceProduct__c', '', 6);
+  }
+
+  @IsTest
+  static void apply_allowedInvoiceFromToContext_stampsBlank() {
+    stampAllowedRows('Invoice__c', '', 6);
+  }
+
+  @IsTest
+  static void apply_allowedInvoiceLineFromToContext_stampsBlank() {
+    stampAllowedRows('InvoiceLine__c', '', 6);
+  }
+
+  @IsTest
+  static void apply_allowedPaymentFromToContext_stampsBlank() {
+    stampAllowedRows('InvoicePayment__c', '', 5);
+  }
+
+  @IsTest
+  static void apply_allowedLineJournalFromToContext_stampsBlank() {
+    stampAllowedRows(
+      'GlJournal__c',
+      FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+      10
+    );
+  }
+
+  @IsTest
+  static void apply_allowedNonLineJournalFromToContext_stampsBlank() {
+    stampAllowedRows(
+      'GlJournal__c',
+      FieldCopyDefinitionService.CONTEXT_NON_LINE_JOURNAL,
+      6
+    );
+  }
+
+  private static void stampAllowedRows(
+    String targetObject,
+    String contextOrAny,
+    Integer expectedCount
+  ) {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      List<List<String>> allowed = new List<List<String>>();
+      for (List<String> row : allowedFromToContextRows()) {
+        if (row[0] != targetObject) {
+          continue;
+        }
+        if (contextOrAny == null || row[1] == contextOrAny) {
+          allowed.add(row);
+        }
+      }
+      System.assertEquals(
+        expectedCount,
+        allowed.size(),
+        '仕様: Core 第11.4.2節 To=' + targetObject + ' の許可組み合わせ'
+      );
+      Integer index = 0;
+      for (List<String> row : allowed) {
+        stampAllowedBlankCopy(index, row[0], row[1], row[2]);
+        index++;
+      }
+    }
+  }
+
+  /** 仕様: Core 第11.4.2節 Toオブジェクトとコンテキスト／仕訳コンテキストの表 */
+  private static List<List<String>> allowedFromToContextRows() {
+    List<List<String>> rows = new List<List<String>>();
+    List<String> historySources = new List<String>{
+      'Opportunity',
+      'ContractHistory__c',
+      'Account',
+      'ContractService__c',
+      'BillingAccount__c'
+    };
+    for (String sourceObject : historySources) {
+      rows.add(
+        new List<String>{
+          'ContractHistory__c',
+          FieldCopyDefinitionService.CONTEXT_AUTO_RENEW,
+          sourceObject
+        }
+      );
+      rows.add(
+        new List<String>{
+          'ContractHistory__c',
+          FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+          sourceObject
+        }
+      );
+    }
+    List<String> invoiceFamilySources = new List<String>{
+      'ContractHistory__c',
+      'ContractProduct__c',
+      'Product2',
+      'BillingAccount__c',
+      'Opportunity',
+      'Account'
+    };
+    for (
+      String targetObject : new List<String>{
+        'InvoiceProduct__c',
+        'Invoice__c',
+        'InvoiceLine__c'
+      }
+    ) {
+      for (String sourceObject : invoiceFamilySources) {
+        rows.add(new List<String>{ targetObject, '', sourceObject });
+      }
+    }
+    for (
+      String sourceObject : new List<String>{
+        'Invoice__c',
+        'BillingAccount__c',
+        'ContractHistory__c',
+        'Opportunity',
+        'Account'
+      }
+    ) {
+      rows.add(new List<String>{ 'InvoicePayment__c', '', sourceObject });
+    }
+    for (
+      String sourceObject : new List<String>{
+        'InvoiceLine__c',
+        'ContractProduct__c',
+        'Product2',
+        'InvoicePayment__c',
+        'InvoicePaymentAllocation__c',
+        'Invoice__c',
+        'BillingAccount__c',
+        'ContractHistory__c',
+        'Opportunity',
+        'Account'
+      }
+    ) {
+      rows.add(
+        new List<String>{
+          'GlJournal__c',
+          FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+          sourceObject
+        }
+      );
+    }
+    for (
+      String sourceObject : new List<String>{
+        'Invoice__c',
+        'BillingAccount__c',
+        'ContractHistory__c',
+        'Opportunity',
+        'Account',
+        'InvoicePayment__c'
+      }
+    ) {
+      rows.add(
+        new List<String>{
+          'GlJournal__c',
+          FieldCopyDefinitionService.CONTEXT_NON_LINE_JOURNAL,
+          sourceObject
+        }
+      );
+    }
+    return rows;
+  }
+
+  private static void stampAllowedBlankCopy(
+    Integer index,
+    String targetObject,
+    String context,
+    String sourceObject
+  ) {
+    FieldPair pair = findCopyableFieldPair(targetObject, context, sourceObject);
+    System.assertNotEquals(
+      null,
+      pair,
+      '仕様: Core 第11.4.2節 許可組み合わせにコピーできる項目がある To=' +
+        targetObject +
+        ' Context=' +
+        context +
+        ' From=' +
+        sourceObject
+    );
+    FieldCopyDefinition__c definition = new FieldCopyDefinition__c(
+      Name = ('T601_' + String.valueOf(index)).left(80),
+      TargetObject__c = targetObject,
+      Context__c = String.isBlank(context) ? null : context,
+      SourceObject__c = sourceObject,
+      SourceFieldApiName__c = pair.sourceField,
+      TargetFieldApiName__c = pair.targetField
+    );
+    insert definition;
+    FieldCopyDefinitionService.resetCache();
+    if (globalDescribe == null) {
+      globalDescribe = Schema.getGlobalDescribe();
+    }
+    SObject source = globalDescribe.get(sourceObject).newSObject();
+    source.put(pair.sourceField, pair.sampleValue);
+    SObject target = globalDescribe.get(targetObject).newSObject();
+    String applyContext = String.isBlank(context) ? null : context;
+    FieldCopyDefinitionService.apply(
+      target,
+      targetObject,
+      applyContext,
+      new Map<String, SObject>{ sourceObject => source }
+    );
+    System.assertEquals(
+      pair.sampleValue,
+      target.get(pair.targetField),
+      '仕様: Core 第11.4.2節 空欄へコピー To=' +
+        targetObject +
+        ' Context=' +
+        context +
+        ' From=' +
+        sourceObject
+    );
+    delete definition;
+    FieldCopyDefinitionService.resetCache();
+  }
+
+  private class FieldPair {
+    String sourceField;
+    String targetField;
+    Object sampleValue;
+  }
+
+  private static Map<String, Schema.SObjectType> globalDescribe;
+  private static Map<String, FieldPair> pairByTargetAndSource;
+  private static Set<String> unusableTargetFields;
+
+  private static FieldPair findCopyableFieldPair(
+    String targetObject,
+    String context,
+    String sourceObject
+  ) {
+    if (pairByTargetAndSource == null) {
+      pairByTargetAndSource = new Map<String, FieldPair>();
+    }
+    String cacheKey = targetObject + '\n' + sourceObject;
+    if (pairByTargetAndSource.containsKey(cacheKey)) {
+      return pairByTargetAndSource.get(cacheKey);
+    }
+    if (globalDescribe == null) {
+      globalDescribe = Schema.getGlobalDescribe();
+    }
+    if (unusableTargetFields == null) {
+      unusableTargetFields = new Set<String>();
+    }
+    Map<String, Schema.SObjectField> sourceFields = globalDescribe.get(
+        sourceObject
+      )
+      .getDescribe()
+      .fields.getMap();
+    Map<String, Schema.SObjectField> targetFields = globalDescribe.get(
+        targetObject
+      )
+      .getDescribe()
+      .fields.getMap();
+    List<String> sourceCandidates = orderedFieldApiNames(sourceFields);
+    List<String> targetCandidates = orderedFieldApiNames(targetFields);
+    Set<String> hardcoded = InvoiceProductFieldCopyService.getHardcodedTargetFieldApiNames(
+      targetObject
+    );
+    FieldPair found;
+    for (String sourceField : sourceCandidates) {
+      Schema.DescribeFieldResult sourceDescribe = sourceFields.get(sourceField)
+        .getDescribe();
+      Object sampleValue = sampleValueFor(sourceDescribe);
+      if (sampleValue == null) {
+        continue;
+      }
+      for (String targetField : targetCandidates) {
+        String unusableKey = targetObject + '.' + targetField;
+        if (unusableTargetFields.contains(unusableKey)) {
+          continue;
+        }
+        if (hardcoded != null && hardcoded.contains(targetField)) {
+          unusableTargetFields.add(unusableKey);
+          continue;
+        }
+        Schema.DescribeFieldResult targetDescribe = targetFields.get(
+            targetField
+          )
+          .getDescribe();
+        if (
+          targetDescribe == null ||
+          !targetDescribe.isUpdateable() ||
+          targetDescribe.isCalculated()
+        ) {
+          unusableTargetFields.add(unusableKey);
+          continue;
+        }
+        FieldCopyDefinition__c candidate = new FieldCopyDefinition__c(
+          Name = 'T601_probe',
+          TargetObject__c = targetObject,
+          Context__c = String.isBlank(context) ? null : context,
+          SourceObject__c = sourceObject,
+          SourceFieldApiName__c = sourceField,
+          TargetFieldApiName__c = targetField
+        );
+        try {
+          FieldCopyDefinitionService.validateDefinition(candidate);
+        } catch (FieldCopyDefinitionService.FieldCopyException ex) {
+          String message = ex.getMessage();
+          if (
+            message != null &&
+            (message.contains('パッケージ項目') ||
+            message.contains('ハードコード') ||
+            message.contains('書けません') ||
+            message.contains('To項目がありません'))
+          ) {
+            unusableTargetFields.add(unusableKey);
+          }
+          continue;
+        }
+        found = new FieldPair();
+        found.sourceField = sourceField;
+        found.targetField = targetField;
+        found.sampleValue = sampleValue;
+        break;
+      }
+      if (found != null) {
+        break;
+      }
+    }
+    pairByTargetAndSource.put(cacheKey, found);
+    return found;
+  }
+
+  private static List<String> orderedFieldApiNames(
+    Map<String, Schema.SObjectField> fields
+  ) {
+    List<String> preferred = new List<String>{
+      'Name',
+      'ProductCode',
+      'Note__c',
+      'Memo__c',
+      'Description__c',
+      'CustomerMemo__c',
+      'BillingAddressee__c',
+      'ProductName__c',
+      'ProductCodeSnapShot__c',
+      'CancellationReasonText__c',
+      'UnlockReason__c',
+      'TaxInclusiveCommaText__c',
+      'Amount__c'
+    };
+    List<String> ordered = new List<String>();
+    Set<String> seen = new Set<String>();
+    for (String apiName : preferred) {
+      if (fields.containsKey(apiName)) {
+        ordered.add(apiName);
+        seen.add(apiName.toLowerCase());
+      }
+    }
+    List<String> rest = new List<String>(fields.keySet());
+    rest.sort();
+    for (String apiName : rest) {
+      if (!seen.contains(apiName.toLowerCase())) {
+        ordered.add(apiName);
+      }
+    }
+    return ordered;
+  }
+
+  private static Object sampleValueFor(Schema.DescribeFieldResult describe) {
+    if (
+      describe == null ||
+      !describe.isUpdateable() ||
+      describe.isCalculated()
+    ) {
+      return null;
+    }
+    Schema.DisplayType fieldType = describe.getType();
+    if (
+      fieldType == Schema.DisplayType.STRING ||
+      fieldType == Schema.DisplayType.TEXTAREA ||
+      fieldType == Schema.DisplayType.EMAIL ||
+      fieldType == Schema.DisplayType.PHONE ||
+      fieldType == Schema.DisplayType.URL ||
+      fieldType == Schema.DisplayType.PICKLIST
+    ) {
+      String value = 'T601';
+      Integer maxLength = describe.getLength();
+      if (maxLength != null && maxLength > 0 && value.length() > maxLength) {
+        value = value.left(maxLength);
+      }
+      return value;
+    }
+    if (
+      fieldType == Schema.DisplayType.DOUBLE ||
+      fieldType == Schema.DisplayType.CURRENCY ||
+      fieldType == Schema.DisplayType.PERCENT ||
+      fieldType == Schema.DisplayType.INTEGER ||
+      fieldType == Schema.DisplayType.LONG
+    ) {
+      return 12;
+    }
+    if (fieldType == Schema.DisplayType.BOOLEAN) {
+      return true;
+    }
+    if (fieldType == Schema.DisplayType.DATE) {
+      return Date.newInstance(2026, 9, 7);
+    }
+    if (fieldType == Schema.DisplayType.DATETIME) {
+      return Datetime.newInstance(2026, 9, 7, 0, 0, 0);
+    }
+    return null;
   }
 }
