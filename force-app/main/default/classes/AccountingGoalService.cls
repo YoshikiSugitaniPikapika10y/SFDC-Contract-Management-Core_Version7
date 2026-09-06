@@ -2287,6 +2287,8 @@ public without sharing class AccountingGoalService {
     }
     Set<String> selectFields = new Set<String>(extraFields);
     selectFields.add('Id');
+    // 仕様: Accounting 第4.5節、第8.2節、Core 第12.4節。確定仕訳の計上日は請求日。
+    selectFields.add('InvoiceDate__c');
     if (needPath) {
       selectFields.add('ContractHistory__c');
       selectFields.add('ContractService__c');
@@ -2301,16 +2303,36 @@ public without sharing class AccountingGoalService {
     if (loaded.isEmpty()) {
       return invoice;
     }
-    Invoice__c hydrated = invoice.clone(true, true, true, true);
     for (String fieldName : extraFields) {
-      hydrated.put(fieldName, loaded[0].get(fieldName));
+      putIfMissing(invoice, loaded[0], fieldName);
     }
+    putIfMissing(invoice, loaded[0], 'InvoiceDate__c');
     if (needPath) {
-      hydrated.ContractHistory__c = loaded[0].ContractHistory__c;
-      hydrated.ContractService__c = loaded[0].ContractService__c;
-      hydrated.BillingAccountSnapShot__c = loaded[0].BillingAccountSnapShot__c;
+      putIfMissing(invoice, loaded[0], 'ContractHistory__c');
+      putIfMissing(invoice, loaded[0], 'ContractService__c');
+      putIfMissing(invoice, loaded[0], 'BillingAccountSnapShot__c');
     }
-    return hydrated;
+    return invoice;
+  }
+
+  private static void putIfMissing(
+    Invoice__c target,
+    Invoice__c source,
+    String fieldName
+  ) {
+    if (
+      target == null ||
+      source == null ||
+      String.isBlank(fieldName) ||
+      hasQueriedField(target, fieldName)
+    ) {
+      return;
+    }
+    try {
+      target.put(fieldName, source.get(fieldName));
+    } catch (SObjectException ex) {
+      return;
+    }
   }
 
   /** 仕様: Accounting 第8.2節。ロック済み請求に条件項目があれば取り直さない。 */

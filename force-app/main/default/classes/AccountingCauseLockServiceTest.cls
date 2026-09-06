@@ -31,6 +31,12 @@ private class AccountingCauseLockServiceTest {
         locked.Id,
         'Accounting 第8.2節: 対象請求書を行ロックする'
       );
+      Date invoiceDate = locked.InvoiceDate__c;
+      System.assertEquals(
+        Date.newInstance(2026, 6, 1),
+        invoiceDate,
+        'Accounting 第4.5節: 確定仕訳の計上日は請求日。ロック行から請求日を読む'
+      );
     }
   }
 
