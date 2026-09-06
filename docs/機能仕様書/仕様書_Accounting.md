@@ -552,16 +552,17 @@ stickyが効くのは人が開始日を動かすUIだけである。終了日の
 | `BILLING_CONFIRMED`       | 請求確定                                                            |
 | `BILLING_CANCELLED`       | 請求取消                                                            |
 | `ACCEPTANCE_DATE_CHANGED` | 検収日変更                                                          |
-| `PAYMENT_RECORDED`        | 請求入出金登録（Purpose=Invoice／NonInvoiceと符号付きAmountを含む） |
+| `PAYMENT_RECORDED`        | 請求入出金登録                                                      |
 | `PAYMENT_CANCELLED`       | 請求入出金取消                                                      |
 | `MANUAL_JOURNAL`          | 手動仕訳                                                            |
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>AccountingEventFixedCatalog.require</code> / <code>values</code>
+／ 画面のイベント列は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>、<code>contractCrossWork</code>。Catalogの<code>name</code>は起動点の正。列／フィルタの表示は第5.2節。キーは変えない。
 </div>
 
-6インスタンスを固定する。請求日到来や売上計上日到来はイベントにしない。請求入出金の物理削除イベントは持たない。旧データの`PAYMENT_DELETED`は移行で`PAYMENT_CANCELLED`へ置換し、カタログキーとしては置かない。
+6インスタンスを固定する。短い`name`は請求確定／請求取消／検収日変更／請求入出金登録／請求入出金取消／手動仕訳。`PAYMENT_RECORDED`の括弧は`description`だけに置く。キーは変えない。保存`AccountingEventKey__c`は起動点のままである。画面の列・横断左のフィルタ／グルーピングは第5.2節のパターン表示であり、カタログ`name`は使わない。請求日到来や売上計上日到来はイベントにしない。請求入出金の物理削除イベントは持たない。旧データの`PAYMENT_DELETED`は移行で`PAYMENT_CANCELLED`へ置換し、カタログキーとしては置かない。
 
 請求確定は、請求書の内容が確定したことを起点として、その請求書に関する仕訳と将来の売上仕訳予定を生成するイベントである。請求日の到来そのものは会計イベントにしない。
 
@@ -1050,9 +1051,12 @@ No.1～9の採用可否は第3.1節の売上計上方針と税認識方針から
 | 15  | `PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER`  | 過去日Invoice：UAC振替            | 請求入出金 | 明細別割当 | 請求日     | UAC      | 優先解決 | 過去日UAC振替額     | PAY_INVOICE_HISTORICAL_UAC_TRANSFER  | ―            | ○        |
 | 16  | `PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER`   | 過去日Invoice：SP振替             | 請求入出金 | 明細別割当 | 請求日     | 優先解決 | SP       | 過去日SP振替額      | PAY_INVOICE_HISTORICAL_SP_TRANSFER   | ―            | ○        |
 
+ボード仕訳タブ・右タイル・横断左の列／フィルタ／グルーピングの表示はパターンである。軸の表示名もパターン。会計イベント6件を候補にしない。自動の別名は No.1 請求本体、2 契約資産振替、3 請求時税、4 税繰延、5 税の契約資産振替、6 売上本体、7 売上本体、8 売上時税、9 売上時税、10 入金、11 請求金額以外の入金、12 請求金額以外の出金、13 過去日入金、14 過去日出金、15 仮受振替、16 仮払振替。手動は`GlManualJournalSetting__c.Name`。保存`AccountingEventKey__c`は起動点のまま。キーは改名しない。第4.2節の短い`name`は起動点の正であり、これらの列／フィルタには使わない。
+
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>JournalPatternFixedCatalog.require</code> / <code>values</code>
+／ 画面の列・横断左のフィルタ／グルーピングは <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>、<code>contractCrossWork</code>。表示は本節の別名。保存キーは起動点。手動は<code>GlManualJournalSetting__c.Name</code>。
 </div>
 
 「既定方針」列の○は、第3.1節の既定である請求基準＋請求時税の許可集合に入ることを示す。顧客がパターンごとに切り替える設定ではない。他の3組合せでは第5.6節の許可集合に従い、No.10～16は方針を問わず常時使用する。
@@ -1773,7 +1777,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 ロック状態は`IsLocked__c`で保持し、Falseを未ロック、Trueをロック済みとする。`IsLocked__c = True`の仕訳は通常の変更・削除を禁止し、打消しには取消仕訳を生成する。`IsLocked__c = False`の仕訳は取消仕訳を作らず論理削除する。
 
-手動Lockと手動Unlockは標準操作とし、請求ボードの仕訳タブおよび契約横断の仕訳一覧から行う。横断の置き方は`docs/横断画面.md`。業務結果は本節。Accounting OFFでは仕訳タブと横断の仕訳一覧を出さず、Lock／Unlockの入口も持たない。第1.1節。人が目で選んだ仕訳行だけを対象にする。未選択では実行できない。請求ボードの仕訳タブは、フッタのLock／Unlockボタンと常時のUnlock理由欄を置かない。Lock列はLock済みだけ鍵アイコン。未Lockは空。1件Lockは空セルをクリックして確認する。Unlockは鍵アイコンから理由ダイアログ。複数は左チェック。全部未LockならLock、全部Lock済みならUnlock。混在は拒否する。未来日付の行も選べる。過ぎた分だけ、という制限はパッケージに持たない。請求ボードではこの請求以外の仕訳は選べない。この請求の未Lock全部／Lock済み全部を一括するボタンは持たない。自動Lockは提供しない。顧客が導入時にバッチを足してよい。パッケージは外部送信の成功をLockの条件にしない。それぞれ専用のカスタム権限を必要とし、片方で他方を代替しない。閲覧権限、請求ボード編集権限、請求確定権限および101〜103では実行しない。Unlockは理由を必須とし、対象仕訳の`UnlockReason__c`と`BusinessOperationKey__c`へ書く。実行者・日時はSalesforceの監査項目。操作ログは Core 第2.5節。再Unlockは理由を上書きする。Lockでは`UnlockReason__c`を消さない。取消理由スナップショットとメモとは別項目である。Lockは`IsLocked__c`と操作キーを変える。Unlockはそれに`UnlockReason__c`を足す。金額、科目、日付、借貸は変えない。仕訳行の金額、科目、日付、借貸の**更新**は101〜103を問わず禁止する。101の新規作成と削除は`共通基盤.md`第3.6節。権限と緊急操作を問わず、画面から仕訳金額を直す経路は持たない。メモ`Memo__c`はLock済みでも直せる。画面定義の追加項目はメモ扱いである。GoalキーにもDiff比較にも入れない。未Lockは出している追加項目を直せる。Lock後の追加項目は仕訳ロック除外`GlJournalLockExemptFields__c`にある項目だけ。金額・科目・日付はリストに書いても不可。定義から除外一覧へ自動では書かない。Core第11.4.4節・第11.6節。イレギュラーの書き込みであり、仕訳キーにもGoalにも含めない。手動仕訳ヘッダーにメモは持たない。登録時にヘッダーから転記しない。利用者が仕訳レコードへ付ける。請求ボードのメモ・追加項目の行保存に操作キー、行ロック、版比較は使わない。同時に書いたときは後から保存した文が残る。請求書のメモと同じ。横断の仕訳一覧でLock／Unlockを含む保存はCore第7.9.7節。同じ文を全行へ一括する操作は持たない。取消・取消済の追加項目は参照だけとする。置き方は`docs/横断画面.md`。Lock/Unlockの操作キーと版比較はCore第7.9.7節。
+手動Lockと手動Unlockは標準操作とし、請求ボードの仕訳タブおよび契約横断の仕訳一覧から行う。横断の置き方は`docs/横断画面.md`。業務結果は本節。Accounting OFFでは仕訳タブと横断の仕訳一覧を出さず、Lock／Unlockの入口も持たない。第1.1節。人が目で選んだ仕訳行だけを対象にする。未選択では実行できない。請求ボードの仕訳タブは、フッタのLock／Unlockボタンと常時のUnlock理由欄を置かない。Lock列はLock済みだけ鍵アイコン。未Lockは空。1件Lockは空セルをクリックする。Unlockは鍵アイコンから理由ダイアログ。実行前確認は出さない（Core第0.2節）。複数は左チェック。全部未LockならLock、全部Lock済みならUnlock。混在は拒否する。未来日付の行も選べる。過ぎた分だけ、という制限はパッケージに持たない。請求ボードではこの請求以外の仕訳は選べない。この請求の未Lock全部／Lock済み全部を一括するボタンは持たない。自動Lockは提供しない。顧客が導入時にバッチを足してよい。パッケージは外部送信の成功をLockの条件にしない。それぞれ専用のカスタム権限を必要とし、片方で他方を代替しない。閲覧権限、請求ボード編集権限、請求確定権限および101〜103では実行しない。Unlockは理由を必須とし、対象仕訳の`UnlockReason__c`と`BusinessOperationKey__c`へ書く。実行者・日時はSalesforceの監査項目。操作ログは Core 第2.5節。再Unlockは理由を上書きする。Lockでは`UnlockReason__c`を消さない。取消理由スナップショットとメモとは別項目である。Lockは`IsLocked__c`と操作キーを変える。Unlockはそれに`UnlockReason__c`を足す。金額、科目、日付、借貸は変えない。仕訳行の金額、科目、日付、借貸の**更新**は101〜103を問わず禁止する。101の新規作成と削除は`共通基盤.md`第3.6節。権限と緊急操作を問わず、画面から仕訳金額を直す経路は持たない。メモ`Memo__c`はLock済みでも直せる。画面定義の追加項目はメモ扱いである。GoalキーにもDiff比較にも入れない。未Lockは出している追加項目を直せる。Lock後の追加項目は仕訳ロック除外`GlJournalLockExemptFields__c`にある項目だけ。金額・科目・日付はリストに書いても不可。定義から除外一覧へ自動では書かない。Core第11.4.4節・第11.6節。イレギュラーの書き込みであり、仕訳キーにもGoalにも含めない。手動仕訳ヘッダーにメモは持たない。登録時にヘッダーから転記しない。利用者が仕訳レコードへ付ける。請求ボードのメモ・追加項目の行保存に操作キー、行ロック、版比較は使わない。同時に書いたときは後から保存した文が残る。請求書のメモと同じ。横断の仕訳一覧でLock／Unlockを含む保存はCore第7.9.7節。同じ文を全行へ一括する操作は持たない。取消・取消済の追加項目は参照だけとする。置き方は`docs/横断画面.md`。Lock/Unlockの操作キーと版比較はCore第7.9.7節。
 
 Unlock後も金額、科目、日付、借貸は直せない。以降の原因操作は未Lockとして扱い、差があれば論理削除して作り直せる。正式な権限API名は`Loop_16_Can_LockJournal` / `Loop_17_Can_UnlockJournal`（`共通基盤.md`第3章）。
 
@@ -1849,7 +1853,7 @@ Unlock後も金額、科目、日付、借貸は直せない。以降の原因�
 
 ### 10.3 手動仕訳の登録
 
-利用者は有効なメニュー、日付および0より大きい金額だけを指定する。選択した設定の借方・貸方スロットがCASHなら登録を拒否する。入力した内容を手動仕訳の原因レコードとして保存し、Goalではその設定の借方・貸方へ同額の仕訳結果を生成する。請求残高との一致や請求期間内の日付であることは検証しない。AccountingがOFFならメニューを表示せず登録しない。
+利用者は有効なメニュー、日付および0より大きい金額だけを指定する。選択した設定の借方・貸方スロットがCASHなら登録を拒否する。設定選択後、説明の下・金額の上に読取専用の借方・貸方（略称＋科目名）を出す。金額入力は残す。登録ではスロット・科目を選ばせない。入力した内容を手動仕訳の原因レコードとして保存し、Goalではその設定の借方・貸方へ同額の仕訳結果を生成する。請求残高との一致や請求期間内の日付であることは検証しない。AccountingがOFFならメニューを表示せず登録しない。一覧は設定・計上日・金額・状態のまま。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
@@ -1927,12 +1931,13 @@ FixedCatalogは利用者の管理対象ではなく、追加・編集・削除�
 
 ### 11.4 手動仕訳
 
-確定済み請求書を開いた状態で、有効な手動仕訳設定をメニュー表示し、説明を確認して日付と正の金額を入力する。これを超える画面詳細は旧Ver2では未定義である。
+確定済み請求書を開いた状態で、有効な手動仕訳設定をメニュー表示する。設定を選んだあと、説明の下・金額の上に読取専用の借方・貸方（略称＋科目名）を出す。金額入力は残す。登録ではスロット・科目を選ばせない。CASH拒否と設定の必須4項目（請求書・設定・計上日・金額）は変えない。一覧は設定・計上日・金額・状態のまま。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> LWC <code>manualJournalEntry</code>、<code>ManualJournalController.register</code> / <code>cancel</code>、<code>ManualJournalService.register</code> / <code>cancel</code>
 ／ 権限は <code>Loop_14_Can_ManualJournal</code>（<code>共通基盤.md</code>第3章）
+／ 登録画面は設定選択後、説明の下・金額の上に読取専用の借方・貸方（略称＋科目名）。登録でスロット・科目は選ばせない。
 </div>
 
 ### 11.5 請求入出金
