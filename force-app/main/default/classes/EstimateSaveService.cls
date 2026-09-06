@@ -331,6 +331,9 @@ public without sharing class EstimateSaveService {
     // 仕様: Core 第4.3節。Change保存1処理で Path 同期と請求アカウント参照更新を同一処理にまとめる。
     ContractHistoryStatusPathService.beginPathSyncDefer();
     BillingAccountKeyService.beginReferenceRefreshDefer();
+    Boolean previousSkipEstimateSave =
+      ContractIrregularOperationLog.skipEstimateSavePath;
+    ContractIrregularOperationLog.skipEstimateSavePath = true;
     try {
       if (request.editHistoryId != null) {
         return writeEstimateLog(
@@ -397,6 +400,7 @@ public without sharing class EstimateSaveService {
         'New、Change、Renew、Cancelタイプのみ保存できます。'
       );
     } finally {
+      ContractIrregularOperationLog.skipEstimateSavePath = previousSkipEstimateSave;
       BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
       ContractArrCalculationService.endRecalcDefer();

@@ -1588,6 +1588,124 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void saveEstimate_withMigrateAll_doesNotWriteIrregularCreate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Irregular Skip Account'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Irregular Skip Opportunity'
+      );
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Irregular Skip Product'
+      );
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 10000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem lineItem = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      lineItem.quantity = 1;
+      lineItem.unitPrice = 10000;
+      lineItem.amount = 10000;
+      lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      lineItem.billingCycle = '月';
+      String productsJson = JSON.serialize(
+        new List<EstimateCreateController.ProductLineItem>{ lineItem }
+      );
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.MIGRATE_ALL => true
+      };
+      EstimateCreateController.EstimateSaveResult created;
+      try {
+        Test.startTest();
+        created = EstimateSaveService.saveEstimate(
+          opportunity.Id,
+          'New',
+          'Irregular Skip CS',
+          'Irregular Skip History',
+          null,
+          null,
+          String.valueOf(termStart),
+          String.valueOf(termEnd),
+          String.valueOf(termStart),
+          String.valueOf(termStart),
+          productsJson,
+          null,
+          null,
+          billingAccount.Id,
+          null,
+          null,
+          '{}',
+          '{}',
+          null,
+          10,
+          null,
+          null,
+          null
+        );
+        Test.stopTest();
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'IrregularCreate'
+            AND TargetRecordId__c = :String.valueOf(created.contractHistoryId)
+        ],
+        '共通基盤第12章: 見積保存の正規手続きはIrregularCreateを書かない'
+      );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'EstimateCreate'
+            AND TargetRecordId__c = :String.valueOf(created.contractHistoryId)
+        ],
+        '共通基盤第12章: 見積保存はEstimateCreate 1行'
+      );
+      if (
+        created.contractProductIds != null &&
+        !created.contractProductIds.isEmpty()
+      ) {
+        System.assertEquals(
+          0,
+          [
+            SELECT COUNT()
+            FROM ContractOperationLog__c
+            WHERE
+              OperationType__c = 'IrregularCreate'
+              AND TargetRecordId__c = :String.valueOf(
+                created.contractProductIds[0]
+              )
+          ],
+          '共通基盤第12章: 見積商品insertもIrregularCreateにしない'
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void resolveEstimateHistoryVersion_returnsNextVersion() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(

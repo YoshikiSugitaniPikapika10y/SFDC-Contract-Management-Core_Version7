@@ -75,6 +75,26 @@ private class ContractIrregularOperationLogTest {
   }
 
   @IsTest
+  static void logCreate_skipsWhenEstimateSavePath() {
+    ContractIrregularOperationLog.skipEstimateSavePath = true;
+    try {
+      BillingAccount__c row = insertLoggedBillingAccount('Irreg Estimate');
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.MIGRATE_ALL => true
+      };
+      ContractIrregularOperationLog.logCreate(new List<SObject>{ row });
+      System.assertEquals(
+        0,
+        countLogs('IrregularCreate', row.Id),
+        '共通基盤第12章: 見積保存の正規手続きはIrregularCreateを書かない'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractIrregularOperationLog.skipEstimateSavePath = false;
+    }
+  }
+
+  @IsTest
   static void logUpdate_isNotWrittenWithout101102104() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.FIX_CONTRACT => false,
@@ -124,6 +144,7 @@ private class ContractIrregularOperationLogTest {
     ContractOperationLogService.skipMasterWrites = false;
     ContractOperationLogService.orgSettingsWriteInProgress = false;
     ContractServiceWriteGuard.allowPackageWrite(false);
+    ContractIrregularOperationLog.skipEstimateSavePath = false;
     InvoiceLockUtil.allowLockedStatusWrite = false;
     InvoicePaymentService.allowLifecycleWrite = false;
     InvoicePaymentAllocationService.allowHistoricalAmountWrite = false;

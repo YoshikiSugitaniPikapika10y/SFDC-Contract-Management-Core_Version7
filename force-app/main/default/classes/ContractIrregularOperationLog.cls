@@ -3,8 +3,12 @@
  * 正規手続き・エンジン・インストールは書かない。
  */
 public without sharing class ContractIrregularOperationLog {
+  /** 仕様: 共通基盤.md 第12章。見積保存の正規手続きはIrregular*にしない。 */
+  public static Boolean skipEstimateSavePath;
+
   public static Boolean skipRegularPath() {
-    return ContractOperationLogService.skipInstallWrites == true ||
+    return skipEstimateSavePath == true ||
+      ContractOperationLogService.skipInstallWrites == true ||
       ContractServiceWriteGuard.isPackageWriteAllowed() ||
       InvoiceLockUtil.allowLockedStatusWrite == true ||
       InvoicePaymentService.allowLifecycleWrite == true ||
