@@ -618,7 +618,10 @@ Invoice目的の入出金とその取消は、請求入出金自体の仕訳処�
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>AccountingSlotFixedCatalog.require</code> / <code>values</code>
 その他 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> グローバル値セット <code>GlSlotKey</code>（値はCatalogの<code>key</code>、ラベルは<code>name</code>）
+／ 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>AccountingSlotFixedCatalog.slotAndAccount</code>
 </div>
+
+請求ボード仕訳タブと契約横断の仕訳一覧の借貸セルは、`abbreviation`と実勘定科目名を半角スペースでつなぐ（例 `AR 売掛金`）。`name`（和名）は出さない。`GlSlotKey`の選択リストラベルは`name`のまま変えない。
 
 「意味」と「説明」はどちらも`description`に格納し、別プロパティを持たない。`accountCategory`は科目割当の区分一致、`normalBalance`は残高正規化・会計タグ評価に使用し、借貸決定には使用しない。12インスタンス固定で有効フラグを持たない。勘定区分は資産・負債・収益・費用だけとし、純資産区分のスロットは置かない。公開中のキーは改名・意味変更しない。廃止キーは残さず現行キーへ変換する。
 
@@ -1892,7 +1895,7 @@ Unlock後も金額、科目、日付、借貸は直せない。以降の原因�
 
 ### 11.1 仕訳確認
 
-旧Ver2には仕訳確認画面の構成、列、検索および操作の詳細はない。独立した仕訳確認のフィルタ画面は持たない。入口は第9.5節の請求ボード仕訳タブだけ。ボード上に会計イベント・取引状態・ロックのフィルタ軸は置かない。計上時期は保存項目ではなく、計上日からその場で算出する表示列とし、フィルタ軸にはしない。第9.4節。自動仕訳の訂正は原因レコードから行う。行の金額編集UIは出さない。手動Lock／Unlockの置き方は第9.5節。確認用は表列に常時出さない。第9.1.1節。Accounting OFFでは仕訳タブを出さない。第1.1節。
+旧Ver2には仕訳確認画面の構成、列、検索および操作の詳細はない。独立した仕訳確認のフィルタ画面は持たない。入口は第9.5節の請求ボード仕訳タブだけ。ボード上に会計イベント・取引状態・ロックのフィルタ軸は置かない。計上時期は保存項目ではなく、計上日からその場で算出する表示列とし、フィルタ軸にはしない。第9.4節。表の列順、借貸の略称表示、仕訳タブのカードフッタはCore第7.7.3節・第8.10節。自動仕訳の訂正は原因レコードから行う。行の金額編集UIは出さない。手動Lock／Unlockの置き方は第9.5節。確認用は表列に常時出さない。第9.1.1節。Accounting OFFでは仕訳タブを出さない。第1.1節。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
