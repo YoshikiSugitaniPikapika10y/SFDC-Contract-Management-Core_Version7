@@ -210,4 +210,50 @@ private class ContractOptimisticLockUtilTest {
       System.assertEquals(true, rejected);
     }
   }
+
+  @IsTest
+  static void resolveHistoryProductDatetime_knownHistorySkipsHistoryQuery() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Known Lm Account');
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Known Lm Service'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Known Lm History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+      insert history;
+      history = [
+        SELECT LastModifiedDate
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      Integer beforeKnown = Limits.getQueries();
+      Datetime withKnown = ContractOptimisticLockUtil.resolveHistoryProductDatetime(
+        history.Id,
+        history.LastModifiedDate
+      );
+      Integer usedKnown = Limits.getQueries() - beforeKnown;
+      Integer beforeFull = Limits.getQueries();
+      Datetime withoutKnown = ContractOptimisticLockUtil.resolveHistoryProductDatetime(
+        history.Id
+      );
+      Integer usedFull = Limits.getQueries() - beforeFull;
+      System.assertEquals(
+        withoutKnown,
+        withKnown,
+        'Core 第5.2節: ロック済み契約履歴の更新日時でも版は同じ'
+      );
+      System.assert(
+        usedKnown < usedFull,
+        'Core 第5.2節: 同一処理でロック済み契約履歴を取り直さない'
+      );
+    }
+  }
 }

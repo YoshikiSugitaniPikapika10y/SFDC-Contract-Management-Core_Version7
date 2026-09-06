@@ -23,6 +23,7 @@ public without sharing class ContractEmailTemplateService {
   static List<ContractEmailTemplate__mdt> testRecords;
   @TestVisible
   static Boolean skipSalesforceTemplateLookup = false;
+  private static Map<String, List<ContractEmailTemplate__mdt>> recordsByType = new Map<String, List<ContractEmailTemplate__mdt>>();
 
   public class EmailTemplateException extends Exception {
   }
@@ -244,12 +245,14 @@ public without sharing class ContractEmailTemplateService {
     row.SortOrder__c = 1;
     testRecords.add(row);
     skipSalesforceTemplateLookup = true;
+    recordsByType.remove(documentType);
   }
 
   @TestVisible
   static void clearTestState() {
     testRecords = null;
     skipSalesforceTemplateLookup = false;
+    recordsByType.clear();
   }
 
   private static void applySalesforceTemplate(EmailTemplateDefinition definition) {
@@ -293,6 +296,7 @@ public without sharing class ContractEmailTemplateService {
     }
   }
 
+  /** 仕様: Core 第4.3.11節。同一取得で送付メールカタログを取り直さない。 */
   private static List<ContractEmailTemplate__mdt> loadRecords(String documentType) {
     if (testRecords != null) {
       List<ContractEmailTemplate__mdt> filtered = new List<ContractEmailTemplate__mdt>();
@@ -303,7 +307,10 @@ public without sharing class ContractEmailTemplateService {
       }
       return filtered;
     }
-    return [
+    if (recordsByType.containsKey(documentType)) {
+      return recordsByType.get(documentType);
+    }
+    List<ContractEmailTemplate__mdt> loaded = [
       SELECT
         MasterLabel,
         DocumentType__c,
@@ -315,6 +322,8 @@ public without sharing class ContractEmailTemplateService {
       WHERE DocumentType__c = :documentType AND IsActive__c = TRUE
       ORDER BY SortOrder__c ASC NULLS LAST, MasterLabel ASC
     ];
+    recordsByType.put(documentType, loaded);
+    return loaded;
   }
 
   private static void assertDocumentType(String documentType) {

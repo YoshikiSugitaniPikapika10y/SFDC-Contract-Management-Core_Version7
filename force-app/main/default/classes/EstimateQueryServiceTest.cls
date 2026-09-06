@@ -704,6 +704,56 @@ private class EstimateQueryServiceTest {
   }
 
   @IsTest
+  static void getBillingAccountInvoiceSettings_loadedRecordSkipsReread() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Loaded Billing Acc'
+      );
+      BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      billing.BillingAddressee__c = '取込済宛名';
+      update billing;
+      billing = [
+        SELECT
+          BillingAddressee__c,
+          BillingEmailTo__c,
+          BillingEmailCc__c,
+          BillingEmailBcc__c,
+          InvoiceDeliveryMethod__c,
+          BillingAccountKey__c,
+          InvoiceDateMethod__c,
+          InvoiceDateDayKind__c,
+          InvoiceDateDayOfMonth__c,
+          InvoiceDateMonthOffset__c,
+          InvoiceDateDayOffset__c,
+          InvoiceDateAdjust__c,
+          PaymentTermMethod__c,
+          PaymentTermDayKind__c,
+          PaymentTermDayOfMonth__c,
+          PaymentTermMonthOffset__c,
+          PaymentTermDayOffset__c,
+          PaymentTermAdjust__c
+        FROM BillingAccount__c
+        WHERE Id = :billing.Id
+      ];
+      Integer before = Limits.getQueries();
+      EstimateCreateController.BillingAccountInvoiceSettingsDto dto = EstimateQueryService.getBillingAccountInvoiceSettings(
+        billing
+      );
+      System.assertEquals(
+        before,
+        Limits.getQueries(),
+        'Core 第4.3.11節: 同一取得で請求アカウントを取り直さない'
+      );
+      System.assertEquals(
+        '取込済宛名',
+        dto.billingCustomFields.get('BillingAddressee__c')
+      );
+    }
+  }
+
+  @IsTest
   static void getBillingAccountsAndRemarkMaster_andInvoiceOptions() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       System.assertEquals(

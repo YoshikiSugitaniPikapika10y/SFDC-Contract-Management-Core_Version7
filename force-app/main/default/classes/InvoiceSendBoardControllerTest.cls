@@ -222,6 +222,21 @@ private class InvoiceSendBoardControllerTest {
   }
 
   @IsTest
+  static void getBoardContext_reusesOrgSettingAndCatalogsInSameRequest() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceSendBoardController.getBoardContext();
+      Integer before = Limits.getQueries();
+      InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
+      System.assertEquals(
+        before,
+        Limits.getQueries(),
+        'Core 第4.3.11節: 同一取得で組織設定と帳票・メールカタログを取り直さない'
+      );
+      System.assertEquals('StandardInvoice', context.defaultDocumentTemplateKey);
+    }
+  }
+
+  @IsTest
   static void getBoardContext_returnsCompanyBlockedReasonWhenCompanyNameEmpty() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();

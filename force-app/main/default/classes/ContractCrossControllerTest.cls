@@ -17,6 +17,13 @@ private class ContractCrossControllerTest {
         dto.accountingEnabled,
         '横断画面.md 第2.4節: Accounting OFFでは仕訳一覧を出さない'
       );
+      Integer beforeTags = Limits.getQueries();
+      ContractCrossQueryService.loadEnabledTagRules();
+      System.assertEquals(
+        beforeTags,
+        Limits.getQueries(),
+        '共通基盤契約横断取得: 1回の取得でタグルールを取り直さない'
+      );
       System.assertEquals(
         ContractDocumentSettingService.requireSendMode('Estimate'),
         dto.estimateSendMode,

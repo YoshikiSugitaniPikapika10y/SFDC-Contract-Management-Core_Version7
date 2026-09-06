@@ -81,9 +81,8 @@ public without sharing class InvoiceProductGenerationService {
   }
 
   private static void generateForHistoriesBody(Set<Id> contractHistoryIds) {
-    // 対象履歴の見積商品だけを取り直す。請求アカウント照会は残す（同一処理の Change 連続で 101 にしない）。
     invalidateGenerationCache(contractHistoryIds);
-    // 期間明細・請求は Ordered のみ（Estimate / Archive には作らない）
+    // 仕様: Core 第5.2節、第12.4節。同一処理で見積商品・請求アカウント・コピー定義を取り直さない。
     InvoiceCanonicalService.assertHistoriesAreOrdered(contractHistoryIds);
 
     // 不正なコピー定義があると受注 DML 全体をロールバックする
@@ -1477,6 +1476,7 @@ public without sharing class InvoiceProductGenerationService {
     return loaded;
   }
 
+  @TestVisible
   private static List<ContractProduct__c> queryContractProductsForGeneration(
     Set<Id> contractHistoryIds
   ) {

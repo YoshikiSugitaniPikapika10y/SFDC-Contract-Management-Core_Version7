@@ -44,6 +44,7 @@ public without sharing class ContractDocumentTemplateService {
 
   @TestVisible
   static List<ContractDocumentTemplate__mdt> testRecords;
+  private static Map<String, List<ContractDocumentTemplate__mdt>> recordsByType = new Map<String, List<ContractDocumentTemplate__mdt>>();
 
   /** 仕様: Core 第11.3.2節。有効行を出す。既定印は初期選択だけに使う。 */
   public static List<TemplateDefinition> getActiveTemplates(
@@ -133,8 +134,10 @@ public without sharing class ContractDocumentTemplateService {
   @TestVisible
   static void clearTestState() {
     testRecords = null;
+    recordsByType.clear();
   }
 
+  /** 仕様: Core 第4.3.11節。同一取得で帳票カタログを取り直さない。 */
   private static List<ContractDocumentTemplate__mdt> loadRecords(
     String documentType
   ) {
@@ -147,7 +150,10 @@ public without sharing class ContractDocumentTemplateService {
       }
       return filtered;
     }
-    return [
+    if (recordsByType.containsKey(documentType)) {
+      return recordsByType.get(documentType);
+    }
+    List<ContractDocumentTemplate__mdt> loaded = [
       SELECT
         MasterLabel,
         DocumentType__c,
@@ -162,6 +168,8 @@ public without sharing class ContractDocumentTemplateService {
       WHERE DocumentType__c = :documentType AND IsActive__c = TRUE
       ORDER BY SortOrder__c ASC NULLS LAST, MasterLabel ASC
     ];
+    recordsByType.put(documentType, loaded);
+    return loaded;
   }
 
   private static void assertDocumentType(String documentType) {

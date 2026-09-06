@@ -99,18 +99,31 @@ public with sharing class ContractOptimisticLockUtil {
 
   /** 仕様: Core 第4.3.12節。版は契約履歴と配下の見積商品。 */
   public static Datetime resolveHistoryProductDatetime(Id historyId) {
+    return resolveHistoryProductDatetime(historyId, null);
+  }
+
+  /**
+   * 仕様: Core 第5.2節、第12.4節。
+   * 同一処理でロック済み契約履歴の更新日時があれば取り直さない。
+   */
+  public static Datetime resolveHistoryProductDatetime(
+    Id historyId,
+    Datetime knownHistoryModified
+  ) {
     if (historyId == null) {
       return null;
     }
-    Datetime maxLm;
-    for (ContractHistory__c history : [
-      SELECT LastModifiedDate
-      FROM ContractHistory__c
-      WHERE Id = :historyId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ]) {
-      maxLm = history.LastModifiedDate;
+    Datetime maxLm = knownHistoryModified;
+    if (maxLm == null) {
+      for (ContractHistory__c history : [
+        SELECT LastModifiedDate
+        FROM ContractHistory__c
+        WHERE Id = :historyId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ]) {
+        maxLm = history.LastModifiedDate;
+      }
     }
     for (AggregateResult row : [
       SELECT MAX(LastModifiedDate) maxLm
@@ -131,13 +144,22 @@ public with sharing class ContractOptimisticLockUtil {
     return toToken(resolveHistoryProductDatetime(historyId));
   }
 
-  /** 仕様: Core 第4.3.12節 */
+  /** 仕様: Core 第4.3.12節、第5.2節、第12.4節 */
   public static void assertRequiredHistoryProductsUnchanged(
     Id historyId,
     String expectedToken
   ) {
+    assertRequiredHistoryProductsUnchanged(historyId, expectedToken, null);
+  }
+
+  /** 仕様: Core 第5.2節、第12.4節。ロック済み契約履歴の更新日時は取り直さない。 */
+  public static void assertRequiredHistoryProductsUnchanged(
+    Id historyId,
+    String expectedToken,
+    Datetime knownHistoryModified
+  ) {
     assertRequiredUnchanged(
-      resolveHistoryProductDatetime(historyId),
+      resolveHistoryProductDatetime(historyId, knownHistoryModified),
       expectedToken,
       '契約履歴'
     );

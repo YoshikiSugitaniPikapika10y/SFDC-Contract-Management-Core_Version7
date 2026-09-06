@@ -30,7 +30,7 @@ public without sharing class InvoiceSendBoardController {
   @AuraEnabled
   public static BoardContextDto getBoardContext() {
     try {
-      ContractDocumentSetting__c setting = loadOrganizationSetting();
+      ContractDocumentSetting__c setting = ContractDocumentSettingService.requireOrgSetting();
       BoardContextDto result = new BoardContextDto();
       result.canSend = ContractPermissionUtil.has(
         ContractPermissionUtil.SEND_INVOICE
@@ -241,19 +241,6 @@ public without sharing class InvoiceSendBoardController {
       expectedToken,
       '請求'
     );
-  }
-
-  private static ContractDocumentSetting__c loadOrganizationSetting() {
-    List<ContractDocumentSetting__c> settings = [
-      SELECT
-        InvoiceSendMode__c,
-        InvoiceOrgWideEmailAddress__c
-      FROM ContractDocumentSetting__c
-      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    return settings.isEmpty() ? new ContractDocumentSetting__c() : settings[0];
   }
 
   private static SelectOptionDto option(String label, String value) {

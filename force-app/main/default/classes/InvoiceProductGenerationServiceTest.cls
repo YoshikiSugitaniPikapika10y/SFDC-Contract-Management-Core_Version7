@@ -414,6 +414,17 @@ private class InvoiceProductGenerationServiceTest {
         invoiceProducts[0].Enddate__c
       );
       System.assertEquals(8000, invoiceProducts[0].Amount__c);
+      FieldCopyDefinitionService.validateAllDefinitions();
+      Integer beforeReuse = Limits.getQueries();
+      FieldCopyDefinitionService.validateAllDefinitions();
+      InvoiceProductGenerationService.queryContractProductsForGeneration(
+        new Set<Id>{ data.history.Id }
+      );
+      System.assertEquals(
+        beforeReuse,
+        Limits.getQueries(),
+        'Core 第5.2節: 同一処理で見積商品とコピー定義を取り直さない'
+      );
       List<Invoice__c> invoices = [
         SELECT InvoiceDate__c
         FROM Invoice__c

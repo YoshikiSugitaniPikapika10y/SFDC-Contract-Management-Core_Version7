@@ -645,10 +645,11 @@ public without sharing class OrderCreateController {
     dto.hasRenewOpportunity =
       dto.renewOpportunityId != null &&
       ContractDocumentSettingService.requireRenewOpportunitySwitch();
-    dto.lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
-      history.Id
+    List<Datetime> productModified = new List<Datetime>{ null };
+    dto.products = loadProductLines(history.Id, productModified);
+    dto.lastModifiedToken = ContractOptimisticLockUtil.toToken(
+      laterDatetime(history.LastModifiedDate, productModified[0])
     );
-    dto.products = loadProductLines(history.Id);
     dto.billingSettings = buildBillingSettings(
       history.ContractService__r.BiilingAcccount__r
     );
@@ -760,7 +761,8 @@ public without sharing class OrderCreateController {
     }
     ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
       history.Id,
-      expectedLastModifiedToken
+      expectedLastModifiedToken,
+      history.LastModifiedDate
     );
     String blockedReason = buildRevertBlockedReason(
       history.Id,
@@ -970,11 +972,15 @@ public without sharing class OrderCreateController {
     if (requireToken) {
       ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
         history.Id,
-        expectedLastModifiedToken
+        expectedLastModifiedToken,
+        history.LastModifiedDate
       );
     } else {
       ContractOptimisticLockUtil.assertUnchanged(
-        ContractOptimisticLockUtil.resolveHistoryProductDatetime(history.Id),
+        ContractOptimisticLockUtil.resolveHistoryProductDatetime(
+          history.Id,
+          history.LastModifiedDate
+        ),
         expectedLastModifiedToken,
         '契約履歴'
       );
@@ -2692,7 +2698,16 @@ public without sharing class OrderCreateController {
   }
 
   private static List<ProductLineDto> loadProductLines(Id contractHistoryId) {
+    return loadProductLines(contractHistoryId, null);
+  }
+
+  /** 仕様: Core 第4.3.11節。見積商品は1回取り、版トークンにも使う。 */
+  private static List<ProductLineDto> loadProductLines(
+    Id contractHistoryId,
+    List<Datetime> maxModifiedOut
+  ) {
     List<ProductLineDto> lines = new List<ProductLineDto>();
+    Datetime maxModified;
     for (ContractProduct__c product : [
       SELECT
         Product__r.Name,
@@ -2702,7 +2717,8 @@ public without sharing class OrderCreateController {
         BillingType__c,
         InvoiceSetting__c,
         StartDate__c,
-        Enddate__c
+        Enddate__c,
+        LastModifiedDate
       FROM ContractProduct__c
       WHERE ContractHistory__c = :contractHistoryId
       WITH SYSTEM_MODE
@@ -2723,8 +2739,28 @@ public without sharing class OrderCreateController {
       Decimal price = product.UnitPrice__c == null ? 0 : product.UnitPrice__c;
       line.lineAmount = qty * price;
       lines.add(line);
+      if (
+        maxModifiedOut != null &&
+        product.LastModifiedDate != null &&
+        (maxModified == null || product.LastModifiedDate > maxModified)
+      ) {
+        maxModified = product.LastModifiedDate;
+      }
+    }
+    if (maxModifiedOut != null) {
+      maxModifiedOut[0] = maxModified;
     }
     return lines;
+  }
+
+  private static Datetime laterDatetime(Datetime left, Datetime right) {
+    if (left == null) {
+      return right;
+    }
+    if (right == null) {
+      return left;
+    }
+    return right > left ? right : left;
   }
 
   private static EstimateCreateController.BillingAccountInvoiceSettingsDto buildBillingSettings(
@@ -2734,7 +2770,7 @@ public without sharing class OrderCreateController {
       return new EstimateCreateController.BillingAccountInvoiceSettingsDto();
     }
     return EstimateCreateController.getBillingAccountInvoiceSettings(
-      billingAccount.Id
+      billingAccount
     );
   }
 

@@ -32,6 +32,11 @@ private class OrderCreateControllerTest {
         'Core 第4.3.12節: 受注入口は契約履歴の版トークンを返す'
       );
       System.assertEquals(
+        ContractOptimisticLockUtil.toHistoryProductToken(context.history.Id),
+        dto.lastModifiedToken,
+        'Core 第4.3.11節: 見積商品は1回取り、版トークンにも使う'
+      );
+      System.assertEquals(
         BillingScheduleService.METHOD_MONTH_OFFSET,
         dto.billingCustomFields.get('PaymentTermMethod__c')
       );

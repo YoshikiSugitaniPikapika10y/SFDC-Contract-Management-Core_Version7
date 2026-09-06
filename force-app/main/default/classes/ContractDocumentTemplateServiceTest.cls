@@ -86,6 +86,22 @@ private class ContractDocumentTemplateServiceTest {
   }
 
   @IsTest
+  static void initialSelectionKey_reusesActiveCatalogInSameRequest() {
+    ContractDocumentTemplateService.getActiveTemplates(
+      ContractDocumentTemplateService.TYPE_INVOICE
+    );
+    Integer before = Limits.getQueries();
+    ContractDocumentTemplateService.initialSelectionKey(
+      ContractDocumentTemplateService.TYPE_INVOICE
+    );
+    System.assertEquals(
+      before,
+      Limits.getQueries(),
+      'Core 第4.3.11節: 同一取得で帳票カタログを取り直さない'
+    );
+  }
+
+  @IsTest
   static void initialSelectionKey_zeroOrManyDefaults_returnsNull() {
     ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
       templateRow('A', false),

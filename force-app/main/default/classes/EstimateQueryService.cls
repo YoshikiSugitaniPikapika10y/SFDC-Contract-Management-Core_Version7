@@ -1196,12 +1196,9 @@ public without sharing class EstimateQueryService {
   public static EstimateCreateController.BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
     Id billingAccountId
   ) {
-    EstimateCreateController.BillingAccountInvoiceSettingsDto dto = new EstimateCreateController.BillingAccountInvoiceSettingsDto();
-    dto.billingCustomFields = new Map<String, Object>();
     if (billingAccountId == null) {
-      return dto;
+      return getBillingAccountInvoiceSettings((BillingAccount__c) null);
     }
-
     List<BillingAccount__c> billingAccounts = [
       SELECT
         BillingAddressee__c,
@@ -1227,10 +1224,22 @@ public without sharing class EstimateQueryService {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    if (billingAccounts.isEmpty()) {
+    return getBillingAccountInvoiceSettings(
+      billingAccounts.isEmpty() ? null : billingAccounts[0]
+    );
+  }
+
+  /**
+   * 仕様: Core 第4.3.11節、第5.2節。同一取得で請求アカウントを取り直さない。
+   */
+  public static EstimateCreateController.BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
+    BillingAccount__c loaded
+  ) {
+    EstimateCreateController.BillingAccountInvoiceSettingsDto dto = new EstimateCreateController.BillingAccountInvoiceSettingsDto();
+    dto.billingCustomFields = new Map<String, Object>();
+    if (loaded == null) {
       return dto;
     }
-    BillingAccount__c loaded = billingAccounts[0];
     dto.billingCustomFields.put('BillingAddressee__c', loaded.BillingAddressee__c);
     dto.billingCustomFields.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
     dto.billingCustomFields.put('BillingEmailCc__c', loaded.BillingEmailCc__c);

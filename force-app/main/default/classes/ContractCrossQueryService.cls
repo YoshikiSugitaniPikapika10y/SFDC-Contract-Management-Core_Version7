@@ -40,6 +40,9 @@ public with sharing class ContractCrossQueryService {
     return range;
   }
 
+  private static List<ContractCrossController.TagRuleDto> cachedTagRules;
+  private static Boolean tagRulesResolved;
+
   /** 仕様: Core 第1.1.10節、Accounting 第3.1節。0件はOFFと埋めない。 */
   public static Boolean isAccountingEnabled() {
     return GlAccountingPolicyService.requireOrgPolicy().AccountingEnabled__c ==
@@ -47,8 +50,13 @@ public with sharing class ContractCrossQueryService {
   }
 
   public static List<ContractCrossController.TagRuleDto> loadEnabledTagRules() {
+    if (tagRulesResolved == true) {
+      return cachedTagRules;
+    }
     List<ContractCrossController.TagRuleDto> rows = new List<ContractCrossController.TagRuleDto>();
     if (!isAccountingEnabled()) {
+      tagRulesResolved = true;
+      cachedTagRules = rows;
       return rows;
     }
     for (GlAccountingTagRule__c rule : [
@@ -64,6 +72,8 @@ public with sharing class ContractCrossQueryService {
       dto.tagKey = rule.TagKey__c;
       rows.add(dto);
     }
+    tagRulesResolved = true;
+    cachedTagRules = rows;
     return rows;
   }
 

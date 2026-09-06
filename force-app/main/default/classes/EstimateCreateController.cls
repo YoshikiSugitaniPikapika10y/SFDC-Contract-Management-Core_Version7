@@ -579,6 +579,13 @@ public without sharing class EstimateCreateController {
     );
   }
 
+  /** 仕様: Core 第4.3.11節。同一取得で請求アカウントを取り直さない。 */
+  public static BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
+    BillingAccount__c loaded
+  ) {
+    return EstimateQueryService.getBillingAccountInvoiceSettings(loaded);
+  }
+
   @AuraEnabled
   public static String getEstimateRemarkMasterText(Id masterId) {
     return EstimateQueryService.getEstimateRemarkMasterText(masterId);

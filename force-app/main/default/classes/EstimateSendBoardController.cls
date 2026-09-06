@@ -113,7 +113,7 @@ public without sharing class EstimateSendBoardController {
   public static BoardContextDto getBoardContext() {
     try {
       ContractPermissionUtil.assertSendEstimates();
-      ContractDocumentSetting__c setting = loadOrganizationSetting();
+      ContractDocumentSetting__c setting = ContractDocumentSettingService.requireOrgSetting();
       BoardContextDto result = new BoardContextDto();
       result.canSend = ContractPermissionUtil.has(
         ContractPermissionUtil.SEND_ESTIMATE

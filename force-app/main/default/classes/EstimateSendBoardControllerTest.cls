@@ -549,6 +549,21 @@ private class EstimateSendBoardControllerTest {
     }
   }
 
+  @IsTest
+  static void getBoardContext_reusesOrgSettingAndCatalogsInSameRequest() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateSendBoardController.getBoardContext();
+      Integer before = Limits.getQueries();
+      EstimateSendBoardController.BoardContextDto context = EstimateSendBoardController.getBoardContext();
+      System.assertEquals(
+        before,
+        Limits.getQueries(),
+        'Core 第4.3.11節: 同一取得で組織設定と帳票・メールカタログを取り直さない'
+      );
+      System.assertEquals('StandardEstimate', context.defaultDocumentTemplateKey);
+    }
+  }
+
   private static ContractHistory__c createEstimate(String toAddress) {
     Account account = ContractTestDataFactory.insertAccount('送付テスト取引先');
     BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
