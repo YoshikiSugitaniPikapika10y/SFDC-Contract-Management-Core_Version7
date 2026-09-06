@@ -492,6 +492,77 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void saveEstimate_reusesProduct2AcrossCustomFieldAndLineAndBuild() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Reuse Product2 Once'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 10000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      line.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      line.billingCycle = '月';
+      List<EstimateCreateController.ProductLineItem> products = new List<EstimateCreateController.ProductLineItem>{
+        line
+      };
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      request.effectiveDate = String.valueOf(termStart);
+      request.products = products;
+
+      Integer queriesBefore = Limits.getQueries();
+      EstimateValidationService.validateWizardCustomFields(request, false);
+      Integer afterCustomFields = Limits.getQueries();
+      EstimateValidationService.validateProductLines(
+        products,
+        false,
+        null,
+        true
+      );
+      Integer afterProductLines = Limits.getQueries();
+      List<ContractProduct__c> built = EstimateSaveService.buildContractProducts(
+        null,
+        null,
+        request
+      );
+      Integer afterBuild = Limits.getQueries();
+
+      System.assert(
+        afterCustomFields > queriesBefore,
+        '追加項目検証で Product2 を取る'
+      );
+      System.assertEquals(
+        afterCustomFields,
+        afterProductLines,
+        '明細検証は同じ Product2 を取り直さない'
+      );
+      System.assertEquals(
+        afterProductLines,
+        afterBuild,
+        '商品構築は同じ Product2 を取り直さない'
+      );
+      System.assertEquals(1, built.size());
+      System.assertEquals(product.Id, built[0].Product__c);
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        built[0].BillingType__c
+      );
+    }
+  }
+
+  @IsTest
   static void buildContractProducts_buildsProductsFromRequest() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Product2 product = ContractTestDataFactory.buildProduct('Build Products');

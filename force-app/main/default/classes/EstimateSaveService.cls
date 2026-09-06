@@ -19,6 +19,9 @@ public without sharing class EstimateSaveService {
   private static final String PRODUCT_TYPE_RENEW = ContractDomainConstants.PRODUCT_TYPE_RENEW;
   private static final Integer NOTE_MAX_LENGTH = ContractDomainConstants.NOTE_MAX_LENGTH;
 
+  /** 仕様: Core 第12.4節。同一処理で Product2 を取り直さない。 */
+  private static Map<Id, Product2> productBillingTypeCache = new Map<Id, Product2>();
+
   public static EstimateCreateController.EstimateSaveResult saveEstimate(
     Id opportunityId,
     String selectedType,
@@ -323,6 +326,7 @@ public without sharing class EstimateSaveService {
       );
     }
 
+    clearProductBillingTypeCache();
     ContractArrCalculationService.beginRecalcDefer();
     // 仕様: Core 第4.3節。Change保存1処理で Path 同期と請求アカウント参照更新を同一処理にまとめる。
     ContractHistoryStatusPathService.beginPathSyncDefer();
@@ -396,6 +400,7 @@ public without sharing class EstimateSaveService {
       BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
       ContractArrCalculationService.endRecalcDefer();
+      clearProductBillingTypeCache();
     }
   }
 
@@ -1186,6 +1191,7 @@ public without sharing class EstimateSaveService {
     return contractProduct;
   }
 
+  /** 仕様: Core 第12.4節。検証・商品構築が読む Product2 を同一処理で取り直さない。 */
   public static Map<Id, Product2> loadProductBillingTypes(
     List<EstimateCreateController.ProductLineItem> products
   ) {
@@ -1199,23 +1205,46 @@ public without sharing class EstimateSaveService {
       return new Map<Id, Product2>();
     }
 
-    Set<String> selectFields = new Set<String>{
-      'Id',
-      'BillingType__c',
-      'RevenueRecognitionBasis__c',
-      'UnitName__c',
-      'AvailableForContract__c'
-    };
-    selectFields.addAll(
-      ContractWizardFieldService.getReferencedProduct2FieldApiNames()
-    );
-    String soql =
-      'SELECT ' +
-      String.join(new List<String>(selectFields), ',') +
-      ' FROM Product2' +
-      ' WHERE Id IN :productIds' +
-      ' WITH SYSTEM_MODE';
-    return new Map<Id, Product2>((List<Product2>) Database.query(soql));
+    Set<Id> missingIds = new Set<Id>();
+    for (Id productId : productIds) {
+      if (!productBillingTypeCache.containsKey(productId)) {
+        missingIds.add(productId);
+      }
+    }
+    if (!missingIds.isEmpty()) {
+      Set<String> selectFields = new Set<String>{
+        'Id',
+        'BillingType__c',
+        'RevenueRecognitionBasis__c',
+        'UnitName__c',
+        'AvailableForContract__c'
+      };
+      selectFields.addAll(
+        ContractWizardFieldService.getReferencedProduct2FieldApiNames()
+      );
+      String soql =
+        'SELECT ' +
+        String.join(new List<String>(selectFields), ',') +
+        ' FROM Product2' +
+        ' WHERE Id IN :missingIds' +
+        ' WITH SYSTEM_MODE';
+      for (Product2 product : (List<Product2>) Database.query(soql)) {
+        productBillingTypeCache.put(product.Id, product);
+      }
+    }
+
+    Map<Id, Product2> productById = new Map<Id, Product2>();
+    for (Id productId : productIds) {
+      Product2 cached = productBillingTypeCache.get(productId);
+      if (cached != null) {
+        productById.put(productId, cached);
+      }
+    }
+    return productById;
+  }
+
+  private static void clearProductBillingTypeCache() {
+    productBillingTypeCache.clear();
   }
 
   public static String resolveProductType(
