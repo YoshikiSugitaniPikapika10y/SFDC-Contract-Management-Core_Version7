@@ -77,51 +77,7 @@ public without sharing class InvoiceCancelService {
       invoice.Id,
       request.cancellationDate
     );
-    Invoice__c original = [
-      SELECT
-        Id,
-        ContractService__c,
-        ContractHistory__c,
-        InvoiceDate__c,
-        PaymentScheduledDate__c,
-        Amount__c,
-        TaxAmount__c,
-        TaxPercent__c,
-        TaxInclusiveAmount__c,
-        BillingAccountSnapShot__c,
-        BillingAccountKeySnapShot__c,
-        BillingAddresseeSnapShot__c,
-        BillingEmailToSnapShot__c,
-        BillingEmailCcSnapShot__c,
-        BillingEmailBccSnapShot__c,
-        InvoiceDeliveryMethodSnapShot__c,
-        InvoiceDateMethodSnapShot__c,
-        InvoiceDateDayKindSnapShot__c,
-        InvoiceDateDayOfMonthSnapShot__c,
-        InvoiceDateMonthOffsetSnapShot__c,
-        InvoiceDateDayOffsetSnapShot__c,
-        InvoiceDateAdjustSnapShot__c,
-        PaymentTermMethodSnapShot__c,
-        PaymentTermDayKindSnapShot__c,
-        PaymentTermDayOfMonthSnapShot__c,
-        PaymentTermMonthOffsetSnapShot__c,
-        PaymentTermDayOffsetSnapShot__c,
-        PaymentTermAdjustSnapShot__c,
-        MergeKey__c,
-        SourcePeriodLineIds__c,
-        PeriodLineAmountTotal__c,
-        Memo__c,
-        InvoiceTransactionStatus__c,
-        IsAmountAdjusted__c,
-        IsSplitMoved__c,
-        IsManuallyAdjusted__c,
-        DeliveryStatus__c,
-        BusinessOperationKey__c
-      FROM Invoice__c
-      WHERE Id = :invoice.Id
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Invoice__c original = queryOriginalInvoiceForCorrection(invoice.Id);
     InvoiceTransactionStatusService.applyCancelled(new List<Invoice__c>{ original });
     // 仕様: Core 第7.9.3節手順5・第7.9.5節。理由は元請求へ保持。取消者・日時は監査項目。
     original.CancellationReason__c = request.cancellationReason;
@@ -137,6 +93,7 @@ public without sharing class InvoiceCancelService {
       InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
       InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
+    // 仕様: Core 第7.9.3節・第11.4.2節。顧客追加項目は clone で載せ、insert の空欄スタンプに任せる。
     Invoice__c correction = original.clone(false, true, false, false);
     // 仕様: Core 第7.9.3節。MergeKeyはコピー対象に無い。Nameは自動採番。
     correction.MergeKey__c = null;
@@ -164,32 +121,7 @@ public without sharing class InvoiceCancelService {
       InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
     List<InvoiceLine__c> copies = new List<InvoiceLine__c>();
-    for (InvoiceLine__c line : [
-      SELECT
-        Id,
-        ContractProduct__c,
-        Product__c,
-        ProductName__c,
-        ProductCodeSnapShot__c,
-        Quantity__c,
-        Unit__c,
-        UnitPrice__c,
-        Amount__c,
-        PeriodLabel__c,
-        ServicePeriodStartDate__c,
-        ServicePeriodEndDate__c,
-        AcceptanceEndDate__c,
-        RevenueRecognitionBasis__c,
-        LineMergeKey__c,
-        SourcePeriodLineIds__c,
-        HistoryVersionLabel__c,
-        IsSplitMoved__c,
-        IsManuallyAdjusted__c,
-        IsAmountAdjusted__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :original.Id
-      WITH SYSTEM_MODE
-    ]) {
+    for (InvoiceLine__c line : queryOriginalLinesForCorrection(original.Id)) {
       InvoiceLine__c copy = line.clone(false, true, false, false);
       copy.Invoice__c = correction.Id;
       copy.AllocatedTaxAmount__c = null;
@@ -242,6 +174,129 @@ public without sharing class InvoiceCancelService {
       null,
       null
     );
+  }
+
+  /** 仕様: Core 第7.9.3節・第11.4.2節・第11.4.4節。訂正用は元の顧客追加項目をコピーし、空欄だけ定義スタンプする。 */
+  private static Invoice__c queryOriginalInvoiceForCorrection(Id invoiceId) {
+    Set<String> fields = new Set<String>{
+      'Id',
+      'ContractService__c',
+      'ContractHistory__c',
+      'InvoiceDate__c',
+      'PaymentScheduledDate__c',
+      'Amount__c',
+      'TaxAmount__c',
+      'TaxPercent__c',
+      'TaxInclusiveAmount__c',
+      'BillingAccountSnapShot__c',
+      'BillingAccountKeySnapShot__c',
+      'BillingAddresseeSnapShot__c',
+      'BillingEmailToSnapShot__c',
+      'BillingEmailCcSnapShot__c',
+      'BillingEmailBccSnapShot__c',
+      'InvoiceDeliveryMethodSnapShot__c',
+      'InvoiceDateMethodSnapShot__c',
+      'InvoiceDateDayKindSnapShot__c',
+      'InvoiceDateDayOfMonthSnapShot__c',
+      'InvoiceDateMonthOffsetSnapShot__c',
+      'InvoiceDateDayOffsetSnapShot__c',
+      'InvoiceDateAdjustSnapShot__c',
+      'PaymentTermMethodSnapShot__c',
+      'PaymentTermDayKindSnapShot__c',
+      'PaymentTermDayOfMonthSnapShot__c',
+      'PaymentTermMonthOffsetSnapShot__c',
+      'PaymentTermDayOffsetSnapShot__c',
+      'PaymentTermAdjustSnapShot__c',
+      'MergeKey__c',
+      'SourcePeriodLineIds__c',
+      'PeriodLineAmountTotal__c',
+      'Memo__c',
+      'InvoiceTransactionStatus__c',
+      'IsAmountAdjusted__c',
+      'IsSplitMoved__c',
+      'IsManuallyAdjusted__c',
+      'DeliveryStatus__c',
+      'BusinessOperationKey__c'
+    };
+    fields.addAll(
+      extraCorrectionFieldApiNames(
+        Invoice__c.SObjectType,
+        InvoiceOpsFieldService.fieldApiNames('Invoice__c')
+      )
+    );
+    fields.addAll(
+      extraCorrectionFieldApiNames(
+        Invoice__c.SObjectType,
+        new Set<String>(FieldCopyDefinitionService.targetFieldApiNames('Invoice__c'))
+      )
+    );
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(fields), ',') +
+      ' FROM Invoice__c WHERE Id = :invoiceId WITH SYSTEM_MODE LIMIT 1';
+    return (Invoice__c) Database.query(soql);
+  }
+
+  /** 仕様: Core 第7.9.3節・第11.4.2節。訂正用明細は元の顧客追加項目をコピーし、空欄だけ定義スタンプする。 */
+  private static List<InvoiceLine__c> queryOriginalLinesForCorrection(Id invoiceId) {
+    Set<String> fields = new Set<String>{
+      'Id',
+      'ContractProduct__c',
+      'Product__c',
+      'ProductName__c',
+      'ProductCodeSnapShot__c',
+      'Quantity__c',
+      'Unit__c',
+      'UnitPrice__c',
+      'Amount__c',
+      'PeriodLabel__c',
+      'ServicePeriodStartDate__c',
+      'ServicePeriodEndDate__c',
+      'AcceptanceEndDate__c',
+      'RevenueRecognitionBasis__c',
+      'LineMergeKey__c',
+      'SourcePeriodLineIds__c',
+      'HistoryVersionLabel__c',
+      'IsSplitMoved__c',
+      'IsManuallyAdjusted__c',
+      'IsAmountAdjusted__c'
+    };
+    fields.addAll(
+      extraCorrectionFieldApiNames(
+        InvoiceLine__c.SObjectType,
+        new Set<String>(
+          FieldCopyDefinitionService.targetFieldApiNames('InvoiceLine__c')
+        )
+      )
+    );
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(fields), ',') +
+      ' FROM InvoiceLine__c WHERE Invoice__c = :invoiceId WITH SYSTEM_MODE';
+    return Database.query(soql);
+  }
+
+  private static Set<String> extraCorrectionFieldApiNames(
+    Schema.SObjectType sobjectType,
+    Set<String> candidates
+  ) {
+    Set<String> names = new Set<String>();
+    if (sobjectType == null || candidates == null || candidates.isEmpty()) {
+      return names;
+    }
+    Map<String, Schema.SObjectField> fieldMap = sobjectType.getDescribe()
+      .fields.getMap();
+    for (String candidate : candidates) {
+      if (String.isBlank(candidate) || !fieldMap.containsKey(candidate)) {
+        continue;
+      }
+      Schema.DescribeFieldResult describe = fieldMap.get(candidate).getDescribe();
+      if (!describe.isCreateable()) {
+        continue;
+      }
+      names.add(describe.getName());
+    }
+    return names;
   }
 
   /** 仕様: Core 第7.9.3節、第7.9.7節 */

@@ -96,6 +96,106 @@ private class InvoiceCancelServiceTest {
   }
 
   @IsTest
+  static void cancelConfirmed_copiesOriginalExtraMemo_andDoesNotOverwriteWithDefinition() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c invoice = insertConfirmedInvoice('CancelExtraKeep');
+      update new Invoice__c(Id = invoice.Id, Memo__c = 'BOARD-MEMO');
+      insert new FieldCopyDefinition__c(
+        Name = 'Cancel_Inv_Memo_Keep',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      FieldCopyDefinitionService.resetCache();
+      InvoiceProductFieldCopyService.resetCache();
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{
+          new InvoiceOpsField__mdt(
+            DeveloperName = 'Cancel_Inv_Memo',
+            Active__c = true,
+            TargetObject__c = 'Invoice__c',
+            FieldApiName__c = 'Memo__c',
+            SortOrder__c = 10
+          )
+        }
+      );
+      try {
+        InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
+        request.invoiceId = invoice.Id;
+        request.cancellationReason = 'Duplicate';
+        request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+          invoice.Id
+        );
+        InvoiceCancelService.CancelResult result = InvoiceCancelService.cancelConfirmed(
+          request
+        );
+        Invoice__c correction = [
+          SELECT Memo__c
+          FROM Invoice__c
+          WHERE Id = :result.correctionInvoiceId
+        ];
+        System.assertEquals(
+          'BOARD-MEMO',
+          correction.Memo__c,
+          'Core 第7.9.3節・第11.4.2節: 訂正用は元の顧客追加項目をコピーし、空欄だけ定義スタンプする'
+        );
+      } finally {
+        InvoiceOpsFieldService.resetCache();
+        FieldCopyDefinitionService.resetCache();
+        InvoiceProductFieldCopyService.resetCache();
+      }
+    }
+  }
+
+  @IsTest
+  static void cancelConfirmed_stampsCopyDefinitionOntoBlankExtraMemo() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c invoice = insertConfirmedInvoice('CancelExtraFill');
+      ContractHistory__c history = [
+        SELECT Name
+        FROM ContractHistory__c
+        WHERE Id IN (SELECT ContractHistory__c FROM Invoice__c WHERE Id = :invoice.Id)
+      ];
+      insert new FieldCopyDefinition__c(
+        Name = 'Cancel_Inv_Memo_Fill',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      FieldCopyDefinitionService.resetCache();
+      InvoiceProductFieldCopyService.resetCache();
+      try {
+        InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
+        request.invoiceId = invoice.Id;
+        request.cancellationReason = 'Duplicate';
+        request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+          invoice.Id
+        );
+        InvoiceCancelService.CancelResult result = InvoiceCancelService.cancelConfirmed(
+          request
+        );
+        Invoice__c correction = [
+          SELECT Memo__c
+          FROM Invoice__c
+          WHERE Id = :result.correctionInvoiceId
+        ];
+        System.assertEquals(
+          history.Name,
+          correction.Memo__c,
+          'Core 第11.4.2節: 訂正用の空欄だけ定義スタンプする'
+        );
+      } finally {
+        FieldCopyDefinitionService.resetCache();
+        InvoiceProductFieldCopyService.resetCache();
+      }
+    }
+  }
+
+  @IsTest
   static void cancelConfirmed_writesSameOperationKey_andRetryDoesNotDuplicate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
