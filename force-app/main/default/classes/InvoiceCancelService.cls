@@ -49,7 +49,8 @@ public without sharing class InvoiceCancelService {
     // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
     AccountingCauseLockService.assertInvoiceOperationUnchanged(
       request.invoiceId,
-      request.expectedToken
+      request.expectedToken,
+      invoice.LastModifiedDate
     );
     if (!InvoiceTransactionStatusService.isConfirmed(invoice)) {
       throw new CancelException('確定済みの請求だけ取消できます。');

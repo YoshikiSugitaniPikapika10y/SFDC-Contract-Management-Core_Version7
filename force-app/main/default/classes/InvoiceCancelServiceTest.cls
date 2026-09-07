@@ -99,6 +99,41 @@ private class InvoiceCancelServiceTest {
   }
 
   @IsTest
+  static void cancelConfirmed_reusesLockedInvoiceLastModifiedForVersion() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c invoice = insertConfirmedInvoice('CancelVerReuse');
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
+      String expectedToken = ContractOptimisticLockUtil.toToken(
+        AccountingCauseLockService.resolveInvoiceOperationDatetimes(
+            new Set<Id>{ locked.Id },
+            new Map<Id, Datetime>{ locked.Id => locked.LastModifiedDate }
+          )
+          .get(locked.Id)
+      );
+      Test.startTest();
+      Integer beforeKnown = Limits.getQueries();
+      AccountingCauseLockService.assertInvoiceOperationUnchanged(
+        locked.Id,
+        expectedToken,
+        locked.LastModifiedDate
+      );
+      Integer usedKnown = Limits.getQueries() - beforeKnown;
+      Integer beforeFull = Limits.getQueries();
+      AccountingCauseLockService.assertInvoiceOperationUnchanged(
+        locked.Id,
+        expectedToken
+      );
+      Integer usedFull = Limits.getQueries() - beforeFull;
+      Test.stopTest();
+      System.assert(
+        usedKnown < usedFull,
+        'Core 第12.4節・第7.9.7節: 取消はロック済み請求の版比較を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void cancelConfirmed_doesNotCopyMergeKey_andAssignsNewName() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
