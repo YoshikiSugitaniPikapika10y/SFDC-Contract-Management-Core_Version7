@@ -127,11 +127,8 @@ public without sharing class AccountingCauseLockService {
       'ContractHistory__r.ContractService__r.TaxPercent__c',
       'ContractService__r.TaxPercent__c'
     };
-    // 仕様: Accounting 第8.2節、Core 第11.4.2節。コピーFromはロック行に載せ、Goal/Diffで取り直さない。
+    // 仕様: Accounting 第8.2節、Core 第11.4.2節・第12.4節。コピーFromはロック行に載せ、Goal/Diffで取り直さない。定義は FieldCopyDefinition__c 1本。同一処理で取り直さない。
     fieldSet.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
-    fieldSet.addAll(
-      InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
-    );
     List<Invoice__c> invoices = Database.query(
       'SELECT ' +
         String.join(new List<String>(fieldSet), ',') +

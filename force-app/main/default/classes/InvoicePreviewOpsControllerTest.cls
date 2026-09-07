@@ -1000,6 +1000,115 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void lockJournalsForInvoice_reusesCopyDefinitionCatalog() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'LOCKCOPY');
+      Invoice__c invoice = [
+        SELECT Id, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Test.startTest();
+      InvoiceProductFieldCopyService.resetCache();
+      InvoiceProductFieldCopyService.catalogSelectCount = 0;
+      FieldCopyDefinitionService.resetCache();
+      Integer lockedCount = InvoicePreviewOpsController.lockJournalsForInvoice(
+        invoice.Id,
+        new List<Id>{ journal.Id },
+        token,
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
+      Test.stopTest();
+      System.assertEquals(1, lockedCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.catalogSelectCount,
+        'Core 第12.4節・第11.4.2節: コピー定義を2カタログで取り直さない'
+      );
+      System.assertEquals(
+        true,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: Lock状態は変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void unlockJournalsForInvoice_reusesCopyDefinitionCatalog() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, true, 'Active', 'UNLOCKCOPY');
+      Invoice__c invoice = [
+        SELECT Id, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Test.startTest();
+      InvoiceProductFieldCopyService.resetCache();
+      InvoiceProductFieldCopyService.catalogSelectCount = 0;
+      FieldCopyDefinitionService.resetCache();
+      Integer unlockedCount = InvoicePreviewOpsController.unlockJournalsForInvoice(
+        invoice.Id,
+        new List<Id>{ journal.Id },
+        '監査',
+        token,
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        unlockedCount,
+        'Accounting 第9.5節: 選んだ行をUnlockする'
+      );
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.catalogSelectCount,
+        'Core 第12.4節・第11.4.2節: コピー定義を2カタログで取り直さない'
+      );
+      System.assertEquals(
+        false,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: Unlock後は未Lock'
+      );
+    }
+  }
+
+  @IsTest
   static void lockJournalsForInvoice_cancelled_rejectsUsingLockedInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();

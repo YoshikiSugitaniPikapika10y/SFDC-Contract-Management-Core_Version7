@@ -471,6 +471,23 @@ public with sharing class ContractCrossQueryService {
     if (filter.lockState != LOCK_UNLOCKED && filter.lockState != LOCK_LOCKED) {
       throw new QueryException('Lockは未Lock／Lock済みです。');
     }
+    Set<String> listedJournalFields = new Set<String>{
+      'Id',
+      'Amount__c',
+      'PostingDate__c',
+      'Memo__c',
+      'ConfirmationText__c',
+      'IsLocked__c',
+      'TransactionStatus__c',
+      'AccountingEventKey__c',
+      'JournalPatternKey__c',
+      'GlManualJournalSetting__c',
+      'DebitSlotKey__c',
+      'CreditSlotKey__c',
+      'DebitAccount__c',
+      'CreditAccount__c',
+      'Invoice__c'
+    };
     String soql =
       'SELECT Id, Amount__c, PostingDate__c, Memo__c, ConfirmationText__c, ' +
       'IsLocked__c, TransactionStatus__c, AccountingEventKey__c, JournalPatternKey__c, ' +
@@ -480,8 +497,17 @@ public with sharing class ContractCrossQueryService {
       'Invoice__r.InvoiceTransactionStatus__c, ' +
       'Invoice__r.BillingAccountSnapShot__c, Invoice__r.BillingAccountSnapShot__r.Name, ' +
       'Invoice__r.ContractService__r.Account__c, Invoice__r.ContractService__r.Account__r.Name, ' +
-      'Invoice__r.ContractHistory__r.Opportunity__r.CloseDate ' +
-      'FROM GlJournal__c ' +
+      'Invoice__r.ContractHistory__r.Opportunity__r.CloseDate';
+    // 仕様: Core 第12.4節・第4.3.11節、横断画面.md 第5節 取得。追加項目は一覧SELECTへ重ね、対象仕訳を取り直さない。
+    for (String apiName : InvoiceOpsFieldService.fieldApiNames('GlJournal__c')) {
+      if (String.isBlank(apiName) || listedJournalFields.contains(apiName)) {
+        continue;
+      }
+      soql += ', ' + String.escapeSingleQuotes(apiName);
+      listedJournalFields.add(apiName);
+    }
+    soql +=
+      ' FROM GlJournal__c ' +
       'WHERE TransactionStatus__c != \'LogicallyDeleted\' ' +
       'AND PostingDate__c >= :postingFrom AND PostingDate__c <= :postingTo';
     Date postingFrom = filter.postingDateFrom;
@@ -586,17 +612,12 @@ public with sharing class ContractCrossQueryService {
       dto.invoiceCancelled = InvoiceTransactionStatusService.isCancelled(
         journal.Invoice__r
       );
+      // 仕様: Core 第11.4.4節、横断画面.md 第2.4節。列モード用の仕訳追加項目は一覧行から重ねる。
+      dto.extraFieldValues = InvoiceOpsFieldService.readValues(
+        journal,
+        'GlJournal__c'
+      );
       result.journals.add(dto);
-    }
-    Set<Id> journalIds = new Set<Id>();
-    for (ContractCrossController.JournalRowDto dto : result.journals) {
-      journalIds.add(dto.id);
-    }
-    Map<Id, Map<String, Object>> extraById =
-      InvoiceOpsFieldService.readValuesById('GlJournal__c', journalIds);
-    // 仕様: Core 第11.4.4節、横断画面.md 第2.4節。列モード用の仕訳追加項目。
-    for (ContractCrossController.JournalRowDto dto : result.journals) {
-      dto.extraFieldValues = extraById.get(dto.id);
     }
     fillJournalInvoiceTokens(result.journals, rows, take);
     return result;

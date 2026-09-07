@@ -1302,9 +1302,12 @@ private class ContractCrossControllerTest {
       filter.postingDateTo = range.dateTo;
       filter.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
 
+      InvoiceOpsFieldService.extraFieldSelectCount = 0;
+      Test.startTest();
       ContractCrossController.ListResultDto result = ContractCrossController.queryJournals(
         filter
       );
+      Test.stopTest();
       ContractCrossController.JournalRowDto found;
       for (ContractCrossController.JournalRowDto row : result.journals) {
         if (row.id == journal.Id) {
@@ -1317,7 +1320,70 @@ private class ContractCrossControllerTest {
         (String) found.extraFieldValues.get('UnlockReason__c'),
         'Core 第11.4.4節: 横断仕訳一覧は仕訳追加項目の値を返す'
       );
+      System.assertEquals(
+        0,
+        InvoiceOpsFieldService.extraFieldSelectCount,
+        'Core 第12.4節・第4.3.11節: 一覧SOQLの仕訳を追加項目で取り直さない'
+      );
       InvoiceOpsFieldService.resetCache();
+    }
+  }
+
+  @IsTest
+  static void queryJournals_reusesListedJournalsForExtraFields() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceOpsFieldService.resetCache();
+      InvoiceFixture fixture = insertInvoice('Confirmed');
+      GlJournal__c journal = insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        ContractCrossQueryService.defaultJournalPostingDates().dateFrom,
+        'QREUSE'
+      );
+
+      ContractCrossController.JournalFilterDto filter = new ContractCrossController.JournalFilterDto();
+      ContractCrossQueryService.DateRange range = ContractCrossQueryService.defaultJournalPostingDates();
+      filter.postingDateFrom = range.dateFrom;
+      filter.postingDateTo = range.dateTo;
+      filter.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+
+      InvoiceOpsFieldService.extraFieldSelectCount = 0;
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryJournals(
+        filter
+      );
+      Test.stopTest();
+
+      ContractCrossController.JournalRowDto found;
+      for (ContractCrossController.JournalRowDto row : result.journals) {
+        if (row.id == journal.Id) {
+          found = row;
+        }
+      }
+      System.assertNotEquals(null, found);
+      System.assertEquals(
+        0,
+        InvoiceOpsFieldService.extraFieldSelectCount,
+        'Core 第12.4節・第4.3.11節: 1回の取得で対象仕訳を追加項目SELECTしない'
+      );
+      Set<String> extraNames = InvoiceOpsFieldService.fieldApiNames(
+        'GlJournal__c'
+      );
+      System.assertNotEquals(null, found.extraFieldValues);
+      System.assertEquals(
+        extraNames.size(),
+        found.extraFieldValues.size(),
+        'Core 第11.4.4節: 返す追加項目は画面定義と同じ'
+      );
+      for (String apiName : extraNames) {
+        System.assertEquals(
+          true,
+          found.extraFieldValues.containsKey(apiName),
+          'Core 第11.4.4節: 一覧行から追加項目を重ねる'
+        );
+      }
     }
   }
 
