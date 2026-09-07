@@ -675,9 +675,10 @@ public without sharing class ContractCrossController {
   }
 
   /**
-   * 仕様: 横断画面.md 第2.3節・第2.4節、Accounting 第9.5節、Core 第11.4.4節、共通基盤.md 第12章
+   * 仕様: 横断画面.md 第2.3節・第2.4節、Accounting 第9.5節、Core 第11.4.4節・第12.4節、共通基盤.md 第12章
    * Lock／Unlock拒否時はメモも追加項目も書かない。メモ／追加項目だけならLock権限を要しない。
    * 横断のLock／Unlock込み保存はLock／Unlock種別。メモだけならJournalMemo。
+   * グルーピング済み仕訳は lockForInvoice で取り直さない。
    */
   @AuraEnabled
   public static JournalSaveResultDto saveJournals(JournalSaveRequestDto request) {
@@ -712,9 +713,15 @@ public without sharing class ContractCrossController {
         if (unlocking && String.isBlank(request.unlockReason)) {
           throw new CrossException('Unlockには理由が必要です。');
         }
-        Map<Id, List<Id>> byInvoice = new Map<Id, List<Id>>();
+        Map<Id, List<GlJournal__c>> byInvoice = new Map<Id, List<GlJournal__c>>();
         for (GlJournal__c journal : [
-          SELECT Id, Invoice__c
+          SELECT
+            Id,
+            Invoice__c,
+            IsLocked__c,
+            BusinessOperationKey__c,
+            UnlockReason__c,
+            TransactionStatus__c
           FROM GlJournal__c
           WHERE Id IN :checked
           WITH SYSTEM_MODE
@@ -723,9 +730,9 @@ public without sharing class ContractCrossController {
             continue;
           }
           if (!byInvoice.containsKey(journal.Invoice__c)) {
-            byInvoice.put(journal.Invoice__c, new List<Id>());
+            byInvoice.put(journal.Invoice__c, new List<GlJournal__c>());
           }
-          byInvoice.get(journal.Invoice__c).add(journal.Id);
+          byInvoice.get(journal.Invoice__c).add(journal);
         }
         String operationKey = InvoicePreviewOpsController.issueInvoiceOperationKey();
         List<GlJournal__c> lockedRows = new List<GlJournal__c>();
@@ -736,21 +743,27 @@ public without sharing class ContractCrossController {
             String token = request.invoiceTokens == null
               ? null
               : request.invoiceTokens.get(String.valueOf(invoiceId));
-            List<Id> journalIds = byInvoice.get(invoiceId);
+            List<GlJournal__c> grouped = byInvoice.get(invoiceId);
+            List<Id> journalIds = new List<Id>();
+            for (GlJournal__c groupedJournal : grouped) {
+              journalIds.add(groupedJournal.Id);
+            }
             if (unlocking) {
               InvoicePreviewOpsController.unlockJournalsForInvoice(
                 invoiceId,
                 journalIds,
                 request.unlockReason,
                 token,
-                operationKey
+                operationKey,
+                grouped
               );
             } else {
               InvoicePreviewOpsController.lockJournalsForInvoice(
                 invoiceId,
                 journalIds,
                 token,
-                operationKey
+                operationKey,
+                grouped
               );
             }
             result.lockCount += journalIds.size();

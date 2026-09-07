@@ -1283,6 +1283,151 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void saveJournals_reusesGroupedJournalsForLock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture first = insertInvoice('Confirmed');
+      InvoiceFixture second = insertInvoice('Confirmed');
+      Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
+        .dateFrom;
+      insertJournal(first.invoice.Id, false, 'Active', postingDate, 'GRPLOCK1');
+      insertJournal(second.invoice.Id, false, 'Active', postingDate, 'GRPLOCK2');
+      Set<Id> invoiceIds = new Set<Id>{ first.invoice.Id, second.invoice.Id };
+      List<GlJournal__c> grouped = [
+        SELECT
+          Id,
+          Invoice__c,
+          IsLocked__c,
+          BusinessOperationKey__c,
+          UnlockReason__c,
+          TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Invoice__c IN :invoiceIds
+      ];
+      System.assertEquals(2, grouped.size());
+      ContractCrossController.JournalSaveRequestDto request = new ContractCrossController.JournalSaveRequestDto();
+      request.checkedJournalIds = new List<Id>{ grouped[0].Id, grouped[1].Id };
+      request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+      request.invoiceTokens = new Map<String, String>{
+        String.valueOf(first.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          first.invoice.Id
+        ),
+        String.valueOf(second.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          second.invoice.Id
+        )
+      };
+      JournalLockService.journalLockSelectCount = 0;
+      Test.startTest();
+      ContractCrossController.JournalSaveResultDto result = ContractCrossController.saveJournals(
+        request
+      );
+      Test.stopTest();
+      System.assertEquals(2, result.lockCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(true, result.refreshed, '共通基盤契約横断部第28節: Lock成功後は左を取り直す');
+      System.assertEquals(
+        0,
+        JournalLockService.journalLockSelectCount,
+        'Core 第12.4節: グルーピングSELECTのあとlockForInvoiceで同じ仕訳を取り直さない'
+      );
+      for (GlJournal__c journal : grouped) {
+        System.assertEquals(
+          journal.Invoice__c,
+          [
+            SELECT Invoice__c
+            FROM GlJournal__c
+            WHERE Id = :journal.Id
+          ]
+            .Invoice__c,
+          '開発ルール第13節: 入口はSOQL行の請求Idを読む'
+        );
+        System.assertEquals(
+          true,
+          [
+            SELECT IsLocked__c
+            FROM GlJournal__c
+            WHERE Id = :journal.Id
+          ]
+            .IsLocked__c,
+          'Accounting 第9.5節: Lock状態は変えない'
+        );
+      }
+    }
+  }
+
+  @IsTest
+  static void saveJournals_reusesGroupedJournalsForUnlock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture first = insertInvoice('Confirmed');
+      InvoiceFixture second = insertInvoice('Confirmed');
+      Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
+        .dateFrom;
+      insertJournal(first.invoice.Id, true, 'Active', postingDate, 'GRPUNL1');
+      insertJournal(second.invoice.Id, true, 'Active', postingDate, 'GRPUNL2');
+      Set<Id> invoiceIds = new Set<Id>{ first.invoice.Id, second.invoice.Id };
+      List<GlJournal__c> grouped = [
+        SELECT
+          Id,
+          Invoice__c,
+          IsLocked__c,
+          BusinessOperationKey__c,
+          UnlockReason__c,
+          TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Invoice__c IN :invoiceIds
+      ];
+      System.assertEquals(2, grouped.size());
+      ContractCrossController.JournalSaveRequestDto request = new ContractCrossController.JournalSaveRequestDto();
+      request.checkedJournalIds = new List<Id>{ grouped[0].Id, grouped[1].Id };
+      request.lockState = ContractCrossQueryService.LOCK_LOCKED;
+      request.unlockReason = '横断監査';
+      request.invoiceTokens = new Map<String, String>{
+        String.valueOf(first.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          first.invoice.Id
+        ),
+        String.valueOf(second.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          second.invoice.Id
+        )
+      };
+      JournalLockService.journalLockSelectCount = 0;
+      Test.startTest();
+      ContractCrossController.JournalSaveResultDto result = ContractCrossController.saveJournals(
+        request
+      );
+      Test.stopTest();
+      System.assertEquals(2, result.lockCount, 'Accounting 第9.5節: 選んだ行をUnlockする');
+      System.assertEquals(true, result.refreshed, '共通基盤契約横断部第29節: Unlock成功後は左を取り直す');
+      System.assertEquals(
+        0,
+        JournalLockService.journalLockSelectCount,
+        'Core 第12.4節: グルーピングSELECTのあとunlockForInvoiceで同じ仕訳を取り直さない'
+      );
+      for (GlJournal__c journal : grouped) {
+        GlJournal__c after = [
+          SELECT Invoice__c, IsLocked__c, UnlockReason__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ];
+        System.assertEquals(
+          journal.Invoice__c,
+          after.Invoice__c,
+          '開発ルール第13節: 入口はSOQL行の請求Idを読む'
+        );
+        System.assertEquals(
+          false,
+          after.IsLocked__c,
+          'Accounting 第9.5節: Unlock後は未Lock'
+        );
+        System.assertEquals(
+          '横断監査',
+          after.UnlockReason__c,
+          'Accounting 第9.5節: Unlock理由を書く'
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void queryJournals_returnsExtraFieldValues() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       enableAccounting();

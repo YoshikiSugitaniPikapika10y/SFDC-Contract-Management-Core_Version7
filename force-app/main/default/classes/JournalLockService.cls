@@ -4,6 +4,9 @@ public without sharing class JournalLockService {
 
   public static Boolean allowLockWrite;
 
+  @TestVisible
+  static Integer journalLockSelectCount = 0;
+
   /** 仕様: Accounting 第9.5節、Core 第7.7.3節 */
   public static Integer lockForInvoice(Id invoiceId, List<Id> journalIds) {
     return lockForInvoice(invoiceId, journalIds, null, null);
@@ -16,7 +19,26 @@ public without sharing class JournalLockService {
     String expectedToken,
     String businessOperationKey
   ) {
-    return setLocked(invoiceId, journalIds, true, null, expectedToken, businessOperationKey);
+    return lockForInvoice(invoiceId, journalIds, expectedToken, businessOperationKey, null);
+  }
+
+  /** 仕様: Accounting 第9.5節、Core 第12.4節。グルーピング済み仕訳は取り直さない。 */
+  public static Integer lockForInvoice(
+    Id invoiceId,
+    List<Id> journalIds,
+    String expectedToken,
+    String businessOperationKey,
+    List<GlJournal__c> knownJournals
+  ) {
+    return setLocked(
+      invoiceId,
+      journalIds,
+      true,
+      null,
+      expectedToken,
+      businessOperationKey,
+      knownJournals
+    );
   }
 
   /** 仕様: Accounting 第9.5節、第9.1節、Core 第7.7.3節、第1.1.10節 */
@@ -36,6 +58,25 @@ public without sharing class JournalLockService {
     String expectedToken,
     String businessOperationKey
   ) {
+    return unlockForInvoice(
+      invoiceId,
+      journalIds,
+      reason,
+      expectedToken,
+      businessOperationKey,
+      null
+    );
+  }
+
+  /** 仕様: Accounting 第9.5節、Core 第12.4節。グルーピング済み仕訳は取り直さない。 */
+  public static Integer unlockForInvoice(
+    Id invoiceId,
+    List<Id> journalIds,
+    String reason,
+    String expectedToken,
+    String businessOperationKey,
+    List<GlJournal__c> knownJournals
+  ) {
     if (String.isBlank(reason)) {
       throw new LockException('Unlockには理由が必要です。');
     }
@@ -48,7 +89,8 @@ public without sharing class JournalLockService {
       false,
       reason,
       expectedToken,
-      businessOperationKey
+      businessOperationKey,
+      knownJournals
     );
   }
 
@@ -58,7 +100,8 @@ public without sharing class JournalLockService {
     Boolean locked,
     String reason,
     String expectedToken,
-    String businessOperationKey
+    String businessOperationKey,
+    List<GlJournal__c> knownJournals
   ) {
     if (invoiceId == null) {
       throw new LockException('請求が指定されていません。');
@@ -92,19 +135,7 @@ public without sharing class JournalLockService {
           : 'Unlockする仕訳を選んでください。'
       );
     }
-    List<GlJournal__c> journals = [
-      SELECT
-        Id,
-        Invoice__c,
-        IsLocked__c,
-        BusinessOperationKey__c,
-        UnlockReason__c,
-        TransactionStatus__c
-      FROM GlJournal__c
-      WHERE Id IN :selected AND Invoice__c = :invoiceId
-      WITH SYSTEM_MODE
-      FOR UPDATE
-    ];
+    List<GlJournal__c> journals = journalsForLock(invoiceId, selected, knownJournals);
     if (journals.size() != selected.size()) {
       throw new LockException('この請求以外の仕訳はLock/Unlockできません。');
     }
@@ -161,6 +192,44 @@ public without sharing class JournalLockService {
     }
     writeLockLog(locked, operationKey, journals, reason);
     return updates.size();
+  }
+
+  /**
+   * 仕様: Core 第12.4節。グルーピング済み仕訳は FOR UPDATE で取り直さない。
+   * 未渡しのボード入口は従来どおり行ロックする。
+   */
+  private static List<GlJournal__c> journalsForLock(
+    Id invoiceId,
+    Set<Id> selected,
+    List<GlJournal__c> knownJournals
+  ) {
+    if (knownJournals != null) {
+      Map<Id, GlJournal__c> byId = new Map<Id, GlJournal__c>();
+      for (GlJournal__c journal : knownJournals) {
+        if (journal == null || journal.Id == null || !selected.contains(journal.Id)) {
+          continue;
+        }
+        if (journal.Invoice__c != invoiceId) {
+          throw new LockException('この請求以外の仕訳はLock/Unlockできません。');
+        }
+        byId.put(journal.Id, journal);
+      }
+      return byId.values();
+    }
+    journalLockSelectCount++;
+    return [
+      SELECT
+        Id,
+        Invoice__c,
+        IsLocked__c,
+        BusinessOperationKey__c,
+        UnlockReason__c,
+        TransactionStatus__c
+      FROM GlJournal__c
+      WHERE Id IN :selected AND Invoice__c = :invoiceId
+      WITH SYSTEM_MODE
+      FOR UPDATE
+    ];
   }
 
   public static Boolean suppressLockLog;

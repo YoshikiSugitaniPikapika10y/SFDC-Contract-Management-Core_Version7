@@ -417,6 +417,28 @@ public without sharing class InvoicePreviewOpsController {
     }
   }
 
+  /** 仕様: Accounting 第9.5節、Core 第12.4節。グルーピング済み仕訳は取り直さない。 */
+  public static Integer lockJournalsForInvoice(
+    Id invoiceId,
+    List<Id> journalIds,
+    String expectedToken,
+    String businessOperationKey,
+    List<GlJournal__c> knownJournals
+  ) {
+    ContractPermissionUtil.assertLockJournal();
+    try {
+      return JournalLockService.lockForInvoice(
+        invoiceId,
+        journalIds,
+        expectedToken,
+        businessOperationKey,
+        knownJournals
+      );
+    } catch (Exception ex) {
+      throw handledFrom(ex);
+    }
+  }
+
   public static Integer unlockJournalsForInvoice(
     Id invoiceId,
     List<Id> journalIds,
@@ -442,6 +464,30 @@ public without sharing class InvoicePreviewOpsController {
         reason,
         expectedToken,
         businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handledFrom(ex);
+    }
+  }
+
+  /** 仕様: Accounting 第9.5節、Core 第12.4節。グルーピング済み仕訳は取り直さない。 */
+  public static Integer unlockJournalsForInvoice(
+    Id invoiceId,
+    List<Id> journalIds,
+    String reason,
+    String expectedToken,
+    String businessOperationKey,
+    List<GlJournal__c> knownJournals
+  ) {
+    ContractPermissionUtil.assertUnlockJournal();
+    try {
+      return JournalLockService.unlockForInvoice(
+        invoiceId,
+        journalIds,
+        reason,
+        expectedToken,
+        businessOperationKey,
+        knownJournals
       );
     } catch (Exception ex) {
       throw handledFrom(ex);
