@@ -242,8 +242,11 @@ public without sharing class InvoiceProductGenerationService {
     if (!invoiceProductsToInsert.isEmpty()) {
       SystemContextAccess.insertRecords(invoiceProductsToInsert);
     }
-    // 契約期間明細を集約し、請求／請求明細正本を生成する（Cancel 含む全 ID で空 rebuild）
-    InvoiceCanonicalService.rebuildForHistories(contractHistoryIds);
+    // 仕様: Core 第5.2節・第12.4節。insert した期間明細は取り直さない。
+    InvoiceCanonicalService.rebuildForHistories(
+      contractHistoryIds,
+      invoiceProductsToInsert
+    );
   }
 
   private static Map<Id, HistoryGenerationContext> loadHistoryGenerationContextById(
@@ -1330,10 +1333,26 @@ public without sharing class InvoiceProductGenerationService {
     uniqueSelect.add('CurrentTermStartDate__c');
     uniqueSelect.add('CurrentTermEndDate__c');
     uniqueSelect.add('ContractService__r.Lifecycle__c');
+    uniqueSelect.add('ContractService__r.BiilingAcccount__r.Name');
+    uniqueSelect.add('ContractService__r.Account__r.Name');
     uniqueSelect.add('Opportunity__r.Id');
     uniqueSelect.addAll(
       InvoiceProductFieldCopyService.historySelectFieldsForInsertCopy()
     );
+    for (
+      String fieldApiName : InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY
+      )
+    ) {
+      uniqueSelect.add('Opportunity__r.' + fieldApiName);
+    }
+    for (
+      String fieldApiName : InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_ACCOUNT
+      )
+    ) {
+      uniqueSelect.add('ContractService__r.Account__r.' + fieldApiName);
+    }
     selectList = new List<String>(uniqueSelect);
 
     Set<Id> missingHistoryIds = new Set<Id>();

@@ -219,6 +219,14 @@ public without sharing class InvoiceCanonicalService {
   }
 
   public static void rebuildForHistories(Set<Id> contractHistoryIds) {
+    rebuildForHistories(contractHistoryIds, null);
+  }
+
+  /** 仕様: Core 第5.2節・第6.1節・第12.4節。insert 直後の期間明細は取り直さない。 */
+  public static void rebuildForHistories(
+    Set<Id> contractHistoryIds,
+    List<InvoiceProduct__c> insertedPeriodLines
+  ) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
@@ -252,7 +260,7 @@ public without sharing class InvoiceCanonicalService {
       if (!deletable.isEmpty()) {
         SystemContextAccess.deleteRecords(deletable);
       }
-      persistFromPeriodLines(contractHistoryIds);
+      persistFromPeriodLines(contractHistoryIds, insertedPeriodLines);
     } finally {
       BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
@@ -281,7 +289,17 @@ public without sharing class InvoiceCanonicalService {
     }
   }
 
+  @TestVisible
+  static Integer canonicalPeriodLineSelectCount = 0;
+
   private static void persistFromPeriodLines(Set<Id> contractHistoryIds) {
+    persistFromPeriodLines(contractHistoryIds, null);
+  }
+
+  private static void persistFromPeriodLines(
+    Set<Id> contractHistoryIds,
+    List<InvoiceProduct__c> insertedPeriodLines
+  ) {
     // 非 Ordered には請求正本を作らない（バックフィル混入防止）
     contractHistoryIds = retainOrderedHistoryIds(contractHistoryIds);
     if (contractHistoryIds.isEmpty()) {
@@ -289,8 +307,9 @@ public without sharing class InvoiceCanonicalService {
     }
     // 仕様: Core 第11.4.2節
     FieldCopyDefinitionService.validateAllDefinitions();
-    List<InvoiceProduct__c> products = queryPeriodLinesForCanonical(
-      contractHistoryIds
+    List<InvoiceProduct__c> products = resolvePeriodLinesForCanonical(
+      contractHistoryIds,
+      insertedPeriodLines
     );
     if (products.isEmpty()) {
       return;
@@ -2976,10 +2995,77 @@ public without sharing class InvoiceCanonicalService {
     return String.join(parts, ',');
   }
 
+  /**
+   * 仕様: Core 第5.2節・第6.1節・第12.4節。
+   * insert 直後の期間明細は新規 SObject に親子を載せる。照会しない。
+   */
+  private static List<InvoiceProduct__c> resolvePeriodLinesForCanonical(
+    Set<Id> contractHistoryIds,
+    List<InvoiceProduct__c> insertedPeriodLines
+  ) {
+    if (insertedPeriodLines != null) {
+      List<InvoiceProduct__c> hydrated = hydrateInsertedPeriodLines(
+        contractHistoryIds,
+        insertedPeriodLines
+      );
+      if (hydrated != null) {
+        return hydrated;
+      }
+    }
+    return queryPeriodLinesForCanonical(contractHistoryIds);
+  }
+
+  private static List<InvoiceProduct__c> hydrateInsertedPeriodLines(
+    Set<Id> contractHistoryIds,
+    List<InvoiceProduct__c> insertedPeriodLines
+  ) {
+    List<InvoiceProduct__c> hydrated = new List<InvoiceProduct__c>();
+    for (InvoiceProduct__c inserted : insertedPeriodLines) {
+      if (inserted == null || inserted.Id == null) {
+        return null;
+      }
+      if (!contractHistoryIds.contains(inserted.ContractHistory__c)) {
+        continue;
+      }
+      InvoiceProduct__c row = new InvoiceProduct__c();
+      Map<String, Object> populated = inserted.getPopulatedFieldsAsMap();
+      ContractHistory__c history = InvoiceProductFieldCopyService.rememberedHistory(
+        inserted.ContractHistory__c
+      );
+      if (history == null) {
+        return null;
+      }
+      row.putSObject('ContractHistory__r', history);
+      if (inserted.ContractProduct__c != null) {
+        ContractProduct__c contractProduct = InvoiceProductFieldCopyService.rememberedContractProduct(
+          inserted.ContractProduct__c
+        );
+        if (contractProduct == null) {
+          return null;
+        }
+        row.putSObject('ContractProduct__r', contractProduct);
+      }
+      for (String fieldName : populated.keySet()) {
+        if (
+          fieldName == null ||
+          fieldName == 'Id' ||
+          fieldName.endsWith('__r')
+        ) {
+          continue;
+        }
+        row.put(fieldName, populated.get(fieldName));
+      }
+      row.Id = inserted.Id;
+      hydrated.add(row);
+    }
+    return hydrated;
+  }
+
   /** 仕様: Core 第11.4.2節。請求書・請求明細のコピー元を期間明細の親子から取る。 */
   private static List<InvoiceProduct__c> queryPeriodLinesForCanonical(
     Set<Id> contractHistoryIds
   ) {
+    canonicalPeriodLineSelectCount++;
     Set<String> selectFields = new Set<String>{
       'Id',
       'Name',

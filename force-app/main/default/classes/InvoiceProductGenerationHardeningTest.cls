@@ -124,6 +124,11 @@ private class InvoiceProductGenerationHardeningTest {
         lines[0].Amount__c + lines[1].Amount__c + lines[2].Amount__c,
         '期間明細合計 3000'
       );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.canonicalPeriodLineSelectCount,
+        'Core 第5.2節・第12.4節: insert直後の期間明細を取り直さない'
+      );
       Integer beforeReuse = Limits.getQueries();
       InvoiceProductGenerationService.queryContractProductsForGeneration(
         new Set<Id>{ history.Id }

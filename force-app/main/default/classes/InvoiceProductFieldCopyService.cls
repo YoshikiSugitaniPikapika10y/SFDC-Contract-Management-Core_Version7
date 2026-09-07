@@ -189,6 +189,16 @@ public without sharing class InvoiceProductFieldCopyService {
     );
   }
 
+  /** 仕様: Core 第5.2節・第12.4節。同一処理で読んだ履歴を期間明細へ載せる。 */
+  public static ContractHistory__c rememberedHistory(Id recordId) {
+    return recordId == null ? null : cachedHistoriesById.get(recordId);
+  }
+
+  /** 仕様: Core 第5.2節・第12.4節。同一処理で読んだ見積商品を期間明細へ載せる。 */
+  public static ContractProduct__c rememberedContractProduct(Id recordId) {
+    return recordId == null ? null : cachedContractProductsById.get(recordId);
+  }
+
   /**
    * 同一処理で先に読んだコピー元を、Insert 時の再SOQLに使わせる。
    * 仕様: Core 第11.4.2節、第5.2節、第7.10節
@@ -244,6 +254,9 @@ public without sharing class InvoiceProductFieldCopyService {
       if (history.getSObject('ContractService__r') != null) {
         rememberRecord(history.getSObject('ContractService__r'));
       }
+      if (history.getSObject('Opportunity__r') != null) {
+        rememberRecord(history.getSObject('Opportunity__r'));
+      }
       return;
     }
     if (sobjectType == ContractService__c.SObjectType) {
@@ -256,6 +269,12 @@ public without sharing class InvoiceProductFieldCopyService {
           cachedServiceFieldsById.get(record.Id)
         )
       );
+      if (record.getSObject('Account__r') != null) {
+        rememberRecord(record.getSObject('Account__r'));
+      }
+      if (record.getSObject('BiilingAcccount__r') != null) {
+        rememberRecord(record.getSObject('BiilingAcccount__r'));
+      }
       return;
     }
     if (sobjectType == ContractProduct__c.SObjectType) {
