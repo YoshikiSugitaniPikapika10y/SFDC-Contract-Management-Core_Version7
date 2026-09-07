@@ -139,6 +139,16 @@ private class InvoicePreviewOpsControllerTest {
         bundle.manualSettings[0].description,
         'Accounting 第10.2節: Description は選択すべき事象'
       );
+      System.assertEquals(
+        'FXL MS Name Debit',
+        bundle.manualSettings[0].debitAccountName,
+        'Accounting 第10.3節: 借方は略称＋科目名'
+      );
+      System.assertEquals(
+        'AR MS Name Credit',
+        bundle.manualSettings[0].creditAccountName,
+        'Accounting 第10.3節: 貸方は略称＋科目名'
+      );
       Test.stopTest();
     }
   }

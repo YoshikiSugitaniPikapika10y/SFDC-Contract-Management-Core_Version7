@@ -69,10 +69,30 @@ export default class ManualJournalEntry extends LightningElement {
     if (!this.settingId) {
       return "";
     }
-    const selected = (this.settings || []).find(
+    const selected = this.selectedSetting();
+    return selected?.description || "";
+  }
+
+  selectedSetting() {
+    if (!this.settingId) {
+      return null;
+    }
+    return (this.settings || []).find(
       (row) => row.settingId === this.settingId
     );
-    return selected?.description || "";
+  }
+
+  // 仕様: Accounting 第10.3節・第11.4節。設定選択後、説明の下・金額の上に読取専用の借方・貸方。
+  get showSelectedAccounts() {
+    return Boolean(this.settingId);
+  }
+
+  get selectedDebitAccountName() {
+    return this.selectedSetting()?.debitAccountName || "";
+  }
+
+  get selectedCreditAccountName() {
+    return this.selectedSetting()?.creditAccountName || "";
   }
 
   // 仕様: Accounting 第8.5節・第8.8節。ONかつ Active Lock があるときだけ取消基準日。

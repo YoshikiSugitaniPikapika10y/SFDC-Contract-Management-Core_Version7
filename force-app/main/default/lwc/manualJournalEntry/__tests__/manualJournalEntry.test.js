@@ -96,7 +96,9 @@ describe("manualJournalEntry", () => {
       {
         settingId: "a06SET000000001",
         label: "為替差損の計上",
-        description: "入金不足が為替変動による場合"
+        description: "入金不足が為替変動による場合",
+        debitAccountName: "FXL 為替差損",
+        creditAccountName: "AR 売掛金"
       }
     ];
     document.body.appendChild(element);
@@ -115,6 +117,11 @@ describe("manualJournalEntry", () => {
     expect(element.shadowRoot.textContent).not.toContain(
       "入金不足が為替変動による場合"
     );
+    expect(
+      [...element.shadowRoot.querySelectorAll("lightning-input")].some(
+        (input) => input.label === "借方" || input.label === "貸方"
+      )
+    ).toBe(false);
 
     combobox.dispatchEvent(
       new CustomEvent("change", { detail: { value: "a06SET000000001" } })
@@ -124,6 +131,21 @@ describe("manualJournalEntry", () => {
     expect(
       element.shadowRoot.querySelector("p.setting-description").textContent
     ).toBe("入金不足が為替変動による場合");
+    const debit = [...element.shadowRoot.querySelectorAll("lightning-input")].find(
+      (input) => input.label === "借方"
+    );
+    const credit = [...element.shadowRoot.querySelectorAll("lightning-input")].find(
+      (input) => input.label === "貸方"
+    );
+    expect(debit.value).toBe("FXL 為替差損");
+    expect(credit.value).toBe("AR 売掛金");
+    expect(debit.readOnly).toBe(true);
+    expect(credit.readOnly).toBe(true);
+    expect(
+      [...element.shadowRoot.querySelectorAll("lightning-combobox")].some(
+        (box) => box.label === "借方" || box.label === "貸方"
+      )
+    ).toBe(false);
   });
 
   it("seeds cancel date to the operation day only when the header has locked journals", async () => {

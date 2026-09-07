@@ -169,6 +169,12 @@ public without sharing class InvoicePreviewOpsController {
     public String label;
     @AuraEnabled
     public String description;
+    /** 仕様: Accounting 第10.3節・第11.4節。読取専用の借方（略称＋科目名）。 */
+    @AuraEnabled
+    public String debitAccountName;
+    /** 仕様: Accounting 第10.3節・第11.4節。読取専用の貸方（略称＋科目名）。 */
+    @AuraEnabled
+    public String creditAccountName;
   }
 
   public class PaymentLineRemainingDto {
@@ -1218,7 +1224,14 @@ public without sharing class InvoicePreviewOpsController {
   private static List<ManualSettingRowDto> loadManualSettings() {
     List<ManualSettingRowDto> rows = new List<ManualSettingRowDto>();
     for (GlManualJournalSetting__c setting : [
-      SELECT Id, Name, Description__c
+      SELECT
+        Id,
+        Name,
+        Description__c,
+        DebitSlotKey__c,
+        DebitAccount__r.Name,
+        CreditSlotKey__c,
+        CreditAccount__r.Name
       FROM GlManualJournalSetting__c
       WHERE IsActive__c = TRUE
       WITH SYSTEM_MODE
@@ -1228,6 +1241,14 @@ public without sharing class InvoicePreviewOpsController {
       row.settingId = setting.Id;
       row.label = setting.Name;
       row.description = setting.Description__c;
+      row.debitAccountName = AccountingSlotFixedCatalog.slotAndAccount(
+        setting.DebitSlotKey__c,
+        setting.DebitAccount__r == null ? null : setting.DebitAccount__r.Name
+      );
+      row.creditAccountName = AccountingSlotFixedCatalog.slotAndAccount(
+        setting.CreditSlotKey__c,
+        setting.CreditAccount__r == null ? null : setting.CreditAccount__r.Name
+      );
       rows.add(row);
     }
     return rows;

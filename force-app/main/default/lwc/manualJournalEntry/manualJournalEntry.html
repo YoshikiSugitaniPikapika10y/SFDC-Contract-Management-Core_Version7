@@ -16,6 +16,20 @@
           <p class="setting-description">{selectedSettingDescription}</p>
         </template>
       </div>
+      <template if:true={showSelectedAccounts}>
+        <lightning-input
+          label="借方"
+          value={selectedDebitAccountName}
+          read-only
+          disabled
+        ></lightning-input>
+        <lightning-input
+          label="貸方"
+          value={selectedCreditAccountName}
+          read-only
+          disabled
+        ></lightning-input>
+      </template>
       <lightning-input
         type="date"
         label="計上日"
