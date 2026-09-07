@@ -183,6 +183,9 @@ public without sharing class InvoiceCancelService {
     );
   }
 
+  @TestVisible
+  static Integer correctionInvoiceSelectCount = 0;
+
   /** 仕様: Accounting 第8.2節、Core 第7.9.3節。ロック済み請求で訂正コピーできる項目があれば取り直さない。 */
   private static Invoice__c correctionSourceInvoice(Invoice__c locked) {
     if (hasCorrectionCloneFields(locked)) {
@@ -202,56 +205,80 @@ public without sharing class InvoiceCancelService {
       invoice.get('TaxAmount__c');
       invoice.get('TaxPercent__c');
       invoice.get('ContractHistory__c');
-      invoice.getSObject('ContractHistory__r');
       invoice.getSObject('BillingAccountSnapShot__r');
-      return invoice.getSObject('ContractHistory__r') != null;
+      ContractHistory__c history = (ContractHistory__c) invoice.getSObject(
+        'ContractHistory__r'
+      );
+      if (history == null) {
+        return false;
+      }
+      history.getSObject('Opportunity__r');
+      ContractService__c service = (ContractService__c) history.getSObject(
+        'ContractService__r'
+      );
+      if (service != null) {
+        service.getSObject('Account__r');
+      }
+      return true;
     } catch (SObjectException ex) {
       return false;
     }
   }
 
-  /** 仕様: Core 第7.9.3節・第11.4.2節・第11.4.4節。訂正用は元の顧客追加項目をコピーし、空欄だけ定義スタンプする。 */
-  private static Invoice__c queryOriginalInvoiceForCorrection(Id invoiceId) {
-    Set<String> fields = new Set<String>{
-      'Id',
-      'ContractService__c',
-      'ContractHistory__c',
-      'InvoiceDate__c',
-      'PaymentScheduledDate__c',
-      'Amount__c',
-      'TaxAmount__c',
-      'TaxPercent__c',
-      'TaxInclusiveAmount__c',
-      'BillingAccountSnapShot__c',
-      'BillingAccountKeySnapShot__c',
-      'BillingAddresseeSnapShot__c',
-      'BillingEmailToSnapShot__c',
-      'BillingEmailCcSnapShot__c',
-      'BillingEmailBccSnapShot__c',
-      'InvoiceDeliveryMethodSnapShot__c',
-      'InvoiceDateMethodSnapShot__c',
-      'InvoiceDateDayKindSnapShot__c',
-      'InvoiceDateDayOfMonthSnapShot__c',
-      'InvoiceDateMonthOffsetSnapShot__c',
-      'InvoiceDateDayOffsetSnapShot__c',
-      'InvoiceDateAdjustSnapShot__c',
-      'PaymentTermMethodSnapShot__c',
-      'PaymentTermDayKindSnapShot__c',
-      'PaymentTermDayOfMonthSnapShot__c',
-      'PaymentTermMonthOffsetSnapShot__c',
-      'PaymentTermDayOffsetSnapShot__c',
-      'PaymentTermAdjustSnapShot__c',
-      'MergeKey__c',
-      'SourcePeriodLineIds__c',
-      'PeriodLineAmountTotal__c',
-      'Memo__c',
-      'InvoiceTransactionStatus__c',
-      'IsAmountAdjusted__c',
-      'IsSplitMoved__c',
-      'IsManuallyAdjusted__c',
-      'DeliveryStatus__c',
-      'BusinessOperationKey__c'
-    };
+  /**
+   * 仕様: Core 第12.4節・第11.4.2節・第7.9.3節。
+   * 訂正cloneとコピーFromはロックSELECTへ載せ、同じ請求を取り直さない。
+   */
+  public static void addCorrectionCloneSelectFields(Set<String> fields) {
+    if (fields == null) {
+      return;
+    }
+    fields.addAll(
+      new Set<String>{
+        'Id',
+        'ContractService__c',
+        'ContractHistory__c',
+        'InvoiceDate__c',
+        'PaymentScheduledDate__c',
+        'Amount__c',
+        'TaxAmount__c',
+        'TaxPercent__c',
+        'TaxInclusiveAmount__c',
+        'BillingAccountSnapShot__c',
+        'BillingAccountKeySnapShot__c',
+        'BillingAddresseeSnapShot__c',
+        'BillingEmailToSnapShot__c',
+        'BillingEmailCcSnapShot__c',
+        'BillingEmailBccSnapShot__c',
+        'InvoiceDeliveryMethodSnapShot__c',
+        'InvoiceDateMethodSnapShot__c',
+        'InvoiceDateDayKindSnapShot__c',
+        'InvoiceDateDayOfMonthSnapShot__c',
+        'InvoiceDateMonthOffsetSnapShot__c',
+        'InvoiceDateDayOffsetSnapShot__c',
+        'InvoiceDateAdjustSnapShot__c',
+        'PaymentTermMethodSnapShot__c',
+        'PaymentTermDayKindSnapShot__c',
+        'PaymentTermDayOfMonthSnapShot__c',
+        'PaymentTermMonthOffsetSnapShot__c',
+        'PaymentTermDayOffsetSnapShot__c',
+        'PaymentTermAdjustSnapShot__c',
+        'MergeKey__c',
+        'SourcePeriodLineIds__c',
+        'PeriodLineAmountTotal__c',
+        'Memo__c',
+        'InvoiceTransactionStatus__c',
+        'IsAmountAdjusted__c',
+        'IsSplitMoved__c',
+        'IsManuallyAdjusted__c',
+        'DeliveryStatus__c',
+        'BusinessOperationKey__c',
+        'BillingAccountSnapShot__r.Id',
+        'ContractHistory__r.Opportunity__r.Id',
+        'ContractHistory__r.ContractService__r.Id',
+        'ContractHistory__r.ContractService__r.Account__r.Id'
+      }
+    );
     fields.addAll(
       extraCorrectionFieldApiNames(
         Invoice__c.SObjectType,
@@ -294,6 +321,13 @@ public without sharing class InvoiceCancelService {
       billingAccountCopySelectFields(),
       BillingAccount__c.SObjectType
     );
+  }
+
+  /** 仕様: Core 第7.9.3節・第11.4.2節・第11.4.4節。訂正用は元の顧客追加項目をコピーし、空欄だけ定義スタンプする。 */
+  private static Invoice__c queryOriginalInvoiceForCorrection(Id invoiceId) {
+    correctionInvoiceSelectCount++;
+    Set<String> fields = new Set<String>();
+    addCorrectionCloneSelectFields(fields);
     String soql =
       'SELECT ' +
       String.join(new List<String>(fields), ',') +

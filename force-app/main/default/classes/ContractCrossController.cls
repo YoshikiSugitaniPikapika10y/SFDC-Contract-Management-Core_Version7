@@ -679,6 +679,7 @@ public without sharing class ContractCrossController {
    * Lock／Unlock拒否時はメモも追加項目も書かない。メモ／追加項目だけならLock権限を要しない。
    * 横断のLock／Unlock込み保存はLock／Unlock種別。メモだけならJournalMemo。
    * グルーピング済み仕訳は lockForInvoice で取り直さない。
+   * グルーピング行の更新日時で Current 収集から同じ仕訳を除外する。
    * Lock後のメモ／追加項目は setLocked が読んだ仕訳と請求状態を取り直さない。
    */
   @AuraEnabled
@@ -716,6 +717,7 @@ public without sharing class ContractCrossController {
           throw new CrossException('Unlockには理由が必要です。');
         }
         Map<Id, List<GlJournal__c>> byInvoice = new Map<Id, List<GlJournal__c>>();
+        // 仕様: Core 第12.4節・第7.9.7節。グルーピング済み仕訳は Current で取り直さない。
         for (GlJournal__c journal : [
           SELECT
             Id,
@@ -724,7 +726,8 @@ public without sharing class ContractCrossController {
             IsLocked__c,
             BusinessOperationKey__c,
             UnlockReason__c,
-            TransactionStatus__c
+            TransactionStatus__c,
+            LastModifiedDate
           FROM GlJournal__c
           WHERE Id IN :checked
           WITH SYSTEM_MODE

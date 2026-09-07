@@ -324,6 +324,71 @@ private class InvoiceCancelServiceTest {
   }
 
   @IsTest
+  static void cancelConfirmed_reusesLockedInvoiceForCorrectionCloneWithoutSecondInvoiceSelect() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c invoice = insertConfirmedInvoice('CancelCloneReuse');
+      insert new FieldCopyDefinition__c(
+        Name = 'Cancel_Clone_Hist_Name',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      FieldCopyDefinitionService.resetCache();
+      InvoiceProductFieldCopyService.resetCache();
+      Invoice__c locked = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+        WITH SYSTEM_MODE
+      ];
+      try {
+        InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
+        request.invoiceId = locked.Id;
+        request.cancellationReason = 'Duplicate';
+        request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+          locked.Id
+        );
+        InvoiceCancelService.correctionInvoiceSelectCount = 0;
+        Test.startTest();
+        InvoiceCancelService.CancelResult result = InvoiceCancelService.cancelConfirmed(
+          request
+        );
+        Test.stopTest();
+        Invoice__c correction = [
+          SELECT Memo__c, ContractHistory__c
+          FROM Invoice__c
+          WHERE Id = :result.correctionInvoiceId
+        ];
+        ContractHistory__c history = [
+          SELECT Name
+          FROM ContractHistory__c
+          WHERE Id = :correction.ContractHistory__c
+        ];
+        System.assertEquals(
+          0,
+          InvoiceCancelService.correctionInvoiceSelectCount,
+          'Core 第12.4節: 訂正cloneはロック行の関連Fromで足り、同じ請求を取り直さない'
+        );
+        System.assertEquals(
+          history.Name,
+          correction.Memo__c,
+          'Core 第11.4.2節: 訂正用の空欄スタンプ結果は変えない'
+        );
+        System.assertNotEquals(
+          null,
+          result.correctionInvoiceId,
+          'Core 第7.9.3節: 訂正用請求を作る'
+        );
+      } finally {
+        FieldCopyDefinitionService.resetCache();
+        InvoiceProductFieldCopyService.resetCache();
+      }
+    }
+  }
+
+  @IsTest
   static void cancelConfirmed_reusesCorrectionCopySourcesWithoutSecondHistorySelect() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
