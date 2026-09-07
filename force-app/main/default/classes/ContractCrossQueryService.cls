@@ -19,13 +19,21 @@ public with sharing class ContractCrossQueryService {
     public Date dateTo;
   }
 
-  /** 仕様: 横断画面.md 第5節 取得、日付仕様 第8章 */
+  private static Date cachedOrganizationToday;
+
+  /** 仕様: 横断画面.md 第5節 取得、日付仕様 第8章、Core 第12.4節・第4.3.11節 */
   public static Date organizationToday() {
-    return InvoiceTransactionStatusService.organizationToday();
+    if (cachedOrganizationToday == null) {
+      cachedOrganizationToday = InvoiceTransactionStatusService.organizationToday();
+    }
+    return cachedOrganizationToday;
   }
 
   public static DateRange defaultEstimateCloseDates() {
-    Date today = organizationToday();
+    return defaultEstimateCloseDates(organizationToday());
+  }
+
+  public static DateRange defaultEstimateCloseDates(Date today) {
     DateRange range = new DateRange();
     range.dateFrom = today.addDays(-90);
     range.dateTo = today.toStartOfMonth().addMonths(1).addDays(-1);
@@ -33,7 +41,10 @@ public with sharing class ContractCrossQueryService {
   }
 
   public static DateRange defaultJournalPostingDates() {
-    Date today = organizationToday();
+    return defaultJournalPostingDates(organizationToday());
+  }
+
+  public static DateRange defaultJournalPostingDates(Date today) {
     DateRange range = new DateRange();
     range.dateFrom = today.toStartOfMonth().addMonths(-1);
     range.dateTo = today.toStartOfMonth().addDays(-1);

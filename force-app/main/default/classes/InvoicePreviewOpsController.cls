@@ -225,14 +225,46 @@ public without sharing class InvoicePreviewOpsController {
     public Map<String, Object> extraFieldValues;
   }
 
-  /** 仕様: Core 第7.7.3節 */
+  /**
+   * 仕様: Core 第7.7.3節、第12.4節、第4.3.11節。
+   * 同一取得で範囲COUNTと本体の請求を重ねない。範囲不正の拒否とバンドルは変えない。
+   */
   @AuraEnabled
   public static OpsBundleDto getOpsBundle(Id invoiceId, Id contractHistoryId) {
-    InvoiceOpsController.assertInvoicesInScope(
-      contractHistoryId,
-      new List<Id>{ invoiceId }
-    );
-    return getOpsBundle(invoiceId);
+    if (invoiceId == null) {
+      return getOpsBundle(invoiceId);
+    }
+    Id serviceId = resolveOpsBundleContractServiceId(contractHistoryId);
+    if (serviceId == null) {
+      throw handled(
+        '指定された請求が、対象の契約サービスに属していません。画面を開き直してください。'
+      );
+    }
+    List<Invoice__c> invoices = [
+      SELECT
+        Id,
+        InvoiceTransactionStatus__c,
+        InvoiceDate__c,
+        SentDate__c,
+        Amount__c,
+        TaxAmount__c,
+        TaxInclusiveAmount__c,
+        PaymentInclusiveTotal__c,
+        InvoicePaymentNet__c,
+        LastModifiedDate,
+        ContractService__c
+      FROM Invoice__c
+      WHERE Id = :invoiceId AND ContractService__c = :serviceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (invoices.isEmpty()) {
+      throw handled(
+        '指定された請求が、対象の契約サービスに属していません。画面を開き直してください。'
+      );
+    }
+    ContractPermissionUtil.assertViewInvoicePreview();
+    return buildOpsBundle(invoices[0]);
   }
 
   /** 仕様: Core 第7.7.3節、第7.10節。専用の保存済みPDF一覧は返さない。閲覧は「PDFを見る」。 */
@@ -252,12 +284,33 @@ public without sharing class InvoicePreviewOpsController {
         TaxInclusiveAmount__c,
         PaymentInclusiveTotal__c,
         InvoicePaymentNet__c,
-        LastModifiedDate
+        LastModifiedDate,
+        ContractService__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
       LIMIT 1
     ];
+    return buildOpsBundle(invoice);
+  }
+
+  private static Id resolveOpsBundleContractServiceId(Id contractHistoryId) {
+    if (contractHistoryId == null) {
+      return null;
+    }
+    for (ContractHistory__c history : [
+      SELECT ContractService__c
+      FROM ContractHistory__c
+      WHERE Id = :contractHistoryId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ]) {
+      return history.ContractService__c;
+    }
+    return null;
+  }
+
+  private static OpsBundleDto buildOpsBundle(Invoice__c invoice) {
     OpsBundleDto bundle = new OpsBundleDto();
     bundle.invoiceId = invoice.Id;
     bundle.invoiceTransactionStatus = invoice.InvoiceTransactionStatus__c;

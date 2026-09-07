@@ -361,6 +361,20 @@ public without sharing class EstimateQueryService {
         historySelectFields.add(apiName);
       }
     }
+    OrderWizardFieldService.WizardFieldConfigException orderHistoryFieldConfigError = null;
+    if (forEdit == true) {
+      try {
+        for (
+          String apiName : OrderWizardFieldService.getActiveOrderHistoryFieldApiNames()
+        ) {
+          if (!historySelectFields.contains(apiName)) {
+            historySelectFields.add(apiName);
+          }
+        }
+      } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
+        orderHistoryFieldConfigError = ex;
+      }
+    }
     String historySoql =
       'SELECT ' +
       String.join(historySelectFields, ',') +
@@ -439,7 +453,7 @@ public without sharing class EstimateQueryService {
       history,
       ContractWizardFieldService.WizardTarget.ContractHistory
     );
-    // 仕様: Core 第4.3節、第11.4.3節
+    // 仕様: Core 第4.3.11節、第12.4節、第11.4.3節。Ordered編集は読んだ契約履歴の受注追加項目を取り直さない。保存済み初期値は変えない。
     if (
       forEdit == true &&
       history.historystatus__c == HISTORY_STATUS_ORDERED
@@ -448,8 +462,11 @@ public without sharing class EstimateQueryService {
         preset.contractHistoryCustomFields = new Map<String, Object>();
       }
       try {
+        if (orderHistoryFieldConfigError != null) {
+          throw orderHistoryFieldConfigError;
+        }
         preset.contractHistoryCustomFields.putAll(
-          OrderWizardFieldService.querySavedHistoryFieldValues(history.Id)
+          OrderWizardFieldService.buildHistoryCustomFieldValues(history)
         );
       } catch (OrderWizardFieldService.WizardFieldConfigException ex) {
         throw EstimateValidationService.wrapAura(ex.getMessage());

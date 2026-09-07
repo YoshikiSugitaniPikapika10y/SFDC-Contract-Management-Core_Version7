@@ -428,17 +428,22 @@ public without sharing class ContractCrossController {
     public Integer lockCount;
   }
 
-  /** 仕様: Core 第9章、横断画面.md 第5節・第1節 */
+  /** 仕様: Core 第9章・第12.4節・第4.3.11節、横断画面.md 第5節・第1節 */
   @AuraEnabled
   public static BootstrapDto getBootstrap() {
     try {
       ContractPermissionUtil.assertCrossWork();
       BootstrapDto dto = new BootstrapDto();
       dto.accountingEnabled = ContractCrossQueryService.isAccountingEnabled();
-      ContractCrossQueryService.DateRange estimateDates = ContractCrossQueryService.defaultEstimateCloseDates();
+      Date today = ContractCrossQueryService.organizationToday();
+      ContractCrossQueryService.DateRange estimateDates = ContractCrossQueryService.defaultEstimateCloseDates(
+        today
+      );
       dto.estimateCloseFrom = estimateDates.dateFrom;
       dto.estimateCloseTo = estimateDates.dateTo;
-      ContractCrossQueryService.DateRange journalDates = ContractCrossQueryService.defaultJournalPostingDates();
+      ContractCrossQueryService.DateRange journalDates = ContractCrossQueryService.defaultJournalPostingDates(
+        today
+      );
       dto.journalPostingFrom = journalDates.dateFrom;
       dto.journalPostingTo = journalDates.dateTo;
       String sendMode = ContractDocumentSettingService.requireSendMode('Estimate');

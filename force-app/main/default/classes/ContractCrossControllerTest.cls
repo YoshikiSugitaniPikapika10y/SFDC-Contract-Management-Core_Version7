@@ -58,6 +58,40 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void getBootstrap_doesNotRetakeOrganizationToday() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractCrossController.BootstrapDto dto = ContractCrossController.getBootstrap();
+      Integer beforeToday = Limits.getQueries();
+      Date today = ContractCrossQueryService.organizationToday();
+      System.assertEquals(
+        beforeToday,
+        Limits.getQueries(),
+        'Core 第12.4節・第4.3.11節: 1回の取得で組織の今日を取り直さない'
+      );
+      System.assertEquals(
+        today.addDays(-90),
+        dto.estimateCloseFrom,
+        '共通基盤契約横断取得: 見積の既定 FROM は今日の90日前'
+      );
+      System.assertEquals(
+        today.toStartOfMonth().addMonths(1).addDays(-1),
+        dto.estimateCloseTo,
+        '共通基盤契約横断取得: 見積の既定 TO は今月末'
+      );
+      System.assertEquals(
+        today.toStartOfMonth().addMonths(-1),
+        dto.journalPostingFrom,
+        '共通基盤契約横断取得: 仕訳の既定 FROM は先月1日'
+      );
+      System.assertEquals(
+        today.toStartOfMonth().addDays(-1),
+        dto.journalPostingTo,
+        '共通基盤契約横断取得: 仕訳の既定 TO は先月月末'
+      );
+    }
+  }
+
+  @IsTest
   static void getBootstrap_showsEstimateMenuWhenOnly06() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.CROSS_WORK => true,

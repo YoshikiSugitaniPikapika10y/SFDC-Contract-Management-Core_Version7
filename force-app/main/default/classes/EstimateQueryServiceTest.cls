@@ -487,6 +487,94 @@ private class EstimateQueryServiceTest {
   }
 
   @IsTest
+  static void getEstimateEditPreset_orderedReusesLoadedHistoryForOrderFields() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Query OrderedPreset Acc'
+      );
+      ContractService__c estimateService = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Query OrderedPreset Est Svc'
+      );
+      ContractService__c orderedService = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Query OrderedPreset Ord Svc'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      Date applicationDate = termStart.addDays(1);
+      Date orderDate = termStart.addDays(2);
+      ContractHistory__c estimateHistory = new ContractHistory__c(
+        Name = 'Query OrderedPreset Est',
+        ContractService__c = estimateService.Id,
+        historystatus__c = 'Estimate',
+        Type__c = 'New',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        estimateHistory,
+        account.Id
+      );
+      insert estimateHistory;
+      ContractHistory__c orderedHistory = new ContractHistory__c(
+        Name = 'Query OrderedPreset Ord',
+        ContractService__c = orderedService.Id,
+        historystatus__c = 'Ordered',
+        Type__c = 'New',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart,
+        ApplicationDate__c = applicationDate,
+        OrderDate__c = orderDate
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        orderedHistory,
+        account.Id
+      );
+      insert orderedHistory;
+
+      Test.startTest();
+      OrderWizardFieldService.getActiveOrderHistoryFieldApiNames();
+      ContractWizardFieldService.getActiveFieldApiNames(
+        ContractWizardFieldService.WizardTarget.ContractHistory
+      );
+      Integer estimateBefore = Limits.getQueries();
+      EstimateCreateController.getEstimateEditPreset(estimateHistory.Id);
+      Integer estimateUsed = Limits.getQueries() - estimateBefore;
+      Integer orderedBefore = Limits.getQueries();
+      EstimateCreateController.EstimateCopyPresetDto orderedPreset = EstimateCreateController.getEstimateEditPreset(
+        orderedHistory.Id
+      );
+      Integer orderedUsed = Limits.getQueries() - orderedBefore;
+      Test.stopTest();
+
+      System.assertEquals(
+        estimateUsed,
+        orderedUsed,
+        'Core 第4.3.11節・第12.4節: 1回の取得リクエストの内部で対象の契約履歴を取り直さない'
+      );
+      System.assertEquals(
+        String.valueOf(applicationDate),
+        String.valueOf(
+          orderedPreset.contractHistoryCustomFields.get('ApplicationDate__c')
+        ),
+        'Core 第11.4.3節: Ordered見積編集の初期値は保存済みの受注追加項目'
+      );
+      System.assertEquals(
+        String.valueOf(orderDate),
+        String.valueOf(
+          orderedPreset.contractHistoryCustomFields.get('OrderDate__c')
+        ),
+        'Core 第11.4.3節: Ordered見積編集の初期値は保存済みの受注日'
+      );
+    }
+  }
+
+  @IsTest
   static void getProductDefaults_rejectsUnavailable_andReturnsAvailable() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       System.assertEquals(

@@ -552,6 +552,62 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_scoped_reusesInvoiceWithoutCount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c loaded = [
+        SELECT
+          Id,
+          ContractHistory__c,
+          ContractService__c,
+          InvoiceTransactionStatus__c,
+          Amount__c,
+          TaxAmount__c,
+          TaxInclusiveAmount__c,
+          PaymentInclusiveTotal__c,
+          InvoicePaymentNet__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+
+      Test.startTest();
+      InvoicePreviewOpsController.getOpsBundle(loaded.Id);
+      Integer beforeScoped = Limits.getQueries();
+      InvoicePreviewOpsController.OpsBundleDto scoped = InvoicePreviewOpsController.getOpsBundle(
+        loaded.Id,
+        loaded.ContractHistory__c
+      );
+      Integer usedScoped = Limits.getQueries() - beforeScoped;
+      Integer beforeIdOnly = Limits.getQueries();
+      InvoicePreviewOpsController.OpsBundleDto idOnly = InvoicePreviewOpsController.getOpsBundle(
+        loaded.Id
+      );
+      Integer usedIdOnly = Limits.getQueries() - beforeIdOnly;
+      Test.stopTest();
+
+      System.assertEquals(
+        usedIdOnly + 1,
+        usedScoped,
+        'Core 第12.4節・第4.3.11節: 範囲は履歴1回だけで、請求COUNTを重ねない'
+      );
+      System.assertEquals(loaded.Id, scoped.invoiceId);
+      System.assertEquals(
+        idOnly.taxInclusiveAmount,
+        scoped.taxInclusiveAmount,
+        'Core 第7.7.3節: 範囲付き取得のバンドルは変えない'
+      );
+      System.assertEquals(idOnly.paymentAllowed, scoped.paymentAllowed);
+      System.assertEquals(idOnly.invoicePaymentNet, scoped.invoicePaymentNet);
+      System.assertEquals(
+        InvoiceTransactionStatusService.resolveTaxInclusive(loaded),
+        scoped.taxInclusiveAmount,
+        '開発ルール第13節: 入口はSOQL行の税込を読む'
+      );
+    }
+  }
+
+  @IsTest
   static void getOpsBundle_unconfirmed_blocksPaymentJapanese() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

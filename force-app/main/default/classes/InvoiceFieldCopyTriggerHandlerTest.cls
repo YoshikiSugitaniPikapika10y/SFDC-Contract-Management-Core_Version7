@@ -219,6 +219,75 @@ private class InvoiceFieldCopyTriggerHandlerTest {
   }
 
   @IsTest
+  static void invoiceLineBeforeInsert_copiesBlankFromHistoryBillingAccountOpportunityAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('LineFroms');
+      Invoice__c invoice = new Invoice__c(
+        ContractHistory__c = fixture.history.Id,
+        ContractService__c = fixture.service.Id,
+        InvoiceDate__c = Date.today(),
+        Amount__c = 1000,
+        BillingAccountSnapShot__c = fixture.billingAccount.Id,
+        BillingAddresseeSnapShot__c = '固定宛名'
+      );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      insert invoice;
+
+      InvoiceLine__c line = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        ContractProduct__c = fixture.contractProduct.Id,
+        ProductName__c = 'テスト商品',
+        Amount__c = 1000,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        RevenueRecognitionBasis__c = '月次計上'
+      );
+      insert line;
+
+      ContractHistory__c history = [
+        SELECT Name, Opportunity__c, Opportunity__r.Name
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
+      ContractService__c serviceRow = [
+        SELECT Account__c
+        FROM ContractService__c
+        WHERE Id = :fixture.service.Id
+      ];
+      Account account = [SELECT Name FROM Account WHERE Id = :serviceRow.Account__c];
+
+      assertInvoiceLineBlankCopyFromSoql(
+        line.Id,
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+        'Name',
+        history.Name,
+        '仕様: Core 第11.4.2節 請求明細の From に契約履歴がある。空欄へコピーする'
+      );
+      assertInvoiceLineBlankCopyFromSoql(
+        line.Id,
+        InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+        'BillingAddressee__c',
+        fixture.billingAccount.BillingAddressee__c,
+        '仕様: Core 第11.4.2節 請求明細の From に請求アカウントがある。空欄へコピーする'
+      );
+      assertInvoiceLineBlankCopyFromSoql(
+        line.Id,
+        InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+        'Name',
+        history.Opportunity__r.Name,
+        '仕様: Core 第11.4.2節 請求明細の From に商談がある。空欄へコピーする'
+      );
+      assertInvoiceLineBlankCopyFromSoql(
+        line.Id,
+        InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
+        'Name',
+        account.Name,
+        '仕様: Core 第11.4.2節 請求明細の From に取引先がある。空欄へコピーする'
+      );
+    }
+  }
+
+  @IsTest
   static void periodLineBeforeInsert_keepsPrefilledAmount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('Period');
@@ -280,6 +349,41 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       line.ProductCodeSnapShot__c,
       '仕様: Core 第11.4.2節 届かない相手へ空埋めしない'
     );
+  }
+
+  private static void assertInvoiceLineBlankCopyFromSoql(
+    Id lineId,
+    String sourceObjectApiName,
+    String sourceFieldApiName,
+    String expectedValue,
+    String assertionMessage
+  ) {
+    FieldCopyDefinition__c definition = new FieldCopyDefinition__c(
+      Name = 'Test_LineFrom_' + sourceObjectApiName,
+      TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE_LINE,
+      SourceObject__c = sourceObjectApiName,
+      SourceFieldApiName__c = sourceFieldApiName,
+      TargetFieldApiName__c = 'ProductCodeSnapShot__c'
+    );
+    insert definition;
+    InvoiceProductFieldCopyService.resetCache();
+    FieldCopyDefinitionService.resetCache();
+    InvoiceLine__c queried = [
+      SELECT
+        ContractProduct__c,
+        Product__c,
+        Unit__c,
+        ProductCodeSnapShot__c
+      FROM InvoiceLine__c
+      WHERE Id = :lineId
+    ];
+    InvoiceFieldCopyTriggerHandler.handleInvoiceLineBeforeInsert(
+      new List<InvoiceLine__c>{ queried }
+    );
+    System.assertEquals(expectedValue, queried.ProductCodeSnapShot__c, assertionMessage);
+    delete definition;
+    InvoiceProductFieldCopyService.resetCache();
+    FieldCopyDefinitionService.resetCache();
   }
 
   private class Fixture {
