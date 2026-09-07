@@ -4,6 +4,10 @@
  */
 public with sharing class ContractOptimisticLockUtil {
   public static final String CONFLICT_MESSAGE = '他のユーザーが先に更新しました。画面を開き直してから再度操作してください。';
+  @TestVisible
+  static Integer historySelectCount = 0;
+  @TestVisible
+  static Integer productMaxSelectCount = 0;
 
   /**
    * Aura / LWC 向けの不変トークン（ミリ秒 epoch 文字列）。
@@ -110,11 +114,24 @@ public with sharing class ContractOptimisticLockUtil {
     Id historyId,
     Datetime knownHistoryModified
   ) {
+    return resolveHistoryProductDatetime(historyId, knownHistoryModified, null);
+  }
+
+  /**
+   * 仕様: Core 第4.3.12節・第12.4節。
+   * ロック照会で読んだ見積商品の更新日時があれば MAX を取り直さない。
+   */
+  public static Datetime resolveHistoryProductDatetime(
+    Id historyId,
+    Datetime knownHistoryModified,
+    List<ContractProduct__c> knownProducts
+  ) {
     if (historyId == null) {
       return null;
     }
     Datetime maxLm = knownHistoryModified;
     if (maxLm == null) {
+      historySelectCount++;
       for (ContractHistory__c history : [
         SELECT LastModifiedDate
         FROM ContractHistory__c
@@ -125,6 +142,19 @@ public with sharing class ContractOptimisticLockUtil {
         maxLm = history.LastModifiedDate;
       }
     }
+    if (knownProducts != null) {
+      for (ContractProduct__c product : knownProducts) {
+        if (
+          product != null &&
+          product.LastModifiedDate != null &&
+          (maxLm == null || product.LastModifiedDate > maxLm)
+        ) {
+          maxLm = product.LastModifiedDate;
+        }
+      }
+      return maxLm;
+    }
+    productMaxSelectCount++;
     for (AggregateResult row : [
       SELECT MAX(LastModifiedDate) maxLm
       FROM ContractProduct__c
@@ -166,8 +196,27 @@ public with sharing class ContractOptimisticLockUtil {
     String expectedToken,
     Datetime knownHistoryModified
   ) {
+    assertRequiredHistoryProductsUnchanged(
+      historyId,
+      expectedToken,
+      knownHistoryModified,
+      null
+    );
+  }
+
+  /** 仕様: Core 第4.3.12節・第12.4節。ロック照会の見積商品 MAX は取り直さない。 */
+  public static void assertRequiredHistoryProductsUnchanged(
+    Id historyId,
+    String expectedToken,
+    Datetime knownHistoryModified,
+    List<ContractProduct__c> knownProducts
+  ) {
     assertRequiredUnchanged(
-      resolveHistoryProductDatetime(historyId, knownHistoryModified),
+      resolveHistoryProductDatetime(
+        historyId,
+        knownHistoryModified,
+        knownProducts
+      ),
       expectedToken,
       '契約履歴'
     );

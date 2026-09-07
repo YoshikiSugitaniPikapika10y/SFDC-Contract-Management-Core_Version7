@@ -15,6 +15,12 @@ public without sharing class OrderCreateController {
   private static Map<Id, Decimal> previewPeriodAmountById;
   private static Map<Id, Id> previewPeriodContractProductById;
   private static Map<Id, ContractHistory__c> previewHistoryById;
+  /** 仕様: Core 第5.2節・第12.4節。ロック行の Lifecycle を取り直さない。 */
+  private static Map<Id, String> rememberedLifecycleByServiceId = new Map<Id, String>();
+  @TestVisible
+  public static Integer renewLifecycleSelectCount = 0;
+  @TestVisible
+  public static Integer renewProductSelectCount = 0;
 
   public class OrderContextDto {
     @AuraEnabled
@@ -625,10 +631,7 @@ public without sharing class OrderCreateController {
     dto.canOrder =
       hasOrderPermission() &&
       history.historystatus__c == HISTORY_STATUS_ESTIMATE;
-    dto.revertBlockedReason = buildRevertBlockedReason(
-      history.Id,
-      history.historystatus__c
-    );
+    dto.revertBlockedReason = buildRevertBlockedReason(history);
     dto.canRevert =
       hasRevertPermission() &&
       history.historystatus__c == HISTORY_STATUS_ORDERED &&
@@ -763,12 +766,10 @@ public without sharing class OrderCreateController {
     ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
       history.Id,
       expectedLastModifiedToken,
-      history.LastModifiedDate
+      history.LastModifiedDate,
+      history.ContractHistoryContractProducts__r
     );
-    String blockedReason = buildRevertBlockedReason(
-      history.Id,
-      history.historystatus__c
-    );
+    String blockedReason = buildRevertBlockedReason(history);
     if (String.isNotBlank(blockedReason)) {
       throw toAuraHandled(blockedReason);
     }
@@ -987,6 +988,7 @@ public without sharing class OrderCreateController {
       );
     }
     validateReadyForOrder(history);
+    rememberLockedHistoryLifecycle(history);
     if (historyCustomFieldsJson != null) {
       Map<String, Object> historyFields = parseCustomFields(
         historyCustomFieldsJson
@@ -2292,21 +2294,38 @@ public without sharing class OrderCreateController {
     Id contractHistoryId,
     String historyStatus
   ) {
-    if (historyStatus != HISTORY_STATUS_ORDERED) {
+    ContractHistory__c history = new ContractHistory__c(
+      Id = contractHistoryId,
+      historystatus__c = historyStatus
+    );
+    return buildRevertBlockedReason(history);
+  }
+
+  /** 仕様: Core 第5.3節・第12.4節。ロック済み契約履歴の Version は取り直さない。 */
+  private static String buildRevertBlockedReason(ContractHistory__c history) {
+    if (history == null || history.Id == null) {
       return '受注済み状態の契約履歴のみ差し戻しできます。';
     }
-    String lockedReason = buildLockedRevertBlockedReason(contractHistoryId);
+    if (history.historystatus__c != HISTORY_STATUS_ORDERED) {
+      return '受注済み状態の契約履歴のみ差し戻しできます。';
+    }
+    String lockedReason = buildLockedRevertBlockedReason(history.Id);
     if (String.isNotBlank(lockedReason)) {
       return lockedReason;
     }
-    EstimateRevertInvoiceService.RevertBlockSets revertBlocks = EstimateRevertInvoiceService.queryRevertBlockSets(
-      new Set<Id>{ contractHistoryId }
-    );
-    if (revertBlocks.nonLatestOrderedHistoryIds.contains(contractHistoryId)) {
+    EstimateRevertInvoiceService.RevertBlockSets revertBlocks = history.Version__c ==
+        null &&
+      history.ContractService__c == null
+      ? EstimateRevertInvoiceService.queryRevertBlockSets(
+          new Set<Id>{ history.Id }
+        )
+      : EstimateRevertInvoiceService.queryRevertBlockSets(
+          new List<ContractHistory__c>{ history }
+        );
+    if (revertBlocks.nonLatestOrderedHistoryIds.contains(history.Id)) {
       return EstimateRevertInvoiceService.NON_LATEST_ORDERED_REVERT_MESSAGE;
     }
-    // 仕様: Core 第5.3節・第5.5節。上のVersionのEstimateが残っていれば差し戻し禁止。
-    if (revertBlocks.newerEstimateHistoryIds.contains(contractHistoryId)) {
+    if (revertBlocks.newerEstimateHistoryIds.contains(history.Id)) {
       return EstimateRevertInvoiceService.NEWER_ESTIMATE_REVERT_MESSAGE;
     }
     return null;
@@ -2874,7 +2893,8 @@ public without sharing class OrderCreateController {
       'ContractService__r.BiilingAcccount__r.BillingEmailTo__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailCc__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailBcc__c, ' +
-      'ContractService__r.BiilingAcccount__r.Account__r.Name ' +
+      'ContractService__r.BiilingAcccount__r.Account__r.Name, ' +
+      '(SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r) ' +
       'FROM ContractHistory__c WHERE Id = :contractHistoryId LIMIT 1' +
       (lockForUpdate ? ' FOR UPDATE' : '');
     return Database.queryWithBinds(
@@ -2920,9 +2940,7 @@ public without sharing class OrderCreateController {
     if (history.Type__c == HISTORY_TYPE_CANCEL) {
       return true;
     }
-    String lifecycle = history.ContractService__r == null
-      ? null
-      : history.ContractService__r.Lifecycle__c;
+    String lifecycle = resolveKnownLifecycle(history);
     if (ContractServiceLifecycleService.isSpotLifecycle(lifecycle)) {
       return true;
     }
@@ -2933,16 +2951,69 @@ public without sharing class OrderCreateController {
     return !historyHasRecurringProducts(history.Id);
   }
 
+  /** 仕様: Core 第5.2節・第12.4節。ロック行の Lifecycle は取り直さない。 */
+  public static String rememberedLifecycleForService(Id contractServiceId) {
+    if (contractServiceId == null) {
+      return null;
+    }
+    return rememberedLifecycleByServiceId.get(contractServiceId);
+  }
+
+  public static Boolean hasRememberedLifecycleForService(Id contractServiceId) {
+    return contractServiceId != null &&
+      rememberedLifecycleByServiceId.containsKey(contractServiceId);
+  }
+
+  private static void rememberLockedHistoryLifecycle(ContractHistory__c history) {
+    if (history == null || history.ContractService__c == null) {
+      return;
+    }
+    String lifecycle = history.ContractService__r == null
+      ? null
+      : history.ContractService__r.Lifecycle__c;
+    rememberedLifecycleByServiceId.put(history.ContractService__c, lifecycle);
+  }
+
+  private static String resolveKnownLifecycle(ContractHistory__c history) {
+    if (history == null) {
+      return null;
+    }
+    if (history.ContractService__r != null) {
+      return history.ContractService__r.Lifecycle__c;
+    }
+    if (hasRememberedLifecycleForService(history.ContractService__c)) {
+      return rememberedLifecycleByServiceId.get(history.ContractService__c);
+    }
+    return null;
+  }
+
   private static Boolean historyHasRecurringProducts(Id contractHistoryId) {
     if (contractHistoryId == null) {
       return false;
     }
-    for (ContractProduct__c product : [
+    if (InvoiceProductGenerationService.hasCachedProductsForHistory(contractHistoryId)) {
+      return hasRecurringProduct(
+        InvoiceProductGenerationService.productsCachedForHistory(contractHistoryId)
+      );
+    }
+    renewProductSelectCount++;
+    List<ContractProduct__c> products = [
       SELECT BillingType__c, Quantity__c
       FROM ContractProduct__c
       WHERE ContractHistory__c = :contractHistoryId AND Quantity__c > 0
       WITH SYSTEM_MODE
-    ]) {
+    ];
+    return hasRecurringProduct(products);
+  }
+
+  private static Boolean hasRecurringProduct(List<ContractProduct__c> products) {
+    if (products == null || products.isEmpty()) {
+      return false;
+    }
+    for (ContractProduct__c product : products) {
+      if (product == null || product.Quantity__c == null || product.Quantity__c <= 0) {
+        continue;
+      }
       String billingType = ContractMetadataService.resolveLineBillingType(
         product
       );

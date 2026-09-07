@@ -266,6 +266,14 @@ public without sharing class InvoiceLockUtil {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return blockedHistoryIds;
     }
+    if (
+      cachedLockInputIds != null &&
+      cachedLockedHistoryIds != null &&
+      cachedLockInputIds.equals(contractHistoryIds)
+    ) {
+      return cachedLockedHistoryIds.clone();
+    }
+    lockedInvoiceQueryCount++;
     String lockedAggSoql =
       'SELECT ContractHistory__c historyId' +
       ' FROM Invoice__c' +
@@ -277,8 +285,20 @@ public without sharing class InvoiceLockUtil {
     for (AggregateResult result : Database.query(lockedAggSoql)) {
       blockedHistoryIds.add((Id) result.get('historyId'));
     }
+    cachedLockInputIds = new Set<Id>(contractHistoryIds);
+    cachedLockedHistoryIds = blockedHistoryIds.clone();
     return blockedHistoryIds;
   }
+
+  @TestVisible
+  static Integer lockedInvoiceQueryCount = 0;
+  @TestVisible
+  static void clearLockedInvoiceCacheForTest() {
+    cachedLockInputIds = null;
+    cachedLockedHistoryIds = null;
+  }
+  private static Set<Id> cachedLockInputIds;
+  private static Set<Id> cachedLockedHistoryIds;
 
   public static void assertNoLockedInvoices(Set<Id> contractHistoryIds) {
     if (canBypassLockedDml()) {

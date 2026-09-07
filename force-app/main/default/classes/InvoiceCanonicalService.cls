@@ -5,6 +5,8 @@
 public without sharing class InvoiceCanonicalService {
   @TestVisible
   private static Boolean testHasEditPreviewPermission;
+  @TestVisible
+  static Integer invoicePurgeSelectCount = 0;
 
   public static final String SPLIT_AMOUNT_CONSERVE_MESSAGE = '分割後の金額合計が元の明細金額と一致しません。';
 
@@ -188,15 +190,30 @@ public without sharing class InvoiceCanonicalService {
    * Ordered 以外へ落ちたとき／削除時の不変条件維持用。
    */
   public static void purgeBillingForHistories(Set<Id> contractHistoryIds) {
+    purgeBillingForHistories(contractHistoryIds, null);
+  }
+
+  /**
+   * 仕様: Core 第5.3節・第12.4節。同一処理で読んだ請求は取り直さない。
+   * knownInvoices が null のときだけ照会する。空リストは0件として使う。
+   */
+  public static void purgeBillingForHistories(
+    Set<Id> contractHistoryIds,
+    List<Invoice__c> knownInvoices
+  ) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
-    List<Invoice__c> invoices = [
-      SELECT Id, InvoiceTransactionStatus__c
-      FROM Invoice__c
-      WHERE ContractHistory__c IN :contractHistoryIds
-      WITH SYSTEM_MODE
-    ];
+    List<Invoice__c> invoices = knownInvoices;
+    if (invoices == null) {
+      invoicePurgeSelectCount++;
+      invoices = [
+        SELECT Id, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE ContractHistory__c IN :contractHistoryIds
+        WITH SYSTEM_MODE
+      ];
+    }
     List<Invoice__c> deletable = new List<Invoice__c>();
     for (Invoice__c invoice : invoices) {
       if (InvoiceTransactionStatusService.isCancelled(invoice)) {

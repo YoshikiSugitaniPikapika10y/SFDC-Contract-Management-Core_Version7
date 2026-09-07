@@ -56,6 +56,7 @@ public without sharing class ContractHistoryTriggerHandler {
 
     Set<Id> leavingOrderedHistoryIds = new Set<Id>();
     Set<Id> revertToEstimateHistoryIds = new Set<Id>();
+    List<ContractHistory__c> leavingOrderedHistories = new List<ContractHistory__c>();
     for (ContractHistory__c history : newHistories) {
       ContractHistory__c oldHistory = oldMap.get(history.Id);
       if (oldHistory == null) {
@@ -96,6 +97,7 @@ public without sharing class ContractHistoryTriggerHandler {
       if (history.historystatus__c == HISTORY_STATUS_ESTIMATE) {
         leavingOrderedHistoryIds.add(history.Id);
         revertToEstimateHistoryIds.add(history.Id);
+        leavingOrderedHistories.add(history);
         // 仕様: Core 第5.3節・第11.4.3節・第11.7節。受注日を空にする専用処理は持たない。
       }
     }
@@ -104,7 +106,7 @@ public without sharing class ContractHistoryTriggerHandler {
     }
 
     EstimateRevertInvoiceService.RevertBlockSets revertBlocks = EstimateRevertInvoiceService.queryRevertBlockSets(
-      leavingOrderedHistoryIds
+      leavingOrderedHistories
     );
     Set<Id> nonLatestHistoryIds = revertBlocks.nonLatestOrderedHistoryIds;
     Set<Id> newerEstimateHistoryIds = revertBlocks.newerEstimateHistoryIds;
@@ -437,16 +439,36 @@ public without sharing class ContractHistoryTriggerHandler {
       return;
     }
     Boolean switchOn = ContractDocumentSettingService.requireRenewOpportunitySwitch();
-    Map<Id, ContractService__c> services = serviceIds.isEmpty()
-      ? new Map<Id, ContractService__c>()
-      : new Map<Id, ContractService__c>(
+    Map<Id, ContractService__c> services = new Map<Id, ContractService__c>();
+    Set<Id> missingServiceIds = new Set<Id>();
+    for (Id serviceId : serviceIds) {
+      if (OrderCreateController.hasRememberedLifecycleForService(serviceId)) {
+        services.put(
+          serviceId,
+          new ContractService__c(
+            Id = serviceId,
+            Lifecycle__c = OrderCreateController.rememberedLifecycleForService(
+              serviceId
+            )
+          )
+        );
+      } else {
+        missingServiceIds.add(serviceId);
+      }
+    }
+    if (!missingServiceIds.isEmpty()) {
+      OrderCreateController.renewLifecycleSelectCount++;
+      services.putAll(
+        new Map<Id, ContractService__c>(
           [
             SELECT Id, Lifecycle__c
             FROM ContractService__c
-            WHERE Id IN :serviceIds
+            WHERE Id IN :missingServiceIds
             WITH SYSTEM_MODE
           ]
-        );
+        )
+      );
+    }
     for (ContractHistory__c history : requested) {
       if (!switchOn) {
         history.addError(RENEW_REQUEST_NOT_ALLOWED_MESSAGE);

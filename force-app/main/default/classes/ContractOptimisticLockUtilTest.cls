@@ -254,6 +254,27 @@ private class ContractOptimisticLockUtilTest {
         usedKnown < usedFull,
         'Core 第5.2節: 同一処理でロック済み契約履歴を取り直さない'
       );
+
+      ContractOptimisticLockUtil.productMaxSelectCount = 0;
+      List<ContractProduct__c> products = [
+        SELECT LastModifiedDate
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :history.Id
+      ];
+      Integer beforeProducts = Limits.getQueries();
+      Datetime withProducts = ContractOptimisticLockUtil.resolveHistoryProductDatetime(
+        history.Id,
+        history.LastModifiedDate,
+        products
+      );
+      Integer usedProducts = Limits.getQueries() - beforeProducts;
+      System.assertEquals(withKnown, withProducts);
+      System.assertEquals(
+        0,
+        usedProducts,
+        'Core 第4.3.12節: 読んだ見積商品の MAX を取り直さない'
+      );
+      System.assertEquals(0, ContractOptimisticLockUtil.productMaxSelectCount);
     }
   }
 }

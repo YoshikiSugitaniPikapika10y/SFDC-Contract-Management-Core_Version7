@@ -644,6 +644,48 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void confirmOrder_reusesValidatedProductsAndLockedLifecycle() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      ContractHistory__c locked = [
+        SELECT
+          Id,
+          Type__c,
+          ContractService__c,
+          ContractService__r.Lifecycle__c
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ];
+      OrderCreateController.renewLifecycleSelectCount = 0;
+      OrderCreateController.renewProductSelectCount = 0;
+
+      Test.startTest();
+      OrderCreateController.confirmOrder(locked.Id, null, false);
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        OrderCreateController.renewProductSelectCount,
+        'Core 第5.2節・第12.4節: 検証済み見積商品を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.renewLifecycleSelectCount,
+        'Core 第5.2節・第12.4節: ロック行の Lifecycle を取り直さない'
+      );
+      System.assertEquals(
+        'Ordered',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :locked.Id
+        ]
+        .historystatus__c
+      );
+    }
+  }
+
+  @IsTest
   static void confirmOrder_emptyLastModifiedToken_throws() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
@@ -1753,6 +1795,79 @@ private class OrderCreateControllerTest {
       ];
       System.assertEquals(null, revertedService.FirstOrderedHistory__c);
       System.assertEquals(null, revertedService.Lifecycle__c);
+    }
+  }
+
+  @IsTest
+  static void revertOrder_reusesLockedHistoryLatestAndDraftInvoices() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
+        context.history.Id
+      );
+      ContractHistory__c locked = [
+        SELECT
+          Id,
+          LastModifiedDate,
+          Version__c,
+          ContractService__c,
+          (SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r)
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ];
+      EstimateRevertInvoiceService.clearRevertCachesForTest();
+      InvoiceLockUtil.clearLockedInvoiceCacheForTest();
+      EstimateRevertInvoiceService.historySelectCount = 0;
+      EstimateRevertInvoiceService.invoiceSelectCount = 0;
+      InvoiceLockUtil.lockedInvoiceQueryCount = 0;
+      InvoiceCanonicalService.invoicePurgeSelectCount = 0;
+      ContractOptimisticLockUtil.productMaxSelectCount = 0;
+      ContractOptimisticLockUtil.historySelectCount = 0;
+
+      Test.startTest();
+      OrderCreateController.revertOrder(
+        locked.Id,
+        false,
+        dto.lastModifiedToken,
+        JSON.serialize(dto.historyCustomFields)
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        EstimateRevertInvoiceService.historySelectCount,
+        'Core 第12.4節: ロック済み契約履歴を Latest 判定で取り直さない'
+      );
+      System.assertEquals(
+        1,
+        InvoiceLockUtil.lockedInvoiceQueryCount,
+        'Core 第1.1.5節・第12.4節: 確定済み請求の有無は1回'
+      );
+      System.assertEquals(
+        0,
+        ContractOptimisticLockUtil.productMaxSelectCount,
+        'Core 第4.3.12節: ロック照会の見積商品 MAX を取り直さない'
+      );
+      System.assertEquals(
+        1,
+        EstimateRevertInvoiceService.invoiceSelectCount,
+        'Core 第5.3節: 消す未確定請求は仕訳削除と purge で1回'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.invoicePurgeSelectCount,
+        'Core 第12.4節: purge は読んだ請求を取り直さない'
+      );
+      System.assertEquals(
+        'Estimate',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :locked.Id
+        ]
+        .historystatus__c
+      );
     }
   }
 

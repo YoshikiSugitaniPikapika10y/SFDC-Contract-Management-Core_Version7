@@ -123,19 +123,31 @@ public without sharing class EstimateRevertInvoiceService {
     }
 
     InvoiceLockUtil.assertNoLockedInvoices(revertedHistoryIds);
-    deleteJournalsForDraftInvoices(revertedHistoryIds);
-    InvoiceCanonicalService.purgeBillingForHistories(revertedHistoryIds);
+    List<Invoice__c> invoices = queryInvoicesForRevert(revertedHistoryIds);
+    deleteJournalsForDraftInvoices(invoices);
+    InvoiceCanonicalService.purgeBillingForHistories(
+      revertedHistoryIds,
+      invoices
+    );
   }
 
   /** 仕様: Core 第5.3節、Accounting 第2.5節。消す未確定を参照する仕訳は状態を問わず請求削除の前に物理削除する。取消済み請求の仕訳は残す。 */
-  private static void deleteJournalsForDraftInvoices(Set<Id> contractHistoryIds) {
-    Set<Id> draftInvoiceIds = new Set<Id>();
-    for (Invoice__c invoice : [
+  private static List<Invoice__c> queryInvoicesForRevert(Set<Id> contractHistoryIds) {
+    invoiceSelectCount++;
+    return [
       SELECT Id, InvoiceTransactionStatus__c
       FROM Invoice__c
       WHERE ContractHistory__c IN :contractHistoryIds
       WITH SYSTEM_MODE
-    ]) {
+    ];
+  }
+
+  private static void deleteJournalsForDraftInvoices(List<Invoice__c> invoices) {
+    Set<Id> draftInvoiceIds = new Set<Id>();
+    if (invoices == null) {
+      return;
+    }
+    for (Invoice__c invoice : invoices) {
       if (InvoiceTransactionStatusService.isCancelled(invoice)) {
         continue;
       }
@@ -183,11 +195,16 @@ public without sharing class EstimateRevertInvoiceService {
   }
 
   public static RevertBlockSets queryRevertBlockSets(Set<Id> contractHistoryIds) {
+    RevertBlockSets cached = cachedRevertBlockSets(contractHistoryIds);
+    if (cached != null) {
+      return cached;
+    }
     RevertBlockSets blocks = new RevertBlockSets();
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return blocks;
     }
 
+    historySelectCount++;
     Map<Id, ContractHistory__c> historiesById = new Map<Id, ContractHistory__c>(
       [
         SELECT Id, ContractService__c, Version__c
@@ -196,7 +213,57 @@ public without sharing class EstimateRevertInvoiceService {
         WITH SYSTEM_MODE
       ]
     );
-    if (historiesById.isEmpty()) {
+    return finishRevertBlockSets(contractHistoryIds, historiesById);
+  }
+
+  /**
+   * 仕様: Core 第5.3節・第12.4節。ロック済み契約履歴の Version は取り直さない。
+   */
+  public static RevertBlockSets queryRevertBlockSets(
+    List<ContractHistory__c> knownHistories
+  ) {
+    Map<Id, ContractHistory__c> historiesById = new Map<Id, ContractHistory__c>();
+    if (knownHistories != null) {
+      for (ContractHistory__c history : knownHistories) {
+        if (history != null && history.Id != null) {
+          historiesById.put(history.Id, history);
+        }
+      }
+    }
+    RevertBlockSets cached = cachedRevertBlockSets(historiesById.keySet());
+    if (cached != null) {
+      return cached;
+    }
+    return finishRevertBlockSets(historiesById.keySet(), historiesById);
+  }
+
+  @TestVisible
+  static Integer historySelectCount = 0;
+  @TestVisible
+  static Integer invoiceSelectCount = 0;
+  private static Set<Id> cachedBlockInputIds;
+  private static RevertBlockSets cachedBlocks;
+
+  private static RevertBlockSets cachedRevertBlockSets(Set<Id> contractHistoryIds) {
+    if (
+      contractHistoryIds == null ||
+      contractHistoryIds.isEmpty() ||
+      cachedBlockInputIds == null ||
+      cachedBlocks == null ||
+      !cachedBlockInputIds.equals(contractHistoryIds)
+    ) {
+      return null;
+    }
+    return cachedBlocks;
+  }
+
+  private static RevertBlockSets finishRevertBlockSets(
+    Set<Id> contractHistoryIds,
+    Map<Id, ContractHistory__c> historiesById
+  ) {
+    RevertBlockSets blocks = new RevertBlockSets();
+    if (historiesById == null || historiesById.isEmpty()) {
+      rememberRevertBlockSets(contractHistoryIds, blocks);
       return blocks;
     }
 
@@ -207,6 +274,7 @@ public without sharing class EstimateRevertInvoiceService {
       }
     }
     if (contractServiceIds.isEmpty()) {
+      rememberRevertBlockSets(contractHistoryIds, blocks);
       return blocks;
     }
 
@@ -260,7 +328,24 @@ public without sharing class EstimateRevertInvoiceService {
         blocks.newerEstimateHistoryIds.add(history.Id);
       }
     }
+    rememberRevertBlockSets(contractHistoryIds, blocks);
     return blocks;
+  }
+
+  @TestVisible
+  static void clearRevertCachesForTest() {
+    cachedBlockInputIds = null;
+    cachedBlocks = null;
+  }
+
+  private static void rememberRevertBlockSets(
+    Set<Id> contractHistoryIds,
+    RevertBlockSets blocks
+  ) {
+    cachedBlockInputIds = contractHistoryIds == null
+      ? null
+      : new Set<Id>(contractHistoryIds);
+    cachedBlocks = blocks;
   }
 
   /**
