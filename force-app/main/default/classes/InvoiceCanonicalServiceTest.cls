@@ -2384,6 +2384,61 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void splitLinesInPlace_periodThreshold_usesLoadPeriodsByIds() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c sourceLine = [
+        SELECT Id, SourcePeriodLineIds__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = sourceLine.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_PERIOD;
+      split.thresholdDate = Date.newInstance(2026, 7, 1);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(fixture.history.Id)
+        .contentVersion;
+      Test.startTest();
+      InvoiceCanonicalService.periodByIdsSelectCount = 0;
+      InvoiceCanonicalService.lastPeriodByIdsSelectKeys = new List<String>();
+      OrderCreateController.splitLinesInPlace(
+        fixture.history.Id,
+        source.Id,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token
+      );
+      Test.stopTest();
+      System.assertEquals(
+        true,
+        InvoiceCanonicalService.lastPeriodByIdsSelectKeys.contains(
+          sourceLine.SourcePeriodLineIds__c
+        ),
+        'Core 第12.4節・第7.8節: しきい日解決は由来期間をloadPeriodsByIdsで読む'
+      );
+      System.assertEquals(
+        2,
+        [
+          SELECT COUNT()
+          FROM InvoiceLine__c
+          WHERE Invoice__c = :source.Id
+        ],
+        'Core 第7.8節: 連続境界のしきい日分割の明細は変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void getSplitThresholdDateOptions_returnsNonEarliestMonths() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();

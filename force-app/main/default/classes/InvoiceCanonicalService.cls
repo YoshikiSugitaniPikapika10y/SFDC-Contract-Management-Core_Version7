@@ -248,6 +248,11 @@ public without sharing class InvoiceCanonicalService {
   private static Map<String, Map<Id, InvoiceProduct__c>> periodsBySourceKey;
   @TestVisible
   static Integer orderedHistoryRetainSelectCount = 0;
+  /** 仕様: Core 第12.4節。loadPeriodsByIds が期間明細をSELECTした回数。 */
+  @TestVisible
+  public static Integer periodByIdsSelectCount = 0;
+  @TestVisible
+  public static List<String> lastPeriodByIdsSelectKeys = new List<String>();
 
   /**
    * 仕様: Core 第5.2節・第12.4節。
@@ -3377,13 +3382,8 @@ public without sharing class InvoiceCanonicalService {
         '月分割には2か月以上の利用期間が必要です: ' + sourceLine.ProductName__c
       );
     }
-    Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>(
-      [
-        SELECT Id, StartDate__c
-        FROM InvoiceProduct__c
-        WHERE Id IN :sourcePeriodIds
-        WITH SYSTEM_MODE
-      ]
+    Map<Id, InvoiceProduct__c> periodById = loadPeriodsByIds(
+      sourceLine.SourcePeriodLineIds__c
     );
     Date earliest = null;
     Set<Date> allowedThresholds = new Set<Date>();
@@ -3950,6 +3950,11 @@ public without sharing class InvoiceCanonicalService {
       periodsBySourceKey.put(cacheKey, periodById);
       return periodById;
     }
+    periodByIdsSelectCount++;
+    if (lastPeriodByIdsSelectKeys == null) {
+      lastPeriodByIdsSelectKeys = new List<String>();
+    }
+    lastPeriodByIdsSelectKeys.add(cacheKey);
     for (InvoiceProduct__c period : [
       SELECT Id, StartDate__c, Enddate__c, Amount__c, ContractProduct__c
       FROM InvoiceProduct__c
