@@ -721,6 +721,203 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
+  static void register_invoiceBillingBasis_keepsLineJournalsAndInvoiceCopySource() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      seedMaps();
+      seedPaymentMaps();
+      Id lineJournalId = insertUnrelatedLineJournal(
+        fixture.invoice.Id,
+        fixture.line.Id,
+        'PAYREGLINE'
+      );
+      InvoicePaymentService.RegisterRequest request = invoiceRequest(
+        fixture,
+        1100
+      );
+      InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      Test.startTest();
+      InvoicePaymentService.register(request);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.invoiceSourceSelectCount,
+        'Accounting 第8.2節・Core 第11.4.2節: 登録insertはhydrateした請求をコピーFromで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節・第8.4節: 仕訳コピーはhydrateした請求を取り直さない'
+      );
+      GlJournal__c lineJournal = [
+        SELECT TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Id = :lineJournalId
+      ];
+      System.assertEquals(
+        'Active',
+        lineJournal.TransactionStatus__c,
+        'Accounting 第4.2節・第8.8節: 請求基準のInvoice登録は売上Goalを作り直さない'
+      );
+      Invoice__c afterRegister = [
+        SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      System.assertEquals(
+        1100,
+        afterRegister.InvoicePaymentNet__c,
+        'Core 第8.1節: 請求金額Netは登録後も一度の再計算結果'
+      );
+      System.assertEquals(
+        1100,
+        afterRegister.PaymentInclusiveTotal__c,
+        'Core 第8.1節: 全入出金Netは登録後も一度の再計算結果'
+      );
+    }
+  }
+
+  @IsTest
+  static void register_nonInvoice_keepsLineJournalsAndInvoiceCopySource() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      seedMaps();
+      seedPaymentMaps();
+      InvoicePaymentService.RegisterRequest invoicePay = invoiceRequest(
+        fixture,
+        1100
+      );
+      InvoicePaymentService.register(invoicePay);
+      InvoicePaymentAllocation__c priorAllocation = [
+        SELECT HistoricalUacAmount__c, HistoricalSpAmount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoiceLine__c = :fixture.line.Id
+        LIMIT 1
+      ];
+      Id lineJournalId = insertUnrelatedLineJournal(
+        fixture.invoice.Id,
+        fixture.line.Id,
+        'NIPAYREGLINE'
+      );
+      InvoicePaymentService.RegisterRequest request = new InvoicePaymentService.RegisterRequest();
+      request.invoiceId = fixture.invoice.Id;
+      request.amount = 100;
+      request.purpose = InvoicePaymentService.PURPOSE_NON_INVOICE;
+      request.paymentDate = Date.newInstance(2026, 6, 1);
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      Test.startTest();
+      InvoicePaymentService.register(request);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.invoiceSourceSelectCount,
+        'Accounting 第8.2節・Core 第11.4.2節: NonInvoice登録insertもロック済み請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節: NonInvoice登録の仕訳コピーもhydrateした請求を取り直さない'
+      );
+      GlJournal__c lineJournal = [
+        SELECT TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Id = :lineJournalId
+      ];
+      System.assertEquals(
+        'Active',
+        lineJournal.TransactionStatus__c,
+        'Accounting 第4.2節: NonInvoiceはSP・UACだけを動かし売上仕訳のGoalを変えない'
+      );
+      InvoicePaymentAllocation__c afterAllocation = [
+        SELECT HistoricalUacAmount__c, HistoricalSpAmount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE Id = :priorAllocation.Id
+      ];
+      System.assertEquals(
+        priorAllocation.HistoricalUacAmount__c,
+        afterAllocation.HistoricalUacAmount__c,
+        'Accounting 第8.4節: NonInvoice登録は残るInvoice割当の過去日内訳を0クリアしない'
+      );
+      System.assertEquals(
+        priorAllocation.HistoricalSpAmount__c,
+        afterAllocation.HistoricalSpAmount__c,
+        'Accounting 第8.4節: NonInvoice登録は残るInvoice割当の過去日SPを変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void register_reusesLockedInvoiceSnapshotNetsAndCopyOnce() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      InvoicePaymentService.RegisterRequest request = invoiceRequest(
+        fixture,
+        1100
+      );
+      InvoicePaymentAllocationService.snapshotInvoiceSelectCount = 0;
+      InvoicePaymentAllocationService.allocatePaymentSelectCount = 0;
+      InvoicePaymentService.netRecalcSelectCount = 0;
+      InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      Test.startTest();
+      InvoicePaymentService.register(request);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        InvoicePaymentAllocationService.snapshotInvoiceSelectCount,
+        'Accounting 第8.2節・Core 第8.6節: assertLinesはロック済み請求の税込とNetを取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoicePaymentAllocationService.allocatePaymentSelectCount,
+        'Accounting 第8.2節: allocateはinsertした入出金を取り直さない'
+      );
+      System.assertEquals(
+        1,
+        InvoicePaymentService.netRecalcSelectCount,
+        'Core 第8.1節: 請求金額Netは登録後に1回書けばよい'
+      );
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.invoiceSourceSelectCount,
+        'Accounting 第8.2節・Core 第11.4.2節: 入出金コピーはhydrateした請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節: 仕訳コピーはhydrateした請求を取り直さない'
+      );
+      Invoice__c afterRegister = [
+        SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      System.assertEquals(
+        1100,
+        afterRegister.InvoicePaymentNet__c,
+        'Core 第8.1節: 登録後の請求金額Netは親Amount'
+      );
+      System.assertEquals(
+        1100,
+        afterRegister.PaymentInclusiveTotal__c,
+        'Core 第8.1節: 登録後の全入出金Netは親Amount'
+      );
+    }
+  }
+
+  @IsTest
   static void previewRegister_lockedJournals_doesNotPersist() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

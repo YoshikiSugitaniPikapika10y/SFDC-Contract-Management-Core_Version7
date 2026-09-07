@@ -12,6 +12,11 @@ public without sharing class InvoicePaymentAllocationService {
   public static Boolean allowHistoricalAmountWrite;
   @TestVisible
   static Integer allocationReverseSelectCount = 0;
+  @TestVisible
+  static Integer snapshotInvoiceSelectCount = 0;
+  @TestVisible
+  static Integer allocatePaymentSelectCount = 0;
+  private static Map<Id, InvoiceSnapshot> snapshotCache = new Map<Id, InvoiceSnapshot>();
 
   public static final String HISTORICAL_AMOUNT_EDIT_MESSAGE =
     '過去日UAC／SP振替額は利用者が直接編集できません。';
@@ -124,6 +129,16 @@ public without sharing class InvoicePaymentAllocationService {
     Decimal parentAmount,
     List<AllocationLine> lines
   ) {
+    assertLines(invoiceId, parentAmount, lines, null);
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第12.4節。ロック済み請求があるなら取り直さない。 */
+  public static void assertLines(
+    Id invoiceId,
+    Decimal parentAmount,
+    List<AllocationLine> lines,
+    Invoice__c knownInvoice
+  ) {
     if (lines == null || lines.isEmpty()) {
       throw new AllocationException('請求金額の入出金は明細別割当が1件以上必要です。');
     }
@@ -144,7 +159,7 @@ public without sharing class InvoicePaymentAllocationService {
     if (total != parentAmount) {
       throw new AllocationException('明細別割当の合計は親の金額と一致させてください。');
     }
-    InvoiceSnapshot snapshot = loadInvoiceSnapshot(invoiceId);
+    InvoiceSnapshot snapshot = loadInvoiceSnapshot(invoiceId, knownInvoice);
     Map<Id, Decimal> remainingByLine = new Map<Id, Decimal>();
     for (LineRemaining row : snapshot.remainings) {
       remainingByLine.put(row.lineId, row.remainingInclusive);
@@ -177,23 +192,43 @@ public without sharing class InvoicePaymentAllocationService {
 
   /** 仕様: Core 第8.1節、Accounting 第4.4節、第8.4節 */
   public static void allocate(Id paymentId, List<AllocationLine> lines) {
+    allocate(paymentId, lines, null, null);
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第12.4節。同一処理でinsertした入出金とロック済み請求は取り直さない。 */
+  public static void allocate(
+    Id paymentId,
+    List<AllocationLine> lines,
+    InvoicePayment__c knownPayment,
+    Invoice__c knownInvoice
+  ) {
     if (paymentId == null) {
       throw new AllocationException('請求入出金が指定されていません。');
     }
-    InvoicePayment__c payment = [
-      SELECT Id, Invoice__c, Amount__c, PaymentPurpose__c
-      FROM InvoicePayment__c
-      WHERE Id = :paymentId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    InvoicePayment__c payment = knownPayment;
+    if (
+      payment == null ||
+      payment.Id != paymentId ||
+      !hasQueriedField(payment, 'Invoice__c') ||
+      !hasQueriedField(payment, 'Amount__c') ||
+      !hasQueriedField(payment, 'PaymentPurpose__c')
+    ) {
+      allocatePaymentSelectCount++;
+      payment = [
+        SELECT Id, Invoice__c, Amount__c, PaymentPurpose__c
+        FROM InvoicePayment__c
+        WHERE Id = :paymentId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     if (payment.PaymentPurpose__c == 'NonInvoice') {
       if (lines != null && !lines.isEmpty()) {
         throw new AllocationException('請求金額以外の入出金に明細別割当は持てません。');
       }
       return;
     }
-    assertLines(payment.Invoice__c, payment.Amount__c, lines);
+    assertLines(payment.Invoice__c, payment.Amount__c, lines, knownInvoice);
     List<InvoicePaymentAllocation__c> rows = new List<InvoicePaymentAllocation__c>();
     for (AllocationLine line : lines) {
       rows.add(
@@ -207,6 +242,7 @@ public without sharing class InvoicePaymentAllocationService {
       );
     }
     SystemContextAccess.insertRecords(rows);
+    snapshotCache.remove(payment.Invoice__c);
   }
 
   /** 仕様: Core 第8.1節、Accounting 第4.4節、第8.4節。取消時は再按分せず、同じ明細へ反対符号を載せる。 */
@@ -259,17 +295,32 @@ public without sharing class InvoicePaymentAllocationService {
   }
 
   private static List<LineRemaining> loadLineRemainings(Id invoiceId) {
-    return loadInvoiceSnapshot(invoiceId).remainings;
+    return loadInvoiceSnapshot(invoiceId, null).remainings;
   }
 
-  private static InvoiceSnapshot loadInvoiceSnapshot(Id invoiceId) {
-    Invoice__c invoice = [
-      SELECT Id, TaxInclusiveAmount__c, InvoicePaymentNet__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+  private static InvoiceSnapshot loadInvoiceSnapshot(
+    Id invoiceId,
+    Invoice__c knownInvoice
+  ) {
+    if (snapshotCache.containsKey(invoiceId)) {
+      return snapshotCache.get(invoiceId);
+    }
+    Invoice__c invoice = knownInvoice;
+    if (
+      invoice == null ||
+      invoice.Id != invoiceId ||
+      !hasQueriedField(invoice, 'TaxInclusiveAmount__c') ||
+      !hasQueriedField(invoice, 'InvoicePaymentNet__c')
+    ) {
+      snapshotInvoiceSelectCount++;
+      invoice = [
+        SELECT Id, TaxInclusiveAmount__c, InvoicePaymentNet__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     Map<Id, Decimal> allocatedByLine = new Map<Id, Decimal>();
     for (InvoicePaymentAllocation__c allocation : [
       SELECT InvoiceLine__c, Amount__c
@@ -309,7 +360,20 @@ public without sharing class InvoicePaymentAllocationService {
       row.remainingInclusive = inclusive - allocated;
       snapshot.remainings.add(row);
     }
+    snapshotCache.put(invoiceId, snapshot);
     return snapshot;
+  }
+
+  private static Boolean hasQueriedField(SObject record, String fieldName) {
+    if (record == null || String.isBlank(fieldName)) {
+      return false;
+    }
+    try {
+      record.get(fieldName);
+      return true;
+    } catch (SObjectException ex) {
+      return false;
+    }
   }
 
   private static Boolean exceedsRemaining(Decimal amount, Decimal remaining) {

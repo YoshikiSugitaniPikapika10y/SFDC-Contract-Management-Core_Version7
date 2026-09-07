@@ -104,7 +104,10 @@ public without sharing class AccountingDiffService {
     Boolean includeLineCandidates = true;
     Boolean includeManualCandidates = true;
     if (
-      eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key &&
+      (
+        eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key ||
+        eventKey == AccountingEventFixedCatalog.PAYMENT_RECORDED.key
+      ) &&
       paymentCancelIncludeLineCandidates != null
     ) {
       includeLineCandidates = paymentCancelIncludeLineCandidates;
@@ -388,7 +391,10 @@ public without sharing class AccountingDiffService {
     Boolean includeLineCandidates = true;
     Boolean includeManualCandidates = true;
     if (
-      eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key &&
+      (
+        eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key ||
+        eventKey == AccountingEventFixedCatalog.PAYMENT_RECORDED.key
+      ) &&
       paymentCancelIncludeLineCandidates != null
     ) {
       includeLineCandidates = paymentCancelIncludeLineCandidates;

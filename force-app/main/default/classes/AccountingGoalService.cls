@@ -239,7 +239,9 @@ public without sharing class AccountingGoalService {
     Boolean scopedLines =
       restrictLineIds != null && !restrictLineIds.isEmpty();
     List<Candidate> candidates = new List<Candidate>();
-    if (includeLineCandidates != false) {
+    // 仕様: Accounting 第4.2節・第8.8節。請求基準・NonInvoiceの入出金は売上仕訳をGoalに載せない。
+    // 実行残高のB／Cは明細候補を処理してから入出金へ進める。Diffへは出さない。
+    if (includeLineCandidates != false || !scopedLines) {
       for (InvoiceLine__c line : lines.values()) {
         candidates.addAll(
           lineCandidates(invoice, line, policy, allowed, reusedPatterns)
@@ -345,7 +347,14 @@ public without sharing class AccountingGoalService {
           resolveAccounts(accountSplit, currentJournals);
           // 仕様: Accounting 第1.3節、第4.6節、第8.2節。分割後に負の候補だけ借貸反転した正額で実行残高へ載せる。
           applySlotBalance(accountSplit, books, invoiceBook);
-          addGoal(goals, lineKeys, toGoal(accountSplit, invoice, true));
+          if (
+            includeLineCandidates != false ||
+            candidate.isManual ||
+            candidate.allocation != null ||
+            candidate.payment != null
+          ) {
+            addGoal(goals, lineKeys, toGoal(accountSplit, invoice, true));
+          }
         }
       }
     }
@@ -1250,7 +1259,8 @@ public without sharing class AccountingGoalService {
   }
 
   /**
-   * 仕様: Accounting 第8.2節。入出金取消でGoalに載せない売上・税・手動のCurrentを先に載せる。
+   * 仕様: Accounting 第8.2節。Goalに載せない手動のCurrentを先に載せる。
+   * 売上・税は明細候補をGoalに出さず実行残高へ載せるため、ここでは手動だけを足す。
    */
   private static void seedInvoiceBookFromExcludedCauses(
     LineBook invoiceBook,
@@ -1261,7 +1271,7 @@ public without sharing class AccountingGoalService {
     if (
       invoiceBook == null ||
       currentJournals == null ||
-      (includeLineCandidates && includeManualCandidates)
+      includeManualCandidates
     ) {
       return;
     }
@@ -1271,12 +1281,7 @@ public without sharing class AccountingGoalService {
       }
       Boolean excludedManual =
         !includeManualCandidates && journal.GlManualJournalHeader__c != null;
-      Boolean excludedLine =
-        !includeLineCandidates &&
-        journal.InvoiceLine__c != null &&
-        journal.InvoicePayment__c == null &&
-        journal.GlManualJournalHeader__c == null;
-      if (!excludedManual && !excludedLine) {
+      if (!excludedManual) {
         continue;
       }
       Decimal amount = journal.Amount__c;

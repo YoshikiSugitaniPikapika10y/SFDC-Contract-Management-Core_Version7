@@ -102,13 +102,7 @@ public without sharing class InvoicePaymentService {
     allowLifecycleWrite = true;
     try {
       Id paymentId = insertRegisteredPayment(request, invoice);
-      AccountingDiffService.applyForInvoice(
-        invoice.Id,
-        AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
-        operationKey,
-        request.cancellationDate,
-        invoice
-      );
+      applyPaymentRecorded(invoice, request, operationKey);
       return paymentId;
     } catch (Exception ex) {
       Database.rollback(savepoint);
@@ -143,11 +137,9 @@ public without sharing class InvoicePaymentService {
     allowLifecycleWrite = true;
     try {
       insertRegisteredPayment(request, invoice);
-      AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
-        invoice.Id,
-        AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
-        request.cancellationDate,
-        invoice
+      AccountingDiffService.CancelPreview preview = previewPaymentRecorded(
+        invoice,
+        request
       );
       Database.rollback(savepoint);
       return preview;
@@ -190,12 +182,13 @@ public without sharing class InvoicePaymentService {
       request.knownLockedInvoice.Id == request.invoiceId
         ? request.knownLockedInvoice
         : AccountingCauseLockService.lockInvoice(request.invoiceId);
-    InvoiceProductFieldCopyService.rememberRecords(new List<SObject>{ invoice });
+    invoice = rememberHydratedInvoice(invoice);
     if (request.purpose == PURPOSE_INVOICE) {
       InvoicePaymentAllocationService.assertLines(
         request.invoiceId,
         request.amount,
-        request.allocations
+        request.allocations,
+        invoice
       );
     }
     if (InvoiceTransactionStatusService.isCancelled(invoice)) {
@@ -249,11 +242,23 @@ public without sharing class InvoicePaymentService {
       request.extraFieldValues,
       extraAllowed
     );
-    SystemContextAccess.insertRecords(new List<SObject>{ payment });
-    if (request.purpose == PURPOSE_INVOICE) {
-      InvoicePaymentAllocationService.allocate(payment.Id, request.allocations);
+    Boolean previousSkipNet = skipTriggerNetRecalc;
+    skipTriggerNetRecalc = true;
+    try {
+      SystemContextAccess.insertRecords(new List<SObject>{ payment });
+      if (request.purpose == PURPOSE_INVOICE) {
+        InvoicePaymentAllocationService.allocate(
+          payment.Id,
+          request.allocations,
+          payment,
+          invoice
+        );
+      }
+      skipTriggerNetRecalc = false;
+      recalculateNets(new Set<Id>{ invoice.Id });
+    } finally {
+      skipTriggerNetRecalc = previousSkipNet;
     }
-    recalculateNets(new Set<Id>{ invoice.Id });
     ContractOperationLogService.write(
       'RegisterPayment',
       request.businessOperationKey,
@@ -261,6 +266,70 @@ public without sharing class InvoicePaymentService {
       String.valueOf(payment.Id)
     );
     return payment.Id;
+  }
+
+  /** 仕様: Accounting 第8.2節・第8.4節、Core 第11.4.2節。ロック済み請求をGoal・コピーFromで渡す。 */
+  private static Invoice__c rememberHydratedInvoice(Invoice__c locked) {
+    Invoice__c hydrated = AccountingGoalService.prepareInvoiceForGoal(locked);
+    Set<String> invoiceCopyFields = new Set<String>{
+      'BillingAccountSnapShot__c',
+      'ContractHistory__c',
+      'ContractService__c'
+    };
+    invoiceCopyFields.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
+    invoiceCopyFields.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
+    );
+    InvoiceProductFieldCopyService.rememberRecords(
+      new List<SObject>{ hydrated },
+      invoiceCopyFields
+    );
+    return hydrated;
+  }
+
+  /** 仕様: Accounting 第4.2節・第8.8節。請求基準とNonInvoiceは売上Goalを作り直さない。 */
+  private static void setPaymentRecordedCandidateScope(String purpose) {
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+    Boolean includeRevenue =
+      purpose == PURPOSE_INVOICE &&
+      policy.RevenueRecognitionBasis__c == 'CashBasis';
+    AccountingDiffService.setPaymentCancelCandidateScope(includeRevenue, false);
+  }
+
+  private static void applyPaymentRecorded(
+    Invoice__c invoice,
+    RegisterRequest request,
+    String operationKey
+  ) {
+    setPaymentRecordedCandidateScope(request.purpose);
+    try {
+      AccountingDiffService.applyForInvoice(
+        invoice.Id,
+        AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
+        operationKey,
+        request.cancellationDate,
+        invoice
+      );
+    } finally {
+      AccountingDiffService.clearPaymentCancelCandidateScope();
+    }
+  }
+
+  private static AccountingDiffService.CancelPreview previewPaymentRecorded(
+    Invoice__c invoice,
+    RegisterRequest request
+  ) {
+    setPaymentRecordedCandidateScope(request.purpose);
+    try {
+      return AccountingDiffService.previewApply(
+        invoice.Id,
+        AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
+        request.cancellationDate,
+        invoice
+      );
+    } finally {
+      AccountingDiffService.clearPaymentCancelCandidateScope();
+    }
   }
 
   /** 仕様: Core 第8.1節、第8.4節、第1.1.7節、Accounting 第1.8.1節、第8.2節、第8.4節、第8.8節 */
@@ -285,19 +354,7 @@ public without sharing class InvoicePaymentService {
       request.knownLockedInvoice.Id == original.Invoice__c
         ? request.knownLockedInvoice
         : AccountingCauseLockService.lockInvoice(original.Invoice__c);
-    Invoice__c hydrated = AccountingGoalService.prepareInvoiceForGoal(lockedInvoice);
-    Set<String> invoiceCopyFields = new Set<String>{
-      'BillingAccountSnapShot__c',
-      'ContractHistory__c'
-    };
-    invoiceCopyFields.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
-    invoiceCopyFields.addAll(
-      InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
-    );
-    InvoiceProductFieldCopyService.rememberRecords(
-      new List<SObject>{ hydrated },
-      invoiceCopyFields
-    );
+    Invoice__c hydrated = rememberHydratedInvoice(lockedInvoice);
     lockedInvoice = hydrated;
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       request.businessOperationKey
