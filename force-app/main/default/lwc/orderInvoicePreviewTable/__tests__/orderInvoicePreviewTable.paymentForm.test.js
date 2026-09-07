@@ -806,6 +806,7 @@ describe("orderInvoicePreviewTable payment form", () => {
       'lightning-input[data-field="cancellationDate"]'
     );
     expect(dateInput).not.toBeNull();
+    expect(dateInput.label).toBe("取消基準日");
     expect(dateInput.value).toBe("2026-08-29");
   });
 
@@ -955,7 +956,11 @@ describe("orderInvoicePreviewTable payment form", () => {
       'lightning-input[data-field="cancellationDate"]'
     );
     expect(dateInput).not.toBeNull();
+    expect(dateInput.label).toBe("逆仕訳基準日");
     expect(dateInput.value).toBe("2026-08-29");
+    expect(element.shadowRoot.textContent).toContain(
+      "ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。"
+    );
   });
 
   it("omits invoice cancel date when only cancelled locked journals exist", async () => {

@@ -630,15 +630,20 @@
                       required
                     ></lightning-input>
                     <template if:true={invoice.paymentRegisterRequiresDate}>
-                      <lightning-input
-                        type="date"
-                        label="取消基準日"
-                        value={invoice.paymentRegisterCancelDate}
-                        data-invoice-id={invoice.invoiceId}
-                        data-field="cancellationDate"
-                        onchange={handlePaymentDraftChange}
-                        required
-                      ></lightning-input>
+                      <div>
+                        <lightning-input
+                          type="date"
+                          label="逆仕訳基準日"
+                          value={invoice.paymentRegisterCancelDate}
+                          data-invoice-id={invoice.invoiceId}
+                          data-field="cancellationDate"
+                          onchange={handlePaymentDraftChange}
+                          required
+                        ></lightning-input>
+                        <p class="edit-note" role="note">
+                          ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。
+                        </p>
+                      </div>
                     </template>
                     </div>
                   </section>
@@ -2203,12 +2208,15 @@
               <p class="ops-form-title">検収終了日の変更</p>
               <lightning-input
                 type="date"
-                label="取消基準日"
+                label="逆仕訳基準日"
                 value={invoice.acceptanceCancelDate}
                 data-invoice-id={invoice.invoiceId}
                 onchange={handleAcceptanceCancelDraftChange}
                 required
               ></lightning-input>
+              <p class="edit-note" role="note">
+                ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。
+              </p>
               <div class="panel-actions">
                 <button
                   type="button"
