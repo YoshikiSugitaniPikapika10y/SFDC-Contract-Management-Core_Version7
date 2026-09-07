@@ -1240,6 +1240,164 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void lockJournalsForInvoice_reusesRowLockedJournalsInCurrentLoad() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'CURLOCK1');
+      insertJournal(fixture.invoice.Id, false, 'Active', 'CURLOCK2');
+      Invoice__c invoice = [
+        SELECT Id, LastModifiedDate, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      List<GlJournal__c> journals = [
+        SELECT Id, LastModifiedDate, Invoice__c, IsLocked__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id
+        ORDER BY IdempotencyKey__c
+      ];
+      System.assertEquals(2, journals.size());
+      GlJournal__c lockedJournal = journals[0];
+      GlJournal__c otherJournal = journals[1];
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id,
+        invoice.LastModifiedDate
+      );
+      AccountingCurrentService.invalidate(invoice.Id);
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingCurrentService.lastLoadExcludedIds = new Set<Id>();
+      Test.startTest();
+      Integer lockedCount = InvoicePreviewOpsController.lockJournalsForInvoice(
+        invoice.Id,
+        new List<Id>{ lockedJournal.Id },
+        token,
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
+      Test.stopTest();
+      System.assertEquals(1, lockedCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Core 第12.4節・第7.9.7節: 未取得の仕訳Currentは残す'
+      );
+      System.assertEquals(
+        true,
+        AccountingCurrentService.lastLoadExcludedIds.contains(lockedJournal.Id),
+        'Core 第12.4節: 行ロックした仕訳はCurrent収集で取り直さない'
+      );
+      System.assertEquals(
+        false,
+        AccountingCurrentService.lastLoadExcludedIds.contains(otherJournal.Id),
+        'Core 第12.4節: 行ロックしていない仕訳はCurrentで読む'
+      );
+      System.assertEquals(
+        true,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :lockedJournal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: Lock状態は変えない'
+      );
+      System.assertEquals(
+        false,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :otherJournal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: 選んでいない行はLockしない'
+      );
+      System.assertEquals(
+        invoice.Id,
+        lockedJournal.Invoice__c,
+        '開発ルール第13節: 入口はSOQL行の請求Idを読む'
+      );
+      System.assertEquals(
+        true,
+        lockedJournal.LastModifiedDate != null,
+        '開発ルール第13節: 入口はSOQL行の更新日時を読む'
+      );
+    }
+  }
+
+  @IsTest
+  static void unlockJournalsForInvoice_reusesRowLockedJournalsInCurrentLoad() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, true, 'Active', 'CURUNL1');
+      insertJournal(fixture.invoice.Id, true, 'Active', 'CURUNL2');
+      Invoice__c invoice = [
+        SELECT Id, LastModifiedDate, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      List<GlJournal__c> journals = [
+        SELECT Id, LastModifiedDate, Invoice__c, IsLocked__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id
+        ORDER BY IdempotencyKey__c
+      ];
+      System.assertEquals(2, journals.size());
+      GlJournal__c unlockedJournal = journals[0];
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id,
+        invoice.LastModifiedDate
+      );
+      AccountingCurrentService.invalidate(invoice.Id);
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingCurrentService.lastLoadExcludedIds = new Set<Id>();
+      Test.startTest();
+      Integer unlockedCount = InvoicePreviewOpsController.unlockJournalsForInvoice(
+        invoice.Id,
+        new List<Id>{ unlockedJournal.Id },
+        '監査',
+        token,
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        unlockedCount,
+        'Accounting 第9.5節: Unlockには理由が必要で、選んだ行をUnlockする'
+      );
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Core 第12.4節・第7.9.7節: 未取得の仕訳Currentは残す'
+      );
+      System.assertEquals(
+        true,
+        AccountingCurrentService.lastLoadExcludedIds.contains(unlockedJournal.Id),
+        'Core 第12.4節: 行ロックした仕訳はCurrent収集で取り直さない'
+      );
+      System.assertEquals(
+        false,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :unlockedJournal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: Unlock後は未Lock'
+      );
+      System.assertEquals(
+        true,
+        unlockedJournal.IsLocked__c,
+        '開発ルール第13節: 入口はSOQL行のLock状態を読む'
+      );
+    }
+  }
+
+  @IsTest
   static void lockJournalsForInvoice_staleToken_rejectsUnchangedLockState() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
