@@ -18,6 +18,19 @@ public without sharing class InvoiceCanonicalService {
   @TestVisible
   static Integer headerInvoiceSelectCount = 0;
 
+  /**
+   * 仕様: Core 第12.4節・第7.8節。
+   * 分割・移動が触った請求・明細。保存後返却は取り直さない。
+   */
+  public class SplitPreviewTouch {
+    public Map<Id, Invoice__c> invoicesById = new Map<Id, Invoice__c>();
+    public Map<Id, List<InvoiceLine__c>> linesByInvoiceId = new Map<Id, List<InvoiceLine__c>>();
+    public Set<Id> deletedInvoiceIds = new Set<Id>();
+    public Set<Id> deletedLineIds = new Set<Id>();
+  }
+
+  private static SplitPreviewTouch splitPreviewTouch;
+
   public static final String SPLIT_AMOUNT_CONSERVE_MESSAGE = '分割後の金額合計が元の明細金額と一致しません。';
 
   /** 仕様: Core 第7.6節、第4.4.3節、Accounting 第3.2節 */
@@ -25,6 +38,72 @@ public without sharing class InvoiceCanonicalService {
   private static final String EXISTING_BASIS_LOCKED_MESSAGE = '既存請求明細の売上計上基準は変更できません。';
 
   public class InvoiceEditException extends Exception {
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。保存後返却が分割・移動で触った請求・明細を取り直さない。 */
+  public static SplitPreviewTouch takeSplitPreviewTouch() {
+    SplitPreviewTouch touch = splitPreviewTouch;
+    splitPreviewTouch = null;
+    return touch == null ? new SplitPreviewTouch() : touch;
+  }
+
+  private static void beginSplitPreviewTouch() {
+    splitPreviewTouch = new SplitPreviewTouch();
+  }
+
+  private static void rememberSplitPreviewInvoice(Invoice__c invoice) {
+    if (splitPreviewTouch == null || invoice == null || invoice.Id == null) {
+      return;
+    }
+    splitPreviewTouch.invoicesById.put(invoice.Id, invoice);
+  }
+
+  private static void rememberSplitPreviewLines(
+    Id invoiceId,
+    List<InvoiceLine__c> lines
+  ) {
+    if (splitPreviewTouch == null || invoiceId == null || lines == null) {
+      return;
+    }
+    Map<Id, InvoiceLine__c> byId = new Map<Id, InvoiceLine__c>();
+    List<InvoiceLine__c> existing = splitPreviewTouch.linesByInvoiceId.get(
+      invoiceId
+    );
+    if (existing != null) {
+      for (InvoiceLine__c line : existing) {
+        if (line != null && line.Id != null) {
+          byId.put(line.Id, line);
+        }
+      }
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line != null && line.Id != null) {
+        byId.put(line.Id, line);
+      }
+    }
+    splitPreviewTouch.linesByInvoiceId.put(invoiceId, byId.values());
+  }
+
+  private static void rememberSplitPreviewDeletedInvoice(Id invoiceId) {
+    if (splitPreviewTouch == null || invoiceId == null) {
+      return;
+    }
+    splitPreviewTouch.deletedInvoiceIds.add(invoiceId);
+    splitPreviewTouch.invoicesById.remove(invoiceId);
+    splitPreviewTouch.linesByInvoiceId.remove(invoiceId);
+  }
+
+  private static void rememberSplitPreviewDeletedLines(
+    List<InvoiceLine__c> lines
+  ) {
+    if (splitPreviewTouch == null || lines == null) {
+      return;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line != null && line.Id != null) {
+        splitPreviewTouch.deletedLineIds.add(line.Id);
+      }
+    }
   }
 
   /** 仕様: Core 第11.9節、第4.6節、第1.1.10節。無い・空はエラー。HALF_UP 直書きへ落とさない。 */
@@ -1327,6 +1406,7 @@ public without sharing class InvoiceCanonicalService {
     Id invoiceId,
     List<SplitLineInput> splitLines
   ) {
+    beginSplitPreviewTouch();
     assertCanEditInvoicePreview();
     // 仕様: Core 第11.4.2節
     FieldCopyDefinitionService.validateAllDefinitions();
@@ -1372,7 +1452,11 @@ public without sharing class InvoiceCanonicalService {
           ContractProduct__c,
           ContractProduct__r.Product__c,
           ContractProduct__r.Unit__c,
-          ContractProduct__r.BillingType__c
+          ContractProduct__r.BillingType__c,
+          ContractProduct__r.Amount__c,
+          ContractProduct__r.ContractHistory__c,
+          ContractProduct__r.StartDate__c,
+          ContractProduct__r.Enddate__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :invoiceId
         WITH SYSTEM_MODE
@@ -1520,6 +1604,7 @@ public without sharing class InvoiceCanonicalService {
         createdLine.SourcePeriodLineIds__c
       );
       createdLine.ContractProduct__c = sourceLine.ContractProduct__c;
+      createdLine.ContractProduct__r = sourceLine.ContractProduct__r;
       if (sourceLine.ContractProduct__r != null) {
         createdLine.Product__c = sourceLine.ContractProduct__r.Product__c;
       } else {
@@ -1607,9 +1692,23 @@ public without sharing class InvoiceCanonicalService {
         syncInvoiceManualUmbrella(refreshed);
         SystemContextAccess.updateRecords(new List<Invoice__c>{ refreshed });
       }
+      captureInPlaceSplitPreview(
+        invoiceId,
+        refreshed,
+        sourceLineById,
+        newLines,
+        sourceDeletes
+      );
       return;
     }
     if (refreshed.IsAmountAdjusted__c == true) {
+      captureInPlaceSplitPreview(
+        invoiceId,
+        refreshed,
+        sourceLineById,
+        newLines,
+        sourceDeletes
+      );
       return;
     }
     SystemContextAccess.updateRecords(
@@ -1617,6 +1716,45 @@ public without sharing class InvoiceCanonicalService {
         new Invoice__c(Id = invoiceId, PeriodLineAmountTotal__c = amountTotal)
       }
     );
+    captureInPlaceSplitPreview(
+      invoiceId,
+      refreshed,
+      sourceLineById,
+      newLines,
+      sourceDeletes
+    );
+  }
+
+  private static void captureInPlaceSplitPreview(
+    Id invoiceId,
+    Invoice__c refreshed,
+    Map<Id, InvoiceLine__c> sourceLineById,
+    List<InvoiceLine__c> newLines,
+    List<InvoiceLine__c> sourceDeletes
+  ) {
+    rememberSplitPreviewInvoice(refreshed);
+    rememberSplitPreviewDeletedLines(sourceDeletes);
+    List<InvoiceLine__c> remain = new List<InvoiceLine__c>();
+    Set<Id> deletedIds = new Set<Id>();
+    if (sourceDeletes != null) {
+      for (InvoiceLine__c deleted : sourceDeletes) {
+        if (deleted != null && deleted.Id != null) {
+          deletedIds.add(deleted.Id);
+        }
+      }
+    }
+    if (sourceLineById != null) {
+      for (InvoiceLine__c line : sourceLineById.values()) {
+        if (line == null || line.Id == null || deletedIds.contains(line.Id)) {
+          continue;
+        }
+        remain.add(line);
+      }
+    }
+    if (newLines != null) {
+      remain.addAll(newLines);
+    }
+    rememberSplitPreviewLines(invoiceId, remain);
   }
 
   /**
@@ -1794,6 +1932,7 @@ public without sharing class InvoiceCanonicalService {
     Id targetInvoiceId,
     List<Id> lineIds
   ) {
+    beginSplitPreviewTouch();
     assertCanEditInvoicePreview();
     if (
       sourceInvoiceId == null ||
@@ -1878,6 +2017,11 @@ public without sharing class InvoiceCanonicalService {
         ContractProduct__c,
         ContractProduct__r.Product__c,
         ContractProduct__r.Unit__c,
+        ContractProduct__r.BillingType__c,
+        ContractProduct__r.Amount__c,
+        ContractProduct__r.ContractHistory__c,
+        ContractProduct__r.StartDate__c,
+        ContractProduct__r.Enddate__c,
         IsManuallyAdjusted__c,
         IsAmountAdjusted__c,
         IsSplitMoved__c
@@ -1918,6 +2062,7 @@ public without sharing class InvoiceCanonicalService {
       created.AcceptanceEndDate__c = sourceLine.AcceptanceEndDate__c;
       created.RevenueRecognitionBasis__c = sourceLine.RevenueRecognitionBasis__c;
       created.ContractProduct__c = sourceLine.ContractProduct__c;
+      created.ContractProduct__r = sourceLine.ContractProduct__r;
       if (sourceLine.ContractProduct__r != null) {
         created.Product__c = sourceLine.ContractProduct__r.Product__c;
       } else {
@@ -1987,6 +2132,8 @@ public without sharing class InvoiceCanonicalService {
     ];
     if (remainLines.isEmpty()) {
       SystemContextAccess.deleteRecords(new List<Invoice__c>{ source });
+      rememberSplitPreviewDeletedInvoice(sourceInvoiceId);
+      rememberSplitPreviewDeletedLines(sourceLines);
     } else {
       markInvoiceSplitMovedAndRecalc(sourceInvoiceId);
       Invoice__c sourceUpdate = new Invoice__c(
@@ -1996,7 +2143,20 @@ public without sharing class InvoiceCanonicalService {
       );
       SystemContextAccess.updateRecords(new List<Invoice__c>{ sourceUpdate });
       syncAmountAdjustedFlagFromPeriodGap(sourceInvoiceId);
+      source.PeriodLineAmountTotal__c = remainPeriodTotal;
+      source.MergeKey__c = null;
+      source.Amount__c = sourceAmountBefore - movedAmount;
+      source.IsSplitMoved__c = true;
+      rememberSplitPreviewInvoice(source);
+      rememberSplitPreviewDeletedLines(sourceLines);
     }
+    target.PeriodLineAmountTotal__c = targetPeriodTotalBefore + movedPeriodTotal;
+    target.MergeKey__c = null;
+    target.Amount__c = (target.Amount__c == null ? 0 : target.Amount__c) +
+      movedAmount;
+    target.IsSplitMoved__c = true;
+    rememberSplitPreviewInvoice(target);
+    rememberSplitPreviewLines(targetInvoiceId, createdLines);
   }
 
   /**
@@ -2085,6 +2245,7 @@ public without sharing class InvoiceCanonicalService {
     Boolean requireNewInvoiceDate,
     Boolean clearManualAdjustment
   ) {
+    beginSplitPreviewTouch();
     assertCanEditInvoicePreview();
     // 仕様: Core 第11.4.2節
     FieldCopyDefinitionService.validateAllDefinitions();
@@ -2166,6 +2327,11 @@ public without sharing class InvoiceCanonicalService {
         ContractProduct__c,
         ContractProduct__r.Product__c,
         ContractProduct__r.Unit__c,
+        ContractProduct__r.BillingType__c,
+        ContractProduct__r.Amount__c,
+        ContractProduct__r.ContractHistory__c,
+        ContractProduct__r.StartDate__c,
+        ContractProduct__r.Enddate__c,
         IsAmountAdjusted__c,
         IsSplitMoved__c,
         IsManuallyAdjusted__c
@@ -2254,6 +2420,7 @@ public without sharing class InvoiceCanonicalService {
         createdLine.SourcePeriodLineIds__c
       );
       createdLine.ContractProduct__c = sourceLine.ContractProduct__c;
+      createdLine.ContractProduct__r = sourceLine.ContractProduct__r;
       if (sourceLine.ContractProduct__r != null) {
         createdLine.Product__c = sourceLine.ContractProduct__r.Product__c;
       } else {
@@ -2394,6 +2561,8 @@ public without sharing class InvoiceCanonicalService {
     ];
     if (remainLines.isEmpty()) {
       SystemContextAccess.deleteRecords(new List<Invoice__c>{ source });
+      rememberSplitPreviewDeletedInvoice(sourceInvoiceId);
+      rememberSplitPreviewDeletedLines(sourceDeletes);
     } else {
       markInvoiceSplitMovedAndRecalc(sourceInvoiceId);
       // 仕様: 請求を分ける後は元・先とも MergeKey を破棄（突合の正は Id）
@@ -2404,7 +2573,16 @@ public without sharing class InvoiceCanonicalService {
       );
       SystemContextAccess.updateRecords(new List<Invoice__c>{ remainInvoice });
       syncAmountAdjustedFlagFromPeriodGap(sourceInvoiceId);
+      source.Amount__c = remainAmount;
+      source.PeriodLineAmountTotal__c = remainPeriodTotal;
+      source.MergeKey__c = null;
+      source.IsSplitMoved__c = true;
+      rememberSplitPreviewInvoice(source);
+      rememberSplitPreviewLines(sourceInvoiceId, sourceUpdates);
+      rememberSplitPreviewDeletedLines(sourceDeletes);
     }
+    rememberSplitPreviewInvoice(created);
+    rememberSplitPreviewLines(created.Id, newLines);
     return created.Id;
   }
 

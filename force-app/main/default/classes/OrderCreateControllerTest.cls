@@ -3709,6 +3709,351 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void splitLinesInPlace_doesNotRereadInvoicesOnReturn() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, UnitPrice__c, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      Decimal remainPrice = (line.UnitPrice__c / 2)
+        .setScale(2, System.RoundingMode.HALF_UP);
+      Decimal movePrice = line.UnitPrice__c - remainPrice;
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = remainPrice;
+      split.moveUnitPrice = movePrice;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      Test.startTest();
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitLinesInPlace(
+        context.history.Id,
+        invoice.Id,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token
+      );
+      Test.stopTest();
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
+        'Core 第12.4節・第7.8節: 分割した請求をgetInvoicePreviewで取り直さない'
+      );
+      Integer lineCount = 0;
+      Boolean splitMoved = false;
+      for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
+        if (groupRow.invoiceId != invoice.Id) {
+          continue;
+        }
+        splitMoved = groupRow.isSplitMoved == true;
+        lineCount += groupRow.lines == null ? 0 : groupRow.lines.size();
+      }
+      System.assertEquals(
+        true,
+        splitMoved,
+        'Core 第7.8節: 返却カードの分割済は変えない'
+      );
+      System.assert(
+        lineCount >= 2,
+        'Core 第7.8節: 返却カードの明細は変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void splitInvoiceByDate_doesNotRereadInvoicesOnReturn() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = (line.Amount__c / 2)
+        .setScale(0, System.RoundingMode.DOWN);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      OrderCreateController.InvoicePreviewDto beforePreview = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      String token = beforePreview.contentVersion;
+      Set<Id> beforeInvoiceIds = new Set<Id>();
+      for (OrderCreateController.InvoiceGroupDto groupRow : beforePreview.invoices) {
+        if (groupRow != null && groupRow.invoiceId != null) {
+          beforeInvoiceIds.add(groupRow.invoiceId);
+        }
+      }
+      Test.startTest();
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByDate(
+        context.history.Id,
+        source.Id,
+        Date.newInstance(2026, 9, 1),
+        Date.newInstance(2026, 9, 30),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token
+      );
+      Test.stopTest();
+      Id createdId;
+      for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
+        if (
+          groupRow != null &&
+          groupRow.invoiceId != null &&
+          !beforeInvoiceIds.contains(groupRow.invoiceId)
+        ) {
+          createdId = groupRow.invoiceId;
+          break;
+        }
+      }
+      System.assertNotEquals(null, createdId, 'Core 第7.8節: 新しい請求を返す');
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(source.Id),
+        'Core 第12.4節・第7.8節: 元請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(createdId),
+        'Core 第12.4節・第7.8節: 新請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assert(
+        preview.invoices.size() >= 2,
+        'Core 第7.8節: 返却カードの枚数は変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void splitInvoiceByBillingAccount_doesNotRereadInvoicesOnReturn() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      BillingAccount__c otherBa = ContractTestDataFactory.insertBillingAccount(
+        context.account.Id
+      );
+      Invoice__c source = [
+        SELECT Id, PaymentScheduledDate__c, InvoiceDate__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = 1;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      Test.startTest();
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByBillingAccount(
+        context.history.Id,
+        source.Id,
+        otherBa.Id,
+        source.InvoiceDate__c,
+        source.PaymentScheduledDate__c,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token
+      );
+      Test.stopTest();
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(source.Id),
+        'Core 第12.4節・第7.8節: 元請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assert(
+        preview.invoiceCount >= 2,
+        'Core 第7.8節: 返却カードの枚数は変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void moveLinesToExistingInvoice_doesNotRereadInvoicesOnReturn() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        ORDER BY InvoiceDate__c ASC
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = (line.Amount__c / 2)
+        .setScale(0, System.RoundingMode.DOWN);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      OrderCreateController.InvoicePreviewDto afterSplit = OrderCreateController.splitInvoiceByDate(
+        context.history.Id,
+        source.Id,
+        Date.newInstance(2026, 9, 1),
+        Date.newInstance(2026, 9, 30),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token
+      );
+      Id createdId;
+      Id createdLineId;
+      String sourceToken;
+      String createdToken;
+      for (OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices) {
+        if (groupRow.invoiceId == source.Id) {
+          sourceToken = groupRow.lastModifiedToken;
+          continue;
+        }
+        if (
+          groupRow.invoiceDate == '2026-09-01' ||
+          groupRow.invoiceDate == '2026/09/01'
+        ) {
+          createdId = groupRow.invoiceId;
+          createdLineId = groupRow.lines[0].lineId;
+          createdToken = groupRow.lastModifiedToken;
+        }
+      }
+      if (createdId == null) {
+        for (OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices) {
+          if (groupRow.invoiceId != source.Id) {
+            createdId = groupRow.invoiceId;
+            createdLineId = groupRow.lines[0].lineId;
+            createdToken = groupRow.lastModifiedToken;
+            break;
+          }
+        }
+      }
+      Test.startTest();
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.moveLinesToExistingInvoice(
+        context.history.Id,
+        createdId,
+        source.Id,
+        new List<Id>{ createdLineId },
+        createdToken,
+        sourceToken,
+        null
+      );
+      Test.stopTest();
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(source.Id),
+        'Core 第12.4節・第7.8節: 移動先請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(createdId),
+        'Core 第12.4節・第7.8節: 移動元請求をgetInvoicePreviewで取り直さない'
+      );
+      Boolean sourceExists = false;
+      for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
+        if (groupRow.invoiceId == source.Id) {
+          sourceExists = true;
+        }
+      }
+      System.assertEquals(
+        true,
+        sourceExists,
+        'Core 第7.8節: 返却カードの移動先は変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void splitLinesInPlace_sameKeyRetry_doesNotRereadWhenCached() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, UnitPrice__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      Decimal remainPrice = (line.UnitPrice__c / 2)
+        .setScale(2, System.RoundingMode.HALF_UP);
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = remainPrice;
+      split.moveUnitPrice = line.UnitPrice__c - remainPrice;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      String operationKey = 'split-in-place-retry-key';
+      OrderCreateController.splitLinesInPlace(
+        context.history.Id,
+        invoice.Id,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token,
+        operationKey
+      );
+      Test.startTest();
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.InvoicePreviewDto retry = OrderCreateController.splitLinesInPlace(
+        context.history.Id,
+        invoice.Id,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token,
+        operationKey
+      );
+      Test.stopTest();
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
+        'Core 第12.4節・第7.8節: 冪等済み返却も対象請求を取り直さない'
+      );
+      System.assertNotEquals(null, retry);
+      System.assert(
+        retry.invoices != null && !retry.invoices.isEmpty(),
+        'Core 第7.8節: 返却カードは変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void resetLatestVersionInvoicesToPostOrder_clearsManualAdjustment() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();

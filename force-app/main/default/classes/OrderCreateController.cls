@@ -24,6 +24,9 @@ public without sharing class OrderCreateController {
   public static Integer renewProductSelectCount = 0;
   @TestVisible
   public static Integer previewInvoiceSelectCount = 0;
+  /** 仕様: Core 第12.4節。返却カードが取り直した請求Id。分割・移動の対象は含めない。 */
+  @TestVisible
+  public static Set<Id> lastPreviewInvoiceSelectIds = new Set<Id>();
   /** 仕様: Core 第12.4節。開く取得の手直し集計が期間明細を取り直した回数。 */
   @TestVisible
   public static Integer previewPeriodSelectCount = 0;
@@ -40,6 +43,7 @@ public without sharing class OrderCreateController {
   public static Set<Id> lastPreviewOrderedHistoryQueryIds = new Set<Id>();
   private static List<InvoiceLine__c> loadedDraftLines;
   private static Map<Id, List<Invoice__c>> previewInvoicesByServiceId = new Map<Id, List<Invoice__c>>();
+  private static Map<Id, Datetime> previewInvoiceModifiedOverride = new Map<Id, Datetime>();
   private static Map<Id, ScopedEstimateSummary> previewEstimateSummaryByServiceId = new Map<Id, ScopedEstimateSummary>();
 
   public class OrderContextDto {
@@ -1215,6 +1219,7 @@ public without sharing class OrderCreateController {
     } catch (ContractDocumentSettingService.SettingException ex) {
       throw toAuraHandled(ex.getMessage());
     }
+    previewInvoiceModifiedOverride = new Map<Id, Datetime>();
     return preview;
   }
 
@@ -1632,10 +1637,12 @@ public without sharing class OrderCreateController {
     beginInvoicePreviewWriteDefer();
     try {
     List<Id> invoiceIds = new List<Id>{ sourceInvoiceId };
+    List<Id> splitLineIds = lineIdsOf(splitLines);
+    invoiceIdsOfLines(splitLineIds);
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
       invoiceIds,
-      lineIdsOf(splitLines),
+      splitLineIds,
       tokensForSingleOrShared(invoiceIds, expectedContentVersion),
       businessOperationKey
     );
@@ -1646,7 +1653,7 @@ public without sharing class OrderCreateController {
         'Invoice__c',
         String.valueOf(sourceInvoiceId)
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     }
     try {
       Id createdId = InvoiceCanonicalService.splitInvoiceByDate(
@@ -1669,7 +1676,7 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     } finally {
       endInvoicePreviewWriteDefer();
     }
@@ -1712,10 +1719,12 @@ public without sharing class OrderCreateController {
     beginInvoicePreviewWriteDefer();
     try {
     List<Id> invoiceIds = new List<Id>{ sourceInvoiceId };
+    List<Id> splitLineIds = lineIdsOf(splitLines);
+    invoiceIdsOfLines(splitLineIds);
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
       invoiceIds,
-      lineIdsOf(splitLines),
+      splitLineIds,
       tokensForSingleOrShared(invoiceIds, expectedContentVersion),
       businessOperationKey
     );
@@ -1726,7 +1735,7 @@ public without sharing class OrderCreateController {
         'Invoice__c',
         String.valueOf(sourceInvoiceId)
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     }
     try {
       Id createdId = InvoiceCanonicalService.splitInvoiceByBillingAccount(
@@ -1750,7 +1759,7 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     } finally {
       endInvoicePreviewWriteDefer();
     }
@@ -1793,6 +1802,7 @@ public without sharing class OrderCreateController {
     Map<Id, String> tokens = new Map<Id, String>();
     tokens.put(sourceInvoiceId, expectedContentVersion);
     tokens.put(targetInvoiceId, expectedTargetContentVersion);
+    invoiceIdsOfLines(lineIds);
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
       invoiceIds,
@@ -1807,7 +1817,7 @@ public without sharing class OrderCreateController {
         'Invoice__c',
         String.valueOf(sourceInvoiceId)
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     }
     try {
       InvoiceCanonicalService.moveLinesToExistingInvoice(
@@ -1829,7 +1839,7 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     } finally {
       endInvoicePreviewWriteDefer();
     }
@@ -1864,10 +1874,12 @@ public without sharing class OrderCreateController {
     beginInvoicePreviewWriteDefer();
     try {
     List<Id> invoiceIds = new List<Id>{ invoiceId };
+    List<Id> splitLineIds = lineIdsOf(splitLines);
+    invoiceIdsOfLines(splitLineIds);
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
       invoiceIds,
-      lineIdsOf(splitLines),
+      splitLineIds,
       tokensForSingleOrShared(invoiceIds, expectedContentVersion),
       businessOperationKey
     );
@@ -1878,7 +1890,7 @@ public without sharing class OrderCreateController {
         'Invoice__c',
         String.valueOf(invoiceId)
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     }
     try {
       InvoiceCanonicalService.splitLinesInPlace(invoiceId, splitLines);
@@ -1892,7 +1904,7 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     } finally {
       endInvoicePreviewWriteDefer();
     }
@@ -3366,6 +3378,24 @@ public without sharing class OrderCreateController {
         Invoice__c,
         IsAmountAdjusted__c,
         IsSplitMoved__c,
+        IsManuallyAdjusted__c,
+        LineMergeKey__c,
+        ProductName__c,
+        HistoryVersionLabel__c,
+        Unit__c,
+        UnitPrice__c,
+        Quantity__c,
+        PeriodLabel__c,
+        SourcePeriodLineIds__c,
+        AcceptanceEndDate__c,
+        RevenueRecognitionBasis__c,
+        ContractProduct__c,
+        ContractProduct__r.Amount__c,
+        ContractProduct__r.Unit__c,
+        ContractProduct__r.BillingType__c,
+        ContractProduct__r.ContractHistory__c,
+        ContractProduct__r.StartDate__c,
+        ContractProduct__r.Enddate__c,
         Invoice__r.ContractHistory__c,
         Invoice__r.ContractService__c
       FROM InvoiceLine__c
@@ -3580,6 +3610,420 @@ public without sharing class OrderCreateController {
   }
 
   /**
+   * 仕様: Core 第12.4節・第7.8節・第7.8.1節。
+   * 分割・移動の成功後返却は、ロック・分割で読んだ請求・明細を取り直さない。
+   */
+  private static InvoicePreviewDto returnPreviewAfterSplitWrite(
+    Id contractHistoryId,
+    DraftEditPreparation prep
+  ) {
+    rememberPreviewInvoicesAfterSplitWrite(contractHistoryId, prep);
+    return getInvoicePreview(contractHistoryId);
+  }
+
+  /**
+   * 仕様: Core 第12.4節。対象請求・明細はメモリ行を渡し、未照会の兄弟だけSELECTする。
+   */
+  private static void rememberPreviewInvoicesAfterSplitWrite(
+    Id contractHistoryId,
+    DraftEditPreparation prep
+  ) {
+    InvoiceCanonicalService.SplitPreviewTouch touch = InvoiceCanonicalService.takeSplitPreviewTouch();
+    Boolean hasTouch =
+      touch != null &&
+      (!touch.invoicesById.isEmpty() || !touch.deletedInvoiceIds.isEmpty());
+    if (!hasTouch) {
+      return;
+    }
+    Id contractServiceId = resolveContractServiceId(contractHistoryId);
+    if (contractServiceId == null) {
+      return;
+    }
+    Map<Id, Invoice__c> byId = new Map<Id, Invoice__c>();
+    if (prep != null && prep.lockedInvoices != null) {
+      for (Invoice__c locked : prep.lockedInvoices.values()) {
+        if (locked == null || locked.Id == null) {
+          continue;
+        }
+        if (touch.deletedInvoiceIds.contains(locked.Id)) {
+          continue;
+        }
+        byId.put(locked.Id, locked.clone(true, true, true, true));
+      }
+    }
+    for (Invoice__c touched : touch.invoicesById.values()) {
+      if (touched == null || touched.Id == null) {
+        continue;
+      }
+      if (touch.deletedInvoiceIds.contains(touched.Id)) {
+        continue;
+      }
+      Invoice__c target = byId.get(touched.Id);
+      if (target == null) {
+        target = touched.clone(true, true, true, true);
+        Invoice__c template = firstLockedWithParents(prep);
+        copyPreviewParents(template, target);
+        byId.put(touched.Id, target);
+      } else {
+        copyPopulatedInvoiceFields(touched, target);
+      }
+    }
+    Map<Id, Map<Id, InvoiceLine__c>> linesByInvoice = new Map<Id, Map<Id, InvoiceLine__c>>();
+    if (prep != null && prep.knownLines != null) {
+      for (InvoiceLine__c line : prep.knownLines) {
+        putPreviewLine(linesByInvoice, line, touch.deletedLineIds, null);
+      }
+    }
+    for (Id invoiceId : touch.linesByInvoiceId.keySet()) {
+      List<InvoiceLine__c> touchedLines = touch.linesByInvoiceId.get(invoiceId);
+      if (touchedLines == null) {
+        continue;
+      }
+      for (InvoiceLine__c line : touchedLines) {
+        putPreviewLine(linesByInvoice, line, touch.deletedLineIds, invoiceId);
+      }
+    }
+    Set<Id> assembledIds = new Set<Id>(byId.keySet());
+    assembledIds.addAll(touch.deletedInvoiceIds);
+    List<Invoice__c> siblings = queryPreviewInvoiceRows(
+      contractServiceId,
+      assembledIds
+    );
+    for (Invoice__c sibling : siblings) {
+      if (sibling != null && sibling.Id != null) {
+        byId.put(sibling.Id, sibling);
+      }
+    }
+    Set<Id> needLineInvoiceIds = new Set<Id>();
+    Set<Id> knownLineIds = new Set<Id>();
+    for (Map<Id, InvoiceLine__c> lineMap : linesByInvoice.values()) {
+      if (lineMap != null) {
+        knownLineIds.addAll(lineMap.keySet());
+      }
+    }
+    for (Invoice__c invoice : byId.values()) {
+      if (
+        invoice == null ||
+        invoice.Id == null ||
+        invoice.getPopulatedFieldsAsMap().containsKey('InvoiceLines__r')
+      ) {
+        continue;
+      }
+      needLineInvoiceIds.add(invoice.Id);
+    }
+    if (!needLineInvoiceIds.isEmpty()) {
+      loadMissingPreviewLines(
+        needLineInvoiceIds,
+        knownLineIds,
+        linesByInvoice
+      );
+    }
+    List<Invoice__c> assembled = new List<Invoice__c>();
+    for (Invoice__c invoice : byId.values()) {
+      Map<Id, InvoiceLine__c> lineMap = linesByInvoice.get(invoice.Id);
+      if (
+        lineMap != null &&
+        !invoice.getPopulatedFieldsAsMap().containsKey('InvoiceLines__r')
+      ) {
+        invoice = invoiceWithChildLines(invoice, lineMap.values());
+        byId.put(invoice.Id, invoice);
+      }
+      assembled.add(invoice);
+    }
+    assembled.sort(new PreviewInvoiceReturnComparator());
+    refreshPreviewInvoiceModifiedDates(assembled);
+    previewInvoicesByServiceId.put(contractServiceId, assembled);
+    rememberPreviewLineProducts(assembled);
+  }
+
+  private static void loadMissingPreviewLines(
+    Set<Id> invoiceIds,
+    Set<Id> knownLineIds,
+    Map<Id, Map<Id, InvoiceLine__c>> linesByInvoice
+  ) {
+    if (invoiceIds == null || invoiceIds.isEmpty()) {
+      return;
+    }
+    Set<Id> compactKnown = knownLineIds == null ? new Set<Id>() : knownLineIds;
+    List<InvoiceLine__c> rows;
+    if (compactKnown.isEmpty()) {
+      rows = [
+        SELECT
+          Id,
+          Amount__c,
+          Invoice__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
+          IsManuallyAdjusted__c,
+          LineMergeKey__c,
+          ProductName__c,
+          HistoryVersionLabel__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          PeriodLabel__c,
+          SourcePeriodLineIds__c,
+          AcceptanceEndDate__c,
+          RevenueRecognitionBasis__c,
+          ContractProduct__c,
+          ContractProduct__r.Amount__c,
+          ContractProduct__r.Unit__c,
+          ContractProduct__r.BillingType__c,
+          ContractProduct__r.ContractHistory__c,
+          ContractProduct__r.StartDate__c,
+          ContractProduct__r.Enddate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c IN :invoiceIds
+        WITH SYSTEM_MODE
+      ];
+    } else {
+      rows = [
+        SELECT
+          Id,
+          Amount__c,
+          Invoice__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
+          IsManuallyAdjusted__c,
+          LineMergeKey__c,
+          ProductName__c,
+          HistoryVersionLabel__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          PeriodLabel__c,
+          SourcePeriodLineIds__c,
+          AcceptanceEndDate__c,
+          RevenueRecognitionBasis__c,
+          ContractProduct__c,
+          ContractProduct__r.Amount__c,
+          ContractProduct__r.Unit__c,
+          ContractProduct__r.BillingType__c,
+          ContractProduct__r.ContractHistory__c,
+          ContractProduct__r.StartDate__c,
+          ContractProduct__r.Enddate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c IN :invoiceIds AND Id NOT IN :compactKnown
+        WITH SYSTEM_MODE
+      ];
+    }
+    for (InvoiceLine__c line : rows) {
+      putPreviewLine(linesByInvoice, line, null, null);
+    }
+  }
+
+  private static Invoice__c firstLockedWithParents(DraftEditPreparation prep) {
+    if (prep == null || prep.lockedInvoices == null) {
+      return null;
+    }
+    for (Invoice__c locked : prep.lockedInvoices.values()) {
+      if (locked != null) {
+        return locked;
+      }
+    }
+    return null;
+  }
+
+  private static void putPreviewLine(
+    Map<Id, Map<Id, InvoiceLine__c>> linesByInvoice,
+    InvoiceLine__c line,
+    Set<Id> deletedLineIds,
+    Id fallbackInvoiceId
+  ) {
+    if (line == null || line.Id == null) {
+      return;
+    }
+    Id invoiceId = fallbackInvoiceId;
+    if (line.getPopulatedFieldsAsMap().containsKey('Invoice__c')) {
+      invoiceId = line.Invoice__c;
+    }
+    if (invoiceId == null) {
+      return;
+    }
+    if (deletedLineIds != null && deletedLineIds.contains(line.Id)) {
+      return;
+    }
+    Map<Id, InvoiceLine__c> byId = linesByInvoice.get(invoiceId);
+    if (byId == null) {
+      byId = new Map<Id, InvoiceLine__c>();
+      linesByInvoice.put(invoiceId, byId);
+    }
+    InvoiceLine__c existing = byId.get(line.Id);
+    if (existing == null) {
+      byId.put(line.Id, line);
+      return;
+    }
+    copyPopulatedLineFields(line, existing);
+  }
+
+  private static void copyPopulatedInvoiceFields(
+    Invoice__c fromRecord,
+    Invoice__c toRecord
+  ) {
+    if (fromRecord == null || toRecord == null) {
+      return;
+    }
+    Map<String, Object> populated = fromRecord.getPopulatedFieldsAsMap();
+    for (String fieldName : populated.keySet()) {
+      if (
+        fieldName == 'Id' ||
+        fieldName.endsWith('__r') ||
+        fieldName == 'InvoiceLines__r'
+      ) {
+        continue;
+      }
+      try {
+        toRecord.put(fieldName, populated.get(fieldName));
+      } catch (SObjectException ignore) {
+      }
+    }
+    copyPreviewParents(fromRecord, toRecord);
+  }
+
+  private static void copyPopulatedLineFields(
+    InvoiceLine__c fromRecord,
+    InvoiceLine__c toRecord
+  ) {
+    if (fromRecord == null || toRecord == null) {
+      return;
+    }
+    Map<String, Object> populated = fromRecord.getPopulatedFieldsAsMap();
+    for (String fieldName : populated.keySet()) {
+      if (fieldName == 'Id' || fieldName.endsWith('__r')) {
+        continue;
+      }
+      try {
+        toRecord.put(fieldName, populated.get(fieldName));
+      } catch (SObjectException ignore) {
+      }
+    }
+    Map<String, Object> fromPopulated = fromRecord.getPopulatedFieldsAsMap();
+    Map<String, Object> toPopulated = toRecord.getPopulatedFieldsAsMap();
+    if (
+      fromPopulated.containsKey('ContractProduct__r') &&
+      !toPopulated.containsKey('ContractProduct__r')
+    ) {
+      toRecord.ContractProduct__r = (ContractProduct__c) fromPopulated.get(
+        'ContractProduct__r'
+      );
+    }
+  }
+
+  private static void copyPreviewParents(
+    Invoice__c fromRecord,
+    Invoice__c toRecord
+  ) {
+    if (fromRecord == null || toRecord == null) {
+      return;
+    }
+    Map<String, Object> fromPopulated = fromRecord.getPopulatedFieldsAsMap();
+    Map<String, Object> toPopulated = toRecord.getPopulatedFieldsAsMap();
+    if (
+      fromPopulated.containsKey('ContractHistory__r') &&
+      !toPopulated.containsKey('ContractHistory__r')
+    ) {
+      toRecord.ContractHistory__r = (ContractHistory__c) fromPopulated.get(
+        'ContractHistory__r'
+      );
+    }
+    if (
+      fromPopulated.containsKey('ContractService__r') &&
+      !toPopulated.containsKey('ContractService__r')
+    ) {
+      toRecord.ContractService__r = (ContractService__c) fromPopulated.get(
+        'ContractService__r'
+      );
+    }
+    if (
+      fromPopulated.containsKey('BillingAccountSnapShot__r') &&
+      !toPopulated.containsKey('BillingAccountSnapShot__r')
+    ) {
+      toRecord.BillingAccountSnapShot__r = (BillingAccount__c) fromPopulated.get(
+        'BillingAccountSnapShot__r'
+      );
+    }
+  }
+
+  private static void refreshPreviewInvoiceModifiedDates(
+    List<Invoice__c> invoices
+  ) {
+    Set<Id> ids = new Set<Id>();
+    if (invoices == null) {
+      return;
+    }
+    for (Invoice__c invoice : invoices) {
+      if (invoice != null && invoice.Id != null) {
+        ids.add(invoice.Id);
+      }
+    }
+    if (ids.isEmpty()) {
+      return;
+    }
+    Map<Id, Datetime> modified = new Map<Id, Datetime>();
+    for (Invoice__c row : [
+      SELECT Id, LastModifiedDate
+      FROM Invoice__c
+      WHERE Id IN :ids
+      WITH SYSTEM_MODE
+    ]) {
+      modified.put(row.Id, row.LastModifiedDate);
+    }
+    previewInvoiceModifiedOverride.putAll(modified);
+  }
+
+  private static Invoice__c invoiceWithChildLines(
+    Invoice__c invoice,
+    List<InvoiceLine__c> lines
+  ) {
+    Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(
+      JSON.serialize(invoice)
+    );
+    List<Object> records = new List<Object>();
+    if (lines != null) {
+      for (InvoiceLine__c line : lines) {
+        records.add(JSON.deserializeUntyped(JSON.serialize(line)));
+      }
+    }
+    root.put(
+      'InvoiceLines__r',
+      new Map<String, Object>{
+        'totalSize' => records.size(),
+        'done' => true,
+        'records' => records
+      }
+    );
+    return (Invoice__c) JSON.deserialize(JSON.serialize(root), Invoice__c.class);
+  }
+
+  private class PreviewInvoiceReturnComparator implements Comparator<Invoice__c> {
+    public Integer compare(Invoice__c left, Invoice__c right) {
+      Date leftDate = left == null ? null : left.InvoiceDate__c;
+      Date rightDate = right == null ? null : right.InvoiceDate__c;
+      if (leftDate == null && rightDate != null) {
+        return 1;
+      }
+      if (leftDate != null && rightDate == null) {
+        return -1;
+      }
+      if (leftDate != null && rightDate != null && leftDate != rightDate) {
+        return leftDate < rightDate ? -1 : 1;
+      }
+      Datetime leftCreated = left == null ? null : left.CreatedDate;
+      Datetime rightCreated = right == null ? null : right.CreatedDate;
+      if (leftCreated == null && rightCreated != null) {
+        return 1;
+      }
+      if (leftCreated != null && rightCreated == null) {
+        return -1;
+      }
+      if (leftCreated != null && rightCreated != null && leftCreated != rightCreated) {
+        return leftCreated < rightCreated ? -1 : 1;
+      }
+      return 0;
+    }
+  }
+
+  /**
    * 仕様: Core 第7.7.0節・第12.4節。
    * 返却カードの請求・明細と追加項目定義は1回の照会。同一処理で取り直さない。
    */
@@ -3591,6 +4035,42 @@ public without sharing class OrderCreateController {
       List<Invoice__c> cached = previewInvoicesByServiceId.get(contractServiceId);
       rememberPreviewLineProducts(cached);
       return cached;
+    }
+    List<Invoice__c> invoices = queryPreviewInvoiceRows(contractServiceId, null);
+    previewInvoicesByServiceId.put(contractServiceId, invoices);
+    rememberPreviewLineProducts(invoices);
+    return invoices;
+  }
+
+  private static List<Invoice__c> queryPreviewInvoiceRows(
+    Id contractServiceId,
+    Set<Id> excludeIds
+  ) {
+    if (contractServiceId == null) {
+      lastPreviewInvoiceSelectIds = new Set<Id>();
+      return new List<Invoice__c>();
+    }
+    Set<Id> compactExclude = new Set<Id>();
+    if (excludeIds != null) {
+      for (Id invoiceId : excludeIds) {
+        if (invoiceId != null) {
+          compactExclude.add(invoiceId);
+        }
+      }
+    }
+    if (compactExclude.size() > 0) {
+      Integer remaining = [
+        SELECT COUNT()
+        FROM Invoice__c
+        WHERE
+          ContractService__c = :contractServiceId
+          AND Id NOT IN :compactExclude
+        WITH SYSTEM_MODE
+      ];
+      if (remaining == 0) {
+        lastPreviewInvoiceSelectIds = new Set<Id>();
+        return new List<Invoice__c>();
+      }
     }
     Set<String> selectFields = new Set<String>{
       'Id',
@@ -3614,6 +4094,7 @@ public without sharing class OrderCreateController {
       'SystemIntegrationDate__c',
       'PaymentClearingCompletedDate__c',
       'LastModifiedDate',
+      'CreatedDate',
       'IsManuallyAdjusted__c',
       'IsAmountAdjusted__c',
       'IsSplitMoved__c',
@@ -3632,14 +4113,21 @@ public without sharing class OrderCreateController {
     };
     selectFields.addAll(InvoiceOpsFieldService.fieldApiNames('Invoice__c'));
     previewInvoiceSelectCount++;
+    String excludeClause = compactExclude.isEmpty()
+      ? ''
+      : ' AND Id NOT IN :compactExclude';
     String soql =
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +
       ', (SELECT Id, LineMergeKey__c, ProductName__c, HistoryVersionLabel__c, Unit__c, UnitPrice__c, Quantity__c, PeriodLabel__c, Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c, SourcePeriodLineIds__c, Invoice__c, AcceptanceEndDate__c, RevenueRecognitionBasis__c, ContractProduct__c, ContractProduct__r.Amount__c, ContractProduct__r.Unit__c, ContractProduct__r.BillingType__c, ContractProduct__r.ContractHistory__c, ContractProduct__r.StartDate__c, ContractProduct__r.Enddate__c FROM InvoiceLines__r ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC)' +
-      ' FROM Invoice__c WHERE ContractService__c = :contractServiceId WITH SYSTEM_MODE ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC';
+      ' FROM Invoice__c WHERE ContractService__c = :contractServiceId' +
+      excludeClause +
+      ' WITH SYSTEM_MODE ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC';
     List<Invoice__c> invoices = (List<Invoice__c>) Database.query(soql);
-    previewInvoicesByServiceId.put(contractServiceId, invoices);
-    rememberPreviewLineProducts(invoices);
+    lastPreviewInvoiceSelectIds = new Set<Id>();
+    for (Invoice__c invoiceRecord : invoices) {
+      lastPreviewInvoiceSelectIds.add(invoiceRecord.Id);
+    }
     return invoices;
   }
 
@@ -3696,7 +4184,14 @@ public without sharing class OrderCreateController {
     Map<Id, Datetime> knownModified = new Map<Id, Datetime>();
     for (Invoice__c invoiceRecord : invoices) {
       previewInvoiceIds.add(invoiceRecord.Id);
-      knownModified.put(invoiceRecord.Id, invoiceRecord.LastModifiedDate);
+      Datetime modified = previewInvoiceModifiedOverride.containsKey(
+          invoiceRecord.Id
+        )
+        ? previewInvoiceModifiedOverride.get(invoiceRecord.Id)
+        : invoiceRecord.LastModifiedDate;
+      if (modified != null) {
+        knownModified.put(invoiceRecord.Id, modified);
+      }
     }
     try {
       InvoicePreviewIntegrityService.assertSameHistory(null, invoices);

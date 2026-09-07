@@ -126,13 +126,25 @@ public without sharing class AccountingCauseLockService {
       'IsSplitMoved__c',
       'IsManuallyAdjusted__c',
       'LastModifiedDate',
+      'Name',
+      'CreatedDate',
+      'DueStatus__c',
+      'OverdueDays__c',
+      'Memo__c',
+      'SentDate__c',
+      'PaymentInclusiveTotal__c',
+      'PeriodLineAmountTotal__c',
+      'PaymentTermMethodSnapShot__c',
       'ContractHistory__r.Version__c',
       'ContractHistory__r.ContractService__c',
       'ContractHistory__r.ContractService__r.TaxPercent__c',
-      'ContractService__r.TaxPercent__c'
+      'ContractService__r.TaxPercent__c',
+      'ContractService__r.Name',
+      'BillingAccountSnapShot__r.Name'
     };
     // 仕様: Accounting 第8.2節、Core 第11.4.2節・第12.4節。コピーFromはロック行に載せ、Goal/Diffで取り直さない。定義は FieldCopyDefinition__c 1本。同一処理で取り直さない。
     fieldSet.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
+    fieldSet.addAll(InvoiceOpsFieldService.fieldApiNames('Invoice__c'));
     // 仕様: Core 第12.4節・第11.4.2節・第7.9.3節。訂正cloneの関連Fromはロック行に載せ、同じ請求を取り直さない。
     InvoiceCancelService.addCorrectionCloneSelectFields(fieldSet);
     List<Invoice__c> invoices = Database.query(
