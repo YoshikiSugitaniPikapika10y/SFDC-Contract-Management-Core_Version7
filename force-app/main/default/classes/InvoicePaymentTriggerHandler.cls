@@ -73,6 +73,9 @@ public without sharing class InvoicePaymentTriggerHandler {
   /** 仕様: Core 第8.6節、第8.9節。画面以外の全経路でも Invoice 目的は割当1件以上。 */
   public static void handleAfterInsert(List<InvoicePayment__c> payments) {
     assertInvoiceAllocations(payments);
+    if (InvoicePaymentService.skipTriggerNetRecalc == true) {
+      return;
+    }
     InvoicePaymentService.recalculateNets(collectInvoiceIds(payments));
   }
 
@@ -80,12 +83,18 @@ public without sharing class InvoicePaymentTriggerHandler {
     List<InvoicePayment__c> payments,
     Map<Id, InvoicePayment__c> oldMap
   ) {
+    if (InvoicePaymentService.skipTriggerNetRecalc == true) {
+      return;
+    }
     Set<Id> invoiceIds = collectInvoiceIds(payments);
     invoiceIds.addAll(collectInvoiceIds(oldMap == null ? null : oldMap.values()));
     InvoicePaymentService.recalculateNets(invoiceIds);
   }
 
   public static void handleAfterDelete(List<InvoicePayment__c> payments) {
+    if (InvoicePaymentService.skipTriggerNetRecalc == true) {
+      return;
+    }
     InvoicePaymentService.recalculateNets(collectInvoiceIds(payments));
   }
 

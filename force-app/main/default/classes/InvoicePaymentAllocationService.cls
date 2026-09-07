@@ -10,6 +10,8 @@ public without sharing class InvoicePaymentAllocationService {
   }
 
   public static Boolean allowHistoricalAmountWrite;
+  @TestVisible
+  static Integer allocationReverseSelectCount = 0;
 
   public static final String HISTORICAL_AMOUNT_EDIT_MESSAGE =
     '過去日UAC／SP振替額は利用者が直接編集できません。';
@@ -209,12 +211,25 @@ public without sharing class InvoicePaymentAllocationService {
 
   /** 仕様: Core 第8.1節、Accounting 第4.4節、第8.4節。取消時は再按分せず、同じ明細へ反対符号を載せる。 */
   public static void reverseAllocations(Id originalPaymentId, Id reversalPaymentId) {
-    List<InvoicePaymentAllocation__c> originals = [
-      SELECT InvoiceLine__c, Amount__c, HistoricalUacAmount__c, HistoricalSpAmount__c
-      FROM InvoicePaymentAllocation__c
-      WHERE InvoicePayment__c = :originalPaymentId
-      WITH SYSTEM_MODE
-    ];
+    reverseAllocations(originalPaymentId, reversalPaymentId, null);
+  }
+
+  /** 仕様: Accounting 第8.2節。同一処理で読んだ元割当は取り直さない。 */
+  public static void reverseAllocations(
+    Id originalPaymentId,
+    Id reversalPaymentId,
+    List<InvoicePaymentAllocation__c> knownOriginals
+  ) {
+    List<InvoicePaymentAllocation__c> originals = knownOriginals;
+    if (originals == null) {
+      allocationReverseSelectCount++;
+      originals = [
+        SELECT InvoiceLine__c, Amount__c, HistoricalUacAmount__c, HistoricalSpAmount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoicePayment__c = :originalPaymentId
+        WITH SYSTEM_MODE
+      ];
+    }
     if (originals.isEmpty()) {
       return;
     }

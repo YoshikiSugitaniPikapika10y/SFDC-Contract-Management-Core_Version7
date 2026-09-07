@@ -355,6 +355,165 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
+  static void cancel_reusesLockedInvoiceVersionNetsAndCopyOnce() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Id paymentId = InvoicePaymentService.register(invoiceRequest(fixture, 1100));
+      InvoicePaymentService.CancelRequest cancel = new InvoicePaymentService.CancelRequest();
+      cancel.paymentId = paymentId;
+      cancel.cancellationReason = 'Duplicate';
+      cancel.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      AccountingCauseLockService.invoiceModifiedSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      InvoicePaymentService.netRecalcSelectCount = 0;
+      InvoicePaymentAllocationService.allocationReverseSelectCount = 0;
+      Test.startTest();
+      Id reversalId = InvoicePaymentService.cancel(cancel);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.invoiceModifiedSelectCount,
+        'Core 第7.9.7節: 取消の版比較はロック済み請求の更新日時を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節: applyForInvoiceはhydrateした請求をコピーFromで取り直さない'
+      );
+      System.assertEquals(
+        1,
+        InvoicePaymentService.netRecalcSelectCount,
+        'Core 第8.1節: 請求金額Netは取消後に1回書けばよい'
+      );
+      System.assertEquals(
+        0,
+        InvoicePaymentAllocationService.allocationReverseSelectCount,
+        'Accounting 第8.2節: reverseAllocationsはcancelが読んだ元割当を取り直さない'
+      );
+      Invoice__c afterCancel = [
+        SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      System.assertEquals(
+        0,
+        afterCancel.InvoicePaymentNet__c,
+        'Core 第8.1節: 取消後の請求金額Netは0へ戻る'
+      );
+      System.assertEquals(
+        0,
+        afterCancel.PaymentInclusiveTotal__c,
+        'Core 第8.1節: 取消後の全入出金Netは0へ戻る'
+      );
+      InvoicePaymentAllocation__c reversalAllocation = [
+        SELECT Amount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoicePayment__c = :reversalId
+      ];
+      System.assertEquals(
+        -1100,
+        reversalAllocation.Amount__c,
+        'Accounting 第8.4節: 取消割当は元の反対符号'
+      );
+    }
+  }
+
+  @IsTest
+  static void cancel_staleToken_stillRejected() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Id paymentId = InvoicePaymentService.register(invoiceRequest(fixture, 1100));
+      InvoicePaymentService.CancelRequest cancel = new InvoicePaymentService.CancelRequest();
+      cancel.paymentId = paymentId;
+      cancel.cancellationReason = 'Duplicate';
+      cancel.expectedToken = '0';
+      Boolean thrown = false;
+      try {
+        InvoicePaymentService.cancel(cancel);
+      } catch (Exception ex) {
+        thrown = true;
+      }
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.9.7節: 版不一致の入出金取消は拒否する'
+      );
+      System.assertEquals(
+        InvoicePaymentService.STATUS_ACTIVE,
+        [
+          SELECT PaymentTransactionStatus__c
+          FROM InvoicePayment__c
+          WHERE Id = :paymentId
+        ]
+        .PaymentTransactionStatus__c,
+        'Core 第7.9.7節: 版不一致なら取消しない'
+      );
+    }
+  }
+
+  @IsTest
+  static void cancel_nonInvoice_doesNotZeroRemainingInvoiceHistorical() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Id invoicePaymentId = InvoicePaymentService.register(
+        invoiceRequest(fixture, 1100)
+      );
+      InvoicePaymentAllocation__c remaining = [
+        SELECT Id, HistoricalUacAmount__c, HistoricalSpAmount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoicePayment__c = :invoicePaymentId
+      ];
+      remaining.HistoricalUacAmount__c = 50;
+      remaining.HistoricalSpAmount__c = -50;
+      Boolean previousHist = InvoicePaymentAllocationService.allowHistoricalAmountWrite;
+      InvoicePaymentAllocationService.allowHistoricalAmountWrite = true;
+      try {
+        update remaining;
+      } finally {
+        InvoicePaymentAllocationService.allowHistoricalAmountWrite = previousHist;
+      }
+      InvoicePaymentService.RegisterRequest nonInvoice = new InvoicePaymentService.RegisterRequest();
+      nonInvoice.invoiceId = fixture.invoice.Id;
+      nonInvoice.amount = 100;
+      nonInvoice.purpose = InvoicePaymentService.PURPOSE_NON_INVOICE;
+      nonInvoice.paymentDate = Date.newInstance(2026, 6, 1);
+      nonInvoice.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      Id nonInvoiceId = InvoicePaymentService.register(nonInvoice);
+      InvoicePaymentService.CancelRequest cancel = new InvoicePaymentService.CancelRequest();
+      cancel.paymentId = nonInvoiceId;
+      cancel.cancellationReason = 'Duplicate';
+      cancel.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      Test.startTest();
+      InvoicePaymentService.cancel(cancel);
+      Test.stopTest();
+      InvoicePaymentAllocation__c afterCancel = [
+        SELECT HistoricalUacAmount__c, HistoricalSpAmount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE Id = :remaining.Id
+      ];
+      System.assertEquals(
+        50,
+        afterCancel.HistoricalUacAmount__c,
+        'Accounting 第8.4節: 請求代金以外の取消は残るInvoice割当の過去日内訳を0クリアしない'
+      );
+      System.assertEquals(
+        -50,
+        afterCancel.HistoricalSpAmount__c,
+        'Accounting 第8.4節: 請求代金以外の取消は残るInvoice割当のSP内訳を変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void register_lockedJournals_requiresCancellationDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
@@ -477,6 +636,7 @@ private class InvoicePaymentServiceTest {
         fixture.invoice.Id
       );
       InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
       Test.startTest();
       InvoicePaymentService.cancel(cancel);
       Test.stopTest();
@@ -484,6 +644,11 @@ private class InvoicePaymentServiceTest {
         0,
         InvoiceProductFieldCopyService.invoiceSourceSelectCount,
         'Accounting 第8.2節・Core 第11.4.2節: 取消insertはGoalが載せた請求をコピーFromで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節・第8.4節: 仕訳コピーはhydrateした請求を取り直さない'
       );
       GlJournal__c lineJournal = [
         SELECT TransactionStatus__c
@@ -528,6 +693,7 @@ private class InvoicePaymentServiceTest {
         fixture.invoice.Id
       );
       InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
       Test.startTest();
       InvoicePaymentService.cancel(cancel);
       Test.stopTest();
@@ -535,6 +701,11 @@ private class InvoicePaymentServiceTest {
         0,
         InvoiceProductFieldCopyService.invoiceSourceSelectCount,
         'Accounting 第8.2節・Core 第11.4.2節: NonInvoice取消insertもロック済み請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節: NonInvoice取消の仕訳コピーもhydrateした請求を取り直さない'
       );
       GlJournal__c lineJournal = [
         SELECT TransactionStatus__c

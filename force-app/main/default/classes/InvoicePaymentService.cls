@@ -9,6 +9,12 @@ public without sharing class InvoicePaymentService {
   public static final String STATUS_REVERSAL = 'Reversal';
 
   public static Boolean allowLifecycleWrite;
+  /** 仕様: Core 第8.1節・第12.4節。取消DML中はトリガのNet再計算を重ねない。 */
+  public static Boolean skipTriggerNetRecalc;
+  @TestVisible
+  static Integer paymentSelectCount = 0;
+  @TestVisible
+  static Integer netRecalcSelectCount = 0;
 
   public class RegisterRequest {
     public Id invoiceId;
@@ -23,6 +29,8 @@ public without sharing class InvoicePaymentService {
     public String expectedToken;
     /** 仕様: Core 第11.4.4節。登録フォームの追加項目。 */
     public Map<String, Object> extraFieldValues;
+    /** 仕様: Accounting 第8.2節、Core 第7.7.3節・第12.4節。入口でロック済みなら取り直さない。 */
+    public Invoice__c knownLockedInvoice;
   }
 
   public class CancelRequest {
@@ -32,6 +40,10 @@ public without sharing class InvoicePaymentService {
     public Date cancelDate;
     public String businessOperationKey;
     public String expectedToken;
+    /** 仕様: Accounting 第8.2節、Core 第7.7.3節・第12.4節。入口でロック済みなら取り直さない。 */
+    public Invoice__c knownLockedInvoice;
+    /** 仕様: Accounting 第8.2節、Core 第12.4節。入口で読んだ入出金は取り直さない。 */
+    public InvoicePayment__c knownPayment;
   }
 
   /** 仕様: Core 第8.1節、第8.2節、第8.4節、第8.6節、第11.9節、第1.1.7節、第7.9.6節、第8.9節、Accounting 第1.8.1節、第8.2節、第8.5節、第8.8節、日付仕様 第7.3節 */
@@ -173,7 +185,11 @@ public without sharing class InvoicePaymentService {
       throw new PaymentException('請求金額以外の入出金に明細別割当は持てません。');
     }
     // 仕様: Core 第7.9.7節・第11.8節、Accounting 第8.2節。行ロックで直列化してから残額検証。
-    Invoice__c invoice = AccountingCauseLockService.lockInvoice(request.invoiceId);
+    Invoice__c invoice =
+      request.knownLockedInvoice != null &&
+      request.knownLockedInvoice.Id == request.invoiceId
+        ? request.knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(request.invoiceId);
     InvoiceProductFieldCopyService.rememberRecords(new List<SObject>{ invoice });
     if (request.purpose == PURPOSE_INVOICE) {
       InvoicePaymentAllocationService.assertLines(
@@ -263,24 +279,12 @@ public without sharing class InvoicePaymentService {
     ) {
       throw new PaymentException('取消理由がその他のときは内容を入力してください。');
     }
-    InvoicePayment__c original = [
-      SELECT
-        Id,
-        Invoice__c,
-        Amount__c,
-        PaymentPurpose__c,
-        PaymentDate__c,
-        Memo__c,
-        PaymentTransactionStatus__c,
-        BillingAccount__c,
-        BillingAccountKeySnapShot__c,
-        BusinessOperationKey__c
-      FROM InvoicePayment__c
-      WHERE Id = :request.paymentId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    Invoice__c lockedInvoice = AccountingCauseLockService.lockInvoice(original.Invoice__c);
+    InvoicePayment__c original = resolvePayment(request.paymentId, request.knownPayment);
+    Invoice__c lockedInvoice =
+      request.knownLockedInvoice != null &&
+      request.knownLockedInvoice.Id == original.Invoice__c
+        ? request.knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(original.Invoice__c);
     Invoice__c hydrated = AccountingGoalService.prepareInvoiceForGoal(lockedInvoice);
     Set<String> invoiceCopyFields = new Set<String>{
       'BillingAccountSnapShot__c',
@@ -298,33 +302,17 @@ public without sharing class InvoicePaymentService {
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       request.businessOperationKey
     );
-    original = [
-      SELECT
-        Id,
-        Invoice__c,
-        Amount__c,
-        PaymentPurpose__c,
-        PaymentDate__c,
-        Memo__c,
-        PaymentTransactionStatus__c,
-        BillingAccount__c,
-        BillingAccountKeySnapShot__c,
-        BusinessOperationKey__c
-      FROM InvoicePayment__c
-      WHERE Id = :request.paymentId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
     if (
       original.PaymentTransactionStatus__c == STATUS_CANCELLED &&
       original.BusinessOperationKey__c == operationKey
     ) {
       return original.Id;
     }
-    // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
+    // 仕様: Core 第4.3.12節・第7.9.7節。ロック済み請求の更新日時は取り直さない。
     AccountingCauseLockService.assertInvoiceOperationUnchanged(
       original.Invoice__c,
-      request.expectedToken
+      request.expectedToken,
+      lockedInvoice.LastModifiedDate
     );
     if (original.PaymentTransactionStatus__c != STATUS_ACTIVE) {
       throw new PaymentException('有効な入出金だけ取消できます。');
@@ -332,7 +320,8 @@ public without sharing class InvoicePaymentService {
     AccountingDiffService.CancelPreview preview = previewCancel(
       original.Id,
       request.cancelDate,
-      lockedInvoice
+      lockedInvoice,
+      original
     );
     // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
     if (preview.reverseCount > 0 && request.cancelDate == null) {
@@ -340,7 +329,9 @@ public without sharing class InvoicePaymentService {
     }
     Savepoint savepoint = Database.setSavepoint();
     Boolean previousWrite = allowLifecycleWrite;
+    Boolean previousSkipNet = skipTriggerNetRecalc;
     allowLifecycleWrite = true;
+    skipTriggerNetRecalc = true;
     try {
       original.PaymentTransactionStatus__c = STATUS_CANCELLED;
       original.CancellationReason__c = request.cancellationReason;
@@ -362,7 +353,18 @@ public without sharing class InvoicePaymentService {
         BusinessOperationKey__c = operationKey
       );
       SystemContextAccess.insertRecords(new List<SObject>{ reversal });
-      InvoicePaymentAllocationService.reverseAllocations(original.Id, reversal.Id);
+      List<InvoicePaymentAllocation__c> originalAllocations = [
+        SELECT InvoiceLine__c, Amount__c, HistoricalUacAmount__c, HistoricalSpAmount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoicePayment__c = :original.Id
+        WITH SYSTEM_MODE
+      ];
+      InvoicePaymentAllocationService.reverseAllocations(
+        original.Id,
+        reversal.Id,
+        originalAllocations
+      );
+      skipTriggerNetRecalc = false;
       recalculateNets(new Set<Id>{ original.Invoice__c });
       GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
       Boolean includeRevenue =
@@ -395,6 +397,7 @@ public without sharing class InvoicePaymentService {
       Database.rollback(savepoint);
       throw ex;
     } finally {
+      skipTriggerNetRecalc = previousSkipNet;
       allowLifecycleWrite = previousWrite;
     }
   }
@@ -417,16 +420,20 @@ public without sharing class InvoicePaymentService {
     Date cancelDate,
     Invoice__c knownLockedInvoice
   ) {
+    return previewCancel(paymentId, cancelDate, knownLockedInvoice, null);
+  }
+
+  /** 仕様: Accounting 第8.2節。同一処理で読んだ入出金はプレビューも取り直さない。 */
+  public static AccountingDiffService.CancelPreview previewCancel(
+    Id paymentId,
+    Date cancelDate,
+    Invoice__c knownLockedInvoice,
+    InvoicePayment__c knownPayment
+  ) {
     if (paymentId == null) {
       throw new PaymentException('取消する入出金が指定されていません。');
     }
-    InvoicePayment__c payment = [
-      SELECT Id, Invoice__c, PaymentTransactionStatus__c, PaymentPurpose__c
-      FROM InvoicePayment__c
-      WHERE Id = :paymentId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    InvoicePayment__c payment = resolvePaymentForPreview(paymentId, knownPayment);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
     Boolean includeRevenue =
       payment.PaymentPurpose__c == PURPOSE_INVOICE &&
@@ -472,11 +479,91 @@ public without sharing class InvoicePaymentService {
     return value == null ? 0 : value;
   }
 
+  /** 仕様: Accounting 第8.2節。プレビューは目的と請求参照があれば取り直さない。 */
+  private static InvoicePayment__c resolvePaymentForPreview(
+    Id paymentId,
+    InvoicePayment__c knownPayment
+  ) {
+    if (knownPayment != null && knownPayment.Id == paymentId) {
+      try {
+        knownPayment.get('Invoice__c');
+        knownPayment.get('PaymentPurpose__c');
+        knownPayment.get('PaymentTransactionStatus__c');
+        return knownPayment;
+      } catch (SObjectException ex) {
+        // 不足項目は本照会で載せる。
+      }
+    }
+    return queryPayment(paymentId);
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第12.4節。入口で読んだ入出金は取り直さない。 */
+  private static InvoicePayment__c resolvePayment(
+    Id paymentId,
+    InvoicePayment__c knownPayment
+  ) {
+    if (
+      knownPayment != null &&
+      knownPayment.Id == paymentId &&
+      hasPaymentCancelFields(knownPayment)
+    ) {
+      return knownPayment;
+    }
+    return queryPayment(paymentId);
+  }
+
+  private static Boolean hasPaymentCancelFields(InvoicePayment__c payment) {
+    if (payment == null) {
+      return false;
+    }
+    List<String> fieldNames = new List<String>{
+      'Invoice__c',
+      'Amount__c',
+      'PaymentPurpose__c',
+      'PaymentDate__c',
+      'Memo__c',
+      'PaymentTransactionStatus__c',
+      'BillingAccount__c',
+      'BillingAccountKeySnapShot__c',
+      'BusinessOperationKey__c'
+    };
+    for (String fieldName : fieldNames) {
+      try {
+        payment.get(fieldName);
+      } catch (SObjectException ex) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static InvoicePayment__c queryPayment(Id paymentId) {
+    paymentSelectCount++;
+    return [
+      SELECT
+        Id,
+        Invoice__c,
+        Amount__c,
+        PaymentPurpose__c,
+        PaymentDate__c,
+        Memo__c,
+        PaymentTransactionStatus__c,
+        BillingAccount__c,
+        BillingAccountKeySnapShot__c,
+        BusinessOperationKey__c
+      FROM InvoicePayment__c
+      WHERE Id = :paymentId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+  }
+
   /** 仕様: Core 第8.1節、第7.11節 */
   public static void recalculateNets(Set<Id> invoiceIds) {
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return;
     }
+    netRecalcSelectCount++;
     Map<Id, Decimal> invoiceNets = new Map<Id, Decimal>();
     Map<Id, Decimal> inclusiveNets = new Map<Id, Decimal>();
     Map<Id, Integer> invoicePurposeCounts = new Map<Id, Integer>();

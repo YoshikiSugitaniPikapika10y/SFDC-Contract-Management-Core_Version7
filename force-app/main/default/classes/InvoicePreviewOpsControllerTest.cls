@@ -941,6 +941,7 @@ private class InvoicePreviewOpsControllerTest {
         FROM Invoice__c
         WHERE Id = :fixture.invoice.Id
       ];
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
       Test.startTest();
       AccountingDiffService.CancelPreview preview = InvoicePreviewOpsController.previewRegisterFromPreview(
         fixture.invoice.Id,
@@ -958,6 +959,88 @@ private class InvoicePreviewOpsControllerTest {
         null,
         preview,
         'Core 第7.9.6節・第8.9節: 範囲内の入金登録プレビューは結果を返す'
+      );
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第7.7.3節・第12.4節: 範囲確認と版比較のあと行ロックで請求を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void savePaymentFromPreview_inScope_locksInvoiceOnce() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c invoice = [
+        SELECT LastModifiedDate, ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      Test.startTest();
+      Id paymentId = InvoicePreviewOpsController.savePaymentFromPreview(
+        null,
+        fixture.invoice.Id,
+        100,
+        InvoicePaymentService.PURPOSE_NON_INVOICE,
+        Date.today(),
+        null,
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+        null,
+        null,
+        null,
+        invoice.ContractHistory__c,
+        null
+      );
+      Test.stopTest();
+      System.assertNotEquals(null, paymentId);
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第7.7.3節・第12.4節: 入金登録は範囲確認後に同じ請求を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void cancelPaymentFromPreview_inScope_doesNotReselectPayment() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Id paymentId = InvoicePaymentService.register(
+        invoiceRequest(fixture, 1100)
+      );
+      Invoice__c invoice = [
+        SELECT ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoicePaymentService.paymentSelectCount = 0;
+      Test.startTest();
+      Id reversalId = InvoicePreviewOpsController.cancelPaymentFromPreview(
+        paymentId,
+        fixture.invoice.Id,
+        Date.today(),
+        'Duplicate',
+        null,
+        AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id),
+        null,
+        invoice.ContractHistory__c
+      );
+      Test.stopTest();
+      System.assertNotEquals(null, reversalId);
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第7.7.3節: 入出金取消は範囲確認後に同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoicePaymentService.paymentSelectCount,
+        'Accounting 第8.2節: 入口で読んだ入出金をcancelが取り直さない'
       );
     }
   }
@@ -1376,6 +1459,27 @@ private class InvoicePreviewOpsControllerTest {
     Invoice__c invoice;
     InvoiceLine__c line;
     InvoiceLine__c secondLine;
+  }
+
+  private static InvoicePaymentService.RegisterRequest invoiceRequest(
+    InvoiceFixture fixture,
+    Decimal amount
+  ) {
+    InvoicePaymentAllocationService.AllocationLine allocation = new InvoicePaymentAllocationService.AllocationLine();
+    allocation.invoiceLineId = fixture.line.Id;
+    allocation.amount = amount;
+    InvoicePaymentService.RegisterRequest request = new InvoicePaymentService.RegisterRequest();
+    request.invoiceId = fixture.invoice.Id;
+    request.amount = amount;
+    request.purpose = InvoicePaymentService.PURPOSE_INVOICE;
+    request.paymentDate = Date.today();
+    request.allocations = new List<InvoicePaymentAllocationService.AllocationLine>{
+      allocation
+    };
+    request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+      fixture.invoice.Id
+    );
+    return request;
   }
 
   private static InvoiceFixture createTwoLineInvoice() {

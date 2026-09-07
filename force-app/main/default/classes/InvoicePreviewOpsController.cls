@@ -495,11 +495,13 @@ public without sharing class InvoicePreviewOpsController {
     Map<String, Object> extraFieldValues
   ) {
     try {
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoiceId);
       InvoiceOpsController.assertInvoicesInScope(
         contractHistoryId,
-        new List<Id>{ invoiceId }
+        new List<Id>{ invoiceId },
+        locked
       );
-      return savePaymentFromPreview(
+      return savePaymentFromPreviewNow(
         paymentId,
         invoiceId,
         amount,
@@ -510,7 +512,8 @@ public without sharing class InvoicePreviewOpsController {
         allocations,
         cancellationDate,
         businessOperationKey,
-        extraFieldValues
+        extraFieldValues,
+        locked
       );
     } catch (AuraHandledException ex) {
       throw ex;
@@ -532,7 +535,7 @@ public without sharing class InvoicePreviewOpsController {
     Date cancellationDate,
     String businessOperationKey
   ) {
-    return savePaymentFromPreview(
+    return savePaymentFromPreviewNow(
       paymentId,
       invoiceId,
       amount,
@@ -543,6 +546,7 @@ public without sharing class InvoicePreviewOpsController {
       allocations,
       cancellationDate,
       businessOperationKey,
+      null,
       null
     );
   }
@@ -559,6 +563,36 @@ public without sharing class InvoicePreviewOpsController {
     Date cancellationDate,
     String businessOperationKey,
     Map<String, Object> extraFieldValues
+  ) {
+    return savePaymentFromPreviewNow(
+      paymentId,
+      invoiceId,
+      amount,
+      purpose,
+      paymentDate,
+      memo,
+      expectedToken,
+      allocations,
+      cancellationDate,
+      businessOperationKey,
+      extraFieldValues,
+      null
+    );
+  }
+
+  private static Id savePaymentFromPreviewNow(
+    Id paymentId,
+    Id invoiceId,
+    Decimal amount,
+    String purpose,
+    Date paymentDate,
+    String memo,
+    String expectedToken,
+    List<AllocationInputDto> allocations,
+    Date cancellationDate,
+    String businessOperationKey,
+    Map<String, Object> extraFieldValues,
+    Invoice__c knownLockedInvoice
   ) {
     ContractPermissionUtil.assertInvoicePayment();
     if (paymentId != null) {
@@ -584,6 +618,7 @@ public without sharing class InvoicePreviewOpsController {
     request.cancellationDate = cancellationDate;
     request.businessOperationKey = businessOperationKey;
     request.expectedToken = expectedToken;
+    request.knownLockedInvoice = knownLockedInvoice;
     if (resolvedPurpose == InvoicePaymentService.PURPOSE_INVOICE) {
       request.allocations = toAllocationLines(
         allocations == null ? new List<AllocationInputDto>() : allocations
@@ -701,11 +736,13 @@ public without sharing class InvoicePreviewOpsController {
     Date cancellationDate,
     Id contractHistoryId
   ) {
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(invoiceId);
     InvoiceOpsController.assertInvoicesInScope(
       contractHistoryId,
-      new List<Id>{ invoiceId }
+      new List<Id>{ invoiceId },
+      locked
     );
-    return previewRegisterFromPreview(
+    return previewRegisterFromPreviewNow(
       invoiceId,
       amount,
       purpose,
@@ -713,7 +750,8 @@ public without sharing class InvoicePreviewOpsController {
       memo,
       expectedToken,
       allocations,
-      cancellationDate
+      cancellationDate,
+      locked
     );
   }
 
@@ -728,22 +766,39 @@ public without sharing class InvoicePreviewOpsController {
     List<AllocationInputDto> allocations,
     Date cancellationDate
   ) {
+    return previewRegisterFromPreviewNow(
+      invoiceId,
+      amount,
+      purpose,
+      paymentDate,
+      memo,
+      expectedToken,
+      allocations,
+      cancellationDate,
+      null
+    );
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第7.9.7節・第12.4節。ロック済み請求の版と比較し取り直さない。 */
+  private static AccountingDiffService.CancelPreview previewRegisterFromPreviewNow(
+    Id invoiceId,
+    Decimal amount,
+    String purpose,
+    Date paymentDate,
+    String memo,
+    String expectedToken,
+    List<AllocationInputDto> allocations,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice
+  ) {
     ContractPermissionUtil.assertInvoicePayment();
     if (invoiceId == null || amount == null || amount == 0 || paymentDate == null) {
       throw handled('請求、0以外の金額、入出金日を入力してください。');
     }
-    Invoice__c invoice = [
-      SELECT
-        Id,
-        LastModifiedDate,
-        InvoiceTransactionStatus__c,
-        TaxInclusiveAmount__c,
-        InvoicePaymentNet__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Invoice__c invoice =
+      knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
+        ? knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(invoiceId);
     AccountingCauseLockService.assertInvoiceOperationsUnchanged(
       new Map<Id, String>{ invoice.Id => expectedToken },
       new Map<Id, Datetime>{ invoice.Id => invoice.LastModifiedDate }
@@ -762,6 +817,7 @@ public without sharing class InvoicePreviewOpsController {
     request.paymentDate = paymentDate;
     request.memo = memo;
     request.cancellationDate = cancellationDate;
+    request.knownLockedInvoice = invoice;
     if (resolvedPurpose == InvoicePaymentService.PURPOSE_INVOICE) {
       request.allocations = toAllocationLines(
         allocations == null ? new List<AllocationInputDto>() : allocations
@@ -782,11 +838,13 @@ public without sharing class InvoicePreviewOpsController {
     Date cancelDate,
     Id contractHistoryId
   ) {
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(invoiceId);
     InvoiceOpsController.assertInvoicesInScope(
       contractHistoryId,
-      new List<Id>{ invoiceId }
+      new List<Id>{ invoiceId },
+      locked
     );
-    return previewCancelPaymentFromPreview(paymentId, invoiceId, cancelDate);
+    return previewCancelPaymentFromPreviewNow(paymentId, invoiceId, cancelDate, locked);
   }
 
   /** 仕様: Core 第7.9.6節、Accounting 第8.5節 */
@@ -795,12 +853,32 @@ public without sharing class InvoicePreviewOpsController {
     Id invoiceId,
     Date cancelDate
   ) {
+    return previewCancelPaymentFromPreviewNow(paymentId, invoiceId, cancelDate, null);
+  }
+
+  /** 仕様: Accounting 第8.2節。入口で読んだ入出金とロック済み請求は取り直さない。 */
+  private static AccountingDiffService.CancelPreview previewCancelPaymentFromPreviewNow(
+    Id paymentId,
+    Id invoiceId,
+    Date cancelDate,
+    Invoice__c knownLockedInvoice
+  ) {
     ContractPermissionUtil.assertInvoicePayment();
     if (paymentId == null || invoiceId == null) {
       throw handled('取消する入出金が指定されていません。');
     }
     InvoicePayment__c existing = [
-      SELECT Id, Invoice__c
+      SELECT
+        Id,
+        Invoice__c,
+        Amount__c,
+        PaymentPurpose__c,
+        PaymentDate__c,
+        Memo__c,
+        PaymentTransactionStatus__c,
+        BillingAccount__c,
+        BillingAccountKeySnapShot__c,
+        BusinessOperationKey__c
       FROM InvoicePayment__c
       WHERE Id = :paymentId
       WITH SYSTEM_MODE
@@ -810,7 +888,12 @@ public without sharing class InvoicePreviewOpsController {
       throw handled('入金が指定した請求に属していません。');
     }
     try {
-      return InvoicePaymentService.previewCancel(paymentId, cancelDate);
+      return InvoicePaymentService.previewCancel(
+        paymentId,
+        cancelDate,
+        knownLockedInvoice,
+        existing
+      );
     } catch (Exception ex) {
       throw handledFrom(ex);
     }
@@ -848,18 +931,21 @@ public without sharing class InvoicePreviewOpsController {
     String businessOperationKey,
     Id contractHistoryId
   ) {
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(invoiceId);
     InvoiceOpsController.assertInvoicesInScope(
       contractHistoryId,
-      new List<Id>{ invoiceId }
+      new List<Id>{ invoiceId },
+      locked
     );
-    return cancelPaymentFromPreview(
+    return cancelPaymentFromPreviewNow(
       paymentId,
       invoiceId,
       cancelDate,
       cancellationReason,
       cancellationReasonText,
       expectedToken,
-      businessOperationKey
+      businessOperationKey,
+      locked
     );
   }
 
@@ -873,9 +959,42 @@ public without sharing class InvoicePreviewOpsController {
     String expectedToken,
     String businessOperationKey
   ) {
+    return cancelPaymentFromPreviewNow(
+      paymentId,
+      invoiceId,
+      cancelDate,
+      cancellationReason,
+      cancellationReasonText,
+      expectedToken,
+      businessOperationKey,
+      null
+    );
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第7.7.3節・第12.4節。入口で読んだ入出金とロック済み請求は取り直さない。 */
+  private static Id cancelPaymentFromPreviewNow(
+    Id paymentId,
+    Id invoiceId,
+    Date cancelDate,
+    String cancellationReason,
+    String cancellationReasonText,
+    String expectedToken,
+    String businessOperationKey,
+    Invoice__c knownLockedInvoice
+  ) {
     ContractPermissionUtil.assertInvoicePayment();
     InvoicePayment__c existing = [
-      SELECT Id, Invoice__c, LastModifiedDate, PaymentTransactionStatus__c
+      SELECT
+        Id,
+        Invoice__c,
+        Amount__c,
+        PaymentPurpose__c,
+        PaymentDate__c,
+        Memo__c,
+        PaymentTransactionStatus__c,
+        BillingAccount__c,
+        BillingAccountKeySnapShot__c,
+        BusinessOperationKey__c
       FROM InvoicePayment__c
       WHERE Id = :paymentId
       WITH SYSTEM_MODE
@@ -891,6 +1010,8 @@ public without sharing class InvoicePreviewOpsController {
     request.cancelDate = cancelDate;
     request.businessOperationKey = businessOperationKey;
     request.expectedToken = expectedToken;
+    request.knownLockedInvoice = knownLockedInvoice;
+    request.knownPayment = existing;
     try {
       return InvoicePaymentService.cancel(request);
     } catch (Exception ex) {

@@ -1099,28 +1099,6 @@ public without sharing class AccountingDiffService {
     Map<Id, InvoicePaymentAllocation__c> collected = AccountingGoalService.collectedAllocations(
       invoiceId
     );
-    Map<Id, InvoicePayment__c> payments = AccountingGoalService.collectedPayments(
-      invoiceId
-    );
-    for (InvoicePaymentAllocation__c allocation : collected.values()) {
-      InvoicePayment__c payment = payments.get(allocation.InvoicePayment__c);
-      if (
-        payment == null ||
-        payment.PaymentPurpose__c != InvoicePaymentService.PURPOSE_INVOICE
-      ) {
-        continue;
-      }
-      if (
-        restrictLineIds != null &&
-        !restrictLineIds.isEmpty() &&
-        !restrictLineIds.contains(allocation.InvoiceLine__c)
-      ) {
-        continue;
-      }
-      allocation.HistoricalUacAmount__c = 0;
-      allocation.HistoricalSpAmount__c = 0;
-      updates.put(allocation.Id, allocation);
-    }
     for (AccountingGoalService.GoalJournal goal : goals) {
       GlJournal__c journal = goal.record;
       if (journal == null || journal.InvoicePaymentAllocation__c == null) {
@@ -1135,13 +1113,31 @@ public without sharing class AccountingDiffService {
       if (!positiveCash && !negativeCash) {
         continue;
       }
+      if (restrictLineIds != null && !restrictLineIds.isEmpty()) {
+        Id lineId = journal.InvoiceLine__c;
+        InvoicePaymentAllocation__c collectedRow = collected.get(
+          journal.InvoicePaymentAllocation__c
+        );
+        if (lineId == null && collectedRow != null) {
+          lineId = collectedRow.InvoiceLine__c;
+        }
+        if (lineId == null || !restrictLineIds.contains(lineId)) {
+          continue;
+        }
+      }
       InvoicePaymentAllocation__c allocation = updates.get(journal.InvoicePaymentAllocation__c);
       if (allocation == null) {
-        allocation = new InvoicePaymentAllocation__c(
-          Id = journal.InvoicePaymentAllocation__c,
-          HistoricalUacAmount__c = 0,
-          HistoricalSpAmount__c = 0
-        );
+        allocation = collected.get(journal.InvoicePaymentAllocation__c);
+        if (allocation == null) {
+          allocation = new InvoicePaymentAllocation__c(
+            Id = journal.InvoicePaymentAllocation__c,
+            HistoricalUacAmount__c = 0,
+            HistoricalSpAmount__c = 0
+          );
+        } else {
+          allocation.HistoricalUacAmount__c = 0;
+          allocation.HistoricalSpAmount__c = 0;
+        }
         updates.put(allocation.Id, allocation);
       }
       Decimal magnitude = nvl(journal.Amount__c);
@@ -1157,6 +1153,7 @@ public without sharing class AccountingDiffService {
         allocation.HistoricalSpAmount__c = nvl(allocation.HistoricalSpAmount__c) + signed;
       }
     }
+    List<InvoicePaymentAllocation__c> toWrite = new List<InvoicePaymentAllocation__c>();
     for (InvoicePaymentAllocation__c allocation : updates.values()) {
       Decimal uac = nvl(allocation.HistoricalUacAmount__c);
       Decimal sp = nvl(allocation.HistoricalSpAmount__c);
@@ -1172,12 +1169,13 @@ public without sharing class AccountingDiffService {
       if (allocation.Amount__c < 0 && (uac > 0 || sp < 0)) {
         throw new DiffException('負額の過去日Invoice割当の振替内訳の符号が不正です。');
       }
+      toWrite.add(allocation);
     }
-    if (!updates.isEmpty()) {
+    if (!toWrite.isEmpty()) {
       Boolean previous = InvoicePaymentAllocationService.allowHistoricalAmountWrite;
       InvoicePaymentAllocationService.allowHistoricalAmountWrite = true;
       try {
-        update updates.values();
+        update toWrite;
       } finally {
         InvoicePaymentAllocationService.allowHistoricalAmountWrite = previous;
       }
@@ -1277,8 +1275,11 @@ public without sharing class AccountingDiffService {
         'ContractHistory__c',
         'ContractService__c'
       };
-      invoiceCopyFields.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
-      if (hasAllQueriedFields(lockedInvoice, invoiceCopyFields)) {
+    invoiceCopyFields.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
+    invoiceCopyFields.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
+    );
+    if (hasAllQueriedFields(lockedInvoice, invoiceCopyFields)) {
         bundle.invoice = lockedInvoice;
       } else {
         List<Invoice__c> invoices = (List<Invoice__c>) queryCopySources(

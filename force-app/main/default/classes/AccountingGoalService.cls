@@ -2774,9 +2774,11 @@ public without sharing class AccountingGoalService {
     if (sobType == null) {
       return new Set<String>();
     }
-    return FieldCopyDefinitionService.sourceFieldApiNames(
-      sobType.getDescribe().getName()
-    );
+    String objectApiName = sobType.getDescribe().getName();
+    Set<String> names = new Set<String>();
+    names.addAll(FieldCopyDefinitionService.sourceFieldApiNames(objectApiName));
+    names.addAll(InvoiceProductFieldCopyService.getSourceFieldApiNames(objectApiName));
+    return names;
   }
 
   private static Boolean needsRelatedCopyObjects() {
