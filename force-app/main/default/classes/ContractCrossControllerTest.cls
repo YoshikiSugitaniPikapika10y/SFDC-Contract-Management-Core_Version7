@@ -1045,11 +1045,17 @@ private class ContractCrossControllerTest {
         draft
       };
       request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+      InvoicePreviewOpsController.journalMemoSelectCount = 0;
 
       ContractCrossController.JournalSaveResultDto result = ContractCrossController.saveJournals(
         request
       );
       System.assertEquals(false, result.refreshed);
+      System.assertEquals(
+        1,
+        InvoicePreviewOpsController.journalMemoSelectCount,
+        'Core 第12.4節: メモだけの保存はLock済み行が無いので従来どおりSELECTする'
+      );
       System.assertEquals(
         '確認メモ',
         [SELECT Memo__c FROM GlJournal__c WHERE Id = :journal.Id].Memo__c
@@ -1278,6 +1284,165 @@ private class ContractCrossControllerTest {
           WHERE OperationType__c = 'JournalMemo'
         ],
         '共通基盤第12章: Lock込み保存はJournalMemo行を作らない'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveJournals_reusesLockedJournalsForMemoUpdate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture first = insertInvoice('Confirmed');
+      InvoiceFixture second = insertInvoice('Confirmed');
+      Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
+        .dateFrom;
+      insertJournal(first.invoice.Id, false, 'Active', postingDate, 'MEMLOCK1');
+      insertJournal(second.invoice.Id, false, 'Active', postingDate, 'MEMLOCK2');
+      Set<Id> invoiceIds = new Set<Id>{ first.invoice.Id, second.invoice.Id };
+      List<GlJournal__c> grouped = [
+        SELECT
+          Id,
+          Invoice__c,
+          Invoice__r.InvoiceTransactionStatus__c,
+          IsLocked__c,
+          BusinessOperationKey__c,
+          UnlockReason__c,
+          TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Invoice__c IN :invoiceIds
+      ];
+      System.assertEquals(2, grouped.size());
+      ContractCrossController.JournalSaveRequestDto request = new ContractCrossController.JournalSaveRequestDto();
+      request.checkedJournalIds = new List<Id>{ grouped[0].Id, grouped[1].Id };
+      request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+      request.invoiceTokens = new Map<String, String>{
+        String.valueOf(first.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          first.invoice.Id
+        ),
+        String.valueOf(second.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          second.invoice.Id
+        )
+      };
+      List<ContractCrossController.JournalMemoDraftDto> drafts = new List<ContractCrossController.JournalMemoDraftDto>();
+      for (GlJournal__c journal : grouped) {
+        ContractCrossController.JournalMemoDraftDto draft = new ContractCrossController.JournalMemoDraftDto();
+        draft.journalId = journal.Id;
+        draft.invoiceId = journal.Invoice__c;
+        draft.memo = 'Lock後メモ';
+        drafts.add(draft);
+      }
+      request.memos = drafts;
+      InvoicePreviewOpsController.journalMemoSelectCount = 0;
+      Test.startTest();
+      ContractCrossController.JournalSaveResultDto result = ContractCrossController.saveJournals(
+        request
+      );
+      Test.stopTest();
+      System.assertEquals(2, result.lockCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(
+        0,
+        InvoicePreviewOpsController.journalMemoSelectCount,
+        'Core 第12.4節: Lock後のメモ更新で同じ仕訳と請求を取り直さない'
+      );
+      for (GlJournal__c journal : grouped) {
+        GlJournal__c after = [
+          SELECT Invoice__c, IsLocked__c, Memo__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ];
+        System.assertEquals(
+          journal.Invoice__c,
+          after.Invoice__c,
+          '開発ルール第13節: 入口はSOQL行の請求Idを読む'
+        );
+        System.assertEquals(
+          'Confirmed',
+          journal.Invoice__r.InvoiceTransactionStatus__c,
+          '開発ルール第13節: 入口はSOQL行の請求状態を読む'
+        );
+        System.assertEquals(true, after.IsLocked__c, 'Accounting 第9.5節: Lock状態は変えない');
+        System.assertEquals(
+          'Lock後メモ',
+          after.Memo__c,
+          'Accounting 第9.5節: メモはLock済みでも直せる'
+        );
+      }
+    }
+  }
+
+  @IsTest
+  static void saveJournals_reusesUnlockedJournalsForMemoUpdate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture fixture = insertInvoice('Confirmed');
+      insertJournal(
+        fixture.invoice.Id,
+        true,
+        'Active',
+        ContractCrossQueryService.defaultJournalPostingDates().dateFrom,
+        'MEMUNL1'
+      );
+      GlJournal__c grouped = [
+        SELECT
+          Id,
+          Invoice__c,
+          Invoice__r.InvoiceTransactionStatus__c,
+          IsLocked__c,
+          BusinessOperationKey__c,
+          UnlockReason__c,
+          TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id
+        LIMIT 1
+      ];
+      ContractCrossController.JournalSaveRequestDto request = new ContractCrossController.JournalSaveRequestDto();
+      request.checkedJournalIds = new List<Id>{ grouped.Id };
+      request.lockState = ContractCrossQueryService.LOCK_LOCKED;
+      request.unlockReason = '横断監査';
+      request.invoiceTokens = new Map<String, String>{
+        String.valueOf(fixture.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          fixture.invoice.Id
+        )
+      };
+      ContractCrossController.JournalMemoDraftDto draft = new ContractCrossController.JournalMemoDraftDto();
+      draft.journalId = grouped.Id;
+      draft.invoiceId = grouped.Invoice__c;
+      draft.memo = 'Unlock後メモ';
+      request.memos = new List<ContractCrossController.JournalMemoDraftDto>{
+        draft
+      };
+      InvoicePreviewOpsController.journalMemoSelectCount = 0;
+      Test.startTest();
+      ContractCrossController.JournalSaveResultDto result = ContractCrossController.saveJournals(
+        request
+      );
+      Test.stopTest();
+      System.assertEquals(1, result.lockCount, 'Accounting 第9.5節: 選んだ行をUnlockする');
+      System.assertEquals(
+        0,
+        InvoicePreviewOpsController.journalMemoSelectCount,
+        'Core 第12.4節: Unlock後のメモ更新で同じ仕訳と請求を取り直さない'
+      );
+      GlJournal__c after = [
+        SELECT Invoice__c, IsLocked__c, Memo__c, UnlockReason__c
+        FROM GlJournal__c
+        WHERE Id = :grouped.Id
+      ];
+      System.assertEquals(
+        grouped.Invoice__c,
+        after.Invoice__c,
+        '開発ルール第13節: 入口はSOQL行の請求Idを読む'
+      );
+      System.assertEquals(false, after.IsLocked__c, 'Accounting 第9.5節: Unlock後は未Lock');
+      System.assertEquals(
+        'Unlock後メモ',
+        after.Memo__c,
+        'Accounting 第9.5節: メモはLock済みでも直せる'
+      );
+      System.assertEquals(
+        '横断監査',
+        after.UnlockReason__c,
+        'Accounting 第9.5節: Unlock理由は残す'
       );
     }
   }

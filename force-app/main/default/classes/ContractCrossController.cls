@@ -679,6 +679,7 @@ public without sharing class ContractCrossController {
    * Lock／Unlock拒否時はメモも追加項目も書かない。メモ／追加項目だけならLock権限を要しない。
    * 横断のLock／Unlock込み保存はLock／Unlock種別。メモだけならJournalMemo。
    * グルーピング済み仕訳は lockForInvoice で取り直さない。
+   * Lock後のメモ／追加項目は setLocked が読んだ仕訳と請求状態を取り直さない。
    */
   @AuraEnabled
   public static JournalSaveResultDto saveJournals(JournalSaveRequestDto request) {
@@ -701,6 +702,7 @@ public without sharing class ContractCrossController {
       JournalSaveResultDto result = new JournalSaveResultDto();
       result.lockCount = 0;
       result.refreshed = false;
+      Map<Id, GlJournal__c> journalsAfterLock = new Map<Id, GlJournal__c>();
       if (!checked.isEmpty()) {
         if (
           request.lockState != ContractCrossQueryService.LOCK_UNLOCKED &&
@@ -718,6 +720,7 @@ public without sharing class ContractCrossController {
           SELECT
             Id,
             Invoice__c,
+            Invoice__r.InvoiceTransactionStatus__c,
             IsLocked__c,
             BusinessOperationKey__c,
             UnlockReason__c,
@@ -767,8 +770,9 @@ public without sharing class ContractCrossController {
               );
             }
             result.lockCount += journalIds.size();
-            for (Id journalId : journalIds) {
-              lockedRows.add(new GlJournal__c(Id = journalId));
+            for (GlJournal__c groupedJournal : grouped) {
+              journalsAfterLock.put(groupedJournal.Id, groupedJournal);
+              lockedRows.add(new GlJournal__c(Id = groupedJournal.Id));
             }
           }
         } finally {
@@ -795,7 +799,8 @@ public without sharing class ContractCrossController {
             draft.journalId,
             draft.memo,
             draft.invoiceId,
-            draft.extraFieldValues
+            draft.extraFieldValues,
+            journalsAfterLock.get(draft.journalId)
           );
         }
       } finally {

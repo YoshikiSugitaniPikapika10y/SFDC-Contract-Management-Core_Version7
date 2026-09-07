@@ -508,6 +508,9 @@ public without sharing class InvoicePreviewOpsController {
     updateJournalMemo(journalId, memo, invoiceId, null);
   }
 
+  @TestVisible
+  static Integer journalMemoSelectCount = 0;
+
   @AuraEnabled
   public static void updateJournalMemo(
     Id journalId,
@@ -515,17 +518,22 @@ public without sharing class InvoicePreviewOpsController {
     Id invoiceId,
     Map<String, Object> extraFieldValues
   ) {
+    updateJournalMemo(journalId, memo, invoiceId, extraFieldValues, null);
+  }
+
+  /** 仕様: Core 第12.4節。Lock済み仕訳は取り直さない。メモだけの保存は従来どおりSELECTする。 */
+  public static void updateJournalMemo(
+    Id journalId,
+    String memo,
+    Id invoiceId,
+    Map<String, Object> extraFieldValues,
+    GlJournal__c knownJournal
+  ) {
     assertCanEditJournalMemo();
     if (journalId == null || invoiceId == null) {
       throw handled('仕訳が指定されていません。');
     }
-    GlJournal__c journal = [
-      SELECT Id, Invoice__c, Invoice__r.InvoiceTransactionStatus__c, IsLocked__c
-      FROM GlJournal__c
-      WHERE Id = :journalId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    GlJournal__c journal = journalForMemo(journalId, knownJournal);
     if (journal.Invoice__c != invoiceId) {
       throw handled('この請求以外の仕訳のメモは保存できません。');
     }
@@ -533,6 +541,23 @@ public without sharing class InvoicePreviewOpsController {
       throw handled('取消済み請求の仕訳メモは編集できません。');
     }
     updateJournalMemoInternal(journalId, memo, extraFieldValues, journal.IsLocked__c == true);
+  }
+
+  private static GlJournal__c journalForMemo(
+    Id journalId,
+    GlJournal__c knownJournal
+  ) {
+    if (knownJournal != null && knownJournal.Id == journalId) {
+      return knownJournal;
+    }
+    journalMemoSelectCount++;
+    return [
+      SELECT Id, Invoice__c, Invoice__r.InvoiceTransactionStatus__c, IsLocked__c
+      FROM GlJournal__c
+      WHERE Id = :journalId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
   }
 
   private static void updateJournalMemoInternal(
