@@ -168,6 +168,37 @@ describe("orderInvoicePreviewWizard reload (Core 4.3.11 / 7.7)", () => {
     expect(getInvoicePreview).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the opened board table across invoiceopscomplete reload (Core 7.7.0)", async () => {
+    resolvePreviewScope.mockResolvedValue({
+      canOpen: true,
+      contractHistoryId: "a0H000000000001AAA"
+    });
+    getInvoicePreview.mockResolvedValue({ invoices: [] });
+    getBillingAccountOptionsForPreview.mockResolvedValue([]);
+
+    const element = createElement("c-order-invoice-preview-wizard", {
+      is: OrderInvoicePreviewWizard
+    });
+    element.recordId = "a0H000000000001AAA";
+    document.body.appendChild(element);
+    await flushPromises();
+    await flushPromises();
+
+    const table = element.shadowRoot.querySelector(
+      "c-order-invoice-preview-table"
+    );
+    expect(table).toBeTruthy();
+    table.dispatchEvent(new CustomEvent("invoiceopscomplete"));
+    await flushPromises();
+    await flushPromises();
+
+    const tableAfter = element.shadowRoot.querySelector(
+      "c-order-invoice-preview-table"
+    );
+    expect(tableAfter).toBe(table);
+    expect(getInvoicePreview).toHaveBeenCalledTimes(2);
+  });
+
   it("does not show reload when the board is refused for business reasons", async () => {
     resolvePreviewScope.mockResolvedValue({
       canOpen: false,

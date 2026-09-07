@@ -2,6 +2,7 @@ import { createElement } from "lwc";
 import OrderInvoicePreviewTable from "c/orderInvoicePreviewTable";
 import getOpsBundle from "@salesforce/apex/InvoicePreviewOpsController.getOpsBundle";
 import getInvoiceOpsFieldDefinitions from "@salesforce/apex/InvoiceOpsFieldService.getDefinitions";
+import getBoardContext from "@salesforce/apex/InvoiceSendBoardController.getBoardContext";
 
 jest.mock(
   "@salesforce/customPermission/Loop_16_Can_LockJournal",
@@ -250,6 +251,13 @@ async function waitUntil(predicate, attempts = 50) {
 describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 9.1.1)", () => {
   beforeEach(() => {
     getInvoiceOpsFieldDefinitions.mockResolvedValue([]);
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: true,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
       paymentAllowed: true,
@@ -566,6 +574,8 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
           journalId: "a03JNL000000001",
           eventKey: "BILLING_CONFIRMED",
           eventName: "請求確定",
+          debitAccountName: "AR 売掛金",
+          creditAccountName: "DEF 前受収益",
           amount: 1100,
           postingDate: "2026-06-01",
           transactionStatus: "Active",
@@ -593,8 +603,16 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
       .map((th) => th.textContent.trim())
       .join(" ");
     expect(headerText).not.toContain("確認用");
-    expect(headerText).toContain("選択 計上日 借方 貸方 金額 イベント");
+    expect(headerText).toContain(
+      "選択 Lock 計上日 借方 貸方 金額 イベント 計上時期 状態 メモ"
+    );
     expect(element.shadowRoot.textContent).not.toContain("明細税抜 1,100円");
+    const abbrs = Array.from(
+      element.shadowRoot.querySelectorAll(".journal-slot-abbr")
+    ).map((node) => node.textContent.trim());
+    expect(abbrs).toEqual(["AR", "DEF"]);
+    expect(element.shadowRoot.textContent).toContain("売掛金");
+    expect(element.shadowRoot.textContent).toContain("前受収益");
   });
 
   it("保存中は請求書情報を止め当該カードに処理中を出す (Core 7.8.2)", async () => {
@@ -695,5 +713,108 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
         (input) => input.label === "取消済みを含める"
       )
     ).toBe(false);
+  });
+
+  it("保存後のpreview取り直しでは同じ請求の仕訳タブに戻す (Core 7.7.0)", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [
+        {
+          journalId: "a03JNL000000001",
+          eventName: "請求確定",
+          debitAccountName: "AR 売掛金",
+          creditAccountName: "DEF 前受収益",
+          amount: 1100,
+          postingDate: "2026-06-01",
+          transactionStatus: "Active",
+          isLocked: false
+        }
+      ],
+      manualJournals: []
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    const journalsTab = await waitUntil(
+      () =>
+        element.shadowRoot.querySelectorAll("button[data-tab='journals']")[0]
+    );
+    journalsTab.click();
+    await flush();
+    expect(
+      element.shadowRoot
+        .querySelector("button[data-tab='journals']")
+        .classList.contains("invoice-tab_active")
+    ).toBe(true);
+    const toggle = element.shadowRoot.querySelector("button.journal-toggle");
+    toggle.click();
+    await flush();
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    element.preview = buildPreview();
+    await flush();
+    expect(
+      element.shadowRoot
+        .querySelector("button[data-tab='journals']")
+        .classList.contains("invoice-tab_active")
+    ).toBe(true);
+    expect(
+      element.shadowRoot
+        .querySelector("button.journal-toggle")
+        .getAttribute("aria-expanded")
+    ).toBe("false");
+  });
+
+  it("仕訳タブが無ければ明細へ戻す (Core 7.7.0)", async () => {
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: false,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: false,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [],
+      manualJournals: []
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.initialInvoiceId = "a00INV000000001";
+    element.initialActiveTab = "journals";
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await waitUntil(
+      () =>
+        element.shadowRoot.querySelector("button[data-tab='journals']") == null
+    );
+    expect(
+      element.shadowRoot.querySelector("button[data-tab='journals']")
+    ).toBeNull();
+    expect(
+      element.shadowRoot
+        .querySelector("button[data-tab='lines']")
+        .classList.contains("invoice-tab_active")
+    ).toBe(true);
   });
 });

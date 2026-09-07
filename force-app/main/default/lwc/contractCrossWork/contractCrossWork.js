@@ -1797,15 +1797,25 @@ export default class ContractCrossWork extends LightningElement {
     }
   }
 
+  // 仕様: Core 第7.7.0節。開いたままの取り直しでは右タイルを作り直さない。
   async reloadInvoiceTile() {
     if (!this.previewHistoryId) {
       return;
     }
-    await this.loadInvoiceTile(
-      this.previewHistoryId,
-      this.tableInitialInvoiceId,
-      this.highlightJournalId
-    );
+    this.invoiceError = "";
+    this.invoiceLoading = true;
+    try {
+      this.invoicePreview = await getInvoicePreview({
+        contractHistoryId: this.previewHistoryId
+      });
+      this.billingAccountOptions = await getBillingAccountOptionsForPreview({
+        contractHistoryId: this.previewHistoryId
+      });
+    } catch (error) {
+      this.invoiceError = this.reduceError(error);
+    } finally {
+      this.invoiceLoading = false;
+    }
   }
 
   handleSendEstimate(event) {

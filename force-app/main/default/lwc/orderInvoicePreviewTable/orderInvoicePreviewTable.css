@@ -282,6 +282,10 @@
   background: #f1f5f9;
 }
 
+.journal-slot-abbr {
+  color: #dc2626;
+}
+
 .journal-lock-empty {
   display: block;
   width: 1.75rem;

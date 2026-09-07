@@ -199,6 +199,30 @@ function extraFieldChecked(raw) {
   return raw === true || raw === "true" || raw === "1" || raw === 1;
 }
 
+/** 仕様: Accounting 第4.3節。略称は abbreviation。和名は出さない。 */
+function splitSlotAccountDisplay(combinedName) {
+  const text = combinedName == null ? "" : String(combinedName).trim();
+  const match = text.match(/^([A-Z]{2,4})(?:\s+(.*))?$/);
+  if (!match) {
+    return { abbreviation: "", accountName: text };
+  }
+  return {
+    abbreviation: match[1],
+    accountName: match[2] || ""
+  };
+}
+
+/** 仕様: Core 第7.7.0節。タブが無ければ明細。 */
+function restoreInvoiceTab(requested, accountingEnabled) {
+  if (requested === "payments") {
+    return "payments";
+  }
+  if (requested === "journals") {
+    return accountingEnabled === true ? "journals" : "lines";
+  }
+  return "lines";
+}
+
 /** 仕様: Accounting 第1.1節・第8.5節。入金登録だけONかつこの操作のDiffで逆仕訳になるLockのとき取消基準日。 */
 function requiresPaymentRegisterCancelDate(draft, preview) {
   if (draft?.requiresDate === true) {
@@ -212,6 +236,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   @track editProcessingInvoiceId = null;
   @track invoiceOpsProcessingMode = null;
   _isSaving = false;
+  _invoiceOpsContextLoaded = false;
   @api
   get isSaving() {
     return this._isSaving;
@@ -394,11 +419,18 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       }
       invoiceIds.add(invoice.invoiceId);
       const previous = next[invoice.invoiceId];
+      const requestedTab =
+        previous?.activeTab ||
+        (this.initialInvoiceId === invoice.invoiceId && this.initialActiveTab
+          ? this.initialActiveTab
+          : "lines");
       next[invoice.invoiceId] = {
-        activeTab:
-          this.initialInvoiceId === invoice.invoiceId && this.initialActiveTab
-            ? this.initialActiveTab
-            : previous?.activeTab || "lines",
+        activeTab: restoreInvoiceTab(
+          requestedTab,
+          this._invoiceOpsContextLoaded !== true
+            ? true
+            : this.accountingEnabledOnBoard === true
+        ),
         bundle: previous?.bundle || null,
         loading: previous?.loading === true,
         error: previous?.error || "",
@@ -664,6 +696,26 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       this.companyBlockedReason = "";
       this.orgFromResolved = false;
       this.invoiceOpsContextError = this.reduceInvoiceOpsError(error);
+    }
+    this._invoiceOpsContextLoaded = true;
+    this.applyMissingJournalTabFallback();
+  }
+
+  /** 仕様: Core 第7.7.0節。仕訳タブが無ければ明細。 */
+  applyMissingJournalTabFallback() {
+    if (this.accountingEnabledOnBoard === true) {
+      return;
+    }
+    const next = { ...this.invoiceUiState };
+    let changed = false;
+    Object.keys(next).forEach((invoiceId) => {
+      if (next[invoiceId]?.activeTab === "journals") {
+        next[invoiceId] = { ...next[invoiceId], activeTab: "lines" };
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.invoiceUiState = next;
     }
   }
 
@@ -2027,7 +2079,10 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         const allSelectedUnlocked =
           selectedActiveJournals.length > 0 &&
           selectedActiveJournals.every((journal) => journal.isLocked !== true);
-        const activeTab = uiState.activeTab || "lines";
+        const activeTab = restoreInvoiceTab(
+          uiState.activeTab || "lines",
+          accountingEnabled
+        );
         const paymentTypeOptions = this.paymentPurposeOptions();
         const paymentDraft = uiState.paymentDraft;
         const cancelDraft = uiState.cancelDraft;
@@ -2684,9 +2739,17 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             if (isAuditRow) {
               rowClasses.push("journal-row_audit");
             }
+            const debitParts = splitSlotAccountDisplay(journal.debitAccountName);
+            const creditParts = splitSlotAccountDisplay(
+              journal.creditAccountName
+            );
             return {
             ...journal,
             key: journal.journalId,
+            debitAbbreviation: debitParts.abbreviation,
+            debitAccountLabel: debitParts.accountName,
+            creditAbbreviation: creditParts.abbreviation,
+            creditAccountLabel: creditParts.accountName,
             extraRowKey: `${journal.journalId}-extras`,
             eventName:
               journal.eventName || journal.eventKey || "",

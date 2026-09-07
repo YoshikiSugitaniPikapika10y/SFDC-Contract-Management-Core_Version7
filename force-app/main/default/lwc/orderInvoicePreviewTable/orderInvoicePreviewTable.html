@@ -861,6 +861,7 @@
                     <thead>
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
+                        <th scope="col">Lock</th>
                         <th scope="col">計上日</th>
                         <th scope="col">借方</th>
                         <th scope="col">貸方</th>
@@ -868,7 +869,6 @@
                         <th scope="col">イベント</th>
                         <th scope="col">計上時期</th>
                         <th scope="col">状態</th>
-                        <th scope="col">Lock</th>
                         <th scope="col">メモ</th>
                       </tr>
                     </thead>
@@ -890,24 +890,6 @@
                               </template>
                             </template>
                           </td>
-                          <td>{journal.postingDate}</td>
-                          <td>{journal.debitAccountName}</td>
-                          <td>{journal.creditAccountName}</td>
-                          <td class="num-col">{journal.amount}</td>
-                          <td>
-                            <button
-                              type="button"
-                              class="journal-toggle"
-                              data-journal-id={journal.journalId}
-                              onclick={handleToggleJournalExtras}
-                              aria-expanded={journal.extrasOpen}
-                            >
-                              {journal.toggleGlyph}
-                            </button>
-                            {journal.eventName}
-                          </td>
-                          <td>{journal.postingPeriod}</td>
-                          <td>{journal.transactionStatusLabel}</td>
                           <td class="journal-lock-cell">
                             <template if:true={journal.showLockKey}>
                               <template if:true={journal.lockCellLockedClickable}>
@@ -939,6 +921,44 @@
                               </template>
                             </template>
                           </td>
+                          <td>{journal.postingDate}</td>
+                          <td>
+                            <template if:true={journal.debitAbbreviation}>
+                              <span class="journal-slot-abbr">{journal.debitAbbreviation}</span>
+                              <template if:true={journal.debitAccountLabel}>
+                                <span> {journal.debitAccountLabel}</span>
+                              </template>
+                            </template>
+                            <template if:false={journal.debitAbbreviation}>
+                              {journal.debitAccountName}
+                            </template>
+                          </td>
+                          <td>
+                            <template if:true={journal.creditAbbreviation}>
+                              <span class="journal-slot-abbr">{journal.creditAbbreviation}</span>
+                              <template if:true={journal.creditAccountLabel}>
+                                <span> {journal.creditAccountLabel}</span>
+                              </template>
+                            </template>
+                            <template if:false={journal.creditAbbreviation}>
+                              {journal.creditAccountName}
+                            </template>
+                          </td>
+                          <td class="num-col">{journal.amount}</td>
+                          <td>
+                            <button
+                              type="button"
+                              class="journal-toggle"
+                              data-journal-id={journal.journalId}
+                              onclick={handleToggleJournalExtras}
+                              aria-expanded={journal.extrasOpen}
+                            >
+                              {journal.toggleGlyph}
+                            </button>
+                            {journal.eventName}
+                          </td>
+                          <td>{journal.postingPeriod}</td>
+                          <td>{journal.transactionStatusLabel}</td>
                           <td class="journal-memo-cell">
                             <template if:true={invoice.canEditJournalMemo}>
                               <lightning-input

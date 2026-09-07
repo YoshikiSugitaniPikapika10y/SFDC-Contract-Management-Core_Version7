@@ -141,16 +141,19 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     return this.previewScope?.initialInvoiceId || "";
   }
 
-  // 仕様: Core 第7.7.0節、第4.3.11節
+  // 仕様: Core 第7.7.0節、第4.3.11節。開いたままの読み直しでは表を外さない。
   async loadPreview() {
     if (!this.recordId) {
       return;
     }
 
-    this.isLoading = true;
+    const keepOpenBoard = Boolean(this.invoicePreview);
+    if (!keepOpenBoard) {
+      this.isLoading = true;
+      this.invoicePreview = undefined;
+    }
     this.errorMessage = "";
     this.contentLoadFailed = false;
-    this.invoicePreview = undefined;
     try {
       const scope = await resolvePreviewScope({
         recordId: this.recordId
