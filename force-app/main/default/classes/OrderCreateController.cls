@@ -1200,10 +1200,11 @@ public without sharing class OrderCreateController {
       displayTaxPercent,
       estimateSummary
     );
-    applyManualAdjustmentAmounts(
-      preview,
-      InvoicePreviewIntegrityService.lastLoadedPeriods
-    );
+    Map<Id, InvoiceProduct__c> knownPeriods = InvoiceCanonicalService.peekLoadedPeriods();
+    if (InvoicePreviewIntegrityService.lastLoadedPeriods != null) {
+      knownPeriods.putAll(InvoicePreviewIntegrityService.lastLoadedPeriods);
+    }
+    applyManualAdjustmentAmounts(preview, knownPeriods);
     applyEstimateDriftToLines(preview, previewLineProductsById);
     preview.sourceHistoryVersion = sourceHistory.Version__c == null
       ? null

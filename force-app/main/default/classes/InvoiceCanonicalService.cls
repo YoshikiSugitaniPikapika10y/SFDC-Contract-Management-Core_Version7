@@ -3951,7 +3951,7 @@ public without sharing class InvoiceCanonicalService {
       return periodById;
     }
     for (InvoiceProduct__c period : [
-      SELECT Id, StartDate__c, Enddate__c, Amount__c
+      SELECT Id, StartDate__c, Enddate__c, Amount__c, ContractProduct__c
       FROM InvoiceProduct__c
       WHERE Id IN :ids
       WITH SYSTEM_MODE
@@ -3960,6 +3960,28 @@ public without sharing class InvoiceCanonicalService {
     }
     periodsBySourceKey.put(cacheKey, periodById);
     return periodById;
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第7.8節。
+   * applyServicePeriodSnapshot が読んだ期間明細。同一処理の返却手直しは取り直さない。
+   */
+  public static Map<Id, InvoiceProduct__c> peekLoadedPeriods() {
+    Map<Id, InvoiceProduct__c> byId = new Map<Id, InvoiceProduct__c>();
+    if (periodsBySourceKey == null) {
+      return byId;
+    }
+    for (Map<Id, InvoiceProduct__c> periodById : periodsBySourceKey.values()) {
+      if (periodById == null) {
+        continue;
+      }
+      for (InvoiceProduct__c period : periodById.values()) {
+        if (period != null && period.Id != null) {
+          byId.put(period.Id, period);
+        }
+      }
+    }
+    return byId;
   }
 
   /**

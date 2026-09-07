@@ -3739,6 +3739,7 @@ private class OrderCreateControllerTest {
       Test.startTest();
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitLinesInPlace(
         context.history.Id,
         invoice.Id,
@@ -3750,6 +3751,11 @@ private class OrderCreateControllerTest {
         false,
         OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
         'Core 第12.4節・第7.8節: 分割した請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewPeriodSelectCount,
+        'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
       );
       Integer lineCount = 0;
       Boolean splitMoved = false;
@@ -3807,6 +3813,7 @@ private class OrderCreateControllerTest {
       Test.startTest();
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByDate(
         context.history.Id,
         source.Id,
@@ -3837,6 +3844,11 @@ private class OrderCreateControllerTest {
         false,
         OrderCreateController.lastPreviewInvoiceSelectIds.contains(createdId),
         'Core 第12.4節・第7.8節: 新請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewPeriodSelectCount,
+        'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
       );
       System.assert(
         preview.invoices.size() >= 2,
@@ -3874,6 +3886,7 @@ private class OrderCreateControllerTest {
       Test.startTest();
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByBillingAccount(
         context.history.Id,
         source.Id,
@@ -3888,6 +3901,11 @@ private class OrderCreateControllerTest {
         false,
         OrderCreateController.lastPreviewInvoiceSelectIds.contains(source.Id),
         'Core 第12.4節・第7.8節: 元請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewPeriodSelectCount,
+        'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
       );
       System.assert(
         preview.invoiceCount >= 2,
@@ -3960,6 +3978,7 @@ private class OrderCreateControllerTest {
       Test.startTest();
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.moveLinesToExistingInvoice(
         context.history.Id,
         createdId,
@@ -3979,6 +3998,11 @@ private class OrderCreateControllerTest {
         false,
         OrderCreateController.lastPreviewInvoiceSelectIds.contains(createdId),
         'Core 第12.4節・第7.8節: 移動元請求をgetInvoicePreviewで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewPeriodSelectCount,
+        'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
       );
       Boolean sourceExists = false;
       for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
@@ -4032,6 +4056,7 @@ private class OrderCreateControllerTest {
       Test.startTest();
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.InvoicePreviewDto retry = OrderCreateController.splitLinesInPlace(
         context.history.Id,
         invoice.Id,
@@ -4044,6 +4069,11 @@ private class OrderCreateControllerTest {
         false,
         OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
         'Core 第12.4節・第7.8節: 冪等済み返却も対象請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewPeriodSelectCount,
+        'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
       );
       System.assertNotEquals(null, retry);
       System.assert(
