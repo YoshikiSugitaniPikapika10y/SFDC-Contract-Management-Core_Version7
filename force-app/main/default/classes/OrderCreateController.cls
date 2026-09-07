@@ -1344,26 +1344,23 @@ public without sharing class OrderCreateController {
     Date cancellationDate,
     String businessOperationKey
   ) {
-    assertAcceptanceLineInPreviewScope(contractHistoryId, lineId);
+    InvoiceLine__c scopedLine = assertAcceptanceLineInPreviewScope(
+      contractHistoryId,
+      lineId
+    );
     try {
       InvoiceCanonicalService.updateLineAcceptanceEndDates(
         new Map<Id, Date>{ lineId => acceptanceEndDate },
         cancellationDate,
         businessOperationKey,
-        expectedContentVersion
+        expectedContentVersion,
+        new List<InvoiceLine__c>{ scopedLine }
       );
-      List<InvoiceLine__c> lines = [
-        SELECT Invoice__c
-        FROM InvoiceLine__c
-        WHERE Id = :lineId
-        WITH SYSTEM_MODE
-        LIMIT 1
-      ];
       ContractOperationLogService.write(
         'ChangeAcceptanceEndDate',
         businessOperationKey,
         'Invoice__c',
-        lines.isEmpty() ? null : String.valueOf(lines[0].Invoice__c)
+        String.valueOf(scopedLine.Invoice__c)
       );
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
@@ -1379,12 +1376,22 @@ public without sharing class OrderCreateController {
     Date cancellationDate,
     Id contractHistoryId
   ) {
-    assertAcceptanceLineInPreviewScope(contractHistoryId, lineId);
-    return previewInvoiceLineAcceptanceEndDate(
-      lineId,
-      acceptanceEndDate,
-      cancellationDate
+    InvoiceLine__c scopedLine = assertAcceptanceLineInPreviewScope(
+      contractHistoryId,
+      lineId
     );
+    if (lineId == null) {
+      throw toAuraHandled('明細は必須です。');
+    }
+    try {
+      return InvoiceCanonicalService.previewLineAcceptanceEndDates(
+        new Map<Id, Date>{ lineId => acceptanceEndDate },
+        cancellationDate,
+        new List<InvoiceLine__c>{ scopedLine }
+      );
+    } catch (Exception ex) {
+      throw toAuraHandled(ex.getMessage());
+    }
   }
 
   /** 仕様: Core 第7.6節、第7.9.6節、Accounting 第8.5節・第8.8節、日付仕様 第7.3節 */
@@ -1876,8 +1883,8 @@ public without sharing class OrderCreateController {
 
   public static final String PREVIEW_SCOPE_MISMATCH_MESSAGE = '指定された請求／請求明細が、開いている契約サービスに属していません。画面を開き直してください。';
 
-  /** 仕様: Core 第7.7.3節、第7.6節 */
-  private static void assertAcceptanceLineInPreviewScope(
+  /** 仕様: Core 第7.7.3節、第7.6節、第12.4節 */
+  private static InvoiceLine__c assertAcceptanceLineInPreviewScope(
     Id contractHistoryId,
     Id lineId
   ) {
@@ -1885,7 +1892,13 @@ public without sharing class OrderCreateController {
       throw toAuraHandled('明細は必須です。');
     }
     List<InvoiceLine__c> lines = [
-      SELECT Invoice__c
+      SELECT
+        Id,
+        AcceptanceEndDate__c,
+        RevenueRecognitionBasis__c,
+        Invoice__c,
+        Invoice__r.InvoiceTransactionStatus__c,
+        Invoice__r.ContractService__c
       FROM InvoiceLine__c
       WHERE Id = :lineId
       WITH SYSTEM_MODE
@@ -1894,20 +1907,16 @@ public without sharing class OrderCreateController {
     if (lines.isEmpty()) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
-    Id invoiceId = lines[0].Invoice__c;
+    InvoiceLine__c line = lines[0];
     Id contractServiceId = resolveContractServiceId(contractHistoryId);
-    if (contractServiceId == null) {
+    if (
+      contractServiceId == null ||
+      line.Invoice__r == null ||
+      line.Invoice__r.ContractService__c != contractServiceId
+    ) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
-    Integer inScopeInvoices = [
-      SELECT COUNT()
-      FROM Invoice__c
-      WHERE Id = :invoiceId AND ContractService__c = :contractServiceId
-      WITH SYSTEM_MODE
-    ];
-    if (inScopeInvoices != 1) {
-      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
-    }
+    return line;
   }
 
   public static final String RESET_POST_ORDER_NON_LATEST_MESSAGE = '最新の受注 Version 以外は受注直後の請求に戻せません。';

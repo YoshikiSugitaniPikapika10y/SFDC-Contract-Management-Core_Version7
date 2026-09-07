@@ -7,6 +7,8 @@ public without sharing class InvoiceCanonicalService {
   private static Boolean testHasEditPreviewPermission;
   @TestVisible
   static Integer invoicePurgeSelectCount = 0;
+  @TestVisible
+  static Integer acceptanceLineSelectCount = 0;
 
   public static final String SPLIT_AMOUNT_CONSERVE_MESSAGE = '分割後の金額合計が元の明細金額と一致しません。';
 
@@ -576,11 +578,32 @@ public without sharing class InvoiceCanonicalService {
     String businessOperationKey,
     String expectedToken
   ) {
-    List<InvoiceLine__c> lines = loadAcceptanceLines(acceptanceEndDateByLineId);
+    updateLineAcceptanceEndDates(
+      acceptanceEndDateByLineId,
+      cancellationDate,
+      businessOperationKey,
+      expectedToken,
+      null
+    );
+  }
+
+  /** 仕様: Core 第12.4節。入口で読んだ明細があれば取り直さない。 */
+  public static void updateLineAcceptanceEndDates(
+    Map<Id, Date> acceptanceEndDateByLineId,
+    Date cancellationDate,
+    String businessOperationKey,
+    String expectedToken,
+    List<InvoiceLine__c> knownAcceptanceLines
+  ) {
+    List<InvoiceLine__c> lines = loadAcceptanceLines(
+      acceptanceEndDateByLineId,
+      knownAcceptanceLines
+    );
     Map<Id, Invoice__c> lockedById = lockConfirmedAcceptanceInvoices(
       lines,
       cancellationDate
     );
+    refreshAcceptanceCurrent(lockedById.keySet());
     Set<Id> confirmedInvoiceIds = confirmedAcceptanceInvoiceIds(lines);
     Set<Id> invoiceIds = new Set<Id>();
     for (InvoiceLine__c line : lines) {
@@ -596,19 +619,23 @@ public without sharing class InvoiceCanonicalService {
         return;
       }
     }
-    // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
+    for (Id invoiceId : confirmedInvoiceIds) {
+      AccountingCurrentService.load(invoiceId);
+    }
+    // 仕様: Core 第4.3.12節・第7.9.7節。ロック済み請求の更新日時は取り直さない。
     for (Id invoiceId : invoiceIds) {
+      Invoice__c locked = lockedById.get(invoiceId);
       AccountingCauseLockService.assertInvoiceOperationUnchanged(
         invoiceId,
-        expectedToken
+        expectedToken,
+        locked == null ? null : locked.LastModifiedDate
       );
     }
-    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
-    AccountingDiffService.CancelPreview datePreview = previewLineAcceptanceEndDates(
-      acceptanceEndDateByLineId,
-      cancellationDate
-    );
-    if (datePreview.reverseCount > 0 && cancellationDate == null) {
+    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作の逆仕訳対象のLockだけ取消基準日を取る。
+    if (
+      acceptanceLockedJournalCount(lines, confirmedInvoiceIds) > 0 &&
+      cancellationDate == null
+    ) {
       throw new InvoiceEditException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
     for (InvoiceLine__c line : lines) {
@@ -629,82 +656,45 @@ public without sharing class InvoiceCanonicalService {
     Map<Id, Date> acceptanceEndDateByLineId,
     Date cancellationDate
   ) {
-    List<InvoiceLine__c> lines = loadAcceptanceLines(acceptanceEndDateByLineId);
+    return previewLineAcceptanceEndDates(
+      acceptanceEndDateByLineId,
+      cancellationDate,
+      null
+    );
+  }
+
+  /** 仕様: Core 第12.4節。入口で読んだ明細があればプレビューも取り直さない。 */
+  public static AccountingDiffService.CancelPreview previewLineAcceptanceEndDates(
+    Map<Id, Date> acceptanceEndDateByLineId,
+    Date cancellationDate,
+    List<InvoiceLine__c> knownAcceptanceLines
+  ) {
+    List<InvoiceLine__c> lines = loadAcceptanceLines(
+      acceptanceEndDateByLineId,
+      knownAcceptanceLines
+    );
     Map<Id, Invoice__c> lockedById = lockConfirmedAcceptanceInvoices(
       lines,
       cancellationDate
     );
+    refreshAcceptanceCurrent(lockedById.keySet());
     Set<Id> confirmedInvoiceIds = confirmedAcceptanceInvoiceIds(lines);
+    AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
+    preview.logicalDeleteCount = 0;
+    preview.reverseCount = 0;
+    preview.reverseDateCounts = new List<AccountingDiffService.ReverseDateCount>();
+    preview.hasFutureReverseDate = false;
     if (!isAccountingEnabledForAcceptance(confirmedInvoiceIds)) {
-      AccountingDiffService.CancelPreview empty = new AccountingDiffService.CancelPreview();
-      empty.logicalDeleteCount = 0;
-      empty.reverseCount = 0;
-      empty.reverseDateCounts = new List<AccountingDiffService.ReverseDateCount>();
-      empty.hasFutureReverseDate = false;
-      empty.displayText = AccountingDiffService.toDisplayText(empty);
-      return empty;
-    }
-    Savepoint savepoint = Database.setSavepoint();
-    try {
-      for (InvoiceLine__c line : lines) {
-        line.AcceptanceEndDate__c = acceptanceEndDateByLineId.get(line.Id);
-      }
-      SystemContextAccess.updateRecords(lines);
-      AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
-      preview.logicalDeleteCount = 0;
-      preview.reverseCount = 0;
-      preview.reverseDateCounts = new List<AccountingDiffService.ReverseDateCount>();
-      preview.hasFutureReverseDate = false;
-      Map<Date, Integer> countByDate = new Map<Date, Integer>();
-      Map<Id, Set<Id>> lineIdsByInvoice = acceptanceLineIdsByInvoice(
-        lines,
-        confirmedInvoiceIds
-      );
-      for (Id invoiceId : confirmedInvoiceIds) {
-        AccountingDiffService.CancelPreview one = AccountingDiffService.previewApply(
-          invoiceId,
-          AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key,
-          cancellationDate,
-          lockedById.get(invoiceId),
-          lineIdsByInvoice.get(invoiceId)
-        );
-        preview.logicalDeleteCount += one.logicalDeleteCount == null
-          ? 0
-          : one.logicalDeleteCount;
-        preview.reverseCount += one.reverseCount == null ? 0 : one.reverseCount;
-        if (one.hasFutureReverseDate == true) {
-          preview.hasFutureReverseDate = true;
-        }
-        if (one.reverseDateCounts == null) {
-          continue;
-        }
-        for (
-          AccountingDiffService.ReverseDateCount row : one.reverseDateCounts
-        ) {
-          Integer currentCount = countByDate.containsKey(row.reverseDate)
-            ? countByDate.get(row.reverseDate)
-            : 0;
-          countByDate.put(
-            row.reverseDate,
-            currentCount + (row.journalCount == null ? 0 : row.journalCount)
-          );
-        }
-      }
-      List<Date> dates = new List<Date>(countByDate.keySet());
-      dates.sort();
-      for (Date reverseDate : dates) {
-        AccountingDiffService.ReverseDateCount row = new AccountingDiffService.ReverseDateCount();
-        row.reverseDate = reverseDate;
-        row.journalCount = countByDate.get(reverseDate);
-        preview.reverseDateCounts.add(row);
-      }
       preview.displayText = AccountingDiffService.toDisplayText(preview);
-      Database.rollback(savepoint);
       return preview;
-    } catch (Exception ex) {
-      Database.rollback(savepoint);
-      throw ex;
     }
+    // 仕様: Accounting 第8.8節、Core 第7.9.6節。確認は業務確認と必要な取消基準日。Goal Diffは組まない。
+    preview.reverseCount = acceptanceLockedJournalCount(
+      lines,
+      confirmedInvoiceIds
+    );
+    preview.displayText = AccountingDiffService.toDisplayText(preview);
+    return preview;
   }
 
   /** 仕様: Core 第1.1.10節、第7.6節、Accounting 第8.2節、第1.1節、第1.8.1節、第8.5節、第8.8節 */
@@ -795,12 +785,19 @@ public without sharing class InvoiceCanonicalService {
     return false;
   }
 
+  private static List<InvoiceLine__c> loadAcceptanceLines(
+    Map<Id, Date> acceptanceEndDateByLineId
+  ) {
+    return loadAcceptanceLines(acceptanceEndDateByLineId, null);
+  }
+
   /**
-   * 仕様: Core 第7.6節・第7.7.3節・第7.7.0節。
+   * 仕様: Core 第7.6節・第7.7.3節・第7.7.0節・第12.4節。
    * 検収終了日変更は請求ボードの操作。未確定請求を直す権限（10）を見る。
    */
   private static List<InvoiceLine__c> loadAcceptanceLines(
-    Map<Id, Date> acceptanceEndDateByLineId
+    Map<Id, Date> acceptanceEndDateByLineId,
+    List<InvoiceLine__c> knownAcceptanceLines
   ) {
     assertCanEditInvoicePreview();
     if (
@@ -808,17 +805,24 @@ public without sharing class InvoiceCanonicalService {
     ) {
       throw new InvoiceEditException('明細は必須です。');
     }
-    List<InvoiceLine__c> lines = [
-      SELECT
-        Id,
-        AcceptanceEndDate__c,
-        RevenueRecognitionBasis__c,
-        Invoice__c,
-        Invoice__r.InvoiceTransactionStatus__c
-      FROM InvoiceLine__c
-      WHERE Id IN :acceptanceEndDateByLineId.keySet()
-      WITH SYSTEM_MODE
-    ];
+    List<InvoiceLine__c> lines = reuseAcceptanceLines(
+      acceptanceEndDateByLineId,
+      knownAcceptanceLines
+    );
+    if (lines == null) {
+      acceptanceLineSelectCount++;
+      lines = [
+        SELECT
+          Id,
+          AcceptanceEndDate__c,
+          RevenueRecognitionBasis__c,
+          Invoice__c,
+          Invoice__r.InvoiceTransactionStatus__c
+        FROM InvoiceLine__c
+        WHERE Id IN :acceptanceEndDateByLineId.keySet()
+        WITH SYSTEM_MODE
+      ];
+    }
     if (lines.size() != acceptanceEndDateByLineId.size()) {
       throw new InvoiceEditException('更新対象の明細が見つかりません。');
     }
@@ -844,6 +848,19 @@ public without sharing class InvoiceCanonicalService {
       }
     }
     return lines;
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節。この検収操作のCurrent収集はロック後に1回。
+   * 直前の別処理（確定・仕訳ロック）のキャッシュは使わない。
+   */
+  private static void refreshAcceptanceCurrent(Set<Id> invoiceIds) {
+    if (invoiceIds == null) {
+      return;
+    }
+    for (Id invoiceId : invoiceIds) {
+      AccountingCurrentService.invalidate(invoiceId);
+    }
   }
 
   private static Map<Id, Invoice__c> lockConfirmedAcceptanceInvoices(
@@ -883,6 +900,78 @@ public without sharing class InvoiceCanonicalService {
       }
     }
     return false;
+  }
+
+  /** 仕様: Accounting 第8.2節。入口で読んだ明細を検収保存が取り直さない。 */
+  private static List<InvoiceLine__c> reuseAcceptanceLines(
+    Map<Id, Date> acceptanceEndDateByLineId,
+    List<InvoiceLine__c> knownAcceptanceLines
+  ) {
+    if (
+      knownAcceptanceLines == null ||
+      knownAcceptanceLines.size() != acceptanceEndDateByLineId.size()
+    ) {
+      return null;
+    }
+    List<InvoiceLine__c> reused = new List<InvoiceLine__c>();
+    Set<Id> seen = new Set<Id>();
+    for (InvoiceLine__c line : knownAcceptanceLines) {
+      if (
+        line == null ||
+        line.Id == null ||
+        !acceptanceEndDateByLineId.containsKey(line.Id) ||
+        !seen.add(line.Id) ||
+        !hasAcceptanceLineFields(line)
+      ) {
+        return null;
+      }
+      reused.add(line);
+    }
+    if (reused.size() != acceptanceEndDateByLineId.size()) {
+      return null;
+    }
+    return reused;
+  }
+
+  private static Boolean hasAcceptanceLineFields(InvoiceLine__c line) {
+    try {
+      line.get('AcceptanceEndDate__c');
+      line.get('RevenueRecognitionBasis__c');
+      line.get('Invoice__c');
+      return line.Invoice__r != null;
+    } catch (SObjectException ex) {
+      return false;
+    }
+  }
+
+  /**
+   * 仕様: Accounting 第8.5節・第8.8節。変えた明細に紐づく Active Lock だけ取消基準日の要否にする。
+   */
+  private static Integer acceptanceLockedJournalCount(
+    List<InvoiceLine__c> lines,
+    Set<Id> confirmedInvoiceIds
+  ) {
+    Integer lockedCount = 0;
+    Map<Id, Set<Id>> lineIdsByInvoice = acceptanceLineIdsByInvoice(
+      lines,
+      confirmedInvoiceIds
+    );
+    for (Id invoiceId : lineIdsByInvoice.keySet()) {
+      Set<Id> lineIds = lineIdsByInvoice.get(invoiceId);
+      for (GlJournal__c journal : AccountingCurrentService.load(invoiceId)) {
+        if (
+          journal == null ||
+          journal.IsLocked__c != true ||
+          journal.TransactionStatus__c != 'Active' ||
+          journal.InvoiceLine__c == null ||
+          !lineIds.contains(journal.InvoiceLine__c)
+        ) {
+          continue;
+        }
+        lockedCount++;
+      }
+    }
+    return lockedCount;
   }
 
   /**

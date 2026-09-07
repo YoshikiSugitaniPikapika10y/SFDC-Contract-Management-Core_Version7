@@ -1246,6 +1246,192 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void acceptance_previewDoesNotPersistOrBuildGoal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('PrevNoGoal');
+      enableAccounting();
+      seedMaps();
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      confirmWithJournals(fixture.invoice);
+      Date originalDate = fixture.line.AcceptanceEndDate__c;
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      Test.startTest();
+      AccountingDiffService.CancelPreview preview = InvoiceCanonicalService.previewLineAcceptanceEndDates(
+        new Map<Id, Date>{ fixture.line.Id => Date.newInstance(2026, 8, 31) },
+        null
+      );
+      Test.stopTest();
+      System.assertEquals(
+        originalDate,
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :fixture.line.Id
+        ]
+        .AcceptanceEndDate__c,
+        'Accounting 第8.2節・第8.8節: 実行前プレビューは検収日を書かない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節: 実行前プレビューはGoal Diffを組まない'
+      );
+      System.assertEquals(
+        0,
+        preview.logicalDeleteCount,
+        'Accounting 第8.8節: プレビューは件数内訳を出さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void acceptance_previewLockedLineRequiresCancelDateWithoutPersist() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('PrevLock');
+      enableAccounting();
+      seedMaps();
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      confirmWithJournals(fixture.invoice);
+      JournalLockService.lockForInvoice(
+        fixture.invoice.Id,
+        activeJournalIds(fixture.invoice.Id),
+        AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id),
+        null
+      );
+      Date originalDate = [
+        SELECT AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Id = :fixture.line.Id
+      ]
+      .AcceptanceEndDate__c;
+      Test.startTest();
+      AccountingDiffService.CancelPreview preview = InvoiceCanonicalService.previewLineAcceptanceEndDates(
+        new Map<Id, Date>{ fixture.line.Id => Date.newInstance(2026, 8, 31) },
+        null
+      );
+      Test.stopTest();
+      System.assert(
+        preview.reverseCount > 0,
+        'Accounting 第8.5節・第8.8節: 変えた明細の Active Lock だけ取消基準日が要る'
+      );
+      System.assertEquals(
+        originalDate,
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :fixture.line.Id
+        ]
+        .AcceptanceEndDate__c,
+        'Accounting 第8.8節: プレビューは検収日を変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void acceptance_saveReusesLockedInvoiceVersionAndKnownLines() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('AccReuse');
+      enableAccounting();
+      seedMaps();
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      confirmWithJournals(fixture.invoice);
+      InvoiceLine__c scoped = [
+        SELECT
+          Id,
+          AcceptanceEndDate__c,
+          RevenueRecognitionBasis__c,
+          Invoice__c,
+          Invoice__r.InvoiceTransactionStatus__c
+        FROM InvoiceLine__c
+        WHERE Id = :fixture.line.Id
+      ];
+      InvoiceCanonicalService.acceptanceLineSelectCount = 0;
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      AccountingGoalService.allocationLoadSelectCount = 0;
+      Test.startTest();
+      AccountingCurrentService.invalidate(fixture.invoice.Id);
+      String expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      AccountingCauseLockService.invoiceModifiedSelectCount = 0;
+      InvoiceCanonicalService.updateLineAcceptanceEndDates(
+        new Map<Id, Date>{ scoped.Id => Date.newInstance(2026, 8, 31) },
+        null,
+        null,
+        expectedToken,
+        new List<InvoiceLine__c>{ scoped }
+      );
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.acceptanceLineSelectCount,
+        'Core 第12.4節: 入口で読んだ明細は取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.invoiceModifiedSelectCount,
+        'Core 第7.9.7節: ロック済み請求の更新日時は取り直さない'
+      );
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節: 検収保存のCurrentはロック後1回'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Core 第11.4.2節: コピーFromはGoal収集を使い取り直さない'
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 8, 31),
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :fixture.line.Id
+        ]
+        .AcceptanceEndDate__c,
+        'Core 第7.6節: 空欄へは変えず、指定日を書く'
+      );
+    }
+  }
+
+  @IsTest
+  static void confirm_applyReusesCopySourcesAndCollectedAllocations() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('CfmReuse');
+      enableAccounting();
+      seedMaps();
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      markConfirmed(fixture.invoice);
+      AccountingGoalService.allocationLoadSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      Test.startTest();
+      AccountingDiffService.applyForInvoice(
+        fixture.invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        'TEST_REUSE_COPY',
+        null
+      );
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Core 第11.4.2節: コピーFromはGoal収集を使い取り直さない'
+      );
+      System.assert(
+        AccountingGoalService.allocationLoadSelectCount <= 1,
+        'Accounting 第8.2節・第8.4節: persistはGoalが集めた割当を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void acceptance_offAllowsLogicallyDeletedLeftover() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('OffDel');

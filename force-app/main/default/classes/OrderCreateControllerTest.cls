@@ -1197,6 +1197,54 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void updateInvoiceLineAcceptanceEndDate_reusesScopedLine() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createSpotEstimateContextWithOpportunity();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      Date nextDate = line.AcceptanceEndDate__c == null
+        ? Date.today()
+        : line.AcceptanceEndDate__c.addDays(1);
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        line.Invoice__c
+      );
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.acceptanceLineSelectCount = 0;
+      Test.startTest();
+      OrderCreateController.updateInvoiceLineAcceptanceEndDate(
+        context.history.Id,
+        line.Id,
+        nextDate,
+        token,
+        null,
+        null
+      );
+      Test.stopTest();
+      InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.acceptanceLineSelectCount,
+        'Core 第12.4節: 範囲確認で読んだ明細を保存が取り直さない'
+      );
+      System.assertEquals(
+        nextDate,
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :line.Id
+        ]
+        .AcceptanceEndDate__c,
+        'Core 第7.6節: 検収終了日を指定日へ更新する'
+      );
+    }
+  }
+
+  @IsTest
   static void confirmOrder_usesBillingAccountMasterForInvoiceGeneration() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();

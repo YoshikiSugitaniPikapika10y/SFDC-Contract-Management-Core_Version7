@@ -93,34 +93,40 @@ public without sharing class AccountingCauseLockService {
       throw new LockException('請求が指定されていません。');
     }
     invoiceLockSelectCount++;
-    List<Invoice__c> invoices = [
-      SELECT
-        Id,
-        InvoiceDate__c,
-        InvoiceTransactionStatus__c,
-        Amount__c,
-        TaxAmount__c,
-        TaxInclusiveAmount__c,
-        InvoicePaymentNet__c,
-        BillingAccountSnapShot__c,
-        BillingAccountKeySnapShot__c,
-        ContractHistory__c,
-        ContractService__c,
-        BusinessOperationKey__c,
-        CollectionRefundStatus__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c,
-        InvoiceDeliveryMethodSnapShot__c,
-        LastModifiedDate,
-        ContractHistory__r.Version__c,
-        ContractHistory__r.ContractService__c,
-        ContractHistory__r.ContractService__r.TaxPercent__c,
-        ContractService__r.TaxPercent__c
-      FROM Invoice__c
-      WHERE Id IN :compact
-      WITH SYSTEM_MODE
-      FOR UPDATE
-    ];
+    Set<String> fieldSet = new Set<String>{
+      'Id',
+      'InvoiceDate__c',
+      'InvoiceTransactionStatus__c',
+      'Amount__c',
+      'TaxAmount__c',
+      'TaxPercent__c',
+      'TaxInclusiveAmount__c',
+      'InvoicePaymentNet__c',
+      'BillingAccountSnapShot__c',
+      'BillingAccountKeySnapShot__c',
+      'ContractHistory__c',
+      'ContractService__c',
+      'BusinessOperationKey__c',
+      'CollectionRefundStatus__c',
+      'SystemIntegrationDate__c',
+      'PaymentClearingCompletedDate__c',
+      'InvoiceDeliveryMethodSnapShot__c',
+      'LastModifiedDate',
+      'ContractHistory__r.Version__c',
+      'ContractHistory__r.ContractService__c',
+      'ContractHistory__r.ContractService__r.TaxPercent__c',
+      'ContractService__r.TaxPercent__c'
+    };
+    // 仕様: Accounting 第8.2節、Core 第11.4.2節。コピーFromはロック行に載せ、Goal/Diffで取り直さない。
+    fieldSet.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
+    fieldSet.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
+    );
+    List<Invoice__c> invoices = Database.query(
+      'SELECT ' +
+        String.join(new List<String>(fieldSet), ',') +
+        ' FROM Invoice__c WHERE Id IN :compact WITH SYSTEM_MODE FOR UPDATE'
+    );
     if (invoices.size() != compact.size()) {
       throw new LockException('請求をロックできませんでした。');
     }
@@ -195,16 +201,29 @@ public without sharing class AccountingCauseLockService {
         GROUP BY Invoice__c
       ]
     );
-    bumpMax(
-      result,
-      [
-        SELECT Invoice__c, MAX(LastModifiedDate) maxLm
-        FROM GlJournal__c
-        WHERE Invoice__c IN :invoiceIds
-        WITH SYSTEM_MODE
-        GROUP BY Invoice__c
-      ]
-    );
+    if (AccountingCurrentService.hasLoadedAll(invoiceIds)) {
+      for (Id invoiceId : invoiceIds) {
+        Datetime journalMax = AccountingCurrentService.maxLastModified(invoiceId);
+        if (journalMax == null) {
+          continue;
+        }
+        Datetime current = result.get(invoiceId);
+        if (current == null || journalMax.getTime() > current.getTime()) {
+          result.put(invoiceId, journalMax);
+        }
+      }
+    } else {
+      bumpMax(
+        result,
+        [
+          SELECT Invoice__c, MAX(LastModifiedDate) maxLm
+          FROM GlJournal__c
+          WHERE Invoice__c IN :invoiceIds
+          WITH SYSTEM_MODE
+          GROUP BY Invoice__c
+        ]
+      );
+    }
     return result;
   }
 

@@ -65,6 +65,8 @@ public without sharing class AccountingGoalService {
   private static Map<Id, RelatedRecords> cachedRelatedByInvoice = new Map<Id, RelatedRecords>();
   private static Map<Id, Map<Id, InvoicePayment__c>> collectedPaymentsByInvoice = new Map<Id, Map<Id, InvoicePayment__c>>();
   private static Map<Id, Map<Id, InvoicePaymentAllocation__c>> collectedAllocationsByInvoice = new Map<Id, Map<Id, InvoicePaymentAllocation__c>>();
+  @TestVisible
+  static Integer allocationLoadSelectCount = 0;
   private static Map<String, List<GlJournal__c>> activeJournalsByGeneration;
 
   private class RelatedRecords {
@@ -2511,6 +2513,7 @@ public without sharing class AccountingGoalService {
     extraFields.add('BillingAccountKeySnapShot__c');
     extraFields.add('Amount__c');
     extraFields.add('TaxAmount__c');
+    extraFields.add('TaxPercent__c');
     extraFields.add('TaxInclusiveAmount__c');
     extraFields.add('InvoiceTransactionStatus__c');
     extraFields.add('LastModifiedDate');
@@ -2865,10 +2868,14 @@ public without sharing class AccountingGoalService {
     }
     Boolean needHistory =
       !tenantConditionFields(ContractHistory__c.SObjectType).isEmpty() ||
-      !tenantConditionFields(Opportunity.SObjectType).isEmpty();
+      !tenantConditionFields(Opportunity.SObjectType).isEmpty() ||
+      !copySourceFields(ContractHistory__c.SObjectType).isEmpty() ||
+      !copySourceFields(Opportunity.SObjectType).isEmpty();
     Boolean needService =
       !tenantConditionFields(ContractService__c.SObjectType).isEmpty() ||
-      !tenantConditionFields(Account.SObjectType).isEmpty();
+      !tenantConditionFields(Account.SObjectType).isEmpty() ||
+      !copySourceFields(ContractService__c.SObjectType).isEmpty() ||
+      !copySourceFields(Account.SObjectType).isEmpty();
     if (needHistory) {
       related.histories = toHistories(
         queryRelated(
@@ -3106,6 +3113,7 @@ public without sharing class AccountingGoalService {
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +
       ' FROM InvoicePaymentAllocation__c WHERE InvoicePayment__c IN :paymentIds';
+    allocationLoadSelectCount++;
     return Database.query(soql, AccessLevel.SYSTEM_MODE);
   }
 

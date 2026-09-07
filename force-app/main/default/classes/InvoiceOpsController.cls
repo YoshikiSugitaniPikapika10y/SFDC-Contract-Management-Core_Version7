@@ -5,6 +5,8 @@
 public without sharing class InvoiceOpsController {
   @TestVisible
   private static final String SCOPE_MISMATCH_MESSAGE = '指定された請求が、対象の契約サービスに属していません。画面を開き直してください。';
+  @TestVisible
+  static Set<Id> lastEstimateMatchQueriedIds = new Set<Id>();
 
   /** 仕様: Core 第4.3.12節、第7.9.7節。確定の Aura 入口は confirmInvoiceFromPreview。 */
   public static Integer markInvoiced(
@@ -199,6 +201,18 @@ public without sharing class InvoiceOpsController {
     ContractPermissionUtil.assertEditDraftInvoice();
   }
 
+  private static Boolean hasEstimateMatchFields(Invoice__c invoice) {
+    try {
+      invoice.get('Amount__c');
+      invoice.get('TaxAmount__c');
+      invoice.get('TaxPercent__c');
+      invoice.get('ContractHistory__c');
+      return true;
+    } catch (SObjectException ex) {
+      return false;
+    }
+  }
+
   private static Decimal nvl(Decimal value) {
     return value == null ? 0 : value;
   }
@@ -233,6 +247,7 @@ public without sharing class InvoiceOpsController {
           CollectionRefundStatus__c,
           Amount__c,
           TaxAmount__c,
+          TaxPercent__c,
           TaxInclusiveAmount__c,
           InvoicePaymentNet__c,
           BillingAccountKeySnapShot__c,
@@ -351,13 +366,17 @@ public without sharing class InvoiceOpsController {
   private static void assertEstimateTotalsMatch(List<Invoice__c> invoices) {
     Set<Id> historyIds = new Set<Id>();
     Set<Id> invoiceIds = new Set<Id>();
+    Map<Id, Invoice__c> knownById = new Map<Id, Invoice__c>();
     for (Invoice__c invoice : invoices) {
-      if (invoice == null) {
+      if (invoice == null || invoice.Id == null) {
         continue;
       }
       invoiceIds.add(invoice.Id);
       if (invoice.ContractHistory__c != null) {
         historyIds.add(invoice.ContractHistory__c);
+      }
+      if (hasEstimateMatchFields(invoice)) {
+        knownById.put(invoice.Id, invoice);
       }
     }
     if (historyIds.isEmpty() && !invoiceIds.isEmpty()) {
@@ -373,14 +392,25 @@ public without sharing class InvoiceOpsController {
       }
     }
     Map<Id, Decimal> invoiceExclTotals = new Map<Id, Decimal>();
+    List<Invoice__c> versionInvoices = new List<Invoice__c>();
+    if (!knownById.isEmpty()) {
+      versionInvoices.addAll(knownById.values());
+    }
+    String statusCancelled = InvoiceTransactionStatusService.TX_CANCELLED;
+    lastEstimateMatchQueriedIds = new Set<Id>();
     for (Invoice__c invoice : [
-      SELECT Amount__c, TaxAmount__c, TaxPercent__c, ContractHistory__c
+      SELECT Id, Amount__c, TaxAmount__c, TaxPercent__c, ContractHistory__c
       FROM Invoice__c
       WHERE
         ContractHistory__c IN :historyIds
-        AND InvoiceTransactionStatus__c != 'Cancelled'
+        AND InvoiceTransactionStatus__c != :statusCancelled
+        AND Id NOT IN :knownById.keySet()
       WITH SYSTEM_MODE
     ]) {
+      lastEstimateMatchQueriedIds.add(invoice.Id);
+      versionInvoices.add(invoice);
+    }
+    for (Invoice__c invoice : versionInvoices) {
       if (invoice.Amount__c == null) {
         throw new InvoiceOpsException('請求の税抜金額がありません。');
       }

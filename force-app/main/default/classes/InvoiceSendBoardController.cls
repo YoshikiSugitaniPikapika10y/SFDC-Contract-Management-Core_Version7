@@ -163,16 +163,17 @@ public without sharing class InvoiceSendBoardController {
     Boolean requireBoardScope
   ) {
     try {
-      if (requireBoardScope == true) {
-        InvoiceOpsController.assertInvoicesInScope(
-          contractHistoryId,
-          new List<Id>{ invoiceId }
-        );
-      }
       String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
         businessOperationKey
       );
       Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
+      if (requireBoardScope == true) {
+        InvoiceOpsController.assertInvoicesInScope(
+          contractHistoryId,
+          new List<Id>{ invoiceId },
+          invoice
+        );
+      }
       if (
         InvoiceTransactionStatusService.isConfirmed(invoice) &&
         invoice.BusinessOperationKey__c == operationKey
@@ -188,6 +189,7 @@ public without sharing class InvoiceSendBoardController {
         );
         return existing;
       }
+      AccountingCurrentService.load(invoice.Id);
       AccountingCauseLockService.assertInvoiceOperationUnchanged(
         invoiceId,
         expectedToken,

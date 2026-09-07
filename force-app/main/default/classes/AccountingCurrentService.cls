@@ -61,6 +61,7 @@ public without sharing class AccountingCurrentService {
         'PostingDate__c',
         'TransactionStatus__c',
         'IsLocked__c',
+        'LastModifiedDate',
         'RecognitionSequence__c',
         'GenerationUnitKey__c',
         'JournalLineKey__c',
@@ -83,6 +84,39 @@ public without sharing class AccountingCurrentService {
       );
     }
     return copyOf(cachedByInvoiceId.get(invoiceId));
+  }
+
+  /** 仕様: Accounting 第8.2節。版比較は収集済みCurrentの更新日時を使う。 */
+  public static Boolean hasLoaded(Id invoiceId) {
+    return invoiceId != null && cachedByInvoiceId.containsKey(invoiceId);
+  }
+
+  public static Boolean hasLoadedAll(Set<Id> invoiceIds) {
+    if (invoiceIds == null || invoiceIds.isEmpty()) {
+      return false;
+    }
+    for (Id invoiceId : invoiceIds) {
+      if (!hasLoaded(invoiceId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  public static Datetime maxLastModified(Id invoiceId) {
+    Datetime latest = null;
+    if (!hasLoaded(invoiceId)) {
+      return latest;
+    }
+    for (GlJournal__c journal : cachedByInvoiceId.get(invoiceId)) {
+      if (journal == null || journal.LastModifiedDate == null) {
+        continue;
+      }
+      if (latest == null || journal.LastModifiedDate.getTime() > latest.getTime()) {
+        latest = journal.LastModifiedDate;
+      }
+    }
+    return latest;
   }
 
   /**

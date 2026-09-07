@@ -517,6 +517,63 @@ private class InvoiceSendBoardControllerTest {
   }
 
   @IsTest
+  static void confirmInvoiceFromPreview_reusesLockCurrentCopyAndEstimate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createInvoice(
+        '確定収集再利用',
+        'Draft',
+        'confirm-collect@example.com'
+      );
+      invoice = [
+        SELECT Id, ContractHistory__c, LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      InvoiceOpsController.lastEstimateMatchQueriedIds = new Set<Id>();
+      String expectedToken = currentToken(invoice.Id);
+      AccountingCauseLockService.invoiceModifiedSelectCount = 0;
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      AccountingGoalService.allocationLoadSelectCount = 0;
+      Test.startTest();
+      InvoiceSendBoardController.ConfirmResultDto confirmed = InvoiceSendBoardController.confirmInvoiceFromPreview(
+        invoice.Id,
+        Date.today(),
+        expectedToken,
+        null,
+        invoice.ContractHistory__c
+      );
+      Test.stopTest();
+      System.assertEquals(1, confirmed.confirmedCount);
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.invoiceModifiedSelectCount,
+        'Core 第7.9.7節: ロック済み請求の更新日時は取り直さない'
+      );
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節: 版比較のCurrentをapplyが取り直さない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceOpsController.lastEstimateMatchQueriedIds.contains(invoice.Id),
+        'Core 第7.9.1節: ロック済み請求の税抜・税額は取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Core 第11.4.2節: コピーFromはGoal収集を使い取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingGoalService.allocationLoadSelectCount,
+        'Accounting 第8.4節: 確定時点にInvoice入金が無くても割当を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void confirmInvoiceFromPreview_rejectsInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c own = createInvoice(
