@@ -27,7 +27,7 @@ public with sharing class AccountingEventFixedCatalog {
     '一括計上明細の保存済み検収終了日を別の日付へ変更したときの取消と再生成'
   );
   public static final Definition PAYMENT_RECORDED = new Definition(
-    '請求入出金登録（Purpose=Invoice／NonInvoiceと符号付きAmountを含む）',
+    '請求入出金登録',
     'PAYMENT_RECORDED',
     'Purpose=Invoice／NonInvoiceと符号付きAmountを含む請求入出金の登録'
   );

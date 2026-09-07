@@ -217,7 +217,7 @@ private class AccountingFixedCatalogTest {
   @IsTest
   static void eventNameAndConditionObjectApiMatchSpec() {
     System.assertEquals(
-      '請求入出金登録（Purpose=Invoice／NonInvoiceと符号付きAmountを含む）',
+      '請求入出金登録',
       AccountingEventFixedCatalog.PAYMENT_RECORDED.name
     );
     System.assertEquals(
