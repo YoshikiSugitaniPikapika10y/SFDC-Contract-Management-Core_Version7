@@ -1107,6 +1107,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
               productName: "A",
               amount: 1000,
               historyVersionLabel: "Version1",
+              historyVersions: [1],
               isRecurring: true,
               unitPrice: 1000,
               quantity: 1
@@ -1125,6 +1126,10 @@ describe("orderInvoicePreviewTable footer totals", () => {
       "全Version",
       "Version1"
     ]);
+    const pill = await waitUntil(() =>
+      element.shadowRoot.querySelector(".version-pill")
+    );
+    expect(pill.textContent.trim()).toBe("1");
   });
 });
 

@@ -1763,7 +1763,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
               splitControlsKey: `${lineId || line.lineMergeKey || `line-${index}-${lineIndex}`}-split`,
               lineId,
               productName: line.productName || "—",
-              versionLabel: line.historyVersionLabel || "—",
+              // 仕様: Core 第0.1節・第7.7.0節。明細表 Version 列セルは番号だけ。
+              versionLabel: this.formatLineVersionCell(line),
               unitPrice,
               unit: line.unit || "—",
               quantity,
@@ -5550,6 +5551,25 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       })
     );
     // パネルは親が保存成功時に clearBillingEditState する（失敗時は維持）
+  }
+
+  /**
+   * 仕様: Core 第0.1節・第7.7.0節。明細表 Version 列セルは番号だけ。`Version1`／`V1`は出さない。
+   */
+  formatLineVersionCell(line) {
+    const versions = line?.historyVersions || [];
+    if (versions.length > 0 && versions[0] != null && versions[0] !== "") {
+      const numbered = Number(versions[0]);
+      if (Number.isFinite(numbered)) {
+        return String(numbered);
+      }
+    }
+    const label = String(line?.historyVersionLabel || "");
+    const match = label.match(/(\d+)/);
+    if (match) {
+      return String(Number(match[1]));
+    }
+    return "—";
   }
 
   lineMatchesVersion(line, selected) {
