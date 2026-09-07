@@ -207,6 +207,17 @@ public without sharing class InvoiceProductFieldCopyService {
     rememberRecords(records, null);
   }
 
+  private static SObject relatedIfPresent(SObject record, String relationshipName) {
+    if (record == null || String.isBlank(relationshipName)) {
+      return null;
+    }
+    Map<String, Object> populated = record.getPopulatedFieldsAsMap();
+    if (!populated.containsKey(relationshipName)) {
+      return null;
+    }
+    return (SObject) populated.get(relationshipName);
+  }
+
   /**
    * SELECT した項目（値が null でも）をカバーに残す。populated だけだと Insert が再SOQLする。
    * 仕様: Core 第11.4.2節、第6.1節
@@ -251,11 +262,11 @@ public without sharing class InvoiceProductFieldCopyService {
         history.Id,
         coverageFields(record, queriedFields, cachedHistoryFieldsById.get(history.Id))
       );
-      if (history.getSObject('ContractService__r') != null) {
-        rememberRecord(history.getSObject('ContractService__r'));
+      if (relatedIfPresent(history, 'ContractService__r') != null) {
+        rememberRecord(relatedIfPresent(history, 'ContractService__r'));
       }
-      if (history.getSObject('Opportunity__r') != null) {
-        rememberRecord(history.getSObject('Opportunity__r'));
+      if (relatedIfPresent(history, 'Opportunity__r') != null) {
+        rememberRecord(relatedIfPresent(history, 'Opportunity__r'));
       }
       return;
     }
@@ -269,11 +280,11 @@ public without sharing class InvoiceProductFieldCopyService {
           cachedServiceFieldsById.get(record.Id)
         )
       );
-      if (record.getSObject('Account__r') != null) {
-        rememberRecord(record.getSObject('Account__r'));
+      if (relatedIfPresent(record, 'Account__r') != null) {
+        rememberRecord(relatedIfPresent(record, 'Account__r'));
       }
-      if (record.getSObject('BiilingAcccount__r') != null) {
-        rememberRecord(record.getSObject('BiilingAcccount__r'));
+      if (relatedIfPresent(record, 'BiilingAcccount__r') != null) {
+        rememberRecord(relatedIfPresent(record, 'BiilingAcccount__r'));
       }
       return;
     }
@@ -288,8 +299,8 @@ public without sharing class InvoiceProductFieldCopyService {
           cachedContractProductFieldsById.get(contractProduct.Id)
         )
       );
-      if (contractProduct.getSObject('Product__r') != null) {
-        rememberRecord(contractProduct.getSObject('Product__r'));
+      if (relatedIfPresent(contractProduct, 'Product__r') != null) {
+        rememberRecord(relatedIfPresent(contractProduct, 'Product__r'));
       }
       return;
     }

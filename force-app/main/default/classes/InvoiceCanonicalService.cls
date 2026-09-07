@@ -157,6 +157,20 @@ public without sharing class InvoiceCanonicalService {
   private static Set<Id> lastRetainInputIds;
   private static Set<Id> lastRetainOrderedIds;
   private static Map<String, Map<Id, InvoiceProduct__c>> periodsBySourceKey;
+  @TestVisible
+  static Integer orderedHistoryRetainSelectCount = 0;
+
+  /**
+   * 仕様: Core 第5.2節・第12.4節。
+   * 受注生成の入口は Ordered 化した履歴だけを渡す。再確認 SELECT しない。
+   */
+  public static void rememberOrderedHistoryIds(Set<Id> contractHistoryIds) {
+    if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
+      return;
+    }
+    lastRetainInputIds = new Set<Id>(contractHistoryIds);
+    lastRetainOrderedIds = new Set<Id>(contractHistoryIds);
+  }
 
   /** 引数のうち historystatus = Ordered の履歴 ID だけ残す。 */
   public static Set<Id> retainOrderedHistoryIds(Set<Id> contractHistoryIds) {
@@ -171,6 +185,7 @@ public without sharing class InvoiceCanonicalService {
     ) {
       return lastRetainOrderedIds.clone();
     }
+    orderedHistoryRetainSelectCount++;
     String orderedStatus = ContractDomainConstants.HISTORY_STATUS_ORDERED;
     for (ContractHistory__c history : [
       SELECT Id

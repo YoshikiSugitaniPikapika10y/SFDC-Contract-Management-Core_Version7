@@ -131,6 +131,16 @@ private class InvoiceProductGenerationHardeningTest {
       );
       System.assertEquals(
         0,
+        InvoiceCanonicalService.orderedHistoryRetainSelectCount,
+        'Core 第5.2節・第12.4節: 受注生成で Ordered 履歴を再確認しない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceProductGenerationService.periodLineDeleteSelectCount,
+        'Core 第5.2節・第6.1節: 初回受注は空の期間明細をSELECTしない'
+      );
+      System.assertEquals(
+        0,
         ContractServiceLifecycleService.lifecycleServiceSelectCount,
         'Core 第5.2節・第12.4節: First／Latest同期で読んだ契約サービスをLifecycleで取り直さない'
       );

@@ -1073,6 +1073,8 @@ private class OrderCreateControllerTest {
       );
 
       Test.startTest();
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      InvoiceOpsFieldService.extraFieldSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.cancelConfirmedFromPreview(
         context.history.Id,
         invoice.Id,
@@ -1087,6 +1089,16 @@ private class OrderCreateControllerTest {
         null,
         preview,
         'Core 第7.7.0節: 返却カードを返す'
+      );
+      System.assertEquals(
+        1,
+        OrderCreateController.previewInvoiceSelectCount,
+        'Core 第7.7.0節・第12.4節: 返却カードの請求・明細は1回'
+      );
+      System.assertEquals(
+        0,
+        InvoiceOpsFieldService.extraFieldSelectCount,
+        'Core 第7.7.0節・第12.4節: 追加項目定義を請求から取り直さない'
       );
 
       System.assertEquals(

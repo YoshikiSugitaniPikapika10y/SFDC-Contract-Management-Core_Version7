@@ -16,6 +16,8 @@ public without sharing class InvoiceProductGenerationService {
   private static Map<Id, ContractHistory__c> cachedHistoriesForFieldCopy = new Map<Id, ContractHistory__c>();
   private static Map<Id, BillingAccount__c> cachedBillingAccountsById = new Map<Id, BillingAccount__c>();
   private static Map<Id, List<ContractProduct__c>> cachedContractProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
+  @TestVisible
+  static Integer periodLineDeleteSelectCount = 0;
 
   private class InvoiceGenerationContext {
     public String historyType;
@@ -63,6 +65,18 @@ public without sharing class InvoiceProductGenerationService {
 
   /** 仕様: Core 第6.1節、第7.6節、第7.7.2節 */
   public static void generateForHistories(Set<Id> contractHistoryIds) {
+    generateForHistories(contractHistoryIds, true);
+  }
+
+  /**
+   * 仕様: Core 第5.2節・第6.1節・第12.4節。
+   * 初回受注は既存期間明細が無い。replaceExistingPeriodLines=false なら消す照会をしない。
+   * 再生成・受注直後戻しは true のまま既存を消して作り直す。
+   */
+  public static void generateForHistories(
+    Set<Id> contractHistoryIds,
+    Boolean replaceExistingPeriodLines
+  ) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
@@ -71,7 +85,10 @@ public without sharing class InvoiceProductGenerationService {
     BillingAccountKeyService.beginReferenceRefreshDefer();
     ContractServiceLifecycleService.beginLifecycleDefer();
     try {
-      generateForHistoriesBody(contractHistoryIds);
+      generateForHistoriesBody(
+        contractHistoryIds,
+        replaceExistingPeriodLines == true
+      );
     } finally {
       ContractServiceLifecycleService.endLifecycleDefer();
       BillingAccountKeyService.endReferenceRefreshDefer();
@@ -118,8 +135,12 @@ public without sharing class InvoiceProductGenerationService {
       : new List<ContractProduct__c>(cached);
   }
 
-  private static void generateForHistoriesBody(Set<Id> contractHistoryIds) {
+  private static void generateForHistoriesBody(
+    Set<Id> contractHistoryIds,
+    Boolean replaceExistingPeriodLines
+  ) {
     // 仕様: Core 第5.2節、第12.4節。同一処理で見積商品・請求アカウント・コピー定義を取り直さない。
+    InvoiceCanonicalService.rememberOrderedHistoryIds(contractHistoryIds);
     InvoiceCanonicalService.assertHistoriesAreOrdered(contractHistoryIds);
 
     // 不正なコピー定義があると受注 DML 全体をロールバックする
@@ -171,7 +192,9 @@ public without sharing class InvoiceProductGenerationService {
       cachedContractProductsByHistoryId,
       changeHistories
     );
-    deleteAllInvoiceProducts(contractHistoryIds);
+    if (replaceExistingPeriodLines == true) {
+      deleteAllInvoiceProducts(contractHistoryIds);
+    }
 
     Map<Id, List<ContractProduct__c>> contractProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
     for (ContractProduct__c contractProduct : contractProducts) {
@@ -1703,6 +1726,7 @@ public without sharing class InvoiceProductGenerationService {
   }
 
   private static void deleteAllInvoiceProducts(Set<Id> contractHistoryIds) {
+    periodLineDeleteSelectCount++;
     List<InvoiceProduct__c> existingProducts = [
       SELECT Id
       FROM InvoiceProduct__c

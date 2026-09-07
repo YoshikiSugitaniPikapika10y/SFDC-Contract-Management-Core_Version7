@@ -6,6 +6,9 @@ public without sharing class InvoiceOpsFieldService {
   public class ConfigException extends Exception {
   }
 
+  @TestVisible
+  static Integer extraFieldSelectCount = 0;
+
   public class FieldDefinition {
     @AuraEnabled
     public String developerName;
@@ -353,6 +356,7 @@ public without sharing class InvoiceOpsFieldService {
     if (sobjectType == null) {
       return result;
     }
+    extraFieldSelectCount++;
     List<String> selectFields = new List<String>{ 'Id' };
     selectFields.addAll(apiNames);
     String soql =

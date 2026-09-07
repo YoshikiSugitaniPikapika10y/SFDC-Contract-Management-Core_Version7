@@ -21,6 +21,10 @@ public without sharing class OrderCreateController {
   public static Integer renewLifecycleSelectCount = 0;
   @TestVisible
   public static Integer renewProductSelectCount = 0;
+  @TestVisible
+  public static Integer previewInvoiceSelectCount = 0;
+  private static Map<Id, List<Invoice__c>> previewInvoicesByServiceId = new Map<Id, List<Invoice__c>>();
+  private static Map<Id, ScopedEstimateSummary> previewEstimateSummaryByServiceId = new Map<Id, ScopedEstimateSummary>();
 
   public class OrderContextDto {
     @AuraEnabled
@@ -3437,6 +3441,67 @@ public without sharing class OrderCreateController {
     return InvoiceProductMergeService.formatDate(value);
   }
 
+  /**
+   * 仕様: Core 第7.7.0節・第12.4節。
+   * 返却カードの請求・明細と追加項目定義は1回の照会。同一処理で取り直さない。
+   */
+  private static List<Invoice__c> queryPreviewInvoicesForService(Id contractServiceId) {
+    if (contractServiceId == null) {
+      return new List<Invoice__c>();
+    }
+    if (previewInvoicesByServiceId.containsKey(contractServiceId)) {
+      return previewInvoicesByServiceId.get(contractServiceId);
+    }
+    Set<String> selectFields = new Set<String>{
+      'Id',
+      'Name',
+      'MergeKey__c',
+      'InvoiceDate__c',
+      'PaymentScheduledDate__c',
+      'Amount__c',
+      'TaxAmount__c',
+      'TaxInclusiveAmount__c',
+      'TaxPercent__c',
+      'InvoiceTransactionStatus__c',
+      'DeliveryStatus__c',
+      'CollectionRefundStatus__c',
+      'DueStatus__c',
+      'OverdueDays__c',
+      'Memo__c',
+      'InvoicePaymentNet__c',
+      'SentDate__c',
+      'PaymentInclusiveTotal__c',
+      'SystemIntegrationDate__c',
+      'PaymentClearingCompletedDate__c',
+      'LastModifiedDate',
+      'IsManuallyAdjusted__c',
+      'IsAmountAdjusted__c',
+      'IsSplitMoved__c',
+      'PeriodLineAmountTotal__c',
+      'ContractHistory__c',
+      'ContractHistory__r.Version__c',
+      'ContractService__r.Name',
+      'BillingAccountSnapShot__c',
+      'BillingAccountSnapShot__r.Name',
+      'BillingAddresseeSnapShot__c',
+      'BillingEmailToSnapShot__c',
+      'BillingEmailCcSnapShot__c',
+      'BillingEmailBccSnapShot__c',
+      'InvoiceDeliveryMethodSnapShot__c',
+      'PaymentTermMethodSnapShot__c'
+    };
+    selectFields.addAll(InvoiceOpsFieldService.fieldApiNames('Invoice__c'));
+    previewInvoiceSelectCount++;
+    String soql =
+      'SELECT ' +
+      String.join(new List<String>(selectFields), ',') +
+      ', (SELECT Id, LineMergeKey__c, ProductName__c, HistoryVersionLabel__c, Unit__c, UnitPrice__c, Quantity__c, PeriodLabel__c, Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c, SourcePeriodLineIds__c, Invoice__c, AcceptanceEndDate__c, RevenueRecognitionBasis__c, ContractProduct__c, ContractProduct__r.Amount__c, ContractProduct__r.Unit__c, ContractProduct__r.BillingType__c, ContractProduct__r.ContractHistory__c FROM InvoiceLines__r ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC)' +
+      ' FROM Invoice__c WHERE ContractService__c = :contractServiceId WITH SYSTEM_MODE ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC';
+    List<Invoice__c> invoices = (List<Invoice__c>) Database.query(soql);
+    previewInvoicesByServiceId.put(contractServiceId, invoices);
+    return invoices;
+  }
+
   private static InvoicePreviewDto buildInvoicePreviewFromCanonical(
     Id contractServiceId,
     ScopedEstimateSummary estimateSummary
@@ -3454,75 +3519,7 @@ public without sharing class OrderCreateController {
     preview.paymentLockExemptFieldApiNames = tryPaymentLockExemptNames();
     preview.journalLockExemptFieldApiNames = tryJournalLockExemptNames();
 
-    List<Invoice__c> invoices = [
-      SELECT
-        Id,
-        Name,
-        MergeKey__c,
-        InvoiceDate__c,
-        PaymentScheduledDate__c,
-        Amount__c,
-        TaxAmount__c,
-        TaxInclusiveAmount__c,
-        TaxPercent__c,
-        InvoiceTransactionStatus__c,
-        DeliveryStatus__c,
-        CollectionRefundStatus__c,
-        DueStatus__c,
-        OverdueDays__c,
-        Memo__c,
-        InvoicePaymentNet__c,
-        SentDate__c,
-        PaymentInclusiveTotal__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c,
-        LastModifiedDate,
-        IsManuallyAdjusted__c,
-        IsAmountAdjusted__c,
-        IsSplitMoved__c,
-        PeriodLineAmountTotal__c,
-        ContractHistory__c,
-        ContractHistory__r.Version__c,
-        ContractService__r.Name,
-        BillingAccountSnapShot__c,
-        BillingAccountSnapShot__r.Name,
-        BillingAddresseeSnapShot__c,
-        BillingEmailToSnapShot__c,
-        BillingEmailCcSnapShot__c,
-        BillingEmailBccSnapShot__c,
-        InvoiceDeliveryMethodSnapShot__c,
-        PaymentTermMethodSnapShot__c,
-        (
-          SELECT
-            Id,
-            LineMergeKey__c,
-            ProductName__c,
-            HistoryVersionLabel__c,
-            Unit__c,
-            UnitPrice__c,
-            Quantity__c,
-            PeriodLabel__c,
-            Amount__c,
-            IsManuallyAdjusted__c,
-            IsAmountAdjusted__c,
-            IsSplitMoved__c,
-            SourcePeriodLineIds__c,
-            Invoice__c,
-            AcceptanceEndDate__c,
-            RevenueRecognitionBasis__c,
-            ContractProduct__c,
-            ContractProduct__r.Amount__c,
-            ContractProduct__r.Unit__c,
-            ContractProduct__r.BillingType__c,
-            ContractProduct__r.ContractHistory__c
-          FROM InvoiceLines__r
-          ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC
-        )
-      FROM Invoice__c
-      WHERE ContractService__c = :contractServiceId
-      WITH SYSTEM_MODE
-      ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC
-    ];
+    List<Invoice__c> invoices = queryPreviewInvoicesForService(contractServiceId);
     Set<Id> previewInvoiceIds = new Set<Id>();
     Map<Id, Datetime> knownModified = new Map<Id, Datetime>();
     for (Invoice__c invoiceRecord : invoices) {
@@ -3538,8 +3535,13 @@ public without sharing class OrderCreateController {
       previewInvoiceIds,
       knownModified
     );
-    Map<Id, Map<String, Object>> invoiceExtraById =
-      InvoiceOpsFieldService.readValuesById('Invoice__c', previewInvoiceIds);
+    Map<Id, Map<String, Object>> invoiceExtraById = new Map<Id, Map<String, Object>>();
+    for (Invoice__c invoiceRecord : invoices) {
+      invoiceExtraById.put(
+        invoiceRecord.Id,
+        InvoiceOpsFieldService.readValues(invoiceRecord, 'Invoice__c')
+      );
+    }
     Map<Id, Id> latestIssuedByInvoice =
       EstimateDocumentService.latestIssuedContentDocumentIds(previewInvoiceIds);
 
@@ -4217,6 +4219,9 @@ public without sharing class OrderCreateController {
     if (contractServiceId == null) {
       return summary;
     }
+    if (previewEstimateSummaryByServiceId.containsKey(contractServiceId)) {
+      return previewEstimateSummaryByServiceId.get(contractServiceId);
+    }
 
     Set<Decimal> seenVersions = new Set<Decimal>();
     for (ContractHistory__c history : [
@@ -4240,6 +4245,7 @@ public without sharing class OrderCreateController {
       summary.byVersion.put(value, amount);
       summary.orderedVersions.add(history.Version__c);
     }
+    previewEstimateSummaryByServiceId.put(contractServiceId, summary);
     return summary;
   }
 

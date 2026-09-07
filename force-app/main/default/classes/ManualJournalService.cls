@@ -85,29 +85,25 @@ public without sharing class ManualJournalService {
   }
 
   /**
-   * 仕様: Accounting 第8.8節・第8.2節・第8.5節、Core 第7.9.6節。
-   * 手動登録も仕訳処理へ進む。実行前に Goal Diff 件数を出す。保存しない。
+   * 仕様: Accounting 第8.8節・第8.2節・第10.3節、Core 第7.9.6節。
+   * Goal を組む実行前プレビューは組まない。確認可否は prepareRegister の業務確認と取消基準日。
    */
   public static AccountingDiffService.CancelPreview previewRegister(
     RegisterRequest request
   ) {
     ContractPermissionUtil.assertManualJournal();
-    Invoice__c invoice = prepareRegister(request);
-    Savepoint savepoint = Database.setSavepoint();
-    try {
-      insert buildHeader(request, invoice.Id, null);
-      AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
-        invoice.Id,
-        AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
-        request.cancellationDate,
-        invoice
-      );
-      Database.rollback(savepoint);
-      return preview;
-    } catch (Exception ex) {
-      Database.rollback(savepoint);
-      throw ex;
-    }
+    prepareRegister(request);
+    return emptyConfirmPreview();
+  }
+
+  private static AccountingDiffService.CancelPreview emptyConfirmPreview() {
+    AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
+    preview.logicalDeleteCount = 0;
+    preview.reverseCount = 0;
+    preview.reverseDateCounts = new List<AccountingDiffService.ReverseDateCount>();
+    preview.hasFutureReverseDate = false;
+    preview.displayText = '';
+    return preview;
   }
 
   private static Invoice__c prepareRegister(RegisterRequest request) {
@@ -265,9 +261,9 @@ public without sharing class ManualJournalService {
   }
 
   /**
-   * 仕様: Core 第7.9.6節、Accounting 第8.5節・第8.8節・第10.4節、日付仕様 第7.3節。
-   * ON はヘッダー除外後の Goal Diff（previewApply）と実行後を一致させる。
-   * OFF は cancelCurrent と同じ isCancelTarget 経路。
+   * 仕様: Core 第7.9.6節、Accounting 第8.5節・第8.8節・第10.4節。
+   * Goal を組む実行前プレビューは組まない。件数・日付内訳は出さない。
+   * 取消基準日の要否だけ、このヘッダーの Active Lock 仕訳件数で返す。
    */
   public static AccountingDiffService.CancelPreview previewCancel(
     Id headerId,
@@ -293,33 +289,18 @@ public without sharing class ManualJournalService {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    if (policy.AccountingEnabled__c != true) {
-      return AccountingDiffService.previewCancel(
-        header.Invoice__c,
-        AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
-        cancellationDate,
-        null,
-        header.Id
-      );
-    }
-    // 入金登録 previewRegister と同じく、原因を外したうえで Goal Diff を数える。
-    Savepoint savepoint = Database.setSavepoint();
-    try {
-      header.TransactionStatus__c = 'Cancelled';
-      update header;
-      AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
-        header.Invoice__c,
-        AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
-        cancellationDate,
-        knownLockedInvoice
-      );
-      Database.rollback(savepoint);
-      return preview;
-    } catch (Exception ex) {
-      Database.rollback(savepoint);
-      throw ex;
-    }
+    Integer lockedCount = [
+      SELECT COUNT()
+      FROM GlJournal__c
+      WHERE
+        GlManualJournalHeader__c = :headerId
+        AND TransactionStatus__c = 'Active'
+        AND IsLocked__c = TRUE
+      WITH SYSTEM_MODE
+    ];
+    AccountingDiffService.CancelPreview preview = emptyConfirmPreview();
+    preview.reverseCount = lockedCount;
+    return preview;
   }
 
   /** 仕様: Accounting 第10.2節。参照済みなら削除せず無効化する。 */

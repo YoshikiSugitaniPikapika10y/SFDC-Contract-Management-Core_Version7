@@ -82,7 +82,13 @@ private class ManualJournalServiceTest {
       );
       Test.stopTest();
       System.assertNotEquals(null, preview);
-      System.assertNotEquals(null, preview.displayText);
+      System.assertEquals(
+        '',
+        preview.displayText,
+        'Core 第7.9.6節: 実行前プレビューに件数文言を出さない'
+      );
+      System.assertEquals(0, preview.logicalDeleteCount);
+      System.assertEquals(0, preview.reverseCount);
       System.assertEquals(
         0,
         [
@@ -499,15 +505,76 @@ private class ManualJournalServiceTest {
         null
       );
       System.assertEquals(
-        1,
+        0,
         preview.logicalDeleteCount,
-        'OFF は cancelCurrent と同じくヘッダー仕訳を数える'
+        'Core 第7.9.6節: 実行前プレビューに論理削除件数を出さない'
       );
-      System.assertEquals(0, preview.reverseCount);
+      System.assertEquals(
+        0,
+        preview.reverseCount,
+        'Accounting 第10.4節: 未Lockなら取消基準日は要らない'
+      );
       System.assertEquals(
         false,
         preview.hasFutureReverseDate,
         'Core 第7.9.6節: 逆仕訳が無ければ将来日付はなし'
+      );
+    }
+  }
+
+  @IsTest
+  static void previewCancel_lockedHeaderJournal_requiresDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c invoice = insertInvoice(true);
+      GlManualJournalHeader__c header = new GlManualJournalHeader__c(
+        Invoice__c = invoice.Id,
+        GlManualJournalSetting__c = insertActiveSetting().Id,
+        PostingDate__c = Date.today(),
+        Amount__c = 100,
+        TransactionStatus__c = 'Active'
+      );
+      insert header;
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'MJ Lock Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'MJ Lock Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      insert new GlJournal__c(
+        Invoice__c = invoice.Id,
+        GlManualJournalHeader__c = header.Id,
+        Amount__c = 100,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'MJLOCK', String.valueOf(header.Id) }
+        ),
+        DebitSlotKey__c = 'FxLoss',
+        CreditSlotKey__c = 'AccountsReceivable',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.today(),
+        TransactionStatus__c = 'Active',
+        IsLocked__c = true
+      );
+
+      AccountingDiffService.CancelPreview preview = ManualJournalService.previewCancel(
+        header.Id,
+        null
+      );
+      System.assertEquals(
+        1,
+        preview.reverseCount,
+        'Accounting 第10.4節: このヘッダーの Active Lock があれば取消基準日が要る'
+      );
+      System.assertEquals(
+        0,
+        preview.logicalDeleteCount,
+        'Core 第7.9.6節: 実行前プレビューに件数内訳を出さない'
       );
     }
   }
@@ -578,11 +645,15 @@ private class ManualJournalServiceTest {
         null
       );
       System.assertEquals(
-        2,
+        0,
         preview.logicalDeleteCount,
-        'Accounting 第8.8節・Core 第7.9.6節: ON は Goal Diff 全体（ヘッダー以外も）を数える'
+        'Core 第7.9.6節: 実行前プレビューに Goal Diff 件数を出さない'
       );
-      System.assertEquals(0, preview.reverseCount);
+      System.assertEquals(
+        0,
+        preview.reverseCount,
+        'Accounting 第10.4節: このヘッダーの Active Lock が無ければ取消基準日は要らない'
+      );
     }
   }
 

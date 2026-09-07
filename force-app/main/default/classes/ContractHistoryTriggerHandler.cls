@@ -154,7 +154,8 @@ public without sharing class ContractHistoryTriggerHandler {
     try {
       if (!insertedAsOrderedHistoryIds.isEmpty()) {
         InvoiceProductGenerationService.generateForHistories(
-          insertedAsOrderedHistoryIds
+          insertedAsOrderedHistoryIds,
+          false
         );
       }
       syncOrderedHistoriesOnInsert(newHistories);
@@ -258,7 +259,8 @@ public without sharing class ContractHistoryTriggerHandler {
       try {
         if (!orderedHistoryIds.isEmpty()) {
           InvoiceProductGenerationService.generateForHistories(
-            orderedHistoryIds
+            orderedHistoryIds,
+            false
           );
         }
         if (!orderedTransitionHistories.isEmpty()) {
