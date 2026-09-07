@@ -91,11 +91,14 @@ public with sharing class ManualJournalController {
     Date cancellationDate,
     Id contractHistoryId
   ) {
+    GlManualJournalHeader__c header = loadHeader(headerId);
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(header.Invoice__c);
     InvoiceOpsController.assertInvoicesInScope(
       contractHistoryId,
-      new List<Id>{ invoiceIdOfHeader(headerId) }
+      new List<Id>{ header.Invoice__c },
+      locked
     );
-    return previewCancel(headerId, cancellationDate);
+    return previewCancel(header.Id, cancellationDate, locked, header);
   }
 
   /** 仕様: Core 第7.9.6節、Accounting 第10.4節、第8.5節 */
@@ -103,8 +106,22 @@ public with sharing class ManualJournalController {
     Id headerId,
     Date cancellationDate
   ) {
+    return previewCancel(headerId, cancellationDate, null, null);
+  }
+
+  private static AccountingDiffService.CancelPreview previewCancel(
+    Id headerId,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice,
+    GlManualJournalHeader__c knownHeader
+  ) {
     try {
-      return ManualJournalService.previewCancel(headerId, cancellationDate);
+      return ManualJournalService.previewCancel(
+        headerId,
+        cancellationDate,
+        knownLockedInvoice,
+        knownHeader
+      );
     } catch (Exception ex) {
       String resolved = String.isNotBlank(ex.getMessage())
         ? ex.getMessage()
@@ -184,18 +201,23 @@ public with sharing class ManualJournalController {
     String businessOperationKey,
     Id contractHistoryId
   ) {
+    GlManualJournalHeader__c header = loadHeader(headerId);
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(header.Invoice__c);
     InvoiceOpsController.assertInvoicesInScope(
       contractHistoryId,
-      new List<Id>{ invoiceIdOfHeader(headerId) }
+      new List<Id>{ header.Invoice__c },
+      locked
     );
-    cancel(
-      headerId,
-      cancellationReason,
-      cancellationReasonText,
-      cancellationDate,
-      expectedToken,
-      businessOperationKey
-    );
+    ManualJournalService.CancelRequest request = new ManualJournalService.CancelRequest();
+    request.headerId = headerId;
+    request.cancellationReason = cancellationReason;
+    request.cancellationReasonText = cancellationReasonText;
+    request.cancellationDate = cancellationDate;
+    request.businessOperationKey = businessOperationKey;
+    request.expectedToken = expectedToken;
+    request.knownLockedInvoice = locked;
+    request.knownHeader = header;
+    ManualJournalService.cancel(request);
   }
 
   /** 仕様: Accounting 第10.4節、第11.4節、Core 第7.7.3節・第7.9.7節 */
@@ -218,18 +240,35 @@ public with sharing class ManualJournalController {
     ManualJournalService.cancel(request);
   }
 
-  /** 仕様: Core 第7.7.3節 */
-  private static Id invoiceIdOfHeader(Id headerId) {
+  /** 仕様: Core 第7.7.3節、第12.4節。ヘッダーは1回読み、請求範囲と取消へ渡す。 */
+  private static GlManualJournalHeader__c loadHeader(Id headerId) {
     if (headerId == null) {
-      return null;
+      AuraHandledException handled = new AuraHandledException(
+        '取消する手動仕訳が指定されていません。'
+      );
+      handled.setMessage('取消する手動仕訳が指定されていません。');
+      throw handled;
     }
     List<GlManualJournalHeader__c> headers = [
-      SELECT Invoice__c
+      SELECT
+        Id,
+        Invoice__c,
+        TransactionStatus__c,
+        BusinessOperationKey__c,
+        CancellationReason__c,
+        CancellationReasonText__c
       FROM GlManualJournalHeader__c
       WHERE Id = :headerId
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    return headers.isEmpty() ? null : headers[0].Invoice__c;
+    if (headers.isEmpty()) {
+      AuraHandledException handled = new AuraHandledException(
+        '取消する手動仕訳が指定されていません。'
+      );
+      handled.setMessage('取消する手動仕訳が指定されていません。');
+      throw handled;
+    }
+    return headers[0];
   }
 }

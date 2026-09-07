@@ -6,6 +6,29 @@ public without sharing class AccountingDiffService {
   static Integer copySourceSelectCount = 0;
   @TestVisible
   static Integer invoiceCopySourceSelectCount = 0;
+  @TestVisible
+  static Integer cancelReasonSelectCount = 0;
+  @TestVisible
+  static Boolean paymentCancelIncludeLineCandidates;
+  @TestVisible
+  static Boolean paymentCancelIncludeManualCandidates;
+  private static Map<Id, CancelReasonSnapshot> rememberedManualCancelReasons = new Map<Id, CancelReasonSnapshot>();
+
+  /**
+   * 仕様: Accounting 第4.2節・第8.8節。入出金取消の同一処理で売上・手動候補の載せ方を渡す。
+   */
+  public static void setPaymentCancelCandidateScope(
+    Boolean includeLineCandidates,
+    Boolean includeManualCandidates
+  ) {
+    paymentCancelIncludeLineCandidates = includeLineCandidates;
+    paymentCancelIncludeManualCandidates = includeManualCandidates;
+  }
+
+  public static void clearPaymentCancelCandidateScope() {
+    paymentCancelIncludeLineCandidates = null;
+    paymentCancelIncludeManualCandidates = null;
+  }
 
   public class ReverseDateCount {
     @AuraEnabled
@@ -78,6 +101,15 @@ public without sharing class AccountingDiffService {
     if (String.isBlank(operationKey)) {
       throw new DiffException('業務操作キーがありません。');
     }
+    Boolean includeLineCandidates = true;
+    Boolean includeManualCandidates = true;
+    if (
+      eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key &&
+      paymentCancelIncludeLineCandidates != null
+    ) {
+      includeLineCandidates = paymentCancelIncludeLineCandidates;
+      includeManualCandidates = paymentCancelIncludeManualCandidates == true;
+    }
     if (!isPaymentEvent(eventKey)) {
       AccountingGoalService.invalidateCauseCache(invoiceId);
     }
@@ -96,36 +128,67 @@ public without sharing class AccountingDiffService {
       if (isCancelEvent(eventKey)) {
         cancelCurrent(invoiceId, current, eventKey, operationKey, cancellationDate);
       }
+      rememberedManualCancelReasons.clear();
       return;
     }
     if (
       !InvoiceTransactionStatusService.isConfirmed(invoice) &&
       !InvoiceTransactionStatusService.isCancelled(invoice)
     ) {
+      rememberedManualCancelReasons.clear();
       return;
     }
-    List<GlJournal__c> diffCurrent = journalsForLines(current, restrictLineIds);
+    List<GlJournal__c> diffCurrent = journalsForGoalScope(
+      current,
+      restrictLineIds,
+      includeLineCandidates,
+      includeManualCandidates
+    );
     List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
       invoice,
       policy,
       current,
-      restrictLineIds
+      restrictLineIds,
+      includeLineCandidates,
+      includeManualCandidates
     );
-    persistDiff(
-      invoice,
-      goals,
-      diffCurrent,
-      current,
-      eventKey,
-      operationKey,
-      cancellationDate
-    );
-    persistHistoricalBreakdown(goals, restrictLineIds);
-    AccountingTagEvaluationService.evaluateForInvoice(
-      invoiceId,
-      invoice,
-      AccountingCurrentService.load(invoiceId)
-    );
+    try {
+      persistDiff(
+        invoice,
+        goals,
+        diffCurrent,
+        current,
+        eventKey,
+        operationKey,
+        cancellationDate
+      );
+      persistHistoricalBreakdown(goals, restrictLineIds);
+      AccountingTagEvaluationService.evaluateForInvoice(
+        invoiceId,
+        invoice,
+        AccountingCurrentService.load(invoiceId)
+      );
+    } finally {
+      rememberedManualCancelReasons.clear();
+    }
+  }
+
+  /**
+   * 仕様: Accounting 第2.4節、Core 第7.9.5節。
+   * 取消ヘッダーへ書いた理由を同一処理の逆仕訳へ渡し、取り直さない。
+   */
+  public static void rememberManualCancelReason(
+    Id headerId,
+    String reason,
+    String reasonText
+  ) {
+    if (headerId == null) {
+      return;
+    }
+    CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
+    snapshot.reason = reason;
+    snapshot.reasonText = reasonText;
+    rememberedManualCancelReasons.put(headerId, snapshot);
   }
 
   private class PersistPlan {
@@ -256,7 +319,14 @@ public without sharing class AccountingDiffService {
         );
         original.TransactionStatus__c = 'Cancelled';
         if (isCancelEvent(eventKey)) {
-          applyCancelAuditToJournal(original, invoice.Id, eventKey, operationKey);
+          applyCancelAuditToJournal(
+            original,
+            invoice.Id,
+            eventKey,
+            operationKey,
+            null,
+            rememberedManualCancelReasons
+          );
         }
       }
       if (!plan.reversals.isEmpty()) {
@@ -315,6 +385,15 @@ public without sharing class AccountingDiffService {
       throw new DiffException('請求が指定されていません。');
     }
     AccountingEventFixedCatalog.require(eventKey);
+    Boolean includeLineCandidates = true;
+    Boolean includeManualCandidates = true;
+    if (
+      eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key &&
+      paymentCancelIncludeLineCandidates != null
+    ) {
+      includeLineCandidates = paymentCancelIncludeLineCandidates;
+      includeManualCandidates = paymentCancelIncludeManualCandidates == true;
+    }
     if (!isPaymentEvent(eventKey)) {
       AccountingGoalService.invalidateCauseCache(invoiceId);
     }
@@ -336,12 +415,19 @@ public without sharing class AccountingDiffService {
     ) {
       return emptyPreview();
     }
-    List<GlJournal__c> diffCurrent = journalsForLines(current, restrictLineIds);
+    List<GlJournal__c> diffCurrent = journalsForGoalScope(
+      current,
+      restrictLineIds,
+      includeLineCandidates,
+      includeManualCandidates
+    );
     List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
       invoice,
       policy,
       current,
-      restrictLineIds
+      restrictLineIds,
+      includeLineCandidates,
+      includeManualCandidates
     );
     PersistPlan plan = collectPersistDiff(
       invoice,
@@ -599,6 +685,13 @@ public without sharing class AccountingDiffService {
       if (journal == null || journal.GlManualJournalHeader__c == null) {
         return snapshot;
       }
+      CancelReasonSnapshot remembered = rememberedManualCancelReasons.get(
+        journal.GlManualJournalHeader__c
+      );
+      if (remembered != null) {
+        return remembered;
+      }
+      cancelReasonSelectCount++;
       List<GlManualJournalHeader__c> headers = [
         SELECT CancellationReason__c, CancellationReasonText__c
         FROM GlManualJournalHeader__c
@@ -665,16 +758,28 @@ public without sharing class AccountingDiffService {
       }
     } else if (eventKey == AccountingEventFixedCatalog.MANUAL_JOURNAL.key) {
       Set<Id> headerIds = new Set<Id>();
+      Set<Id> missingHeaderIds = new Set<Id>();
       for (GlJournal__c journal : journals) {
         if (journal != null && journal.GlManualJournalHeader__c != null) {
           headerIds.add(journal.GlManualJournalHeader__c);
         }
       }
-      if (!headerIds.isEmpty()) {
+      for (Id headerId : headerIds) {
+        CancelReasonSnapshot remembered = rememberedManualCancelReasons.get(
+          headerId
+        );
+        if (remembered != null) {
+          byHeader.put(headerId, remembered);
+        } else {
+          missingHeaderIds.add(headerId);
+        }
+      }
+      if (!missingHeaderIds.isEmpty()) {
+        cancelReasonSelectCount++;
         for (GlManualJournalHeader__c header : [
           SELECT Id, CancellationReason__c, CancellationReasonText__c
           FROM GlManualJournalHeader__c
-          WHERE Id IN :headerIds
+          WHERE Id IN :missingHeaderIds
           WITH SYSTEM_MODE
         ]) {
           CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
@@ -903,6 +1008,50 @@ public without sharing class AccountingDiffService {
     return cancellationDate >= original.PostingDate__c
       ? cancellationDate
       : original.PostingDate__c;
+  }
+
+  /**
+   * 仕様: Accounting 第4.2節・第8.2節・第8.8節。
+   * 入出金取消は変えない売上・税・手動をDiff比較から外す。検収日変更は明細限定のまま。
+   */
+  private static List<GlJournal__c> journalsForGoalScope(
+    List<GlJournal__c> current,
+    Set<Id> restrictLineIds,
+    Boolean includeLineCandidates,
+    Boolean includeManualCandidates
+  ) {
+    if (restrictLineIds != null && !restrictLineIds.isEmpty()) {
+      return journalsForLines(current, restrictLineIds);
+    }
+    if (
+      includeLineCandidates == true &&
+      includeManualCandidates == true
+    ) {
+      return current;
+    }
+    if (current == null) {
+      return current;
+    }
+    List<GlJournal__c> scoped = new List<GlJournal__c>();
+    for (GlJournal__c journal : current) {
+      if (journal == null) {
+        continue;
+      }
+      if (journal.GlManualJournalHeader__c != null) {
+        if (includeManualCandidates == true) {
+          scoped.add(journal);
+        }
+        continue;
+      }
+      if (journal.InvoicePayment__c != null) {
+        scoped.add(journal);
+        continue;
+      }
+      if (journal.InvoiceLine__c != null && includeLineCandidates == true) {
+        scoped.add(journal);
+      }
+    }
+    return scoped;
   }
 
   /**

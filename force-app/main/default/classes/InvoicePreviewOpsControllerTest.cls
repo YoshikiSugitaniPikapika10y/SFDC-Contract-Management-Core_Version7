@@ -65,6 +65,79 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_manualJournalLockUsesLoadedJournals() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'MJ Bundle Debit',
+        AccountType__c = 'Expense',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'MJ Bundle Credit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlManualJournalSetting__c setting = new GlManualJournalSetting__c(
+        Name = '為替差損の計上',
+        DebitSlotKey__c = 'FxLoss',
+        DebitAccount__c = debit.Id,
+        CreditSlotKey__c = 'AccountsReceivable',
+        CreditAccount__c = credit.Id,
+        IsActive__c = true
+      );
+      insert setting;
+      GlManualJournalHeader__c header = new GlManualJournalHeader__c(
+        Invoice__c = fixture.invoice.Id,
+        GlManualJournalSetting__c = setting.Id,
+        PostingDate__c = Date.today(),
+        Amount__c = 100,
+        TransactionStatus__c = 'Active'
+      );
+      insert header;
+      Boolean previous = GlJournalTriggerHandler.allowEngineWrite;
+      GlJournalTriggerHandler.allowEngineWrite = true;
+      try {
+        insert new GlJournal__c(
+          Invoice__c = fixture.invoice.Id,
+          GlManualJournalHeader__c = header.Id,
+          GlManualJournalSetting__c = setting.Id,
+          Amount__c = 100,
+          IdempotencyKey__c = AccountingDiffService.hashKey(
+            new List<String>{ 'MJBUNDLE', String.valueOf(header.Id) }
+          ),
+          DebitSlotKey__c = 'FxLoss',
+          CreditSlotKey__c = 'AccountsReceivable',
+          DebitAccount__c = debit.Id,
+          CreditAccount__c = credit.Id,
+          PostingDate__c = Date.today(),
+          TransactionStatus__c = 'Active',
+          IsLocked__c = true
+        );
+      } finally {
+        GlJournalTriggerHandler.allowEngineWrite = previous;
+      }
+      InvoicePreviewOpsController.manualJournalLockSelectCount = 0;
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      System.assertEquals(
+        0,
+        InvoicePreviewOpsController.manualJournalLockSelectCount,
+        'Core 第12.4節: 読み済み仕訳のLockをCOUNTで取り直さない'
+      );
+      System.assertEquals(1, bundle.manualJournals.size());
+      System.assertEquals(
+        true,
+        bundle.manualJournals[0].hasLockedJournals,
+        'Accounting 第8.5節: このヘッダーのActive Lockで取消基準日要否を出す'
+      );
+    }
+  }
+
+  @IsTest
   static void getOpsBundle_slotNetsAndAbbreviationDisplay() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

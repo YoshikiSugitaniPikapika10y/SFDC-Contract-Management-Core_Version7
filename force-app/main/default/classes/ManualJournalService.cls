@@ -22,7 +22,12 @@ public without sharing class ManualJournalService {
     public Date cancellationDate;
     public String businessOperationKey;
     public String expectedToken;
+    public Invoice__c knownLockedInvoice;
+    public GlManualJournalHeader__c knownHeader;
   }
+
+  @TestVisible
+  static Integer headerSelectCount = 0;
 
   /** 仕様: Accounting 第10.3節、第8.2節、第8.8節、Core 第7.7.3節 */
   public static Id register(RegisterRequest request) {
@@ -188,24 +193,15 @@ public without sharing class ManualJournalService {
     }
     // 仕様: 共通基盤 第3.2節・第10.4節。手動仕訳は 14。
     ContractPermissionUtil.assertManualJournal();
-    GlManualJournalHeader__c header = [
-      SELECT Id, Invoice__c, TransactionStatus__c, BusinessOperationKey__c
-      FROM GlManualJournalHeader__c
-      WHERE Id = :request.headerId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    Invoice__c lockedInvoice = AccountingCauseLockService.lockInvoice(header.Invoice__c);
+    GlManualJournalHeader__c header = resolveHeader(request);
+    Invoice__c lockedInvoice =
+      request.knownLockedInvoice != null &&
+      request.knownLockedInvoice.Id == header.Invoice__c
+        ? request.knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(header.Invoice__c);
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       request.businessOperationKey
     );
-    header = [
-      SELECT Id, Invoice__c, TransactionStatus__c, BusinessOperationKey__c
-      FROM GlManualJournalHeader__c
-      WHERE Id = :request.headerId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
     if (
       header.TransactionStatus__c == 'Cancelled' &&
       header.BusinessOperationKey__c == operationKey
@@ -224,7 +220,8 @@ public without sharing class ManualJournalService {
     AccountingDiffService.CancelPreview preview = previewCancel(
       header.Id,
       request.cancellationDate,
-      lockedInvoice
+      lockedInvoice,
+      header
     );
     // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
     if (preview.reverseCount > 0 && request.cancellationDate == null) {
@@ -244,6 +241,11 @@ public without sharing class ManualJournalService {
       } finally {
         allowLifecycleWrite = previousWrite;
       }
+      AccountingDiffService.rememberManualCancelReason(
+        header.Id,
+        header.CancellationReason__c,
+        header.CancellationReasonText__c
+      );
       AccountingDiffService.applyForInvoice(
         header.Invoice__c,
         AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
@@ -285,17 +287,24 @@ public without sharing class ManualJournalService {
     Date cancellationDate,
     Invoice__c knownLockedInvoice
   ) {
+    return previewCancel(headerId, cancellationDate, knownLockedInvoice, null);
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第12.4節。同一処理で読んだヘッダーを取り直さない。 */
+  public static AccountingDiffService.CancelPreview previewCancel(
+    Id headerId,
+    Date cancellationDate,
+    Invoice__c knownLockedInvoice,
+    GlManualJournalHeader__c knownHeader
+  ) {
     ContractPermissionUtil.assertManualJournal();
     if (headerId == null) {
       throw new ManualJournalException('取消する手動仕訳が指定されていません。');
     }
-    GlManualJournalHeader__c header = [
-      SELECT Id, Invoice__c, TransactionStatus__c
-      FROM GlManualJournalHeader__c
-      WHERE Id = :headerId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    GlManualJournalHeader__c header =
+      knownHeader != null && knownHeader.Id == headerId
+        ? knownHeader
+        : queryHeader(headerId);
     Integer lockedCount = [
       SELECT COUNT()
       FROM GlJournal__c
@@ -308,6 +317,37 @@ public without sharing class ManualJournalService {
     AccountingDiffService.CancelPreview preview = emptyConfirmPreview();
     preview.reverseCount = lockedCount;
     return preview;
+  }
+
+  private static GlManualJournalHeader__c resolveHeader(CancelRequest request) {
+    if (
+      request.knownHeader != null &&
+      request.knownHeader.Id == request.headerId
+    ) {
+      return request.knownHeader;
+    }
+    return queryHeader(request.headerId);
+  }
+
+  private static GlManualJournalHeader__c queryHeader(Id headerId) {
+    headerSelectCount++;
+    List<GlManualJournalHeader__c> headers = [
+      SELECT
+        Id,
+        Invoice__c,
+        TransactionStatus__c,
+        BusinessOperationKey__c,
+        CancellationReason__c,
+        CancellationReasonText__c
+      FROM GlManualJournalHeader__c
+      WHERE Id = :headerId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (headers.isEmpty()) {
+      throw new ManualJournalException('取消する手動仕訳が指定されていません。');
+    }
+    return headers[0];
   }
 
   /** 仕様: Accounting 第10.2節。参照済みなら削除せず無効化する。 */

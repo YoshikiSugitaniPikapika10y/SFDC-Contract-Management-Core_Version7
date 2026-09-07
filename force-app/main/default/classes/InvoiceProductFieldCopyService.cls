@@ -3,6 +3,9 @@
  * コピー先は TargetObject__c（InvoiceProduct__c / Invoice__c / InvoiceLine__c）。
  */
 public without sharing class InvoiceProductFieldCopyService {
+  @TestVisible
+  static Integer invoiceSourceSelectCount = 0;
+
   public static final String TARGET_INVOICE_PRODUCT = 'InvoiceProduct__c';
   public static final String TARGET_INVOICE = 'Invoice__c';
   public static final String TARGET_INVOICE_LINE = 'InvoiceLine__c';
@@ -147,6 +150,8 @@ public without sharing class InvoiceProductFieldCopyService {
   private static Map<Id, Set<String>> cachedOpportunityFieldsById = new Map<Id, Set<String>>();
   private static Map<Id, Account> cachedAccountsById = new Map<Id, Account>();
   private static Map<Id, Set<String>> cachedAccountFieldsById = new Map<Id, Set<String>>();
+  private static Map<Id, Invoice__c> cachedInvoicesById = new Map<Id, Invoice__c>();
+  private static Map<Id, Set<String>> cachedInvoiceFieldsById = new Map<Id, Set<String>>();
 
   @TestVisible
   static void resetCache() {
@@ -165,6 +170,8 @@ public without sharing class InvoiceProductFieldCopyService {
     cachedOpportunityFieldsById = new Map<Id, Set<String>>();
     cachedAccountsById = new Map<Id, Account>();
     cachedAccountFieldsById = new Map<Id, Set<String>>();
+    cachedInvoicesById = new Map<Id, Invoice__c>();
+    cachedInvoiceFieldsById = new Map<Id, Set<String>>();
   }
 
   private static Boolean cacheCovers(Set<String> have, Set<String> need) {
@@ -351,6 +358,18 @@ public without sharing class InvoiceProductFieldCopyService {
           cachedAccountFieldsById.get(record.Id)
         )
       );
+      return;
+    }
+    if (sobjectType == Invoice__c.SObjectType) {
+      cachedInvoicesById.put(record.Id, (Invoice__c) record);
+      cachedInvoiceFieldsById.put(
+        record.Id,
+        coverageFields(
+          record,
+          queriedFields,
+          cachedInvoiceFieldsById.get(record.Id)
+        )
+      );
     }
   }
 
@@ -403,6 +422,12 @@ public without sharing class InvoiceProductFieldCopyService {
       cacheCovers(cachedAccountFieldsById.get(recordId), neededFields)
     ) {
       return cachedAccountsById.get(recordId);
+    }
+    if (
+      objectApiName == OBJECT_INVOICE &&
+      cacheCovers(cachedInvoiceFieldsById.get(recordId), neededFields)
+    ) {
+      return cachedInvoicesById.get(recordId);
     }
     return null;
   }
@@ -1556,6 +1581,9 @@ public without sharing class InvoiceProductFieldCopyService {
       ' FROM ' +
       objectApiName +
       ' WHERE Id = :recordId WITH SYSTEM_MODE LIMIT 1';
+    if (objectApiName == OBJECT_INVOICE) {
+      invoiceSourceSelectCount++;
+    }
     List<SObject> rows = Database.query(soql);
     if (rows.isEmpty()) {
       return null;

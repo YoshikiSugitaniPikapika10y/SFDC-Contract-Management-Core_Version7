@@ -182,6 +182,21 @@ public without sharing class AccountingGoalService {
     List<GlJournal__c> currentJournals,
     Set<Id> restrictLineIds
   ) {
+    return build(invoice, policy, currentJournals, restrictLineIds, true, true);
+  }
+
+  /**
+   * 仕様: Accounting 第4.2節・第8.2節・第8.8節。
+   * 入出金取消は売上・税・手動を載せない（入金連動前受のInvoice取消だけ売上・税を載せる）。
+   */
+  public static List<GoalJournal> build(
+    Invoice__c invoice,
+    GlAccountingPolicy__c policy,
+    List<GlJournal__c> currentJournals,
+    Set<Id> restrictLineIds,
+    Boolean includeLineCandidates,
+    Boolean includeManualCandidates
+  ) {
     if (invoice == null || policy == null) {
       throw new GoalException('Goalの対象請求または会計方針がありません。');
     }
@@ -224,10 +239,12 @@ public without sharing class AccountingGoalService {
     Boolean scopedLines =
       restrictLineIds != null && !restrictLineIds.isEmpty();
     List<Candidate> candidates = new List<Candidate>();
-    for (InvoiceLine__c line : lines.values()) {
-      candidates.addAll(
-        lineCandidates(invoice, line, policy, allowed, reusedPatterns)
-      );
+    if (includeLineCandidates != false) {
+      for (InvoiceLine__c line : lines.values()) {
+        candidates.addAll(
+          lineCandidates(invoice, line, policy, allowed, reusedPatterns)
+        );
+      }
     }
     if (!scopedLines) {
       for (InvoicePayment__c payment : payments.values()) {
@@ -263,7 +280,7 @@ public without sharing class AccountingGoalService {
         reusedPatterns
       );
     }
-    if (!scopedLines) {
+    if (!scopedLines && includeManualCandidates != false) {
       for (GlManualJournalHeader__c header : headers) {
         candidates.add(
           manualCandidate(
@@ -282,6 +299,12 @@ public without sharing class AccountingGoalService {
       invoiceBook,
       currentJournals,
       restrictLineIds
+    );
+    seedInvoiceBookFromExcludedCauses(
+      invoiceBook,
+      currentJournals,
+      includeLineCandidates != false,
+      includeManualCandidates != false
     );
     Map<Id, Decimal> uacByAllocation = new Map<Id, Decimal>();
     Map<Id, Decimal> spByAllocation = new Map<Id, Decimal>();
@@ -1223,6 +1246,45 @@ public without sharing class AccountingGoalService {
         false,
         null
       );
+    }
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節。入出金取消でGoalに載せない売上・税・手動のCurrentを先に載せる。
+   */
+  private static void seedInvoiceBookFromExcludedCauses(
+    LineBook invoiceBook,
+    List<GlJournal__c> currentJournals,
+    Boolean includeLineCandidates,
+    Boolean includeManualCandidates
+  ) {
+    if (
+      invoiceBook == null ||
+      currentJournals == null ||
+      (includeLineCandidates && includeManualCandidates)
+    ) {
+      return;
+    }
+    for (GlJournal__c journal : currentJournals) {
+      if (journal == null || journal.TransactionStatus__c != 'Active') {
+        continue;
+      }
+      Boolean excludedManual =
+        !includeManualCandidates && journal.GlManualJournalHeader__c != null;
+      Boolean excludedLine =
+        !includeLineCandidates &&
+        journal.InvoiceLine__c != null &&
+        journal.InvoicePayment__c == null &&
+        journal.GlManualJournalHeader__c == null;
+      if (!excludedManual && !excludedLine) {
+        continue;
+      }
+      Decimal amount = journal.Amount__c;
+      if (amount == null || amount == 0) {
+        continue;
+      }
+      addSlot(invoiceBook, journal.DebitSlotKey__c, amount, true);
+      addSlot(invoiceBook, journal.CreditSlotKey__c, amount, false);
     }
   }
 

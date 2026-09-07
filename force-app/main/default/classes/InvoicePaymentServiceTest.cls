@@ -452,6 +452,104 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
+  static void cancel_invoiceBillingBasis_keepsLineJournalsAndInvoiceCopySource() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      seedMaps();
+      seedPaymentMaps();
+      InvoicePaymentService.RegisterRequest request = invoiceRequest(
+        fixture,
+        1100
+      );
+      Id paymentId = InvoicePaymentService.register(request);
+      Id lineJournalId = insertUnrelatedLineJournal(
+        fixture.invoice.Id,
+        fixture.line.Id,
+        'PAYCANLINE'
+      );
+      InvoicePaymentService.CancelRequest cancel = new InvoicePaymentService.CancelRequest();
+      cancel.paymentId = paymentId;
+      cancel.cancellationReason = 'Duplicate';
+      cancel.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
+      Test.startTest();
+      InvoicePaymentService.cancel(cancel);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.invoiceSourceSelectCount,
+        'Accounting 第8.2節・Core 第11.4.2節: 取消insertはGoalが載せた請求をコピーFromで取り直さない'
+      );
+      GlJournal__c lineJournal = [
+        SELECT TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Id = :lineJournalId
+      ];
+      System.assertEquals(
+        'Active',
+        lineJournal.TransactionStatus__c,
+        'Accounting 第4.2節・第8.8節: 請求基準のInvoice取消は売上Goalを作り直さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void cancel_nonInvoice_keepsLineJournalsAndInvoiceCopySource() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      seedMaps();
+      seedPaymentMaps();
+      InvoicePaymentService.RegisterRequest request = new InvoicePaymentService.RegisterRequest();
+      request.invoiceId = fixture.invoice.Id;
+      request.amount = 100;
+      request.purpose = InvoicePaymentService.PURPOSE_NON_INVOICE;
+      request.paymentDate = Date.newInstance(2026, 6, 1);
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      Id paymentId = InvoicePaymentService.register(request);
+      Id lineJournalId = insertUnrelatedLineJournal(
+        fixture.invoice.Id,
+        fixture.line.Id,
+        'NIPAYCANLINE'
+      );
+      InvoicePaymentService.CancelRequest cancel = new InvoicePaymentService.CancelRequest();
+      cancel.paymentId = paymentId;
+      cancel.cancellationReason = 'Duplicate';
+      cancel.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
+      Test.startTest();
+      InvoicePaymentService.cancel(cancel);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.invoiceSourceSelectCount,
+        'Accounting 第8.2節・Core 第11.4.2節: NonInvoice取消insertもロック済み請求を取り直さない'
+      );
+      GlJournal__c lineJournal = [
+        SELECT TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Id = :lineJournalId
+      ];
+      System.assertEquals(
+        'Active',
+        lineJournal.TransactionStatus__c,
+        'Accounting 第4.2節: NonInvoiceはSP・UACだけを動かし売上仕訳のGoalを変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void previewRegister_lockedJournals_doesNotPersist() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
@@ -975,6 +1073,48 @@ private class InvoicePaymentServiceTest {
       }
     }
     insert maps;
+  }
+
+  private static Id insertUnrelatedLineJournal(
+    Id invoiceId,
+    Id invoiceLineId,
+    String keySuffix
+  ) {
+    GlAccount__c debit = new GlAccount__c(
+      Name = keySuffix + ' Debit',
+      AccountType__c = 'Revenue',
+      IsActive__c = true
+    );
+    GlAccount__c credit = new GlAccount__c(
+      Name = keySuffix + ' Credit',
+      AccountType__c = 'Liability',
+      IsActive__c = true
+    );
+    insert new List<GlAccount__c>{ debit, credit };
+    Boolean previous = GlJournalTriggerHandler.allowEngineWrite;
+    GlJournalTriggerHandler.allowEngineWrite = true;
+    try {
+      GlJournal__c journal = new GlJournal__c(
+        Invoice__c = invoiceId,
+        InvoiceLine__c = invoiceLineId,
+        Amount__c = 500,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ keySuffix, String.valueOf(invoiceId) }
+        ),
+        JournalLineKey__c = keySuffix,
+        DebitSlotKey__c = 'Revenue',
+        CreditSlotKey__c = 'DeferredRevenue',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'Active',
+        IsLocked__c = false
+      );
+      insert journal;
+      return journal.Id;
+    } finally {
+      GlJournalTriggerHandler.allowEngineWrite = previous;
+    }
   }
 
   private static void insertLockedJournal(Id invoiceId, String keySuffix) {

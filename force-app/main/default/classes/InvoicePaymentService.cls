@@ -281,6 +281,20 @@ public without sharing class InvoicePaymentService {
       LIMIT 1
     ];
     Invoice__c lockedInvoice = AccountingCauseLockService.lockInvoice(original.Invoice__c);
+    Invoice__c hydrated = AccountingGoalService.prepareInvoiceForGoal(lockedInvoice);
+    Set<String> invoiceCopyFields = new Set<String>{
+      'BillingAccountSnapShot__c',
+      'ContractHistory__c'
+    };
+    invoiceCopyFields.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
+    invoiceCopyFields.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
+    );
+    InvoiceProductFieldCopyService.rememberRecords(
+      new List<SObject>{ hydrated },
+      invoiceCopyFields
+    );
+    lockedInvoice = hydrated;
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       request.businessOperationKey
     );
@@ -350,13 +364,22 @@ public without sharing class InvoicePaymentService {
       SystemContextAccess.insertRecords(new List<SObject>{ reversal });
       InvoicePaymentAllocationService.reverseAllocations(original.Id, reversal.Id);
       recalculateNets(new Set<Id>{ original.Invoice__c });
-      AccountingDiffService.applyForInvoice(
-        original.Invoice__c,
-        AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
-        operationKey,
-        request.cancelDate,
-        lockedInvoice
-      );
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+      Boolean includeRevenue =
+        original.PaymentPurpose__c == PURPOSE_INVOICE &&
+        policy.RevenueRecognitionBasis__c == 'CashBasis';
+      AccountingDiffService.setPaymentCancelCandidateScope(includeRevenue, false);
+      try {
+        AccountingDiffService.applyForInvoice(
+          original.Invoice__c,
+          AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
+          operationKey,
+          request.cancelDate,
+          lockedInvoice
+        );
+      } finally {
+        AccountingDiffService.clearPaymentCancelCandidateScope();
+      }
       ContractOperationLogService.write(
         'CancelPayment',
         operationKey,
@@ -398,42 +421,50 @@ public without sharing class InvoicePaymentService {
       throw new PaymentException('取消する入出金が指定されていません。');
     }
     InvoicePayment__c payment = [
-      SELECT Id, Invoice__c, PaymentTransactionStatus__c
+      SELECT Id, Invoice__c, PaymentTransactionStatus__c, PaymentPurpose__c
       FROM InvoicePayment__c
       WHERE Id = :paymentId
       WITH SYSTEM_MODE
       LIMIT 1
     ];
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    if (policy.AccountingEnabled__c != true) {
-      return AccountingDiffService.previewCancel(
-        payment.Invoice__c,
-        AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
-        cancelDate,
-        payment.Id,
-        null
-      );
-    }
-    // 登録 previewRegister と同じく、原因を外したうえで Goal Diff を数える。
-    Savepoint savepoint = Database.setSavepoint();
-    Boolean previousWrite = allowLifecycleWrite;
-    allowLifecycleWrite = true;
+    Boolean includeRevenue =
+      payment.PaymentPurpose__c == PURPOSE_INVOICE &&
+      policy.RevenueRecognitionBasis__c == 'CashBasis';
+    AccountingDiffService.setPaymentCancelCandidateScope(includeRevenue, false);
     try {
-      payment.PaymentTransactionStatus__c = STATUS_CANCELLED;
-      SystemContextAccess.updateRecords(new List<SObject>{ payment });
-      AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
-        payment.Invoice__c,
-        AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
-        cancelDate,
-        knownLockedInvoice
-      );
-      Database.rollback(savepoint);
-      return preview;
-    } catch (Exception ex) {
-      Database.rollback(savepoint);
-      throw ex;
+      if (policy.AccountingEnabled__c != true) {
+        return AccountingDiffService.previewCancel(
+          payment.Invoice__c,
+          AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
+          cancelDate,
+          payment.Id,
+          null
+        );
+      }
+      // 登録 previewRegister と同じく、原因を外したうえで Goal Diff を数える。
+      Savepoint savepoint = Database.setSavepoint();
+      Boolean previousWrite = allowLifecycleWrite;
+      allowLifecycleWrite = true;
+      try {
+        payment.PaymentTransactionStatus__c = STATUS_CANCELLED;
+        SystemContextAccess.updateRecords(new List<SObject>{ payment });
+        AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
+          payment.Invoice__c,
+          AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
+          cancelDate,
+          knownLockedInvoice
+        );
+        Database.rollback(savepoint);
+        return preview;
+      } catch (Exception ex) {
+        Database.rollback(savepoint);
+        throw ex;
+      } finally {
+        allowLifecycleWrite = previousWrite;
+      }
     } finally {
-      allowLifecycleWrite = previousWrite;
+      AccountingDiffService.clearPaymentCancelCandidateScope();
     }
   }
 

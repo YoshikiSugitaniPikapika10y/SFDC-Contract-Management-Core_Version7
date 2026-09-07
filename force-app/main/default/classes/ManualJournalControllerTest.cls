@@ -405,6 +405,63 @@ private class ManualJournalControllerTest {
   }
 
   @IsTest
+  static void cancelAndPreviewCancel_inScope_selectsHeaderOnce() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertConfirmedInvoice();
+      GlManualJournalSetting__c setting = insertActiveSetting();
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Id headerId = ManualJournalController.register(
+        invoice.Id,
+        setting.Id,
+        Date.today(),
+        100,
+        null,
+        token,
+        null,
+        invoice.ContractHistory__c
+      );
+      ManualJournalService.headerSelectCount = 0;
+      AccountingDiffService.cancelReasonSelectCount = 0;
+      ManualJournalController.previewCancel(
+        headerId,
+        Date.today(),
+        invoice.ContractHistory__c
+      );
+      System.assertEquals(
+        0,
+        ManualJournalService.headerSelectCount,
+        'Accounting 第8.2節: previewCancelは読んだヘッダーを取り直さない'
+      );
+      ManualJournalService.headerSelectCount = 0;
+      AccountingDiffService.cancelReasonSelectCount = 0;
+      ManualJournalController.cancel(
+        headerId,
+        'Duplicate',
+        null,
+        Date.today(),
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        null,
+        invoice.ContractHistory__c
+      );
+      System.assertEquals(
+        0,
+        ManualJournalService.headerSelectCount,
+        'Accounting 第8.2節: 取消は読んだヘッダーを取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.cancelReasonSelectCount,
+        'Accounting 第2.4節・Core 第7.9.5節: ヘッダーへ書いた取消理由を仕訳ごとに取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void previewRegister_rejectsWhenInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c own = insertConfirmedInvoice();

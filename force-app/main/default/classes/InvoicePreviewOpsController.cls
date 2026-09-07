@@ -90,6 +90,8 @@ public without sharing class InvoicePreviewOpsController {
     public String causeRecordId;
     @AuraEnabled
     public Integer recognitionSequence;
+    @AuraEnabled
+    public Id manualHeaderId;
 
     /** 仕様: Accounting 第8.7節。計上日・sameDayOrder・原因CreatedDate・原因ID。同じ明細の同日は回番号。 */
     public Integer compareTo(Object otherObj) {
@@ -283,7 +285,7 @@ public without sharing class InvoicePreviewOpsController {
     bundle.journals = loadJournals(invoice.Id);
     bundle.slotNets = slotNetsFromJournalRows(bundle.journals);
     bundle.tagResults = loadTagResults(invoice.Id);
-    bundle.manualJournals = loadManualJournals(invoice.Id);
+    bundle.manualJournals = loadManualJournals(invoice.Id, bundle.journals);
     bundle.manualSettings = loadManualSettings();
     bundle.hasLockedJournals = false;
     bundle.hasUnlockedJournals = false;
@@ -1061,6 +1063,7 @@ public without sharing class InvoicePreviewOpsController {
       row.recognitionSequence = journal.RecognitionSequence__c == null
         ? 0
         : journal.RecognitionSequence__c.intValue();
+      row.manualHeaderId = journal.GlManualJournalHeader__c;
       fillCauseSort(journal, row);
       rows.add(row);
     }
@@ -1163,8 +1166,14 @@ public without sharing class InvoicePreviewOpsController {
     return rows;
   }
 
+  @TestVisible
+  static Integer manualJournalLockSelectCount = 0;
+
   /** 仕様: Accounting 第10.3節、第10.4節、第8.5節、Core 第0.1節、第7.9.6節、日付仕様 第7.3節 */
-  private static List<ManualJournalRowDto> loadManualJournals(Id invoiceId) {
+  private static List<ManualJournalRowDto> loadManualJournals(
+    Id invoiceId,
+    List<JournalRowDto> journals
+  ) {
     List<ManualJournalRowDto> rows = new List<ManualJournalRowDto>();
     List<GlManualJournalHeader__c> headers = [
       SELECT
@@ -1180,17 +1189,17 @@ public without sharing class InvoicePreviewOpsController {
     ];
     // 仕様: Accounting 第8.5節。取消基準日要否はこのヘッダーのDiffで逆仕訳になるLock。請求書全体では見ない。
     Map<Id, Boolean> lockedByHeaderId = new Map<Id, Boolean>();
-    for (GlJournal__c journal : [
-      SELECT GlManualJournalHeader__c
-      FROM GlJournal__c
-      WHERE
-        Invoice__c = :invoiceId
-        AND IsLocked__c = TRUE
-        AND TransactionStatus__c = 'Active'
-        AND GlManualJournalHeader__c != NULL
-      WITH SYSTEM_MODE
-    ]) {
-      lockedByHeaderId.put(journal.GlManualJournalHeader__c, true);
+    if (journals != null) {
+      for (JournalRowDto journal : journals) {
+        if (
+          journal != null &&
+          journal.manualHeaderId != null &&
+          journal.isLocked == true &&
+          journal.transactionStatus == 'Active'
+        ) {
+          lockedByHeaderId.put(journal.manualHeaderId, true);
+        }
+      }
     }
     for (GlManualJournalHeader__c header : headers) {
       ManualJournalRowDto row = new ManualJournalRowDto();
