@@ -129,9 +129,10 @@ public with sharing class EstimateDocumentPdfController {
       issuedContentDocumentId = issueResult.contentDocumentId;
       issueSucceeded = true;
       filesPreviewUrl =
-        '/lightning/r/ContentDocument/' +
+        '/lightning/page/filePreview?recordIds=' +
         String.valueOf(issuedContentDocumentId) +
-        '/view';
+        '&selectedRecordId=' +
+        String.valueOf(issuedContentDocumentId);
       showSendThisFile =
         ContractDocumentSettingService.requireSendMode('Estimate') ==
         ContractDocumentSettingService.MODE_PDF_AND_EMAIL &&

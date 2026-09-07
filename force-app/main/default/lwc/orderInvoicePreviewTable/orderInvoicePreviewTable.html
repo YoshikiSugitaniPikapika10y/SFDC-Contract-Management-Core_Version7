@@ -1137,12 +1137,14 @@
                 ></lightning-input>
                 <template if:true={invoice.showInvoiceIssuePdfPreview}>
                   <p>
-                    <a
-                      href={invoice.invoiceIssuePdfPreviewUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      >プレビュー</a
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-document-id={invoice.invoiceIssuePdfDocumentId}
+                      onclick={handleInvoiceIssuePdfPreview}
                     >
+                      プレビュー
+                    </button>
                   </p>
                 </template>
                 <template if:true={invoice.showInvoiceIssuePdfDownload}>
@@ -1240,9 +1242,14 @@
                 ></lightning-combobox>
                 <template if:true={invoice.showExistingFilePreview}>
                   <p>
-                    <a href={invoice.existingFilePreviewUrl} target="_blank"
-                      >標準 Files でプレビュー</a
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-document-id={invoice.existingFileDocumentId}
+                      onclick={handleExistingFilePreview}
                     >
+                      プレビュー
+                    </button>
                   </p>
                 </template>
                 <lightning-input

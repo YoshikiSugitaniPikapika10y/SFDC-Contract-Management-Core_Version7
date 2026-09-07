@@ -153,4 +153,26 @@ export function closeOrderWizardTab(component, { recordId, refresh = true } = {}
     }
 }
 
+/** 仕様: Core 第7.10節。パッケージ入口のプレビューは標準 Files のオーバーレイ。 */
+export function openContentDocumentFilePreview(component, contentDocumentId) {
+    const recordId =
+        contentDocumentId == null ? '' : String(contentDocumentId);
+    if (
+        !recordId ||
+        typeof component?.[NavigationMixin.Navigate] !== 'function'
+    ) {
+        return;
+    }
+    component[NavigationMixin.Navigate]({
+        type: 'standard__namedPage',
+        attributes: {
+            pageName: 'filePreview'
+        },
+        state: {
+            recordIds: recordId,
+            selectedRecordId: recordId
+        }
+    });
+}
+
 export { NavigationMixin };

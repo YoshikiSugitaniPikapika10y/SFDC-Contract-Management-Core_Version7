@@ -3,6 +3,10 @@ import { CloseActionScreenEvent } from "lightning/actions";
 import { RefreshEvent } from "lightning/refresh";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import LightningConfirm from "lightning/confirm";
+import {
+  NavigationMixin,
+  openContentDocumentFilePreview
+} from "c/orderWizardNavigation";
 import getBoardContext from "@salesforce/apex/EstimateSendBoardController.getBoardContext";
 import getRecordActionEstimate from "@salesforce/apex/EstimateSendBoardController.getRecordActionEstimate";
 import previewEstimate from "@salesforce/apex/EstimateSendBoardController.previewEstimateFromRecordPage";
@@ -15,7 +19,9 @@ const ATTACHMENT_NEW = "NEW";
 const SEND_FAILURE_RETRY_NOTE =
   "失敗のあと送り直すと、先のメールが届いていることがある";
 
-export default class EstimateSendRecordAction extends LightningElement {
+export default class EstimateSendRecordAction extends NavigationMixin(
+  LightningElement
+) {
   _recordId;
   estimate;
   documentTemplateKey = "";
@@ -138,10 +144,8 @@ export default class EstimateSendRecordAction extends LightningElement {
     return Boolean(this.attachmentId) && this.attachmentId !== ATTACHMENT_NEW;
   }
 
-  get existingFilePreviewUrl() {
-    return this.showExistingFilePreview
-      ? `/lightning/r/ContentDocument/${this.attachmentId}/view`
-      : "";
+  handleExistingFilePreview() {
+    openContentDocumentFilePreview(this, this.attachmentId);
   }
 
   get unavailableMessage() {

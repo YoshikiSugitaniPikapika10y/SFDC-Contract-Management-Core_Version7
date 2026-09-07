@@ -21,6 +21,14 @@ jest.mock(
   () => ({ ShowToastEvent: class ShowToastEvent {} }),
   { virtual: true }
 );
+jest.mock(
+  "c/orderWizardNavigation",
+  () => ({
+    NavigationMixin: (Base) => class extends Base {},
+    openContentDocumentFilePreview: jest.fn()
+  }),
+  { virtual: true }
+);
 
 jest.mock(
   "@salesforce/apex/EstimateSendBoardController.getBoardContext",

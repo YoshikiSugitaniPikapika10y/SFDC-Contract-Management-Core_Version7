@@ -5,6 +5,14 @@ jest.mock("lightning/platformShowToastEvent", () => ({ ShowToastEvent: class {} 
   virtual: true
 });
 jest.mock(
+  "c/orderWizardNavigation",
+  () => ({
+    NavigationMixin: (Base) => class extends Base {},
+    openContentDocumentFilePreview: jest.fn()
+  }),
+  { virtual: true }
+);
+jest.mock(
   "@salesforce/apex/ContractCrossController.getEstimateIssueContext",
   () => ({ default: jest.fn() }),
   { virtual: true }
@@ -67,13 +75,11 @@ describe("contractCrossEstimateTile issue gate (Core 4.8 / 1.1.10)", () => {
       isBlankText: proto.isBlankText
     };
     await proto.openIssue.call(tile);
-    expect(tile.previewUrl).toBe(
-      "/lightning/r/ContentDocument/069000000000001AAA/view"
-    );
+    expect(tile.latestIssuedContentDocumentId).toBe("069000000000001AAA");
     expect(tile.issueSucceeded).toBe(false);
   });
 
-  it("最新発行が無ければ発行開きのプレビューURLは空 (横断画面.md 操作4)", async () => {
+  it("最新発行が無ければ発行開きのプレビュー対象は空 (横断画面.md 操作4)", async () => {
     getEstimateIssueContext.mockResolvedValue({
       documentTemplateOptions: [],
       defaultDocumentTemplateKey: "std",
@@ -86,7 +92,7 @@ describe("contractCrossEstimateTile issue gate (Core 4.8 / 1.1.10)", () => {
       isBlankText: proto.isBlankText
     };
     await proto.openIssue.call(tile);
-    expect(tile.previewUrl).toBe("");
+    expect(tile.latestIssuedContentDocumentId).toBe("");
   });
 
   it("最新発行PDFがあればダウンロードURLを出す (横断画面.md 操作4)", () => {

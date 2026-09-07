@@ -658,10 +658,7 @@ public without sharing class ContractCrossController {
       IssueResultDto dto = new IssueResultDto();
       dto.contentDocumentId = issued.contentDocumentId;
       dto.fileName = issued.fileName;
-      dto.previewUrl =
-        '/lightning/r/ContentDocument/' +
-        String.valueOf(issued.contentDocumentId) +
-        '/view';
+      dto.previewUrl = '';
       dto.showSendThisFile =
         ContractDocumentSettingService.requireSendMode('Estimate') ==
         ContractDocumentSettingService.MODE_PDF_AND_EMAIL &&

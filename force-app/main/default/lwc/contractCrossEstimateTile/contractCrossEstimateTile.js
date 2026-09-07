@@ -1,5 +1,9 @@
 import { LightningElement, api } from "lwc";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
+import {
+  NavigationMixin,
+  openContentDocumentFilePreview
+} from "c/orderWizardNavigation";
 import getEstimateIssueContext from "@salesforce/apex/ContractCrossController.getEstimateIssueContext";
 import previewEstimateIssueFileName from "@salesforce/apex/ContractCrossController.previewEstimateIssueFileName";
 import issueEstimate from "@salesforce/apex/ContractCrossController.issueEstimate";
@@ -48,7 +52,9 @@ function periodLabel(startDate, endDate) {
 }
 
 /** 仕様: 横断画面.md 見積書タイル */
-export default class ContractCrossEstimateTile extends LightningElement {
+export default class ContractCrossEstimateTile extends NavigationMixin(
+  LightningElement
+) {
   @api tile;
   @api accountingEnabled = false;
   @api canIssue = false;
@@ -62,7 +68,6 @@ export default class ContractCrossEstimateTile extends LightningElement {
   templateKey = "";
   templateOptions = [];
   issueFileName = "";
-  previewUrl = "";
   showSendThisFile = false;
   issuedContentDocumentId = "";
   latestIssuedContentDocumentId = "";
@@ -163,6 +168,18 @@ export default class ContractCrossEstimateTile extends LightningElement {
     return !this.isBlankText(this.latestPdfDownloadUrl);
   }
 
+  get previewDocumentId() {
+    return this.issuedContentDocumentId || this.latestIssuedContentDocumentId;
+  }
+
+  get showIssuePdfPreview() {
+    return !this.isBlankText(this.previewDocumentId);
+  }
+
+  handleIssuePdfPreview() {
+    openContentDocumentFilePreview(this, this.previewDocumentId);
+  }
+
   get showIssueButton() {
     return this.isEstimate && this.canIssue === true;
   }
@@ -235,7 +252,6 @@ export default class ContractCrossEstimateTile extends LightningElement {
     this.issueBusy = true;
     this.issueError = "";
     this.issueSucceeded = false;
-    this.previewUrl = "";
     this.showSendThisFile = false;
     this.issuedContentDocumentId = "";
     this.latestIssuedContentDocumentId = "";
@@ -252,10 +268,6 @@ export default class ContractCrossEstimateTile extends LightningElement {
       this.companyBlockedReason = context?.companyBlockedReason || "";
       this.latestIssuedContentDocumentId =
         context?.latestIssuedContentDocumentId || "";
-      // 仕様: 横断画面.md 操作4。発行を開いたとき既存の最新発行PDFをプレビューする。独立の「PDFを見る」は置かない。
-      this.previewUrl = this.latestIssuedContentDocumentId
-        ? `/lightning/r/ContentDocument/${this.latestIssuedContentDocumentId}/view`
-        : "";
       if (this.companyBlockedReason) {
         this.issueError = this.companyBlockedReason;
       }
@@ -298,7 +310,6 @@ export default class ContractCrossEstimateTile extends LightningElement {
       });
       this.issueSucceeded = true;
       this.issuedContentDocumentId = issued?.contentDocumentId || "";
-      this.previewUrl = issued?.previewUrl || "";
       this.showSendThisFile = issued?.showSendThisFile === true;
       this.dispatchEvent(
         new ShowToastEvent({

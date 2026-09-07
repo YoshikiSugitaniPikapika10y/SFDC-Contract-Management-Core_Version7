@@ -563,12 +563,13 @@
                         </template>
                         <template if:true={cell.isIcon}>
                           <template if:true={cell.on}>
-                            <template if:true={cell.href}>
-                              <a
-                                href={cell.href}
-                                target="_blank"
-                                rel="noreferrer"
+                            <template if:true={cell.documentId}>
+                              <button
+                                type="button"
+                                class="icon-preview-btn"
                                 title={cell.title}
+                                data-document-id={cell.documentId}
+                                onclick={handleIssuedPdfPreview}
                               >
                                 <lightning-icon
                                   icon-name={cell.icon}
@@ -576,9 +577,9 @@
                                   alternative-text={cell.title}
                                   title={cell.title}
                                 ></lightning-icon>
-                              </a>
+                              </button>
                             </template>
-                            <template if:false={cell.href}>
+                            <template if:false={cell.documentId}>
                               <lightning-icon
                                 icon-name={cell.icon}
                                 size="x-small"

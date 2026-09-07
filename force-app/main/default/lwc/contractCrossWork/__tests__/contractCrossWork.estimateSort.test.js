@@ -5,6 +5,14 @@ jest.mock("c/orderCreateWizard");
 jest.mock("c/contractCrossEstimateTile");
 jest.mock("c/orderInvoicePreviewTable");
 jest.mock(
+  "c/orderWizardNavigation",
+  () => ({
+    NavigationMixin: (Base) => class extends Base {},
+    openContentDocumentFilePreview: jest.fn()
+  }),
+  { virtual: true }
+);
+jest.mock(
   "lightning/actions",
   () => ({ CloseActionScreenEvent: class {} }),
   { virtual: true }
@@ -700,7 +708,7 @@ describe("contractCrossWork issued icon (横断画面.md 操作23)", () => {
     };
   }
 
-  it("発行ありなら最新PDFのプレビューURLを載せる", () => {
+  it("発行ありなら最新PDFのプレビュー対象を載せる", () => {
     const issued = proto.invoiceCells
       .call(invoiceCtx(), {
         id: "inv1",
@@ -711,12 +719,11 @@ describe("contractCrossWork issued icon (横断画面.md 操作23)", () => {
       })
       .find((cell) => cell.key === "issued");
     expect(issued.on).toBe(true);
-    expect(issued.href).toBe(
-      "/lightning/r/ContentDocument/069000000000001AAA/view"
-    );
+    expect(issued.documentId).toBe("069000000000001AAA");
+    expect(issued.href).toBe("");
   });
 
-  it("未発行ならURLは載せない", () => {
+  it("未発行ならプレビュー対象は載せない", () => {
     const issued = proto.invoiceCells
       .call(invoiceCtx(), {
         id: "inv2",
@@ -727,6 +734,7 @@ describe("contractCrossWork issued icon (横断画面.md 操作23)", () => {
       })
       .find((cell) => cell.key === "issued");
     expect(issued.on).toBe(false);
+    expect(issued.documentId).toBe("");
     expect(issued.href).toBe("");
   });
 });

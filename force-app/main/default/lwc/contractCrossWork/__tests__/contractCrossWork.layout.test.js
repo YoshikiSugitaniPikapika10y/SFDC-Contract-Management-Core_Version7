@@ -5,6 +5,14 @@ jest.mock("c/orderCreateWizard");
 jest.mock("c/contractCrossEstimateTile");
 jest.mock("c/orderInvoicePreviewTable");
 jest.mock(
+  "c/orderWizardNavigation",
+  () => ({
+    NavigationMixin: (Base) => class extends Base {},
+    openContentDocumentFilePreview: jest.fn()
+  }),
+  { virtual: true }
+);
+jest.mock(
   "lightning/actions",
   () => ({ CloseActionScreenEvent: class {} }),
   { virtual: true }

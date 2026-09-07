@@ -1,6 +1,10 @@
 import { LightningElement, track } from "lwc";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import { resolveSaveErrorAlert } from "c/estimateValidationAlertUtils";
+import {
+  NavigationMixin,
+  openContentDocumentFilePreview
+} from "c/orderWizardNavigation";
 import getBootstrap from "@salesforce/apex/ContractCrossController.getBootstrap";
 import queryEstimates from "@salesforce/apex/ContractCrossController.queryEstimates";
 import queryInvoices from "@salesforce/apex/ContractCrossController.queryInvoices";
@@ -218,12 +222,6 @@ function sendModeShowsSend(mode) {
   return mode === "PdfAndEmail";
 }
 
-function issuedPdfPreviewUrl(documentId) {
-  return documentId
-    ? `/lightning/r/ContentDocument/${documentId}/view`
-    : "";
-}
-
 function versionKey(value) {
   if (value == null || value === "") {
     return "";
@@ -253,7 +251,9 @@ function restrictPreviewToOpenedVersion(preview) {
 }
 
 /** 仕様: 横断画面.md 第5節 */
-export default class ContractCrossWork extends LightningElement {
+export default class ContractCrossWork extends NavigationMixin(
+  LightningElement
+) {
   menu = MENU_ESTIMATE;
   accountingEnabled = false;
   canIssueEstimate = false;
@@ -1487,6 +1487,14 @@ export default class ContractCrossWork extends LightningElement {
     this.checkedIds = { ...this.checkedIds, [id]: event.detail.checked };
   }
 
+  handleIssuedPdfPreview(event) {
+    event.stopPropagation();
+    openContentDocumentFilePreview(
+      this,
+      event.currentTarget.dataset.documentId
+    );
+  }
+
   handleSelectPage() {
     if (this.saving || this.showJournalLockSelection !== true) {
       return;
@@ -2405,7 +2413,7 @@ export default class ContractCrossWork extends LightningElement {
           row.issued === true,
           "utility:file",
           "発行あり",
-          issuedPdfPreviewUrl(row.latestIssuedContentDocumentId)
+          row.latestIssuedContentDocumentId
         )
       );
     }
@@ -2618,14 +2626,15 @@ function linkCell(key, text, href) {
   };
 }
 
-function iconCell(key, on, icon, title, href) {
+function iconCell(key, on, icon, title, documentId) {
   return {
     key,
     isIcon: true,
     on,
     icon,
     title,
-    href: href || "",
+    href: "",
+    documentId: documentId || "",
     className: "icon-cell"
   };
 }

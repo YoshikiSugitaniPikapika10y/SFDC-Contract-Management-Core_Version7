@@ -49,10 +49,10 @@
                     </apex:actionStatus>
                 </apex:pageBlockButtons>
                 <apex:outputPanel rendered="{!issueSucceeded}">
-                    <span id="issuedPreviewUrl" style="display:none;">{!filesPreviewUrl}</span>
+                    <span id="issuedPreviewDocumentId" style="display:none;">{!issuedContentDocumentId}</span>
                     <p>発行したファイルは標準 Files で確認できます。</p>
                     <p>
-                        <apex:outputLink value="{!filesPreviewUrl}" target="_blank">発行したファイルをプレビュー</apex:outputLink>
+                        <button type="button" onclick="openIssuedPreviewIfAny();">発行したファイルをプレビュー</button>
                     </p>
                     <apex:outputPanel rendered="{!showSendThisFile}">
                         <button type="button"
@@ -64,11 +64,18 @@
     </apex:form>
     <script>
         function openIssuedPreviewIfAny() {
-            var el = document.getElementById('issuedPreviewUrl');
-            var url = el ? String(el.textContent || '').replace(/^\s+|\s+$/g, '') : '';
-            if (url) {
-                window.open(url, '_blank');
+            var el = document.getElementById('issuedPreviewDocumentId');
+            var documentId = el ? String(el.textContent || '').replace(/^\s+|\s+$/g, '') : '';
+            if (!documentId) {
+                return;
             }
+            var path = '/lightning/page/filePreview?recordIds=' + encodeURIComponent(documentId)
+                + '&selectedRecordId=' + encodeURIComponent(documentId);
+            if (typeof sforce !== 'undefined' && sforce.one && typeof sforce.one.navigateToURL === 'function') {
+                sforce.one.navigateToURL(path);
+                return;
+            }
+            window.location.href = path;
         }
         function openSendThisFile(documentId, historyId) {
             try {

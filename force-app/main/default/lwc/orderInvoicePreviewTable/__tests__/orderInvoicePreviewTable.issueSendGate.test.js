@@ -143,17 +143,10 @@ describe("orderInvoicePreviewTable issue/send gate (Core 11.3.1 / 11.3.2 / 7.10 
     ).toBe("利用できる請求書テンプレートがありません。");
   });
 
-  it("発行画面は最新発行PDFのプレビューとダウンロードURLを出す (横断画面.md 操作21)", () => {
-    expect(
-      proto.issuedPdfPreviewUrl.call(
-        {},
-        "069000000000001AAA"
-      )
-    ).toBe("/lightning/r/ContentDocument/069000000000001AAA/view");
+  it("発行画面は最新発行PDFのダウンロードURLを出す (横断画面.md 操作21)", () => {
     expect(proto.issuedPdfDownloadUrl.call({}, "069000000000001AAA")).toBe(
       "/sfc/servlet.shepherd/document/download/069000000000001AAA"
     );
-    expect(proto.issuedPdfPreviewUrl.call({}, "")).toBe("");
     expect(proto.issuedPdfDownloadUrl.call({}, "")).toBe("");
   });
 });

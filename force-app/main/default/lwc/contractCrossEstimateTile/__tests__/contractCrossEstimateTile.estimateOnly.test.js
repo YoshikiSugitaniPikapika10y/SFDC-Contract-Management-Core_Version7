@@ -4,6 +4,14 @@ jest.mock("lightning/platformShowToastEvent", () => ({ ShowToastEvent: class {} 
   virtual: true
 });
 jest.mock(
+  "c/orderWizardNavigation",
+  () => ({
+    NavigationMixin: (Base) => class extends Base {},
+    openContentDocumentFilePreview: jest.fn()
+  }),
+  { virtual: true }
+);
+jest.mock(
   "@salesforce/apex/ContractCrossController.getEstimateIssueContext",
   () => ({ default: jest.fn() }),
   { virtual: true }

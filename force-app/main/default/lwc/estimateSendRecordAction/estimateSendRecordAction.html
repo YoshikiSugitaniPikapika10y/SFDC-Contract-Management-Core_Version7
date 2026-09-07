@@ -68,7 +68,11 @@
         ></lightning-combobox>
         <template if:true={showExistingFilePreview}>
           <p class="slds-m-top_xx-small">
-            <a href={existingFilePreviewUrl} target="_blank">標準 Files でプレビュー</a>
+            <lightning-button
+              variant="base"
+              label="プレビュー"
+              onclick={handleExistingFilePreview}
+            ></lightning-button>
           </p>
         </template>
         <lightning-input

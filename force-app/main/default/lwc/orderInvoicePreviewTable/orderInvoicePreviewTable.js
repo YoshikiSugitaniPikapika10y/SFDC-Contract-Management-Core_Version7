@@ -1,6 +1,10 @@
 import { LightningElement, api, track } from "lwc";
 import LightningConfirm from "lightning/confirm";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
+import {
+  NavigationMixin,
+  openContentDocumentFilePreview
+} from "c/orderWizardNavigation";
 import getSplitThresholdDateOptions from "@salesforce/apex/OrderCreateController.getSplitThresholdDateOptions";
 import getInvoiceOpsContext from "@salesforce/apex/InvoiceSendBoardController.getBoardContext";
 import confirmInvoice from "@salesforce/apex/InvoiceSendBoardController.confirmInvoiceFromPreview";
@@ -231,7 +235,9 @@ function requiresPaymentRegisterCancelDate(draft, preview) {
   return diffRequiresCancelDate(preview);
 }
 
-export default class OrderInvoicePreviewTable extends LightningElement {
+export default class OrderInvoicePreviewTable extends NavigationMixin(
+  LightningElement
+) {
   @api billingAccountOptions = [];
   @track editProcessingInvoiceId = null;
   @track invoiceOpsProcessingMode = null;
@@ -2351,11 +2357,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           showInvoiceIssuePdfPreview:
             isInvoiceIssueOpen &&
             Boolean(invoice.latestIssuedContentDocumentId),
-          invoiceIssuePdfPreviewUrl: this.issuedPdfPreviewUrl(
-            isInvoiceIssueOpen
-              ? invoice.latestIssuedContentDocumentId
-              : ""
-          ),
+          invoiceIssuePdfDocumentId: isInvoiceIssueOpen
+            ? invoice.latestIssuedContentDocumentId || ""
+            : "",
           showInvoiceIssuePdfDownload:
             isInvoiceIssueOpen &&
             Boolean(invoice.latestIssuedContentDocumentId),
@@ -2409,11 +2413,11 @@ export default class OrderInvoicePreviewTable extends LightningElement {
             isInvoiceSendOpen &&
             Boolean(this.invoiceSendState.attachmentId) &&
             this.invoiceSendState.attachmentId !== "NEW",
-          existingFilePreviewUrl:
+          existingFileDocumentId:
             isInvoiceSendOpen &&
             this.invoiceSendState.attachmentId &&
             this.invoiceSendState.attachmentId !== "NEW"
-              ? `/lightning/r/ContentDocument/${this.invoiceSendState.attachmentId}/view`
+              ? this.invoiceSendState.attachmentId
               : "",
           invoiceDocumentTemplateOptions: this.invoiceDocumentTemplateOptions,
           invoiceEmailTemplateOptions: this.invoiceEmailTemplateOptions,
@@ -3019,13 +3023,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     });
   }
 
-  /** 仕様: 横断画面.md 操作21。発行画面のプレビューは標準 Files。 */
-  issuedPdfPreviewUrl(documentId) {
-    return documentId
-      ? `/lightning/r/ContentDocument/${documentId}/view`
-      : "";
-  }
-
   /** 仕様: 横断画面.md 操作21。発行画面で最新PDFをダウンロードする。PDFを見るは操作23。 */
   issuedPdfDownloadUrl(documentId) {
     return documentId
@@ -3037,10 +3034,19 @@ export default class OrderInvoicePreviewTable extends LightningElement {
   handleViewIssuedPdf(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
     const documentId = this.findInvoice(invoiceId)?.latestIssuedContentDocumentId;
-    if (!documentId) {
-      return;
-    }
-    window.open(`/lightning/r/ContentDocument/${documentId}/view`, "_blank");
+    this.openIssuedFilePreview(documentId);
+  }
+
+  handleInvoiceIssuePdfPreview(event) {
+    this.openIssuedFilePreview(event.currentTarget.dataset.documentId);
+  }
+
+  handleExistingFilePreview(event) {
+    this.openIssuedFilePreview(event.currentTarget.dataset.documentId);
+  }
+
+  openIssuedFilePreview(documentId) {
+    openContentDocumentFilePreview(this, documentId);
   }
 
   // 仕様: Core 第4.8節、第7.7.3節、第7.10節、第11.3.2節

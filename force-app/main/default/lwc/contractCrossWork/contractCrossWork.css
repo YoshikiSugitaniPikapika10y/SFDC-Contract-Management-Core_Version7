@@ -413,6 +413,13 @@
   color: #64748b;
 }
 
+.icon-preview-btn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
 .overlay {
   position: absolute;
   inset: 0;
