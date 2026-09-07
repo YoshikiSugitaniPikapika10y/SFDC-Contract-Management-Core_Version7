@@ -2167,6 +2167,10 @@ export default class OrderInvoicePreviewTable extends LightningElement {
 
         return {
           key: invoiceId || invoice.mergeKey || `invoice-${index}`,
+          // 仕様: Core 第7.7.0節。取消済みを含めて出したカードは灰色。
+          cardClass: isCancelled
+            ? "invoice-card invoice-card_cancelled"
+            : "invoice-card",
           invoiceId,
           invoiceName: invoice.invoiceName || "—",
           recordUrl: invoiceId

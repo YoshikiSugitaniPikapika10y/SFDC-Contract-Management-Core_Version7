@@ -124,7 +124,7 @@
   <template if:true={hasInvoices}>
     <div class="preview-scroll">
       <template for:each={invoiceCards} for:item="invoice">
-        <section key={invoice.key} class="invoice-card">
+        <section key={invoice.key} class={invoice.cardClass}>
           <header class="invoice-header">
             <div class="invoice-header-bar">
               <div class="invoice-header-main">

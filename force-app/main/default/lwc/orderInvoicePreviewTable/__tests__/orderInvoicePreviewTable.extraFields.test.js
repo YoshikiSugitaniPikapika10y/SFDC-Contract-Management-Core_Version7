@@ -307,6 +307,22 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(billing).toBeFalsy();
   });
 
+  it("取消済みを含めた請求カードは灰色クラスを付ける (Core 7.7.0)", async () => {
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.initialInvoiceId = "a00INV000000001";
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Cancelled",
+      isCancelled: true
+    });
+    document.body.appendChild(element);
+    await flush();
+    const card = element.shadowRoot.querySelector(".invoice-card");
+    expect(card.classList.contains("invoice-card_cancelled")).toBe(true);
+    expect(element.shadowRoot.textContent).toContain("取消済み");
+  });
+
   it("preview先着でも起動時の請求書指定を子フィルタにする (Core 7.7.0 / 横断 2.4)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable

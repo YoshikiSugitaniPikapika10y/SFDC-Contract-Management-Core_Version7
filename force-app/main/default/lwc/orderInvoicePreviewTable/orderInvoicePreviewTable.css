@@ -470,6 +470,12 @@
   border-radius: var(--preview-radius) var(--preview-radius) 0 0;
 }
 
+/* 仕様: Core 第7.7.0節。取消済みを含めて出した請求カードは灰色。未確定・確定済みの緑は変えない。 */
+.invoice-card_cancelled .invoice-header {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f4f5 100%);
+  border-left-color: #94a3b8;
+}
+
 .invoice-header-bar {
   display: flex;
   align-items: center;
