@@ -99,6 +99,97 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_journalListNameIsPatternAliasOrSettingName() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      GlAccount__c autoDebit = new GlAccount__c(
+        Name = 'AUTO Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c autoCredit = new GlAccount__c(
+        Name = 'AUTO Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'MANUAL Debit',
+        AccountType__c = 'Expense',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'MANUAL Credit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ autoDebit, autoCredit, debit, credit };
+      insert new GlJournal__c(
+        Invoice__c = fixture.invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'PATTRN', String.valueOf(fixture.invoice.Id) }
+        ),
+        DebitSlotKey__c = 'Cash',
+        CreditSlotKey__c = 'UnappliedCash',
+        DebitAccount__c = autoDebit.Id,
+        CreditAccount__c = autoCredit.Id,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'Active',
+        IsLocked__c = false,
+        AccountingEventKey__c = AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        JournalPatternKey__c = JournalPatternFixedCatalog.BILLING_BASIS_INVOICE_BODY.key
+      );
+      GlManualJournalSetting__c setting = new GlManualJournalSetting__c(
+        Name = '為替差損の計上',
+        DebitSlotKey__c = 'FxLoss',
+        DebitAccount__c = debit.Id,
+        CreditSlotKey__c = 'AccountsReceivable',
+        CreditAccount__c = credit.Id,
+        IsActive__c = true
+      );
+      insert setting;
+      insert new GlJournal__c(
+        Invoice__c = fixture.invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'MANUALROW', String.valueOf(fixture.invoice.Id) }
+        ),
+        DebitSlotKey__c = 'FxLoss',
+        CreditSlotKey__c = 'AccountsReceivable',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.newInstance(2026, 6, 2),
+        TransactionStatus__c = 'Active',
+        IsLocked__c = false,
+        AccountingEventKey__c = AccountingEventFixedCatalog.MANUAL_JOURNAL.key,
+        GlManualJournalSetting__c = setting.Id
+      );
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+      System.assertEquals(2, bundle.journals.size());
+      System.assertEquals(
+        '請求本体',
+        bundle.journals[0].eventName,
+        'Accounting 第5.2節: 自動仕訳の列はパターン別名'
+      );
+      System.assertEquals(
+        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        bundle.journals[0].eventKey,
+        'Accounting 第5.2節: 保存の起動点キーは変えない'
+      );
+      System.assertEquals(
+        '為替差損の計上',
+        bundle.journals[1].eventName,
+        'Accounting 第5.2節: 手動は設定Name'
+      );
+    }
+  }
+
+  @IsTest
   static void getOpsBundle_manualSettings_useNameAsLabelAndKeepDescription() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

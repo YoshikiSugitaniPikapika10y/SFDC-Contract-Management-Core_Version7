@@ -1055,8 +1055,8 @@ No.1～9の採用可否は第3.1節の売上計上方針と税認識方針から
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>JournalPatternFixedCatalog.require</code> / <code>values</code>
-／ 画面の列・横断左のフィルタ／グルーピングは <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>、<code>contractCrossWork</code>。表示は本節の別名。保存キーは起動点。手動は<code>GlManualJournalSetting__c.Name</code>。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>JournalPatternFixedCatalog.require</code> / <code>values</code> / <code>listDisplayName</code> / <code>isKnownKey</code>
+／ 画面の列・横断左のフィルタ／グルーピングは <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>、<code>contractCrossWork</code>、<code>InvoicePreviewOpsController.loadJournals</code>、<code>ContractCrossController.getBootstrap</code>、<code>ContractCrossQueryService.queryJournals</code>。表示は本節の別名。保存キーは起動点。手動は<code>GlManualJournalSetting__c.Name</code>。
 </div>
 
 「既定方針」列の○は、第3.1節の既定である請求基準＋請求時税の許可集合に入ることを示す。顧客がパターンごとに切り替える設定ではない。他の3組合せでは第5.6節の許可集合に従い、No.10～16は方針を問わず常時使用する。

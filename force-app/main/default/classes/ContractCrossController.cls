@@ -460,9 +460,9 @@ public without sharing class ContractCrossController {
       );
       dto.tagRules = ContractCrossQueryService.loadEnabledTagRules();
       dto.eventOptions = new List<SelectOptionDto>();
-      for (AccountingEventFixedCatalog.Definition definition : AccountingEventFixedCatalog.values()) {
+      for (JournalPatternFixedCatalog.Definition definition : JournalPatternFixedCatalog.values()) {
         SelectOptionDto option = new SelectOptionDto();
-        option.label = definition.name;
+        option.label = JournalPatternFixedCatalog.listDisplayName(definition.key);
         option.value = definition.key;
         dto.eventOptions.add(option);
       }

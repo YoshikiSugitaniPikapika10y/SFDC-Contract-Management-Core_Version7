@@ -81,6 +81,113 @@ private class AccountingFixedCatalogTest {
   }
 
   @IsTest
+  static void patternListDisplayNamesAreSection52Aliases() {
+    System.assertEquals(
+      '請求本体',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.BILLING_BASIS_INVOICE_BODY.key
+      )
+    );
+    System.assertEquals(
+      '契約資産振替',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.CASH_BASIS_INVOICE_BODY_CTA_TRANSFER.key
+      )
+    );
+    System.assertEquals(
+      '請求時税',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.BILLING_TAX_AT_INVOICE.key
+      )
+    );
+    System.assertEquals(
+      '税繰延',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.BILLING_BASIS_INVOICE_TAX_DEFERRED.key
+      )
+    );
+    System.assertEquals(
+      '税の契約資産振替',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.CASH_BASIS_INVOICE_TAX_CTA_TRANSFER.key
+      )
+    );
+    System.assertEquals(
+      '売上本体',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.BILLING_BASIS_REVENUE_BODY.key
+      )
+    );
+    System.assertEquals(
+      '売上本体',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.CASH_BASIS_REVENUE_BODY.key
+      )
+    );
+    System.assertEquals(
+      '売上時税',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.BILLING_BASIS_REVENUE_TAX.key
+      )
+    );
+    System.assertEquals(
+      '売上時税',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.CASH_BASIS_REVENUE_TAX.key
+      )
+    );
+    System.assertEquals(
+      '入金',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.PAYMENT_INVOICE_CURRENT.key
+      )
+    );
+    System.assertEquals(
+      '請求金額以外の入金',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.PAYMENT_NON_INVOICE_POSITIVE.key
+      )
+    );
+    System.assertEquals(
+      '請求金額以外の出金',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.PAYMENT_NON_INVOICE_NEGATIVE.key
+      )
+    );
+    System.assertEquals(
+      '過去日入金',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH.key
+      )
+    );
+    System.assertEquals(
+      '過去日出金',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH.key
+      )
+    );
+    System.assertEquals(
+      '仮受振替',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER.key
+      )
+    );
+    System.assertEquals(
+      '仮払振替',
+      JournalPatternFixedCatalog.listDisplayName(
+        JournalPatternFixedCatalog.PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER.key
+      )
+    );
+    System.assertEquals(
+      '請求基準：請求本体',
+      JournalPatternFixedCatalog.BILLING_BASIS_INVOICE_BODY.name,
+      'Accounting 第5.2節: Catalogのnameは列表示に使わない'
+    );
+    System.assertEquals(null, JournalPatternFixedCatalog.listDisplayName(null));
+    System.assertEquals(false, JournalPatternFixedCatalog.isKnownKey('BILLING_CONFIRMED'));
+  }
+
+  @IsTest
   static void aggregateType_allAndAnyOf_notReservedAny() {
     Set<String> names = new Set<String>();
     for (

@@ -44,6 +44,16 @@ private class ContractCrossControllerTest {
         dto.estimateCloseTo,
         '完了予定日 TO は今月末'
       );
+      System.assertEquals(
+        16,
+        dto.eventOptions.size(),
+        'Accounting 第5.2節: 横断左のフィルタ候補はパターン16件'
+      );
+      System.assertEquals('請求本体', dto.eventOptions[0].label);
+      System.assertEquals(
+        JournalPatternFixedCatalog.BILLING_BASIS_INVOICE_BODY.key,
+        dto.eventOptions[0].value
+      );
     }
   }
 

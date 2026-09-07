@@ -417,7 +417,7 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     { id: "postingDate", label: "計上日", on: false, total: false },
     { id: "billingAccount", label: "請求アカウント", on: false, total: false },
     { id: "invoice", label: "請求", on: false, total: false },
-    { id: "event", label: "会計イベント", on: false, total: false }
+    { id: "event", label: "パターン", on: false, total: false }
   ];
 
   it("請求グループOFFでも請求書名は1列", () => {

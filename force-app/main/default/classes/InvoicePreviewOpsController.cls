@@ -1002,7 +1002,7 @@ public without sharing class InvoicePreviewOpsController {
       true;
   }
 
-  /** 仕様: Core 第7.7.3節、Accounting 第4.2節、第9.3節、第8.7節、第9.5節、第11.1節 */
+  /** 仕様: Core 第7.7.3節、Accounting 第5.2節、第9.3節、第8.7節、第9.5節、第11.1節 */
   private static List<JournalRowDto> loadJournals(Id invoiceId) {
     List<JournalRowDto> rows = new List<JournalRowDto>();
     for (GlJournal__c journal : [
@@ -1028,7 +1028,9 @@ public without sharing class InvoicePreviewOpsController {
         InvoicePaymentAllocation__c,
         InvoicePaymentAllocation__r.CreatedDate,
         GlManualJournalHeader__c,
-        GlManualJournalHeader__r.CreatedDate
+        GlManualJournalHeader__r.CreatedDate,
+        GlManualJournalSetting__c,
+        GlManualJournalSetting__r.Name
       FROM GlJournal__c
       WHERE Invoice__c = :invoiceId
       AND TransactionStatus__c != 'LogicallyDeleted'
@@ -1037,7 +1039,7 @@ public without sharing class InvoicePreviewOpsController {
       JournalRowDto row = new JournalRowDto();
       row.journalId = journal.Id;
       row.eventKey = journal.AccountingEventKey__c;
-      row.eventName = accountingEventName(journal.AccountingEventKey__c);
+      row.eventName = journalListDisplayName(journal);
       row.patternKey = journal.JournalPatternKey__c;
       row.debitSlotKey = journal.DebitSlotKey__c;
       row.creditSlotKey = journal.CreditSlotKey__c;
@@ -1254,17 +1256,17 @@ public without sharing class InvoicePreviewOpsController {
     return rows;
   }
 
-  /** 仕様: Accounting 第4.2節 */
-  private static String accountingEventName(String eventKey) {
-    if (String.isBlank(eventKey)) {
-      return eventKey;
+  /** 仕様: Accounting 第5.2節。列表示はパターン別名。手動は設定Name。 */
+  private static String journalListDisplayName(GlJournal__c journal) {
+    String patternName = JournalPatternFixedCatalog.listDisplayName(
+      journal.JournalPatternKey__c
+    );
+    if (!String.isBlank(patternName)) {
+      return patternName;
     }
-    for (AccountingEventFixedCatalog.Definition definition : AccountingEventFixedCatalog.values()) {
-      if (definition.key == eventKey) {
-        return definition.name;
-      }
-    }
-    return eventKey;
+    return journal.GlManualJournalSetting__r == null
+      ? null
+      : journal.GlManualJournalSetting__r.Name;
   }
 
   /** 仕様: Accounting 第8.7節。手動はパターン無し。Goalの手動sameDayOrderは80。 */

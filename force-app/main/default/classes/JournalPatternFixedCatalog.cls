@@ -324,6 +324,38 @@ public with sharing class JournalPatternFixedCatalog {
     PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER.key => PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER
   };
 
+  private static final Map<String, String> LIST_DISPLAY_NAME = new Map<String, String>{
+    BILLING_BASIS_INVOICE_BODY.key => '請求本体',
+    CASH_BASIS_INVOICE_BODY_CTA_TRANSFER.key => '契約資産振替',
+    BILLING_TAX_AT_INVOICE.key => '請求時税',
+    BILLING_BASIS_INVOICE_TAX_DEFERRED.key => '税繰延',
+    CASH_BASIS_INVOICE_TAX_CTA_TRANSFER.key => '税の契約資産振替',
+    BILLING_BASIS_REVENUE_BODY.key => '売上本体',
+    CASH_BASIS_REVENUE_BODY.key => '売上本体',
+    BILLING_BASIS_REVENUE_TAX.key => '売上時税',
+    CASH_BASIS_REVENUE_TAX.key => '売上時税',
+    PAYMENT_INVOICE_CURRENT.key => '入金',
+    PAYMENT_NON_INVOICE_POSITIVE.key => '請求金額以外の入金',
+    PAYMENT_NON_INVOICE_NEGATIVE.key => '請求金額以外の出金',
+    PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH.key => '過去日入金',
+    PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH.key => '過去日出金',
+    PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER.key => '仮受振替',
+    PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER.key => '仮払振替'
+  };
+
+  /** 仕様: Accounting 第5.2節。列／フィルタ／グルーピングの表示名。Catalogのnameではない。 */
+  public static String listDisplayName(String patternKey) {
+    if (String.isBlank(patternKey)) {
+      return null;
+    }
+    return LIST_DISPLAY_NAME.get(patternKey);
+  }
+
+  /** 仕様: Accounting 第5.2節 */
+  public static Boolean isKnownKey(String patternKey) {
+    return String.isNotBlank(patternKey) && BY_KEY.containsKey(patternKey);
+  }
+
   /** 仕様: Accounting 第5.1節、第5.2節 */
   public static Definition require(String key) {
     Definition found = BY_KEY.get(key);

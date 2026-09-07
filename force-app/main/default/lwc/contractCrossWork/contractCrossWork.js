@@ -325,7 +325,7 @@ export default class ContractCrossWork extends NavigationMixin(
     { id: "postingDate", label: "計上日", on: false, total: false },
     { id: "billingAccount", label: "請求アカウント", on: false, total: false },
     { id: "invoice", label: "請求", on: false, total: false },
-    { id: "event", label: "会計イベント", on: false, total: false }
+    { id: "event", label: "パターン", on: false, total: false }
   ];
 
   sort1 = "closeDate";
@@ -654,7 +654,7 @@ export default class ContractCrossWork extends NavigationMixin(
         { label: "計上日", value: "postingDate" },
         { label: "請求書", value: "invoiceName" },
         { label: "請求アカウント", value: "billingAccount" },
-        { label: "会計イベント", value: "event" },
+        { label: "パターン", value: "event" },
         { label: "借方", value: "debit" },
         { label: "金額", value: "amount" }
       ];
@@ -973,7 +973,7 @@ export default class ContractCrossWork extends NavigationMixin(
     } else if (this.isJournalMenu) {
       pushRange("jouPosting", "計上日", this.jouFrom, this.jouTo);
       pushChoice("jouLock", "Lock", this.jouLock, this.lockOptions);
-      pushChoice("jouEvent", "会計イベント", this.jouEvent, this.eventFilterOptions);
+      pushChoice("jouEvent", "パターン", this.jouEvent, this.eventFilterOptions);
       pushLookup("jouBa", "請求アカウント", this.jouBillingAccountId);
       pushLookup("jouAccount", "取引先", this.jouAccountId);
       pushLookup("jouInvoice", "請求", this.jouInvoiceId);

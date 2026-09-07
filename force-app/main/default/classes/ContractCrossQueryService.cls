@@ -446,7 +446,8 @@ public with sharing class ContractCrossQueryService {
     }
     String soql =
       'SELECT Id, Amount__c, PostingDate__c, Memo__c, ConfirmationText__c, ' +
-      'IsLocked__c, TransactionStatus__c, AccountingEventKey__c, ' +
+      'IsLocked__c, TransactionStatus__c, AccountingEventKey__c, JournalPatternKey__c, ' +
+      'GlManualJournalSetting__c, GlManualJournalSetting__r.Name, ' +
       'DebitSlotKey__c, CreditSlotKey__c, DebitAccount__c, DebitAccount__r.Name, CreditAccount__c, CreditAccount__r.Name, ' +
       'Invoice__c, Invoice__r.Name, Invoice__r.ContractHistory__c, Invoice__r.LastModifiedDate, ' +
       'Invoice__r.InvoiceTransactionStatus__c, ' +
@@ -466,8 +467,18 @@ public with sharing class ContractCrossQueryService {
     Id invoiceId = filter.invoiceId;
     Date closeFrom = filter.closeDateFrom;
     Date closeTo = filter.closeDateTo;
+    Id manualSettingId;
     if (String.isNotBlank(eventKey)) {
-      soql += ' AND AccountingEventKey__c = :eventKey';
+      if (JournalPatternFixedCatalog.isKnownKey(eventKey)) {
+        soql += ' AND JournalPatternKey__c = :eventKey';
+      } else {
+        try {
+          manualSettingId = Id.valueOf(eventKey);
+          soql += ' AND GlManualJournalSetting__c = :manualSettingId';
+        } catch (Exception ignore) {
+          soql += ' AND JournalPatternKey__c = :eventKey';
+        }
+      }
     }
     if (billingAccountId != null) {
       soql += ' AND Invoice__r.BillingAccountSnapShot__c = :billingAccountId';
@@ -492,7 +503,6 @@ public with sharing class ContractCrossQueryService {
     List<GlJournal__c> rows = Database.query(soql, AccessLevel.USER_MODE);
     ContractCrossController.ListResultDto result = newListResult(rows.size());
     Integer take = Math.min(rows.size(), ROW_LIMIT);
-    Map<String, String> eventNames = eventNameMap();
     for (Integer i = 0; i < take; i++) {
       GlJournal__c journal = rows[i];
       ContractCrossController.JournalRowDto dto = new ContractCrossController.JournalRowDto();
@@ -517,10 +527,19 @@ public with sharing class ContractCrossQueryService {
       dto.postingDate = journal.PostingDate__c;
       dto.isLocked = journal.IsLocked__c == true;
       dto.transactionStatus = journal.TransactionStatus__c;
-      dto.eventKey = journal.AccountingEventKey__c;
-      dto.eventName = eventNames.containsKey(journal.AccountingEventKey__c)
-        ? eventNames.get(journal.AccountingEventKey__c)
-        : journal.AccountingEventKey__c;
+      dto.eventKey = String.isNotBlank(journal.JournalPatternKey__c)
+        ? journal.JournalPatternKey__c
+        : (journal.GlManualJournalSetting__c == null
+            ? null
+            : String.valueOf(journal.GlManualJournalSetting__c));
+      dto.eventName = JournalPatternFixedCatalog.listDisplayName(
+        journal.JournalPatternKey__c
+      );
+      if (String.isBlank(dto.eventName)) {
+        dto.eventName = journal.GlManualJournalSetting__r == null
+          ? null
+          : journal.GlManualJournalSetting__r.Name;
+      }
       dto.billingAccountId = journal.Invoice__r == null
         ? null
         : journal.Invoice__r.BillingAccountSnapShot__c;
@@ -846,11 +865,4 @@ public with sharing class ContractCrossQueryService {
     return totals;
   }
 
-  private static Map<String, String> eventNameMap() {
-    Map<String, String> names = new Map<String, String>();
-    for (AccountingEventFixedCatalog.Definition definition : AccountingEventFixedCatalog.values()) {
-      names.put(definition.key, definition.name);
-    }
-    return names;
-  }
 }
