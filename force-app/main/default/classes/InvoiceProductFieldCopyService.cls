@@ -136,6 +136,8 @@ public without sharing class InvoiceProductFieldCopyService {
 
   @TestVisible
   private static List<FieldCopyDefinition__c> cachedDefinitions;
+  @TestVisible
+  static Integer catalogSelectCount = 0;
   private static Map<Id, ContractHistory__c> cachedHistoriesById = new Map<Id, ContractHistory__c>();
   private static Map<Id, Set<String>> cachedHistoryFieldsById = new Map<Id, Set<String>>();
   private static Map<Id, ContractService__c> cachedServicesById = new Map<Id, ContractService__c>();
@@ -1104,6 +1106,7 @@ public without sharing class InvoiceProductFieldCopyService {
     }
   }
 
+  /** 仕様: Core 第11.4.2節。請求明細の From は契約履歴・見積商品・商品・請求アカウント・商談・取引先。 */
   private static Map<String, SObject> resolveInsertSources(
     SObject record,
     String targetObjectApiName,
@@ -1120,6 +1123,36 @@ public without sharing class InvoiceProductFieldCopyService {
         ) {
           sources.put(OBJECT_PRODUCT, maps.productById.get(cp.Product__c));
         }
+      }
+      Id histId = cp == null ? null : cp.ContractHistory__c;
+      if (histId != null && maps.contractHistoryById.containsKey(histId)) {
+        ContractHistory__c history = maps.contractHistoryById.get(histId);
+        sources.put(OBJECT_CONTRACT_HISTORY, history);
+        if (
+          history.Opportunity__c != null &&
+          maps.opportunityById.containsKey(history.Opportunity__c)
+        ) {
+          sources.put(
+            OBJECT_OPPORTUNITY,
+            maps.opportunityById.get(history.Opportunity__c)
+          );
+        }
+        if (
+          history.ContractService__r != null &&
+          history.ContractService__r.Account__c != null &&
+          maps.accountById.containsKey(history.ContractService__r.Account__c)
+        ) {
+          sources.put(
+            OBJECT_ACCOUNT,
+            maps.accountById.get(history.ContractService__r.Account__c)
+          );
+        }
+      }
+      Id baId = histId == null
+        ? null
+        : maps.billingAccountIdByHistoryId.get(histId);
+      if (baId != null && maps.billingAccountById.containsKey(baId)) {
+        sources.put(OBJECT_BILLING_ACCOUNT, maps.billingAccountById.get(baId));
       }
       return sources;
     }
@@ -1645,12 +1678,17 @@ public without sharing class InvoiceProductFieldCopyService {
     }
   }
 
-  /** 仕様: Core 第11.4.2節 */
+  /** 仕様: Core 第11.4.2節、第12.4節。同一処理で読んだコピー定義を取り直さない。 */
   public static List<FieldCopyDefinition__c> getActiveDefinitions() {
     if (cachedDefinitions != null) {
       return cachedDefinitions;
     }
+    if (FieldCopyDefinitionService.hasLoadedDefinitions()) {
+      cachedDefinitions = FieldCopyDefinitionService.loadedDefinitions();
+      return cachedDefinitions;
+    }
 
+    catalogSelectCount++;
     List<FieldCopyDefinition__c> definitions = [
       SELECT
         Name,

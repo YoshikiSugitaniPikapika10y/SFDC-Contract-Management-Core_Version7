@@ -219,6 +219,14 @@ public without sharing class FieldCopyDefinitionService {
     cachedStampValues = null;
   }
 
+  public static List<FieldCopyDefinition__c> loadedDefinitions() {
+    return loadAllDefinitions();
+  }
+
+  public static Boolean hasLoadedDefinitions() {
+    return cachedDefinitions != null;
+  }
+
   private static List<FieldCopyDefinition__c> loadAllDefinitions() {
     if (cachedDefinitions != null) {
       return cachedDefinitions;

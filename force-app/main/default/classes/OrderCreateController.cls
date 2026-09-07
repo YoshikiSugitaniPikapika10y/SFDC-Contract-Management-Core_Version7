@@ -6,6 +6,7 @@ public without sharing class OrderCreateController {
   private static final String HISTORY_STATUS_ESTIMATE = ContractDomainConstants.HISTORY_STATUS_ESTIMATE;
   private static final String HISTORY_STATUS_ORDERED = ContractDomainConstants.HISTORY_STATUS_ORDERED;
   private static final String HISTORY_TYPE_CANCEL = ContractDomainConstants.HISTORY_TYPE_CANCEL;
+  private static final String SHARED_DRAFT_TOKEN_KEY = '__shared__';
   @TestVisible
   private static final String ORDER_TOKEN_REQUIRED_MESSAGE = '受注対象が更新された可能性があります。画面を開き直してから再度操作してください。';
   @TestVisible
@@ -23,6 +24,12 @@ public without sharing class OrderCreateController {
   public static Integer renewProductSelectCount = 0;
   @TestVisible
   public static Integer previewInvoiceSelectCount = 0;
+  @TestVisible
+  public static Integer draftLineSelectCount = 0;
+  /** 仕様: Core 第12.4節。Ordered集計が取った履歴Id。入口で読んだ対象は含めない。 */
+  @TestVisible
+  public static Set<Id> lastPreviewOrderedHistoryQueryIds = new Set<Id>();
+  private static List<InvoiceLine__c> loadedDraftLines;
   private static Map<Id, List<Invoice__c>> previewInvoicesByServiceId = new Map<Id, List<Invoice__c>>();
   private static Map<Id, ScopedEstimateSummary> previewEstimateSummaryByServiceId = new Map<Id, ScopedEstimateSummary>();
 
@@ -1238,12 +1245,8 @@ public without sharing class OrderCreateController {
     String expectedContentVersion,
     String businessOperationKey
   ) {
-    List<Id> lineIds = lineIdsOf(edits);
-    List<Id> invoiceIds = invoiceIdsOfLines(lineIds);
     Map<String, String> tokenByInvoiceId = new Map<String, String>();
-    for (Id invoiceId : invoiceIds) {
-      tokenByInvoiceId.put(String.valueOf(invoiceId), expectedContentVersion);
-    }
+    tokenByInvoiceId.put(SHARED_DRAFT_TOKEN_KEY, expectedContentVersion);
     return updateInvoiceLineAmounts(
       contractHistoryId,
       edits,
@@ -1261,14 +1264,22 @@ public without sharing class OrderCreateController {
     String businessOperationKey
   ) {
     beginInvoicePreviewWriteDefer();
+    loadedDraftLines = null;
     try {
     List<Id> lineIds = lineIdsOf(edits);
     List<Id> invoiceIds = invoiceIdsOfLines(lineIds);
     Map<Id, String> tokens = new Map<Id, String>();
+    String sharedToken =
+      expectedTokenByInvoiceId == null
+        ? null
+        : expectedTokenByInvoiceId.get(SHARED_DRAFT_TOKEN_KEY);
     for (Id invoiceId : invoiceIds) {
       String token = null;
       if (expectedTokenByInvoiceId != null) {
         token = expectedTokenByInvoiceId.get(String.valueOf(invoiceId));
+      }
+      if (token == null) {
+        token = sharedToken;
       }
       tokens.put(invoiceId, token);
     }
@@ -1289,7 +1300,11 @@ public without sharing class OrderCreateController {
       return getInvoicePreview(contractHistoryId);
     }
     try {
-      InvoiceCanonicalService.updateLineAmounts(edits);
+      InvoiceCanonicalService.updateLineAmounts(
+        edits,
+        prep.lockedInvoices,
+        prep.knownLines
+      );
       stampDraftOperationKeys(invoiceIds, prep.operationKey);
       ContractOperationLogService.write(
         'AdjustInvoiceAmount',
@@ -1302,6 +1317,7 @@ public without sharing class OrderCreateController {
     }
     return getInvoicePreview(contractHistoryId);
     } finally {
+      loadedDraftLines = null;
       endInvoicePreviewWriteDefer();
     }
   }
@@ -1489,7 +1505,8 @@ public without sharing class OrderCreateController {
         billingEmailBcc,
         null,
         taxPercent,
-        extraFieldValues
+        extraFieldValues,
+        prep.lockedInvoices == null ? null : prep.lockedInvoices.get(invoiceId)
       );
       stampDraftOperationKeys(invoiceIds, prep.operationKey);
       ContractOperationLogService.write(
@@ -1549,7 +1566,10 @@ public without sharing class OrderCreateController {
       return getInvoicePreview(contractHistoryId);
     }
     try {
-      InvoiceCanonicalService.applyBillingAccountContent(invoiceId);
+      InvoiceCanonicalService.applyBillingAccountContent(
+        invoiceId,
+        prep.lockedInvoices == null ? null : prep.lockedInvoices.get(invoiceId)
+      );
       stampDraftOperationKeys(invoiceIds, prep.operationKey);
       ContractOperationLogService.write(
         'ApplyBillingAccount',
@@ -2781,6 +2801,10 @@ public without sharing class OrderCreateController {
     );
   }
 
+  /**
+   * 仕様: Core 第12.4節、第4.3.11節、第7.7.0節。
+   * 開く取得で読んだ契約履歴は Ordered 集計で取り直さない。
+   */
   private static ContractHistory__c resolveHistoryForPreview(
     Id contractHistoryId
   ) {
@@ -2791,7 +2815,12 @@ public without sharing class OrderCreateController {
       return previewHistoryById.get(contractHistoryId);
     }
     List<ContractHistory__c> histories = [
-      SELECT ContractService__c, Version__c, ContractService__r.TaxPercent__c
+      SELECT
+        ContractService__c,
+        Version__c,
+        historystatus__c,
+        DeltaAmountSum__c,
+        ContractService__r.TaxPercent__c
       FROM ContractHistory__c
       WHERE Id = :contractHistoryId
       WITH SYSTEM_MODE
@@ -3079,6 +3108,8 @@ public without sharing class OrderCreateController {
   private class DraftEditPreparation {
     public String operationKey;
     public Boolean alreadyApplied;
+    public Map<Id, Invoice__c> lockedInvoices;
+    public List<InvoiceLine__c> knownLines;
   }
 
   private static DraftEditPreparation prepareDraftInvoiceEdit(
@@ -3090,11 +3121,6 @@ public without sharing class OrderCreateController {
   ) {
     ContractPermissionUtil.assertEditDraftInvoice();
     Id contractServiceId = resolveContractServiceId(contractHistoryId);
-    assertPreviewScope(
-      contractServiceId,
-      invoiceIds,
-      lineIds
-    );
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
     );
@@ -3111,16 +3137,28 @@ public without sharing class OrderCreateController {
         WITH SYSTEM_MODE
       ];
       if (existing > 0) {
+        assertPreviewScope(contractServiceId, invoiceIds, lineIds);
         prep.alreadyApplied = true;
         return prep;
       }
     }
     Set<Id> targetInvoiceIds = compactIds(invoiceIds);
+    Set<Id> targetLineIds = compactIds(lineIds);
     if (targetInvoiceIds.isEmpty()) {
+      if (!targetLineIds.isEmpty()) {
+        throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+      }
       throw toAuraHandled('請求は必須です。');
     }
     Map<Id, Invoice__c> locked = AccountingCauseLockService.lockInvoices(
       targetInvoiceIds
+    );
+    assertPreviewScopeFromLoaded(
+      contractServiceId,
+      locked,
+      loadedDraftLines,
+      targetInvoiceIds,
+      targetLineIds
     );
     Map<Id, Datetime> knownModified = new Map<Id, Datetime>();
     Map<Id, String> tokens = new Map<Id, String>();
@@ -3138,7 +3176,53 @@ public without sharing class OrderCreateController {
       tokens,
       knownModified
     );
+    prep.lockedInvoices = locked;
+    prep.knownLines = loadedDraftLines;
     return prep;
+  }
+
+  /** 仕様: Core 第12.4節。ロック済み請求と読み済み明細で範囲を見る。 */
+  private static void assertPreviewScopeFromLoaded(
+    Id contractServiceId,
+    Map<Id, Invoice__c> lockedInvoices,
+    List<InvoiceLine__c> knownLines,
+    Set<Id> targetInvoiceIds,
+    Set<Id> targetLineIds
+  ) {
+    if (contractServiceId == null) {
+      throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+    }
+    if (targetInvoiceIds != null) {
+      for (Id invoiceId : targetInvoiceIds) {
+        Invoice__c locked = lockedInvoices == null
+          ? null
+          : lockedInvoices.get(invoiceId);
+        if (locked == null || locked.ContractService__c != contractServiceId) {
+          throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+        }
+      }
+    }
+    if (targetLineIds == null || targetLineIds.isEmpty()) {
+      return;
+    }
+    Map<Id, InvoiceLine__c> byId = new Map<Id, InvoiceLine__c>();
+    if (knownLines != null) {
+      for (InvoiceLine__c line : knownLines) {
+        if (line != null && line.Id != null) {
+          byId.put(line.Id, line);
+        }
+      }
+    }
+    for (Id lineId : targetLineIds) {
+      InvoiceLine__c line = byId.get(lineId);
+      if (
+        line == null ||
+        line.Invoice__r == null ||
+        line.Invoice__r.ContractService__c != contractServiceId
+      ) {
+        throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+      }
+    }
   }
 
   private static void assertPreviewScope(
@@ -3236,14 +3320,47 @@ public without sharing class OrderCreateController {
     List<Id> invoiceIds = new List<Id>();
     Set<Id> lineIdSet = compactIds(lineIds);
     if (lineIdSet.isEmpty()) {
+      loadedDraftLines = new List<InvoiceLine__c>();
       return invoiceIds;
     }
-    for (InvoiceLine__c line : [
-      SELECT Invoice__c
+    draftLineSelectCount++;
+    List<InvoiceLine__c> editedLines = [
+      SELECT
+        Id,
+        Amount__c,
+        Invoice__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c,
+        Invoice__r.ContractHistory__c,
+        Invoice__r.ContractService__c
       FROM InvoiceLine__c
       WHERE Id IN :lineIdSet
       WITH SYSTEM_MODE
-    ]) {
+    ];
+    Set<Id> parentIds = new Set<Id>();
+    for (InvoiceLine__c line : editedLines) {
+      if (line.Invoice__c != null) {
+        parentIds.add(line.Invoice__c);
+      }
+    }
+    if (parentIds.isEmpty()) {
+      loadedDraftLines = editedLines;
+      return invoiceIds;
+    }
+    loadedDraftLines = [
+      SELECT
+        Id,
+        Amount__c,
+        Invoice__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c,
+        Invoice__r.ContractHistory__c,
+        Invoice__r.ContractService__c
+      FROM InvoiceLine__c
+      WHERE Invoice__c IN :parentIds
+      WITH SYSTEM_MODE
+    ];
+    for (InvoiceLine__c line : loadedDraftLines) {
       if (line.Invoice__c != null) {
         invoiceIds.add(line.Invoice__c);
       }
@@ -4218,8 +4335,9 @@ public without sharing class OrderCreateController {
   }
 
   /**
-   * 仕様: Core 第7.8.5節、第7.9.1節。
+   * 仕様: Core 第7.8.5節、第7.9.1節、第12.4節、第4.3.11節、第7.7.0節。
    * 見積税抜は Ordered 契約履歴の DeltaAmountSum__c。件数按分は使わない。
+   * 入口で読んだ対象履歴は取り直さない。
    */
   private static ScopedEstimateSummary buildScopedEstimateSummary(
     Id contractServiceId
@@ -4232,20 +4350,67 @@ public without sharing class OrderCreateController {
       return previewEstimateSummaryByServiceId.get(contractServiceId);
     }
 
-    Set<Decimal> seenVersions = new Set<Decimal>();
-    for (ContractHistory__c history : [
-      SELECT Version__c, DeltaAmountSum__c
-      FROM ContractHistory__c
-      WHERE
-        ContractService__c = :contractServiceId
-        AND historystatus__c = :HISTORY_STATUS_ORDERED
-      WITH SYSTEM_MODE
-      ORDER BY Version__c ASC
-    ]) {
-      if (history.Version__c == null || seenVersions.contains(history.Version__c)) {
+    List<ContractHistory__c> orderedHistories = new List<ContractHistory__c>();
+    Set<Id> knownOrderedIds = new Set<Id>();
+    if (previewHistoryById != null) {
+      for (ContractHistory__c known : previewHistoryById.values()) {
+        if (
+          known == null ||
+          known.Id == null ||
+          known.ContractService__c != contractServiceId ||
+          known.historystatus__c != HISTORY_STATUS_ORDERED
+        ) {
+          continue;
+        }
+        knownOrderedIds.add(known.Id);
+        orderedHistories.add(known);
+      }
+    }
+
+    lastPreviewOrderedHistoryQueryIds = new Set<Id>();
+    List<ContractHistory__c> queried;
+    if (knownOrderedIds.isEmpty()) {
+      queried = [
+        SELECT Version__c, DeltaAmountSum__c
+        FROM ContractHistory__c
+        WHERE
+          ContractService__c = :contractServiceId
+          AND historystatus__c = :HISTORY_STATUS_ORDERED
+        WITH SYSTEM_MODE
+        ORDER BY Version__c ASC
+      ];
+    } else {
+      queried = [
+        SELECT Version__c, DeltaAmountSum__c
+        FROM ContractHistory__c
+        WHERE
+          ContractService__c = :contractServiceId
+          AND historystatus__c = :HISTORY_STATUS_ORDERED
+          AND Id NOT IN :knownOrderedIds
+        WITH SYSTEM_MODE
+        ORDER BY Version__c ASC
+      ];
+    }
+    for (ContractHistory__c history : queried) {
+      lastPreviewOrderedHistoryQueryIds.add(history.Id);
+      orderedHistories.add(history);
+    }
+
+    Map<Decimal, ContractHistory__c> firstByVersion = new Map<Decimal, ContractHistory__c>();
+    List<Decimal> versionOrder = new List<Decimal>();
+    for (ContractHistory__c history : orderedHistories) {
+      if (
+        history.Version__c == null ||
+        firstByVersion.containsKey(history.Version__c)
+      ) {
         continue;
       }
-      seenVersions.add(history.Version__c);
+      firstByVersion.put(history.Version__c, history);
+      versionOrder.add(history.Version__c);
+    }
+    versionOrder.sort();
+    for (Decimal version : versionOrder) {
+      ContractHistory__c history = firstByVersion.get(version);
       Decimal amount = history.DeltaAmountSum__c == null
         ? 0
         : history.DeltaAmountSum__c;

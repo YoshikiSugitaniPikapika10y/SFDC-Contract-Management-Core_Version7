@@ -89,6 +89,44 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void updateLineAmounts_withoutKnownRows_selectsLines() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.LineAmountEdit edit = new InvoiceCanonicalService.LineAmountEdit();
+      edit.lineId = line.Id;
+      edit.amount = line.Amount__c + 1;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.lineAmountSelectCount = 0;
+      InvoiceCanonicalService.recalcLineSelectCount = 0;
+      InvoiceCanonicalService.recalcInvoiceSelectCount = 0;
+      Test.startTest();
+      InvoiceCanonicalService.updateLineAmounts(
+        new List<InvoiceCanonicalService.LineAmountEdit>{ edit }
+      );
+      Test.stopTest();
+      System.assert(
+        InvoiceCanonicalService.lineAmountSelectCount >= 1,
+        '入口で明細を渡さない直呼びは明細をSELECTする'
+      );
+      InvoiceLine__c stored = [
+        SELECT Amount__c
+        FROM InvoiceLine__c
+        WHERE Id = :line.Id
+      ];
+      System.assertEquals(line.Amount__c + 1, stored.Amount__c);
+    }
+  }
+
+  @IsTest
   static void updateLineAmounts_rejectsWithoutEditPermission() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();

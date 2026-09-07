@@ -360,6 +360,16 @@ public without sharing class InvoiceLockUtil {
     }
   }
 
+  /** 仕様: Core 第12.4節・第7.8節。ロック済み請求の取引状態で確定済み拒否を見る。 */
+  public static void assertInvoicesEditable(List<Invoice__c> invoices) {
+    if (canBypassLockedDml() || invoices == null || invoices.isEmpty()) {
+      return;
+    }
+    for (Invoice__c invoice : invoices) {
+      assertInvoiceEditable(invoice);
+    }
+  }
+
   /**
    * Version 内のいずれかがロックなら不可（差し戻し・再生成など Version 全体操作向け）。
    */

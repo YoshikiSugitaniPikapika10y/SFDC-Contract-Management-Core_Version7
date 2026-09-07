@@ -9,6 +9,14 @@ public without sharing class InvoiceCanonicalService {
   static Integer invoicePurgeSelectCount = 0;
   @TestVisible
   static Integer acceptanceLineSelectCount = 0;
+  @TestVisible
+  static Integer lineAmountSelectCount = 0;
+  @TestVisible
+  static Integer recalcLineSelectCount = 0;
+  @TestVisible
+  static Integer recalcInvoiceSelectCount = 0;
+  @TestVisible
+  static Integer headerInvoiceSelectCount = 0;
 
   public static final String SPLIT_AMOUNT_CONSERVE_MESSAGE = '分割後の金額合計が元の明細金額と一致しません。';
 
@@ -492,15 +500,34 @@ public without sharing class InvoiceCanonicalService {
    * 仕様: Core 第11.9節、第7.8節、第1.1.10節
    */
   public static void updateLineAmounts(List<LineAmountEdit> edits) {
+    updateLineAmounts(edits, null, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第7.8節。同一処理で読んだ明細とロック済み請求を取り直さない。
+   */
+  public static void updateLineAmounts(
+    List<LineAmountEdit> edits,
+    Map<Id, Invoice__c> knownLockedInvoices,
+    List<InvoiceLine__c> knownLines
+  ) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
     try {
-      updateLineAmountsBody(edits);
+      updateLineAmountsBody(edits, knownLockedInvoices, knownLines);
     } finally {
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
   }
 
   private static void updateLineAmountsBody(List<LineAmountEdit> edits) {
+    updateLineAmountsBody(edits, null, null);
+  }
+
+  private static void updateLineAmountsBody(
+    List<LineAmountEdit> edits,
+    Map<Id, Invoice__c> knownLockedInvoices,
+    List<InvoiceLine__c> knownLines
+  ) {
     assertCanEditInvoicePreview();
     if (edits == null || edits.isEmpty()) {
       throw new InvoiceEditException('明細と金額は必須です。');
@@ -514,13 +541,11 @@ public without sharing class InvoiceCanonicalService {
       amountByLineId.put(edit.lineId, roundInvoiceAmount(edit.amount));
     }
 
-    List<InvoiceLine__c> lines = [
-      SELECT Id, Amount__c, Invoice__c, Invoice__r.ContractHistory__c
-      FROM InvoiceLine__c
-      WHERE Id IN :amountByLineId.keySet()
-      WITH SYSTEM_MODE
-    ];
-    if (lines.size() != amountByLineId.size()) {
+    List<InvoiceLine__c> lines = linesForAmountEdit(
+      amountByLineId.keySet(),
+      knownLines
+    );
+    if (!containsAllLineIds(lines, amountByLineId.keySet())) {
       throw new InvoiceEditException('更新対象の明細が見つかりません。');
     }
 
@@ -528,16 +553,95 @@ public without sharing class InvoiceCanonicalService {
     for (InvoiceLine__c line : lines) {
       invoiceIds.add(line.Invoice__c);
     }
-    InvoiceLockUtil.assertInvoicesEditable(invoiceIds);
+    if (
+      knownLockedInvoices != null &&
+      !knownLockedInvoices.isEmpty()
+    ) {
+      InvoiceLockUtil.assertInvoicesEditable(knownLockedInvoices.values());
+    } else {
+      InvoiceLockUtil.assertInvoicesEditable(invoiceIds);
+    }
 
+    List<InvoiceLine__c> toUpdate = new List<InvoiceLine__c>();
     for (InvoiceLine__c line : lines) {
+      if (!amountByLineId.containsKey(line.Id)) {
+        continue;
+      }
       line.Amount__c = amountByLineId.get(line.Id);
       markLineAmountAdjusted(line);
+      toUpdate.add(line);
     }
-    SystemContextAccess.updateRecords(lines);
+    SystemContextAccess.updateRecords(toUpdate);
     for (Id invoiceId : invoiceIds) {
-      markInvoiceAmountAdjustedAndRecalc(invoiceId);
+      markInvoiceAmountAdjustedAndRecalc(
+        invoiceId,
+        linesForInvoice(lines, invoiceId),
+        knownLockedInvoices == null ? null : knownLockedInvoices.get(invoiceId)
+      );
     }
+  }
+
+  private static List<InvoiceLine__c> linesForAmountEdit(
+    Set<Id> lineIds,
+    List<InvoiceLine__c> knownLines
+  ) {
+    if (containsAllLineIds(knownLines, lineIds)) {
+      return knownLines;
+    }
+    lineAmountSelectCount++;
+    Set<Id> invoiceIds = new Set<Id>();
+    for (InvoiceLine__c row : [
+      SELECT Invoice__c
+      FROM InvoiceLine__c
+      WHERE Id IN :lineIds
+      WITH SYSTEM_MODE
+    ]) {
+      if (row.Invoice__c != null) {
+        invoiceIds.add(row.Invoice__c);
+      }
+    }
+    if (invoiceIds.isEmpty()) {
+      return new List<InvoiceLine__c>();
+    }
+    return [
+      SELECT Id, Amount__c, Invoice__c, Invoice__r.ContractHistory__c,
+        IsAmountAdjusted__c, IsSplitMoved__c
+      FROM InvoiceLine__c
+      WHERE Invoice__c IN :invoiceIds
+      WITH SYSTEM_MODE
+    ];
+  }
+
+  private static Boolean containsAllLineIds(
+    List<InvoiceLine__c> lines,
+    Set<Id> lineIds
+  ) {
+    if (lines == null || lineIds == null || lineIds.isEmpty()) {
+      return false;
+    }
+    Set<Id> found = new Set<Id>();
+    for (InvoiceLine__c line : lines) {
+      if (line != null && line.Id != null) {
+        found.add(line.Id);
+      }
+    }
+    return found.containsAll(lineIds);
+  }
+
+  private static List<InvoiceLine__c> linesForInvoice(
+    List<InvoiceLine__c> lines,
+    Id invoiceId
+  ) {
+    List<InvoiceLine__c> rows = new List<InvoiceLine__c>();
+    if (lines == null || invoiceId == null) {
+      return rows;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line != null && line.Invoice__c == invoiceId) {
+        rows.add(line);
+      }
+    }
+    return rows;
   }
 
   /**
@@ -1006,7 +1110,7 @@ public without sharing class InvoiceCanonicalService {
     );
   }
 
-  /** 仕様: Core 第7.8節、第7.9.2節、第11.4.4節、第11.6節。未確定は請求日・入金予定日。税率は書かない。確定後は日付・請求アカウントを拒否し、メモ（製品固定）とロック除外の追加項目だけ残す。 */
+  /** 仕様: Core 第7.8節、第7.9.2節、第11.4.4節、第11.6節、第12.4節。未確定は請求日・入金予定日。税率は書かない。確定後は日付・請求アカウントを拒否し、メモ（製品固定）とロック除外の追加項目だけ残す。ロック済み請求があれば取り直さない。 */
   public static void updateInvoiceHeaderAndDates(
     Id invoiceId,
     Date invoiceDate,
@@ -1020,32 +1124,69 @@ public without sharing class InvoiceCanonicalService {
     Decimal taxPercent,
     Map<String, Object> extraFieldValues
   ) {
+    updateInvoiceHeaderAndDates(
+      invoiceId,
+      invoiceDate,
+      paymentScheduledDate,
+      billingAccountId,
+      billingAddressee,
+      billingEmailTo,
+      billingEmailCc,
+      billingEmailBcc,
+      paymentTerm,
+      taxPercent,
+      extraFieldValues,
+      null
+    );
+  }
+
+  public static void updateInvoiceHeaderAndDates(
+    Id invoiceId,
+    Date invoiceDate,
+    Date paymentScheduledDate,
+    Id billingAccountId,
+    String billingAddressee,
+    String billingEmailTo,
+    String billingEmailCc,
+    String billingEmailBcc,
+    String paymentTerm,
+    Decimal taxPercent,
+    Map<String, Object> extraFieldValues,
+    Invoice__c knownLockedInvoice
+  ) {
     assertCanEditInvoicePreview();
     if (invoiceId == null) {
       throw new InvoiceEditException('請求は必須です。');
     }
     // billingAccountId / paymentTerm は Aura 互換のため残すが意図的に未使用。
-    Invoice__c invoice = [
-      SELECT
-        Id,
-        ContractHistory__c,
-        InvoiceDate__c,
-        PaymentScheduledDate__c,
-        Amount__c,
-        TaxPercent__c,
-        TaxAmount__c,
-        BillingAddresseeSnapShot__c,
-        BillingEmailToSnapShot__c,
-        BillingEmailCcSnapShot__c,
-        BillingEmailBccSnapShot__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c,
-        InvoiceTransactionStatus__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Invoice__c invoice;
+    if (knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId) {
+      invoice = knownLockedInvoice;
+    } else {
+      headerInvoiceSelectCount++;
+      invoice = [
+        SELECT
+          Id,
+          ContractHistory__c,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          Amount__c,
+          TaxPercent__c,
+          TaxAmount__c,
+          BillingAddresseeSnapShot__c,
+          BillingEmailToSnapShot__c,
+          BillingEmailCcSnapShot__c,
+          BillingEmailBccSnapShot__c,
+          SystemIntegrationDate__c,
+          PaymentClearingCompletedDate__c,
+          InvoiceTransactionStatus__c,
+          MergeKey__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     if (InvoiceTransactionStatusService.isCancelled(invoice)) {
       throw new InvoiceEditException(
         InvoiceLockUtil.INVOICE_EDIT_BLOCK_MESSAGE
@@ -1102,28 +1243,41 @@ public without sharing class InvoiceCanonicalService {
     SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
   }
 
-  /** 仕様: Core 第7.8節。宛名・To/Cc/Bcc・届け方を請求アカウントから載せ直す。 */
+  /** 仕様: Core 第7.8節、第12.4節。宛名・To/Cc/Bcc・届け方を請求アカウントから載せ直す。ロック済み請求があれば取り直さない。 */
   public static void applyBillingAccountContent(Id invoiceId) {
+    applyBillingAccountContent(invoiceId, null);
+  }
+
+  public static void applyBillingAccountContent(
+    Id invoiceId,
+    Invoice__c knownLockedInvoice
+  ) {
     assertCanEditInvoicePreview();
     if (invoiceId == null) {
       throw new InvoiceEditException('請求は必須です。');
     }
-    Invoice__c invoice = [
-      SELECT
-        Id,
-        BillingAccountSnapShot__c,
-        InvoiceDate__c,
-        PaymentScheduledDate__c,
-        TaxPercent__c,
-        BillingAccountKeySnapShot__c,
-        InvoiceTransactionStatus__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Invoice__c invoice;
+    if (knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId) {
+      invoice = knownLockedInvoice;
+    } else {
+      headerInvoiceSelectCount++;
+      invoice = [
+        SELECT
+          Id,
+          BillingAccountSnapShot__c,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          TaxPercent__c,
+          BillingAccountKeySnapShot__c,
+          InvoiceTransactionStatus__c,
+          SystemIntegrationDate__c,
+          PaymentClearingCompletedDate__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     InvoiceLockUtil.assertInvoiceEditable(invoice);
     if (invoice.BillingAccountSnapShot__c == null) {
       throw new InvoiceEditException('請求アカウントがありません。');
@@ -2286,7 +2440,15 @@ public without sharing class InvoiceCanonicalService {
   }
 
   private static void markInvoiceAmountAdjustedAndRecalc(Id invoiceId) {
-    recalcInvoiceTotals(invoiceId, true, null);
+    recalcInvoiceTotals(invoiceId, true, null, null, null);
+  }
+
+  private static void markInvoiceAmountAdjustedAndRecalc(
+    Id invoiceId,
+    List<InvoiceLine__c> knownLines,
+    Invoice__c knownInvoice
+  ) {
+    recalcInvoiceTotals(invoiceId, true, null, knownLines, knownInvoice);
   }
 
   private static void markInvoiceSplitMovedAndRecalc(Id invoiceId) {
@@ -2386,18 +2548,36 @@ public without sharing class InvoiceCanonicalService {
     Boolean forceAmountAdjusted,
     Boolean forceSplitMoved
   ) {
+    recalcInvoiceTotals(invoiceId, forceAmountAdjusted, forceSplitMoved, null, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第7.4節・第7.8節。更新済み明細とロック済み請求があれば取り直さない。
+   */
+  private static void recalcInvoiceTotals(
+    Id invoiceId,
+    Boolean forceAmountAdjusted,
+    Boolean forceSplitMoved,
+    List<InvoiceLine__c> knownLines,
+    Invoice__c knownInvoice
+  ) {
     if (invoiceId == null) {
       return;
     }
     Decimal amountTotal = 0;
     Integer amountAdjustedCount = 0;
     Integer splitMovedCount = 0;
-    for (InvoiceLine__c line : [
-      SELECT Amount__c, IsAmountAdjusted__c, IsSplitMoved__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :invoiceId
-      WITH SYSTEM_MODE
-    ]) {
+    List<InvoiceLine__c> lines = knownLines;
+    if (lines == null) {
+      recalcLineSelectCount++;
+      lines = [
+        SELECT Amount__c, IsAmountAdjusted__c, IsSplitMoved__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoiceId
+        WITH SYSTEM_MODE
+      ];
+    }
+    for (InvoiceLine__c line : lines) {
       amountTotal += line.Amount__c == null ? 0 : line.Amount__c;
       if (line.IsAmountAdjusted__c == true) {
         amountAdjustedCount++;
@@ -2406,18 +2586,25 @@ public without sharing class InvoiceCanonicalService {
         splitMovedCount++;
       }
     }
-    Invoice__c invoice = [
-      SELECT
-        Id,
-        TaxPercent__c,
-        IsAmountAdjusted__c,
-        IsSplitMoved__c,
-        IsManuallyAdjusted__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Invoice__c invoice =
+      knownInvoice != null && knownInvoice.Id == invoiceId
+        ? knownInvoice
+        : null;
+    if (invoice == null) {
+      recalcInvoiceSelectCount++;
+      invoice = [
+        SELECT
+          Id,
+          TaxPercent__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
+          IsManuallyAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     invoice.Amount__c = amountTotal;
     invoice.TaxAmount__c = TaxCalculationUtil.calculateTaxAmount(
       amountTotal,

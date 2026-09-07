@@ -382,6 +382,45 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_doesNotRereadHistoryForOrderedSummary() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+
+      ContractHistory__c ordered = [
+        SELECT DeltaAmountSum__c
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ];
+
+      OrderCreateController.lastPreviewOrderedHistoryQueryIds = new Set<Id>();
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewOrderedHistoryQueryIds.contains(
+          context.history.Id
+        ),
+        'Core 第12.4節・第4.3.11節・第7.7.0節: 入口で読んだ契約履歴をOrdered集計で取り直さない'
+      );
+      System.assertEquals(
+        false,
+        preview.versionOptions.isEmpty(),
+        'Core 第7.7.0節: 返すカードのVersionは変えない'
+      );
+      System.assertEquals(
+        ordered.DeltaAmountSum__c,
+        preview.versionOptions[0].periodLineAmountTotal,
+        'Core 第7.8.5節: 見積税抜はDeltaAmountSum__c'
+      );
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_nullId_returnsEmptyDefaults() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
@@ -4635,6 +4674,301 @@ private class OrderCreateControllerTest {
       ];
       System.assertEquals(operationKey, stamped.BusinessOperationKey__c);
       System.assertNotEquals(null, retry);
+    }
+  }
+
+  @IsTest
+  static void updateInvoiceLineAmount_reusesLockedInvoiceAndLoadedLines() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      Id invoiceId = invoice.Id;
+      Id lineId = line.Id;
+      Decimal originalAmount = line.Amount__c;
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+
+      Test.startTest();
+      OrderCreateController.draftLineSelectCount = 0;
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      InvoiceCanonicalService.lineAmountSelectCount = 0;
+      InvoiceCanonicalService.recalcLineSelectCount = 0;
+      InvoiceCanonicalService.recalcInvoiceSelectCount = 0;
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoiceProductFieldCopyService.resetCache();
+      InvoiceProductFieldCopyService.catalogSelectCount = 0;
+      FieldCopyDefinitionService.resetCache();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.updateInvoiceLineAmount(
+        context.history.Id,
+        lineId,
+        originalAmount + 1,
+        token
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        1,
+        OrderCreateController.draftLineSelectCount,
+        'Core 第12.4節: 親請求Idと兄弟明細は1回'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.lineAmountSelectCount,
+        'Core 第12.4節: Canonicalは読み済み明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.recalcLineSelectCount,
+        'Core 第12.4節: 合計再計算は更新済み明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.recalcInvoiceSelectCount,
+        'Core 第12.4節: 合計再計算はロック済み請求を取り直さない'
+      );
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第12.4節: 行ロックの請求照会は1回'
+      );
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.catalogSelectCount,
+        'Core 第12.4節・第11.4.2節: コピー定義を2カタログで取り直さない'
+      );
+      System.assertEquals(
+        1,
+        OrderCreateController.previewInvoiceSelectCount,
+        'Core 第12.4節: 返却カードの請求・明細は1回'
+      );
+      InvoiceLine__c storedLine = [
+        SELECT Amount__c, IsAmountAdjusted__c
+        FROM InvoiceLine__c
+        WHERE Id = :lineId
+      ];
+      System.assertEquals(
+        originalAmount + 1,
+        storedLine.Amount__c,
+        'Core 第7.8節: 端数調整は税抜を変える'
+      );
+      System.assertEquals(true, storedLine.IsAmountAdjusted__c);
+      Invoice__c storedInvoice = [
+        SELECT Amount__c, IsAmountAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+      ];
+      System.assertEquals(
+        originalAmount + 1,
+        storedInvoice.Amount__c,
+        'Core 第7.4節: 税抜合計が変わった請求は同じ処理でヘッダを合わせる'
+      );
+      System.assertEquals(true, storedInvoice.IsAmountAdjusted__c);
+      Decimal cardAmount;
+      for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
+        if (groupRow.invoiceId != invoiceId || groupRow.lines == null) {
+          continue;
+        }
+        for (OrderCreateController.InvoiceMergedLineDto lineDto : groupRow.lines) {
+          if (lineDto.lineId == lineId) {
+            cardAmount = lineDto.amount;
+          }
+        }
+      }
+      System.assertEquals(
+        originalAmount + 1,
+        cardAmount,
+        'Core 第7.7.0節: 返却カードの明細金額は保存結果'
+      );
+    }
+  }
+
+  @IsTest
+  static void updateInvoiceLineAmount_confirmedInvoice_throwsEditBlock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      invoice.SystemIntegrationDate__c = Date.today();
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+
+      Test.startTest();
+      Boolean rejected = false;
+      try {
+        OrderCreateController.updateInvoiceLineAmount(
+          context.history.Id,
+          line.Id,
+          line.Amount__c + 1,
+          token
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assertEquals(
+          InvoiceLockUtil.INVOICE_EDIT_BLOCK_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, rejected, 'Core 第7.8節: 確定済みは端数調整できない');
+      System.assertEquals(
+        line.Amount__c,
+        [
+          SELECT Amount__c
+          FROM InvoiceLine__c
+          WHERE Id = :line.Id
+        ]
+        .Amount__c
+      );
+    }
+  }
+
+  @IsTest
+  static void updateInvoiceHeaderAndDates_reusesLockedInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id, InvoiceDate__c, BillingAddresseeSnapShot__c, TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      String originalAddressee = invoice.BillingAddresseeSnapShot__c;
+      Date paymentDue = Date.newInstance(2026, 8, 31);
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+
+      Test.startTest();
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoiceCanonicalService.headerInvoiceSelectCount = 0;
+      InvoiceProductFieldCopyService.resetCache();
+      InvoiceProductFieldCopyService.catalogSelectCount = 0;
+      FieldCopyDefinitionService.resetCache();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.updateInvoiceHeaderAndDates(
+        context.history.Id,
+        invoice.Id,
+        invoice.InvoiceDate__c,
+        paymentDue,
+        'ignored-addressee',
+        'ignored-to@example.com',
+        null,
+        null,
+        8,
+        token
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第12.4節: 行ロックの請求照会は1回'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.headerInvoiceSelectCount,
+        'Core 第12.4節: Canonicalはロック済み請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceProductFieldCopyService.catalogSelectCount,
+        'Core 第12.4節・第11.4.2節: コピー定義を2カタログで取り直さない'
+      );
+      Invoice__c stored = [
+        SELECT
+          PaymentScheduledDate__c,
+          BillingAddresseeSnapShot__c,
+          TaxPercent__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(paymentDue, stored.PaymentScheduledDate__c);
+      System.assertEquals(originalAddressee, stored.BillingAddresseeSnapShot__c);
+      System.assertEquals(invoice.TaxPercent__c, stored.TaxPercent__c);
+      System.assertNotEquals(null, preview);
+    }
+  }
+
+  @IsTest
+  static void applyBillingAccountContent_fromPreview_reusesLockedInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id, BillingAccountSnapShot__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      BillingAccount__c account = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :invoice.BillingAccountSnapShot__c
+      ];
+      account.InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST;
+      update account;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+
+      Test.startTest();
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoiceCanonicalService.headerInvoiceSelectCount = 0;
+      InvoiceProductFieldCopyService.resetCache();
+      InvoiceProductFieldCopyService.catalogSelectCount = 0;
+      FieldCopyDefinitionService.resetCache();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.applyBillingAccountContent(
+        context.history.Id,
+        invoice.Id,
+        token
+      );
+      Test.stopTest();
+
+      System.assertEquals(1, AccountingCauseLockService.invoiceLockSelectCount);
+      System.assertEquals(0, InvoiceCanonicalService.headerInvoiceSelectCount);
+      System.assertEquals(0, InvoiceProductFieldCopyService.catalogSelectCount);
+      Invoice__c updated = [
+        SELECT InvoiceDeliveryMethodSnapShot__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        InvoiceDeliveryMethodService.POST,
+        updated.InvoiceDeliveryMethodSnapShot__c,
+        'Core 第7.8節: 反映は届け方スナップショットを載せ直す'
+      );
+      System.assertNotEquals(null, preview);
     }
   }
 
