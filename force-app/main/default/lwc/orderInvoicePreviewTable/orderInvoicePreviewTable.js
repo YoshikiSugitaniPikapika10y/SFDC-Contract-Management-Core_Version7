@@ -2145,6 +2145,25 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           paymentTypeOptions.length > 0 &&
           !opsBusy;
         const cancelBlockedReason = this.invoiceCancelBlockedReason(bundle);
+        const paymentRegisterExtraFields = this.buildExtraFieldViews({
+          targetObject: "InvoicePayment__c",
+          storedValues: {},
+          draftValues: paymentDraft?.extraFieldValues,
+          purpose,
+          disabledAll: false
+        });
+        const paymentEditExtraFields =
+          this.paymentEditState?.invoiceId === invoiceId
+            ? this.buildExtraFieldViews({
+                targetObject: "InvoicePayment__c",
+                storedValues: this.paymentEditState?.storedExtraFieldValues,
+                draftValues: this.paymentEditState?.extraFieldValues,
+                purpose: this.paymentEditState?.paymentPurpose,
+                disabledAll: false,
+                exemptNames: this.preview?.paymentLockExemptFieldApiNames,
+                requireExemptToEdit: true
+              })
+            : [];
 
         return {
           key: invoiceId || invoice.mergeKey || `invoice-${index}`,
@@ -2579,13 +2598,9 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           paymentDraftType: purpose,
           paymentDraftDate: paymentDraft?.paymentDate || "",
           paymentDraftMemo: paymentDraft?.memo || "",
-          paymentRegisterExtraFields: this.buildExtraFieldViews({
-            targetObject: "InvoicePayment__c",
-            storedValues: {},
-            draftValues: paymentDraft?.extraFieldValues,
-            purpose,
-            disabledAll: false
-          }),
+          paymentRegisterExtraFields,
+          // 仕様: Core 第11.4.4節。定義が無ければ追加項目セクションごと出さない。
+          showPaymentRegisterExtraFields: paymentRegisterExtraFields.length > 0,
           isPaymentEditOpen: this.paymentEditState?.invoiceId === invoiceId,
           paymentEditMemo: this.paymentEditState?.memo || "",
           paymentEditAmount: this.paymentEditState?.amount,
@@ -2593,18 +2608,8 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           paymentEditPurposeLabel: this.paymentPurposeLabel(
             this.paymentEditState?.paymentPurpose
           ),
-          paymentEditExtraFields:
-            this.paymentEditState?.invoiceId === invoiceId
-              ? this.buildExtraFieldViews({
-                  targetObject: "InvoicePayment__c",
-                  storedValues: this.paymentEditState?.storedExtraFieldValues,
-                  draftValues: this.paymentEditState?.extraFieldValues,
-                  purpose: this.paymentEditState?.paymentPurpose,
-                  disabledAll: false,
-                  exemptNames: this.preview?.paymentLockExemptFieldApiNames,
-                  requireExemptToEdit: true
-                })
-              : [],
+          paymentEditExtraFields,
+          showPaymentEditExtraFields: paymentEditExtraFields.length > 0,
           paymentRegisterRequiresDate: requiresPaymentRegisterCancelDate(
             paymentDraft
           ),

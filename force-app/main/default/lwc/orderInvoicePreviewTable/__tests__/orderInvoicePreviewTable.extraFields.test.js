@@ -307,6 +307,55 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(billing).toBeFalsy();
   });
 
+  it("preview先着でも起動時の請求書指定を子フィルタにする (Core 7.7.0 / 横断 2.4)", async () => {
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview();
+    preview.invoices.push({
+      invoiceId: "a00INV000000002",
+      invoiceName: "INV-2",
+      invoiceDate: "2026-06-01",
+      paymentScheduledDate: "2026-07-31",
+      amountTotal: 2000,
+      taxTotal: 200,
+      taxPercent: 10,
+      taxInclusiveAmount: 2200,
+      invoicePaymentNet: 0,
+      invoiceTransactionStatus: "Confirmed",
+      invoiceDeliveryMethod: "Email",
+      locked: true,
+      isCancelled: false,
+      historyVersion: 1,
+      lines: [
+        {
+          lineId: "a01LINE00000002",
+          productName: "B",
+          amount: 2000,
+          historyVersionLabel: "V1",
+          isRecurring: true,
+          unitPrice: 2000,
+          quantity: 1
+        }
+      ]
+    });
+    element.preview = preview;
+    document.body.appendChild(element);
+    await flush();
+    element.initialInvoiceId = "a00INV000000002";
+    await flush();
+    const names = Array.from(
+      element.shadowRoot.querySelectorAll(".invoice-card .invoice-index")
+    ).map((node) => node.textContent.trim());
+    expect(names).toEqual(["INV-2"]);
+    element.initialInvoiceId = "a00INV000000001";
+    await flush();
+    const namesAfter = Array.from(
+      element.shadowRoot.querySelectorAll(".invoice-card .invoice-index")
+    ).map((node) => node.textContent.trim());
+    expect(namesAfter).toEqual(["INV-1"]);
+  });
+
   it("請求書情報は識別・送付・日付・メモに分け税率とヘッダ反映とフッタメモを出さない (Core 7.8)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
@@ -357,6 +406,48 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(headerSave.closest(".panel-actions")).toBeTruthy();
     expect(headerSave.classList.contains("solid-btn")).toBe(true);
     expect(memoSave.classList.contains("ghost-btn")).toBe(true);
+  });
+
+  it("請求書情報の中身は見出しの下に置き、入出金追加は入出金とメモの見出しを出す (Core 7.8 / 11.4.4)", async () => {
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Confirmed",
+      locked: false
+    });
+    document.body.appendChild(element);
+    const open = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "請求書情報"
+      )
+    );
+    open.click();
+    const panel = await waitUntil(() =>
+      element.shadowRoot.querySelector(".billing-info-panel")
+    );
+    const identity = Array.from(
+      panel.querySelectorAll(".billing-edit-section")
+    ).find(
+      (section) =>
+        section.querySelector(".billing-edit-heading")?.textContent.trim() ===
+        "識別"
+    );
+    expect(identity.querySelector(".billing-edit-heading").nextElementSibling.className).toContain(
+      "billing-edit-row"
+    );
+    const paymentsTab = await waitUntil(() =>
+      element.shadowRoot.querySelector("button[data-tab='payments']")
+    );
+    paymentsTab.click();
+    const form = await waitUntil(() =>
+      element.shadowRoot.querySelector(".ops-form")
+    );
+    const headings = Array.from(
+      form.querySelectorAll(".billing-edit-heading")
+    ).map((node) => node.textContent.trim());
+    expect(headings).toEqual(["入出金", "メモ"]);
+    expect(form.textContent).not.toContain("追加項目");
   });
 
   it("未確定の請求書情報は送付内に反映を出す (Core 7.8)", async () => {
