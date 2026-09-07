@@ -2322,24 +2322,6 @@
                 </template>
               </div>
             </template>
-            <div class="summary-row summary-row_status">
-              <template if:true={invoice.showDueLabel}>
-                <div class="money-item">
-                  <span class="money-label">期限</span>
-                  <span class="money-value money-value_secondary"
-                    >{invoice.dueStatus}</span
-                  >
-                </div>
-              </template>
-              <template if:true={invoice.showOverdueDays}>
-                <div class="money-item">
-                  <span class="money-label">遅延</span>
-                  <span class="money-value money-value_secondary"
-                    >{invoice.overdueDays}</span
-                  >
-                </div>
-              </template>
-            </div>
           </footer>
         </section>
       </template>

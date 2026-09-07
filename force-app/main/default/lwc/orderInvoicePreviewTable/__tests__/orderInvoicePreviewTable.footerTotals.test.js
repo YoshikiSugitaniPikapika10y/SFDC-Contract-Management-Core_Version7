@@ -976,7 +976,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
     ).toHaveLength(0);
   });
 
-  it("shows DueStatus and OverdueDays from preview (Core 7.11)", async () => {
+  it("does not show DueStatus or OverdueDays on the card footer (Core 7.11 / 8.10)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -1014,14 +1014,14 @@ describe("orderInvoicePreviewTable footer totals", () => {
     document.body.appendChild(element);
     await Promise.resolve();
 
-    const text = element.shadowRoot.textContent;
-    expect(text).toContain("期限");
-    expect(text).toContain("遅延");
-    expect(text).toContain("5");
-    expect(text).not.toContain("入金済");
-    expect(text).not.toContain("延滞");
-    expect(text).not.toContain("本日入金予定");
-    expect(text).not.toContain("期限まで");
+    const footer = element.shadowRoot.querySelector("footer.invoice-footer");
+    expect(footer.textContent).not.toContain("期限");
+    expect(footer.textContent).not.toContain("遅延");
+    expect(footer.textContent).not.toContain("5");
+    expect(element.shadowRoot.textContent).not.toContain("入金済");
+    expect(element.shadowRoot.textContent).not.toContain("延滞");
+    expect(element.shadowRoot.textContent).not.toContain("本日入金予定");
+    expect(element.shadowRoot.textContent).not.toContain("期限まで");
   });
 
   it("shows 端数調整実績 separately from ずれ (Core 7.8.5)", async () => {

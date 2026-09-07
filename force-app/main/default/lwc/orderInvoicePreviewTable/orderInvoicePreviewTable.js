@@ -2047,12 +2047,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         const invoiceUnprocessedNet = gross - invoicePaymentNet;
         const nonInvoiceNet = allPaymentNet - invoicePaymentNet;
         const balanceDifference = Math.round(allPaymentNet - gross);
-        const dueStatus = invoice.dueStatus || "";
-        const overdueDays = invoice.overdueDays;
-        const showOverdueDays =
-          overdueDays != null &&
-          overdueDays !== "" &&
-          Number.isFinite(Number(overdueDays));
         const paymentRows = (bundle?.payments || [])
           .filter(
             (payment) =>
@@ -2179,10 +2173,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           invoiceProcessedNet: invoicePaymentNet,
           nonInvoiceNet,
           balanceDifference,
-          dueStatus,
-          showDueLabel: Boolean(dueStatus),
-          overdueDays: showOverdueDays ? Number(overdueDays) : null,
-          showOverdueDays,
           isCancelled,
           cancelledLabel: isCancelled ? "取消済み" : "",
           // 仕様: Core 第12.2節・第7.7.3節。取消済みは参照だけ。メモ編集は未確定・確定済み。
