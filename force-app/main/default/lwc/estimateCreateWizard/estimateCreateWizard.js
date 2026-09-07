@@ -26,7 +26,6 @@ import {
   validateChangeProducts,
   validateChangeEffectiveDate,
   validateChangePeriodDates,
-  buildChangeSameProductNewConfirmMessage,
   isValidIsoDate,
   validateAmountEntryUnitPrices,
   isChangeOriginalLine,
@@ -54,10 +53,9 @@ export default class EstimateCreateWizard extends LightningElement {
   @api recordId;
   @api modalMode = false;
 
-  _skipSameProductNewConfirm = false;
   /**
    * 確認ダイアログは同時に1種類だけ。
-   * null | { kind: 'close' } | { kind: 'remarks', requestId } | { kind: 'sameProductNew' }
+   * null | { kind: 'close' } | { kind: 'remarks', requestId }
    */
   _confirmState = null;
   /** 保存クリックの同期ガード（isSaving 再描画前の二重実行防止） */
@@ -498,23 +496,11 @@ export default class EstimateCreateWizard extends LightningElement {
       return;
     }
     // 再描画前の二重クリックを同期で止める（確認ダイアログ前はまだ立てない）
-    // flush の changefield が handleStep3Change でフラグを落とすため、先に退避する。
-    const skipSameProductConfirm = this._skipSameProductNewConfirm;
     if (!this.flushStep3ToParent()) {
       this.showValidationAlert(this.getStep3FlushBlockMessage("保存"));
       return;
     }
-    const productsForConfirm = this.wizardData.selectedProducts || [];
-
-    if (this.wizardData.selectedType === "Change" && !skipSameProductConfirm) {
-      const sameProductNewMessage =
-        buildChangeSameProductNewConfirmMessage(productsForConfirm);
-      if (sameProductNewMessage) {
-        this.openConfirm({ kind: "sameProductNew" }, sameProductNewMessage);
-        return;
-      }
-    }
-    this._skipSameProductNewConfirm = false;
+    // 仕様: Core 第0.2節。同一商品追加の実行前確認は出さない。
 
     const detailError = this.validateStep2();
     if (detailError) {
@@ -557,11 +543,6 @@ export default class EstimateCreateWizard extends LightningElement {
       this.resolveModal3Confirm(state.requestId, true);
       return;
     }
-    if (state.kind === "sameProductNew") {
-      this._skipSameProductNewConfirm = true;
-      // 同商品新規の確認後は、画面に出ている明細で保存を続行する
-      this.handleSaveClick();
-    }
   }
 
   handleConfirmationCancel() {
@@ -575,9 +556,6 @@ export default class EstimateCreateWizard extends LightningElement {
     if (state.kind === "remarks") {
       this.resolveModal3Confirm(state.requestId, false);
       return;
-    }
-    if (state.kind === "sameProductNew") {
-      this._skipSameProductNewConfirm = false;
     }
   }
 
@@ -613,9 +591,6 @@ export default class EstimateCreateWizard extends LightningElement {
     this.clearValidationAlert();
     if (state.kind === "remarks") {
       this.resolveModal3Confirm(state.requestId, false);
-    }
-    if (state.kind === "sameProductNew") {
-      this._skipSameProductNewConfirm = false;
     }
   }
 
@@ -738,7 +713,6 @@ export default class EstimateCreateWizard extends LightningElement {
     this._saveSucceededThisSession = false;
     this._saveInFlight = false;
     this._confirmState = null;
-    this._skipSameProductNewConfirm = false;
     this.validationAlert = null;
     this.wizardState = createInitialWizardState();
     this._wizardInitialized = false;
@@ -1104,7 +1078,6 @@ export default class EstimateCreateWizard extends LightningElement {
   handleStep3Change(event) {
     // Step3 は CSS 非表示中でもブートストラップ完了を親へ書き通す必要がある。
     // （Step2 で契約を切り替えたあと、非表示の Step3 が新明細を読み込む）
-    this._skipSameProductNewConfirm = false;
     // 詳細画面表示中の編集だけアラートを消す（裏 bootstrap で操作不可アラートを消さない）
     if (this.currentStep === 2) {
       this.clearValidationAlert();
@@ -1819,7 +1792,6 @@ export default class EstimateCreateWizard extends LightningElement {
   showValidationAlert(message) {
     // エラー表示に差し替える前に、開いていた確認はキャンセル扱い
     this.dismissOpenConfirm();
-    this._skipSameProductNewConfirm = false;
     this.validationAlert = buildWizardValidationAlert(message);
     this.scrollValidationAlertIntoView();
   }

@@ -1,6 +1,5 @@
 import { LightningElement, api, track } from "lwc";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
-import LightningConfirm from "lightning/confirm";
 import registerManualJournal from "@salesforce/apex/ManualJournalController.register";
 import cancelManualJournal from "@salesforce/apex/ManualJournalController.cancel";
 import previewCancelManualJournal from "@salesforce/apex/ManualJournalController.previewCancel";
@@ -238,15 +237,6 @@ export default class ManualJournalEntry extends LightningElement {
       );
       return;
     }
-    const confirmed = await LightningConfirm.open({
-      label: "手動仕訳を登録",
-      message: "この手動仕訳を登録します。よろしいですか？",
-      variant: "header"
-    });
-    if (!confirmed) {
-      this.busy = false;
-      return;
-    }
     try {
       if (!this.pendingOperationKey) {
         this.pendingOperationKey = await issueInvoiceOperationKey();
@@ -372,15 +362,6 @@ export default class ManualJournalEntry extends LightningElement {
           variant: "error"
         })
       );
-      return;
-    }
-    const confirmed = await LightningConfirm.open({
-      label: "手動仕訳を取消",
-      message: "この手動仕訳を取り消します。よろしいですか？",
-      variant: "header"
-    });
-    if (!confirmed) {
-      this.busy = false;
       return;
     }
     try {

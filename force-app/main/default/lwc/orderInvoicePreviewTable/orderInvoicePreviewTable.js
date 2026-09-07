@@ -67,16 +67,6 @@ const KIND_PERIOD = "period";
 const KIND_UNIT_PRICE = "unitPrice";
 const KIND_QUANTITY = "quantity";
 
-/** 仕様: Core 第7.8.1節。金額0円を除く全明細と一致するときだけ元削除確認を出す。 */
-function movesAllNonZeroLines(invoice, movingLineIds) {
-  const moving = new Set(movingLineIds || []);
-  const nonZeroIds = (invoice?.lines || [])
-    .filter((line) => line?.lineId && Number(line.amount ?? 0) !== 0)
-    .map((line) => line.lineId);
-  return (
-    nonZeroIds.length > 0 && nonZeroIds.every((lineId) => moving.has(lineId))
-  );
-}
 /** 商品名: 列幅に収まるまで縮小（rem）。下限未満は省略記号。 */
 const PRODUCT_NAME_FONT_MAX_REM = 0.6875;
 const PRODUCT_NAME_FONT_MIN_REM = 0.5625;
@@ -2951,14 +2941,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
     ) {
       return;
     }
-    const confirmed = await LightningConfirm.open({
-      label: "請求を確定",
-      message: this.confirmInvoiceMessage(),
-      variant: "header"
-    });
-    if (!confirmed) {
-      return;
-    }
+    // 仕様: Core 第0.2節。確定の実行前確認は出さない。
     await this.runInvoiceOperation(invoiceId, "confirm", async () => {
       const key = await this.resolvePendingOperationKey(invoiceId);
       const result = await confirmInvoice({
@@ -3293,15 +3276,16 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       return;
     }
     const isResend = Boolean(invoice.sentDate);
-    const confirmed = await LightningConfirm.open({
-      label: isResend ? "請求書を再送" : "請求書を送付",
-      message: `${this.invoiceSendState.toAddresses || "設定済みの宛先"}へ請求書を${
-        isResend ? "再送" : "送付"
-      }します。よろしいですか？\n${SEND_FAILURE_RETRY_NOTE}`,
-      variant: "header"
-    });
-    if (!confirmed) {
-      return;
+    // 仕様: Core 第0.2節。初回送付は重ねない。再送だけ確認する。
+    if (isResend) {
+      const confirmed = await LightningConfirm.open({
+        label: "請求書を再送",
+        message: `${this.invoiceSendState.toAddresses || "設定済みの宛先"}へ請求書を再送します。よろしいですか？\n${SEND_FAILURE_RETRY_NOTE}`,
+        variant: "header"
+      });
+      if (!confirmed) {
+        return;
+      }
     }
     const documentTemplateKey = this.invoiceSendState.documentTemplateKey;
     const emailTemplateApiName = this.invoiceSendState.emailTemplateApiName || null;
@@ -3595,14 +3579,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         );
         return;
       }
-      const confirmed = await LightningConfirm.open({
-        label: "入出金を追加",
-        message: "この入出金を登録します。よろしいですか？",
-        variant: "header"
-      });
-      if (!confirmed) {
-        return;
-      }
     }
     await this.runInvoiceOpsMutation(invoiceId, async () => {
       const key = await this.resolvePendingOperationKey(invoiceId);
@@ -3864,15 +3840,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           variant: "error"
         })
       );
-      return;
-    }
-    const confirmed = await LightningConfirm.open({
-      label: "入出金を取消",
-      message: "この入出金を取り消します。よろしいですか？",
-      theme: "warning",
-      variant: "header"
-    });
-    if (!confirmed) {
       return;
     }
     await this.runInvoiceOpsMutation(invoiceId, async () => {
@@ -4152,14 +4119,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    const confirmed = await LightningConfirm.open({
-      label: "検収終了日を変更",
-      message: "検収終了日を変更します。よろしいですか？",
-      variant: "header"
-    });
-    if (!confirmed) {
-      return;
-    }
     this.dispatchEvent(
       new CustomEvent("saveacceptanceenddate", {
         detail: {
@@ -4244,14 +4203,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           variant: "error"
         })
       );
-      return;
-    }
-    const confirmed = await LightningConfirm.open({
-      label: "検収終了日を変更",
-      message: "検収終了日を変更します。よろしいですか？",
-      variant: "header"
-    });
-    if (!confirmed) {
       return;
     }
     this.updateInvoiceUiState(invoiceId, { acceptanceDraft: null });
@@ -4791,23 +4742,7 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    // 0円は Apex に送らないため残る。削除確認は金額0円を除く全明細と一致するときだけ。
-    const willDeleteSource = movesAllNonZeroLines(
-      invoice,
-      splitLines.map((row) => row.lineId)
-    );
-    if (willDeleteSource) {
-      const confirmed = await LightningConfirm.open({
-        label: "別の請求へ分ける",
-        message:
-          "選択した明細をすべて移すため、元の請求書は削除されます。よろしいですか？",
-        theme: "warning",
-        variant: "header"
-      });
-      if (!confirmed) {
-        return;
-      }
-    }
+    // 仕様: Core 第0.2節。全明細移動でも元削除の実行前確認は出さない。
     const sourceBillingAccountId = invoice?.billingAccountId || "";
     const newBillingAccountId =
       this.invoiceSplitState.newBillingAccountId || "";
@@ -4888,18 +4823,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         })
       );
       return;
-    }
-    if (movesAllNonZeroLines(invoice, lineIds)) {
-      const confirmed = await LightningConfirm.open({
-        label: "別の請求へ分ける",
-        message:
-          "選択した明細をすべて移すため、元の請求書は削除されます。よろしいですか？",
-        theme: "warning",
-        variant: "header"
-      });
-      if (!confirmed) {
-        return;
-      }
     }
     this.editProcessingInvoiceId = (this.invoiceMoveState.invoiceId);
     this.dispatchEvent(
@@ -5370,25 +5293,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       return;
     }
     const invoice = this.findInvoice(this.lineSplitState.invoiceId);
-    const selectedAmountAdjusted = (invoice?.lines || []).some((line) => {
-      if (!line?.lineId) {
-        return false;
-      }
-      const row = this.lineSplitState.rows?.[line.lineId];
-      return row?.selected === true && line.isAmountAdjusted === true;
-    });
-    if (selectedAmountAdjusted) {
-      const confirmed = await LightningConfirm.open({
-        label: "明細を分割",
-        message:
-          "選択した明細の端数調整はリセットしてから分割します。よろしいですか？",
-        theme: "warning",
-        variant: "header"
-      });
-      if (!confirmed) {
-        return;
-      }
-    }
     this.editProcessingInvoiceId = (this.lineSplitState.invoiceId);
     this.dispatchEvent(
       new CustomEvent("splitlinesinplace", {
@@ -5907,20 +5811,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
         (row) => row.invoiceId === this.invoiceCancelState.invoiceId
       )?.deliveryStatus === "Sent";
     const customerNotice = requiresCustomerNotice ? CUSTOMER_CANCEL_NOTICE : "";
-    const confirmed = await LightningConfirm.open({
-      label: "確定済み請求を取消",
-      message: [
-        "この請求を取消済みにし、同じ内容の未確定請求を作ります。よろしいですか？",
-        customerNotice
-      ]
-        .filter((part) => part)
-        .join("\n\n"),
-      theme: "warning",
-      variant: "header"
-    });
-    if (!confirmed) {
-      return;
-    }
     this.dispatchEvent(
       new CustomEvent("cancelconfirmed", {
         detail: {
@@ -6145,14 +6035,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
       );
       return;
     }
-    const confirmed = await LightningConfirm.open({
-      label: "仕訳をLock",
-      message: "選んだ仕訳をLockします。よろしいですか？",
-      variant: "header"
-    });
-    if (!confirmed) {
-      return;
-    }
     try {
       const key = await this.resolvePendingOperationKey(invoiceId);
       await lockJournalsForInvoice({
@@ -6269,14 +6151,6 @@ export default class OrderInvoicePreviewTable extends LightningElement {
           variant: "error"
         })
       );
-      return;
-    }
-    const confirmed = await LightningConfirm.open({
-      label: "仕訳をUnlock",
-      message: "選んだ仕訳をUnlockします。よろしいですか？",
-      variant: "header"
-    });
-    if (!confirmed) {
       return;
     }
     try {

@@ -3,7 +3,7 @@ import ManualJournalEntry from "c/manualJournalEntry";
 import previewCancelManualJournal from "@salesforce/apex/ManualJournalController.previewCancel";
 import previewRegisterManualJournal from "@salesforce/apex/ManualJournalController.previewRegister";
 import registerManualJournal from "@salesforce/apex/ManualJournalController.register";
-import LightningConfirm from "lightning/confirm";
+import cancelManualJournal from "@salesforce/apex/ManualJournalController.cancel";
 
 jest.mock(
   "@salesforce/apex/ManualJournalController.register",
@@ -26,19 +26,6 @@ jest.mock(
 jest.mock(
   "@salesforce/apex/ManualJournalController.previewRegister",
   () => ({ default: jest.fn() }),
-  { virtual: true }
-);
-
-jest.mock(
-  "lightning/confirm",
-  () => {
-    const open = jest.fn();
-    return {
-      __esModule: true,
-      default: { open },
-      open
-    };
-  },
   { virtual: true }
 );
 
@@ -226,12 +213,12 @@ describe("manualJournalEntry", () => {
     ).toBeNull();
   });
 
-  it("asks business confirm without journal counts before manual journal cancel", async () => {
+  it("does not open cancel confirm and still cancels (Core 0.2)", async () => {
     previewCancelManualJournal.mockResolvedValue({
       reverseCount: 0,
       displayText: "論理削除件数: 1\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし"
     });
-    LightningConfirm.open.mockResolvedValue(true);
+    cancelManualJournal.mockResolvedValue(undefined);
     const element = createElement("c-manual-journal-entry", {
       is: ManualJournalEntry
     });
@@ -275,14 +262,7 @@ describe("manualJournalEntry", () => {
       cancellationDate: null,
       contractHistoryId: "a0H000000000001AAA"
     });
-    expect(LightningConfirm.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining("この手動仕訳を取り消します")
-      })
-    );
-    expect(LightningConfirm.open.mock.calls[0][0].message).not.toContain(
-      "論理削除件数"
-    );
+    expect(cancelManualJournal).toHaveBeenCalled();
   });
 
   it("disables register when amount is a positive decimal", async () => {
@@ -349,11 +329,10 @@ describe("manualJournalEntry", () => {
     ).toBeNull();
   });
 
-  it("asks business confirm without journal counts before manual journal register (CHANGE-245)", async () => {
+  it("does not open register confirm and still registers (Core 0.2)", async () => {
     previewRegisterManualJournal.mockResolvedValue({
       displayText: "論理削除件数: 1\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし"
     });
-    LightningConfirm.open.mockResolvedValue(true);
     registerManualJournal.mockResolvedValue("a05MJH000000099");
     const element = createElement("c-manual-journal-entry", {
       is: ManualJournalEntry
@@ -395,11 +374,6 @@ describe("manualJournalEntry", () => {
       expectedToken: undefined,
       contractHistoryId: "a0H000000000001AAA"
     });
-    expect(LightningConfirm.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining("この手動仕訳を登録します")
-      })
-    );
     expect(registerManualJournal).toHaveBeenCalledWith(
       expect.objectContaining({
         cancellationDate: null,
@@ -408,11 +382,11 @@ describe("manualJournalEntry", () => {
     );
   });
 
-  it("does not register when the preview confirm is cancelled (CHANGE-245)", async () => {
+  it("registers without an execution confirm even if the user would have cancelled (Core 0.2)", async () => {
     previewRegisterManualJournal.mockResolvedValue({
       displayText: "論理削除件数: 0"
     });
-    LightningConfirm.open.mockResolvedValue(false);
+    registerManualJournal.mockResolvedValue("a05MJH000000099");
     const element = createElement("c-manual-journal-entry", {
       is: ManualJournalEntry
     });
@@ -442,14 +416,13 @@ describe("manualJournalEntry", () => {
     await flush();
     await flush();
 
-    expect(registerManualJournal).not.toHaveBeenCalled();
+    expect(registerManualJournal).toHaveBeenCalled();
   });
 
   it("passes register cancel date when the invoice has locked journals (CHANGE-245)", async () => {
     previewRegisterManualJournal.mockResolvedValue({
       displayText: "逆仕訳件数: 1"
     });
-    LightningConfirm.open.mockResolvedValue(true);
     registerManualJournal.mockResolvedValue("a05MJH000000099");
     const element = createElement("c-manual-journal-entry", {
       is: ManualJournalEntry

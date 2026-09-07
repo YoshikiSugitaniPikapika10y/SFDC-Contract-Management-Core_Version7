@@ -175,8 +175,9 @@ export default class OrderCreateWizard extends NavigationMixin(
     return this.context?.historyType === HISTORY_TYPE_CANCEL;
   }
 
+  // 仕様: Core 第0.2節。Cancel受注の小さいconfirmは出さない。大パネルで受注する。
   get isCancelConfirm() {
-    return this.hasContext && this.isCancel;
+    return false;
   }
 
   get showBillingStep() {

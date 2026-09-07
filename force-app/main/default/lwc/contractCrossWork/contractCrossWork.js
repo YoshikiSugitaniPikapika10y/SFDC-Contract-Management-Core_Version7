@@ -1,6 +1,5 @@
 import { LightningElement, track } from "lwc";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
-import LightningConfirm from "lightning/confirm";
 import { resolveSaveErrorAlert } from "c/estimateValidationAlertUtils";
 import getBootstrap from "@salesforce/apex/ContractCrossController.getBootstrap";
 import queryEstimates from "@salesforce/apex/ContractCrossController.queryEstimates";
@@ -1565,16 +1564,6 @@ export default class ContractCrossWork extends LightningElement {
             variant: "error"
           })
         );
-        return;
-      }
-      const confirmed = await LightningConfirm.open({
-        label: unlocking ? "仕訳をUnlock" : "仕訳をLock",
-        message: unlocking
-          ? "選んだ仕訳をUnlockします。よろしいですか？"
-          : "選んだ仕訳をLockします。よろしいですか？",
-        variant: "header"
-      });
-      if (!confirmed) {
         return;
       }
     }

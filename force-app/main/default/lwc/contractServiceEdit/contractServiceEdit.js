@@ -11,9 +11,6 @@ import {
   validateCustomFieldMaps
 } from "c/estimateWizardCustomFields";
 
-const TAX_CHANGE_CONFIRM =
-  "次に受注または再生成する請求の税率が変わります。すでに存在する請求は変わりません。分割・移動で増える請求も、元請求の税率を引き継ぎます。未受注の見積の税込と見積書だけ、すぐに新しい税率を見ます。";
-
 const VERSION_CONFLICT_MESSAGE =
   "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。";
 
@@ -265,11 +262,7 @@ export default class ContractServiceEdit extends LightningElement {
       this.toast("エラー", taxError, "error");
       return;
     }
-    if (this.taxChanged()) {
-      if (!window.confirm(TAX_CHANGE_CONFIRM)) {
-        return;
-      }
-    }
+    // 仕様: Core 第0.2節・第3.4節。税率変更の実行前確認は出さない。
     this.saving = true;
     try {
       if (!this._pendingOperationKey) {

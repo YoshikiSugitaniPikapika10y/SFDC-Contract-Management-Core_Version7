@@ -111,7 +111,7 @@ describe("orderCreateWizard cancel billing gate (Core 5.2 / 1.1.10)", () => {
     expect(confirmOrder).not.toHaveBeenCalled();
   });
 
-  it("Cancel uses confirm size and hides billing and renew-opportunity (Core 5.2)", () => {
+  it("Cancel uses large size and hides billing and renew-opportunity (Core 5.2 / 0.2)", () => {
     const isCancel = Object.getOwnPropertyDescriptor(proto, "isCancel").get;
     const showBilling = Object.getOwnPropertyDescriptor(
       proto,
@@ -130,11 +130,11 @@ describe("orderCreateWizard cancel billing gate (Core 5.2 / 1.1.10)", () => {
       },
       hasContext: true,
       isCancel: true,
-      isCancelConfirm: true
+      isCancelConfirm: false
     };
     expect(isCancel.call(cancel)).toBe(true);
     expect(showBilling.call(cancel)).toBe(false);
-    expect(panelSize.call(cancel)).toBe("confirm");
+    expect(panelSize.call(cancel)).toBe("large");
     expect(showRenew.call(cancel)).toBe(false);
 
     const termNew = {

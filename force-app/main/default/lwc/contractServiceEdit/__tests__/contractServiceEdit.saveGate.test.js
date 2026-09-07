@@ -174,14 +174,21 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
     expect(c.billingAccountId).toBe("");
   });
 
-  it("asks the Core 3.4 tax-change confirm and does not save on cancel", async () => {
+  it("税率変更の実行前確認は出さず保存する (Core 0.2 / 3.4)", async () => {
     const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
-    const c = ctx({ taxPercent: 8, originalTaxPercent: 10 });
+    issueContractServiceOperationKey.mockResolvedValue("op-1");
+    save.mockResolvedValue({});
+    const c = ctx({
+      taxPercent: 8,
+      originalTaxPercent: 10,
+      recordId: "a0S000000000001AAA",
+      lastModifiedToken: "tok",
+      _pendingOperationKey: "",
+      dispatchEvent: jest.fn()
+    });
     await proto.handleSave.call(c);
-    expect(confirmSpy).toHaveBeenCalledWith(
-      "次に受注または再生成する請求の税率が変わります。すでに存在する請求は変わりません。分割・移動で増える請求も、元請求の税率を引き継ぎます。未受注の見積の税込と見積書だけ、すぐに新しい税率を見ます。"
-    );
-    expect(save).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(save).toHaveBeenCalled();
   });
 
   it("does not ask tax-change confirm when tax is unchanged (Core 3.4)", async () => {
