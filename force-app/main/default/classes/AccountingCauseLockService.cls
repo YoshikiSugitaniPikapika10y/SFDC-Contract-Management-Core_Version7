@@ -6,6 +6,10 @@ public without sharing class AccountingCauseLockService {
   static Integer invoiceLockSelectCount = 0;
   @TestVisible
   static Integer invoiceModifiedSelectCount = 0;
+  @TestVisible
+  static Integer journalMaxSelectCount = 0;
+  @TestVisible
+  static Set<Id> lastJournalMaxExcludedIds = new Set<Id>();
 
   /** 仕様: Core 第7.9.7節、第4.3.12節 */
   public static String issueOperationKey() {
@@ -190,7 +194,20 @@ public without sharing class AccountingCauseLockService {
     Set<Id> invoiceIds,
     Map<Id, Datetime> knownInvoiceModified
   ) {
+    return resolveInvoiceOperationDatetimes(invoiceIds, knownInvoiceModified, null);
+  }
+
+  /**
+   * 仕様: Core 第7.9.7節、第12.4節。読み済み仕訳の更新日時は取り直さない。
+   * 未取得の仕訳MAXは残す。入出金・手動ヘッダーの初回MAXは変えない。
+   */
+  public static Map<Id, Datetime> resolveInvoiceOperationDatetimes(
+    Set<Id> invoiceIds,
+    Map<Id, Datetime> knownInvoiceModified,
+    List<GlJournal__c> knownJournals
+  ) {
     Map<Id, Datetime> result = new Map<Id, Datetime>();
+    lastJournalMaxExcludedIds = new Set<Id>();
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return result;
     }
@@ -227,7 +244,38 @@ public without sharing class AccountingCauseLockService {
         GROUP BY Invoice__c
       ]
     );
-    if (AccountingCurrentService.hasLoadedAll(invoiceIds)) {
+    Set<Id> knownJournalIds = new Set<Id>();
+    if (knownJournals != null) {
+      for (GlJournal__c journal : knownJournals) {
+        if (journal == null || journal.Id == null) {
+          continue;
+        }
+        knownJournalIds.add(journal.Id);
+        if (journal.Invoice__c == null || journal.LastModifiedDate == null) {
+          continue;
+        }
+        Datetime current = result.get(journal.Invoice__c);
+        if (
+          current == null ||
+          journal.LastModifiedDate.getTime() > current.getTime()
+        ) {
+          result.put(journal.Invoice__c, journal.LastModifiedDate);
+        }
+      }
+    }
+    lastJournalMaxExcludedIds.addAll(knownJournalIds);
+    if (!knownJournalIds.isEmpty()) {
+      bumpMax(
+        result,
+        [
+          SELECT Invoice__c, MAX(LastModifiedDate) maxLm
+          FROM GlJournal__c
+          WHERE Invoice__c IN :invoiceIds AND Id NOT IN :knownJournalIds
+          WITH SYSTEM_MODE
+          GROUP BY Invoice__c
+        ]
+      );
+    } else if (AccountingCurrentService.hasLoadedAll(invoiceIds)) {
       for (Id invoiceId : invoiceIds) {
         Datetime journalMax = AccountingCurrentService.maxLastModified(invoiceId);
         if (journalMax == null) {
@@ -239,6 +287,7 @@ public without sharing class AccountingCauseLockService {
         }
       }
     } else {
+      journalMaxSelectCount++;
       bumpMax(
         result,
         [

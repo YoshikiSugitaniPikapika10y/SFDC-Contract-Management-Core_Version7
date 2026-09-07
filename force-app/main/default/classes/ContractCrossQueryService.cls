@@ -473,6 +473,7 @@ public with sharing class ContractCrossQueryService {
     }
     Set<String> listedJournalFields = new Set<String>{
       'Id',
+      'LastModifiedDate',
       'Amount__c',
       'PostingDate__c',
       'Memo__c',
@@ -489,7 +490,7 @@ public with sharing class ContractCrossQueryService {
       'Invoice__c'
     };
     String soql =
-      'SELECT Id, Amount__c, PostingDate__c, Memo__c, ConfirmationText__c, ' +
+      'SELECT Id, LastModifiedDate, Amount__c, PostingDate__c, Memo__c, ConfirmationText__c, ' +
       'IsLocked__c, TransactionStatus__c, AccountingEventKey__c, JournalPatternKey__c, ' +
       'GlManualJournalSetting__c, GlManualJournalSetting__r.Name, ' +
       'DebitSlotKey__c, CreditSlotKey__c, DebitAccount__c, DebitAccount__r.Name, CreditAccount__c, CreditAccount__r.Name, ' +
@@ -623,7 +624,10 @@ public with sharing class ContractCrossQueryService {
     return result;
   }
 
-  /** 仕様: Core 第7.9.7節。横断のLock／Unlockは対象請求と配下の入出金・手動仕訳・仕訳の最大。 */
+  /**
+   * 仕様: Core 第7.9.7節、第12.4節、第4.3.11節。横断のLock／Unlockは対象請求と配下の入出金・手動仕訳・仕訳の最大。
+   * 一覧で読んだ仕訳の更新日時は版比較で取り直さない。
+   */
   private static void fillJournalInvoiceTokens(
     List<ContractCrossController.JournalRowDto> journals,
     List<GlJournal__c> rows,
@@ -631,9 +635,11 @@ public with sharing class ContractCrossQueryService {
   ) {
     Set<Id> invoiceIds = new Set<Id>();
     Map<Id, Datetime> knownInvoiceModified = new Map<Id, Datetime>();
+    List<GlJournal__c> listedJournals = new List<GlJournal__c>();
     Integer bound = Math.min(take, rows.size());
     for (Integer i = 0; i < bound; i++) {
       GlJournal__c journal = rows[i];
+      listedJournals.add(journal);
       if (journal.Invoice__c == null) {
         continue;
       }
@@ -644,7 +650,8 @@ public with sharing class ContractCrossQueryService {
     }
     Map<Id, Datetime> actuals = AccountingCauseLockService.resolveInvoiceOperationDatetimes(
       invoiceIds,
-      knownInvoiceModified
+      knownInvoiceModified,
+      listedJournals
     );
     for (ContractCrossController.JournalRowDto dto : journals) {
       dto.invoiceToken = ContractOptimisticLockUtil.toToken(actuals.get(dto.invoiceId));

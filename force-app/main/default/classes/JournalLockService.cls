@@ -142,9 +142,12 @@ public without sharing class JournalLockService {
       return journals.size();
     }
     // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
+    // 仕様: Core 第12.4節・第7.9.7節。ロック済み請求の更新日時と収集済み仕訳は取り直さない。
+    AccountingCurrentService.load(invoiceId);
     AccountingCauseLockService.assertInvoiceOperationUnchanged(
       invoiceId,
-      expectedToken
+      expectedToken,
+      invoice.LastModifiedDate
     );
     if (updates.isEmpty()) {
       return 0;

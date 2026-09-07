@@ -889,7 +889,7 @@ private class ContractCrossControllerTest {
       InvoiceFixture fixture = insertInvoice('Confirmed');
       Date lastMonthDay = ContractCrossQueryService.defaultJournalPostingDates()
         .dateFrom;
-      insertJournal(
+      GlJournal__c journal = insertJournal(
         fixture.invoice.Id,
         false,
         'Active',
@@ -906,6 +906,7 @@ private class ContractCrossControllerTest {
       filter.postingDateTo = range.dateTo;
       filter.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
 
+      AccountingCauseLockService.journalMaxSelectCount = 0;
       ContractCrossController.ListResultDto result = ContractCrossController.queryJournals(
         filter
       );
@@ -914,6 +915,16 @@ private class ContractCrossControllerTest {
         operationToken,
         result.journals[0].invoiceToken,
         'Core 第7.9.7節: 横断Lockの版は対象請求と配下の仕訳の最大'
+      );
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.journalMaxSelectCount,
+        'Core 第12.4節・第4.3.11節: 読み済み仕訳を版比較MAXで取り直さない'
+      );
+      System.assertEquals(
+        true,
+        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(journal.Id),
+        'Core 第12.4節: 一覧仕訳の更新日時は一覧行から重ねる'
       );
     }
   }
@@ -1384,6 +1395,76 @@ private class ContractCrossControllerTest {
           'Core 第11.4.4節: 一覧行から追加項目を重ねる'
         );
       }
+    }
+  }
+
+  @IsTest
+  static void queryJournals_reusesListedJournalsForVersionMax() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture fixture = insertInvoice('Confirmed');
+      Date lastMonthDay = ContractCrossQueryService.defaultJournalPostingDates()
+        .dateFrom;
+      GlJournal__c unlocked = insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        lastMonthDay,
+        'VERMAXU'
+      );
+      GlJournal__c locked = insertJournal(
+        fixture.invoice.Id,
+        true,
+        'Active',
+        lastMonthDay,
+        'VERMAXL'
+      );
+      insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        ContractCrossQueryService.organizationToday(),
+        'VERMAXM'
+      );
+      String operationToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+
+      ContractCrossController.JournalFilterDto filter = new ContractCrossController.JournalFilterDto();
+      ContractCrossQueryService.DateRange range = ContractCrossQueryService.defaultJournalPostingDates();
+      filter.postingDateFrom = range.dateFrom;
+      filter.postingDateTo = range.dateTo;
+      filter.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+
+      AccountingCauseLockService.journalMaxSelectCount = 0;
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryJournals(
+        filter
+      );
+      Test.stopTest();
+
+      System.assertEquals(1, result.journals.size());
+      System.assertEquals(unlocked.Id, result.journals[0].id);
+      System.assertEquals(
+        operationToken,
+        result.journals[0].invoiceToken,
+        'Core 第7.9.7節: 返す版トークンは対象請求と配下仕訳の最大のまま'
+      );
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.journalMaxSelectCount,
+        'Core 第12.4節・第4.3.11節: 読み済み仕訳を版比較MAXで取り直さない'
+      );
+      System.assertEquals(
+        true,
+        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(unlocked.Id),
+        'Core 第12.4節: 一覧で読んだ仕訳は版比較MAXに重ねない'
+      );
+      System.assertEquals(
+        false,
+        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(locked.Id),
+        'Core 第7.9.7節: 左に無い仕訳のMAXは残す'
+      );
     }
   }
 
