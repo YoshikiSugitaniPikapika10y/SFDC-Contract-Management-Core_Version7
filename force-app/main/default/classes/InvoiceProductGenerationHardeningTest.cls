@@ -129,6 +129,11 @@ private class InvoiceProductGenerationHardeningTest {
         InvoiceCanonicalService.canonicalPeriodLineSelectCount,
         'Core 第5.2節・第12.4節: insert直後の期間明細を取り直さない'
       );
+      System.assertEquals(
+        0,
+        ContractServiceLifecycleService.lifecycleServiceSelectCount,
+        'Core 第5.2節・第12.4節: First／Latest同期で読んだ契約サービスをLifecycleで取り直さない'
+      );
       Integer beforeReuse = Limits.getQueries();
       InvoiceProductGenerationService.queryContractProductsForGeneration(
         new Set<Id>{ history.Id }

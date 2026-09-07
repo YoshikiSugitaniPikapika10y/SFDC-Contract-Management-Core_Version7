@@ -11,6 +11,14 @@ public without sharing class ContractServiceLifecycleService {
   /** 仕様: Core 第6.1節、第3.4.2節。Change 受注の期間明細生成中は Lifecycle 照会を1回にまとめる。 */
   private static Integer lifecycleDeferDepth = 0;
   private static Set<Id> deferredServiceIds = new Set<Id>();
+  private static Map<Id, ContractService__c> deferredLoadedServices = new Map<Id, ContractService__c>();
+
+  /** 仕様: Core 第5.2節・第12.4節。同一処理で読んだ契約サービスを取り直さない。 */
+  @TestVisible
+  static Integer lifecycleServiceSelectCount = 0;
+  /** 仕様: Core 第5.2節・第12.4節。生成済み見積商品を継続課金判定で取り直さない。 */
+  @TestVisible
+  static Integer lifecycleProductSelectCount = 0;
 
   public static void beginLifecycleDefer() {
     lifecycleDeferDepth++;
@@ -23,7 +31,9 @@ public without sharing class ContractServiceLifecycleService {
     if (lifecycleDeferDepth == 0 && !deferredServiceIds.isEmpty()) {
       Set<Id> pending = deferredServiceIds;
       deferredServiceIds = new Set<Id>();
-      ensureLifecycleForServicesNow(pending);
+      Map<Id, ContractService__c> pendingLoaded = deferredLoadedServices;
+      deferredLoadedServices = new Map<Id, ContractService__c>();
+      ensureLifecycleForServicesNow(pending, pendingLoaded);
     }
   }
 
@@ -40,26 +50,53 @@ public without sharing class ContractServiceLifecycleService {
       deferredServiceIds.addAll(contractServiceIds);
       return;
     }
-    ensureLifecycleForServicesNow(contractServiceIds);
+    ensureLifecycleForServicesNow(contractServiceIds, null);
   }
 
-  private static void ensureLifecycleForServicesNow(Set<Id> contractServiceIds) {
+  /**
+   * 仕様: Core 第5.2節・第5.4節・第12.4節。
+   * First／Latest 同期で読んだ契約サービスを Lifecycle 判定へ渡す。
+   */
+  public static void ensureLifecycleForLoadedServices(
+    Map<Id, ContractService__c> loadedServices
+  ) {
+    if (loadedServices == null || loadedServices.isEmpty()) {
+      return;
+    }
+    if (lifecycleDeferDepth > 0) {
+      deferredServiceIds.addAll(loadedServices.keySet());
+      deferredLoadedServices.putAll(loadedServices);
+      return;
+    }
+    ensureLifecycleForServicesNow(loadedServices.keySet(), loadedServices);
+  }
+
+  private static void ensureLifecycleForServicesNow(
+    Set<Id> contractServiceIds,
+    Map<Id, ContractService__c> loadedServices
+  ) {
     if (contractServiceIds == null || contractServiceIds.isEmpty()) {
       return;
     }
 
-    Map<Id, ContractService__c> services = new Map<Id, ContractService__c>(
-      [
-        SELECT
-          Id,
-          Lifecycle__c,
-          FirstOrderedHistory__c,
-          FirstOrderedHistory__r.Version__c
-        FROM ContractService__c
-        WHERE Id IN :contractServiceIds
-        WITH SYSTEM_MODE
-      ]
-    );
+    Map<Id, ContractService__c> services;
+    if (coversLoadedServices(loadedServices, contractServiceIds)) {
+      services = loadedServices;
+    } else {
+      lifecycleServiceSelectCount++;
+      services = new Map<Id, ContractService__c>(
+        [
+          SELECT
+            Id,
+            Lifecycle__c,
+            FirstOrderedHistory__c,
+            FirstOrderedHistory__r.Version__c
+          FROM ContractService__c
+          WHERE Id IN :contractServiceIds
+          WITH SYSTEM_MODE
+        ]
+      );
+    }
 
     Set<Id> firstHistoryIds = new Set<Id>();
     for (ContractService__c service : services.values()) {
@@ -123,6 +160,21 @@ public without sharing class ContractServiceLifecycleService {
     }
   }
 
+  private static Boolean coversLoadedServices(
+    Map<Id, ContractService__c> loadedServices,
+    Set<Id> contractServiceIds
+  ) {
+    if (loadedServices == null || loadedServices.isEmpty()) {
+      return false;
+    }
+    for (Id serviceId : contractServiceIds) {
+      if (!loadedServices.containsKey(serviceId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** 仕様: Core 第3.4.2節。一括補完は持たない。 */
   public static Integer backfillAllBlankLifecycles() {
     throw new LifecycleException('Lifecycleの一括補完は持たない。導入作業で直してください。');
@@ -132,9 +184,33 @@ public without sharing class ContractServiceLifecycleService {
     Set<Id> historyIds
   ) {
     Map<Id, Boolean> result = new Map<Id, Boolean>();
+    Set<Id> missingHistoryIds = new Set<Id>();
     for (Id historyId : historyIds) {
       result.put(historyId, false);
+      if (InvoiceProductGenerationService.hasCachedProductsForHistory(historyId)) {
+        for (
+          ContractProduct__c product : InvoiceProductGenerationService.productsCachedForHistory(
+            historyId
+          )
+        ) {
+          if (product.Quantity__c == null || product.Quantity__c <= 0) {
+            continue;
+          }
+          String billingType = ContractMetadataService.resolveLineBillingType(
+            product
+          );
+          if (ContractMetadataService.isRecurringBillingType(billingType)) {
+            result.put(historyId, true);
+          }
+        }
+      } else {
+        missingHistoryIds.add(historyId);
+      }
     }
+    if (missingHistoryIds.isEmpty()) {
+      return result;
+    }
+    lifecycleProductSelectCount++;
     for (ContractProduct__c product : [
       SELECT
         Id,
@@ -142,7 +218,7 @@ public without sharing class ContractServiceLifecycleService {
         BillingType__c,
         Quantity__c
       FROM ContractProduct__c
-      WHERE ContractHistory__c IN :historyIds AND Quantity__c > 0
+      WHERE ContractHistory__c IN :missingHistoryIds AND Quantity__c > 0
       WITH SYSTEM_MODE
     ]) {
       String billingType = ContractMetadataService.resolveLineBillingType(
@@ -160,10 +236,27 @@ public without sharing class ContractServiceLifecycleService {
     if (historyIds == null || historyIds.isEmpty()) {
       return result;
     }
+    Set<Id> missingHistoryIds = new Set<Id>();
+    for (Id historyId : historyIds) {
+      if (InvoiceProductGenerationService.hasCachedProductsForHistory(historyId)) {
+        if (
+          !InvoiceProductGenerationService.productsCachedForHistory(historyId)
+            .isEmpty()
+        ) {
+          result.add(historyId);
+        }
+      } else {
+        missingHistoryIds.add(historyId);
+      }
+    }
+    if (missingHistoryIds.isEmpty()) {
+      return result;
+    }
+    lifecycleProductSelectCount++;
     for (AggregateResult row : [
       SELECT ContractHistory__c
       FROM ContractProduct__c
-      WHERE ContractHistory__c IN :historyIds
+      WHERE ContractHistory__c IN :missingHistoryIds
       WITH SYSTEM_MODE
       GROUP BY ContractHistory__c
     ]) {

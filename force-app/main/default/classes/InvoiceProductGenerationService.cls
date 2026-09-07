@@ -104,6 +104,11 @@ public without sharing class InvoiceProductGenerationService {
     loadBillingAccountsById(billingAccountIds);
   }
 
+  public static Boolean hasCachedProductsForHistory(Id historyId) {
+    return historyId != null &&
+      cachedContractProductsByHistoryId.containsKey(historyId);
+  }
+
   public static List<ContractProduct__c> productsCachedForHistory(Id historyId) {
     List<ContractProduct__c> cached = cachedContractProductsByHistoryId.get(
       historyId

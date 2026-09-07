@@ -28,6 +28,7 @@ public without sharing class ContractOrderedHistorySyncService {
     Map<Id, Id> firstHistoryIdByServiceId = new Map<Id, Id>();
     Map<Id, Id> latestHistoryIdByServiceId = new Map<Id, Id>();
 
+    Map<Id, ContractHistory__c> orderedById = new Map<Id, ContractHistory__c>();
     for (ContractHistory__c history : [
       SELECT Id, ContractService__c, Version__c
       FROM ContractHistory__c
@@ -37,6 +38,7 @@ public without sharing class ContractOrderedHistorySyncService {
       WITH SYSTEM_MODE
       ORDER BY ContractService__c, Version__c ASC NULLS LAST
     ]) {
+      orderedById.put(history.Id, history);
       if (!firstHistoryIdByServiceId.containsKey(history.ContractService__c)) {
         firstHistoryIdByServiceId.put(history.ContractService__c, history.Id);
       }
@@ -45,7 +47,12 @@ public without sharing class ContractOrderedHistorySyncService {
 
     Map<Id, ContractService__c> existingServices = new Map<Id, ContractService__c>(
       [
-        SELECT Id, FirstOrderedHistory__c, LatestOrderedHistory__c
+        SELECT
+          Id,
+          FirstOrderedHistory__c,
+          LatestOrderedHistory__c,
+          Lifecycle__c,
+          FirstOrderedHistory__r.Version__c
         FROM ContractService__c
         WHERE Id IN :contractServiceIds
         WITH SYSTEM_MODE
@@ -69,6 +76,12 @@ public without sharing class ContractOrderedHistorySyncService {
         continue;
       }
 
+      existingService.FirstOrderedHistory__c = firstHistoryId;
+      existingService.LatestOrderedHistory__c = latestHistoryId;
+      ContractHistory__c firstHistory = orderedById.get(firstHistoryId);
+      if (firstHistory != null) {
+        existingService.putSObject('FirstOrderedHistory__r', firstHistory);
+      }
       servicesToUpdate.add(
         new ContractService__c(
           Id = serviceId,
@@ -88,8 +101,8 @@ public without sharing class ContractOrderedHistorySyncService {
       }
     }
 
-    ContractServiceLifecycleService.ensureLifecycleForServices(
-      contractServiceIds
+    ContractServiceLifecycleService.ensureLifecycleForLoadedServices(
+      existingServices
     );
   }
 }
