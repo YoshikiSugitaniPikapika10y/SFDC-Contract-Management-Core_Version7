@@ -299,10 +299,13 @@ public with sharing class ContractCrossQueryService {
     }
     String collectionStatus = filter.collectionStatus;
     // 仕様: 横断画面.md 第5節取得。発行・次の検収はフィルタ後に500件。
+    lastLatestIssuedReloadedIssuedFiles = false;
+    IssuedInvoiceFiles issuedFiles = new IssuedInvoiceFiles();
     Set<Id> issuedInvoiceIds = new Set<Id>();
     Boolean issuedFilterOn = filter.issued == true || filter.issued == false;
     if (issuedFilterOn) {
-      issuedInvoiceIds = loadAllIssuedInvoiceIds();
+      issuedFiles = loadAllIssuedInvoiceIds();
+      issuedInvoiceIds = issuedFiles.issuedInvoiceIds;
       if (filter.issued == true) {
         soql += ' AND Id IN :issuedInvoiceIds';
       } else if (!issuedInvoiceIds.isEmpty()) {
@@ -349,7 +352,14 @@ public with sharing class ContractCrossQueryService {
       taken.add(rows[i]);
     }
     Set<Id> invoiceIds = new Map<Id, Invoice__c>(taken).keySet();
-    Map<Id, Id> latestIssuedByInvoice = loadLatestIssuedDocumentIds(invoiceIds);
+    // 仕様: Core 第12.4節・第4.3.11節、横断画面.md 第5節取得。発行フィルタONの発行ファイルは取り直さない。
+    Map<Id, Id> latestIssuedByInvoice;
+    if (issuedFilterOn) {
+      latestIssuedByInvoice = issuedFiles.latestIssuedByInvoice;
+    } else {
+      lastLatestIssuedReloadedIssuedFiles = true;
+      latestIssuedByInvoice = loadLatestIssuedDocumentIds(invoiceIds);
+    }
     Map<Id, LineAgg> lineAgg = accountingOn
       ? loadInvoiceLineAgg(invoiceIds)
       : new Map<Id, LineAgg>();
@@ -747,10 +757,18 @@ public with sharing class ContractCrossQueryService {
     return result;
   }
 
-  /** 仕様: 横断画面.md 操作23。印付きのうち作成日時が最も新しい1つ。 */
+  /** 仕様: 横断画面.md 操作23。印付きのうち作成日時が最も新しい1つ。フィルタOFFの初回。 */
   private static Map<Id, Id> loadLatestIssuedDocumentIds(Set<Id> linkedIds) {
     return EstimateDocumentService.latestIssuedContentDocumentIds(linkedIds);
   }
+
+  private class IssuedInvoiceFiles {
+    public Set<Id> issuedInvoiceIds = new Set<Id>();
+    public Map<Id, Id> latestIssuedByInvoice = new Map<Id, Id>();
+  }
+
+  @TestVisible
+  static Boolean lastLatestIssuedReloadedIssuedFiles = false;
 
   /** 仕様: 横断画面.md 第5節取得。次の検収はフィルタ後に500件。 */
   private static Set<Id> loadInvoiceIdsMatchingNextAcceptance(
@@ -779,36 +797,81 @@ public with sharing class ContractCrossQueryService {
     return ids;
   }
 
-  /** 仕様: 横断画面.md 第5節取得。発行フィルタは500件窓の前。 */
-  private static Set<Id> loadAllIssuedInvoiceIds() {
+  /**
+   * 仕様: 横断画面.md 第5節取得・操作23、Core 第12.4節・第4.3.11節。
+   * 発行フィルタは500件窓の前。同じ発行ファイルから最新発行も組み立てる。
+   */
+  private static IssuedInvoiceFiles loadAllIssuedInvoiceIds() {
+    IssuedInvoiceFiles loaded = new IssuedInvoiceFiles();
     List<ContentVersion> versions = [
-      SELECT ContentDocumentId
+      SELECT Id, ContentDocumentId, CreatedDate, IsLatest
       FROM ContentVersion
       WHERE ContractDocumentIssued__c = TRUE
       WITH SYSTEM_MODE
     ];
     if (versions.isEmpty()) {
-      return new Set<Id>();
+      return loaded;
     }
     Set<Id> documentIds = new Set<Id>();
     for (ContentVersion version : versions) {
       documentIds.add(version.ContentDocumentId);
     }
-    Set<Id> issued = new Set<Id>();
+    Map<Id, List<Id>> documentToInvoices = new Map<Id, List<Id>>();
     for (ContentDocumentLink link : [
-      SELECT LinkedEntityId
+      SELECT LinkedEntityId, ContentDocumentId
       FROM ContentDocumentLink
       WHERE ContentDocumentId IN :documentIds
       WITH SYSTEM_MODE
     ]) {
       if (
-        link.LinkedEntityId != null &&
-        link.LinkedEntityId.getSObjectType() == Invoice__c.SObjectType
+        link.LinkedEntityId == null ||
+        link.LinkedEntityId.getSObjectType() != Invoice__c.SObjectType
       ) {
-        issued.add(link.LinkedEntityId);
+        continue;
+      }
+      loaded.issuedInvoiceIds.add(link.LinkedEntityId);
+      if (!documentToInvoices.containsKey(link.ContentDocumentId)) {
+        documentToInvoices.put(link.ContentDocumentId, new List<Id>());
+      }
+      documentToInvoices.get(link.ContentDocumentId).add(link.LinkedEntityId);
+    }
+    Map<Id, ContentVersion> latestVersionByInvoice = new Map<Id, ContentVersion>();
+    for (ContentVersion version : versions) {
+      if (version.IsLatest != true) {
+        continue;
+      }
+      List<Id> invoiceIds = documentToInvoices.get(version.ContentDocumentId);
+      if (invoiceIds == null) {
+        continue;
+      }
+      for (Id invoiceId : invoiceIds) {
+        ContentVersion current = latestVersionByInvoice.get(invoiceId);
+        if (current == null || isLaterIssuedVersion(version, current)) {
+          latestVersionByInvoice.put(invoiceId, version);
+        }
       }
     }
-    return issued;
+    for (Id invoiceId : latestVersionByInvoice.keySet()) {
+      loaded.latestIssuedByInvoice.put(
+        invoiceId,
+        latestVersionByInvoice.get(invoiceId).ContentDocumentId
+      );
+    }
+    return loaded;
+  }
+
+  /** 仕様: 横断画面.md 操作23。作成日時が最も新しい1つ。同日時は Id 降順。 */
+  private static Boolean isLaterIssuedVersion(
+    ContentVersion candidate,
+    ContentVersion current
+  ) {
+    if (candidate.CreatedDate > current.CreatedDate) {
+      return true;
+    }
+    if (candidate.CreatedDate < current.CreatedDate) {
+      return false;
+    }
+    return candidate.Id > current.Id;
   }
 
   private class LineAgg {

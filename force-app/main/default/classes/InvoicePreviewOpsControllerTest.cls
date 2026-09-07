@@ -650,6 +650,86 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_reusesLoadedInvoiceForTagResults() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(false);
+      fixture.invoice.IsManuallyAdjusted__c = true;
+      fixture.invoice.IsAmountAdjusted__c = false;
+      update fixture.invoice;
+      insert new List<GlAccountingTagRule__c>{
+        new GlAccountingTagRule__c(
+          Name = 'BUG806 True',
+          TagKey__c = 'bug806_t_' + String.valueOf(Crypto.getRandomInteger()),
+          TagLabel__c = 'BUG806残あり',
+          Expression__c = 'AR',
+          ComparisonOperator__c = 'NE',
+          ComparisonValue__c = 0,
+          TargetFieldApiName__c = 'IsManuallyAdjusted__c',
+          IsEnabled__c = true
+        ),
+        new GlAccountingTagRule__c(
+          Name = 'BUG806 False',
+          TagKey__c = 'bug806_f_' + String.valueOf(Crypto.getRandomInteger()),
+          TagLabel__c = 'BUG806端数',
+          Expression__c = 'AR',
+          ComparisonOperator__c = 'EQ',
+          ComparisonValue__c = 0,
+          TargetFieldApiName__c = 'IsAmountAdjusted__c',
+          IsEnabled__c = true
+        )
+      };
+      Invoice__c loaded = [
+        SELECT Id, IsManuallyAdjusted__c, IsAmountAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+
+      InvoicePreviewOpsController.tagInvoiceSelectCount = 0;
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        loaded.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        InvoicePreviewOpsController.tagInvoiceSelectCount,
+        'Core 第12.4節・第4.3.11節: 本体で読んだ請求をタグ結果で取り直さない'
+      );
+      Boolean foundTrue = false;
+      if (bundle.tagResults != null) {
+        for (InvoicePreviewOpsController.TagResultRowDto row : bundle.tagResults) {
+          if (row.name == 'BUG806残あり') {
+            foundTrue = true;
+            System.assertEquals(true, row.value, 'Accounting 第7.6節: Trueのタグ行は変えない');
+          }
+          System.assertNotEquals(
+            'BUG806端数',
+            row.name,
+            'Accounting 第7.6節: Falseは出さない'
+          );
+        }
+      }
+      System.assertEquals(
+        true,
+        foundTrue,
+        'Accounting 第7.6節・Core 第7.7.3節: Trueのタグラベルを返す'
+      );
+      System.assertEquals(
+        true,
+        loaded.IsManuallyAdjusted__c,
+        '開発ルール第13節: 入口はSOQL行のタグ保存先を読む'
+      );
+      System.assertEquals(
+        loaded.IsManuallyAdjusted__c == true,
+        foundTrue,
+        '開発ルール第13節: タグ行は本体SOQL行の保存先と一致する'
+      );
+    }
+  }
+
+  @IsTest
   static void getOpsBundle_unconfirmed_blocksPaymentJapanese() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

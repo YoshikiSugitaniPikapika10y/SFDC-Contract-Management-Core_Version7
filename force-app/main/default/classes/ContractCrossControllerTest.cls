@@ -490,6 +490,11 @@ private class ContractCrossControllerTest {
         '横断画面.md 操作23: 最新発行PDFのIdを返す'
       );
       System.assertEquals(
+        true,
+        ContractCrossQueryService.lastLatestIssuedReloadedIssuedFiles,
+        'Core 第12.4節: 発行フィルタOFFの初回最新発行は取り直さない対象外'
+      );
+      System.assertEquals(
         false,
         byId.get(unissued.invoice.Id).issued
       );
@@ -637,6 +642,52 @@ private class ContractCrossControllerTest {
         false,
         result.truncated,
         '横断画面.md 第5節取得: 切れていないときは警告を出さない'
+      );
+      System.assertEquals(
+        false,
+        ContractCrossQueryService.lastLatestIssuedReloadedIssuedFiles,
+        'Core 第12.4節・第4.3.11節: 発行フィルタ用の発行ファイルを最新発行で取り直さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void queryInvoices_issuedFilterReusesIssuedFilesForLatest() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceFixture issued = insertInvoice('Draft');
+      Id olderDocumentId = insertIssuedFile(issued.invoice.Id);
+      Id latestDocumentId = insertIssuedFile(issued.invoice.Id);
+
+      ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
+      filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_DRAFT;
+      filter.issued = true;
+
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryInvoices(
+        filter
+      );
+      Test.stopTest();
+
+      System.assertEquals(1, result.invoices.size());
+      System.assertEquals(issued.invoice.Id, result.invoices[0].id);
+      System.assertEquals(
+        true,
+        result.invoices[0].issued,
+        '横断画面.md 操作23: 発行済みなら発行あり'
+      );
+      System.assertEquals(
+        latestDocumentId,
+        result.invoices[0].latestIssuedContentDocumentId,
+        '横断画面.md 操作23: 印付きのうち作成日時が最も新しい1つ'
+      );
+      System.assertNotEquals(
+        olderDocumentId,
+        result.invoices[0].latestIssuedContentDocumentId
+      );
+      System.assertEquals(
+        false,
+        ContractCrossQueryService.lastLatestIssuedReloadedIssuedFiles,
+        'Core 第12.4節・第4.3.11節: 発行フィルタ用の発行ファイルを最新発行で取り直さない'
       );
     }
   }

@@ -24,6 +24,10 @@ public without sharing class EstimateQueryService {
   private static Map<Id, ContractHistory__c> loadedOrderedByServiceId = new Map<Id, ContractHistory__c>();
   @TestVisible
   static Set<Id> lastLatestOrderedQueryIds = new Set<Id>();
+  @TestVisible
+  static Set<Id> lastRenewEligibleProductLoadIds = new Set<Id>();
+  private static Map<Id, Date> countedRenewTermEndByHistoryId = new Map<Id, Date>();
+  private static Map<Id, Boolean> countedRenewEligibleByHistoryId = new Map<Id, Boolean>();
 
   /** 継続課金の正は明細 BillingType。商品マスタへ戻さない。 */
   private static String recurringLineSoqlPredicate() {
@@ -624,6 +628,7 @@ public without sharing class EstimateQueryService {
         history.PreviousHistory__r.CurrentTermEndDate__c
       );
       if (forEdit == true) {
+        // 仕様: Core 第4.3.11節、第12.4節。編集presetはCOUNTした前回見積商品をrenewEligible判定で取り直さない。renewEligibleは変えない。
         preset.renewEligible =
           countRenewSourceRecurringProducts(
             history.PreviousHistory__c,
@@ -995,6 +1000,14 @@ public without sharing class EstimateQueryService {
       return false;
     }
     Date termEndDate = history.CurrentTermEndDate__c;
+    // 仕様: Core 第4.3.11節、第12.4節。同一取得でCOUNTした前回見積商品は取り直さない。
+    if (
+      countedRenewEligibleByHistoryId.containsKey(history.Id) &&
+      countedRenewTermEndByHistoryId.get(history.Id) == termEndDate
+    ) {
+      return countedRenewEligibleByHistoryId.get(history.Id);
+    }
+    lastRenewEligibleProductLoadIds.add(history.Id);
     for (
       ContractProduct__c product : EstimateValidationService.loadChangeSourceProducts(
         history.Id
@@ -1015,7 +1028,7 @@ public without sharing class EstimateQueryService {
       return 0;
     }
 
-    return [
+    Integer matchingCount = [
       SELECT COUNT()
       FROM ContractProduct__c
       WHERE
@@ -1031,6 +1044,9 @@ public without sharing class EstimateQueryService {
         ))
       WITH SYSTEM_MODE
     ];
+    countedRenewTermEndByHistoryId.put(contractHistoryId, termEndDate);
+    countedRenewEligibleByHistoryId.put(contractHistoryId, matchingCount > 0);
+    return matchingCount;
   }
 
   public static EstimateCreateController.ProductDefaultDto getProductDefaults(

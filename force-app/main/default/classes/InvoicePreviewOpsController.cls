@@ -240,24 +240,7 @@ public without sharing class InvoicePreviewOpsController {
         '指定された請求が、対象の契約サービスに属していません。画面を開き直してください。'
       );
     }
-    List<Invoice__c> invoices = [
-      SELECT
-        Id,
-        InvoiceTransactionStatus__c,
-        InvoiceDate__c,
-        SentDate__c,
-        Amount__c,
-        TaxAmount__c,
-        TaxInclusiveAmount__c,
-        PaymentInclusiveTotal__c,
-        InvoicePaymentNet__c,
-        LastModifiedDate,
-        ContractService__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId AND ContractService__c = :serviceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    List<Invoice__c> invoices = queryOpsInvoices(invoiceId, serviceId);
     if (invoices.isEmpty()) {
       throw handled(
         '指定された請求が、対象の契約サービスに属していません。画面を開き直してください。'
@@ -273,24 +256,27 @@ public without sharing class InvoicePreviewOpsController {
     if (invoiceId == null) {
       throw handled('請求が指定されていません。');
     }
-    Invoice__c invoice = [
-      SELECT
-        Id,
-        InvoiceTransactionStatus__c,
-        InvoiceDate__c,
-        SentDate__c,
-        Amount__c,
-        TaxAmount__c,
-        TaxInclusiveAmount__c,
-        PaymentInclusiveTotal__c,
-        InvoicePaymentNet__c,
-        LastModifiedDate,
-        ContractService__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    List<Invoice__c> invoices = queryOpsInvoices(invoiceId, null);
+    Invoice__c invoice = invoices.isEmpty()
+      ? [
+          SELECT
+            Id,
+            InvoiceTransactionStatus__c,
+            InvoiceDate__c,
+            SentDate__c,
+            Amount__c,
+            TaxAmount__c,
+            TaxInclusiveAmount__c,
+            PaymentInclusiveTotal__c,
+            InvoicePaymentNet__c,
+            LastModifiedDate,
+            ContractService__c
+          FROM Invoice__c
+          WHERE Id = :invoiceId
+          WITH SYSTEM_MODE
+          LIMIT 1
+        ]
+      : invoices[0];
     return buildOpsBundle(invoice);
   }
 
@@ -308,6 +294,48 @@ public without sharing class InvoicePreviewOpsController {
       return history.ContractService__c;
     }
     return null;
+  }
+
+  private static List<Invoice__c> queryOpsInvoices(Id invoiceId, Id serviceId) {
+    String soql =
+      'SELECT ' +
+      String.join(opsInvoiceSelectFields(), ',') +
+      ' FROM Invoice__c WHERE Id = :invoiceId';
+    if (serviceId != null) {
+      soql += ' AND ContractService__c = :serviceId';
+    }
+    soql += ' WITH SYSTEM_MODE LIMIT 1';
+    return Database.query(soql);
+  }
+
+  private static List<String> opsInvoiceSelectFields() {
+    List<String> fields = new List<String>{
+      'Id',
+      'InvoiceTransactionStatus__c',
+      'InvoiceDate__c',
+      'SentDate__c',
+      'Amount__c',
+      'TaxAmount__c',
+      'TaxInclusiveAmount__c',
+      'PaymentInclusiveTotal__c',
+      'InvoicePaymentNet__c',
+      'LastModifiedDate',
+      'ContractService__c'
+    };
+    ensureEnabledTagRules();
+    Map<String, Schema.SObjectField> invoiceFields = Invoice__c.SObjectType.getDescribe()
+      .fields.getMap();
+    Set<String> seen = new Set<String>(fields);
+    for (GlAccountingTagRule__c rule : cachedEnabledTagRules) {
+      if (
+        String.isNotBlank(rule.TargetFieldApiName__c) &&
+        invoiceFields.containsKey(rule.TargetFieldApiName__c) &&
+        seen.add(rule.TargetFieldApiName__c)
+      ) {
+        fields.add(rule.TargetFieldApiName__c);
+      }
+    }
+    return fields;
   }
 
   private static OpsBundleDto buildOpsBundle(Invoice__c invoice) {
@@ -339,7 +367,8 @@ public without sharing class InvoicePreviewOpsController {
     bundle.payments = loadPayments(invoice.Id);
     bundle.journals = loadJournals(invoice.Id);
     bundle.slotNets = slotNetsFromJournalRows(bundle.journals);
-    bundle.tagResults = loadTagResults(invoice.Id);
+    // 仕様: Core 第12.4節・第4.3.11節・第7.7.3節。本体で読んだ請求をタグ結果で取り直さない。タグ行は変えない。
+    bundle.tagResults = loadTagResults(invoice);
     bundle.manualJournals = loadManualJournals(invoice.Id, bundle.journals);
     bundle.manualSettings = loadManualSettings();
     bundle.hasLockedJournals = false;
@@ -1294,9 +1323,10 @@ public without sharing class InvoicePreviewOpsController {
 
   private static List<GlAccountingTagRule__c> cachedEnabledTagRules;
 
-  /** 仕様: Accounting 第7.6節、第11.2節 */
-  private static List<TagResultRowDto> loadTagResults(Id invoiceId) {
-    List<TagResultRowDto> rows = new List<TagResultRowDto>();
+  @TestVisible
+  static Integer tagInvoiceSelectCount = 0;
+
+  private static void ensureEnabledTagRules() {
     if (cachedEnabledTagRules == null) {
       cachedEnabledTagRules = [
         SELECT TagLabel__c, TargetFieldApiName__c
@@ -1306,26 +1336,18 @@ public without sharing class InvoicePreviewOpsController {
         ORDER BY TagLabel__c ASC
       ];
     }
+  }
+
+  /** 仕様: Accounting 第7.6節、第11.2節、Core 第12.4節・第4.3.11節・第7.7.3節 */
+  private static List<TagResultRowDto> loadTagResults(Invoice__c invoice) {
+    List<TagResultRowDto> rows = new List<TagResultRowDto>();
+    ensureEnabledTagRules();
     List<GlAccountingTagRule__c> rules = cachedEnabledTagRules;
     if (rules.isEmpty()) {
       return rows;
     }
     Map<String, Schema.SObjectField> invoiceFields = Invoice__c.SObjectType.getDescribe()
       .fields.getMap();
-    Set<String> fieldNames = new Set<String>{ 'Id' };
-    for (GlAccountingTagRule__c rule : rules) {
-      if (
-        String.isNotBlank(rule.TargetFieldApiName__c) &&
-        invoiceFields.containsKey(rule.TargetFieldApiName__c)
-      ) {
-        fieldNames.add(rule.TargetFieldApiName__c);
-      }
-    }
-    Invoice__c invoice = (Invoice__c) Database.query(
-      'SELECT ' +
-        String.join(new List<String>(fieldNames), ',') +
-        ' FROM Invoice__c WHERE Id = :invoiceId WITH SYSTEM_MODE LIMIT 1'
-    );
     for (GlAccountingTagRule__c rule : rules) {
       Boolean value = invoiceFields.containsKey(rule.TargetFieldApiName__c)
         ? (Boolean) invoice.get(rule.TargetFieldApiName__c) == true

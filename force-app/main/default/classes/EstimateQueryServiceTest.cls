@@ -748,6 +748,94 @@ private class EstimateQueryServiceTest {
   }
 
   @IsTest
+  static void getEstimateEditPreset_changeReusesCountedPreviousProductsForRenewEligible() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Query CountReuse Acc'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Query CountReuse Svc'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Query CountReuse Prev',
+        ContractService__c = service.Id,
+        historystatus__c = 'Ordered',
+        Type__c = 'New',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        previous,
+        account.Id
+      );
+      insert previous;
+      Product2 catalog = ContractTestDataFactory.buildProduct(
+        'Query CountReuse Product'
+      );
+      catalog.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      catalog.UnitName__c = 'ライセンス';
+      ContractTestDataFactory.insertProduct(catalog);
+      insert new ContractProduct__c(
+        ContractHistory__c = previous.Id,
+        Product__c = catalog.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 1000,
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+      );
+      ContractHistory__c changeEstimate = new ContractHistory__c(
+        Name = 'Query CountReuse Change',
+        ContractService__c = service.Id,
+        historystatus__c = 'Estimate',
+        Type__c = 'Change',
+        Version__c = 2,
+        PreviousHistory__c = previous.Id,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        changeEstimate,
+        account.Id
+      );
+      insert changeEstimate;
+
+      Test.startTest();
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY
+      );
+      ContractWizardFieldService.getActiveFieldApiNames(
+        ContractWizardFieldService.WizardTarget.ContractHistory
+      );
+      EstimateQueryService.lastRenewEligibleProductLoadIds = new Set<Id>();
+      EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
+        changeEstimate.Id
+      );
+      Set<Id> loadedProductHistoryIds = EstimateQueryService.lastRenewEligibleProductLoadIds;
+      Test.stopTest();
+
+      System.assertEquals(
+        false,
+        loadedProductHistoryIds.contains(previous.Id),
+        'Core 第4.3.11節・第12.4節: 1回の取得リクエストの内部で対象の見積商品を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        preset.renewEligible,
+        'Core 第4.3.3節: 期末継続課金があれば更新可'
+      );
+    }
+  }
+
+  @IsTest
   static void getProductDefaults_rejectsUnavailable_andReturnsAvailable() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       System.assertEquals(

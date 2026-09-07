@@ -1171,11 +1171,19 @@ public without sharing class InvoiceProductFieldCopyService {
         sources.put(OBJECT_BILLING_ACCOUNT, maps.billingAccountById.get(baId));
       }
       Id histId = (Id) record.get('ContractHistory__c');
+      // 仕様: Core 第11.4.2節。請求書の From に商談がある。分割の新規も空欄へ。
       if (histId != null && maps.contractHistoryById.containsKey(histId)) {
-        sources.put(
-          OBJECT_CONTRACT_HISTORY,
-          maps.contractHistoryById.get(histId)
-        );
+        ContractHistory__c history = maps.contractHistoryById.get(histId);
+        sources.put(OBJECT_CONTRACT_HISTORY, history);
+        if (
+          history.Opportunity__c != null &&
+          maps.opportunityById.containsKey(history.Opportunity__c)
+        ) {
+          sources.put(
+            OBJECT_OPPORTUNITY,
+            maps.opportunityById.get(history.Opportunity__c)
+          );
+        }
       }
       Id accountId = maps.accountIdByServiceId.get(serviceId);
       if (
