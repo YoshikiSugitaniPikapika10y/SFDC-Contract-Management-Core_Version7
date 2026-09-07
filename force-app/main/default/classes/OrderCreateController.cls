@@ -24,6 +24,9 @@ public without sharing class OrderCreateController {
   public static Integer renewProductSelectCount = 0;
   @TestVisible
   public static Integer previewInvoiceSelectCount = 0;
+  /** 仕様: Core 第12.4節。開く取得の手直し集計が期間明細を取り直した回数。 */
+  @TestVisible
+  public static Integer previewPeriodSelectCount = 0;
   @TestVisible
   public static Integer draftLineSelectCount = 0;
   /** 仕様: Core 第12.4節。Ordered集計が取った履歴Id。入口で読んだ対象は含めない。 */
@@ -1187,7 +1190,10 @@ public without sharing class OrderCreateController {
       displayTaxPercent,
       estimateSummary
     );
-    applyManualAdjustmentAmounts(preview);
+    applyManualAdjustmentAmounts(
+      preview,
+      InvoicePreviewIntegrityService.lastLoadedPeriods
+    );
     applyEstimateDriftToLines(preview);
     preview.sourceHistoryVersion = sourceHistory.Version__c == null
       ? null
@@ -3856,12 +3862,16 @@ public without sharing class OrderCreateController {
   }
 
   /**
+   * 仕様: Core 第12.4節、第4.3.11節、第7.7.0節。
    * 端数調整実績 = 由来付き請求明細の金額合計 − 由来 InvoiceProduct 金額合計。
    * 請求日／BA 金額分割で同一期間 ID が明細間に重複しても、期間 ID は重複排除する
    * （明細ごとに由来合計を引くと偽の大きなマイナスになる）。
-   * Version 別も同じ定義。
+   * Version 別も同じ定義。履歴一致検査で読んだ期間明細は取り直さない。
    */
-  private static void applyManualAdjustmentAmounts(InvoicePreviewDto preview) {
+  private static void applyManualAdjustmentAmounts(
+    InvoicePreviewDto preview,
+    Map<Id, InvoiceProduct__c> knownPeriods
+  ) {
     if (preview == null) {
       return;
     }
@@ -3892,11 +3902,30 @@ public without sharing class OrderCreateController {
 
     Map<Id, Decimal> sourceAmountById = new Map<Id, Decimal>();
     Map<Id, Id> contractProductBySourceId = new Map<Id, Id>();
-    if (!sourceIds.isEmpty()) {
+    Map<Id, InvoiceProduct__c> loadedPeriods = knownPeriods == null
+      ? new Map<Id, InvoiceProduct__c>()
+      : knownPeriods;
+    Set<Id> missingSourceIds = new Set<Id>();
+    for (Id sourceId : sourceIds) {
+      if (loadedPeriods.containsKey(sourceId)) {
+        InvoiceProduct__c source = loadedPeriods.get(sourceId);
+        sourceAmountById.put(
+          source.Id,
+          source.Amount__c == null ? 0 : source.Amount__c
+        );
+        if (source.ContractProduct__c != null) {
+          contractProductBySourceId.put(source.Id, source.ContractProduct__c);
+        }
+      } else {
+        missingSourceIds.add(sourceId);
+      }
+    }
+    if (!missingSourceIds.isEmpty()) {
+      previewPeriodSelectCount++;
       for (InvoiceProduct__c source : [
         SELECT Id, Amount__c, ContractProduct__c
         FROM InvoiceProduct__c
-        WHERE Id IN :sourceIds
+        WHERE Id IN :missingSourceIds
         WITH SYSTEM_MODE
       ]) {
         sourceAmountById.put(

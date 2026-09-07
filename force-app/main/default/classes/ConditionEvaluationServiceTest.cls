@@ -175,7 +175,7 @@ private class ConditionEvaluationServiceTest {
         ConditionSet__c = conditionSet.Id,
         Sequence__c = 2,
         TargetObject__c = 'ContractProduct__c',
-        TargetField__c = 'Name',
+        TargetField__c = 'Description__c',
         Operator__c = 'IsNotNull'
       )
     };
@@ -186,7 +186,9 @@ private class ConditionEvaluationServiceTest {
       'Accounting 第4.7節: Contextに関連が無ければ空として評価する'
     );
     context.account = new Account(Name = '関連取引先');
-    context.contractProduct = new ContractProduct__c(Name = '関連契約商品');
+    context.contractProduct = new ContractProduct__c(
+      Description__c = '関連契約商品'
+    );
     System.assertEquals(
       true,
       ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
@@ -199,8 +201,7 @@ private class ConditionEvaluationServiceTest {
     GlConditionSet__c conditionSet = new GlConditionSet__c(
       Name = 'Eval Or Set',
       EvaluationContext__c = 'Invoice',
-      Description__c = 'OR',
-      ConditionLogic__c = '1 OR 2'
+      Description__c = 'OR'
     );
     insert conditionSet;
     insert new List<GlConditionRule__c>{
@@ -221,11 +222,32 @@ private class ConditionEvaluationServiceTest {
         Operator__c = 'IsNotNull'
       )
     };
+    conditionSet.ConditionLogic__c = '1 OR 2';
+    update conditionSet;
+    GlConditionSet__c loadedSet = [
+      SELECT Id, ConditionLogic__c
+      FROM GlConditionSet__c
+      WHERE Id = :conditionSet.Id
+    ];
+    List<GlConditionRule__c> loadedRules = [
+      SELECT Sequence__c, TargetObject__c, TargetField__c, Operator__c
+      FROM GlConditionRule__c
+      WHERE ConditionSet__c = :loadedSet.Id
+      ORDER BY Sequence__c
+    ];
+    System.assertEquals(
+      '1 OR 2',
+      loadedSet.ConditionLogic__c,
+      'Accounting 第4.7節: 条件ロジックは保存する'
+    );
+    System.assertEquals(2, loadedRules.size());
+    System.assertEquals(1, loadedRules[0].Sequence__c);
+    System.assertEquals(2, loadedRules[1].Sequence__c);
     ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
     context.invoice = new Invoice__c(Memo__c = 'あり');
     System.assertEquals(
       true,
-      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      ConditionEvaluationService.evaluateTenant(loadedSet.Id, context),
       'Accounting 第4.7節: 条件ロジックの OR を評価する'
     );
   }

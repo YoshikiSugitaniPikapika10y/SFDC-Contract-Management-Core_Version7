@@ -533,6 +533,122 @@ private class EstimateSendBoardControllerTest {
   }
 
   @IsTest
+  static void sendEstimateFromRecordPage_reusesCollectedOrgSettingForFrom() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractHistory__c history = createEstimate('org-from@example.com');
+      history = [
+        SELECT Id
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_ESTIMATE,
+        'EstimateMail'
+      );
+      ContractDocumentSettingService.clearCache();
+      ContractDocumentSetting__c collected = [
+        SELECT Id, EstimateOrgWideEmailAddress__c, EstimateSendMode__c
+        FROM ContractDocumentSetting__c
+        WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+        LIMIT 1
+      ];
+      System.assertEquals(
+        'PdfAndEmail',
+        collected.EstimateSendMode__c,
+        'Core 第4.10節: 送付はPDFとメール送付'
+      );
+      System.assertEquals(
+        false,
+        String.isBlank(collected.EstimateOrgWideEmailAddress__c),
+        'Core 第4.8節: 収集済みに見積用組織送信元がある'
+      );
+      ContractDocumentSettingService.requireOrgSetting();
+      ContractDocumentSetting__c dbRow = [
+        SELECT Id, EstimateOrgWideEmailAddress__c
+        FROM ContractDocumentSetting__c
+        WHERE Id = :collected.Id
+      ];
+      dbRow.EstimateOrgWideEmailAddress__c = null;
+      update dbRow;
+
+      EstimateSendBoardController.SendPreviewDto preview = EstimateSendBoardController.previewEstimateFromRecordPage(
+        history.Id,
+        'StandardEstimate',
+        'EstimateMail',
+        EstimateSendBoardController.FROM_ORG
+      );
+      System.assertEquals(
+        EstimateSendBoardController.FROM_ORG,
+        preview.fromChoice,
+        'Core 第4.8節: 組織を選んだときのFrom'
+      );
+      System.assertEquals(
+        collected.EstimateOrgWideEmailAddress__c,
+        preview.orgWideEmailAddress,
+        'Core 第12.4節・第4.8節: Fromは収集済みの見積用組織送信元'
+      );
+
+      EstimateSendBoardController.SendDraftDto draft = new EstimateSendBoardController.SendDraftDto();
+      draft.fileName = 'estimate-org-from.pdf';
+      draft.attachmentId = EstimateSendBoardController.ATTACHMENT_NEW;
+      draft.fromChoice = EstimateSendBoardController.FROM_ORG;
+      EstimateSendBoardController.skipEmailSend = true;
+      try {
+        EstimateSendBoardController.ActionResultDto result = EstimateSendBoardController.sendEstimateFromRecordPage(
+          history.Id,
+          'StandardEstimate',
+          'EstimateMail',
+          currentToken(history.Id),
+          draft
+        );
+        System.assertNotEquals(
+          null,
+          result.sentAt,
+          'Core 第4.8節: 組織Fromの送付成功で見積送付日を設定する'
+        );
+      } finally {
+        EstimateSendBoardController.skipEmailSend = false;
+      }
+    }
+  }
+
+  @IsTest
+  static void sendEstimateFromRecordPage_rejectsPdfOnly() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractHistory__c history = createEstimate('pdf-only@example.com');
+      history = [
+        SELECT Id
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      ContractDocumentSetting__c setting = [
+        SELECT Id, EstimateSendMode__c
+        FROM ContractDocumentSetting__c
+        WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+        LIMIT 1
+      ];
+      setting.EstimateSendMode__c = 'PdfOnly';
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      try {
+        EstimateSendBoardController.sendEstimateFromRecordPage(
+          history.Id,
+          'StandardEstimate',
+          'EstimateMail',
+          currentToken(history.Id)
+        );
+        System.assert(false, 'PDFのみでは送れない');
+      } catch (AuraHandledException ex) {
+        System.assertEquals(
+          'PDFとメール送付のときだけメール送付できます。',
+          ex.getMessage(),
+          'Core 第4.8節・第4.10節: 3択拒否は変えない'
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void getBoardContext_initialSelectionUsesCatalogDefault() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateSendBoardController.BoardContextDto context = EstimateSendBoardController.getBoardContext();

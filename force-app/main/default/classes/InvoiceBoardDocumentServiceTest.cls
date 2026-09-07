@@ -292,6 +292,113 @@ private class InvoiceBoardDocumentServiceTest {
   }
 
   @IsTest
+  static void sendFromPreview_scoped_reusesLockedInvoiceWithoutCount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfAndEmail';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        'InvoiceMail'
+      );
+
+      Invoice__c created = createConfirmedInvoice();
+      Invoice__c loaded = [
+        SELECT
+          Id,
+          ContractHistory__c,
+          ContractService__c,
+          InvoiceTransactionStatus__c,
+          DeliveryStatus__c,
+          SentDate__c,
+          SystemIntegrationDate__c,
+          BillingEmailToSnapShot__c,
+          BillingEmailCcSnapShot__c,
+          BillingEmailBccSnapShot__c,
+          InvoiceDeliveryMethodSnapShot__c,
+          Amount__c,
+          TaxAmount__c,
+          TaxInclusiveAmount__c
+        FROM Invoice__c
+        WHERE Id = :created.Id
+      ];
+      InvoiceBoardDocumentService.SendDraftDto draft = new InvoiceBoardDocumentService.SendDraftDto();
+      draft.toAddresses = loaded.BillingEmailToSnapShot__c;
+      draft.ccAddresses = '';
+      draft.bccAddresses = '';
+      draft.subject = '件名';
+      draft.body = '本文';
+      draft.fileName = 'invoice-send-scope.pdf';
+      draft.attachmentId = InvoiceBoardDocumentService.ATTACHMENT_NEW;
+      InvoiceBoardDocumentService.skipEmailSend = true;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        Test.startTest();
+        InvoiceBoardDocumentService.sendFromPreview(
+          loaded.Id,
+          'StandardInvoice',
+          'InvoiceMail',
+          null,
+          draft
+        );
+        Integer beforeScoped = Limits.getQueries();
+        InvoiceBoardDocumentService.DocumentResultDto scoped = InvoiceBoardDocumentService.sendFromPreview(
+          loaded.Id,
+          'StandardInvoice',
+          'InvoiceMail',
+          null,
+          draft,
+          loaded.ContractHistory__c
+        );
+        Integer usedScoped = Limits.getQueries() - beforeScoped;
+        Integer beforeIdOnly = Limits.getQueries();
+        InvoiceBoardDocumentService.DocumentResultDto idOnly = InvoiceBoardDocumentService.sendFromPreview(
+          loaded.Id,
+          'StandardInvoice',
+          'InvoiceMail',
+          null,
+          draft
+        );
+        Integer usedIdOnly = Limits.getQueries() - beforeIdOnly;
+        Test.stopTest();
+
+        System.assertEquals(
+          usedIdOnly,
+          usedScoped,
+          'Core 第12.4節・第7.10節: 範囲COUNTのあと行ロックで同じ請求を取り直さない'
+        );
+        System.assertNotEquals(
+          null,
+          scoped.sentAt,
+          'Core 第7.10節: 送付結果は変えない'
+        );
+        System.assertEquals(idOnly.documentTemplateKey, scoped.documentTemplateKey);
+        System.assertEquals(
+          InvoiceDeliveryMethodService.EMAIL,
+          loaded.InvoiceDeliveryMethodSnapShot__c,
+          '開発ルール第13節: 入口はSOQL行の届け方スナップショットを読む'
+        );
+        System.assertEquals(
+          ContractTestDataFactory.TENANT_BILLING_EMAIL_TO,
+          loaded.BillingEmailToSnapShot__c,
+          '開発ルール第13節: 入口はSOQL行のToスナップショットを読む'
+        );
+        System.assertEquals(
+          InvoiceTransactionStatusService.TX_CONFIRMED,
+          loaded.InvoiceTransactionStatus__c,
+          '開発ルール第13節: 入口はSOQL行の取引状態を読む'
+        );
+      } finally {
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+        InvoiceBoardDocumentService.skipEmailSend = false;
+      }
+    }
+  }
+
+  @IsTest
   static void sendFromPreview_jsonDraftKeepsFileName() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
@@ -780,7 +887,12 @@ private class InvoiceBoardDocumentServiceTest {
     );
     ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
     invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
-    invoice.SystemIntegrationDate__c = Date.today();
+    invoice.SystemIntegrationDate__c = InvoiceTransactionStatusService.organizationToday();
+    invoice.DeliveryStatus__c = InvoiceDeliveryMethodService.EMAIL.equals(
+        deliveryMethod
+      )
+      ? InvoiceTransactionStatusService.DELIVERY_UNSENT
+      : InvoiceTransactionStatusService.DELIVERY_NOT_APPLICABLE;
     ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
     return invoice;
   }

@@ -2,6 +2,10 @@ public without sharing class ConditionEvaluationService {
   public class EvaluationException extends Exception {
   }
 
+  private static Map<String, Schema.SObjectType> cachedGlobalDescribe;
+  private static Map<String, Map<String, Schema.SObjectField>> cachedFieldsByObject;
+  private static Map<String, Schema.DescribeFieldResult> cachedFieldDescribes;
+
   private static final Map<String, Set<String>> REACHABLE_OBJECTS = new Map<String, Set<String>>{
     'InvoiceLine' => new Set<String>{
       'InvoiceLine__c',
@@ -698,6 +702,7 @@ public without sharing class ConditionEvaluationService {
     return cursor.tokens[cursor.index];
   }
 
+  /** 仕様: Accounting 第8.2節。条件の成否は変えない。同一処理の項目describeと全体describeは取り直さない。 */
   private static Schema.DescribeFieldResult describeField(
     String objectApiName,
     String fieldApiName
@@ -705,17 +710,36 @@ public without sharing class ConditionEvaluationService {
     if (String.isBlank(objectApiName) || String.isBlank(fieldApiName)) {
       return null;
     }
-    Schema.SObjectType objectType = Schema.getGlobalDescribe()
-      .get(objectApiName);
+    String cacheKey = objectApiName + '\n' + fieldApiName;
+    if (cachedFieldDescribes != null && cachedFieldDescribes.containsKey(cacheKey)) {
+      return cachedFieldDescribes.get(cacheKey);
+    }
+    if (cachedGlobalDescribe == null) {
+      cachedGlobalDescribe = Schema.getGlobalDescribe();
+    }
+    Schema.SObjectType objectType = cachedGlobalDescribe.get(objectApiName);
     if (objectType == null) {
       return null;
     }
-    Map<String, Schema.SObjectField> fields = objectType.getDescribe()
-      .fields.getMap();
+    if (cachedFieldsByObject == null) {
+      cachedFieldsByObject = new Map<String, Map<String, Schema.SObjectField>>();
+    }
+    Map<String, Schema.SObjectField> fields = cachedFieldsByObject.get(
+      objectApiName
+    );
+    if (fields == null) {
+      fields = objectType.getDescribe().fields.getMap();
+      cachedFieldsByObject.put(objectApiName, fields);
+    }
     if (!fields.containsKey(fieldApiName)) {
       return null;
     }
-    return fields.get(fieldApiName).getDescribe();
+    Schema.DescribeFieldResult described = fields.get(fieldApiName).getDescribe();
+    if (cachedFieldDescribes == null) {
+      cachedFieldDescribes = new Map<String, Schema.DescribeFieldResult>();
+    }
+    cachedFieldDescribes.put(cacheKey, described);
+    return described;
   }
 
   private static Boolean operatorMatchesType(

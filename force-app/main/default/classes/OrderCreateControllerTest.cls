@@ -421,6 +421,73 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_doesNotRereadPeriodLinesForManualAdjustment() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+
+      List<InvoiceLine__c> lines = [
+        SELECT Amount__c, SourcePeriodLineIds__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :context.history.Id
+      ];
+      Set<Id> periodIds = new Set<Id>();
+      Decimal lineTotal = 0;
+      for (InvoiceLine__c line : lines) {
+        if (String.isBlank(line.SourcePeriodLineIds__c)) {
+          continue;
+        }
+        lineTotal += line.Amount__c == null ? 0 : line.Amount__c;
+        for (String part : line.SourcePeriodLineIds__c.split(',')) {
+          String trimmed = part == null ? null : part.trim();
+          if (String.isBlank(trimmed)) {
+            continue;
+          }
+          periodIds.add((Id) trimmed);
+        }
+      }
+      Decimal periodTotal = 0;
+      for (InvoiceProduct__c period : [
+        SELECT Amount__c
+        FROM InvoiceProduct__c
+        WHERE Id IN :periodIds
+      ]) {
+        periodTotal += period.Amount__c == null ? 0 : period.Amount__c;
+      }
+      Decimal expectedAdjustment = lineTotal - periodTotal;
+
+      OrderCreateController.previewPeriodSelectCount = 0;
+      InvoicePreviewIntegrityService.lastLoadedPeriods = new Map<Id, InvoiceProduct__c>();
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        false,
+        periodIds.isEmpty(),
+        'Core 第7.7.0節: 生成元期間明細がある請求で入口を見る'
+      );
+      System.assertEquals(
+        periodIds,
+        InvoicePreviewIntegrityService.lastLoadedPeriods.keySet(),
+        'Core 第12.4節: 履歴一致検査が期間明細を読む'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewPeriodSelectCount,
+        'Core 第12.4節・第4.3.11節・第7.7.0節: 同一取得で手直し集計が同じ期間明細を取り直さない'
+      );
+      System.assertEquals(
+        expectedAdjustment,
+        preview.manualAdjustmentAmount,
+        'Core 第7.7.0節: 手直し額は変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_nullId_returnsEmptyDefaults() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(

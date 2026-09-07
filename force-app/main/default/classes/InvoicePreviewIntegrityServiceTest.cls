@@ -367,13 +367,24 @@ private class InvoicePreviewIntegrityServiceTest {
     productOnB.Amount__c = 1000;
     insert productOnB;
 
+    InvoiceProductFieldCopyService.resetCache();
+    ContractService__c billedService = [
+      SELECT Id, Account__c, BiilingAcccount__c
+      FROM ContractService__c
+      WHERE Id = :service.Id
+    ];
+    InvoiceProductFieldCopyService.rememberRecords(
+      new List<SObject>{ billedService },
+      new Set<String>{ 'Id', 'Account__c', 'BiilingAcccount__c' }
+    );
+
     Invoice__c invoice = new Invoice__c(
-      ContractService__c = service.Id,
+      ContractService__c = billedService.Id,
       ContractHistory__c = historyA.Id,
       InvoiceDate__c = termStart,
       Amount__c = 1000,
       TaxAmount__c = 100,
-      BillingAccountSnapShot__c = service.BiilingAcccount__c
+      BillingAccountSnapShot__c = billedService.BiilingAcccount__c
     );
     ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
     ContractTestDataFactory.applyRequiredFields(invoice);

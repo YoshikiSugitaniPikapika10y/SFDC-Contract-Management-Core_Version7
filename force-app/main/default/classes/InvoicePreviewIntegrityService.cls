@@ -3,9 +3,15 @@
  */
 public without sharing class InvoicePreviewIntegrityService {
   public static final String MISMATCH_MESSAGE = '請求書と配下明細の契約履歴が一致しません。表示も編集も確定もできません。';
+  /**
+   * 仕様: Core 第12.4節、第4.3.11節、第7.7.0節。
+   * 開く取得の履歴一致検査で読んだ期間明細。手直し集計は取り直さない。
+   */
+  public static Map<Id, InvoiceProduct__c> lastLoadedPeriods = new Map<Id, InvoiceProduct__c>();
 
-  /** 仕様: Core 第7.7.0節 */
+  /** 仕様: Core 第7.7.0節、第12.4節 */
   public static void assertSameHistory(Id contractHistoryId, List<Invoice__c> invoices) {
+    lastLoadedPeriods = new Map<Id, InvoiceProduct__c>();
     if (invoices == null || invoices.isEmpty()) {
       return;
     }
@@ -98,11 +104,12 @@ public without sharing class InvoicePreviewIntegrityService {
       return;
     }
     for (InvoiceProduct__c period : [
-      SELECT Id, ContractHistory__c
+      SELECT Id, ContractHistory__c, Amount__c, ContractProduct__c
       FROM InvoiceProduct__c
       WHERE Id IN :periodIds
       WITH SYSTEM_MODE
     ]) {
+      lastLoadedPeriods.put(period.Id, period);
       if (period.ContractHistory__c == null) {
         throw new IntegrityException(MISMATCH_MESSAGE);
       }

@@ -108,7 +108,10 @@ public without sharing class EstimateSendBoardController {
     @AuraEnabled public Datetime sentAt;
   }
 
-  /** 仕様: Core 第11.3節、第11.3.2節、第4.3.11節、共通基盤 第1.4節・第3.3節。送る入口は 05。設定wireだけcacheable。 */
+  /** 仕様: Core 第12.4節、第4.3.11節。同一取得で組織設定と帳票・メールカタログを取り直さない。 */
+  private static Map<String, String> orgFromLabelByAddress = new Map<String, String>();
+
+  /** 仕様: Core 第11.3節、第11.3.2節、第4.3.11節、第12.4節、共通基盤 第1.4節・第3.3節。送る入口は 05。設定wireだけcacheable。 */
   @AuraEnabled
   public static BoardContextDto getBoardContext() {
     try {
@@ -121,36 +124,48 @@ public without sharing class EstimateSendBoardController {
       result.featureEnabled =
         ContractDocumentSettingService.requireSendMode('Estimate') !=
         ContractDocumentSettingService.MODE_UNUSED;
-      result.documentTemplateOptions = new List<SelectOptionDto>();
-      for (
-        ContractDocumentTemplateService.TemplateDefinition definition :
+      List<ContractDocumentTemplateService.TemplateDefinition> documentTemplates =
         ContractDocumentTemplateService.getActiveTemplates(
           ContractDocumentTemplateService.TYPE_ESTIMATE
-        )
+        );
+      result.documentTemplateOptions = new List<SelectOptionDto>();
+      String documentDefault = null;
+      Integer documentDefaults = 0;
+      for (
+        ContractDocumentTemplateService.TemplateDefinition definition : documentTemplates
       ) {
         result.documentTemplateOptions.add(
           option(definition.label, definition.templateKey)
         );
+        if (definition.isDefault == true) {
+          documentDefaults++;
+          documentDefault = definition.templateKey;
+        }
       }
-      result.emailTemplateOptions = new List<SelectOptionDto>();
-      for (
-        ContractEmailTemplateService.EmailTemplateDefinition definition :
+      List<ContractEmailTemplateService.EmailTemplateDefinition> emailTemplates =
         ContractEmailTemplateService.getActiveTemplates(
           ContractEmailTemplateService.TYPE_ESTIMATE
-        )
+        );
+      result.emailTemplateOptions = new List<SelectOptionDto>();
+      String emailDefault = null;
+      Integer emailDefaults = 0;
+      for (
+        ContractEmailTemplateService.EmailTemplateDefinition definition : emailTemplates
       ) {
         result.emailTemplateOptions.add(
           option(definition.label, definition.apiName)
         );
+        if (definition.isDefault == true) {
+          emailDefaults++;
+          emailDefault = definition.apiName;
+        }
       }
-      result.defaultDocumentTemplateKey =
-        ContractDocumentTemplateService.initialSelectionKey(
-          ContractDocumentTemplateService.TYPE_ESTIMATE
-        );
-      result.defaultEmailTemplateApiName =
-        ContractEmailTemplateService.initialSelectionApiName(
-          ContractEmailTemplateService.TYPE_ESTIMATE
-        );
+      result.defaultDocumentTemplateKey = documentDefaults == 1
+        ? documentDefault
+        : null;
+      result.defaultEmailTemplateApiName = emailDefaults == 1
+        ? emailDefault
+        : null;
       result.listLimit = LIST_LIMIT;
       result.defaultFromChoice = FROM_SELF;
       result.operatorEmail = UserInfo.getUserEmail();
@@ -604,17 +619,25 @@ public without sharing class EstimateSendBoardController {
     return addresses;
   }
 
+  /** 仕様: Core 第12.4節、第4.3.11節、第4.8節。Fromラベルは収集済み見積用組織送信元。同一取得でOWEを取り直さない。 */
   private static String formatEstimateOrgFromLabel(String savedAddress) {
     if (String.isBlank(savedAddress)) {
       return '';
     }
+    String trimmed = savedAddress.trim();
+    if (orgFromLabelByAddress.containsKey(trimmed)) {
+      return orgFromLabelByAddress.get(trimmed);
+    }
+    String label;
     try {
-      return ContractEmailTemplateService.formatOrgWideFrom(
+      label = ContractEmailTemplateService.formatOrgWideFrom(
         ContractEmailTemplateService.resolveOrgWide(savedAddress)
       );
     } catch (ContractEmailTemplateService.EmailTemplateException ex) {
-      return savedAddress.trim();
+      label = trimmed;
     }
+    orgFromLabelByAddress.put(trimmed, label);
+    return label;
   }
 
   /** 仕様: Core 第7.10節。カンマ区切り。255文字以内。前後空白除去。空の区切りは無視。 */
@@ -833,17 +856,13 @@ public without sharing class EstimateSendBoardController {
       ContractDocumentSettingService.MODE_PDF_AND_EMAIL;
   }
 
+  /** 仕様: Core 第12.4節、第4.8節、第7.10節。組織設定は収集済みを使う。Fromは見積用組織送信元。 */
   private static ContractDocumentSetting__c loadOrganizationSetting() {
-    List<ContractDocumentSetting__c> settings = [
-      SELECT
-        EstimateSendMode__c,
-        EstimateOrgWideEmailAddress__c
-      FROM ContractDocumentSetting__c
-      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    return settings.isEmpty() ? new ContractDocumentSetting__c() : settings[0];
+    try {
+      return ContractDocumentSettingService.requireOrgSetting();
+    } catch (ContractDocumentSettingService.SettingException ex) {
+      return new ContractDocumentSetting__c();
+    }
   }
 
   private static SelectOptionDto option(String label, String value) {
