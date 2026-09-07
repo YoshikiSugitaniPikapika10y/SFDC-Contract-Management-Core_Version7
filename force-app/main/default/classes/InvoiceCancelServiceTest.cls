@@ -49,6 +49,56 @@ private class InvoiceCancelServiceTest {
   }
 
   @IsTest
+  static void cancelConfirmed_knownLockedInvoice_skipsSecondLock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c first = insertConfirmedInvoice('CancelKnownLockA');
+      Invoice__c second = insertConfirmedInvoice('CancelKnownLockB');
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(first.Id);
+      InvoiceCancelService.CancelRequest known = new InvoiceCancelService.CancelRequest();
+      known.invoiceId = first.Id;
+      known.cancellationReason = 'Duplicate';
+      known.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        first.Id
+      );
+      known.knownLockedInvoice = locked;
+      InvoiceCancelService.CancelRequest full = new InvoiceCancelService.CancelRequest();
+      full.invoiceId = second.Id;
+      full.cancellationReason = 'Duplicate';
+      full.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        second.Id
+      );
+
+      Test.startTest();
+      Integer beforeFull = Limits.getQueries();
+      InvoiceCancelService.cancelConfirmed(full);
+      Integer usedFull = Limits.getQueries() - beforeFull;
+      Integer beforeKnown = Limits.getQueries();
+      InvoiceCancelService.CancelResult knownResult = InvoiceCancelService.cancelConfirmed(
+        known
+      );
+      Integer usedKnown = Limits.getQueries() - beforeKnown;
+      Test.stopTest();
+
+      System.assert(
+        usedKnown < usedFull,
+        'Core 第12.4節・Accounting 第8.2節: ロック済み請求を取り直さない'
+      );
+      System.assertEquals(first.Id, knownResult.cancelledInvoiceId);
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CANCELLED,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :first.Id
+        ]
+        .InvoiceTransactionStatus__c,
+        'Core 第7.9.3節: 範囲内の確定済みは取り消す'
+      );
+    }
+  }
+
+  @IsTest
   static void cancelConfirmed_doesNotCopyMergeKey_andAssignsNewName() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

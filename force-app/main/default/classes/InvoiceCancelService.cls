@@ -9,6 +9,7 @@ public without sharing class InvoiceCancelService {
     public Date cancellationDate;
     public String businessOperationKey;
     public String expectedToken;
+    public Invoice__c knownLockedInvoice;
   }
 
   public class CancelResult {
@@ -19,7 +20,7 @@ public without sharing class InvoiceCancelService {
     public String businessOperationKey;
   }
 
-  /** 仕様: Core 第7.9.3節、第7.9.6節、第7.10節、日付仕様 第7.3節、Accounting 第8.2節、第8.8節 */
+  /** 仕様: Core 第7.9.3節、第7.9.6節、第7.10節、日付仕様 第7.3節、Accounting 第8.2節、第8.8節、Core 第12.4節 */
   public static CancelResult cancelConfirmed(CancelRequest request) {
     ContractPermissionUtil.assertCancelInvoice();
     if (request == null || request.invoiceId == null) {
@@ -31,7 +32,11 @@ public without sharing class InvoiceCancelService {
     if (request.cancellationReason == 'Other' && String.isBlank(request.cancellationReasonText)) {
       throw new CancelException('取消理由がその他のときは内容を入力してください。');
     }
-    Invoice__c invoice = AccountingCauseLockService.lockInvoice(request.invoiceId);
+    Invoice__c invoice =
+      request.knownLockedInvoice != null &&
+      request.knownLockedInvoice.Id == request.invoiceId
+        ? request.knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(request.invoiceId);
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       request.businessOperationKey
     );

@@ -2494,7 +2494,7 @@ public without sharing class OrderCreateController {
     );
   }
 
-  /** 仕様: Core 第7.9.3節、第7.9.7節 */
+  /** 仕様: Core 第7.9.3節、第7.9.7節、第12.4節、Accounting 第8.2節。 */
   @AuraEnabled
   public static InvoicePreviewDto cancelConfirmedFromPreview(
     Id contractHistoryId,
@@ -2509,17 +2509,19 @@ public without sharing class OrderCreateController {
     if (contractHistoryId == null || invoiceId == null) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
-    Id contractServiceId = resolveContractServiceId(contractHistoryId);
-    if (contractServiceId == null) {
+    Invoice__c lockedInvoice;
+    try {
+      lockedInvoice = AccountingCauseLockService.lockInvoice(invoiceId);
+    } catch (AccountingCauseLockService.LockException ex) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
-    Integer inScopeInvoices = [
-      SELECT COUNT()
-      FROM Invoice__c
-      WHERE Id = :invoiceId AND ContractService__c = :contractServiceId
-      WITH SYSTEM_MODE
-    ];
-    if (inScopeInvoices != 1) {
+    try {
+      InvoiceOpsController.assertInvoicesInScope(
+        contractHistoryId,
+        new List<Id>{ invoiceId },
+        lockedInvoice
+      );
+    } catch (AuraHandledException ex) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
     try {
@@ -2530,6 +2532,7 @@ public without sharing class OrderCreateController {
       request.cancellationDate = cancellationDate;
       request.businessOperationKey = businessOperationKey;
       request.expectedToken = expectedContentVersion;
+      request.knownLockedInvoice = lockedInvoice;
       InvoiceCancelService.cancelConfirmed(request);
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());

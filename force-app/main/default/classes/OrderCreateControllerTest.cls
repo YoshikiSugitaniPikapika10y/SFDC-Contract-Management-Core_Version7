@@ -881,6 +881,107 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void cancelConfirmedFromPreview_rejectsInvoiceOutsideContractService() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext own = createEstimateContext();
+      OrderCreateController.confirmOrder(own.history.Id, null, false);
+
+      Test.startTest();
+      OrderTestContext other = createEstimateContext();
+      OrderCreateController.confirmOrder(other.history.Id, null, false);
+      Invoice__c otherInvoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :other.history.Id
+        LIMIT 1
+      ];
+      otherInvoice.SystemIntegrationDate__c = Date.today();
+      otherInvoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      update otherInvoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+
+      Boolean rejected = false;
+      try {
+        OrderCreateController.cancelConfirmedFromPreview(
+          own.history.Id,
+          otherInvoice.Id,
+          'Duplicate',
+          null,
+          null,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assertEquals(
+          OrderCreateController.PREVIEW_SCOPE_MISMATCH_MESSAGE,
+          ex.getMessage()
+        );
+      }
+      Test.stopTest();
+
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第7.7.3節: 契約サービスをまたいで請求取消できない'
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CONFIRMED,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :otherInvoice.Id
+        ]
+        .InvoiceTransactionStatus__c
+      );
+    }
+  }
+
+  @IsTest
+  static void cancelConfirmedFromPreview_cancelsConfirmedInScope() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      invoice.SystemIntegrationDate__c = Date.today();
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+
+      Test.startTest();
+      OrderCreateController.cancelConfirmedFromPreview(
+        context.history.Id,
+        invoice.Id,
+        'Duplicate',
+        null,
+        null,
+        token
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CANCELLED,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+        .InvoiceTransactionStatus__c,
+        'Core 第7.9.3節: 範囲内の確定済みは取り消す'
+      );
+    }
+  }
+
+  @IsTest
   static void updateInvoiceLineAcceptanceEndDate_withoutEditPermission_throws() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
