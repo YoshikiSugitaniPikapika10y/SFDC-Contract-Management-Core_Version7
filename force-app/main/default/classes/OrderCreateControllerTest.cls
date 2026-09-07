@@ -599,6 +599,51 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void confirmOrder_writesInvoicingPathWithoutRereadingHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      ContractHistory__c locked = [
+        SELECT
+          Id,
+          Type__c,
+          historystatus__c,
+          StatusPath__c,
+          InvoiceCount__c
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ];
+      System.assertEquals('Estimate', locked.historystatus__c);
+      ContractHistoryStatusPathService.invoiceParentSelectCount = 0;
+
+      Test.startTest();
+      OrderCreateController.confirmOrder(locked.Id, null, false);
+      Test.stopTest();
+
+      ContractHistory__c ordered = [
+        SELECT StatusPath__c, InvoiceCount__c, historystatus__c, Type__c
+        FROM ContractHistory__c
+        WHERE Id = :locked.Id
+      ];
+      System.assertEquals('Ordered', ordered.historystatus__c);
+      System.assertEquals('New', ordered.Type__c);
+      System.assert(
+        ordered.InvoiceCount__c > 0,
+        'Core 第5.2節: Cancel以外の受注は請求を作る'
+      );
+      System.assertEquals(
+        'Invoicing',
+        ordered.StatusPath__c,
+        'Core 第5.7節: 取消済みを除く請求があれば請求対応中'
+      );
+      System.assertEquals(
+        0,
+        ContractHistoryStatusPathService.invoiceParentSelectCount,
+        'Core 第12.4節: 同一処理で対象履歴を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void confirmOrder_emptyLastModifiedToken_throws() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
@@ -1193,18 +1238,29 @@ private class OrderCreateControllerTest {
   static void confirmOrder_allowsCancelWithoutProductsAndSkipsInvoices() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createCancelEstimateContext();
+      ContractHistoryStatusPathService.invoiceParentSelectCount = 0;
 
       Test.startTest();
       OrderCreateController.confirmOrder(context.history.Id, null, false);
       Test.stopTest();
 
       ContractHistory__c updated = [
-        SELECT historystatus__c, Type__c
+        SELECT historystatus__c, Type__c, StatusPath__c, InvoiceCount__c
         FROM ContractHistory__c
         WHERE Id = :context.history.Id
       ];
       System.assertEquals('Ordered', updated.historystatus__c);
       System.assertEquals('Cancel', updated.Type__c);
+      System.assertEquals(
+        'Ordered',
+        updated.StatusPath__c,
+        'Core 第5.7節: Cancelは02_受注のまま'
+      );
+      System.assertEquals(
+        0,
+        ContractHistoryStatusPathService.invoiceParentSelectCount,
+        'Core 第12.4節: Cancel受注は請求が無く履歴を取り直さない'
+      );
 
       System.assertEquals(
         0,

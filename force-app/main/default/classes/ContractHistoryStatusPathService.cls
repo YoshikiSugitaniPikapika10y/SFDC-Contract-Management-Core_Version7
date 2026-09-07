@@ -21,6 +21,11 @@ public without sharing class ContractHistoryStatusPathService {
    */
   private static Integer pathSyncDeferDepth = 0;
   private static Set<Id> deferredPathSyncHistoryIds = new Set<Id>();
+  /** 受注遷移で最終 Path を書いた履歴。請求 insert 後の親 SELECT をしない。 */
+  private static Set<Id> orderTransitionPathFinalizedIds = new Set<Id>();
+  /** 仕様: Core 第5.7節・第12.4節。同一処理で対象履歴を取り直さない。 */
+  @TestVisible
+  static Integer invoiceParentSelectCount = 0;
 
   public static void beginPathSyncDefer() {
     pathSyncDeferDepth++;
@@ -30,10 +35,14 @@ public without sharing class ContractHistoryStatusPathService {
     if (pathSyncDeferDepth > 0) {
       pathSyncDeferDepth--;
     }
-    if (pathSyncDeferDepth == 0 && !deferredPathSyncHistoryIds.isEmpty()) {
-      Set<Id> pending = deferredPathSyncHistoryIds;
-      deferredPathSyncHistoryIds = new Set<Id>();
-      syncForInvoiceParentsNow(pending);
+    if (pathSyncDeferDepth == 0) {
+      deferredPathSyncHistoryIds.removeAll(orderTransitionPathFinalizedIds);
+      orderTransitionPathFinalizedIds.clear();
+      if (!deferredPathSyncHistoryIds.isEmpty()) {
+        Set<Id> pending = deferredPathSyncHistoryIds;
+        deferredPathSyncHistoryIds = new Set<Id>();
+        syncForInvoiceParentsNow(pending);
+      }
     }
   }
 
@@ -51,8 +60,22 @@ public without sharing class ContractHistoryStatusPathService {
       if (history == null) {
         continue;
       }
-      String expected = resolvePath(history);
       ContractHistory__c prior = oldMap == null ? null : oldMap.get(history.Id);
+      String expected = resolvePath(history);
+      // 仕様: Core 第5.2節・第5.7節・第12.4節。
+      // Cancel以外の受注は請求が続く。0件の02を書いてから履歴を取り直さない。
+      Boolean pendingInvoicePath =
+        prior != null &&
+        prior.historystatus__c != PATH_ORDERED &&
+        history.historystatus__c == PATH_ORDERED &&
+        history.Type__c != ContractDomainConstants.HISTORY_TYPE_CANCEL &&
+        nullToZero(history.InvoiceCount__c) == 0;
+      if (pendingInvoicePath) {
+        expected = PATH_INVOICING;
+        if (history.Id != null) {
+          orderTransitionPathFinalizedIds.add(history.Id);
+        }
+      }
       if (
         prior != null &&
         history.StatusPath__c != prior.StatusPath__c &&
@@ -74,15 +97,19 @@ public without sharing class ContractHistoryStatusPathService {
     }
     if (pathSyncDeferDepth > 0) {
       deferredPathSyncHistoryIds.addAll(contractHistoryIds);
+      deferredPathSyncHistoryIds.removeAll(orderTransitionPathFinalizedIds);
       return;
     }
-    syncForInvoiceParentsNow(contractHistoryIds);
+    Set<Id> pending = new Set<Id>(contractHistoryIds);
+    pending.removeAll(orderTransitionPathFinalizedIds);
+    syncForInvoiceParentsNow(pending);
   }
 
   private static void syncForInvoiceParentsNow(Set<Id> contractHistoryIds) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
+    invoiceParentSelectCount++;
     List<ContractHistory__c> histories = [
       SELECT
         Id,
