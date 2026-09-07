@@ -535,6 +535,7 @@ private class InvoiceSendBoardControllerTest {
       AccountingCurrentService.currentLoadSelectCount = 0;
       AccountingDiffService.invoiceCopySourceSelectCount = 0;
       AccountingGoalService.allocationLoadSelectCount = 0;
+      AccountingGoalService.lineLoadSelectCount = 0;
       Test.startTest();
       InvoiceSendBoardController.ConfirmResultDto confirmed = InvoiceSendBoardController.confirmInvoiceFromPreview(
         invoice.Id,
@@ -569,6 +570,11 @@ private class InvoiceSendBoardControllerTest {
         0,
         AccountingGoalService.allocationLoadSelectCount,
         'Accounting 第8.4節: 確定時点にInvoice入金が無くても割当を取り直さない'
+      );
+      System.assertEquals(
+        1,
+        AccountingGoalService.lineLoadSelectCount,
+        'Accounting 第8.2節: collectLinesした明細をapplyが取り直さない'
       );
     }
   }

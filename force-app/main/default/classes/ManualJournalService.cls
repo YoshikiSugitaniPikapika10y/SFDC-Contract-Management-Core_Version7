@@ -214,18 +214,9 @@ public without sharing class ManualJournalService {
       request.expectedToken,
       lockedInvoice.LastModifiedDate
     );
+    AccountingCurrentService.load(header.Invoice__c);
     if (header.TransactionStatus__c != 'Active') {
       throw new ManualJournalException('有効な手動仕訳だけ取消できます。');
-    }
-    AccountingDiffService.CancelPreview preview = previewCancel(
-      header.Id,
-      request.cancellationDate,
-      lockedInvoice,
-      header
-    );
-    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
-    if (preview.reverseCount > 0 && request.cancellationDate == null) {
-      throw new ManualJournalException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
     header.TransactionStatus__c = 'Cancelled';
     header.CancellationReason__c = request.cancellationReason;

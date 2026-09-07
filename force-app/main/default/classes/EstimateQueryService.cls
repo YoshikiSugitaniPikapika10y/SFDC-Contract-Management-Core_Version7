@@ -1221,7 +1221,7 @@ public without sharing class EstimateQueryService {
     Id billingAccountId
   ) {
     if (billingAccountId == null) {
-      return getBillingAccountInvoiceSettings((BillingAccount__c) null);
+      return settingsFromLoadedBillingAccount(null);
     }
     List<BillingAccount__c> billingAccounts = [
       SELECT
@@ -1248,7 +1248,7 @@ public without sharing class EstimateQueryService {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    return getBillingAccountInvoiceSettings(
+    return settingsFromLoadedBillingAccount(
       billingAccounts.isEmpty() ? null : billingAccounts[0]
     );
   }
@@ -1256,7 +1256,13 @@ public without sharing class EstimateQueryService {
   /**
    * 仕様: Core 第4.3.11節、第5.2節。同一取得で請求アカウントを取り直さない。
    */
-  public static EstimateCreateController.BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
+  public static EstimateCreateController.BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettingsFromLoaded(
+    BillingAccount__c loaded
+  ) {
+    return settingsFromLoadedBillingAccount(loaded);
+  }
+
+  private static EstimateCreateController.BillingAccountInvoiceSettingsDto settingsFromLoadedBillingAccount(
     BillingAccount__c loaded
   ) {
     EstimateCreateController.BillingAccountInvoiceSettingsDto dto = new EstimateCreateController.BillingAccountInvoiceSettingsDto();

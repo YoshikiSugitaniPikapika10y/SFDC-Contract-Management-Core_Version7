@@ -13,6 +13,8 @@ public without sharing class AccountingDiffService {
   @TestVisible
   static Boolean paymentCancelIncludeManualCandidates;
   private static Map<Id, CancelReasonSnapshot> rememberedManualCancelReasons = new Map<Id, CancelReasonSnapshot>();
+  private static Map<Id, CancelReasonSnapshot> rememberedPaymentCancelReasons = new Map<Id, CancelReasonSnapshot>();
+  private static Map<Id, CancelReasonSnapshot> rememberedInvoiceCancelReasons = new Map<Id, CancelReasonSnapshot>();
 
   /**
    * 仕様: Accounting 第4.2節・第8.8節。入出金取消の同一処理で売上・手動候補の載せ方を渡す。
@@ -113,9 +115,6 @@ public without sharing class AccountingDiffService {
       includeLineCandidates = paymentCancelIncludeLineCandidates;
       includeManualCandidates = paymentCancelIncludeManualCandidates == true;
     }
-    if (!isPaymentEvent(eventKey)) {
-      AccountingGoalService.invalidateCauseCache(invoiceId);
-    }
     Invoice__c invoice =
       knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
         ? knownLockedInvoice
@@ -131,14 +130,14 @@ public without sharing class AccountingDiffService {
       if (isCancelEvent(eventKey)) {
         cancelCurrent(invoiceId, current, eventKey, operationKey, cancellationDate);
       }
-      rememberedManualCancelReasons.clear();
+      clearRememberedCancelReasons();
       return;
     }
     if (
       !InvoiceTransactionStatusService.isConfirmed(invoice) &&
       !InvoiceTransactionStatusService.isCancelled(invoice)
     ) {
-      rememberedManualCancelReasons.clear();
+      clearRememberedCancelReasons();
       return;
     }
     List<GlJournal__c> diffCurrent = journalsForGoalScope(
@@ -172,7 +171,7 @@ public without sharing class AccountingDiffService {
         AccountingCurrentService.load(invoiceId)
       );
     } finally {
-      rememberedManualCancelReasons.clear();
+      clearRememberedCancelReasons();
     }
   }
 
@@ -192,6 +191,42 @@ public without sharing class AccountingDiffService {
     snapshot.reason = reason;
     snapshot.reasonText = reasonText;
     rememberedManualCancelReasons.put(headerId, snapshot);
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第7.9.5節。入出金へ書いた理由を逆仕訳へ渡し取り直さない。 */
+  public static void rememberPaymentCancelReason(
+    Id paymentId,
+    String reason,
+    String reasonText
+  ) {
+    if (paymentId == null) {
+      return;
+    }
+    CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
+    snapshot.reason = reason;
+    snapshot.reasonText = reasonText;
+    rememberedPaymentCancelReasons.put(paymentId, snapshot);
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第7.9.5節。元請求へ書いた理由を逆仕訳へ渡し取り直さない。 */
+  public static void rememberInvoiceCancelReason(
+    Id invoiceId,
+    String reason,
+    String reasonText
+  ) {
+    if (invoiceId == null) {
+      return;
+    }
+    CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
+    snapshot.reason = reason;
+    snapshot.reasonText = reasonText;
+    rememberedInvoiceCancelReasons.put(invoiceId, snapshot);
+  }
+
+  private static void clearRememberedCancelReasons() {
+    rememberedManualCancelReasons.clear();
+    rememberedPaymentCancelReasons.clear();
+    rememberedInvoiceCancelReasons.clear();
   }
 
   private class PersistPlan {
@@ -401,15 +436,16 @@ public without sharing class AccountingDiffService {
       includeManualCandidates = paymentCancelIncludeManualCandidates == true;
     }
     if (!isPaymentEvent(eventKey)) {
-      AccountingGoalService.invalidateCauseCache(invoiceId);
+      if (AccountingGoalService.collectedLines(invoiceId).isEmpty()) {
+        AccountingGoalService.invalidateCauseCache(invoiceId);
+      }
     }
     Invoice__c invoice =
       knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
         ? knownLockedInvoice
         : AccountingCauseLockService.lockInvoice(invoiceId);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    // 仕様: Accounting 第8.2節手順2。この処理のロック後に仕訳を収集する。前の処理のCurrentは使わない。
-    AccountingCurrentService.invalidate(invoiceId);
+    // 仕様: Accounting 第8.2節手順2。ロック後に集めたCurrentは取り直さない。
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
     if (policy.AccountingEnabled__c != true) {
@@ -510,6 +546,10 @@ public without sharing class AccountingDiffService {
     }
     preview.displayText = toDisplayText(preview);
     return preview;
+  }
+
+  public static CancelPreview emptyConfirmPreview() {
+    return emptyPreview();
   }
 
   private static CancelPreview emptyPreview() {
@@ -674,6 +714,13 @@ public without sharing class AccountingDiffService {
       if (journal == null || journal.InvoicePayment__c == null) {
         return snapshot;
       }
+      CancelReasonSnapshot remembered = rememberedPaymentCancelReasons.get(
+        journal.InvoicePayment__c
+      );
+      if (remembered != null) {
+        return remembered;
+      }
+      cancelReasonSelectCount++;
       List<InvoicePayment__c> payments = [
         SELECT CancellationReason__c, CancellationReasonText__c
         FROM InvoicePayment__c
@@ -719,6 +766,13 @@ public without sharing class AccountingDiffService {
       ) {
         return snapshot;
       }
+      CancelReasonSnapshot remembered = rememberedInvoiceCancelReasons.get(
+        invoiceId
+      );
+      if (remembered != null) {
+        return remembered;
+      }
+      cancelReasonSelectCount++;
       List<Invoice__c> invoices = Database.query(
         'SELECT CancellationReason__c, CancellationReasonText__c ' +
           'FROM Invoice__c WHERE Id = :invoiceId WITH SYSTEM_MODE LIMIT 1'
@@ -742,7 +796,10 @@ public without sharing class AccountingDiffService {
     }
     Map<Id, CancelReasonSnapshot> byPayment = new Map<Id, CancelReasonSnapshot>();
     Map<Id, CancelReasonSnapshot> byHeader = new Map<Id, CancelReasonSnapshot>();
-    if (eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key) {
+    CancelReasonSnapshot invoiceReason = null;
+    if (eventKey == AccountingEventFixedCatalog.BILLING_CANCELLED.key) {
+      invoiceReason = rememberedInvoiceCancelReasons.get(invoiceId);
+    } else if (eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key) {
       Set<Id> paymentIds = new Set<Id>();
       for (GlJournal__c journal : journals) {
         if (journal != null && journal.InvoicePayment__c != null) {
@@ -750,16 +807,30 @@ public without sharing class AccountingDiffService {
         }
       }
       if (!paymentIds.isEmpty()) {
-        for (InvoicePayment__c payment : [
-          SELECT Id, CancellationReason__c, CancellationReasonText__c
-          FROM InvoicePayment__c
-          WHERE Id IN :paymentIds
-          WITH SYSTEM_MODE
-        ]) {
-          CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
-          snapshot.reason = payment.CancellationReason__c;
-          snapshot.reasonText = payment.CancellationReasonText__c;
-          byPayment.put(payment.Id, snapshot);
+        Set<Id> missingPaymentIds = new Set<Id>();
+        for (Id paymentId : paymentIds) {
+          CancelReasonSnapshot remembered = rememberedPaymentCancelReasons.get(
+            paymentId
+          );
+          if (remembered != null) {
+            byPayment.put(paymentId, remembered);
+          } else {
+            missingPaymentIds.add(paymentId);
+          }
+        }
+        if (!missingPaymentIds.isEmpty()) {
+          cancelReasonSelectCount++;
+          for (InvoicePayment__c payment : [
+            SELECT Id, CancellationReason__c, CancellationReasonText__c
+            FROM InvoicePayment__c
+            WHERE Id IN :missingPaymentIds
+            WITH SYSTEM_MODE
+          ]) {
+            CancelReasonSnapshot snapshot = new CancelReasonSnapshot();
+            snapshot.reason = payment.CancellationReason__c;
+            snapshot.reasonText = payment.CancellationReasonText__c;
+            byPayment.put(payment.Id, snapshot);
+          }
         }
       }
     } else if (eventKey == AccountingEventFixedCatalog.MANUAL_JOURNAL.key) {
@@ -841,6 +912,11 @@ public without sharing class AccountingDiffService {
       journal.GlManualJournalHeader__c != null
     ) {
       reason = byHeader.get(journal.GlManualJournalHeader__c);
+    } else if (
+      eventKey == AccountingEventFixedCatalog.BILLING_CANCELLED.key &&
+      rememberedInvoiceCancelReasons.containsKey(invoiceId)
+    ) {
+      reason = rememberedInvoiceCancelReasons.get(invoiceId);
     } else {
       reason = cancelReasonOf(journal, invoiceId, eventKey);
     }

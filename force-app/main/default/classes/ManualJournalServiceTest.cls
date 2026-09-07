@@ -219,6 +219,7 @@ private class ManualJournalServiceTest {
       AccountingCauseLockService.invoiceModifiedSelectCount = 0;
       AccountingDiffService.invoiceCopySourceSelectCount = 0;
       AccountingDiffService.cancelReasonSelectCount = 0;
+      AccountingCurrentService.currentLoadSelectCount = 0;
       ManualJournalService.cancel(cancelRequest);
       System.assertEquals(
         0,
@@ -234,6 +235,11 @@ private class ManualJournalServiceTest {
         0,
         AccountingDiffService.cancelReasonSelectCount,
         'Accounting 第2.4節: ヘッダーへ書いた取消理由を仕訳ごとに取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節: 取消実行は登録で集めたCurrentを取り直さない'
       );
     }
   }

@@ -197,6 +197,9 @@ public without sharing class InvoicePaymentService {
     if (!InvoiceTransactionStatusService.isConfirmed(invoice)) {
       throw new PaymentException('確定済みの請求にだけ入出金を登録できます。');
     }
+    if (GlAccountingPolicyService.requireOrgPolicy().AccountingEnabled__c == true) {
+      AccountingCurrentService.load(invoice.Id);
+    }
     if (request.purpose == PURPOSE_INVOICE) {
       Decimal remaining =
         nvl(invoice.TaxInclusiveAmount__c) - nvl(invoice.InvoicePaymentNet__c);
@@ -371,18 +374,9 @@ public without sharing class InvoicePaymentService {
       request.expectedToken,
       lockedInvoice.LastModifiedDate
     );
+    AccountingCurrentService.load(original.Invoice__c);
     if (original.PaymentTransactionStatus__c != STATUS_ACTIVE) {
       throw new PaymentException('有効な入出金だけ取消できます。');
-    }
-    AccountingDiffService.CancelPreview preview = previewCancel(
-      original.Id,
-      request.cancelDate,
-      lockedInvoice,
-      original
-    );
-    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
-    if (preview.reverseCount > 0 && request.cancelDate == null) {
-      throw new PaymentException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
     Savepoint savepoint = Database.setSavepoint();
     Boolean previousWrite = allowLifecycleWrite;
@@ -394,6 +388,11 @@ public without sharing class InvoicePaymentService {
       original.CancellationReason__c = request.cancellationReason;
       original.CancellationReasonText__c = request.cancellationReasonText;
       original.BusinessOperationKey__c = operationKey;
+      AccountingDiffService.rememberPaymentCancelReason(
+        original.Id,
+        request.cancellationReason,
+        request.cancellationReasonText
+      );
       SystemContextAccess.updateRecords(new List<SObject>{ original });
       InvoicePayment__c reversal = new InvoicePayment__c(
         Invoice__c = original.Invoice__c,

@@ -52,6 +52,7 @@ public without sharing class InvoiceCancelService {
       request.expectedToken,
       invoice.LastModifiedDate
     );
+    AccountingCurrentService.load(invoice.Id);
     if (!InvoiceTransactionStatusService.isConfirmed(invoice)) {
       throw new CancelException('確定済みの請求だけ取消できます。');
     }
@@ -73,15 +74,8 @@ public without sharing class InvoiceCancelService {
     if (activeManuals > 0) {
       throw new CancelException('有効な手動仕訳がある請求は取消できません。');
     }
-    AccountingDiffService.CancelPreview journalPreview = previewConfirmed(
-      invoice.Id,
-      request.cancellationDate
-    );
-    // 仕様: Core 第7.9.6節、Accounting 第8.5節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
-    if (journalPreview.reverseCount > 0 && request.cancellationDate == null) {
-      throw new CancelException('ロック済み仕訳がある取消では取消基準日が必要です。');
-    }
-    Invoice__c original = queryOriginalInvoiceForCorrection(invoice.Id);
+    Invoice__c locked = invoice;
+    Invoice__c original = correctionSourceInvoice(locked);
     List<InvoiceLine__c> originalLines = queryOriginalLinesForCorrection(
       original.Id
     );
@@ -91,6 +85,11 @@ public without sharing class InvoiceCancelService {
     original.CancellationReason__c = request.cancellationReason;
     original.CancellationReasonText__c = request.cancellationReasonText;
     original.BusinessOperationKey__c = operationKey;
+    AccountingDiffService.rememberInvoiceCancelReason(
+      original.Id,
+      request.cancellationReason,
+      request.cancellationReasonText
+    );
     Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
     Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
     InvoiceTransactionStatusService.allowStatusWrite = true;
@@ -139,11 +138,11 @@ public without sharing class InvoiceCancelService {
       insert copies;
     }
     AccountingDiffService.applyForInvoice(
-      original.Id,
+      locked.Id,
       AccountingEventFixedCatalog.BILLING_CANCELLED.key,
       operationKey,
       request.cancellationDate,
-      original
+      locked
     );
     ContractOperationLogService.write(
       'CancelInvoice',
@@ -158,7 +157,7 @@ public without sharing class InvoiceCancelService {
     CancelResult result = new CancelResult();
     result.cancelledInvoiceId = original.Id;
     result.correctionInvoiceId = correction.Id;
-    result.journalPreview = journalPreview;
+    result.journalPreview = AccountingDiffService.emptyConfirmPreview();
     result.businessOperationKey = operationKey;
     result.requiresCustomerNotice = InvoiceTransactionStatusService.DELIVERY_SENT.equals(
       original.DeliveryStatus__c
@@ -182,6 +181,33 @@ public without sharing class InvoiceCancelService {
       null,
       null
     );
+  }
+
+  /** 仕様: Accounting 第8.2節、Core 第7.9.3節。ロック済み請求で訂正コピーできる項目があれば取り直さない。 */
+  private static Invoice__c correctionSourceInvoice(Invoice__c locked) {
+    if (hasCorrectionCloneFields(locked)) {
+      return locked;
+    }
+    return queryOriginalInvoiceForCorrection(locked.Id);
+  }
+
+  private static Boolean hasCorrectionCloneFields(Invoice__c invoice) {
+    if (invoice == null) {
+      return false;
+    }
+    try {
+      invoice.get('DeliveryStatus__c');
+      invoice.get('MergeKey__c');
+      invoice.get('Amount__c');
+      invoice.get('TaxAmount__c');
+      invoice.get('TaxPercent__c');
+      invoice.get('ContractHistory__c');
+      invoice.getSObject('ContractHistory__r');
+      invoice.getSObject('BillingAccountSnapShot__r');
+      return invoice.getSObject('ContractHistory__r') != null;
+    } catch (SObjectException ex) {
+      return false;
+    }
   }
 
   /** 仕様: Core 第7.9.3節・第11.4.2節・第11.4.4節。訂正用は元の顧客追加項目をコピーし、空欄だけ定義スタンプする。 */
@@ -534,10 +560,16 @@ public without sharing class InvoiceCancelService {
     result.correctionInvoiceId = corrections.isEmpty()
       ? null
       : corrections[0].Id;
-    result.journalPreview = previewConfirmed(original.Id, cancellationDate);
+    result.journalPreview = AccountingDiffService.emptyConfirmPreview();
     result.businessOperationKey = operationKey;
+    String deliveryStatus = null;
+    try {
+      deliveryStatus = (String) original.get('DeliveryStatus__c');
+    } catch (SObjectException ex) {
+      deliveryStatus = null;
+    }
     result.requiresCustomerNotice = InvoiceTransactionStatusService.DELIVERY_SENT.equals(
-      original.DeliveryStatus__c
+      deliveryStatus
     );
     return result;
   }

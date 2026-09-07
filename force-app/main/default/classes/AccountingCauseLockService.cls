@@ -111,6 +111,8 @@ public without sharing class AccountingCauseLockService {
       'SystemIntegrationDate__c',
       'PaymentClearingCompletedDate__c',
       'InvoiceDeliveryMethodSnapShot__c',
+      'DeliveryStatus__c',
+      'MergeKey__c',
       'LastModifiedDate',
       'ContractHistory__r.Version__c',
       'ContractHistory__r.ContractService__c',

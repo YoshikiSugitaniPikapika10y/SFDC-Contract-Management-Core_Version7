@@ -368,6 +368,8 @@ private class InvoicePaymentServiceTest {
       );
       AccountingCauseLockService.invoiceModifiedSelectCount = 0;
       AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      AccountingDiffService.cancelReasonSelectCount = 0;
+      AccountingCurrentService.currentLoadSelectCount = 0;
       InvoicePaymentService.netRecalcSelectCount = 0;
       InvoicePaymentAllocationService.allocationReverseSelectCount = 0;
       Test.startTest();
@@ -382,6 +384,16 @@ private class InvoicePaymentServiceTest {
         0,
         AccountingDiffService.invoiceCopySourceSelectCount,
         'Accounting 第8.2節: applyForInvoiceはhydrateした請求をコピーFromで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.cancelReasonSelectCount,
+        'Core 第7.9.5節: 入出金へ書いた取消理由を仕訳ごとに取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節: 取消実行は登録で集めたCurrentを取り直さない'
       );
       System.assertEquals(
         1,
@@ -871,6 +883,7 @@ private class InvoicePaymentServiceTest {
       InvoicePaymentService.netRecalcSelectCount = 0;
       InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
       AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      AccountingCurrentService.currentLoadSelectCount = 0;
       Test.startTest();
       InvoicePaymentService.register(request);
       Test.stopTest();
@@ -898,6 +911,11 @@ private class InvoicePaymentServiceTest {
         0,
         AccountingDiffService.invoiceCopySourceSelectCount,
         'Accounting 第8.2節: 仕訳コピーはhydrateした請求を取り直さない'
+      );
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節: 登録はロック後に集めたCurrentをapplyで取り直さない'
       );
       Invoice__c afterRegister = [
         SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c

@@ -99,6 +99,49 @@ private class InvoiceCancelServiceTest {
   }
 
   @IsTest
+  static void cancelConfirmed_reusesCurrentAndCancelReasonWithoutPreviewGoal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c invoice = insertConfirmedInvoice('CancelReuseCur');
+      InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
+      request.invoiceId = invoice.Id;
+      request.cancellationReason = 'Duplicate';
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingDiffService.cancelReasonSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      Test.startTest();
+      InvoiceCancelService.CancelResult result = InvoiceCancelService.cancelConfirmed(
+        request
+      );
+      Test.stopTest();
+      System.assertEquals(invoice.Id, result.cancelledInvoiceId);
+      System.assertEquals(
+        0,
+        result.journalPreview.reverseCount,
+        'Accounting 第8.8節: 実行結果に件数内訳を出さない'
+      );
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節: 取消実行はCurrentを取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.cancelReasonSelectCount,
+        'Core 第7.9.5節: 元請求へ書いた取消理由を仕訳ごとに取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節: ロック済み請求のコピーFromを取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void cancelConfirmed_reusesLockedInvoiceLastModifiedForVersion() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
@@ -525,9 +568,14 @@ private class InvoiceCancelServiceTest {
         request
       );
       System.assertEquals(
-        preview.displayText,
-        result.journalPreview.displayText,
-        'Core 第7.9.6節: 実行後も同じ結果を表示する'
+        0,
+        result.journalPreview.reverseCount,
+        'Accounting 第8.8節: 実行後の成功表示に件数を出さない'
+      );
+      System.assertEquals(
+        0,
+        result.journalPreview.logicalDeleteCount,
+        'Accounting 第8.8節: 実行後の成功表示に件数を出さない'
       );
     }
   }

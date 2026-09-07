@@ -67,6 +67,8 @@ public without sharing class AccountingGoalService {
   private static Map<Id, Map<Id, InvoicePaymentAllocation__c>> collectedAllocationsByInvoice = new Map<Id, Map<Id, InvoicePaymentAllocation__c>>();
   @TestVisible
   static Integer allocationLoadSelectCount = 0;
+  @TestVisible
+  static Integer lineLoadSelectCount = 0;
   private static Map<String, List<GlJournal__c>> activeJournalsByGeneration;
 
   private class RelatedRecords {
@@ -2751,6 +2753,7 @@ public without sharing class AccountingGoalService {
     if (cachedLinesByInvoice.containsKey(invoiceId)) {
       return cachedLinesByInvoice.get(invoiceId);
     }
+    lineLoadSelectCount++;
     Map<Id, InvoiceLine__c> rows = new Map<Id, InvoiceLine__c>();
     Set<String> selectFields = new Set<String>{
       'Id',

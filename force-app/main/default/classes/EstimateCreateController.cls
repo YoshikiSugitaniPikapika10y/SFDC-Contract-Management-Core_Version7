@@ -583,7 +583,7 @@ public without sharing class EstimateCreateController {
   public static BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
     BillingAccount__c loaded
   ) {
-    return EstimateQueryService.getBillingAccountInvoiceSettings(loaded);
+    return EstimateQueryService.getBillingAccountInvoiceSettingsFromLoaded(loaded);
   }
 
   @AuraEnabled

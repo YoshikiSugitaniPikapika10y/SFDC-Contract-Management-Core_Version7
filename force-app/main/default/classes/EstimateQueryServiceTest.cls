@@ -660,7 +660,7 @@ private class EstimateQueryServiceTest {
   static void getBillingAccountInvoiceSettings_readsLatestMaster() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateCreateController.BillingAccountInvoiceSettingsDto empty = EstimateQueryService.getBillingAccountInvoiceSettings(
-        null
+        (Id) null
       );
       System.assertEquals(
         true,
@@ -738,7 +738,7 @@ private class EstimateQueryServiceTest {
         WHERE Id = :billing.Id
       ];
       Integer before = Limits.getQueries();
-      EstimateCreateController.BillingAccountInvoiceSettingsDto dto = EstimateQueryService.getBillingAccountInvoiceSettings(
+      EstimateCreateController.BillingAccountInvoiceSettingsDto dto = EstimateQueryService.getBillingAccountInvoiceSettingsFromLoaded(
         billing
       );
       System.assertEquals(

@@ -1632,13 +1632,19 @@ private class AccountingEngineTest {
       );
       Date cancellationDate = Date.newInstance(2026, 8, 29);
       Test.startTest();
+      AccountingCurrentService.invalidate(fixture.invoice.Id);
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingGoalService.lineLoadSelectCount = 0;
+      String acceptanceToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
       InvoiceCanonicalService.updateLineAcceptanceEndDates(
         new Map<Id, Date>{
           fixture.line.Id => Date.newInstance(2026, 8, 31)
         },
         cancellationDate,
         null,
-        AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id)
+        acceptanceToken
       );
       Test.stopTest();
       InvoiceLine__c stored = [
@@ -1650,6 +1656,15 @@ private class AccountingEngineTest {
         Date.newInstance(2026, 8, 31),
         stored.AcceptanceEndDate__c,
         'Core 第7.6節: 取消基準日があれば検収終了日を変更できる'
+      );
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節: 検収はrefresh後のCurrentをapplyで取り直さない'
+      );
+      System.assert(
+        AccountingGoalService.lineLoadSelectCount <= 1,
+        'Accounting 第8.2節: 検収のGoal明細をapplyが取り直さない'
       );
     }
   }
