@@ -122,6 +122,10 @@ public without sharing class OrderCreateController {
     @AuraEnabled
     public Boolean hasRenewOpportunity;
 
+    /** 仕様: Core 第5.3節。未確定の手直しがある請求があるか */
+    @AuraEnabled
+    public Boolean hasManualAdjustment;
+
     @AuraEnabled
     public Id renewOpportunityId;
 
@@ -649,6 +653,7 @@ public without sharing class OrderCreateController {
     dto.hasRenewOpportunity =
       dto.renewOpportunityId != null &&
       ContractDocumentSettingService.requireRenewOpportunitySwitch();
+    dto.hasManualAdjustment = historyHasManualDraftAdjustment(history);
     List<Datetime> productModified = new List<Datetime>{ null };
     dto.products = loadProductLines(history.Id, productModified);
     dto.lastModifiedToken = ContractOptimisticLockUtil.toToken(
@@ -752,12 +757,6 @@ public without sharing class OrderCreateController {
       existing.contractHistoryId = history.Id;
       existing.historyStatus = HISTORY_STATUS_ESTIMATE;
       existing.businessOperationKey = operationKey;
-      ContractOperationLogService.write(
-        'RevertOrder',
-        operationKey,
-        'ContractHistory__c',
-        String.valueOf(history.Id)
-      );
       return existing;
     }
     if (history.historystatus__c != HISTORY_STATUS_ORDERED) {
@@ -791,6 +790,8 @@ public without sharing class OrderCreateController {
       history.CreateRenewOpportunity__c = false;
     }
     Savepoint revertSavepoint = Database.setSavepoint();
+    Boolean previousSkipRevert = ContractIrregularOperationLog.skipRevertOrderPath;
+    ContractIrregularOperationLog.skipRevertOrderPath = true;
     try {
       SystemContextAccess.updateRecords(
         new List<ContractHistory__c>{ history }
@@ -800,7 +801,7 @@ public without sharing class OrderCreateController {
         deleteRenewOpportunity == true &&
         ContractDocumentSettingService.requireRenewOpportunitySwitch()
       ) {
-        RenewOpportunityCreateService.deleteBySourceHistory(history.Id);
+        RenewOpportunityCreateService.deleteByLockedHistory(history);
       }
     } catch (RenewOpportunityCreateService.RenewOpportunityException ex) {
       Database.rollback(revertSavepoint);
@@ -815,6 +816,8 @@ public without sharing class OrderCreateController {
           ? ex.getMessage()
           : '差し戻し処理中にエラーが発生しました。'
       );
+    } finally {
+      ContractIrregularOperationLog.skipRevertOrderPath = previousSkipRevert;
     }
 
     OrderSaveResult result = new OrderSaveResult();
@@ -2130,6 +2133,25 @@ public without sharing class OrderCreateController {
     return count > 0;
   }
 
+  /** 仕様: Core 第4.3.11節・第5.3節。開く取得で読んだ未確定請求の手直しは取り直さない。 */
+  private static Boolean historyHasManualDraftAdjustment(
+    ContractHistory__c history
+  ) {
+    if (history == null || history.Invoices__r == null) {
+      return false;
+    }
+    for (Invoice__c invoice : history.Invoices__r) {
+      if (
+        invoice.IsManuallyAdjusted__c == true &&
+        invoice.InvoiceTransactionStatus__c ==
+        InvoiceTransactionStatusService.TX_DRAFT
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private static List<VersionOptionDto> loadOrderedVersionOptions(
     ScopedEstimateSummary estimateSummary
   ) {
@@ -2870,7 +2892,7 @@ public without sharing class OrderCreateController {
     String soql =
       'SELECT Id, Name, Type__c, historystatus__c, Version__c, LastModifiedDate, BusinessOperationKey__c, ' +
       'CurrentTermStartDate__c, CurrentTermEndDate__c, EffectiveDate__c, ' +
-      'Opportunity__c, CreateRenewOpportunity__c' +
+      'Opportunity__c, CreateRenewOpportunity__c, RenewalOpportunity__c, RenewOpportunityRequestCount__c' +
       editableFieldClause +
       ', ContractService__c, ContractService__r.Name, ContractService__r.Lifecycle__c, ' +
       'ContractService__r.Account__r.Name, ContractService__r.BiilingAcccount__c, ' +
@@ -2894,7 +2916,11 @@ public without sharing class OrderCreateController {
       'ContractService__r.BiilingAcccount__r.BillingEmailCc__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailBcc__c, ' +
       'ContractService__r.BiilingAcccount__r.Account__r.Name, ' +
-      '(SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r) ' +
+      '(SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r), ' +
+      '(SELECT Id, IsManuallyAdjusted__c, InvoiceTransactionStatus__c FROM Invoices__r ' +
+      'WHERE IsManuallyAdjusted__c = TRUE AND InvoiceTransactionStatus__c = \'' +
+      InvoiceTransactionStatusService.TX_DRAFT +
+      '\') ' +
       'FROM ContractHistory__c WHERE Id = :contractHistoryId LIMIT 1' +
       (lockForUpdate ? ' FOR UPDATE' : '');
     return Database.queryWithBinds(

@@ -21,7 +21,6 @@ import hasRevert from "@salesforce/customPermission/Loop_07_Can_Revert";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import revertOrder from "@salesforce/apex/OrderCreateController.revertOrder";
 import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
-import hasManualInvoiceAdjustment from "@salesforce/apex/OrderCreateController.hasManualInvoiceAdjustment";
 import { buildCustomFieldInputs } from "c/estimateWizardCustomFields";
 
 const VERSION_CONFLICT_MESSAGE =
@@ -111,9 +110,8 @@ export default class OrderRevertWizard extends NavigationMixin(
       this.historyCustomFields = { ...(data.historySavedFields || {}) };
       // 表示時は常に初期 ON（ユーザが意図的に外さない限り削除）
       this.deleteRenewOpportunity = true;
-      this.hasManualAdjustment = await hasManualInvoiceAdjustment({
-        contractHistoryId: this.recordId
-      });
+      // 仕様: Core 第4.3.11節・第5.3節
+      this.hasManualAdjustment = data.hasManualAdjustment === true;
     } catch (error) {
       // 仕様: Core 第4.3.11節
       this.errorMessage = this.reduceError(error);

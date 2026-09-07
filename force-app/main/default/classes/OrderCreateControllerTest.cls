@@ -1824,6 +1824,7 @@ private class OrderCreateControllerTest {
       InvoiceCanonicalService.invoicePurgeSelectCount = 0;
       ContractOptimisticLockUtil.productMaxSelectCount = 0;
       ContractOptimisticLockUtil.historySelectCount = 0;
+      ContractHistoryStatusPathService.invoiceParentSelectCount = 0;
 
       Test.startTest();
       OrderCreateController.revertOrder(
@@ -1860,13 +1861,238 @@ private class OrderCreateControllerTest {
         'Core 第12.4節: purge は読んだ請求を取り直さない'
       );
       System.assertEquals(
+        0,
+        ContractHistoryStatusPathService.invoiceParentSelectCount,
+        'Core 第5.7節・第12.4節: 差し戻しの請求削除で履歴を取り直さない'
+      );
+      ContractHistory__c reverted = [
+        SELECT historystatus__c, StatusPath__c
+        FROM ContractHistory__c
+        WHERE Id = :locked.Id
+      ];
+      System.assertEquals('Estimate', reverted.historystatus__c);
+      System.assertEquals(
         'Estimate',
+        reverted.StatusPath__c,
+        'Core 第5.7節: Estimate の進捗は見積であり請求件数を見ない'
+      );
+    }
+  }
+
+  @IsTest
+  static void revertOrder_reusesLockedHistoryForRenewDelete() {
+    // 仕様: Core 第5.3節・第5.6節・第12.4節
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContextWithOpportunity();
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
+        context.history.Id
+      );
+
+      Test.startTest();
+      context.opportunity.SourceContractHistory__c = context.history.Id;
+      update context.opportunity;
+      update new ContractHistory__c(
+        Id = context.history.Id,
+        RenewalOpportunity__c = context.opportunity.Id,
+        RenewOpportunityRequestCount__c = 1
+      );
+      Id renewOpportunityId = context.opportunity.Id;
+      String lastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+        context.history.Id
+      );
+      RenewOpportunityCreateService.historySelectCount = 0;
+      RenewOpportunityCreateService.sourceOpportunitySelectCount = 0;
+      OrderCreateController.revertOrder(
+        context.history.Id,
+        true,
+        lastModifiedToken,
+        JSON.serialize(dto.historyCustomFields)
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        RenewOpportunityCreateService.historySelectCount,
+        'Core 第12.4節: ロック済み契約履歴を更新商談削除で取り直さない'
+      );
+      System.assertEquals(
+        0,
+        RenewOpportunityCreateService.sourceOpportunitySelectCount,
+        'Core 第12.4節: Lookup がある Source 商談を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM Opportunity WHERE Id = :renewOpportunityId],
+        'Core 第5.6節・第11.5節: 削除ONなら商談を削除する'
+      );
+      ContractHistory__c reverted = [
+        SELECT RenewalOpportunity__c, RenewOpportunityRequestCount__c
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ];
+      System.assertEquals(null, reverted.RenewalOpportunity__c);
+      System.assertEquals(
+        0,
+        reverted.RenewOpportunityRequestCount__c,
+        'Core 第11.5節: 差し戻し削除ONで1減らす（0未満にしない）'
+      );
+    }
+  }
+
+  @IsTest
+  static void revertOrder_sameKeyRetry_doesNotWriteSecondRevertOrderLog() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
+        context.history.Id
+      );
+      String operationKey = 'revert-retry-key';
+      ContractOperationLogService.writeInvocationCount = 0;
+
+      Test.startTest();
+      OrderCreateController.OrderSaveResult first = OrderCreateController.revertOrder(
+        context.history.Id,
+        false,
+        dto.lastModifiedToken,
+        JSON.serialize(dto.historyCustomFields),
+        operationKey
+      );
+      Integer writesAfterFirst = ContractOperationLogService.writeInvocationCount;
+      OrderCreateController.OrderSaveResult retry = OrderCreateController.revertOrder(
+        context.history.Id,
+        false,
+        dto.lastModifiedToken,
+        JSON.serialize(dto.historyCustomFields),
+        operationKey
+      );
+      Test.stopTest();
+
+      System.assertEquals('Estimate', first.historyStatus);
+      System.assertEquals('Estimate', retry.historyStatus);
+      System.assertEquals(operationKey, retry.businessOperationKey);
+      System.assertEquals(
+        writesAfterFirst,
+        ContractOperationLogService.writeInvocationCount,
+        '共通基盤第12章: 同じキーの再試行は RevertOrder の write を重ねない'
+      );
+      System.assertEquals(
+        1,
         [
-          SELECT historystatus__c
-          FROM ContractHistory__c
-          WHERE Id = :locked.Id
-        ]
-        .historystatus__c
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'RevertOrder'
+            AND BusinessOperationKey__c = :operationKey
+        ],
+        '共通基盤第12章: 同じ業務操作キーの再試行は2行目を作らない'
+      );
+    }
+  }
+
+  @IsTest
+  static void revertOrder_doesNotWriteIrregularLogsWhen103Present() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
+        context.history.Id
+      );
+      List<Invoice__c> invoices = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+      ];
+      System.assert(!invoices.isEmpty(), 'Core 第5.2節: 受注は未確定請求を作る');
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.DELETE_RECORDS => true,
+        ContractPermissionUtil.FIX_CONTRACT => true,
+        ContractPermissionUtil.MIGRATE_ALL => false
+      };
+      try {
+        Test.startTest();
+        OrderCreateController.revertOrder(
+          context.history.Id,
+          false,
+          dto.lastModifiedToken,
+          JSON.serialize(dto.historyCustomFields)
+        );
+        Test.stopTest();
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+
+      String historyIdPrefix =
+        String.valueOf(context.history.Id).substring(0, 15) + '%';
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE OperationType__c = 'IrregularDelete'
+        ],
+        '共通基盤第12章: 差し戻しの正規削除は IrregularDelete にしない'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'IrregularUpdate'
+            AND TargetRecordId__c LIKE :historyIdPrefix
+        ],
+        '共通基盤第12章: 差し戻しの正規更新は IrregularUpdate にしない'
+      );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'RevertOrder'
+            AND TargetRecordId__c LIKE :historyIdPrefix
+        ],
+        '共通基盤第12章: RevertOrder は1行'
+      );
+    }
+  }
+
+  @IsTest
+  static void getOrderContext_doesNotRereadHistoryAndExposesManualAdjustment() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
+      Invoice__c draft = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE
+          ContractHistory__c = :context.history.Id
+          AND InvoiceTransactionStatus__c = :InvoiceTransactionStatusService.TX_DRAFT
+        LIMIT 1
+      ];
+      draft.IsManuallyAdjusted__c = true;
+      update draft;
+      EstimateRevertInvoiceService.clearRevertCachesForTest();
+      InvoiceLockUtil.clearLockedInvoiceCacheForTest();
+      EstimateRevertInvoiceService.historySelectCount = 0;
+
+      Test.startTest();
+      OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
+        context.history.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        EstimateRevertInvoiceService.historySelectCount,
+        'Core 第4.3.11節・第12.4節: 開く取得でブロック判定に同じ履歴を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        dto.hasManualAdjustment,
+        'Core 第5.3節: 未確定の手直し警告は同じ取得の結果である'
       );
     }
   }

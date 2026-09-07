@@ -7,10 +7,13 @@ public without sharing class ContractIrregularOperationLog {
   public static Boolean skipEstimateSavePath;
   /** 仕様: 共通基盤.md 第12章。手動Archiveの正規手続きはIrregular*にしない。 */
   public static Boolean skipEstimateArchivePath;
+  /** 仕様: 共通基盤.md 第12章。差し戻しの正規手続きはIrregular*にしない。 */
+  public static Boolean skipRevertOrderPath;
 
   public static Boolean skipRegularPath() {
     return skipEstimateSavePath == true ||
       skipEstimateArchivePath == true ||
+      skipRevertOrderPath == true ||
       ContractOperationLogService.skipInstallWrites == true ||
       ContractServiceWriteGuard.isPackageWriteAllowed() ||
       InvoiceLockUtil.allowLockedStatusWrite == true ||

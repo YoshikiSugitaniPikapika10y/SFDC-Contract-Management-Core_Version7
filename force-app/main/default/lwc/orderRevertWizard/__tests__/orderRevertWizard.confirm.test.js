@@ -1,7 +1,6 @@
 import { createElement } from "lwc";
 import OrderRevertWizard from "c/orderRevertWizard";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
-import hasManualInvoiceAdjustment from "@salesforce/apex/OrderCreateController.hasManualInvoiceAdjustment";
 import revertOrder from "@salesforce/apex/OrderCreateController.revertOrder";
 import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
 
@@ -22,11 +21,6 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/OrderCreateController.issueOrderOperationKey",
-  () => ({ default: jest.fn() }),
-  { virtual: true }
-);
-jest.mock(
-  "@salesforce/apex/OrderCreateController.hasManualInvoiceAdjustment",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -105,7 +99,8 @@ const ORDERED = {
     { apiName: "OrderDate__c", label: "受注日" },
     { apiName: "Extra__c", label: "追加A" }
   ],
-  historyType: "New"
+  historyType: "New",
+  hasManualAdjustment: false
 };
 
 async function flushApex() {
@@ -113,10 +108,6 @@ async function flushApex() {
   const contextCall = getOrderContext.mock.results[0];
   if (contextCall?.value) {
     await contextCall.value;
-  }
-  const adjustCall = hasManualInvoiceAdjustment.mock.results[0];
-  if (adjustCall?.value) {
-    await adjustCall.value;
   }
   await Promise.resolve();
 }
@@ -137,14 +128,12 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
       document.body.removeChild(document.body.firstChild);
     }
     getOrderContext.mockReset();
-    hasManualInvoiceAdjustment.mockReset();
     revertOrder.mockReset();
     issueOrderOperationKey.mockReset();
   });
 
   it("shows revert confirmation copy and keeps the submit enabled", async () => {
     getOrderContext.mockResolvedValue(ORDERED);
-    hasManualInvoiceAdjustment.mockResolvedValue(false);
     const element = await mount();
     const text = element.shadowRoot.textContent;
     expect(element.shadowRoot.querySelector(".confirm-title").textContent).toBe(
@@ -177,7 +166,6 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
 
   it("差し戻し実行中は追加項目を止める (Core 5.3 / 4.3.12)", async () => {
     getOrderContext.mockResolvedValue(ORDERED);
-    hasManualInvoiceAdjustment.mockResolvedValue(false);
     issueOrderOperationKey.mockResolvedValue("op-key");
     revertOrder.mockImplementation(() => new Promise(() => {}));
     const element = await mount();
@@ -196,8 +184,10 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
   });
 
   it("warns that manual invoice adjustments are deleted, and defaults renew-opportunity delete on", async () => {
-    getOrderContext.mockResolvedValue(ORDERED);
-    hasManualInvoiceAdjustment.mockResolvedValue(true);
+    getOrderContext.mockResolvedValue({
+      ...ORDERED,
+      hasManualAdjustment: true
+    });
     const element = await mount();
     const text = element.shadowRoot.textContent;
     expect(text).toContain(

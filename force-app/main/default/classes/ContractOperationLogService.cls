@@ -8,6 +8,9 @@ public without sharing class ContractOperationLogService {
   public static Boolean suppressIssueLog;
   public static Boolean suppressJournalMemoWrites;
   public static Boolean skipMasterWrites;
+  /** 仕様: 共通基盤.md 第12章。同じキーの再試行は write 自体を重ねない検証用。 */
+  @TestVisible
+  static Integer writeInvocationCount = 0;
 
   public static void write(
     String operationType,
@@ -37,6 +40,7 @@ public without sharing class ContractOperationLogService {
     String unlockReason,
     String permissionSetApiName
   ) {
+    writeInvocationCount++;
     if (skipInstallWrites == true) {
       return;
     }

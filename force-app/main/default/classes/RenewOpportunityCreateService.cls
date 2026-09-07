@@ -37,6 +37,13 @@ public without sharing class RenewOpportunityCreateService {
     }
   }
 
+  /** 仕様: Core 第12.4節。同一処理でロック済み契約履歴を取り直さない。 */
+  @TestVisible
+  static Integer historySelectCount = 0;
+  /** 仕様: Core 第12.4節。Lookup がある Source 商談は取り直さない。 */
+  @TestVisible
+  static Integer sourceOpportunitySelectCount = 0;
+
   /**
    * 仕様: Core 第5.2節、第11.5節。元契約履歴から作成した更新商談 Id を返す。
    */
@@ -44,6 +51,7 @@ public without sharing class RenewOpportunityCreateService {
     if (contractHistoryId == null) {
       return null;
     }
+    sourceOpportunitySelectCount++;
     List<Opportunity> rows = [
       SELECT Id
       FROM Opportunity
@@ -63,6 +71,7 @@ public without sharing class RenewOpportunityCreateService {
     if (!ContractDocumentSettingService.requireRenewOpportunitySwitch()) {
       return;
     }
+    historySelectCount++;
     List<ContractHistory__c> sources = [
       SELECT Id, RenewalOpportunity__c, RenewOpportunityRequestCount__c
       FROM ContractHistory__c
@@ -73,14 +82,31 @@ public without sharing class RenewOpportunityCreateService {
     if (sources.isEmpty()) {
       return;
     }
-    ContractHistory__c source = sources[0];
-    Decimal currentCount = source.RenewOpportunityRequestCount__c;
+    deleteByLockedHistory(sources[0]);
+  }
+
+  /**
+   * 仕様: Core 第4.9節、第5.3節、第5.6節、第11.5節、第12.4節。
+   * ロック済み契約履歴の Lookup とカウントは取り直さない。
+   */
+  public static void deleteByLockedHistory(ContractHistory__c locked) {
+    if (locked == null || locked.Id == null) {
+      return;
+    }
+    if (!ContractDocumentSettingService.requireRenewOpportunitySwitch()) {
+      return;
+    }
+    ContractHistory__c source = new ContractHistory__c(Id = locked.Id);
+    Decimal currentCount = locked.RenewOpportunityRequestCount__c;
     if (currentCount != null && currentCount > 0) {
       source.RenewOpportunityRequestCount__c = currentCount - 1;
     }
     source.RenewalOpportunity__c = null;
 
-    Id opportunityId = findBySourceHistory(contractHistoryId);
+    Id opportunityId = locked.RenewalOpportunity__c;
+    if (opportunityId == null) {
+      opportunityId = findBySourceHistory(locked.Id);
+    }
     try {
       if (opportunityId != null) {
         List<ContractHistory__c> archivedLinked = [

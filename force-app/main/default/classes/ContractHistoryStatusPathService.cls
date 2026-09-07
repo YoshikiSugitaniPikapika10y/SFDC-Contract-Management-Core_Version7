@@ -21,7 +21,7 @@ public without sharing class ContractHistoryStatusPathService {
    */
   private static Integer pathSyncDeferDepth = 0;
   private static Set<Id> deferredPathSyncHistoryIds = new Set<Id>();
-  /** 受注遷移で最終 Path を書いた履歴。請求 insert 後の親 SELECT をしない。 */
+  /** 受注遷移・差し戻しで最終 Path を書いた履歴。請求 DML 後の親 SELECT をしない。 */
   private static Set<Id> orderTransitionPathFinalizedIds = new Set<Id>();
   /** 仕様: Core 第5.7節・第12.4節。同一処理で対象履歴を取り直さない。 */
   @TestVisible
@@ -75,6 +75,15 @@ public without sharing class ContractHistoryStatusPathService {
         if (history.Id != null) {
           orderTransitionPathFinalizedIds.add(history.Id);
         }
+      }
+      // 仕様: Core 第5.3節・第5.7節・第12.4節。
+      // Estimate は請求件数を見ない。削除後に同じ履歴を取り直さない。
+      Boolean revertedToEstimate =
+        prior != null &&
+        prior.historystatus__c == PATH_ORDERED &&
+        history.historystatus__c == PATH_ESTIMATE;
+      if (revertedToEstimate && history.Id != null) {
+        orderTransitionPathFinalizedIds.add(history.Id);
       }
       if (
         prior != null &&
