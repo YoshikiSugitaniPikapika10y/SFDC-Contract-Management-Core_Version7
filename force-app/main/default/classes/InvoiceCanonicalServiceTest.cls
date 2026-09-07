@@ -89,6 +89,62 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void rebuild_copiesBillingAccountNameToBlankInvoiceLine() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      ContractHistory__c history = [
+        SELECT ContractService__r.BiilingAcccount__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
+      BillingAccount__c billingAccount = [
+        SELECT Name
+        FROM BillingAccount__c
+        WHERE Id = :history.ContractService__r.BiilingAcccount__c
+      ];
+      billingAccount.Name = 'BUG599-BA-Name';
+      update billingAccount;
+      billingAccount = [
+        SELECT Name
+        FROM BillingAccount__c
+        WHERE Id = :billingAccount.Id
+      ];
+      insert new FieldCopyDefinition__c(
+        Name = 'BUG599_Line_From_BillingAccountName',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE_LINE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'ProductCodeSnapShot__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+      InvoiceCanonicalService.canonicalPeriodLineSelectCount = 0;
+
+      Test.startTest();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Test.stopTest();
+
+      System.assert(
+        InvoiceCanonicalService.canonicalPeriodLineSelectCount >= 1,
+        '入口は期間明細をSOQLで取る'
+      );
+      InvoiceLine__c line = [
+        SELECT ProductCodeSnapShot__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        billingAccount.Name,
+        line.ProductCodeSnapShot__c,
+        '仕様: Core 第11.4.2節 請求明細新規は請求アカウントFromの空欄へコピーする'
+      );
+    }
+  }
+
+  @IsTest
   static void updateLineAmounts_withoutKnownRows_selectsLines() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();

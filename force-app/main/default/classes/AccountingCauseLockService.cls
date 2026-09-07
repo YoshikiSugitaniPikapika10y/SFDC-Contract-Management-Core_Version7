@@ -148,8 +148,27 @@ public without sharing class AccountingCauseLockService {
 
   /** 仕様: Core 第7.9.7節 */
   public static String resolveInvoiceOperationToken(Id invoiceId) {
+    return resolveInvoiceOperationToken(invoiceId, null);
+  }
+
+  /**
+   * 仕様: Core 第7.9.7節、第12.4節。
+   * 請求の LastModified は呼び出し側で渡して再照会しない。
+   */
+  public static String resolveInvoiceOperationToken(
+    Id invoiceId,
+    Datetime knownInvoiceModified
+  ) {
+    if (invoiceId == null) {
+      return ContractOptimisticLockUtil.toToken(null);
+    }
+    Map<Id, Datetime> known = null;
+    if (knownInvoiceModified != null) {
+      known = new Map<Id, Datetime>{ invoiceId => knownInvoiceModified };
+    }
     return ContractOptimisticLockUtil.toToken(
-      resolveInvoiceOperationDatetime(invoiceId)
+      resolveInvoiceOperationDatetimes(new Set<Id>{ invoiceId }, known)
+        .get(invoiceId)
     );
   }
 

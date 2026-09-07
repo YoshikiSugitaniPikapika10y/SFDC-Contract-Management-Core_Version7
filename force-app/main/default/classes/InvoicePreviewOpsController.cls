@@ -330,8 +330,10 @@ public without sharing class InvoicePreviewOpsController {
     } else if (!confirmed) {
       bundle.paymentBlockedReason = '請求を確定してから入金できます。';
     }
+    // 仕様: Core 第12.4節・第4.3.11節・第7.9.7節。本体で読んだ請求の LastModified を渡し、版トークンで取り直さない。invoiceToken は変えない。
     bundle.invoiceToken = AccountingCauseLockService.resolveInvoiceOperationToken(
-      invoice.Id
+      invoice.Id,
+      invoice.LastModifiedDate
     );
     bundle.paymentLines = loadPaymentLines(invoice.Id);
     bundle.payments = loadPayments(invoice.Id);

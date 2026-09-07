@@ -391,6 +391,78 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void queryInvoices_reusesListedInvoicesForVersionTotals() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      HistoryFixture historyFixture = insertHistory(
+        'Ordered',
+        ContractCrossQueryService.organizationToday(),
+        'VerTot'
+      );
+      Invoice__c draft = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2026, 6, 1)
+      );
+      draft.Amount__c = 1000;
+      Invoice__c confirmed = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2026, 6, 1)
+      );
+      confirmed.InvoiceTransactionStatus__c = 'Confirmed';
+      confirmed.SystemIntegrationDate__c = ContractCrossQueryService.organizationToday();
+      confirmed.Amount__c = 2500;
+      Invoice__c cancelled = newDraftInvoice(
+        historyFixture,
+        Date.newInstance(2026, 6, 1)
+      );
+      cancelled.InvoiceTransactionStatus__c = 'Cancelled';
+      cancelled.Amount__c = 4000;
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new List<Invoice__c>{ draft, confirmed, cancelled }
+      );
+
+      ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
+      filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_DRAFT;
+      filter.includeCancelled = false;
+      filter.accountId = historyFixture.opportunity.AccountId;
+
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryInvoices(
+        filter
+      );
+      Test.stopTest();
+
+      System.assertEquals(1, result.invoices.size());
+      System.assertEquals(draft.Id, result.invoices[0].id);
+      System.assertEquals(
+        3500,
+        result.invoices[0].versionInvoiceAmount,
+        '横断画面.md 第5節 請求一覧: 請求合計はVersionの数字。取得行の足し算ではない'
+      );
+      System.assertEquals(
+        false,
+        ContractCrossQueryService.lastVersionTotalRemainderInvoiceIds.contains(
+          draft.Id
+        ),
+        'Core 第12.4節・第4.3.11節: 一覧で取得した請求を版合計で取り直さない'
+      );
+      System.assertEquals(
+        true,
+        ContractCrossQueryService.lastVersionTotalRemainderInvoiceIds.contains(
+          confirmed.Id
+        ),
+        '横断画面.md 第5節: 同じ版の左に無い確定は版合計に残す'
+      );
+      System.assertEquals(
+        false,
+        ContractCrossQueryService.lastVersionTotalRemainderInvoiceIds.contains(
+          cancelled.Id
+        ),
+        '横断画面.md 操作11: 取消済みは集計に入れない'
+      );
+    }
+  }
+
+  @IsTest
   static void queryInvoices_returnsLatestIssuedContentDocumentId() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       InvoiceFixture issued = insertInvoice('Draft');

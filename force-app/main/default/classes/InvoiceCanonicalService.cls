@@ -367,6 +367,7 @@ public without sharing class InvoiceCanonicalService {
     List<Invoice__c> invoicesToInsert = new List<Invoice__c>();
     List<List<InvoiceProductMergeService.MergedLine>> linesByInvoiceIndex = new List<List<InvoiceProductMergeService.MergedLine>>();
     List<List<InvoiceProduct__c>> sourcesByInvoiceIndex = new List<List<InvoiceProduct__c>>();
+    List<BillingAccount__c> billingAccountsByInvoiceIndex = new List<BillingAccount__c>();
 
     for (InvoiceProductMergeService.MergedInvoice mi : merged) {
       Invoice__c invoice = new Invoice__c();
@@ -415,6 +416,7 @@ public without sharing class InvoiceCanonicalService {
       invoicesToInsert.add(invoice);
       linesByInvoiceIndex.add(mi.lines);
       sourcesByInvoiceIndex.add(mi.sourceProducts);
+      billingAccountsByInvoiceIndex.add(billingAccount);
     }
 
     if (invoicesToInsert.isEmpty()) {
@@ -463,6 +465,7 @@ public without sharing class InvoiceCanonicalService {
             line.Unit__c = sourceContractProduct.Unit__c;
           }
         }
+        // 仕様: Core 第11.4.2節。請求明細の新規は From＝請求アカウントも空欄へ。ヘッダー用に読んだ行を渡す。
         FieldCopyDefinitionService.apply(
           line,
           InvoiceProductFieldCopyService.TARGET_INVOICE_LINE,
@@ -471,7 +474,7 @@ public without sharing class InvoiceCanonicalService {
             ml.sourceProducts == null || ml.sourceProducts.isEmpty()
               ? null
               : ml.sourceProducts[0],
-            null
+            billingAccountsByInvoiceIndex[i]
           )
         );
         linesToInsert.add(line);
@@ -3480,6 +3483,12 @@ public without sharing class InvoiceCanonicalService {
       InvoiceProductFieldCopyService.getSourceFieldApiNames(
         InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
         InvoiceProductFieldCopyService.TARGET_INVOICE
+      )
+    );
+    selectFields.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+        InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
       )
     );
     Map<String, Schema.SObjectField> baFieldMap = BillingAccount__c.SObjectType.getDescribe()

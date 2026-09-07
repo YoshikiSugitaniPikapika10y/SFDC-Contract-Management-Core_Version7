@@ -575,6 +575,179 @@ private class EstimateQueryServiceTest {
   }
 
   @IsTest
+  static void getEstimateCopyPreset_changeReusesLoadedPreviousAsLatestOrdered() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Query LatestReuse Acc'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Query LatestReuse Svc'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Query LatestReuse Ordered',
+        ContractService__c = service.Id,
+        historystatus__c = 'Ordered',
+        Type__c = 'New',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        previous,
+        account.Id
+      );
+      insert previous;
+      Product2 catalog = ContractTestDataFactory.buildProduct(
+        'Query LatestReuse Product'
+      );
+      catalog.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      catalog.UnitName__c = 'ライセンス';
+      ContractTestDataFactory.insertProduct(catalog);
+      insert new ContractProduct__c(
+        ContractHistory__c = previous.Id,
+        Product__c = catalog.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 1000,
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+      );
+      ContractHistory__c changeEstimate = new ContractHistory__c(
+        Name = 'Query LatestReuse Change',
+        ContractService__c = service.Id,
+        historystatus__c = 'Estimate',
+        Type__c = 'Change',
+        Version__c = 2,
+        PreviousHistory__c = previous.Id,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        changeEstimate,
+        account.Id
+      );
+      insert changeEstimate;
+
+      Test.startTest();
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY
+      );
+      ContractWizardFieldService.getActiveFieldApiNames(
+        ContractWizardFieldService.WizardTarget.ContractHistory
+      );
+      EstimateQueryService.lastLatestOrderedQueryIds = new Set<Id>();
+      EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateCopyPreset(
+        changeEstimate.Id
+      );
+      Set<Id> queriedLatestIds = EstimateQueryService.lastLatestOrderedQueryIds;
+      Test.stopTest();
+
+      System.assertEquals(
+        false,
+        queriedLatestIds.contains(previous.Id),
+        'Core 第4.3.11節・第12.4節: 1回の取得リクエストの内部で対象の契約履歴を取り直さない'
+      );
+      System.assertEquals(
+        2,
+        preset.nextHistoryVersion,
+        'Core 第4.3節: コピーの Version は最新 Ordered + 1'
+      );
+      System.assertEquals(
+        'Query LatestReuse Ordered',
+        preset.autoHistoryName,
+        'Core 第4.3.3節: Changeコピーの履歴名初期値は前回履歴'
+      );
+      System.assertEquals(
+        true,
+        preset.renewEligible,
+        'Core 第4.3.3節: 期末継続課金があれば更新可'
+      );
+    }
+  }
+
+  @IsTest
+  static void getEstimateEditPreset_changeReusesLoadedPreviousAsLatestOrdered() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Query LatestEdit Acc'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Query LatestEdit Svc'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c previous = new ContractHistory__c(
+        Name = 'Query LatestEdit Prev',
+        ContractService__c = service.Id,
+        historystatus__c = 'Ordered',
+        Type__c = 'New',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        previous,
+        account.Id
+      );
+      insert previous;
+      ContractHistory__c changeEstimate = new ContractHistory__c(
+        Name = 'Query LatestEdit Change',
+        ContractService__c = service.Id,
+        historystatus__c = 'Estimate',
+        Type__c = 'Change',
+        Version__c = 2,
+        PreviousHistory__c = previous.Id,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        changeEstimate,
+        account.Id
+      );
+      insert changeEstimate;
+
+      Test.startTest();
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(
+        InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY
+      );
+      ContractWizardFieldService.getActiveFieldApiNames(
+        ContractWizardFieldService.WizardTarget.ContractHistory
+      );
+      EstimateQueryService.lastLatestOrderedQueryIds = new Set<Id>();
+      EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
+        changeEstimate.Id
+      );
+      Set<Id> queriedLatestIds = EstimateQueryService.lastLatestOrderedQueryIds;
+      Test.stopTest();
+
+      System.assertEquals(
+        false,
+        queriedLatestIds.contains(previous.Id),
+        'Core 第4.3.11節・第12.4節: 1回の取得リクエストの内部で対象の契約履歴を取り直さない'
+      );
+      System.assertEquals(
+        2,
+        preset.nextHistoryVersion,
+        'Core 第4.3.3節: 編集は既存Versionを維持する'
+      );
+      System.assertEquals(
+        'Query LatestEdit Prev',
+        preset.autoHistoryName,
+        'Core 第4.3.3節: Change編集の履歴名初期値は前回履歴'
+      );
+    }
+  }
+
+  @IsTest
   static void getProductDefaults_rejectsUnavailable_andReturnsAvailable() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       System.assertEquals(

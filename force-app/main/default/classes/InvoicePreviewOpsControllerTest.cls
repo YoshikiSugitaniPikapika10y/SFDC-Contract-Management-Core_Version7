@@ -608,6 +608,48 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_reusesLoadedInvoiceLastModifiedForToken() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c loaded = [
+        SELECT Id, LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      String expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        loaded.Id
+      );
+
+      AccountingCauseLockService.invoiceModifiedSelectCount = 0;
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        loaded.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.invoiceModifiedSelectCount,
+        'Core 第12.4節・第4.3.11節: 本体で読んだ請求を版トークンで取り直さない'
+      );
+      System.assertEquals(
+        expectedToken,
+        bundle.invoiceToken,
+        'Core 第7.9.7節: invoiceToken は変えない'
+      );
+      System.assertEquals(
+        expectedToken,
+        AccountingCauseLockService.resolveInvoiceOperationToken(
+          loaded.Id,
+          loaded.LastModifiedDate
+        ),
+        '開発ルール第13節: 入口はSOQL行の LastModified で版トークンを読む'
+      );
+    }
+  }
+
+  @IsTest
   static void getOpsBundle_unconfirmed_blocksPaymentJapanese() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

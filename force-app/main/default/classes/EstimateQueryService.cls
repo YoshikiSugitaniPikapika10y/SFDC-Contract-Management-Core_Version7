@@ -21,6 +21,9 @@ public without sharing class EstimateQueryService {
   private static final Integer NOTE_MAX_LENGTH = ContractDomainConstants.NOTE_MAX_LENGTH;
   private static Map<Id, ContractHistory__c> latestOrderedByServiceId = new Map<Id, ContractHistory__c>();
   private static Set<Id> latestOrderedQueriedServiceIds = new Set<Id>();
+  private static Map<Id, ContractHistory__c> loadedOrderedByServiceId = new Map<Id, ContractHistory__c>();
+  @TestVisible
+  static Set<Id> lastLatestOrderedQueryIds = new Set<Id>();
 
   /** 継続課金の正は明細 BillingType。商品マスタへ戻さない。 */
   private static String recurringLineSoqlPredicate() {
@@ -216,11 +219,66 @@ public without sharing class EstimateQueryService {
   public static ContractHistory__c queryLatestActiveOrderedHistory(
     Id contractServiceId
   ) {
+    lastLatestOrderedQueryIds = new Set<Id>();
     if (contractServiceId == null) {
       return null;
     }
     if (latestOrderedQueriedServiceIds.contains(contractServiceId)) {
       return latestOrderedByServiceId.get(contractServiceId);
+    }
+
+    ContractHistory__c loadedOrdered = loadedOrderedByServiceId.get(
+      contractServiceId
+    );
+    if (loadedOrdered != null && loadedOrdered.Version__c != null) {
+      Decimal loadedVersion = loadedOrdered.Version__c;
+      List<ContractHistory__c> newer = [
+        SELECT
+          Id,
+          Name,
+          Version__c,
+          Type__c,
+          ContractService__c,
+          CurrentTermStartDate__c,
+          CurrentTermEndDate__c,
+          EstimateSendContact__c
+        FROM ContractHistory__c
+        WHERE
+          ContractService__c = :contractServiceId
+          AND historystatus__c = :HISTORY_STATUS_ORDERED
+          AND Type__c IN (
+            :HISTORY_TYPE_NEW,
+            :HISTORY_TYPE_CHANGE,
+            :HISTORY_TYPE_RENEW,
+            :HISTORY_TYPE_CANCEL,
+            :LEGACY_HISTORY_TYPE_ADD
+          )
+          AND Version__c > :loadedVersion
+        WITH SYSTEM_MODE
+        ORDER BY Version__c DESC NULLS LAST
+        LIMIT 1
+      ];
+      latestOrderedQueriedServiceIds.add(contractServiceId);
+      if (newer.isEmpty()) {
+        latestOrderedByServiceId.put(contractServiceId, loadedOrdered);
+        return loadedOrdered;
+      }
+      lastLatestOrderedQueryIds.add(newer[0].Id);
+      latestOrderedByServiceId.put(contractServiceId, newer[0]);
+      InvoiceProductFieldCopyService.rememberRecords(
+        new List<SObject>{ newer[0] },
+        new Set<String>{
+          'Id',
+          'Name',
+          'Version__c',
+          'Type__c',
+          'ContractService__c',
+          'CurrentTermStartDate__c',
+          'CurrentTermEndDate__c',
+          'EstimateSendContact__c'
+        }
+      );
+      return newer[0];
     }
 
     Set<String> selectFields = new Set<String>{
@@ -265,6 +323,7 @@ public without sharing class EstimateQueryService {
       return null;
     }
 
+    lastLatestOrderedQueryIds.add(histories[0].Id);
     latestOrderedQueriedServiceIds.add(contractServiceId);
     latestOrderedByServiceId.put(contractServiceId, histories[0]);
     InvoiceProductFieldCopyService.rememberRecords(
@@ -272,6 +331,37 @@ public without sharing class EstimateQueryService {
       new Set<String>(selectList)
     );
     return histories[0];
+  }
+
+  private static Boolean isActiveOrderedType(String historyType) {
+    return historyType == HISTORY_TYPE_NEW ||
+      historyType == HISTORY_TYPE_CHANGE ||
+      historyType == HISTORY_TYPE_RENEW ||
+      historyType == HISTORY_TYPE_CANCEL ||
+      historyType == LEGACY_HISTORY_TYPE_ADD;
+  }
+
+  private static void rememberLoadedOrderedHistory(ContractHistory__c history) {
+    if (
+      history == null ||
+      history.Id == null ||
+      history.ContractService__c == null ||
+      history.historystatus__c != HISTORY_STATUS_ORDERED ||
+      !isActiveOrderedType(history.Type__c)
+    ) {
+      return;
+    }
+    ContractHistory__c current = loadedOrderedByServiceId.get(
+      history.ContractService__c
+    );
+    if (
+      current == null ||
+      (history.Version__c != null &&
+        (current.Version__c == null ||
+          history.Version__c > current.Version__c))
+    ) {
+      loadedOrderedByServiceId.put(history.ContractService__c, history);
+    }
   }
 
   public static EstimateCreateController.ContractHistoryDto getContractHistoryInfo(
@@ -346,10 +436,15 @@ public without sharing class EstimateQueryService {
       'EstimateValidDate__c',
       'EstimateSendContact__c',
       'PreviousHistory__c',
+      'PreviousHistory__r.Id',
       'PreviousHistory__r.Name',
       'PreviousHistory__r.Version__c',
+      'PreviousHistory__r.Type__c',
+      'PreviousHistory__r.historystatus__c',
+      'PreviousHistory__r.ContractService__c',
       'PreviousHistory__r.CurrentTermStartDate__c',
       'PreviousHistory__r.CurrentTermEndDate__c',
+      'PreviousHistory__r.EstimateSendContact__c',
       'LastModifiedDate'
     };
     for (
@@ -514,6 +609,10 @@ public without sharing class EstimateQueryService {
     preset.billingAccountId = service == null
       ? null
       : service.BiilingAcccount__c;
+
+    // 仕様: Core 第4.3.11節、第12.4節。Change／Renew／Cancelのpresetは読んだ対象または前回履歴を最新Orderedとして取り直さない。Version+1・履歴名・renewEligibleは変えない。
+    rememberLoadedOrderedHistory(history);
+    rememberLoadedOrderedHistory(history.PreviousHistory__r);
 
     if (history.PreviousHistory__c != null) {
       preset.autoHistoryName = history.PreviousHistory__r.Name;

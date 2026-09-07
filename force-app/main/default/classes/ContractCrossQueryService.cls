@@ -353,13 +353,7 @@ public with sharing class ContractCrossQueryService {
     Map<Id, LineAgg> lineAgg = accountingOn
       ? loadInvoiceLineAgg(invoiceIds)
       : new Map<Id, LineAgg>();
-    Set<Id> historyIds = new Set<Id>();
-    for (Invoice__c invoice : taken) {
-      if (invoice.ContractHistory__c != null) {
-        historyIds.add(invoice.ContractHistory__c);
-      }
-    }
-    Map<Id, Decimal> versionInvoiceTotals = loadVersionInvoiceTotals(historyIds);
+    Map<Id, Decimal> versionInvoiceTotals = loadVersionInvoiceTotals(taken);
     for (Invoice__c invoice : taken) {
       ContractCrossController.InvoiceRowDto dto = new ContractCrossController.InvoiceRowDto();
       dto.id = invoice.Id;
@@ -857,23 +851,69 @@ public with sharing class ContractCrossQueryService {
     return byInvoice;
   }
 
-  private static Map<Id, Decimal> loadVersionInvoiceTotals(Set<Id> historyIds) {
+  @TestVisible
+  static Set<Id> lastVersionTotalRemainderInvoiceIds = new Set<Id>();
+
+  /** 仕様: 横断画面.md 第5節 請求一覧、Core 第12.4節・第4.3.11節。Versionの数字。取得行の足し算ではない。一覧済み請求は取り直さない。 */
+  private static Map<Id, Decimal> loadVersionInvoiceTotals(
+    List<Invoice__c> knownInvoices
+  ) {
     Map<Id, Decimal> totals = new Map<Id, Decimal>();
-    if (historyIds == null || historyIds.isEmpty()) {
+    lastVersionTotalRemainderInvoiceIds = new Set<Id>();
+    if (knownInvoices == null || knownInvoices.isEmpty()) {
       return totals;
     }
-    for (AggregateResult row : [
-      SELECT ContractHistory__c historyId, SUM(Amount__c) totalAmount
+    Set<Id> historyIds = new Set<Id>();
+    Set<Id> knownIds = new Set<Id>();
+    for (Invoice__c invoice : knownInvoices) {
+      if (invoice.Id != null) {
+        knownIds.add(invoice.Id);
+      }
+      if (invoice.ContractHistory__c == null) {
+        continue;
+      }
+      historyIds.add(invoice.ContractHistory__c);
+      if (invoice.InvoiceTransactionStatus__c == 'Cancelled') {
+        continue;
+      }
+      addVersionInvoiceAmount(
+        totals,
+        invoice.ContractHistory__c,
+        invoice.Amount__c
+      );
+    }
+    if (historyIds.isEmpty() || knownIds.isEmpty()) {
+      return totals;
+    }
+    for (Invoice__c remainder : [
+      SELECT Id, ContractHistory__c, Amount__c
       FROM Invoice__c
       WHERE
         ContractHistory__c IN :historyIds
         AND InvoiceTransactionStatus__c != 'Cancelled'
+        AND Id NOT IN :knownIds
       WITH USER_MODE
-      GROUP BY ContractHistory__c
     ]) {
-      totals.put((Id) row.get('historyId'), (Decimal) row.get('totalAmount'));
+      lastVersionTotalRemainderInvoiceIds.add(remainder.Id);
+      addVersionInvoiceAmount(
+        totals,
+        remainder.ContractHistory__c,
+        remainder.Amount__c
+      );
     }
     return totals;
+  }
+
+  private static void addVersionInvoiceAmount(
+    Map<Id, Decimal> totals,
+    Id historyId,
+    Decimal amount
+  ) {
+    if (historyId == null || amount == null) {
+      return;
+    }
+    Decimal current = totals.get(historyId);
+    totals.put(historyId, current == null ? amount : current + amount);
   }
 
 }
