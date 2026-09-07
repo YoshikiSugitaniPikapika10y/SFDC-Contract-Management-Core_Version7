@@ -328,6 +328,9 @@ private class InvoiceBoardDocumentServiceTest {
       }
     }
   }
+
+  @IsTest
+  static void sendFromPreview_blankToken_sends() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
@@ -423,6 +426,82 @@ private class InvoiceBoardDocumentServiceTest {
         null,
         second.fileName,
         'Core 第7.10節: 終わったあとの再発行は可'
+      );
+    }
+  }
+
+  @IsTest
+  static void issueFromPreview_scoped_reusesLockedInvoiceWithoutCount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfOnly';
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      Invoice__c created = createConfirmedInvoice();
+      Invoice__c loaded = [
+        SELECT
+          Id,
+          Name,
+          ContractHistory__c,
+          ContractService__c,
+          InvoiceTransactionStatus__c,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          BillingAddresseeSnapShot__c,
+          Amount__c,
+          TaxAmount__c,
+          TaxInclusiveAmount__c
+        FROM Invoice__c
+        WHERE Id = :created.Id
+      ];
+
+      Test.startTest();
+      InvoiceBoardDocumentService.issueFromPreview(
+        loaded.Id,
+        'StandardInvoice',
+        null
+      );
+      Integer beforeScoped = Limits.getQueries();
+      InvoiceBoardDocumentService.DocumentResultDto scoped = InvoiceBoardDocumentService.issueFromPreview(
+        loaded.Id,
+        'StandardInvoice',
+        null,
+        loaded.ContractHistory__c
+      );
+      Integer usedScoped = Limits.getQueries() - beforeScoped;
+      Integer beforeIdOnly = Limits.getQueries();
+      InvoiceBoardDocumentService.DocumentResultDto idOnly = InvoiceBoardDocumentService.issueFromPreview(
+        loaded.Id,
+        'StandardInvoice',
+        null
+      );
+      Integer usedIdOnly = Limits.getQueries() - beforeIdOnly;
+      Test.stopTest();
+
+      System.assertEquals(
+        usedIdOnly,
+        usedScoped,
+        'Core 第12.4節・第7.10節: 範囲COUNTのあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertNotEquals(
+        null,
+        scoped.fileName,
+        'Core 第7.10節: 発行PDFの結果は変えない'
+      );
+      System.assertEquals(
+        idOnly.documentTemplateKey,
+        scoped.documentTemplateKey
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CONFIRMED,
+        loaded.InvoiceTransactionStatus__c,
+        '開発ルール第13節: 入口はSOQL行の確定状態を読む'
+      );
+      System.assertNotEquals(
+        null,
+        loaded.Amount__c,
+        '開発ルール第13節: 入口はSOQL行の税抜を読む'
       );
     }
   }

@@ -127,7 +127,10 @@ public without sharing class InvoiceBoardDocumentService {
     }
   }
 
-  /** 仕様: Core 第7.7.3節、第7.10節 */
+  /**
+   * 仕様: Core 第7.7.3節、第7.10節、第12.4節。
+   * 個別発行は開始時に行ロックし、ロック済み請求を取り直さない。
+   */
   @AuraEnabled
   public static DocumentResultDto issueFromPreview(
     Id invoiceId,
@@ -135,11 +138,13 @@ public without sharing class InvoiceBoardDocumentService {
     String expectedToken,
     Id contractHistoryId
   ) {
-    InvoiceOpsController.assertInvoicesInScope(
+    return issueFromPreview(
+      invoiceId,
+      documentTemplateKey,
+      expectedToken,
       contractHistoryId,
-      new List<Id>{ invoiceId }
+      true
     );
-    return issueFromPreview(invoiceId, documentTemplateKey, expectedToken);
   }
 
   /** 仕様: Core 第7.7.3節、第7.10節、第12.2節。個別発行は処理中に重ねない。 */
@@ -148,12 +153,35 @@ public without sharing class InvoiceBoardDocumentService {
     String documentTemplateKey,
     String expectedToken
   ) {
+    return issueFromPreview(
+      invoiceId,
+      documentTemplateKey,
+      expectedToken,
+      null,
+      false
+    );
+  }
+
+  private static DocumentResultDto issueFromPreview(
+    Id invoiceId,
+    String documentTemplateKey,
+    String expectedToken,
+    Id contractHistoryId,
+    Boolean checkScope
+  ) {
     ContractPermissionUtil.assertSendInvoice();
     ContractArrCalculationService.beginRecalcDefer();
     ContractHistoryStatusPathService.beginPathSyncDefer();
     BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       Invoice__c invoice = loadInvoice(invoiceId, true);
+      if (checkScope == true) {
+        InvoiceOpsController.assertInvoicesInScope(
+          contractHistoryId,
+          new List<Id>{ invoiceId },
+          invoice
+        );
+      }
       assertIssuable(invoice, false);
       InvoiceDocumentService.IssueResult issued = InvoiceDocumentService.issueInvoiceDocument(
         invoice.Id,
@@ -608,6 +636,8 @@ public without sharing class InvoiceBoardDocumentService {
             Amount__c,
             TaxAmount__c,
             TaxInclusiveAmount__c,
+            ContractHistory__c,
+            ContractService__c,
             LastModifiedDate
           FROM Invoice__c
           WHERE Id = :invoiceId
@@ -632,6 +662,8 @@ public without sharing class InvoiceBoardDocumentService {
             Amount__c,
             TaxAmount__c,
             TaxInclusiveAmount__c,
+            ContractHistory__c,
+            ContractService__c,
             LastModifiedDate
           FROM Invoice__c
           WHERE Id = :invoiceId
