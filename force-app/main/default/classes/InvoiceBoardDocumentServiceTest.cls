@@ -261,6 +261,8 @@ private class InvoiceBoardDocumentServiceTest {
       draft.fileName = 'invoice-send.pdf';
       draft.attachmentId = InvoiceBoardDocumentService.ATTACHMENT_NEW;
       InvoiceBoardDocumentService.skipEmailSend = true;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
       InvoiceBoardDocumentService.DocumentResultDto result;
       try {
         result = InvoiceBoardDocumentService.sendFromPreview(
@@ -271,6 +273,7 @@ private class InvoiceBoardDocumentServiceTest {
           draft
         );
       } finally {
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
         InvoiceBoardDocumentService.skipEmailSend = false;
       }
       Invoice__c sent = [
@@ -422,6 +425,8 @@ private class InvoiceBoardDocumentServiceTest {
         'Core 第7.10節: LWC JSONの件名・本文・添付名を受け取る'
       );
       InvoiceBoardDocumentService.skipEmailSend = true;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
       try {
         InvoiceBoardDocumentService.sendFromPreview(
           invoice.Id,
@@ -431,6 +436,7 @@ private class InvoiceBoardDocumentServiceTest {
           draft
         );
       } finally {
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
         InvoiceBoardDocumentService.skipEmailSend = false;
       }
     }
@@ -459,6 +465,8 @@ private class InvoiceBoardDocumentServiceTest {
       draft.fileName = 'invoice-send.pdf';
       draft.attachmentId = InvoiceBoardDocumentService.ATTACHMENT_NEW;
       InvoiceBoardDocumentService.skipEmailSend = true;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
       InvoiceBoardDocumentService.DocumentResultDto result;
       try {
         result = InvoiceBoardDocumentService.sendFromPreview(
@@ -469,6 +477,7 @@ private class InvoiceBoardDocumentServiceTest {
           draft
         );
       } finally {
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
         InvoiceBoardDocumentService.skipEmailSend = false;
       }
       Invoice__c sent = [
@@ -680,6 +689,8 @@ private class InvoiceBoardDocumentServiceTest {
       draft.fileName = 'custom-invoice.pdf';
       draft.attachmentId = InvoiceBoardDocumentService.ATTACHMENT_NEW;
       InvoiceBoardDocumentService.skipEmailSend = true;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
       InvoiceBoardDocumentService.DocumentResultDto result;
       try {
         result = InvoiceBoardDocumentService.sendFromPreview(
@@ -690,6 +701,7 @@ private class InvoiceBoardDocumentServiceTest {
           draft
         );
       } finally {
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
         InvoiceBoardDocumentService.skipEmailSend = false;
       }
       System.assertNotEquals(

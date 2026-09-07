@@ -488,6 +488,106 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_doesNotRereadEstimateProductsForDrift() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+
+      List<InvoiceLine__c> lines = [
+        SELECT Amount__c, ContractProduct__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :context.history.Id
+      ];
+      Set<Id> productIds = new Set<Id>();
+      Decimal lineTotal = 0;
+      for (InvoiceLine__c line : lines) {
+        lineTotal += line.Amount__c == null ? 0 : line.Amount__c;
+        if (line.ContractProduct__c != null) {
+          productIds.add(line.ContractProduct__c);
+        }
+      }
+      Map<Id, Decimal> amountByProductId = new Map<Id, Decimal>();
+      for (ContractProduct__c product : [
+        SELECT Id, Amount__c
+        FROM ContractProduct__c
+        WHERE Id IN :productIds
+      ]) {
+        amountByProductId.put(
+          product.Id,
+          product.Amount__c == null ? 0 : product.Amount__c
+        );
+      }
+
+      OrderCreateController.previewProductSelectCount = 0;
+      OrderCreateController.previewLineProductsById = new Map<Id, ContractProduct__c>();
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        false,
+        productIds.isEmpty(),
+        'Core 第7.7節: 明細関連の見積商品がある請求で入口を見る'
+      );
+      System.assertEquals(
+        productIds,
+        OrderCreateController.previewLineProductsById.keySet(),
+        'Core 第12.4節: 請求・明細1回照会が見積商品を載せる'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewProductSelectCount,
+        'Core 第12.4節・第4.3.11節・第7.7節: 同一取得で端数ずれ集計が同じ見積商品を取り直さない'
+      );
+
+      Decimal previewLineTotal = 0;
+      Decimal previewSourceTotal = 0;
+      Decimal previewDeltaTotal = 0;
+      for (OrderCreateController.InvoiceGroupDto invoice : preview.invoices) {
+        if (invoice == null || invoice.lines == null) {
+          continue;
+        }
+        for (OrderCreateController.InvoiceMergedLineDto row : invoice.lines) {
+          if (row == null) {
+            continue;
+          }
+          previewLineTotal += row.amount == null ? 0 : row.amount;
+          previewSourceTotal += row.sourceAmountTotal == null
+            ? 0
+            : row.sourceAmountTotal;
+          previewDeltaTotal += row.amountDeltaFromSource == null
+            ? 0
+            : row.amountDeltaFromSource;
+          if (row.sourceAmountTotal != null) {
+            System.assertEquals(
+              (row.amount == null ? 0 : row.amount) - row.sourceAmountTotal,
+              row.amountDeltaFromSource,
+              'Core 第7.7節: 明細の見積ずれは請求明細金額−見積按分'
+            );
+          }
+        }
+      }
+      System.assertEquals(
+        lineTotal,
+        previewLineTotal,
+        'Core 第7.7節: 請求明細金額は変えない'
+      );
+      System.assertEquals(
+        previewLineTotal - previewSourceTotal,
+        previewDeltaTotal,
+        'Core 第7.7節: 明細の見積ずれ合計は変えない'
+      );
+      System.assertEquals(
+        false,
+        amountByProductId.isEmpty(),
+        'Core 第7.7節: 見積商品Amountがある'
+      );
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_nullId_returnsEmptyDefaults() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(

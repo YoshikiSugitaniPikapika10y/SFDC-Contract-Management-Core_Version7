@@ -27,6 +27,12 @@ public without sharing class OrderCreateController {
   /** 仕様: Core 第12.4節。開く取得の手直し集計が期間明細を取り直した回数。 */
   @TestVisible
   public static Integer previewPeriodSelectCount = 0;
+  /** 仕様: Core 第12.4節・第4.3.11節。明細関連の見積商品。端数ずれ集計で取り直さない。 */
+  @TestVisible
+  public static Map<Id, ContractProduct__c> previewLineProductsById = new Map<Id, ContractProduct__c>();
+  /** 仕様: Core 第12.4節。開く取得の端数ずれ集計が見積商品を取り直した回数。 */
+  @TestVisible
+  public static Integer previewProductSelectCount = 0;
   @TestVisible
   public static Integer draftLineSelectCount = 0;
   /** 仕様: Core 第12.4節。Ordered集計が取った履歴Id。入口で読んだ対象は含めない。 */
@@ -1194,7 +1200,7 @@ public without sharing class OrderCreateController {
       preview,
       InvoicePreviewIntegrityService.lastLoadedPeriods
     );
-    applyEstimateDriftToLines(preview);
+    applyEstimateDriftToLines(preview, previewLineProductsById);
     preview.sourceHistoryVersion = sourceHistory.Version__c == null
       ? null
       : String.valueOf(sourceHistory.Version__c.intValue());
@@ -3582,7 +3588,9 @@ public without sharing class OrderCreateController {
       return new List<Invoice__c>();
     }
     if (previewInvoicesByServiceId.containsKey(contractServiceId)) {
-      return previewInvoicesByServiceId.get(contractServiceId);
+      List<Invoice__c> cached = previewInvoicesByServiceId.get(contractServiceId);
+      rememberPreviewLineProducts(cached);
+      return cached;
     }
     Set<String> selectFields = new Set<String>{
       'Id',
@@ -3627,11 +3635,43 @@ public without sharing class OrderCreateController {
     String soql =
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +
-      ', (SELECT Id, LineMergeKey__c, ProductName__c, HistoryVersionLabel__c, Unit__c, UnitPrice__c, Quantity__c, PeriodLabel__c, Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c, SourcePeriodLineIds__c, Invoice__c, AcceptanceEndDate__c, RevenueRecognitionBasis__c, ContractProduct__c, ContractProduct__r.Amount__c, ContractProduct__r.Unit__c, ContractProduct__r.BillingType__c, ContractProduct__r.ContractHistory__c FROM InvoiceLines__r ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC)' +
+      ', (SELECT Id, LineMergeKey__c, ProductName__c, HistoryVersionLabel__c, Unit__c, UnitPrice__c, Quantity__c, PeriodLabel__c, Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c, SourcePeriodLineIds__c, Invoice__c, AcceptanceEndDate__c, RevenueRecognitionBasis__c, ContractProduct__c, ContractProduct__r.Amount__c, ContractProduct__r.Unit__c, ContractProduct__r.BillingType__c, ContractProduct__r.ContractHistory__c, ContractProduct__r.StartDate__c, ContractProduct__r.Enddate__c FROM InvoiceLines__r ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC)' +
       ' FROM Invoice__c WHERE ContractService__c = :contractServiceId WITH SYSTEM_MODE ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC';
     List<Invoice__c> invoices = (List<Invoice__c>) Database.query(soql);
     previewInvoicesByServiceId.put(contractServiceId, invoices);
+    rememberPreviewLineProducts(invoices);
     return invoices;
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第4.3.11節。
+   * 請求・明細1回照会が載せた見積商品を端数ずれ集計へ渡す。取り直さない。
+   */
+  private static void rememberPreviewLineProducts(List<Invoice__c> invoices) {
+    if (invoices == null) {
+      return;
+    }
+    if (previewLineProductsById == null) {
+      previewLineProductsById = new Map<Id, ContractProduct__c>();
+    }
+    for (Invoice__c invoiceRecord : invoices) {
+      if (invoiceRecord == null || invoiceRecord.InvoiceLines__r == null) {
+        continue;
+      }
+      for (InvoiceLine__c lineRecord : invoiceRecord.InvoiceLines__r) {
+        if (
+          lineRecord == null ||
+          lineRecord.ContractProduct__c == null ||
+          lineRecord.ContractProduct__r == null
+        ) {
+          continue;
+        }
+        previewLineProductsById.put(
+          lineRecord.ContractProduct__c,
+          lineRecord.ContractProduct__r
+        );
+      }
+    }
   }
 
   private static InvoicePreviewDto buildInvoicePreviewFromCanonical(
@@ -4027,13 +4067,18 @@ public without sharing class OrderCreateController {
   }
 
   /**
+   * 仕様: Core 第12.4節、第4.3.11節、第7.7節。
    * 明細ごとの端数ずれ = 請求明細金額 − 見積（CP.Amount を請求月数で按分）。
    * 上部バーの「見積額 vs 請求額」と同じ定義。
    * 継続: Amount × (ユニーク請求月数 / CP月数)。同一 CP 複数明細への配分は
    * 由来 InvoiceProduct 金額比（期間 ID 重複時はその期間金額を明細金額比で按分）。
    * 一回: 請求明細があれば Amount 全額を金額比で配分。
+   * 請求・明細1回照会が載せた見積商品は取り直さない。明細の見積ずれは変えない。
    */
-  private static void applyEstimateDriftToLines(InvoicePreviewDto preview) {
+  private static void applyEstimateDriftToLines(
+    InvoicePreviewDto preview,
+    Map<Id, ContractProduct__c> knownProducts
+  ) {
     if (preview == null || preview.invoices == null) {
       return;
     }
@@ -4118,14 +4163,25 @@ public without sharing class OrderCreateController {
       return;
     }
 
-    Map<Id, ContractProduct__c> productById = new Map<Id, ContractProduct__c>();
-    for (ContractProduct__c product : [
-      SELECT Id, Amount__c, BillingType__c, StartDate__c, Enddate__c
-      FROM ContractProduct__c
-      WHERE Id IN :contractProductIds
-      WITH SYSTEM_MODE
-    ]) {
-      productById.put(product.Id, product);
+    Map<Id, ContractProduct__c> productById = knownProducts == null
+      ? new Map<Id, ContractProduct__c>()
+      : new Map<Id, ContractProduct__c>(knownProducts);
+    Set<Id> missingProductIds = new Set<Id>();
+    for (Id cpId : contractProductIds) {
+      if (!productById.containsKey(cpId)) {
+        missingProductIds.add(cpId);
+      }
+    }
+    if (!missingProductIds.isEmpty()) {
+      previewProductSelectCount++;
+      for (ContractProduct__c product : [
+        SELECT Id, Amount__c, BillingType__c, StartDate__c, Enddate__c
+        FROM ContractProduct__c
+        WHERE Id IN :missingProductIds
+        WITH SYSTEM_MODE
+      ]) {
+        productById.put(product.Id, product);
+      }
     }
 
     Map<Id, Decimal> invoiceTotalByCp = new Map<Id, Decimal>();
