@@ -1,5 +1,7 @@
 public without sharing class AccountingCurrentService {
   private static Map<Id, List<GlJournal__c>> cachedByInvoiceId = new Map<Id, List<GlJournal__c>>();
+  @TestVisible
+  static Integer currentLoadSelectCount = 0;
 
   /** 仕様: Accounting 第8.2節。同一請求の Current 再照会を1回にする。 */
   public static void invalidate(Id invoiceId) {
@@ -38,6 +40,7 @@ public without sharing class AccountingCurrentService {
       return new List<GlJournal__c>();
     }
     if (!cachedByInvoiceId.containsKey(invoiceId)) {
+      currentLoadSelectCount++;
       List<String> fields = new List<String>{
         'Id',
         'Invoice__c',

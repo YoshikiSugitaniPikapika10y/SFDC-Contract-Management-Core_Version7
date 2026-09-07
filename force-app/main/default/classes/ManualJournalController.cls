@@ -44,19 +44,22 @@ public with sharing class ManualJournalController {
     String businessOperationKey,
     Id contractHistoryId
   ) {
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(invoiceId);
     InvoiceOpsController.assertInvoicesInScope(
       contractHistoryId,
-      new List<Id>{ invoiceId }
+      new List<Id>{ invoiceId },
+      locked
     );
-    return register(
-      invoiceId,
-      settingId,
-      postingDate,
-      amount,
-      cancellationDate,
-      expectedToken,
-      businessOperationKey
-    );
+    ManualJournalService.RegisterRequest request = new ManualJournalService.RegisterRequest();
+    request.invoiceId = invoiceId;
+    request.settingId = settingId;
+    request.postingDate = postingDate;
+    request.amount = amount;
+    request.cancellationDate = cancellationDate;
+    request.businessOperationKey = businessOperationKey;
+    request.expectedToken = expectedToken;
+    request.knownLockedInvoice = locked;
+    return ManualJournalService.register(request);
   }
 
   /** 仕様: Accounting 第10.3節、第8.2節・第8.5節・第8.8節、Core 第7.7.3節・第7.9.6節・第7.9.7節 */
@@ -126,9 +129,11 @@ public with sharing class ManualJournalController {
     String expectedToken,
     Id contractHistoryId
   ) {
+    Invoice__c locked = AccountingCauseLockService.lockInvoice(invoiceId);
     InvoiceOpsController.assertInvoicesInScope(
       contractHistoryId,
-      new List<Id>{ invoiceId }
+      new List<Id>{ invoiceId },
+      locked
     );
     ContractPermissionUtil.assertManualJournal();
     try {
@@ -139,6 +144,7 @@ public with sharing class ManualJournalController {
       request.amount = amount;
       request.cancellationDate = cancellationDate;
       request.expectedToken = expectedToken;
+      request.knownLockedInvoice = locked;
       return ManualJournalService.previewRegister(request);
     } catch (Exception ex) {
       String resolved = String.isNotBlank(ex.getMessage())

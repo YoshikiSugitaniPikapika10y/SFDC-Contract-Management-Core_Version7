@@ -147,6 +147,92 @@ private class ManualJournalServiceTest {
   }
 
   @IsTest
+  static void register_reusesLockedInvoiceCurrentAndCopySources() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice(true);
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'MJ Reuse Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'MJ Reuse Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      insert new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 500,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'MJREUSE', String.valueOf(invoice.Id) }
+        ),
+        JournalLineKey__c = 'mj-reuse-locked',
+        DebitSlotKey__c = 'ContractLiability',
+        CreditSlotKey__c = 'AccountsReceivable',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.today(),
+        TransactionStatus__c = 'Active',
+        IsLocked__c = true
+      );
+      ManualJournalService.RegisterRequest request = new ManualJournalService.RegisterRequest();
+      request.invoiceId = invoice.Id;
+      request.settingId = insertActiveSetting().Id;
+      request.postingDate = Date.today();
+      request.amount = 100;
+      request.cancellationDate = Date.today();
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingCauseLockService.invoiceModifiedSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      Test.startTest();
+      Id headerId = ManualJournalService.register(request);
+      Test.stopTest();
+      System.assertNotEquals(null, headerId, 'Accounting 第10.3節: 登録できる');
+      System.assertEquals(
+        1,
+        AccountingCurrentService.currentLoadSelectCount,
+        'Accounting 第8.2節手順2: hasActiveLockedで集めたCurrentをapplyForInvoiceで取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.invoiceModifiedSelectCount,
+        'Core 第7.9.7節: ロック済み請求の更新日時は版比較で取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節・Core 第11.4.2節: Goalが載せた請求をコピーFromで取り直さない'
+      );
+      ManualJournalService.CancelRequest cancelRequest = new ManualJournalService.CancelRequest();
+      cancelRequest.headerId = headerId;
+      cancelRequest.cancellationReason = 'Duplicate';
+      cancelRequest.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      AccountingCauseLockService.invoiceModifiedSelectCount = 0;
+      AccountingDiffService.invoiceCopySourceSelectCount = 0;
+      ManualJournalService.cancel(cancelRequest);
+      System.assertEquals(
+        0,
+        AccountingCauseLockService.invoiceModifiedSelectCount,
+        'Core 第7.9.7節: 取消の版比較もロック済み請求の更新日時を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        AccountingDiffService.invoiceCopySourceSelectCount,
+        'Accounting 第8.2節: 取消でもGoalが載せた請求をコピーFromで取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void previewRegister_requiresCancellationDateWhenInvoiceHasLockedJournal() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();

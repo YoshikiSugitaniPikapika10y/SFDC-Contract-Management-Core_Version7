@@ -12,6 +12,7 @@ public without sharing class ManualJournalService {
     public Date cancellationDate;
     public String businessOperationKey;
     public String expectedToken;
+    public Invoice__c knownLockedInvoice;
   }
 
   public class CancelRequest {
@@ -48,7 +49,8 @@ public without sharing class ManualJournalService {
     // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
     AccountingCauseLockService.assertInvoiceOperationUnchanged(
       request.invoiceId,
-      request.expectedToken
+      request.expectedToken,
+      invoice.LastModifiedDate
     );
     GlManualJournalHeader__c header = buildHeader(
       request,
@@ -117,7 +119,11 @@ public without sharing class ManualJournalService {
       throw new ManualJournalException('金額は0より大きい整数にしてください。');
     }
     // 仕様: Accounting 第8.2節。Goal・Current・Diffの前に行ロックし、続けて利用設定を確認する。
-    Invoice__c invoice = AccountingCauseLockService.lockInvoice(request.invoiceId);
+    Invoice__c invoice =
+      request.knownLockedInvoice != null &&
+      request.knownLockedInvoice.Id == request.invoiceId
+        ? request.knownLockedInvoice
+        : AccountingCauseLockService.lockInvoice(request.invoiceId);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
     if (policy.AccountingEnabled__c != true) {
       throw new ManualJournalException('AccountingがOFFのときは手動仕訳を登録できません。');
@@ -209,7 +215,8 @@ public without sharing class ManualJournalService {
     // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
     AccountingCauseLockService.assertInvoiceOperationUnchanged(
       header.Invoice__c,
-      request.expectedToken
+      request.expectedToken,
+      lockedInvoice.LastModifiedDate
     );
     if (header.TransactionStatus__c != 'Active') {
       throw new ManualJournalException('有効な手動仕訳だけ取消できます。');

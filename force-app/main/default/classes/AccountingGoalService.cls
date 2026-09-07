@@ -51,6 +51,14 @@ public without sharing class AccountingGoalService {
     Decimal signedAmount;
   }
 
+  /**
+   * 仕様: Accounting 第8.2節、Core 第11.4.2節。
+   * ロック済み請求へ条件・コピーFrom項目を載せ、GoalとDiffで取り直さない。
+   */
+  public static Invoice__c prepareInvoiceForGoal(Invoice__c invoice) {
+    return hydrateInvoiceForConditions(invoice);
+  }
+
   private static Map<Id, Map<Id, InvoiceLine__c>> cachedLinesByInvoice = new Map<Id, Map<Id, InvoiceLine__c>>();
   private static Map<Id, List<GlManualJournalHeader__c>> cachedHeadersByInvoice = new Map<Id, List<GlManualJournalHeader__c>>();
   private static Map<Id, Map<Id, GlManualJournalSetting__c>> cachedSettingsByInvoice = new Map<Id, Map<Id, GlManualJournalSetting__c>>();
@@ -2437,6 +2445,8 @@ public without sharing class AccountingGoalService {
     extraFields.add('Amount__c');
     extraFields.add('TaxAmount__c');
     extraFields.add('TaxInclusiveAmount__c');
+    extraFields.add('InvoiceTransactionStatus__c');
+    extraFields.add('LastModifiedDate');
     // 仕様: Accounting 第8.2節、開発ルール第13節。fillRelatedContextが請求の履歴・サービス・請求アカウント参照を読む。
     extraFields.add('ContractHistory__c');
     extraFields.add('ContractService__c');
@@ -2461,11 +2471,9 @@ public without sharing class AccountingGoalService {
     if (loaded.isEmpty()) {
       return invoice;
     }
-    // SOQL行へ未SELECT項目をputしても後続のgetが落ちる。取り直した行をメモリ行へ載せる。
-    Invoice__c hydrated = new Invoice__c();
-    copyPopulatedFields(hydrated, invoice);
-    copyPopulatedFields(hydrated, loaded[0]);
-    return hydrated;
+    // 仕様: Accounting 第8.2節。コピーFromは Goal が載せた SOQL 行を Diff へ渡す。
+    copyPopulatedFields(loaded[0], invoice);
+    return loaded[0];
   }
 
   private static void copyPopulatedFields(

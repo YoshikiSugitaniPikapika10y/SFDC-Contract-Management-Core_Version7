@@ -2,6 +2,11 @@ public without sharing class AccountingCauseLockService {
   public class LockException extends Exception {
   }
 
+  @TestVisible
+  static Integer invoiceLockSelectCount = 0;
+  @TestVisible
+  static Integer invoiceModifiedSelectCount = 0;
+
   /** 仕様: Core 第7.9.7節、第4.3.12節 */
   public static String issueOperationKey() {
     return EncodingUtil.convertToHex(Crypto.generateAesKey(128));
@@ -87,6 +92,7 @@ public without sharing class AccountingCauseLockService {
     if (compact.isEmpty()) {
       throw new LockException('請求が指定されていません。');
     }
+    invoiceLockSelectCount++;
     List<Invoice__c> invoices = [
       SELECT
         Id,
@@ -159,6 +165,7 @@ public without sharing class AccountingCauseLockService {
     if (knownInvoiceModified != null) {
       result.putAll(knownInvoiceModified);
     } else {
+      invoiceModifiedSelectCount++;
       for (Invoice__c invoice : [
         SELECT Id, LastModifiedDate
         FROM Invoice__c

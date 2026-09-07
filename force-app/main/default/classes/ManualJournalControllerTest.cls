@@ -360,6 +360,51 @@ private class ManualJournalControllerTest {
   }
 
   @IsTest
+  static void registerAndPreviewRegister_inScope_lockInvoiceOnce() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertConfirmedInvoice();
+      GlManualJournalSetting__c setting = insertActiveSetting();
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      ManualJournalController.register(
+        invoice.Id,
+        setting.Id,
+        Date.today(),
+        100,
+        null,
+        token,
+        null,
+        invoice.ContractHistory__c
+      );
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Accounting 第8.2節・Core 第12.4節: 範囲確認と登録で同じ請求を行ロックし直さない'
+      );
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      ManualJournalController.previewRegister(
+        invoice.Id,
+        setting.Id,
+        Date.today(),
+        50,
+        null,
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        invoice.ContractHistory__c
+      );
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Accounting 第8.2節・Core 第12.4節: 範囲確認とプレビューで同じ請求を行ロックし直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void previewRegister_rejectsWhenInvoiceOutsideContractService() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c own = insertConfirmedInvoice();

@@ -2,6 +2,11 @@ public without sharing class AccountingDiffService {
   public class DiffException extends Exception {
   }
 
+  @TestVisible
+  static Integer copySourceSelectCount = 0;
+  @TestVisible
+  static Integer invoiceCopySourceSelectCount = 0;
+
   public class ReverseDateCount {
     @AuraEnabled
     public Date reverseDate;
@@ -80,11 +85,11 @@ public without sharing class AccountingDiffService {
       knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
         ? knownLockedInvoice
         : AccountingCauseLockService.lockInvoice(invoiceId);
+    invoice = AccountingGoalService.prepareInvoiceForGoal(invoice);
     GlAccountingPolicy__c policy = eventKey == AccountingEventFixedCatalog.BILLING_CONFIRMED.key
       ? GlAccountingPolicyService.freezeOnFirstConfirm()
       : GlAccountingPolicyService.requireOrgPolicy();
-    // 仕様: Accounting 第8.2節手順2。この処理のロック後に仕訳を収集する。前の処理のCurrentは使わない。
-    AccountingCurrentService.invalidate(invoiceId);
+    // 仕様: Accounting 第8.2節手順2。ロック後に集めたCurrentは取り直さない。
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
     if (policy.AccountingEnabled__c != true) {
@@ -942,15 +947,20 @@ public without sharing class AccountingDiffService {
       return;
     }
     Map<Id, InvoicePaymentAllocation__c> updates = new Map<Id, InvoicePaymentAllocation__c>();
-    for (InvoicePaymentAllocation__c allocation : [
-      SELECT Id, Amount__c, HistoricalUacAmount__c, HistoricalSpAmount__c, InvoiceLine__c
-      FROM InvoicePaymentAllocation__c
-      WHERE
-        InvoicePayment__r.Invoice__c = :invoiceId
-        AND InvoicePayment__r.PaymentTransactionStatus__c = 'Active'
-        AND InvoicePayment__r.PaymentPurpose__c = 'Invoice'
-      WITH SYSTEM_MODE
-    ]) {
+    Map<Id, InvoicePaymentAllocation__c> collected = AccountingGoalService.collectedAllocations(
+      invoiceId
+    );
+    Map<Id, InvoicePayment__c> payments = AccountingGoalService.collectedPayments(
+      invoiceId
+    );
+    for (InvoicePaymentAllocation__c allocation : collected.values()) {
+      InvoicePayment__c payment = payments.get(allocation.InvoicePayment__c);
+      if (
+        payment == null ||
+        payment.PaymentPurpose__c != InvoicePaymentService.PURPOSE_INVOICE
+      ) {
+        continue;
+      }
       if (
         restrictLineIds != null &&
         !restrictLineIds.isEmpty() &&
@@ -1528,6 +1538,10 @@ public without sharing class AccountingDiffService {
       selectFields.add('Id');
     }
     selectFields.sort();
+    copySourceSelectCount++;
+    if (objectApiName == 'Invoice__c') {
+      invoiceCopySourceSelectCount++;
+    }
     return Database.query(
       'SELECT ' +
         String.join(selectFields, ',') +
