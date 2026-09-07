@@ -82,6 +82,10 @@ public without sharing class InvoiceCancelService {
       throw new CancelException('ロック済み仕訳がある取消では取消基準日が必要です。');
     }
     Invoice__c original = queryOriginalInvoiceForCorrection(invoice.Id);
+    List<InvoiceLine__c> originalLines = queryOriginalLinesForCorrection(
+      original.Id
+    );
+    rememberCorrectionCopySources(original, originalLines);
     InvoiceTransactionStatusService.applyCancelled(new List<Invoice__c>{ original });
     // 仕様: Core 第7.9.3節手順5・第7.9.5節。理由は元請求へ保持。取消者・日時は監査項目。
     original.CancellationReason__c = request.cancellationReason;
@@ -125,7 +129,7 @@ public without sharing class InvoiceCancelService {
       InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
     List<InvoiceLine__c> copies = new List<InvoiceLine__c>();
-    for (InvoiceLine__c line : queryOriginalLinesForCorrection(original.Id)) {
+    for (InvoiceLine__c line : originalLines) {
       InvoiceLine__c copy = line.clone(false, true, false, false);
       copy.Invoice__c = correction.Id;
       copy.AllocatedTaxAmount__c = null;
@@ -234,6 +238,36 @@ public without sharing class InvoiceCancelService {
         new Set<String>(FieldCopyDefinitionService.targetFieldApiNames('Invoice__c'))
       )
     );
+    addPrefixedCopyFields(
+      fields,
+      'ContractHistory__r',
+      historyCopySelectFields(),
+      ContractHistory__c.SObjectType
+    );
+    addPrefixedCopyFields(
+      fields,
+      'ContractHistory__r.Opportunity__r',
+      opportunityCopySelectFields(),
+      Opportunity.SObjectType
+    );
+    addPrefixedCopyFields(
+      fields,
+      'ContractHistory__r.ContractService__r',
+      new Set<String>{ 'Id', 'BiilingAcccount__c', 'Account__c' },
+      ContractService__c.SObjectType
+    );
+    addPrefixedCopyFields(
+      fields,
+      'ContractHistory__r.ContractService__r.Account__r',
+      accountCopySelectFields(),
+      Account.SObjectType
+    );
+    addPrefixedCopyFields(
+      fields,
+      'BillingAccountSnapShot__r',
+      billingAccountCopySelectFields(),
+      BillingAccount__c.SObjectType
+    );
     String soql =
       'SELECT ' +
       String.join(new List<String>(fields), ',') +
@@ -273,11 +307,188 @@ public without sharing class InvoiceCancelService {
         )
       )
     );
+    addPrefixedCopyFields(
+      fields,
+      'ContractProduct__r',
+      contractProductCopySelectFields(),
+      ContractProduct__c.SObjectType
+    );
+    addPrefixedCopyFields(
+      fields,
+      'ContractProduct__r.Product__r',
+      productCopySelectFields(),
+      Product2.SObjectType
+    );
+    addPrefixedCopyFields(
+      fields,
+      'Product__r',
+      productCopySelectFields(),
+      Product2.SObjectType
+    );
     String soql =
       'SELECT ' +
       String.join(new List<String>(fields), ',') +
       ' FROM InvoiceLine__c WHERE Invoice__c = :invoiceId WITH SYSTEM_MODE';
     return Database.query(soql);
+  }
+
+  /**
+   * 仕様: Core 第11.4.2節・第12.4節。訂正用 insert のコピーFromは clone SELECT で載せ、取り直さない。
+   */
+  private static void rememberCorrectionCopySources(
+    Invoice__c original,
+    List<InvoiceLine__c> lines
+  ) {
+    if (original == null) {
+      return;
+    }
+    ContractHistory__c history = (ContractHistory__c) original.getSObject(
+      'ContractHistory__r'
+    );
+    if (history != null) {
+      InvoiceProductFieldCopyService.rememberRecords(
+        new List<SObject>{ history },
+        historyCopySelectFields()
+      );
+      Opportunity opportunity = (Opportunity) history.getSObject('Opportunity__r');
+      if (opportunity != null) {
+        InvoiceProductFieldCopyService.rememberRecords(
+          new List<SObject>{ opportunity },
+          opportunityCopySelectFields()
+        );
+      }
+      ContractService__c service = (ContractService__c) history.getSObject(
+        'ContractService__r'
+      );
+      if (service != null) {
+        InvoiceProductFieldCopyService.rememberRecords(
+          new List<SObject>{ service },
+          new Set<String>{ 'Id', 'BiilingAcccount__c', 'Account__c' }
+        );
+        Account account = (Account) service.getSObject('Account__r');
+        if (account != null) {
+          InvoiceProductFieldCopyService.rememberRecords(
+            new List<SObject>{ account },
+            accountCopySelectFields()
+          );
+        }
+      }
+    }
+    BillingAccount__c billingAccount = (BillingAccount__c) original.getSObject(
+      'BillingAccountSnapShot__r'
+    );
+    if (billingAccount != null) {
+      InvoiceProductFieldCopyService.rememberRecords(
+        new List<SObject>{ billingAccount },
+        billingAccountCopySelectFields()
+      );
+    }
+    if (lines == null || lines.isEmpty()) {
+      return;
+    }
+    List<SObject> contractProducts = new List<SObject>();
+    List<SObject> products = new List<SObject>();
+    for (InvoiceLine__c line : lines) {
+      ContractProduct__c contractProduct = (ContractProduct__c) line.getSObject(
+        'ContractProduct__r'
+      );
+      if (contractProduct != null) {
+        contractProducts.add(contractProduct);
+        Product2 fromProduct = (Product2) contractProduct.getSObject('Product__r');
+        if (fromProduct != null) {
+          products.add(fromProduct);
+        }
+      }
+      Product2 lineProduct = (Product2) line.getSObject('Product__r');
+      if (lineProduct != null) {
+        products.add(lineProduct);
+      }
+    }
+    if (!contractProducts.isEmpty()) {
+      InvoiceProductFieldCopyService.rememberRecords(
+        contractProducts,
+        contractProductCopySelectFields()
+      );
+    }
+    if (!products.isEmpty()) {
+      InvoiceProductFieldCopyService.rememberRecords(
+        products,
+        productCopySelectFields()
+      );
+    }
+  }
+
+  private static Set<String> historyCopySelectFields() {
+    Set<String> names = InvoiceProductFieldCopyService.getSourceFieldApiNames(
+      InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
+      InvoiceProductFieldCopyService.TARGET_INVOICE
+    );
+    names.add('Opportunity__c');
+    names.add('ContractService__c');
+    return names;
+  }
+
+  private static Set<String> opportunityCopySelectFields() {
+    return InvoiceProductFieldCopyService.getSourceFieldApiNames(
+      InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
+      InvoiceProductFieldCopyService.TARGET_INVOICE
+    );
+  }
+
+  private static Set<String> accountCopySelectFields() {
+    return InvoiceProductFieldCopyService.getSourceFieldApiNames(
+      InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
+      InvoiceProductFieldCopyService.TARGET_INVOICE
+    );
+  }
+
+  private static Set<String> billingAccountCopySelectFields() {
+    return InvoiceProductFieldCopyService.getSourceFieldApiNames(
+      InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
+      InvoiceProductFieldCopyService.TARGET_INVOICE
+    );
+  }
+
+  private static Set<String> contractProductCopySelectFields() {
+    Set<String> names = InvoiceProductFieldCopyService.getSourceFieldApiNames(
+      InvoiceProductFieldCopyService.OBJECT_CONTRACT_PRODUCT,
+      InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
+    );
+    names.add('Product__c');
+    names.add('ContractHistory__c');
+    names.add('Unit__c');
+    return names;
+  }
+
+  private static Set<String> productCopySelectFields() {
+    return InvoiceProductFieldCopyService.getSourceFieldApiNames(
+      InvoiceProductFieldCopyService.OBJECT_PRODUCT,
+      InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
+    );
+  }
+
+  private static void addPrefixedCopyFields(
+    Set<String> fields,
+    String relationshipPath,
+    Set<String> relatedNames,
+    Schema.SObjectType relatedType
+  ) {
+    if (
+      fields == null ||
+      String.isBlank(relationshipPath) ||
+      relatedNames == null ||
+      relatedType == null
+    ) {
+      return;
+    }
+    Map<String, Schema.SObjectField> fieldMap = relatedType.getDescribe()
+      .fields.getMap();
+    for (String relatedName : relatedNames) {
+      if (String.isBlank(relatedName) || !fieldMap.containsKey(relatedName)) {
+        continue;
+      }
+      fields.add(relationshipPath + '.' + fieldMap.get(relatedName).getDescribe().getName());
+    }
   }
 
   private static Set<String> extraCorrectionFieldApiNames(

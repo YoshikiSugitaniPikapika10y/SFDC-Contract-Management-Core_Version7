@@ -209,6 +209,7 @@ public without sharing class ContractHistoryTriggerHandler {
       if (
         oldHistory != null &&
         oldHistory.historystatus__c != HISTORY_STATUS_ARCHIVE &&
+        oldHistory.historystatus__c != HISTORY_STATUS_ESTIMATE &&
         history.historystatus__c == HISTORY_STATUS_ARCHIVE
       ) {
         archivedHistoryIds.add(history.Id);
@@ -241,7 +242,8 @@ public without sharing class ContractHistoryTriggerHandler {
       );
     }
 
-    // Estimate→Archive 等で誤って残った期間明細／請求を掃除
+    // 仕様: Core 第5.2節・第5.5節・第6.1節・第12.4節。
+    // Estimate の Archive に有効な期間明細・請求は無い。Ordered 以外の Archive だけ掃除する。
     if (!archivedHistoryIds.isEmpty()) {
       InvoiceCanonicalService.purgeBillingForHistories(archivedHistoryIds);
     }

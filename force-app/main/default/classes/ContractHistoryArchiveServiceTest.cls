@@ -111,6 +111,61 @@ private class ContractHistoryArchiveServiceTest {
   }
 
   @IsTest
+  static void archiveSupersededEstimates_doesNotPurgeBillingOnEstimateArchive() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive No Purge Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        account,
+        'Archive No Purge Service'
+      );
+      ContractHistory__c estimate = buildEstimateHistory(
+        service.Id,
+        account.Id,
+        'Estimate leftover',
+        1
+      );
+      insert estimate;
+      Integer invoicesBefore = [
+        SELECT COUNT()
+        FROM Invoice__c
+        WHERE ContractHistory__c = :estimate.Id
+      ];
+      Test.startTest();
+      ContractHistoryArchiveService.archiveSupersededEstimates(
+        new List<ContractHistory__c>{
+          new ContractHistory__c(
+            Id = fakeId(ContractHistory__c.SObjectType, 91),
+            ContractService__c = service.Id,
+            Version__c = 2
+          )
+        }
+      );
+      Test.stopTest();
+      System.assertEquals(
+        'Archive',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :estimate.Id
+        ]
+        .historystatus__c,
+        'Core 第5.5節: 受注Version以下の他EstimateはArchive'
+      );
+      System.assertEquals(
+        invoicesBefore,
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE ContractHistory__c = :estimate.Id
+        ],
+        'Core 第5.2節・第12.4節: Estimateの自動Archiveは請求を掃除照会しない'
+      );
+    }
+  }
+
+  @IsTest
   static void archiveSupersededEstimates_runsOnInsertAsOrderedCancel() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(

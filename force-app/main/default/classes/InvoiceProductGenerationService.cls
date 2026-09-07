@@ -80,8 +80,40 @@ public without sharing class InvoiceProductGenerationService {
     }
   }
 
+  /**
+   * 仕様: Core 第5.2節、第12.4節。
+   * 受注検証で読んだ見積商品・履歴・請求アカウントを生成へ渡す。
+   */
+  public static void primeCachesForHistories(Set<Id> contractHistoryIds) {
+    if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
+      return;
+    }
+    loadHistoryGenerationContextById(contractHistoryIds);
+    queryContractProductsForGeneration(contractHistoryIds);
+    Set<Id> billingAccountIds = new Set<Id>();
+    for (Id historyId : contractHistoryIds) {
+      ContractHistory__c history = cachedHistoriesForFieldCopy.get(historyId);
+      if (
+        history != null &&
+        history.ContractService__r != null &&
+        history.ContractService__r.BiilingAcccount__c != null
+      ) {
+        billingAccountIds.add(history.ContractService__r.BiilingAcccount__c);
+      }
+    }
+    loadBillingAccountsById(billingAccountIds);
+  }
+
+  public static List<ContractProduct__c> productsCachedForHistory(Id historyId) {
+    List<ContractProduct__c> cached = cachedContractProductsByHistoryId.get(
+      historyId
+    );
+    return cached == null
+      ? new List<ContractProduct__c>()
+      : new List<ContractProduct__c>(cached);
+  }
+
   private static void generateForHistoriesBody(Set<Id> contractHistoryIds) {
-    invalidateGenerationCache(contractHistoryIds);
     // 仕様: Core 第5.2節、第12.4節。同一処理で見積商品・請求アカウント・コピー定義を取り直さない。
     InvoiceCanonicalService.assertHistoriesAreOrdered(contractHistoryIds);
 
@@ -89,9 +121,6 @@ public without sharing class InvoiceProductGenerationService {
     // 仕様: Core 第11.4.2節
     FieldCopyDefinitionService.validateAllDefinitions();
     InvoiceMergeKeyConfigService.validateActiveDefinitions();
-
-    // Version 単位: 請求書ロック1件でもあれば全体エラー。なければ全削除して全作り直し。
-    InvoiceLockUtil.assertNoLockedInvoices(contractHistoryIds);
 
     Map<Id, HistoryGenerationContext> historyContextById = loadHistoryGenerationContextById(
       contractHistoryIds
@@ -123,9 +152,19 @@ public without sharing class InvoiceProductGenerationService {
     );
     // Change は見積保存と同じカバー／有効日ルールを再検証（画面外データ対策）。
     // 仕様: Core 第6.1節。生成用見積商品照会を再利用し、Trigger 配下と二重に取らない。
+    List<ContractHistory__c> changeHistories = new List<ContractHistory__c>();
+    for (Id historyId : contractHistoryIds) {
+      ContractHistory__c cachedHistory = cachedHistoriesForFieldCopy.get(
+        historyId
+      );
+      if (cachedHistory != null) {
+        changeHistories.add(cachedHistory);
+      }
+    }
     EstimateValidationService.assertChangeHistoriesReadyForInvoice(
       contractHistoryIds,
-      cachedContractProductsByHistoryId
+      cachedContractProductsByHistoryId,
+      changeHistories
     );
     deleteAllInvoiceProducts(contractHistoryIds);
 
@@ -205,17 +244,6 @@ public without sharing class InvoiceProductGenerationService {
     }
     // 契約期間明細を集約し、請求／請求明細正本を生成する（Cancel 含む全 ID で空 rebuild）
     InvoiceCanonicalService.rebuildForHistories(contractHistoryIds);
-  }
-
-  private static void invalidateGenerationCache(Set<Id> contractHistoryIds) {
-    if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
-      return;
-    }
-    for (Id historyId : contractHistoryIds) {
-      cachedHistoryGenerationContextById.remove(historyId);
-      cachedHistoriesForFieldCopy.remove(historyId);
-      cachedContractProductsByHistoryId.remove(historyId);
-    }
   }
 
   private static Map<Id, HistoryGenerationContext> loadHistoryGenerationContextById(
@@ -1297,6 +1325,15 @@ public without sharing class InvoiceProductGenerationService {
     uniqueSelect.add('ContractService__r.TaxPercent__c');
     uniqueSelect.add('ContractService__r.BiilingAcccount__c');
     uniqueSelect.add('ContractService__r.Account__c');
+    uniqueSelect.add('ContractService__r.Name');
+    uniqueSelect.add('PreviousHistory__c');
+    uniqueSelect.add('CurrentTermStartDate__c');
+    uniqueSelect.add('CurrentTermEndDate__c');
+    uniqueSelect.add('ContractService__r.Lifecycle__c');
+    uniqueSelect.add('Opportunity__r.Id');
+    uniqueSelect.addAll(
+      InvoiceProductFieldCopyService.historySelectFieldsForInsertCopy()
+    );
     selectList = new List<String>(uniqueSelect);
 
     Set<Id> missingHistoryIds = new Set<Id>();
@@ -1508,7 +1545,12 @@ public without sharing class InvoiceProductGenerationService {
       }
     }
 
-    Set<String> productSelectFields = new Set<String>{ 'BillingType__c' };
+    Set<String> productSelectFields = new Set<String>{
+      'BillingType__c',
+      'Name',
+      'ProductCode',
+      'RevenueRecognitionBasis__c'
+    };
     productSelectFields.addAll(
       InvoiceProductFieldCopyService.getSourceFieldApiNames(
         InvoiceProductFieldCopyService.OBJECT_PRODUCT

@@ -74,11 +74,20 @@ private class ContractOrderValidationServiceTest {
       );
 
       Test.startTest();
+      Integer firstQueriesBefore = Limits.getQueries();
       ContractOrderValidationService.assertReadyForOrder(history);
+      Integer firstUsed = Limits.getQueries() - firstQueriesBefore;
+      Integer secondQueriesBefore = Limits.getQueries();
+      ContractOrderValidationService.assertReadyForOrder(history);
+      Integer secondUsed = Limits.getQueries() - secondQueriesBefore;
       history.historystatus__c = 'Ordered';
       update history;
       Test.stopTest();
 
+      System.assert(
+        secondUsed < firstUsed,
+        'Core 第5.1節・第12.4節: 検証済みの請求アカウントと見積商品を取り直さない'
+      );
       System.assertEquals(
         'Ordered',
         [

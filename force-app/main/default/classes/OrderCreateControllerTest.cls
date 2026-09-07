@@ -354,6 +354,34 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_secondCallReusesHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+
+      Test.startTest();
+      Integer firstBefore = Limits.getQueries();
+      OrderCreateController.getInvoicePreview(context.history.Id);
+      Integer firstUsed = Limits.getQueries() - firstBefore;
+      Integer secondBefore = Limits.getQueries();
+      OrderCreateController.InvoicePreviewDto second = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      Integer secondUsed = Limits.getQueries() - secondBefore;
+      Test.stopTest();
+
+      System.assert(
+        secondUsed < firstUsed,
+        'Core 第12.4節・第7.7.0節: 同一処理で契約履歴を取り直さない'
+      );
+      System.assert(
+        second.invoiceCount > 0,
+        'Core 第7.7.0節: 返却カードは変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_nullId_returnsEmptyDefaults() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
@@ -958,7 +986,7 @@ private class OrderCreateControllerTest {
       );
 
       Test.startTest();
-      OrderCreateController.cancelConfirmedFromPreview(
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.cancelConfirmedFromPreview(
         context.history.Id,
         invoice.Id,
         'Duplicate',
@@ -967,6 +995,12 @@ private class OrderCreateControllerTest {
         token
       );
       Test.stopTest();
+
+      System.assertNotEquals(
+        null,
+        preview,
+        'Core 第7.7.0節: 返却カードを返す'
+      );
 
       System.assertEquals(
         InvoiceTransactionStatusService.TX_CANCELLED,

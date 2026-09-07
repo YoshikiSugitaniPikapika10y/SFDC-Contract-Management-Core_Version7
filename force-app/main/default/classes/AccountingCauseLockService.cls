@@ -105,7 +105,11 @@ public without sharing class AccountingCauseLockService {
         SystemIntegrationDate__c,
         PaymentClearingCompletedDate__c,
         InvoiceDeliveryMethodSnapShot__c,
-        LastModifiedDate
+        LastModifiedDate,
+        ContractHistory__r.Version__c,
+        ContractHistory__r.ContractService__c,
+        ContractHistory__r.ContractService__r.TaxPercent__c,
+        ContractService__r.TaxPercent__c
       FROM Invoice__c
       WHERE Id IN :compact
       WITH SYSTEM_MODE

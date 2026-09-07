@@ -7,6 +7,9 @@ public without sharing class ContractOrderValidationService {
   private static final String HISTORY_TYPE_CHANGE = ContractDomainConstants.HISTORY_TYPE_CHANGE;
   private static final String HISTORY_STATUS_ORDERED = ContractDomainConstants.HISTORY_STATUS_ORDERED;
 
+  private static Map<Id, Id> rememberedBillingAccountIdByServiceId = new Map<Id, Id>();
+  private static Map<Id, List<ContractProduct__c>> rememberedProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
+
   public static final String BILLING_ACCOUNT_MISSING_MESSAGE = '請求アカウントが未設定のため受注できません。';
   public static final String PRODUCTS_MISSING_MESSAGE = '見積商品がないため受注できません。';
   public static final String AMOUNT_MISSING_MESSAGE = '見積商品の金額が未設定のため受注できません。見積ウィザードで保存してから受注してください。';
@@ -120,13 +123,30 @@ public without sharing class ContractOrderValidationService {
 
     Map<Id, Id> billingAccountIdByServiceId = new Map<Id, Id>();
     if (!contractServiceIds.isEmpty()) {
-      for (ContractService__c service : [
-        SELECT Id, BiilingAcccount__c
-        FROM ContractService__c
-        WHERE Id IN :contractServiceIds
-        WITH SYSTEM_MODE
-      ]) {
-        billingAccountIdByServiceId.put(service.Id, service.BiilingAcccount__c);
+      Set<Id> missingServiceIds = new Set<Id>();
+      for (Id serviceId : contractServiceIds) {
+        if (rememberedBillingAccountIdByServiceId.containsKey(serviceId)) {
+          billingAccountIdByServiceId.put(
+            serviceId,
+            rememberedBillingAccountIdByServiceId.get(serviceId)
+          );
+        } else {
+          missingServiceIds.add(serviceId);
+        }
+      }
+      if (!missingServiceIds.isEmpty()) {
+        for (ContractService__c service : [
+          SELECT Id, BiilingAcccount__c
+          FROM ContractService__c
+          WHERE Id IN :missingServiceIds
+          WITH SYSTEM_MODE
+        ]) {
+          billingAccountIdByServiceId.put(service.Id, service.BiilingAcccount__c);
+          rememberedBillingAccountIdByServiceId.put(
+            service.Id,
+            service.BiilingAcccount__c
+          );
+        }
       }
     }
 
@@ -142,32 +162,28 @@ public without sharing class ContractOrderValidationService {
 
     Map<Id, List<ContractProduct__c>> productsByHistoryId = new Map<Id, List<ContractProduct__c>>();
     if (!historyIdsForProducts.isEmpty()) {
-      for (ContractProduct__c product : [
-        SELECT
-          Id,
-          ContractHistory__c,
-          Quantity__c,
-          Amount__c,
-          Type__c,
-          PreviousContractProduct__c,
-          Product__c,
-          UnitPrice__c,
-          BillingType__c,
-          InvoiceSetting__c,
-          RevenueRecognitionBasis__c,
-          StartDate__c,
-          Enddate__c
-        FROM ContractProduct__c
-        WHERE ContractHistory__c IN :historyIdsForProducts
-        WITH SYSTEM_MODE
-      ]) {
-        if (!productsByHistoryId.containsKey(product.ContractHistory__c)) {
+      Set<Id> missingProductHistoryIds = new Set<Id>();
+      for (Id historyId : historyIdsForProducts) {
+        if (rememberedProductsByHistoryId.containsKey(historyId)) {
           productsByHistoryId.put(
-            product.ContractHistory__c,
-            new List<ContractProduct__c>()
+            historyId,
+            rememberedProductsByHistoryId.get(historyId)
           );
+        } else {
+          missingProductHistoryIds.add(historyId);
         }
-        productsByHistoryId.get(product.ContractHistory__c).add(product);
+      }
+      if (!missingProductHistoryIds.isEmpty()) {
+        InvoiceProductGenerationService.primeCachesForHistories(
+          missingProductHistoryIds
+        );
+        for (Id historyId : missingProductHistoryIds) {
+          List<ContractProduct__c> loaded = InvoiceProductGenerationService.productsCachedForHistory(
+            historyId
+          );
+          productsByHistoryId.put(historyId, loaded);
+          rememberedProductsByHistoryId.put(historyId, loaded);
+        }
       }
     }
 

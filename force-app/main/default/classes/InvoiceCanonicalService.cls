@@ -3097,15 +3097,35 @@ public without sharing class InvoiceCanonicalService {
       }
     }
     selectList.sort();
+    Set<String> neededFields = new Set<String>(selectList);
+    Set<Id> missingBillingAccountIds = new Set<Id>();
+    for (Id billingAccountId : billingAccountIds) {
+      BillingAccount__c cached = InvoiceProductFieldCopyService.findRememberedBillingAccount(
+        billingAccountId,
+        neededFields
+      );
+      if (cached != null) {
+        byId.put(billingAccountId, cached);
+      } else {
+        missingBillingAccountIds.add(billingAccountId);
+      }
+    }
+    if (missingBillingAccountIds.isEmpty()) {
+      return byId;
+    }
     String soql =
       'SELECT ' +
       String.join(selectList, ',') +
       ' FROM BillingAccount__c' +
-      ' WHERE Id IN :billingAccountIds' +
+      ' WHERE Id IN :missingBillingAccountIds' +
       ' WITH SYSTEM_MODE';
     for (BillingAccount__c ba : Database.query(soql)) {
       byId.put(ba.Id, ba);
     }
+    InvoiceProductFieldCopyService.rememberRecords(
+      byId.values(),
+      neededFields
+    );
     return byId;
   }
 

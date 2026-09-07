@@ -171,6 +171,24 @@ public without sharing class InvoiceProductFieldCopyService {
     return have != null && need != null && have.containsAll(need);
   }
 
+  public static Set<String> historySelectFieldsForInsertCopy() {
+    Set<String> names = historyInsertSelectFields(TARGET_INVOICE);
+    names.addAll(historyInsertSelectFields(TARGET_INVOICE_PRODUCT));
+    names.addAll(historyInsertSelectFields(TARGET_INVOICE_LINE));
+    return names;
+  }
+
+  public static BillingAccount__c findRememberedBillingAccount(
+    Id recordId,
+    Set<String> neededFields
+  ) {
+    return (BillingAccount__c) findCachedSource(
+      OBJECT_BILLING_ACCOUNT,
+      recordId,
+      neededFields
+    );
+  }
+
   /**
    * 同一処理で先に読んだコピー元を、Insert 時の再SOQLに使わせる。
    * 仕様: Core 第11.4.2節、第5.2節、第7.10節
@@ -257,15 +275,16 @@ public without sharing class InvoiceProductFieldCopyService {
       return;
     }
     if (sobjectType == BillingAccount__c.SObjectType) {
+      Set<String> incomingCover = coverageFields(record, queriedFields, null);
+      Set<String> existingCover = cachedBillingAccountFieldsById.get(record.Id);
+      if (
+        existingCover != null &&
+        existingCover.containsAll(incomingCover)
+      ) {
+        return;
+      }
       cachedBillingAccountsById.put(record.Id, (BillingAccount__c) record);
-      cachedBillingAccountFieldsById.put(
-        record.Id,
-        coverageFields(
-          record,
-          queriedFields,
-          cachedBillingAccountFieldsById.get(record.Id)
-        )
-      );
+      cachedBillingAccountFieldsById.put(record.Id, incomingCover);
       return;
     }
     if (sobjectType == Product2.SObjectType) {

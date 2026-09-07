@@ -124,6 +124,15 @@ private class InvoiceProductGenerationHardeningTest {
         lines[0].Amount__c + lines[1].Amount__c + lines[2].Amount__c,
         '期間明細合計 3000'
       );
+      Integer beforeReuse = Limits.getQueries();
+      InvoiceProductGenerationService.queryContractProductsForGeneration(
+        new Set<Id>{ history.Id }
+      );
+      System.assertEquals(
+        beforeReuse,
+        Limits.getQueries(),
+        'Core 第5.2節: 同一処理で見積商品を取り直さない'
+      );
     }
   }
 

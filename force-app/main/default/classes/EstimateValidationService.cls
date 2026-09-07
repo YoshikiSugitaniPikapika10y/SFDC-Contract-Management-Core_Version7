@@ -114,27 +114,59 @@ public without sharing class EstimateValidationService {
     Set<Id> contractHistoryIds,
     Map<Id, List<ContractProduct__c>> preloadedProductsByHistoryId
   ) {
+    assertChangeHistoriesReadyForInvoice(
+      contractHistoryIds,
+      preloadedProductsByHistoryId,
+      null
+    );
+  }
+
+  /** 仕様: Core 第6.1節、第5.1節、第12.4節。同一処理で Change 履歴を取り直さない。 */
+  public static void assertChangeHistoriesReadyForInvoice(
+    Set<Id> contractHistoryIds,
+    Map<Id, List<ContractProduct__c>> preloadedProductsByHistoryId,
+    List<ContractHistory__c> preloadedHistories
+  ) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
 
-    List<ContractHistory__c> changeHistories = [
-      SELECT
-        Id,
-        Type__c,
-        EffectiveDate__c,
-        CurrentTermStartDate__c,
-        CurrentTermEndDate__c,
-        ContractService__c,
-        ContractService__r.Lifecycle__c,
-        PreviousHistory__c
-      FROM ContractHistory__c
-      WHERE Id IN :contractHistoryIds AND Type__c = :HISTORY_TYPE_CHANGE
-      WITH SYSTEM_MODE
-    ];
-    if (changeHistories.isEmpty()) {
+    Map<Id, ContractHistory__c> changeById = new Map<Id, ContractHistory__c>();
+    Set<Id> missingHistoryIds = new Set<Id>(contractHistoryIds);
+    if (preloadedHistories != null) {
+      for (ContractHistory__c history : preloadedHistories) {
+        if (history == null || history.Id == null) {
+          continue;
+        }
+        missingHistoryIds.remove(history.Id);
+        if (history.Type__c == HISTORY_TYPE_CHANGE) {
+          changeById.put(history.Id, history);
+        }
+      }
+    }
+    if (!missingHistoryIds.isEmpty()) {
+      for (ContractHistory__c history : [
+        SELECT
+          Id,
+          Type__c,
+          EffectiveDate__c,
+          CurrentTermStartDate__c,
+          CurrentTermEndDate__c,
+          ContractService__c,
+          ContractService__r.Lifecycle__c,
+          PreviousHistory__c
+        FROM ContractHistory__c
+        WHERE Id IN :missingHistoryIds AND Type__c = :HISTORY_TYPE_CHANGE
+        WITH SYSTEM_MODE
+      ]) {
+        changeById.put(history.Id, history);
+      }
+    }
+    if (changeById.isEmpty()) {
       return;
     }
+
+    List<ContractHistory__c> changeHistories = changeById.values();
 
     Set<Id> changeHistoryIds = new Set<Id>();
     for (ContractHistory__c history : changeHistories) {

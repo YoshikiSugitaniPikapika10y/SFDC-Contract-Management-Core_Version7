@@ -362,8 +362,8 @@ public without sharing class AccountingDiffService {
     AccountingEventFixedCatalog.require(eventKey);
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
-    Set<Id> activePayments = activePaymentIds(current);
-    Set<Id> activeHeaders = activeHeaderIds(current);
+    Set<Id> activePayments = activePaymentIdsForCancel(current, eventKey);
+    Set<Id> activeHeaders = activeHeaderIdsForCancel(current, eventKey);
     if (excludingPaymentId != null) {
       activePayments.remove(excludingPaymentId);
     }
@@ -507,8 +507,8 @@ public without sharing class AccountingDiffService {
     String operationKey,
     Date cancellationDate
   ) {
-    Set<Id> activePayments = activePaymentIds(current);
-    Set<Id> activeHeaders = activeHeaderIds(current);
+    Set<Id> activePayments = activePaymentIdsForCancel(current, eventKey);
+    Set<Id> activeHeaders = activeHeaderIdsForCancel(current, eventKey);
     List<GlJournal__c> unlocked = new List<GlJournal__c>();
     List<GlJournal__c> locked = new List<GlJournal__c>();
     for (GlJournal__c journal : current) {
@@ -751,6 +751,30 @@ public without sharing class AccountingDiffService {
         !activeHeaders.contains(journal.GlManualJournalHeader__c);
     }
     return false;
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節手順2、第8.8節、Core 第12.4節。
+   * 請求取消は Current 全部が対象なので入出金・手動ヘッダーを照会しない。
+   */
+  private static Set<Id> activePaymentIdsForCancel(
+    List<GlJournal__c> current,
+    String eventKey
+  ) {
+    if (eventKey == AccountingEventFixedCatalog.BILLING_CANCELLED.key) {
+      return new Set<Id>();
+    }
+    return activePaymentIds(current);
+  }
+
+  private static Set<Id> activeHeaderIdsForCancel(
+    List<GlJournal__c> current,
+    String eventKey
+  ) {
+    if (eventKey == AccountingEventFixedCatalog.BILLING_CANCELLED.key) {
+      return new Set<Id>();
+    }
+    return activeHeaderIds(current);
   }
 
   private static Set<Id> activePaymentIds(List<GlJournal__c> current) {

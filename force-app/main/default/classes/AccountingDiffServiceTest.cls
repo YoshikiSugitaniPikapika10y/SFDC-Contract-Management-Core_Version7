@@ -226,6 +226,49 @@ private class AccountingDiffServiceTest {
   }
 
   @IsTest
+  static void previewCancel_billingCancelled_doesNotSelectPaymentsOrHeaders() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c invoice = insertConfirmedInvoice();
+      InvoicePayment__c payment = insertNonInvoicePayment(invoice.Id);
+      insertActiveJournalForPayment(invoice.Id, 'bill-skip-pay', payment.Id, false);
+      Test.startTest();
+      Integer beforePayment = Limits.getQueries();
+      AccountingDiffService.CancelPreview paymentPreview = AccountingDiffService.previewCancel(
+        invoice.Id,
+        AccountingEventFixedCatalog.PAYMENT_CANCELLED.key,
+        null,
+        payment.Id,
+        null
+      );
+      Integer paymentQueries = Limits.getQueries() - beforePayment;
+      Integer beforeBilling = Limits.getQueries();
+      AccountingDiffService.CancelPreview billingPreview = AccountingDiffService.previewCancel(
+        invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CANCELLED.key,
+        Date.newInstance(2026, 6, 15),
+        null,
+        null
+      );
+      Integer billingQueries = Limits.getQueries() - beforeBilling;
+      Test.stopTest();
+      System.assert(
+        billingQueries < paymentQueries,
+        'Accounting 第8.2節・第8.8節、Core 第12.4節: 請求取消は入出金・手動ヘッダーを照会しない'
+      );
+      System.assert(
+        billingPreview.logicalDeleteCount >= 1,
+        'Accounting 第8.8節: 請求取消の論理削除対象は変えない'
+      );
+      System.assertEquals(
+        1,
+        paymentPreview.logicalDeleteCount,
+        'Accounting 第8.4節: 入出金取消の件数は変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void applyForInvoice_offCancelLogicallyDeletesCurrent() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

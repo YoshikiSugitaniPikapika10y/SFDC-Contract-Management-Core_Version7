@@ -14,6 +14,7 @@ public without sharing class OrderCreateController {
   private static Boolean testHasRevertPermission = true;
   private static Map<Id, Decimal> previewPeriodAmountById;
   private static Map<Id, Id> previewPeriodContractProductById;
+  private static Map<Id, ContractHistory__c> previewHistoryById;
 
   public class OrderContextDto {
     @AuraEnabled
@@ -2537,7 +2538,44 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
+    rememberPreviewHistoryFromLockedInvoice(lockedInvoice);
     return getInvoicePreview(contractHistoryId);
+  }
+
+  /**
+   * 仕様: Core 第12.4節。ロック済み請求の契約履歴を返却カードで取り直さない。
+   */
+  private static void rememberPreviewHistoryFromLockedInvoice(
+    Invoice__c lockedInvoice
+  ) {
+    if (lockedInvoice == null || lockedInvoice.ContractHistory__c == null) {
+      return;
+    }
+    ContractHistory__c history = new ContractHistory__c(
+      Id = lockedInvoice.ContractHistory__c,
+      ContractService__c = lockedInvoice.ContractService__c
+    );
+    if (lockedInvoice.ContractHistory__r != null) {
+      history.Version__c = lockedInvoice.ContractHistory__r.Version__c;
+      if (history.ContractService__c == null) {
+        history.ContractService__c = lockedInvoice.ContractHistory__r.ContractService__c;
+      }
+    }
+    ContractService__c service;
+    if (
+      lockedInvoice.ContractHistory__r != null &&
+      lockedInvoice.ContractHistory__r.ContractService__r != null
+    ) {
+      service = lockedInvoice.ContractHistory__r.ContractService__r;
+    } else if (lockedInvoice.ContractService__r != null) {
+      service = lockedInvoice.ContractService__r;
+    } else if (history.ContractService__c != null) {
+      service = new ContractService__c(Id = history.ContractService__c);
+    }
+    if (service != null) {
+      history.putSObject('ContractService__r', service);
+    }
+    rememberPreviewHistory(history);
   }
 
   /**
@@ -2695,6 +2733,9 @@ public without sharing class OrderCreateController {
     if (contractHistoryId == null) {
       return null;
     }
+    if (previewHistoryById != null && previewHistoryById.containsKey(contractHistoryId)) {
+      return previewHistoryById.get(contractHistoryId);
+    }
     List<ContractHistory__c> histories = [
       SELECT ContractService__c, Version__c, ContractService__r.TaxPercent__c
       FROM ContractHistory__c
@@ -2702,7 +2743,21 @@ public without sharing class OrderCreateController {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    return histories.isEmpty() ? null : histories[0];
+    if (histories.isEmpty()) {
+      return null;
+    }
+    rememberPreviewHistory(histories[0]);
+    return histories[0];
+  }
+
+  private static void rememberPreviewHistory(ContractHistory__c history) {
+    if (history == null || history.Id == null) {
+      return;
+    }
+    if (previewHistoryById == null) {
+      previewHistoryById = new Map<Id, ContractHistory__c>();
+    }
+    previewHistoryById.put(history.Id, history);
   }
 
   private static List<ProductLineDto> loadProductLines(Id contractHistoryId) {
@@ -2842,6 +2897,7 @@ public without sharing class OrderCreateController {
     String editableFieldClause = buildOrderHistoryEditableFieldClause();
     String soql =
       'SELECT Id, Type__c, historystatus__c, Version__c, ContractService__c, ' +
+      'PreviousHistory__c, CurrentTermStartDate__c, CurrentTermEndDate__c, EffectiveDate__c, ' +
       'CreateRenewOpportunity__c, RenewOpportunityRequestCount__c, RenewalOpportunity__c, ' +
       'ContractService__r.Lifecycle__c, ContractService__r.Account__c, LastModifiedDate, BusinessOperationKey__c' +
       editableFieldClause +
