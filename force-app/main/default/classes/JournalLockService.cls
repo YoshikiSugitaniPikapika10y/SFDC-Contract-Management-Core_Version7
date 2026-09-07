@@ -63,18 +63,12 @@ public without sharing class JournalLockService {
     if (invoiceId == null) {
       throw new LockException('請求が指定されていません。');
     }
-    Invoice__c invoice = [
-      SELECT Id, InvoiceTransactionStatus__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    // 仕様: Core 第12.4節・第7.9.7節。取消確認の請求を行ロックで取り直さない。
+    Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
     // 仕様: Core 第12.2節・第7.7.3節。取消済み請求は通常操作の対象外。仕訳閲覧は可。
     if (InvoiceTransactionStatusService.isCancelled(invoice)) {
       throw new LockException('取消済み請求の仕訳はLock/Unlockできません。');
     }
-    AccountingCauseLockService.lockInvoice(invoiceId);
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
     );

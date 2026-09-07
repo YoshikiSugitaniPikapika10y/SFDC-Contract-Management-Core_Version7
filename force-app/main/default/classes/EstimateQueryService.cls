@@ -614,6 +614,18 @@ public without sharing class EstimateQueryService {
       ? null
       : service.BiilingAcccount__c;
 
+    // 仕様: Core 第4.3.11節、第12.4節。OrderedのChange／Renew／Cancel編集presetは読んだ対象見積商品をrenewEligible判定で取り直さない。明細初期値とrenewEligibleは変えない。
+    if (
+      forEdit == true &&
+      history.historystatus__c == HISTORY_STATUS_ORDERED
+    ) {
+      rememberRenewEligibleFromLoadedProducts(
+        history.Id,
+        history.CurrentTermEndDate__c,
+        copyProducts
+      );
+    }
+
     // 仕様: Core 第4.3.11節、第12.4節。Change／Renew／Cancelのpresetは読んだ対象または前回履歴を最新Orderedとして取り直さない。Version+1・履歴名・renewEligibleは変えない。
     rememberLoadedOrderedHistory(history);
     rememberLoadedOrderedHistory(history.PreviousHistory__r);
@@ -1047,6 +1059,55 @@ public without sharing class EstimateQueryService {
     countedRenewTermEndByHistoryId.put(contractHistoryId, termEndDate);
     countedRenewEligibleByHistoryId.put(contractHistoryId, matchingCount > 0);
     return matchingCount;
+  }
+
+  /**
+   * 仕様: Core 第4.3.11節、第12.4節。同一取得で読んだ対象見積商品はrenewEligible判定で取り直さない。
+   * 判定は loadChangeSourceProducts と同じ継続課金・数量・Type と期末一致。結果は変えない。
+   */
+  private static void rememberRenewEligibleFromLoadedProducts(
+    Id contractHistoryId,
+    Date termEndDate,
+    List<ContractProduct__c> products
+  ) {
+    if (contractHistoryId == null || termEndDate == null) {
+      return;
+    }
+    if (
+      countedRenewEligibleByHistoryId.containsKey(contractHistoryId) &&
+      countedRenewTermEndByHistoryId.get(contractHistoryId) == termEndDate
+    ) {
+      return;
+    }
+    Boolean eligible = false;
+    if (products != null) {
+      for (ContractProduct__c product : products) {
+        if (product == null) {
+          continue;
+        }
+        if (product.BillingType__c != BILLING_TYPE_RECURRING) {
+          continue;
+        }
+        if (product.Quantity__c == null || product.Quantity__c <= 0) {
+          continue;
+        }
+        String productType = product.Type__c;
+        if (
+          productType != null &&
+          productType != PRODUCT_TYPE_REMAKE &&
+          productType != PRODUCT_TYPE_NEW &&
+          productType != PRODUCT_TYPE_RENEW
+        ) {
+          continue;
+        }
+        if (product.Enddate__c == termEndDate) {
+          eligible = true;
+          break;
+        }
+      }
+    }
+    countedRenewTermEndByHistoryId.put(contractHistoryId, termEndDate);
+    countedRenewEligibleByHistoryId.put(contractHistoryId, eligible);
   }
 
   public static EstimateCreateController.ProductDefaultDto getProductDefaults(

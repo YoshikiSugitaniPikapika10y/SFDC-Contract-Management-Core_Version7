@@ -312,12 +312,17 @@ public with sharing class ContractCrossQueryService {
         soql += ' AND Id NOT IN :issuedInvoiceIds';
       }
     }
+    lastInvoiceLineAggReloadedLines = false;
+    NextAcceptanceLines nextAcceptanceLines = new NextAcceptanceLines();
+    Boolean nextAcceptanceFilterOn =
+      accountingOn && (nextFrom != null || nextTo != null);
     Set<Id> nextAcceptanceInvoiceIds = new Set<Id>();
-    if (accountingOn && (nextFrom != null || nextTo != null)) {
-      nextAcceptanceInvoiceIds = loadInvoiceIdsMatchingNextAcceptance(
+    if (nextAcceptanceFilterOn) {
+      nextAcceptanceLines = loadInvoiceIdsMatchingNextAcceptance(
         nextFrom,
         nextTo
       );
+      nextAcceptanceInvoiceIds = nextAcceptanceLines.invoiceIds;
       soql += ' AND Id IN :nextAcceptanceInvoiceIds';
     }
     if (filter.tagFilters != null) {
@@ -360,9 +365,16 @@ public with sharing class ContractCrossQueryService {
       lastLatestIssuedReloadedIssuedFiles = true;
       latestIssuedByInvoice = loadLatestIssuedDocumentIds(invoiceIds);
     }
-    Map<Id, LineAgg> lineAgg = accountingOn
-      ? loadInvoiceLineAgg(invoiceIds)
-      : new Map<Id, LineAgg>();
+    // 仕様: Core 第12.4節・第4.3.11節、横断画面.md 第5節取得。次の検収フィルタONの明細は取り直さない。
+    Map<Id, LineAgg> lineAgg;
+    if (!accountingOn) {
+      lineAgg = new Map<Id, LineAgg>();
+    } else if (nextAcceptanceFilterOn) {
+      lineAgg = nextAcceptanceLines.lineAgg;
+    } else {
+      lastInvoiceLineAggReloadedLines = true;
+      lineAgg = loadInvoiceLineAgg(invoiceIds);
+    }
     Map<Id, Decimal> versionInvoiceTotals = loadVersionInvoiceTotals(taken);
     for (Invoice__c invoice : taken) {
       ContractCrossController.InvoiceRowDto dto = new ContractCrossController.InvoiceRowDto();
@@ -770,31 +782,45 @@ public with sharing class ContractCrossQueryService {
   @TestVisible
   static Boolean lastLatestIssuedReloadedIssuedFiles = false;
 
-  /** 仕様: 横断画面.md 第5節取得。次の検収はフィルタ後に500件。 */
-  private static Set<Id> loadInvoiceIdsMatchingNextAcceptance(
+  private class NextAcceptanceLines {
+    public Set<Id> invoiceIds = new Set<Id>();
+    public Map<Id, LineAgg> lineAgg = new Map<Id, LineAgg>();
+  }
+
+  @TestVisible
+  static Boolean lastInvoiceLineAggReloadedLines = false;
+
+  /**
+   * 仕様: 横断画面.md 第5節取得・請求一覧、Core 第12.4節・第4.3.11節。
+   * 次の検収はフィルタ後に500件。同じ明細から印と次の検収も組み立てる。
+   */
+  private static NextAcceptanceLines loadInvoiceIdsMatchingNextAcceptance(
     Date nextFrom,
     Date nextTo
   ) {
-    String aggSoql =
-      'SELECT Invoice__c invoiceId ' +
-      'FROM InvoiceLine__c ' +
-      'WHERE RevenueRecognitionBasis__c = \'一括計上\' ' +
-      'AND AcceptanceEndDate__c != null ' +
-      'GROUP BY Invoice__c';
-    if (nextFrom != null && nextTo != null) {
-      aggSoql +=
-        ' HAVING MIN(AcceptanceEndDate__c) >= :nextFrom' +
-        ' AND MIN(AcceptanceEndDate__c) <= :nextTo';
-    } else if (nextFrom != null) {
-      aggSoql += ' HAVING MIN(AcceptanceEndDate__c) >= :nextFrom';
-    } else if (nextTo != null) {
-      aggSoql += ' HAVING MIN(AcceptanceEndDate__c) <= :nextTo';
+    NextAcceptanceLines loaded = new NextAcceptanceLines();
+    for (InvoiceLine__c line : [
+      SELECT Invoice__c, RevenueRecognitionBasis__c, AcceptanceEndDate__c
+      FROM InvoiceLine__c
+      WHERE RevenueRecognitionBasis__c IN ('月次計上', '一括計上')
+      WITH USER_MODE
+    ]) {
+      applyInvoiceLineToAgg(loaded.lineAgg, line);
     }
-    Set<Id> ids = new Set<Id>();
-    for (AggregateResult row : Database.query(aggSoql, AccessLevel.USER_MODE)) {
-      ids.add((Id) row.get('invoiceId'));
+    for (Id invoiceId : loaded.lineAgg.keySet()) {
+      Date nextAcceptance = loaded.lineAgg.get(invoiceId).nextAcceptance;
+      if (nextAcceptance == null) {
+        continue;
+      }
+      if (nextFrom != null && nextAcceptance < nextFrom) {
+        continue;
+      }
+      if (nextTo != null && nextAcceptance > nextTo) {
+        continue;
+      }
+      loaded.invoiceIds.add(invoiceId);
     }
-    return ids;
+    return loaded;
   }
 
   /**
@@ -880,6 +906,32 @@ public with sharing class ContractCrossQueryService {
     public Date nextAcceptance;
   }
 
+  private static void applyInvoiceLineToAgg(
+    Map<Id, LineAgg> byInvoice,
+    InvoiceLine__c line
+  ) {
+    LineAgg agg = byInvoice.get(line.Invoice__c);
+    if (agg == null) {
+      agg = new LineAgg();
+      agg.hasMonthly = false;
+      agg.hasLump = false;
+      byInvoice.put(line.Invoice__c, agg);
+    }
+    if (line.RevenueRecognitionBasis__c == '月次計上') {
+      agg.hasMonthly = true;
+    } else if (line.RevenueRecognitionBasis__c == '一括計上') {
+      agg.hasLump = true;
+      if (
+        line.AcceptanceEndDate__c != null &&
+        (agg.nextAcceptance == null ||
+        line.AcceptanceEndDate__c < agg.nextAcceptance)
+      ) {
+        agg.nextAcceptance = line.AcceptanceEndDate__c;
+      }
+    }
+  }
+
+  /** 仕様: 横断画面.md 第5節 請求一覧。期間なしの初回明細集計。 */
   private static Map<Id, LineAgg> loadInvoiceLineAgg(Set<Id> invoiceIds) {
     Map<Id, LineAgg> byInvoice = new Map<Id, LineAgg>();
     if (invoiceIds == null || invoiceIds.isEmpty()) {
@@ -891,25 +943,7 @@ public with sharing class ContractCrossQueryService {
       WHERE Invoice__c IN :invoiceIds
       WITH USER_MODE
     ]) {
-      LineAgg agg = byInvoice.get(line.Invoice__c);
-      if (agg == null) {
-        agg = new LineAgg();
-        agg.hasMonthly = false;
-        agg.hasLump = false;
-        byInvoice.put(line.Invoice__c, agg);
-      }
-      if (line.RevenueRecognitionBasis__c == '月次計上') {
-        agg.hasMonthly = true;
-      } else if (line.RevenueRecognitionBasis__c == '一括計上') {
-        agg.hasLump = true;
-        if (
-          line.AcceptanceEndDate__c != null &&
-          (agg.nextAcceptance == null ||
-          line.AcceptanceEndDate__c < agg.nextAcceptance)
-        ) {
-          agg.nextAcceptance = line.AcceptanceEndDate__c;
-        }
-      }
+      applyInvoiceLineToAgg(byInvoice, line);
     }
     return byInvoice;
   }

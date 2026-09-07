@@ -750,6 +750,79 @@ private class ContractCrossControllerTest {
         result.truncated,
         '横断画面.md 第5節取得: 切れていないときは警告を出さない'
       );
+      System.assertEquals(
+        false,
+        ContractCrossQueryService.lastInvoiceLineAggReloadedLines,
+        'Core 第12.4節・第4.3.11節: 次の検収フィルタの明細集計を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void queryInvoices_nextAcceptanceFilterReusesLineAgg() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture mixed = insertInvoice('Draft');
+      InvoiceFixture outOfRange = insertInvoice('Draft');
+      insert new List<InvoiceLine__c>{
+        new InvoiceLine__c(
+          Invoice__c = mixed.invoice.Id,
+          Amount__c = 400,
+          RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+        ),
+        new InvoiceLine__c(
+          Invoice__c = mixed.invoice.Id,
+          Amount__c = 600,
+          RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+          AcceptanceEndDate__c = Date.newInstance(2026, 6, 15)
+        ),
+        new InvoiceLine__c(
+          Invoice__c = mixed.invoice.Id,
+          Amount__c = 100,
+          RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+          AcceptanceEndDate__c = Date.newInstance(2026, 8, 1)
+        ),
+        new InvoiceLine__c(
+          Invoice__c = outOfRange.invoice.Id,
+          Amount__c = 1000,
+          RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+          AcceptanceEndDate__c = Date.newInstance(2026, 1, 15)
+        )
+      };
+
+      ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
+      filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_DRAFT;
+      filter.nextAcceptanceFrom = Date.newInstance(2026, 6, 1);
+      filter.nextAcceptanceTo = Date.newInstance(2026, 6, 30);
+
+      Test.startTest();
+      ContractCrossController.ListResultDto result = ContractCrossController.queryInvoices(
+        filter
+      );
+      Test.stopTest();
+
+      System.assertEquals(1, result.invoices.size());
+      System.assertEquals(mixed.invoice.Id, result.invoices[0].id);
+      System.assertEquals(
+        true,
+        result.invoices[0].hasMonthly,
+        '横断画面.md 第5節 請求一覧: 1枚に両方なら両方の印'
+      );
+      System.assertEquals(
+        true,
+        result.invoices[0].hasLump,
+        '横断画面.md 第5節 請求一覧: 1枚に両方なら両方の印'
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 6, 15),
+        result.invoices[0].nextAcceptance,
+        '横断画面.md 第5節 請求一覧: 次の検収は一括明細の検収終了日の最小'
+      );
+      System.assertEquals(
+        false,
+        ContractCrossQueryService.lastInvoiceLineAggReloadedLines,
+        'Core 第12.4節・第4.3.11節: 次の検収フィルタの明細集計を取り直さない'
+      );
     }
   }
 

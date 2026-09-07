@@ -895,6 +895,169 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void lockJournalsForInvoice_reusesCancelCheckedInvoiceForRowLock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'LOCKREUSE');
+      Invoice__c invoice = [
+        SELECT Id, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      Test.startTest();
+      Integer lockedCount = InvoicePreviewOpsController.lockJournalsForInvoice(
+        invoice.Id,
+        new List<Id>{ journal.Id },
+        token,
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
+      Test.stopTest();
+      System.assertEquals(1, lockedCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第12.4節・第7.9.7節: 取消確認のあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: Lock状態は変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void unlockJournalsForInvoice_reusesCancelCheckedInvoiceForRowLock() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, true, 'Active', 'UNLOCKREUSE');
+      Invoice__c invoice = [
+        SELECT Id, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      Test.startTest();
+      Integer unlockedCount = InvoicePreviewOpsController.unlockJournalsForInvoice(
+        invoice.Id,
+        new List<Id>{ journal.Id },
+        '監査',
+        token,
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        unlockedCount,
+        'Accounting 第9.5節: 選んだ行をUnlockする'
+      );
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第12.4節・第7.9.7節: 取消確認のあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        false,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: Unlock後は未Lock'
+      );
+    }
+  }
+
+  @IsTest
+  static void lockJournalsForInvoice_cancelled_rejectsUsingLockedInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        InvoiceTransactionStatusService.applyCancelled(
+          new List<Invoice__c>{ fixture.invoice }
+        );
+        update fixture.invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = false;
+        InvoiceLockUtil.allowLockedStatusWrite = false;
+      }
+      insertJournal(fixture.invoice.Id, false, 'Active', 'LOCKCANCEL');
+      Invoice__c invoice = [
+        SELECT Id, InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      GlJournal__c journal = [
+        SELECT Id
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        InvoicePreviewOpsController.lockJournalsForInvoice(
+          invoice.Id,
+          new List<Id>{ journal.Id },
+          AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+          InvoicePreviewOpsController.issueInvoiceOperationKey()
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '取消済み請求の仕訳はLock/Unlockできません。',
+          ex.getMessage(),
+          'Core 第12.2節・第7.7.3節: 取消済み請求の仕訳はLockできない'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        1,
+        AccountingCauseLockService.invoiceLockSelectCount,
+        'Core 第12.4節・第7.9.7節: 取消確認は行ロックした請求で行い取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void lockThenUnlockJournals_withToken_countsSelected() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
