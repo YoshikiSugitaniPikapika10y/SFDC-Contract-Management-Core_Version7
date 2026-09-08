@@ -3741,6 +3741,8 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
       OrderCreateController.previewPeriodSelectCount = 0;
+      OrderCreateController.previewScopeInvoiceCount = 0;
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitLinesInPlace(
         context.history.Id,
         invoice.Id,
@@ -3758,8 +3760,18 @@ private class OrderCreateControllerTest {
         OrderCreateController.previewPeriodSelectCount,
         'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
       );
-      Integer lineCount = 0;
+      System.assertEquals(
+        0,
+        OrderCreateController.previewScopeInvoiceCount,
+        'Core 第12.4節・第7.8節: 範囲COUNTのあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        AccountingCauseLockService.invoiceLockSelectCount >= 1,
+        'Core 第7.8節: 書き換える請求を行ロックする'
+      );
       Boolean splitMoved = false;
+      Integer lineCount = 0;
       for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
         if (groupRow.invoiceId != invoice.Id) {
           continue;
@@ -3815,6 +3827,8 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
       OrderCreateController.previewPeriodSelectCount = 0;
+      OrderCreateController.previewScopeInvoiceCount = 0;
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByDate(
         context.history.Id,
         source.Id,
@@ -3850,6 +3864,16 @@ private class OrderCreateControllerTest {
         0,
         OrderCreateController.previewPeriodSelectCount,
         'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewScopeInvoiceCount,
+        'Core 第12.4節・第7.8節: 範囲COUNTのあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        AccountingCauseLockService.invoiceLockSelectCount >= 1,
+        'Core 第7.8節: 書き換える請求を行ロックする'
       );
       System.assert(
         preview.invoices.size() >= 2,
@@ -3888,6 +3912,8 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
       OrderCreateController.previewPeriodSelectCount = 0;
+      OrderCreateController.previewScopeInvoiceCount = 0;
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByBillingAccount(
         context.history.Id,
         source.Id,
@@ -3907,6 +3933,16 @@ private class OrderCreateControllerTest {
         0,
         OrderCreateController.previewPeriodSelectCount,
         'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewScopeInvoiceCount,
+        'Core 第12.4節・第7.8節: 範囲COUNTのあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        AccountingCauseLockService.invoiceLockSelectCount >= 1,
+        'Core 第7.8節: 書き換える請求を行ロックする'
       );
       System.assert(
         preview.invoiceCount >= 2,
@@ -3980,6 +4016,8 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
       OrderCreateController.previewPeriodSelectCount = 0;
+      OrderCreateController.previewScopeInvoiceCount = 0;
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.moveLinesToExistingInvoice(
         context.history.Id,
         createdId,
@@ -4004,6 +4042,16 @@ private class OrderCreateControllerTest {
         0,
         OrderCreateController.previewPeriodSelectCount,
         'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewScopeInvoiceCount,
+        'Core 第12.4節・第7.8節: 範囲COUNTのあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        AccountingCauseLockService.invoiceLockSelectCount >= 1,
+        'Core 第7.8節: 書き換える請求を行ロックする'
       );
       Boolean sourceExists = false;
       for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
@@ -4058,6 +4106,8 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewInvoiceSelectCount = 0;
       OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
       OrderCreateController.previewPeriodSelectCount = 0;
+      OrderCreateController.previewScopeInvoiceCount = 0;
+      AccountingCauseLockService.invoiceLockSelectCount = 0;
       OrderCreateController.InvoicePreviewDto retry = OrderCreateController.splitLinesInPlace(
         context.history.Id,
         invoice.Id,
@@ -4075,6 +4125,16 @@ private class OrderCreateControllerTest {
         0,
         OrderCreateController.previewPeriodSelectCount,
         'Core 第12.4節・第7.8節: 返却の手直し集計が期間明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewScopeInvoiceCount,
+        'Core 第12.4節・第7.8節: 範囲COUNTのあと行ロックで同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        AccountingCauseLockService.invoiceLockSelectCount >= 1,
+        'Core 第7.8節: 書き換える請求を行ロックする'
       );
       System.assertNotEquals(null, retry);
       System.assert(
@@ -4360,7 +4420,11 @@ private class OrderCreateControllerTest {
       OrderCreateController.lastResetHistoryInvoiceSelectIds = new Set<Id>();
       InvoiceCanonicalService.rebuildInvoiceSelectCount = 0;
       InvoiceCanonicalService.lastRebuildInvoiceSelectIds = new Set<Id>();
-      OrderCreateController.resetLatestVersionInvoicesToPostOrder(
+      OrderCreateController.draftInvoiceIdsOfHistorySelectCount = 0;
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.previewPeriodSelectCount = 0;
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.resetLatestVersionInvoicesToPostOrder(
         context.history.Id,
         '1',
         token
@@ -4401,14 +4465,47 @@ private class OrderCreateControllerTest {
         ),
         'Core 第12.4節: ロック済み未確定をrebuild SELECTに載せない'
       );
-      Integer drafts = [
-        SELECT COUNT()
+      System.assertEquals(
+        0,
+        OrderCreateController.draftInvoiceIdsOfHistorySelectCount,
+        'Core 第12.4節: 生成直後の請求を押印で取り直さない'
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.previewPeriodSelectCount,
+        'Core 第12.4節: 返却の手直し集計が期間明細を取り直さない'
+      );
+      List<Invoice__c> regenerated = [
+        SELECT Id, BusinessOperationKey__c
         FROM Invoice__c
         WHERE
           ContractHistory__c = :context.history.Id
           AND InvoiceTransactionStatus__c = :InvoiceTransactionStatusService.TX_DRAFT
       ];
-      System.assert(drafts > 0, 'Core 第6.6節: 未確定請求と契約期間明細だけを再生成する');
+      System.assert(
+        !regenerated.isEmpty(),
+        'Core 第6.6節: 未確定請求と契約期間明細だけを再生成する'
+      );
+      for (Invoice__c regeneratedInvoice : regenerated) {
+        System.assertEquals(
+          false,
+          OrderCreateController.lastPreviewInvoiceSelectIds.contains(
+            regeneratedInvoice.Id
+          ),
+          'Core 第12.4節: 生成した請求をgetInvoicePreviewで取り直さない'
+        );
+        System.assertEquals(
+          true,
+          String.isNotBlank(regeneratedInvoice.BusinessOperationKey__c),
+          'Core 第7.9.7節: 操作キーを新未確定へ書く'
+        );
+      }
+      System.assertNotEquals(null, preview);
+      System.assertEquals(
+        0,
+        preview.manualAdjustmentAmount,
+        'Core 第6.6節: 返却カードの手直し額は変えない'
+      );
     }
   }
 

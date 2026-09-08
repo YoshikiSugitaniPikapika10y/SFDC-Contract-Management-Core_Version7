@@ -38,6 +38,19 @@ public without sharing class InvoiceCanonicalService {
 
   private static SplitPreviewTouch splitPreviewTouch;
 
+  /**
+   * 仕様: Core 第12.4節・第6.6節。
+   * rebuild が insert した請求・明細と削除した未確定。押印と保存後返却は取り直さない。
+   */
+  public class RebuildPreviewTouch {
+    public Map<Id, Invoice__c> invoicesById = new Map<Id, Invoice__c>();
+    public Map<Id, List<InvoiceLine__c>> linesByInvoiceId = new Map<Id, List<InvoiceLine__c>>();
+    public Set<Id> deletedInvoiceIds = new Set<Id>();
+  }
+
+  private static RebuildPreviewTouch rebuildPreviewTouch;
+  private static Boolean retainRebuildPreviewTouch = false;
+
   public static final String SPLIT_AMOUNT_CONSERVE_MESSAGE = '分割後の金額合計が元の明細金額と一致しません。';
 
   /** 仕様: Core 第7.6節、第4.4.3節、Accounting 第3.2節 */
@@ -52,6 +65,113 @@ public without sharing class InvoiceCanonicalService {
     SplitPreviewTouch touch = splitPreviewTouch;
     splitPreviewTouch = null;
     return touch == null ? new SplitPreviewTouch() : touch;
+  }
+
+  /** 仕様: Core 第12.4節・第6.6節。受注直後戻しが insert 行を押印・返却で使う。 */
+  public static void beginRetainRebuildPreviewTouch() {
+    retainRebuildPreviewTouch = true;
+  }
+
+  public static void endRetainRebuildPreviewTouch() {
+    retainRebuildPreviewTouch = false;
+    rebuildPreviewTouch = null;
+  }
+
+  public static RebuildPreviewTouch takeRebuildPreviewTouch() {
+    RebuildPreviewTouch touch = rebuildPreviewTouch;
+    rebuildPreviewTouch = null;
+    return touch;
+  }
+
+  public static List<Id> peekRebuildInsertedInvoiceIds() {
+    List<Id> ids = new List<Id>();
+    if (rebuildPreviewTouch == null) {
+      return ids;
+    }
+    for (Id invoiceId : rebuildPreviewTouch.invoicesById.keySet()) {
+      ids.add(invoiceId);
+    }
+    return ids;
+  }
+
+  public static void applyRebuildOperationKey(String operationKey) {
+    if (rebuildPreviewTouch == null || String.isBlank(operationKey)) {
+      return;
+    }
+    for (Invoice__c invoice : rebuildPreviewTouch.invoicesById.values()) {
+      if (invoice != null) {
+        invoice.BusinessOperationKey__c = operationKey;
+      }
+    }
+  }
+
+  private static void beginRebuildPreviewTouch() {
+    rebuildPreviewTouch = new RebuildPreviewTouch();
+  }
+
+  private static void rememberRebuildDeleted(List<Invoice__c> deletable) {
+    if (rebuildPreviewTouch == null || deletable == null) {
+      return;
+    }
+    for (Invoice__c invoice : deletable) {
+      if (invoice != null && invoice.Id != null) {
+        rebuildPreviewTouch.deletedInvoiceIds.add(invoice.Id);
+      }
+    }
+  }
+
+  private static void rememberRebuildInserted(
+    List<Invoice__c> invoices,
+    List<InvoiceLine__c> lines
+  ) {
+    if (rebuildPreviewTouch == null) {
+      return;
+    }
+    if (invoices != null) {
+      for (Invoice__c invoice : invoices) {
+        if (invoice != null && invoice.Id != null) {
+          rebuildPreviewTouch.invoicesById.put(invoice.Id, invoice);
+        }
+      }
+    }
+    if (lines != null) {
+      for (InvoiceLine__c line : lines) {
+        if (line == null || line.Invoice__c == null) {
+          continue;
+        }
+        List<InvoiceLine__c> rows = rebuildPreviewTouch.linesByInvoiceId.get(
+          line.Invoice__c
+        );
+        if (rows == null) {
+          rows = new List<InvoiceLine__c>();
+          rebuildPreviewTouch.linesByInvoiceId.put(line.Invoice__c, rows);
+        }
+        rows.add(line);
+      }
+    }
+  }
+
+  private static void rememberRebuildPersistPeriods(
+    List<InvoiceProduct__c> products
+  ) {
+    if (products == null || products.isEmpty()) {
+      return;
+    }
+    if (periodsBySourceKey == null) {
+      periodsBySourceKey = new Map<String, Map<Id, InvoiceProduct__c>>();
+    }
+    Map<Id, InvoiceProduct__c> persistPeriods = periodsBySourceKey.get(
+      'rebuildPersist'
+    );
+    if (persistPeriods == null) {
+      persistPeriods = new Map<Id, InvoiceProduct__c>();
+      periodsBySourceKey.put('rebuildPersist', persistPeriods);
+    }
+    for (InvoiceProduct__c product : products) {
+      if (product != null && product.Id != null) {
+        persistPeriods.put(product.Id, product);
+      }
+    }
   }
 
   private static void beginSplitPreviewTouch() {
@@ -377,6 +497,7 @@ public without sharing class InvoiceCanonicalService {
     }
     ContractHistoryStatusPathService.beginPathSyncDefer();
     BillingAccountKeyService.beginReferenceRefreshDefer();
+    beginRebuildPreviewTouch();
     try {
       assertHistoriesAreOrdered(contractHistoryIds);
       List<Invoice__c> existing;
@@ -415,10 +536,14 @@ public without sharing class InvoiceCanonicalService {
         deletable.add(invoice);
       }
       if (!deletable.isEmpty()) {
+        rememberRebuildDeleted(deletable);
         SystemContextAccess.deleteRecords(deletable);
       }
       persistFromPeriodLines(contractHistoryIds, insertedPeriodLines);
     } finally {
+      if (!retainRebuildPreviewTouch) {
+        rebuildPreviewTouch = null;
+      }
       BillingAccountKeyService.endReferenceRefreshDefer();
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
@@ -578,6 +703,7 @@ public without sharing class InvoiceCanonicalService {
             sourceContractProduct = sourcePeriod.ContractProduct__r;
             line.Product__c = sourceContractProduct.Product__c;
             line.Unit__c = sourceContractProduct.Unit__c;
+            line.ContractProduct__r = sourceContractProduct;
           }
         }
         // 仕様: Core 第11.4.2節。請求明細の新規は From＝請求アカウントも空欄へ。ヘッダー用に読んだ行を渡す。
@@ -598,6 +724,8 @@ public without sharing class InvoiceCanonicalService {
     if (!linesToInsert.isEmpty()) {
       SystemContextAccess.insertRecords(linesToInsert);
     }
+    rememberRebuildInserted(invoicesToInsert, linesToInsert);
+    rememberRebuildPersistPeriods(products);
     // 請求の正本は Invoice。期間明細の請求寄せ項目は項目削除済みのためクリア不要。
   }
 

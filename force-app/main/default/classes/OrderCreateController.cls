@@ -30,6 +30,12 @@ public without sharing class OrderCreateController {
   /** 仕様: Core 第12.4節。開く取得の手直し集計が期間明細を取り直した回数。 */
   @TestVisible
   public static Integer previewPeriodSelectCount = 0;
+  /** 仕様: Core 第12.4節。範囲検査が請求をCOUNTした回数。行ロック前に重ねない。 */
+  @TestVisible
+  public static Integer previewScopeInvoiceCount = 0;
+  /** 仕様: Core 第12.4節。受注直後戻しの押印が新請求をSELECTした回数。 */
+  @TestVisible
+  public static Integer draftInvoiceIdsOfHistorySelectCount = 0;
   /** 仕様: Core 第12.4節・第4.3.11節。明細関連の見積商品。端数ずれ集計で取り直さない。 */
   @TestVisible
   public static Map<Id, ContractProduct__c> previewLineProductsById = new Map<Id, ContractProduct__c>();
@@ -2067,6 +2073,8 @@ public without sharing class OrderCreateController {
         );
         return getInvoicePreview(contractHistoryId);
       }
+      InvoiceCanonicalService.beginRetainRebuildPreviewTouch();
+      try {
       List<Invoice__c> knownExisting = new List<Invoice__c>();
       if (prep.lockedInvoices != null) {
         knownExisting.addAll(prep.lockedInvoices.values());
@@ -2077,16 +2085,20 @@ public without sharing class OrderCreateController {
         knownExisting
       );
       stampDraftOperationKeys(
-        draftInvoiceIdsOfHistory(targetHistoryId),
+        InvoiceCanonicalService.peekRebuildInsertedInvoiceIds(),
         prep.operationKey
       );
+      InvoiceCanonicalService.applyRebuildOperationKey(prep.operationKey);
       ContractOperationLogService.write(
         'ResetInvoicesToPostOrder',
         prep.operationKey,
         'ContractHistory__c',
         String.valueOf(targetHistoryId)
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterDraftWrite(contractHistoryId, prep);
+      } finally {
+        InvoiceCanonicalService.endRetainRebuildPreviewTouch();
+      }
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     } finally {
@@ -3220,8 +3232,27 @@ public without sharing class OrderCreateController {
         WITH SYSTEM_MODE
       ];
       if (existing > 0) {
-        assertPreviewScope(contractServiceId, invoiceIds, lineIds);
+        Set<Id> targetInvoiceIds = compactIds(invoiceIds);
+        Set<Id> targetLineIds = compactIds(lineIds);
+        if (targetInvoiceIds.isEmpty()) {
+          if (!targetLineIds.isEmpty()) {
+            throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
+          }
+          throw toAuraHandled('請求は必須です。');
+        }
+        Map<Id, Invoice__c> locked = AccountingCauseLockService.lockInvoices(
+          targetInvoiceIds
+        );
+        assertPreviewScopeFromLoaded(
+          contractServiceId,
+          locked,
+          loadedDraftLines,
+          targetInvoiceIds,
+          targetLineIds
+        );
         prep.alreadyApplied = true;
+        prep.lockedInvoices = locked;
+        prep.knownLines = loadedDraftLines;
         return prep;
       }
     }
@@ -3322,6 +3353,7 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
     if (!targetInvoiceIds.isEmpty()) {
+      previewScopeInvoiceCount++;
       Integer inScopeInvoices = [
         SELECT COUNT()
         FROM Invoice__c
@@ -3496,6 +3528,7 @@ public without sharing class OrderCreateController {
     if (contractHistoryId == null) {
       return invoiceIds;
     }
+    draftInvoiceIdsOfHistorySelectCount++;
     for (Invoice__c invoice : [
       SELECT Id, InvoiceTransactionStatus__c
       FROM Invoice__c
@@ -3721,10 +3754,14 @@ public without sharing class OrderCreateController {
   ) {
     InvoiceCanonicalService.SplitPreviewTouch touch = InvoiceCanonicalService.takeSplitPreviewTouch();
     InvoiceCancelService.CancelPreviewTouch cancelTouch = InvoiceCancelService.takeCancelPreviewTouch();
+    InvoiceCanonicalService.RebuildPreviewTouch rebuildTouch = InvoiceCanonicalService.takeRebuildPreviewTouch();
     Boolean hasTouch =
       (touch != null &&
       (!touch.invoicesById.isEmpty() || !touch.deletedInvoiceIds.isEmpty())) ||
-      (cancelTouch != null && !cancelTouch.invoicesById.isEmpty());
+      (cancelTouch != null && !cancelTouch.invoicesById.isEmpty()) ||
+      (rebuildTouch != null &&
+      (!rebuildTouch.invoicesById.isEmpty() ||
+      !rebuildTouch.deletedInvoiceIds.isEmpty()));
     Boolean hasPrep =
       prep != null &&
       prep.lockedInvoices != null &&
@@ -3753,6 +3790,32 @@ public without sharing class OrderCreateController {
         } else {
           existing.addAll(rows);
         }
+      }
+    }
+    if (rebuildTouch != null) {
+      if (touch == null) {
+        touch = new InvoiceCanonicalService.SplitPreviewTouch();
+      }
+      for (Invoice__c rebuilt : rebuildTouch.invoicesById.values()) {
+        if (rebuilt == null || rebuilt.Id == null) {
+          continue;
+        }
+        touch.invoicesById.put(rebuilt.Id, rebuilt);
+      }
+      for (Id invoiceId : rebuildTouch.linesByInvoiceId.keySet()) {
+        List<InvoiceLine__c> rows = rebuildTouch.linesByInvoiceId.get(invoiceId);
+        if (rows == null) {
+          continue;
+        }
+        List<InvoiceLine__c> existing = touch.linesByInvoiceId.get(invoiceId);
+        if (existing == null) {
+          touch.linesByInvoiceId.put(invoiceId, new List<InvoiceLine__c>(rows));
+        } else {
+          existing.addAll(rows);
+        }
+      }
+      if (rebuildTouch.deletedInvoiceIds != null) {
+        touch.deletedInvoiceIds.addAll(rebuildTouch.deletedInvoiceIds);
       }
     }
     Id contractServiceId = resolveContractServiceId(contractHistoryId);
@@ -3827,6 +3890,12 @@ public without sharing class OrderCreateController {
         invoice.Id == null ||
         invoice.getPopulatedFieldsAsMap().containsKey('InvoiceLines__r')
       ) {
+        continue;
+      }
+      Map<Id, InvoiceLine__c> knownLinesForInvoice = linesByInvoice.get(
+        invoice.Id
+      );
+      if (knownLinesForInvoice != null && !knownLinesForInvoice.isEmpty()) {
         continue;
       }
       needLineInvoiceIds.add(invoice.Id);
