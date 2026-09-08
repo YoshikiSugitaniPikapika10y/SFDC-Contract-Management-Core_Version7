@@ -1997,14 +1997,14 @@ private class InvoiceCanonicalServiceTest {
       );
       Test.stopTest();
       System.assertEquals(
-        1,
+        0,
         InvoiceCanonicalService.recalcLineSelectCount,
-        'Core 第12.4節・第7.8.4節: 端数リセット後の合計再計算は配下明細を取り直さない'
+        'Core 第12.4節・第7.8節・第7.4節: 合計再計算は更新済み明細を取り直さない'
       );
       System.assertEquals(
-        1,
+        0,
         InvoiceCanonicalService.recalcInvoiceSelectCount,
-        'Core 第12.4節・第7.8.4節: 端数リセット後の合計再計算は請求を取り直さない'
+        'Core 第12.4節・第7.8節・第7.4節: 合計再計算は更新済み請求を取り直さない'
       );
       System.assertEquals(
         false,
@@ -2508,6 +2508,8 @@ private class InvoiceCanonicalServiceTest {
       InvoiceCanonicalService.splitLineSelectCount = 0;
       InvoiceCanonicalService.lastSplitLineSelectIds = new Set<Id>();
       InvoiceCanonicalService.periodSplitInputLineSelectCount = 0;
+      InvoiceCanonicalService.recalcLineSelectCount = 0;
+      InvoiceCanonicalService.recalcInvoiceSelectCount = 0;
       OrderCreateController.splitLinesInPlace(
         fixture.history.Id,
         source.Id,
@@ -2529,6 +2531,16 @@ private class InvoiceCanonicalServiceTest {
         0,
         InvoiceCanonicalService.periodSplitInputLineSelectCount,
         'Core 第12.4節・第7.8節: 期間入力組み立ては読み済み明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.recalcLineSelectCount,
+        'Core 第12.4節・第7.8節・第7.4節: 合計再計算は更新済み明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.recalcInvoiceSelectCount,
+        'Core 第12.4節・第7.8節・第7.4節: 合計再計算は更新済み請求を取り直さない'
       );
       System.assertEquals(
         2,

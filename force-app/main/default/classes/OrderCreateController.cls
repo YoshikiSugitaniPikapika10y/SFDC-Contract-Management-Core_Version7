@@ -55,6 +55,9 @@ public without sharing class OrderCreateController {
   /** 仕様: Core 第12.4節。Ordered集計が取った履歴Id。入口で読んだ対象は含めない。 */
   @TestVisible
   public static Set<Id> lastPreviewOrderedHistoryQueryIds = new Set<Id>();
+  /** 仕様: Core 第12.4節・第7.9.7節。分割押印が生存確認で請求をSELECTした回数。 */
+  @TestVisible
+  public static Integer stampAfterSplitSelectCount = 0;
   private static List<InvoiceLine__c> loadedDraftLines;
   private static Map<Id, List<Invoice__c>> previewInvoicesByServiceId = new Map<Id, List<Invoice__c>>();
   private static Map<Id, Datetime> previewInvoiceModifiedOverride = new Map<Id, Datetime>();
@@ -1820,6 +1823,7 @@ public without sharing class OrderCreateController {
     tokens.put(sourceInvoiceId, expectedContentVersion);
     tokens.put(targetInvoiceId, expectedTargetContentVersion);
     invoiceIdsOfLines(lineIds);
+    addLoadedDraftLinesForInvoices(invoiceIds);
     DraftEditPreparation prep = prepareDraftInvoiceEdit(
       contractHistoryId,
       invoiceIds,
@@ -3432,21 +3436,16 @@ public without sharing class OrderCreateController {
     Id createdOrTargetInvoiceId,
     String operationKey
   ) {
+    Set<Id> deleted = InvoiceCanonicalService.peekSplitPreviewDeletedInvoiceIds();
     List<Id> surviving = new List<Id>();
-    Set<Id> candidates = new Set<Id>();
-    if (sourceInvoiceId != null) {
-      candidates.add(sourceInvoiceId);
+    if (sourceInvoiceId != null && !deleted.contains(sourceInvoiceId)) {
+      surviving.add(sourceInvoiceId);
     }
-    if (createdOrTargetInvoiceId != null) {
-      candidates.add(createdOrTargetInvoiceId);
-    }
-    for (Invoice__c invoice : [
-      SELECT Id
-      FROM Invoice__c
-      WHERE Id IN :candidates
-      WITH SYSTEM_MODE
-    ]) {
-      surviving.add(invoice.Id);
+    if (
+      createdOrTargetInvoiceId != null &&
+      !deleted.contains(createdOrTargetInvoiceId)
+    ) {
+      surviving.add(createdOrTargetInvoiceId);
     }
     stampDraftOperationKeys(surviving, operationKey);
   }
@@ -3548,6 +3547,61 @@ public without sharing class OrderCreateController {
     loadedDraftLines.addAll(editedLines);
     loadedDraftLines.addAll(siblingLines);
     return new List<Id>(parentIds);
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。移動先請求の明細を読み済みへ載せる。 */
+  private static void addLoadedDraftLinesForInvoices(List<Id> invoiceIds) {
+    Set<Id> missing = compactIds(invoiceIds);
+    if (loadedDraftLines != null) {
+      for (InvoiceLine__c line : loadedDraftLines) {
+        if (line != null && line.Invoice__c != null) {
+          missing.remove(line.Invoice__c);
+        }
+      }
+    }
+    if (missing.isEmpty()) {
+      return;
+    }
+    draftLineSelectCount++;
+    List<InvoiceLine__c> extra = [
+      SELECT
+        Id,
+        Amount__c,
+        Invoice__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c,
+        IsManuallyAdjusted__c,
+        LineMergeKey__c,
+        ProductName__c,
+        Product__c,
+        HistoryVersionLabel__c,
+        Unit__c,
+        UnitPrice__c,
+        Quantity__c,
+        PeriodLabel__c,
+        SourcePeriodLineIds__c,
+        ServicePeriodStartDate__c,
+        ServicePeriodEndDate__c,
+        AcceptanceEndDate__c,
+        RevenueRecognitionBasis__c,
+        ContractProduct__c,
+        ContractProduct__r.Product__c,
+        ContractProduct__r.Amount__c,
+        ContractProduct__r.Unit__c,
+        ContractProduct__r.BillingType__c,
+        ContractProduct__r.ContractHistory__c,
+        ContractProduct__r.StartDate__c,
+        ContractProduct__r.Enddate__c,
+        Invoice__r.ContractHistory__c,
+        Invoice__r.ContractService__c
+      FROM InvoiceLine__c
+      WHERE Invoice__c IN :missing
+      WITH SYSTEM_MODE
+    ];
+    if (loadedDraftLines == null) {
+      loadedDraftLines = new List<InvoiceLine__c>();
+    }
+    loadedDraftLines.addAll(extra);
   }
 
   /** 仕様: Core 第7.7.2節・第7.9.7節。未確定だけ。取消済みは含めない。 */

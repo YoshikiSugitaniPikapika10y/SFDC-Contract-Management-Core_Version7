@@ -42,6 +42,9 @@ public without sharing class InvoiceCanonicalService {
   static Integer resetFactorInvoiceSelectCount = 0;
   @TestVisible
   static Integer resetFactorSiblingSelectCount = 0;
+  /** 仕様: Core 第12.4節・第7.8節。端数ギャップ同期が請求をSELECTした回数。 */
+  @TestVisible
+  static Integer syncPeriodGapSelectCount = 0;
 
   /**
    * 仕様: Core 第12.4節・第7.8節。
@@ -119,6 +122,14 @@ public without sharing class InvoiceCanonicalService {
       ids.add(invoiceId);
     }
     return ids;
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節・第7.9.7節。分割で消した請求。押印は取り直さない。 */
+  public static Set<Id> peekSplitPreviewDeletedInvoiceIds() {
+    if (splitPreviewTouch == null || splitPreviewTouch.deletedInvoiceIds == null) {
+      return new Set<Id>();
+    }
+    return new Set<Id>(splitPreviewTouch.deletedInvoiceIds);
   }
 
   public static void applyRebuildOperationKey(String operationKey) {
@@ -258,6 +269,32 @@ public without sharing class InvoiceCanonicalService {
         splitPreviewTouch.deletedLineIds.add(line.Id);
       }
     }
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。行ロックした請求は取り直さない。 */
+  private static List<InvoiceLine__c> knownSiblingLines(
+    SplitKnownRows known,
+    Id invoiceId,
+    Set<Id> excludeIds
+  ) {
+    List<InvoiceLine__c> others = new List<InvoiceLine__c>();
+    if (known == null || known.lines == null || invoiceId == null) {
+      return others;
+    }
+    for (InvoiceLine__c line : known.lines) {
+      if (line == null || line.Id == null || line.Invoice__c != invoiceId) {
+        continue;
+      }
+      if (excludeIds != null && excludeIds.contains(line.Id)) {
+        continue;
+      }
+      others.add(line);
+    }
+    return others;
+  }
+
+  private static Boolean hasKnownLines(SplitKnownRows known) {
+    return known != null && known.lines != null && !known.lines.isEmpty();
   }
 
   /** 仕様: Core 第12.4節・第7.8節。行ロックした請求は取り直さない。 */
@@ -1949,50 +1986,52 @@ public without sharing class InvoiceCanonicalService {
     // 因子／月分割: 対象行は分割・移動済。兄弟に端数が残るなら調整前合計を維持。
     // 端数フラグも実ギャップも無いときだけ調整前＝税抜合計に揃える（分割・移動済フラグは残す）。
     // 比率按分でギャップだけ乗った請求はフラグ無しでも調整前を潰さない。
-    deriveInvoiceManualFlagsAndRecalc(invoiceId);
-    Invoice__c refreshed = [
-      SELECT
-        Id,
-        Amount__c,
-        PeriodLineAmountTotal__c,
-        IsAmountAdjusted__c,
-        IsSplitMoved__c,
-        IsManuallyAdjusted__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    Decimal amountTotal = refreshed.Amount__c == null ? 0 : refreshed.Amount__c;
-    Decimal periodTotal = refreshed.PeriodLineAmountTotal__c == null
+    Set<Id> deletedLineIds = new Set<Id>();
+    for (InvoiceLine__c deleted : sourceDeletes) {
+      if (deleted != null && deleted.Id != null) {
+        deletedLineIds.add(deleted.Id);
+      }
+    }
+    List<InvoiceLine__c> remainForRecalc = new List<InvoiceLine__c>();
+    for (InvoiceLine__c line : sourceLineById.values()) {
+      if (line == null || line.Id == null || deletedLineIds.contains(line.Id)) {
+        continue;
+      }
+      remainForRecalc.add(line);
+    }
+    remainForRecalc.addAll(newLines);
+    deriveInvoiceManualFlagsAndRecalc(invoiceId, remainForRecalc, source);
+    Decimal amountTotal = source.Amount__c == null ? 0 : source.Amount__c;
+    Decimal periodTotal = source.PeriodLineAmountTotal__c == null
       ? amountTotal
-      : refreshed.PeriodLineAmountTotal__c;
+      : source.PeriodLineAmountTotal__c;
     if (amountTotal != periodTotal) {
       // 実ギャップあり: 潰さず、フラグが無ければ立てて表示を整合
-      if (refreshed.IsAmountAdjusted__c != true) {
-        refreshed.IsAmountAdjusted__c = true;
-        syncInvoiceManualUmbrella(refreshed);
-        SystemContextAccess.updateRecords(new List<Invoice__c>{ refreshed });
+      if (source.IsAmountAdjusted__c != true) {
+        source.IsAmountAdjusted__c = true;
+        syncInvoiceManualUmbrella(source);
+        SystemContextAccess.updateRecords(new List<Invoice__c>{ source });
       }
       captureInPlaceSplitPreview(
         invoiceId,
-        refreshed,
+        source,
         sourceLineById,
         newLines,
         sourceDeletes
       );
       return;
     }
-    if (refreshed.IsAmountAdjusted__c == true) {
+    if (source.IsAmountAdjusted__c == true) {
       captureInPlaceSplitPreview(
         invoiceId,
-        refreshed,
+        source,
         sourceLineById,
         newLines,
         sourceDeletes
       );
       return;
     }
+    source.PeriodLineAmountTotal__c = amountTotal;
     SystemContextAccess.updateRecords(
       new List<Invoice__c>{
         new Invoice__c(Id = invoiceId, PeriodLineAmountTotal__c = amountTotal)
@@ -2000,7 +2039,7 @@ public without sharing class InvoiceCanonicalService {
     );
     captureInPlaceSplitPreview(
       invoiceId,
-      refreshed,
+      source,
       sourceLineById,
       newLines,
       sourceDeletes
@@ -2440,12 +2479,16 @@ public without sharing class InvoiceCanonicalService {
         movedAbsShare += amount.abs();
       }
       Decimal remainAbsShare = 0;
-      remainingOthers = [
-        SELECT Amount__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :sourceInvoiceId AND Id NOT IN :lineIdSet
-        WITH SYSTEM_MODE
-      ];
+      if (hasKnownLines(known)) {
+        remainingOthers = knownSiblingLines(known, sourceInvoiceId, lineIdSet);
+      } else {
+        remainingOthers = [
+          SELECT Amount__c
+          FROM InvoiceLine__c
+          WHERE Invoice__c = :sourceInvoiceId AND Id NOT IN :lineIdSet
+          WITH SYSTEM_MODE
+        ];
+      }
       for (InvoiceLine__c other : remainingOthers) {
         Decimal amount = other.Amount__c == null ? 0 : other.Amount__c;
         remainAbsShare += amount.abs();
@@ -2463,18 +2506,28 @@ public without sharing class InvoiceCanonicalService {
       remainPeriodTotal = sourcePeriodTotal - movedPeriodTotal;
     }
 
-    markInvoiceSplitMovedAndRecalc(targetInvoiceId);
+    List<InvoiceLine__c> targetRecalcLines = null;
+    if (hasKnownLines(known)) {
+      targetRecalcLines = knownSiblingLines(known, targetInvoiceId, null);
+      targetRecalcLines.addAll(createdLines);
+    }
+    markInvoiceSplitMovedAndRecalc(targetInvoiceId, targetRecalcLines, target);
+    target.PeriodLineAmountTotal__c = targetPeriodTotalBefore + movedPeriodTotal;
+    target.MergeKey__c = null;
     Invoice__c targetUpdate = new Invoice__c(
       Id = targetInvoiceId,
-      PeriodLineAmountTotal__c = targetPeriodTotalBefore + movedPeriodTotal,
+      PeriodLineAmountTotal__c = target.PeriodLineAmountTotal__c,
       MergeKey__c = null
     );
     SystemContextAccess.updateRecords(new List<Invoice__c>{ targetUpdate });
-    syncAmountAdjustedFlagFromPeriodGap(targetInvoiceId);
+    syncAmountAdjustedFlagFromPeriodGap(target);
 
     Boolean remainExists;
     if (sourceAmountBefore == 0) {
       remainExists = !remainingOthers.isEmpty();
+    } else if (hasKnownLines(known)) {
+      remainExists = !knownSiblingLines(known, sourceInvoiceId, lineIdSet)
+        .isEmpty();
     } else {
       remainLineSelectCount++;
       List<InvoiceLine__c> remainLines = [
@@ -2491,16 +2544,19 @@ public without sharing class InvoiceCanonicalService {
       rememberSplitPreviewDeletedInvoice(sourceInvoiceId);
       rememberSplitPreviewDeletedLines(sourceLines);
     } else {
-      markInvoiceSplitMovedAndRecalc(sourceInvoiceId);
+      List<InvoiceLine__c> sourceRemainLines = hasKnownLines(known)
+        ? knownSiblingLines(known, sourceInvoiceId, lineIdSet)
+        : null;
+      markInvoiceSplitMovedAndRecalc(sourceInvoiceId, sourceRemainLines, source);
+      source.PeriodLineAmountTotal__c = remainPeriodTotal;
+      source.MergeKey__c = null;
       Invoice__c sourceUpdate = new Invoice__c(
         Id = sourceInvoiceId,
         PeriodLineAmountTotal__c = remainPeriodTotal,
         MergeKey__c = null
       );
       SystemContextAccess.updateRecords(new List<Invoice__c>{ sourceUpdate });
-      syncAmountAdjustedFlagFromPeriodGap(sourceInvoiceId);
-      source.PeriodLineAmountTotal__c = remainPeriodTotal;
-      source.MergeKey__c = null;
+      syncAmountAdjustedFlagFromPeriodGap(source);
       source.Amount__c = sourceAmountBefore - movedAmount;
       source.IsSplitMoved__c = true;
       rememberSplitPreviewInvoice(source);
@@ -2954,14 +3010,22 @@ public without sharing class InvoiceCanonicalService {
 
     List<InvoiceLine__c> remainingOthers = new List<InvoiceLine__c>();
     if (trackAbsShare) {
-      remainingOthers = [
-        SELECT Amount__c
-        FROM InvoiceLine__c
-        WHERE
-          Invoice__c = :sourceInvoiceId
-          AND Id NOT IN :inputByLineId.keySet()
-        WITH SYSTEM_MODE
-      ];
+      if (hasKnownLines(known)) {
+        remainingOthers = knownSiblingLines(
+          known,
+          sourceInvoiceId,
+          inputByLineId.keySet()
+        );
+      } else {
+        remainingOthers = [
+          SELECT Amount__c
+          FROM InvoiceLine__c
+          WHERE
+            Invoice__c = :sourceInvoiceId
+            AND Id NOT IN :inputByLineId.keySet()
+          WITH SYSTEM_MODE
+        ];
+      }
       for (InvoiceLine__c other : remainingOthers) {
         Decimal amount = other.Amount__c == null ? 0 : other.Amount__c;
         remainAbsShare += amount.abs();
@@ -3028,6 +3092,11 @@ public without sharing class InvoiceCanonicalService {
     Boolean remainExists;
     if (trackAbsShare) {
       remainExists = !sourceUpdates.isEmpty() || !remainingOthers.isEmpty();
+    } else if (hasKnownLines(known)) {
+      remainExists =
+        !sourceUpdates.isEmpty() ||
+        !knownSiblingLines(known, sourceInvoiceId, inputByLineId.keySet())
+          .isEmpty();
     } else {
       remainLineSelectCount++;
       List<InvoiceLine__c> remainLines = [
@@ -3044,18 +3113,26 @@ public without sharing class InvoiceCanonicalService {
       rememberSplitPreviewDeletedInvoice(sourceInvoiceId);
       rememberSplitPreviewDeletedLines(sourceDeletes);
     } else {
-      markInvoiceSplitMovedAndRecalc(sourceInvoiceId);
+      List<InvoiceLine__c> sourceRemainLines = null;
+      if (hasKnownLines(known)) {
+        sourceRemainLines = new List<InvoiceLine__c>();
+        sourceRemainLines.addAll(sourceUpdates);
+        sourceRemainLines.addAll(
+          knownSiblingLines(known, sourceInvoiceId, inputByLineId.keySet())
+        );
+      }
+      markInvoiceSplitMovedAndRecalc(sourceInvoiceId, sourceRemainLines, source);
       // 仕様: 請求を分ける後は元・先とも MergeKey を破棄（突合の正は Id）
+      source.PeriodLineAmountTotal__c = remainPeriodTotal;
+      source.MergeKey__c = null;
       Invoice__c remainInvoice = new Invoice__c(
         Id = sourceInvoiceId,
         PeriodLineAmountTotal__c = remainPeriodTotal,
         MergeKey__c = null
       );
       SystemContextAccess.updateRecords(new List<Invoice__c>{ remainInvoice });
-      syncAmountAdjustedFlagFromPeriodGap(sourceInvoiceId);
+      syncAmountAdjustedFlagFromPeriodGap(source);
       source.Amount__c = remainAmount;
-      source.PeriodLineAmountTotal__c = remainPeriodTotal;
-      source.MergeKey__c = null;
       source.IsSplitMoved__c = true;
       rememberSplitPreviewInvoice(source);
       rememberSplitPreviewLines(sourceInvoiceId, sourceUpdates);
@@ -3071,10 +3148,27 @@ public without sharing class InvoiceCanonicalService {
    * 比率按分でギャップだけ引き継いだ請求の「端数なし顔」を防ぐ。
    * ギャップが無いときは既存フラグを落とさない（明細由来の端数を維持）。
    */
+  private static void syncAmountAdjustedFlagFromPeriodGap(Invoice__c invoice) {
+    if (invoice == null || invoice.Id == null) {
+      return;
+    }
+    Decimal amount = invoice.Amount__c == null ? 0 : invoice.Amount__c;
+    Decimal periodTotal = invoice.PeriodLineAmountTotal__c == null
+      ? amount
+      : invoice.PeriodLineAmountTotal__c;
+    if (amount == periodTotal || invoice.IsAmountAdjusted__c == true) {
+      return;
+    }
+    invoice.IsAmountAdjusted__c = true;
+    syncInvoiceManualUmbrella(invoice);
+    SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
+  }
+
   private static void syncAmountAdjustedFlagFromPeriodGap(Id invoiceId) {
     if (invoiceId == null) {
       return;
     }
+    syncPeriodGapSelectCount++;
     Invoice__c invoice = [
       SELECT
         Id,
@@ -3088,16 +3182,7 @@ public without sharing class InvoiceCanonicalService {
       WITH SYSTEM_MODE
       LIMIT 1
     ];
-    Decimal amount = invoice.Amount__c == null ? 0 : invoice.Amount__c;
-    Decimal periodTotal = invoice.PeriodLineAmountTotal__c == null
-      ? amount
-      : invoice.PeriodLineAmountTotal__c;
-    if (amount == periodTotal || invoice.IsAmountAdjusted__c == true) {
-      return;
-    }
-    invoice.IsAmountAdjusted__c = true;
-    syncInvoiceManualUmbrella(invoice);
-    SystemContextAccess.updateRecords(new List<Invoice__c>{ invoice });
+    syncAmountAdjustedFlagFromPeriodGap(invoice);
   }
 
   private static void markInvoiceAmountAdjustedAndRecalc(Id invoiceId) {
@@ -3114,6 +3199,14 @@ public without sharing class InvoiceCanonicalService {
 
   private static void markInvoiceSplitMovedAndRecalc(Id invoiceId) {
     recalcInvoiceTotals(invoiceId, null, true);
+  }
+
+  private static void markInvoiceSplitMovedAndRecalc(
+    Id invoiceId,
+    List<InvoiceLine__c> knownLines,
+    Invoice__c knownInvoice
+  ) {
+    recalcInvoiceTotals(invoiceId, null, true, knownLines, knownInvoice);
   }
 
   private static void deriveInvoiceManualFlagsAndRecalc(Id invoiceId) {
