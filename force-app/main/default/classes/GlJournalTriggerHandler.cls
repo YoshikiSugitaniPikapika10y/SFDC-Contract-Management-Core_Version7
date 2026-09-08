@@ -21,8 +21,14 @@ public without sharing class GlJournalTriggerHandler {
           changed(previous.CreditSlotKey__c, row.CreditSlotKey__c) ||
           changed(previous.DebitAccount__c, row.DebitAccount__c) ||
           changed(previous.CreditAccount__c, row.CreditAccount__c) ||
-          changed(previous.DebitAccountAssignment__c, row.DebitAccountAssignment__c) ||
-          changed(previous.CreditAccountAssignment__c, row.CreditAccountAssignment__c) ||
+          changed(
+            previous.DebitAccountAssignment__c,
+            row.DebitAccountAssignment__c
+          ) ||
+          changed(
+            previous.CreditAccountAssignment__c,
+            row.CreditAccountAssignment__c
+          ) ||
           changed(previous.TransactionStatus__c, row.TransactionStatus__c)
         ) {
           row.addError('Lock/Unlockはロック状態以外を変更できません。');
@@ -42,8 +48,14 @@ public without sharing class GlJournalTriggerHandler {
         changed(previous.CreditSlotKey__c, row.CreditSlotKey__c) ||
         changed(previous.DebitAccount__c, row.DebitAccount__c) ||
         changed(previous.CreditAccount__c, row.CreditAccount__c) ||
-        changed(previous.DebitAccountAssignment__c, row.DebitAccountAssignment__c) ||
-        changed(previous.CreditAccountAssignment__c, row.CreditAccountAssignment__c)
+        changed(
+          previous.DebitAccountAssignment__c,
+          row.DebitAccountAssignment__c
+        ) ||
+        changed(
+          previous.CreditAccountAssignment__c,
+          row.CreditAccountAssignment__c
+        )
       ) {
         row.addError('仕訳の金額・科目・日付・借貸は変更できません。');
         continue;
@@ -55,6 +67,14 @@ public without sharing class GlJournalTriggerHandler {
         row.addError(ex.getMessage());
       }
     }
+  }
+
+  /**
+   * 仕様: Accounting 第1.8.1節・第8.2節。
+   * Lock・金額・追加の仕訳は収集済みCurrentを無効化する。Diff保存は直後にreplaceする。
+   */
+  public static void afterChange(List<GlJournal__c> journals) {
+    AccountingCurrentService.invalidateForJournals(journals);
   }
 
   /** 仕様: Accounting 第2.5節、共通基盤 第3.6節。物理削除は 101／103。例外は Core 第5.3節の差し戻し。 */

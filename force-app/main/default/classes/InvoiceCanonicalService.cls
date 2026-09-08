@@ -126,7 +126,10 @@ public without sharing class InvoiceCanonicalService {
 
   /** 仕様: Core 第12.4節・第7.8節・第7.9.7節。分割で消した請求。押印は取り直さない。 */
   public static Set<Id> peekSplitPreviewDeletedInvoiceIds() {
-    if (splitPreviewTouch == null || splitPreviewTouch.deletedInvoiceIds == null) {
+    if (
+      splitPreviewTouch == null ||
+      splitPreviewTouch.deletedInvoiceIds == null
+    ) {
       return new Set<Id>();
     }
     return new Set<Id>(splitPreviewTouch.deletedInvoiceIds);
@@ -298,7 +301,10 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /** 仕様: Core 第12.4節・第7.8節。行ロックした請求は取り直さない。 */
-  private static Invoice__c knownSplitInvoice(SplitKnownRows known, Id invoiceId) {
+  private static Invoice__c knownSplitInvoice(
+    SplitKnownRows known,
+    Id invoiceId
+  ) {
     if (known == null || known.invoicesById == null || invoiceId == null) {
       return null;
     }
@@ -306,7 +312,9 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /** 仕様: Core 第12.4節・第7.8節。読み済み明細は取り直さない。 */
-  private static Map<Id, InvoiceLine__c> knownSplitLinesById(SplitKnownRows known) {
+  private static Map<Id, InvoiceLine__c> knownSplitLinesById(
+    SplitKnownRows known
+  ) {
     Map<Id, InvoiceLine__c> byId = new Map<Id, InvoiceLine__c>();
     if (known == null || known.lines == null) {
       return byId;
@@ -908,10 +916,7 @@ public without sharing class InvoiceCanonicalService {
     for (InvoiceLine__c line : lines) {
       invoiceIds.add(line.Invoice__c);
     }
-    if (
-      knownLockedInvoices != null &&
-      !knownLockedInvoices.isEmpty()
-    ) {
+    if (knownLockedInvoices != null && !knownLockedInvoices.isEmpty()) {
       InvoiceLockUtil.assertInvoicesEditable(knownLockedInvoices.values());
     } else {
       InvoiceLockUtil.assertInvoicesEditable(invoiceIds);
@@ -959,8 +964,13 @@ public without sharing class InvoiceCanonicalService {
       return new List<InvoiceLine__c>();
     }
     return [
-      SELECT Id, Amount__c, Invoice__c, Invoice__r.ContractHistory__c,
-        IsAmountAdjusted__c, IsSplitMoved__c
+      SELECT
+        Id,
+        Amount__c,
+        Invoice__c,
+        Invoice__r.ContractHistory__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c
       FROM InvoiceLine__c
       WHERE Invoice__c IN :invoiceIds
       WITH SYSTEM_MODE
@@ -1095,12 +1105,20 @@ public without sharing class InvoiceCanonicalService {
       acceptanceLockedJournalCount(lines, confirmedInvoiceIds) > 0 &&
       cancellationDate == null
     ) {
-      throw new InvoiceEditException('ロック済み仕訳がある取消では取消基準日が必要です。');
+      throw new InvoiceEditException(
+        'ロック済み仕訳がある取消では取消基準日が必要です。'
+      );
     }
     for (InvoiceLine__c line : lines) {
       line.AcceptanceEndDate__c = acceptanceEndDateByLineId.get(line.Id);
     }
     SystemContextAccess.updateRecords(lines);
+    // 仕様: Accounting 第8.2節。検収終了日を書いたあとのGoalは明細を取り直す。
+    for (InvoiceLine__c line : lines) {
+      if (line != null) {
+        AccountingGoalService.invalidateCauseCache(line.Invoice__c);
+      }
+    }
     applyAcceptanceAccounting(
       lines,
       confirmedInvoiceIds,
@@ -1167,7 +1185,10 @@ public without sharing class InvoiceCanonicalService {
     if (!isAccountingEnabledForAcceptance(invoiceIds)) {
       return;
     }
-    Map<Id, Set<Id>> lineIdsByInvoice = acceptanceLineIdsByInvoice(lines, invoiceIds);
+    Map<Id, Set<Id>> lineIdsByInvoice = acceptanceLineIdsByInvoice(
+      lines,
+      invoiceIds
+    );
     for (Id invoiceId : invoiceIds) {
       String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
         invoiceIds.size() == 1 ? businessOperationKey : null
@@ -1791,11 +1812,7 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException('分割対象の明細が見つかりません。');
     }
     // 単価／数量／期間分割の前に、対象明細の端数調整を由来期間合計へ戻す
-    resetFactorSplitLineAmountsToSource(
-      source,
-      targetLineIds,
-      sourceLineById
-    );
+    resetFactorSplitLineAmountsToSource(source, targetLineIds, sourceLineById);
 
     Set<Id> periodMoveIds = new Set<Id>();
     Set<Id> periodRestrictLineIds = new Set<Id>();
@@ -2512,7 +2529,8 @@ public without sharing class InvoiceCanonicalService {
       targetRecalcLines.addAll(createdLines);
     }
     markInvoiceSplitMovedAndRecalc(targetInvoiceId, targetRecalcLines, target);
-    target.PeriodLineAmountTotal__c = targetPeriodTotalBefore + movedPeriodTotal;
+    target.PeriodLineAmountTotal__c =
+      targetPeriodTotalBefore + movedPeriodTotal;
     target.MergeKey__c = null;
     Invoice__c targetUpdate = new Invoice__c(
       Id = targetInvoiceId,
@@ -2547,7 +2565,11 @@ public without sharing class InvoiceCanonicalService {
       List<InvoiceLine__c> sourceRemainLines = hasKnownLines(known)
         ? knownSiblingLines(known, sourceInvoiceId, lineIdSet)
         : null;
-      markInvoiceSplitMovedAndRecalc(sourceInvoiceId, sourceRemainLines, source);
+      markInvoiceSplitMovedAndRecalc(
+        sourceInvoiceId,
+        sourceRemainLines,
+        source
+      );
       source.PeriodLineAmountTotal__c = remainPeriodTotal;
       source.MergeKey__c = null;
       Invoice__c sourceUpdate = new Invoice__c(
@@ -2562,10 +2584,11 @@ public without sharing class InvoiceCanonicalService {
       rememberSplitPreviewInvoice(source);
       rememberSplitPreviewDeletedLines(sourceLines);
     }
-    target.PeriodLineAmountTotal__c = targetPeriodTotalBefore + movedPeriodTotal;
+    target.PeriodLineAmountTotal__c =
+      targetPeriodTotalBefore + movedPeriodTotal;
     target.MergeKey__c = null;
-    target.Amount__c = (target.Amount__c == null ? 0 : target.Amount__c) +
-      movedAmount;
+    target.Amount__c =
+      (target.Amount__c == null ? 0 : target.Amount__c) + movedAmount;
     target.IsSplitMoved__c = true;
     rememberSplitPreviewInvoice(target);
     rememberSplitPreviewLines(targetInvoiceId, createdLines);
@@ -3121,7 +3144,11 @@ public without sharing class InvoiceCanonicalService {
           knownSiblingLines(known, sourceInvoiceId, inputByLineId.keySet())
         );
       }
-      markInvoiceSplitMovedAndRecalc(sourceInvoiceId, sourceRemainLines, source);
+      markInvoiceSplitMovedAndRecalc(
+        sourceInvoiceId,
+        sourceRemainLines,
+        source
+      );
       // 仕様: 請求を分ける後は元・先とも MergeKey を破棄（突合の正は Id）
       source.PeriodLineAmountTotal__c = remainPeriodTotal;
       source.MergeKey__c = null;
@@ -3310,7 +3337,13 @@ public without sharing class InvoiceCanonicalService {
     Boolean forceAmountAdjusted,
     Boolean forceSplitMoved
   ) {
-    recalcInvoiceTotals(invoiceId, forceAmountAdjusted, forceSplitMoved, null, null);
+    recalcInvoiceTotals(
+      invoiceId,
+      forceAmountAdjusted,
+      forceSplitMoved,
+      null,
+      null
+    );
   }
 
   /**
@@ -3348,10 +3381,10 @@ public without sharing class InvoiceCanonicalService {
         splitMovedCount++;
       }
     }
-    Invoice__c invoice =
-      knownInvoice != null && knownInvoice.Id == invoiceId
-        ? knownInvoice
-        : null;
+    Invoice__c invoice = knownInvoice != null &&
+      knownInvoice.Id == invoiceId
+      ? knownInvoice
+      : null;
     if (invoice == null) {
       recalcInvoiceSelectCount++;
       invoice = [
@@ -3572,10 +3605,7 @@ public without sharing class InvoiceCanonicalService {
       if (mem != null && mem.Invoice__c == invoiceId) {
         knownSiblingsCoverInvoice = true;
         siblingById.put(mem.Id, mem);
-        amountByLineId.put(
-          mem.Id,
-          mem.Amount__c == null ? 0 : mem.Amount__c
-        );
+        amountByLineId.put(mem.Id, mem.Amount__c == null ? 0 : mem.Amount__c);
       }
     }
     if (!knownSiblingsCoverInvoice) {
@@ -3652,11 +3682,7 @@ public without sharing class InvoiceCanonicalService {
     for (InvoiceLine__c updated : toUpdate) {
       siblingById.put(updated.Id, updated);
     }
-    deriveInvoiceManualFlagsAndRecalc(
-      invoiceId,
-      siblingById.values(),
-      header
-    );
+    deriveInvoiceManualFlagsAndRecalc(invoiceId, siblingById.values(), header);
   }
 
   /**
@@ -4310,10 +4336,7 @@ public without sharing class InvoiceCanonicalService {
     for (BillingAccount__c ba : Database.query(soql)) {
       byId.put(ba.Id, ba);
     }
-    InvoiceProductFieldCopyService.rememberRecords(
-      byId.values(),
-      neededFields
-    );
+    InvoiceProductFieldCopyService.rememberRecords(byId.values(), neededFields);
     return byId;
   }
 

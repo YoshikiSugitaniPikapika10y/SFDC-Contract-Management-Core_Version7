@@ -13,6 +13,21 @@ public without sharing class AccountingCurrentService {
   }
 
   /**
+   * 仕様: Accounting 第1.8.1節・第8.2節。
+   * 同一処理の収集後に別DMLで変わった仕訳は、次のGoal／Diffで取り直す。
+   */
+  public static void invalidateForJournals(List<GlJournal__c> journals) {
+    if (journals == null) {
+      return;
+    }
+    for (GlJournal__c journal : journals) {
+      if (journal != null) {
+        invalidate(journal.Invoice__c);
+      }
+    }
+  }
+
+  /**
    * 仕様: Accounting 第8.2節。
    * Diff保存後の仕訳はメモリ上の収集結果で置き、Currentを取り直さない。
    */
@@ -29,7 +44,10 @@ public without sharing class AccountingCurrentService {
       return false;
     }
     for (GlJournal__c journal : load(invoiceId)) {
-      if (journal.IsLocked__c == true && journal.TransactionStatus__c == 'Active') {
+      if (
+        journal.IsLocked__c == true &&
+        journal.TransactionStatus__c == 'Active'
+      ) {
         return true;
       }
     }
@@ -131,7 +149,11 @@ public without sharing class AccountingCurrentService {
       'BillingAccount__c',
       'BillingAccountKeySnapShot__c'
     };
-    for (String copyField : FieldCopyDefinitionService.targetFieldApiNames('GlJournal__c')) {
+    for (
+      String copyField : FieldCopyDefinitionService.targetFieldApiNames(
+        'GlJournal__c'
+      )
+    ) {
       if (!fields.contains(copyField)) {
         fields.add(copyField);
       }
@@ -165,7 +187,10 @@ public without sharing class AccountingCurrentService {
       if (journal == null || journal.LastModifiedDate == null) {
         continue;
       }
-      if (latest == null || journal.LastModifiedDate.getTime() > latest.getTime()) {
+      if (
+        latest == null ||
+        journal.LastModifiedDate.getTime() > latest.getTime()
+      ) {
         latest = journal.LastModifiedDate;
       }
     }

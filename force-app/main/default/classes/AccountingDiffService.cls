@@ -106,29 +106,36 @@ public without sharing class AccountingDiffService {
     Boolean includeLineCandidates = true;
     Boolean includeManualCandidates = true;
     if (
-      (
-        eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key ||
-        eventKey == AccountingEventFixedCatalog.PAYMENT_RECORDED.key
-      ) &&
+      (eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key ||
+      eventKey == AccountingEventFixedCatalog.PAYMENT_RECORDED.key) &&
       paymentCancelIncludeLineCandidates != null
     ) {
       includeLineCandidates = paymentCancelIncludeLineCandidates;
       includeManualCandidates = paymentCancelIncludeManualCandidates == true;
     }
-    Invoice__c invoice =
-      knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
-        ? knownLockedInvoice
-        : AccountingCauseLockService.lockInvoice(invoiceId);
+    Invoice__c invoice = knownLockedInvoice != null &&
+      knownLockedInvoice.Id == invoiceId
+      ? knownLockedInvoice
+      : AccountingCauseLockService.lockInvoice(invoiceId);
     invoice = AccountingGoalService.prepareInvoiceForGoal(invoice);
-    GlAccountingPolicy__c policy = eventKey == AccountingEventFixedCatalog.BILLING_CONFIRMED.key
+    GlAccountingPolicy__c policy = eventKey ==
+      AccountingEventFixedCatalog.BILLING_CONFIRMED.key
       ? GlAccountingPolicyService.freezeOnFirstConfirm()
       : GlAccountingPolicyService.requireOrgPolicy();
+    // 仕様: Accounting 第8.1節・第8.2節。検収日変更は変えた明細だけをDiffする。未指定は請求書全体にしない。
+    Set<Id> scopedLineIds = restrictLineIdsForEvent(eventKey, restrictLineIds);
     // 仕様: Accounting 第8.2節手順2。ロック後に集めたCurrentは取り直さない。
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
     if (policy.AccountingEnabled__c != true) {
       if (isCancelEvent(eventKey)) {
-        cancelCurrent(invoiceId, current, eventKey, operationKey, cancellationDate);
+        cancelCurrent(
+          invoiceId,
+          current,
+          eventKey,
+          operationKey,
+          cancellationDate
+        );
       }
       clearRememberedCancelReasons();
       return;
@@ -142,7 +149,7 @@ public without sharing class AccountingDiffService {
     }
     List<GlJournal__c> diffCurrent = journalsForGoalScope(
       current,
-      restrictLineIds,
+      scopedLineIds,
       includeLineCandidates,
       includeManualCandidates
     );
@@ -150,7 +157,7 @@ public without sharing class AccountingDiffService {
       invoice,
       policy,
       current,
-      restrictLineIds,
+      scopedLineIds,
       includeLineCandidates,
       includeManualCandidates
     );
@@ -162,9 +169,10 @@ public without sharing class AccountingDiffService {
         current,
         eventKey,
         operationKey,
-        cancellationDate
+        cancellationDate,
+        scopedLineIds
       );
-      persistHistoricalBreakdown(goals, restrictLineIds);
+      persistHistoricalBreakdown(goals, scopedLineIds);
       AccountingTagEvaluationService.evaluateForInvoice(
         invoiceId,
         invoice,
@@ -243,14 +251,37 @@ public without sharing class AccountingDiffService {
     String eventKey,
     String operationKey
   ) {
+    return collectPersistDiff(
+      invoice,
+      goals,
+      current,
+      eventKey,
+      operationKey,
+      null
+    );
+  }
+
+  /** 仕様: Accounting 第1.8.1節、第8.1節、第8.2節、第8.8節 */
+  private static PersistPlan collectPersistDiff(
+    Invoice__c invoice,
+    List<AccountingGoalService.GoalJournal> goals,
+    List<GlJournal__c> current,
+    String eventKey,
+    String operationKey,
+    Set<Id> restrictLineIds
+  ) {
     Map<String, GlJournal__c> activeByLine = new Map<String, GlJournal__c>();
     for (GlJournal__c journal : current) {
-      if (journal.TransactionStatus__c == 'Active') {
-        if (activeByLine.containsKey(journal.JournalLineKey__c)) {
-          throw new DiffException('同じ仕訳行キーがCurrent内で重複しています。');
-        }
-        activeByLine.put(journal.JournalLineKey__c, journal);
+      if (journal.TransactionStatus__c != 'Active') {
+        continue;
       }
+      if (!inDiffLineScope(journal, restrictLineIds)) {
+        continue;
+      }
+      if (activeByLine.containsKey(journal.JournalLineKey__c)) {
+        throw new DiffException('同じ仕訳行キーがCurrent内で重複しています。');
+      }
+      activeByLine.put(journal.JournalLineKey__c, journal);
     }
     CopySourceBundle copySources = loadCopySources(invoice, goals);
     Set<String> goalKeys = new Set<String>();
@@ -260,13 +291,20 @@ public without sharing class AccountingDiffService {
     plan.reversals = new List<GlJournal__c>();
     for (AccountingGoalService.GoalJournal goal : goals) {
       GlJournal__c next = goal.record;
+      if (!inDiffLineScope(next, restrictLineIds)) {
+        continue;
+      }
       next.AccountingEventKey__c = eventKey;
       next.BusinessOperationKey__c = operationKey;
       applyJournalCopy(next, copySources);
       goalKeys.add(next.JournalLineKey__c);
       GlJournal__c existing = activeByLine.get(next.JournalLineKey__c);
       if (existing == null) {
-        next.IdempotencyKey__c = idempotencyKey(goal, operationKey, next.JournalLineKey__c);
+        next.IdempotencyKey__c = idempotencyKey(
+          goal,
+          operationKey,
+          next.JournalLineKey__c
+        );
         plan.inserts.add(next);
         continue;
       }
@@ -275,12 +313,20 @@ public without sharing class AccountingDiffService {
       }
       if (existing.IsLocked__c == true) {
         plan.reversals.add(existing);
-        next.IdempotencyKey__c = idempotencyKey(goal, operationKey, next.JournalLineKey__c);
+        next.IdempotencyKey__c = idempotencyKey(
+          goal,
+          operationKey,
+          next.JournalLineKey__c
+        );
         plan.inserts.add(next);
       } else {
         existing.TransactionStatus__c = 'LogicallyDeleted';
         plan.logicalDeletes.add(existing);
-        next.IdempotencyKey__c = idempotencyKey(goal, operationKey, next.JournalLineKey__c);
+        next.IdempotencyKey__c = idempotencyKey(
+          goal,
+          operationKey,
+          next.JournalLineKey__c
+        );
         plan.inserts.add(next);
       }
     }
@@ -314,7 +360,8 @@ public without sharing class AccountingDiffService {
       current,
       eventKey,
       operationKey,
-      cancellationDate
+      cancellationDate,
+      null
     );
   }
 
@@ -327,12 +374,35 @@ public without sharing class AccountingDiffService {
     String operationKey,
     Date cancellationDate
   ) {
+    persistDiff(
+      invoice,
+      goals,
+      diffCurrent,
+      rememberCurrent,
+      eventKey,
+      operationKey,
+      cancellationDate,
+      null
+    );
+  }
+
+  private static void persistDiff(
+    Invoice__c invoice,
+    List<AccountingGoalService.GoalJournal> goals,
+    List<GlJournal__c> diffCurrent,
+    List<GlJournal__c> rememberCurrent,
+    String eventKey,
+    String operationKey,
+    Date cancellationDate,
+    Set<Id> restrictLineIds
+  ) {
     PersistPlan plan = collectPersistDiff(
       invoice,
       goals,
       diffCurrent,
       eventKey,
-      operationKey
+      operationKey,
+      restrictLineIds
     );
     // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作のDiffで逆仕訳になるLockだけ取消基準日を取る。
     assertCancellationDateIfReversals(plan.reversals, cancellationDate);
@@ -340,7 +410,12 @@ public without sharing class AccountingDiffService {
     GlJournalTriggerHandler.allowEngineWrite = true;
     try {
       if (isCancelEvent(eventKey)) {
-        applyCancelAuditToJournals(plan.logicalDeletes, invoice.Id, eventKey, operationKey);
+        applyCancelAuditToJournals(
+          plan.logicalDeletes,
+          invoice.Id,
+          eventKey,
+          operationKey
+        );
       }
       if (!plan.logicalDeletes.isEmpty()) {
         update plan.logicalDeletes;
@@ -426,10 +501,8 @@ public without sharing class AccountingDiffService {
     Boolean includeLineCandidates = true;
     Boolean includeManualCandidates = true;
     if (
-      (
-        eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key ||
-        eventKey == AccountingEventFixedCatalog.PAYMENT_RECORDED.key
-      ) &&
+      (eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key ||
+      eventKey == AccountingEventFixedCatalog.PAYMENT_RECORDED.key) &&
       paymentCancelIncludeLineCandidates != null
     ) {
       includeLineCandidates = paymentCancelIncludeLineCandidates;
@@ -440,11 +513,12 @@ public without sharing class AccountingDiffService {
         AccountingGoalService.invalidateCauseCache(invoiceId);
       }
     }
-    Invoice__c invoice =
-      knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId
-        ? knownLockedInvoice
-        : AccountingCauseLockService.lockInvoice(invoiceId);
+    Invoice__c invoice = knownLockedInvoice != null &&
+      knownLockedInvoice.Id == invoiceId
+      ? knownLockedInvoice
+      : AccountingCauseLockService.lockInvoice(invoiceId);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+    Set<Id> scopedLineIds = restrictLineIdsForEvent(eventKey, restrictLineIds);
     // 仕様: Accounting 第8.2節手順2。ロック後に集めたCurrentは取り直さない。
     List<GlJournal__c> current = AccountingCurrentService.load(invoiceId);
     assertCurrentIntegrity(current);
@@ -459,7 +533,7 @@ public without sharing class AccountingDiffService {
     }
     List<GlJournal__c> diffCurrent = journalsForGoalScope(
       current,
-      restrictLineIds,
+      scopedLineIds,
       includeLineCandidates,
       includeManualCandidates
     );
@@ -467,7 +541,7 @@ public without sharing class AccountingDiffService {
       invoice,
       policy,
       current,
-      restrictLineIds,
+      scopedLineIds,
       includeLineCandidates,
       includeManualCandidates
     );
@@ -476,9 +550,14 @@ public without sharing class AccountingDiffService {
       goals,
       diffCurrent,
       eventKey,
-      'PREVIEW'
+      'PREVIEW',
+      scopedLineIds
     );
-    return previewFromPlan(plan.logicalDeletes, plan.reversals, cancellationDate);
+    return previewFromPlan(
+      plan.logicalDeletes,
+      plan.reversals,
+      cancellationDate
+    );
   }
 
   /** 仕様: Core 第7.9.6節、Accounting 第8.5節、日付仕様 第7.3節、第8章 */
@@ -553,7 +632,11 @@ public without sharing class AccountingDiffService {
   }
 
   private static CancelPreview emptyPreview() {
-    return previewFromPlan(new List<GlJournal__c>(), new List<GlJournal__c>(), null);
+    return previewFromPlan(
+      new List<GlJournal__c>(),
+      new List<GlJournal__c>(),
+      null
+    );
   }
 
   private static CancelPreview previewFromPlan(
@@ -562,7 +645,9 @@ public without sharing class AccountingDiffService {
     Date cancellationDate
   ) {
     CancelPreview preview = new CancelPreview();
-    preview.logicalDeleteCount = logicalDeletes == null ? 0 : logicalDeletes.size();
+    preview.logicalDeleteCount = logicalDeletes == null
+      ? 0
+      : logicalDeletes.size();
     preview.reverseCount = reversals == null ? 0 : reversals.size();
     preview.reverseDateCounts = new List<ReverseDateCount>();
     preview.hasFutureReverseDate = false;
@@ -599,7 +684,9 @@ public without sharing class AccountingDiffService {
       '逆仕訳件数: ' + String.valueOf(preview.reverseCount),
       '実際の逆仕訳日:'
     };
-    if (preview.reverseDateCounts == null || preview.reverseDateCounts.isEmpty()) {
+    if (
+      preview.reverseDateCounts == null || preview.reverseDateCounts.isEmpty()
+    ) {
       lines.add('なし');
     } else {
       for (ReverseDateCount row : preview.reverseDateCounts) {
@@ -611,7 +698,9 @@ public without sharing class AccountingDiffService {
         );
       }
     }
-    lines.add('将来日付: ' + (preview.hasFutureReverseDate == true ? 'あり' : 'なし'));
+    lines.add(
+      '将来日付: ' + (preview.hasFutureReverseDate == true ? 'あり' : 'なし')
+    );
     return String.join(lines, '\n');
   }
 
@@ -621,7 +710,9 @@ public without sharing class AccountingDiffService {
     Date cancellationDate
   ) {
     if (reversals != null && !reversals.isEmpty() && cancellationDate == null) {
-      throw new DiffException('ロック済み仕訳がある取消では取消基準日が必要です。');
+      throw new DiffException(
+        'ロック済み仕訳がある取消では取消基準日が必要です。'
+      );
     }
   }
 
@@ -672,7 +763,11 @@ public without sharing class AccountingDiffService {
       }
       List<GlJournal__c> inserts = new List<GlJournal__c>();
       for (GlJournal__c original : locked) {
-        CancelReasonSnapshot reason = cancelReasonOf(original, invoiceId, eventKey);
+        CancelReasonSnapshot reason = cancelReasonOf(
+          original,
+          invoiceId,
+          eventKey
+        );
         inserts.add(
           reversalOf(original, eventKey, operationKey, cancellationDate, reason)
         );
@@ -775,11 +870,12 @@ public without sharing class AccountingDiffService {
       cancelReasonSelectCount++;
       List<Invoice__c> invoices = Database.query(
         'SELECT CancellationReason__c, CancellationReasonText__c ' +
-          'FROM Invoice__c WHERE Id = :invoiceId WITH SYSTEM_MODE LIMIT 1'
+        'FROM Invoice__c WHERE Id = :invoiceId WITH SYSTEM_MODE LIMIT 1'
       );
       if (!invoices.isEmpty()) {
         snapshot.reason = (String) invoices[0].get('CancellationReason__c');
-        snapshot.reasonText = (String) invoices[0].get('CancellationReasonText__c');
+        snapshot.reasonText = (String) invoices[0]
+          .get('CancellationReasonText__c');
       }
     }
     return snapshot;
@@ -884,7 +980,14 @@ public without sharing class AccountingDiffService {
     String eventKey,
     String operationKey
   ) {
-    applyCancelAuditToJournal(journal, invoiceId, eventKey, operationKey, null, null);
+    applyCancelAuditToJournal(
+      journal,
+      invoiceId,
+      eventKey,
+      operationKey,
+      null,
+      null
+    );
   }
 
   private static void applyCancelAuditToJournal(
@@ -936,7 +1039,8 @@ public without sharing class AccountingDiffService {
       return true;
     }
     if (eventKey == AccountingEventFixedCatalog.PAYMENT_CANCELLED.key) {
-      return journal.InvoicePayment__c != null && !activePayments.contains(journal.InvoicePayment__c);
+      return journal.InvoicePayment__c != null &&
+        !activePayments.contains(journal.InvoicePayment__c);
     }
     if (eventKey == AccountingEventFixedCatalog.MANUAL_JOURNAL.key) {
       return journal.GlManualJournalHeader__c != null &&
@@ -1025,7 +1129,10 @@ public without sharing class AccountingDiffService {
         throw new DiffException('取消仕訳の取消元がありません。');
       }
       if (!reversalsByOriginal.containsKey(journal.OriginalJournal__c)) {
-        reversalsByOriginal.put(journal.OriginalJournal__c, new List<GlJournal__c>());
+        reversalsByOriginal.put(
+          journal.OriginalJournal__c,
+          new List<GlJournal__c>()
+        );
       }
       reversalsByOriginal.get(journal.OriginalJournal__c).add(journal);
     }
@@ -1053,7 +1160,9 @@ public without sharing class AccountingDiffService {
     CancelReasonSnapshot reason
   ) {
     if (cancellationDate == null) {
-      throw new DiffException('ロック済み仕訳の逆仕訳には取消基準日が必要です。');
+      throw new DiffException(
+        'ロック済み仕訳の逆仕訳には取消基準日が必要です。'
+      );
     }
     Date postingDate = reversalDateOf(original, cancellationDate);
     // 仕様: Accounting 第8.8節。請求明細・仕訳パターンキー・売上計上回番号は clone で元のまま保持する。
@@ -1086,7 +1195,10 @@ public without sharing class AccountingDiffService {
   }
 
   /** 仕様: Accounting 第8.5節、日付仕様 第7.3節 */
-  private static Date reversalDateOf(GlJournal__c original, Date cancellationDate) {
+  private static Date reversalDateOf(
+    GlJournal__c original,
+    Date cancellationDate
+  ) {
     return cancellationDate >= original.PostingDate__c
       ? cancellationDate
       : original.PostingDate__c;
@@ -1096,19 +1208,45 @@ public without sharing class AccountingDiffService {
    * 仕様: Accounting 第4.2節・第8.2節・第8.8節。
    * 入出金取消は変えない売上・税・手動をDiff比較から外す。検収日変更は明細限定のまま。
    */
+  /**
+   * 仕様: Accounting 第8.1節・第8.2節。検収日変更に明細集合が無ければ請求書全体をDiffしない。
+   */
+  private static Set<Id> restrictLineIdsForEvent(
+    String eventKey,
+    Set<Id> restrictLineIds
+  ) {
+    if (
+      eventKey == AccountingEventFixedCatalog.ACCEPTANCE_DATE_CHANGED.key &&
+      restrictLineIds == null
+    ) {
+      return new Set<Id>();
+    }
+    return restrictLineIds;
+  }
+
+  /** 仕様: Accounting 第8.2節・第8.8節。明細限定のCurrentだけをDiffする。 */
+  private static Boolean inDiffLineScope(
+    GlJournal__c journal,
+    Set<Id> restrictLineIds
+  ) {
+    if (restrictLineIds == null) {
+      return true;
+    }
+    return journal != null &&
+      journal.InvoiceLine__c != null &&
+      restrictLineIds.contains(journal.InvoiceLine__c);
+  }
+
   private static List<GlJournal__c> journalsForGoalScope(
     List<GlJournal__c> current,
     Set<Id> restrictLineIds,
     Boolean includeLineCandidates,
     Boolean includeManualCandidates
   ) {
-    if (restrictLineIds != null && !restrictLineIds.isEmpty()) {
+    if (restrictLineIds != null) {
       return journalsForLines(current, restrictLineIds);
     }
-    if (
-      includeLineCandidates == true &&
-      includeManualCandidates == true
-    ) {
+    if (includeLineCandidates == true && includeManualCandidates == true) {
       return current;
     }
     if (current == null) {
@@ -1143,8 +1281,11 @@ public without sharing class AccountingDiffService {
     List<GlJournal__c> current,
     Set<Id> restrictLineIds
   ) {
-    if (restrictLineIds == null || restrictLineIds.isEmpty() || current == null) {
+    if (restrictLineIds == null || current == null) {
       return current;
+    }
+    if (restrictLineIds.isEmpty()) {
+      return new List<GlJournal__c>();
     }
     List<GlJournal__c> scoped = new List<GlJournal__c>();
     for (GlJournal__c journal : current) {
@@ -1207,7 +1348,9 @@ public without sharing class AccountingDiffService {
           continue;
         }
       }
-      InvoicePaymentAllocation__c allocation = updates.get(journal.InvoicePaymentAllocation__c);
+      InvoicePaymentAllocation__c allocation = updates.get(
+        journal.InvoicePaymentAllocation__c
+      );
       if (allocation == null) {
         allocation = collected.get(journal.InvoicePaymentAllocation__c);
         if (allocation == null) {
@@ -1223,16 +1366,19 @@ public without sharing class AccountingDiffService {
         updates.put(allocation.Id, allocation);
       }
       Decimal magnitude = nvl(journal.Amount__c);
-      String counterpart = journal.DebitSlotKey__c == AccountingSlotFixedCatalog.Cash.key
+      String counterpart = journal.DebitSlotKey__c ==
+        AccountingSlotFixedCatalog.Cash.key
         ? journal.CreditSlotKey__c
         : journal.DebitSlotKey__c;
       if (counterpart == AccountingSlotFixedCatalog.UnappliedCash.key) {
         Decimal signed = negativeCash ? -magnitude : magnitude;
-        allocation.HistoricalUacAmount__c = nvl(allocation.HistoricalUacAmount__c) + signed;
+        allocation.HistoricalUacAmount__c =
+          nvl(allocation.HistoricalUacAmount__c) + signed;
       }
       if (counterpart == AccountingSlotFixedCatalog.SuspensePayment.key) {
         Decimal signed = negativeCash ? magnitude : -magnitude;
-        allocation.HistoricalSpAmount__c = nvl(allocation.HistoricalSpAmount__c) + signed;
+        allocation.HistoricalSpAmount__c =
+          nvl(allocation.HistoricalSpAmount__c) + signed;
       }
     }
     List<InvoicePaymentAllocation__c> toWrite = new List<InvoicePaymentAllocation__c>();
@@ -1243,13 +1389,19 @@ public without sharing class AccountingDiffService {
         continue;
       }
       if (allocation.Amount__c != uac - sp) {
-        throw new DiffException('過去日Invoiceの明細別割当内訳が割当額と一致しません。');
+        throw new DiffException(
+          '過去日Invoiceの明細別割当内訳が割当額と一致しません。'
+        );
       }
       if (allocation.Amount__c > 0 && (uac < 0 || sp > 0)) {
-        throw new DiffException('正額の過去日Invoice割当の振替内訳の符号が不正です。');
+        throw new DiffException(
+          '正額の過去日Invoice割当の振替内訳の符号が不正です。'
+        );
       }
       if (allocation.Amount__c < 0 && (uac > 0 || sp < 0)) {
-        throw new DiffException('負額の過去日Invoice割当の振替内訳の符号が不正です。');
+        throw new DiffException(
+          '負額の過去日Invoice割当の振替内訳の符号が不正です。'
+        );
       }
       toWrite.add(allocation);
     }
@@ -1284,9 +1436,16 @@ public without sharing class AccountingDiffService {
       sameCopyFields(current, goal);
   }
 
-  private static Boolean sameCopyFields(GlJournal__c current, GlJournal__c goal) {
+  private static Boolean sameCopyFields(
+    GlJournal__c current,
+    GlJournal__c goal
+  ) {
     Set<String> screenFields = InvoiceOpsFieldService.journalScreenFieldApiNames();
-    for (String fieldName : FieldCopyDefinitionService.targetFieldApiNames('GlJournal__c')) {
+    for (
+      String fieldName : FieldCopyDefinitionService.targetFieldApiNames(
+        'GlJournal__c'
+      )
+    ) {
       // 仕様: Accounting 第8.7節、Core 第11.4.4節。画面定義の仕訳追加項目は内容比較しない。
       if (screenFields.contains(fieldName)) {
         continue;
@@ -1303,7 +1462,11 @@ public without sharing class AccountingDiffService {
     String operationKey,
     String journalLineKey
   ) {
-    if (goal != null && goal.isManual && goal.record.GlManualJournalHeader__c != null) {
+    if (
+      goal != null &&
+      goal.isManual &&
+      goal.record.GlManualJournalHeader__c != null
+    ) {
       return hashKey(
         new List<String>{
           'MAN',
@@ -1312,7 +1475,9 @@ public without sharing class AccountingDiffService {
         }
       );
     }
-    return hashKey(new List<String>{ operationKey, journalLineKey, 'ORIGINAL' });
+    return hashKey(
+      new List<String>{ operationKey, journalLineKey, 'ORIGINAL' }
+    );
   }
 
   private class CopySourceBundle {
@@ -1357,11 +1522,13 @@ public without sharing class AccountingDiffService {
         'ContractHistory__c',
         'ContractService__c'
       };
-    invoiceCopyFields.addAll(FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c'));
-    invoiceCopyFields.addAll(
-      InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
-    );
-    if (hasAllQueriedFields(lockedInvoice, invoiceCopyFields)) {
+      invoiceCopyFields.addAll(
+        FieldCopyDefinitionService.sourceFieldApiNames('Invoice__c')
+      );
+      invoiceCopyFields.addAll(
+        InvoiceProductFieldCopyService.getSourceFieldApiNames('Invoice__c')
+      );
+      if (hasAllQueriedFields(lockedInvoice, invoiceCopyFields)) {
         bundle.invoice = lockedInvoice;
       } else {
         List<Invoice__c> invoices = (List<Invoice__c>) queryCopySources(
@@ -1383,8 +1550,9 @@ public without sharing class AccountingDiffService {
         'InvoiceLine__c',
         copyToSObject(
           AccountingGoalService.collectedLines(
-            lockedInvoice == null ? null : lockedInvoice.Id
-          ).values()
+              lockedInvoice == null ? null : lockedInvoice.Id
+            )
+            .values()
         ),
         lineIds,
         new Set<String>{
@@ -1400,8 +1568,9 @@ public without sharing class AccountingDiffService {
         'InvoicePayment__c',
         copyToSObject(
           AccountingGoalService.collectedPayments(
-            lockedInvoice == null ? null : lockedInvoice.Id
-          ).values()
+              lockedInvoice == null ? null : lockedInvoice.Id
+            )
+            .values()
         ),
         paymentIds,
         new Set<String>{
@@ -1418,8 +1587,9 @@ public without sharing class AccountingDiffService {
         'InvoicePaymentAllocation__c',
         copyToSObject(
           AccountingGoalService.collectedAllocations(
-            lockedInvoice == null ? null : lockedInvoice.Id
-          ).values()
+              lockedInvoice == null ? null : lockedInvoice.Id
+            )
+            .values()
         ),
         allocationIds,
         new Set<String>{ 'InvoiceLine__c', 'InvoicePayment__c', 'Amount__c' }
@@ -1446,7 +1616,9 @@ public without sharing class AccountingDiffService {
         new Set<String>{ 'Product__c', 'ContractHistory__c' }
       )
     );
-    for (ContractProduct__c contractProduct : bundle.contractProducts.values()) {
+    for (
+      ContractProduct__c contractProduct : bundle.contractProducts.values()
+    ) {
       if (contractProduct.Product__c != null) {
         productIds.add(contractProduct.Product__c);
       }
@@ -1454,7 +1626,9 @@ public without sharing class AccountingDiffService {
     bundle.products = toProductMap(
       reuseOrQueryCopy(
         'Product2',
-        copyToSObject(AccountingGoalService.collectedProducts(collectedId).values()),
+        copyToSObject(
+          AccountingGoalService.collectedProducts(collectedId).values()
+        ),
         productIds,
         new Set<String>{ 'ProductCode' }
       )
@@ -1472,7 +1646,9 @@ public without sharing class AccountingDiffService {
     bundle.histories = toHistoryMap(
       reuseOrQueryCopy(
         'ContractHistory__c',
-        copyToSObject(AccountingGoalService.collectedHistories(collectedId).values()),
+        copyToSObject(
+          AccountingGoalService.collectedHistories(collectedId).values()
+        ),
         historyIds,
         new Set<String>{ 'Opportunity__c', 'ContractService__c' }
       )
@@ -1517,7 +1693,9 @@ public without sharing class AccountingDiffService {
     bundle.accounts = toAccountMap(
       reuseOrQueryCopy(
         'Account',
-        copyToSObject(AccountingGoalService.collectedAccounts(collectedId).values()),
+        copyToSObject(
+          AccountingGoalService.collectedAccounts(collectedId).values()
+        ),
         accountIds,
         new Set<String>()
       )
@@ -1535,7 +1713,9 @@ public without sharing class AccountingDiffService {
     Set<String> needed = extraFields == null
       ? new Set<String>()
       : new Set<String>(extraFields);
-    needed.addAll(FieldCopyDefinitionService.sourceFieldApiNames(objectApiName));
+    needed.addAll(
+      FieldCopyDefinitionService.sourceFieldApiNames(objectApiName)
+    );
     if (recordIds == null || recordIds.isEmpty()) {
       return new List<SObject>();
     }
@@ -1606,7 +1786,9 @@ public without sharing class AccountingDiffService {
     return mapped;
   }
 
-  private static Map<Id, ContractProduct__c> toContractProductMap(List<SObject> rows) {
+  private static Map<Id, ContractProduct__c> toContractProductMap(
+    List<SObject> rows
+  ) {
     Map<Id, ContractProduct__c> mapped = new Map<Id, ContractProduct__c>();
     if (rows == null) {
       return mapped;
@@ -1650,7 +1832,9 @@ public without sharing class AccountingDiffService {
     return mapped;
   }
 
-  private static Map<Id, BillingAccount__c> toBillingAccountMap(List<SObject> rows) {
+  private static Map<Id, BillingAccount__c> toBillingAccountMap(
+    List<SObject> rows
+  ) {
     Map<Id, BillingAccount__c> mapped = new Map<Id, BillingAccount__c>();
     if (rows == null) {
       return mapped;
@@ -1672,7 +1856,10 @@ public without sharing class AccountingDiffService {
     return mapped;
   }
 
-  private static Boolean hasAllQueriedFields(SObject record, Set<String> fieldNames) {
+  private static Boolean hasAllQueriedFields(
+    SObject record,
+    Set<String> fieldNames
+  ) {
     if (record == null || fieldNames == null) {
       return false;
     }
@@ -1737,14 +1924,20 @@ public without sharing class AccountingDiffService {
     Set<Id> recordIds,
     Set<String> extraFields
   ) {
-    if (recordIds == null || recordIds.isEmpty() || String.isBlank(objectApiName)) {
+    if (
+      recordIds == null ||
+      recordIds.isEmpty() ||
+      String.isBlank(objectApiName)
+    ) {
       return new List<SObject>();
     }
-    Schema.SObjectType sobjectType = Schema.getGlobalDescribe().get(objectApiName);
+    Schema.SObjectType sobjectType = Schema.getGlobalDescribe()
+      .get(objectApiName);
     if (sobjectType == null) {
       return new List<SObject>();
     }
-    Map<String, Schema.SObjectField> fieldMap = sobjectType.getDescribe().fields.getMap();
+    Map<String, Schema.SObjectField> fieldMap = sobjectType.getDescribe()
+      .fields.getMap();
     Set<String> names = new Set<String>{ 'Id' };
     if (extraFields != null) {
       names.addAll(extraFields);
@@ -1784,7 +1977,10 @@ public without sharing class AccountingDiffService {
   }
 
   /** 仕様: Core 第11.4.2節。明細仕訳の From は明細・見積商品・商品・入出金・割当・請求書・請求アカウント・契約履歴・商談・取引先。 */
-  private static void applyJournalCopy(GlJournal__c journal, CopySourceBundle bundle) {
+  private static void applyJournalCopy(
+    GlJournal__c journal,
+    CopySourceBundle bundle
+  ) {
     Map<String, SObject> sources = new Map<String, SObject>();
     if (bundle != null && bundle.invoice != null) {
       sources.put('Invoice__c', bundle.invoice);
@@ -1800,7 +1996,9 @@ public without sharing class AccountingDiffService {
           history.Opportunity__c != null &&
           bundle.opportunities.containsKey(history.Opportunity__c)
         ) {
-          Opportunity opportunity = bundle.opportunities.get(history.Opportunity__c);
+          Opportunity opportunity = bundle.opportunities.get(
+            history.Opportunity__c
+          );
           sources.put('Opportunity', opportunity);
           if (
             opportunity.AccountId != null &&
@@ -1815,16 +2013,25 @@ public without sharing class AccountingDiffService {
         billingId != null &&
         bundle.billingAccounts.containsKey(billingId)
       ) {
-        BillingAccount__c billingAccount = bundle.billingAccounts.get(billingId);
+        BillingAccount__c billingAccount = bundle.billingAccounts.get(
+          billingId
+        );
         if (
           billingAccount.Account__c != null &&
           bundle.accounts.containsKey(billingAccount.Account__c)
         ) {
-          sources.put('Account', bundle.accounts.get(billingAccount.Account__c));
+          sources.put(
+            'Account',
+            bundle.accounts.get(billingAccount.Account__c)
+          );
         }
       }
     }
-    if (journal.InvoiceLine__c != null && bundle != null && bundle.lines.containsKey(journal.InvoiceLine__c)) {
+    if (
+      journal.InvoiceLine__c != null &&
+      bundle != null &&
+      bundle.lines.containsKey(journal.InvoiceLine__c)
+    ) {
       InvoiceLine__c line = bundle.lines.get(journal.InvoiceLine__c);
       sources.put('InvoiceLine__c', line);
       if (
@@ -1840,10 +2047,15 @@ public without sharing class AccountingDiffService {
           contractProduct.Product__c != null &&
           bundle.products.containsKey(contractProduct.Product__c)
         ) {
-          sources.put('Product2', bundle.products.get(contractProduct.Product__c));
+          sources.put(
+            'Product2',
+            bundle.products.get(contractProduct.Product__c)
+          );
         }
       }
-      if (line.Product__c != null && bundle.products.containsKey(line.Product__c)) {
+      if (
+        line.Product__c != null && bundle.products.containsKey(line.Product__c)
+      ) {
         sources.put('Product2', bundle.products.get(line.Product__c));
       }
     }
@@ -1852,7 +2064,10 @@ public without sharing class AccountingDiffService {
       bundle != null &&
       bundle.payments.containsKey(journal.InvoicePayment__c)
     ) {
-      sources.put('InvoicePayment__c', bundle.payments.get(journal.InvoicePayment__c));
+      sources.put(
+        'InvoicePayment__c',
+        bundle.payments.get(journal.InvoicePayment__c)
+      );
     }
     if (
       journal.InvoicePaymentAllocation__c != null &&

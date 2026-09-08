@@ -215,7 +215,7 @@ public without sharing class AccountingGoalService {
     );
     invoice = hydrateInvoiceForConditions(invoice);
     Map<Id, InvoiceLine__c> lines = loadLines(invoice.Id);
-    if (restrictLineIds != null && !restrictLineIds.isEmpty()) {
+    if (restrictLineIds != null) {
       Map<Id, InvoiceLine__c> scoped = new Map<Id, InvoiceLine__c>();
       for (Id lineId : restrictLineIds) {
         if (lines.containsKey(lineId)) {
@@ -240,8 +240,7 @@ public without sharing class AccountingGoalService {
       invoice.Id,
       headers
     );
-    Boolean scopedLines =
-      restrictLineIds != null && !restrictLineIds.isEmpty();
+    Boolean scopedLines = restrictLineIds != null;
     List<Candidate> candidates = new List<Candidate>();
     // 仕様: Accounting 第4.2節・第8.8節。請求基準・NonInvoiceの入出金は売上仕訳をGoalに載せない。
     // 実行残高のB／Cは明細候補を処理してから入出金へ進める。Diffへは出さない。
@@ -270,10 +269,7 @@ public without sharing class AccountingGoalService {
       }
     }
     for (InvoicePaymentAllocation__c allocation : allocations) {
-      if (
-        scopedLines &&
-        !restrictLineIds.contains(allocation.InvoiceLine__c)
-      ) {
+      if (scopedLines && !restrictLineIds.contains(allocation.InvoiceLine__c)) {
         continue;
       }
       addPaymentCandidate(
@@ -320,7 +316,12 @@ public without sharing class AccountingGoalService {
       if (candidate.isManual) {
         // 仕様: Accounting 第4.6節・第8.2節手順6～7。手動も実行残高へ載せ、B／C／Pは増やさない。
         applySlotBalance(candidate, books, invoiceBook);
-        addGoal(goals, lineKeys, toGoal(candidate, invoice, false));
+        addGoal(
+          goals,
+          lineKeys,
+          toGoal(candidate, invoice, false),
+          restrictLineIds
+        );
         continue;
       }
       fillHistoricalTransferAmount(candidate, uacByAllocation, spByAllocation);
@@ -357,7 +358,12 @@ public without sharing class AccountingGoalService {
             candidate.allocation != null ||
             candidate.payment != null
           ) {
-            addGoal(goals, lineKeys, toGoal(accountSplit, invoice, true));
+            addGoal(
+              goals,
+              lineKeys,
+              toGoal(accountSplit, invoice, true),
+              restrictLineIds
+            );
           }
         }
       }
@@ -368,8 +374,18 @@ public without sharing class AccountingGoalService {
   private static void addGoal(
     List<GoalJournal> goals,
     Set<String> lineKeys,
-    GoalJournal goal
+    GoalJournal goal,
+    Set<Id> restrictLineIds
   ) {
+    if (restrictLineIds != null) {
+      Id lineId = goal == null ||
+        goal.record == null
+        ? null
+        : goal.record.InvoiceLine__c;
+      if (lineId == null || !restrictLineIds.contains(lineId)) {
+        return;
+      }
+    }
     if (lineKeys.contains(goal.record.JournalLineKey__c)) {
       throw new GoalException('同じ仕訳行キーがGoal内で重複しています。');
     }
@@ -1235,6 +1251,20 @@ public without sharing class AccountingGoalService {
       ) {
         continue;
       }
+      if (
+        journal.DebitSlotKey__c != AccountingSlotFixedCatalog.Cash.key &&
+        journal.DebitSlotKey__c !=
+        AccountingSlotFixedCatalog.UnappliedCash.key &&
+        journal.DebitSlotKey__c !=
+        AccountingSlotFixedCatalog.SuspensePayment.key &&
+        journal.CreditSlotKey__c != AccountingSlotFixedCatalog.Cash.key &&
+        journal.CreditSlotKey__c !=
+        AccountingSlotFixedCatalog.UnappliedCash.key &&
+        journal.CreditSlotKey__c !=
+        AccountingSlotFixedCatalog.SuspensePayment.key
+      ) {
+        continue;
+      }
       Decimal amount = journal.Amount__c;
       if (amount == null || amount == 0) {
         continue;
@@ -1883,8 +1913,7 @@ public without sharing class AccountingGoalService {
     List<GlJournal__c> currentJournals
   ) {
     if (
-      activeJournalsByGeneration == null ||
-      activeJournalsByGeneration.isEmpty()
+      activeJournalsByGeneration == null || activeJournalsByGeneration.isEmpty()
     ) {
       return false;
     }
@@ -2788,7 +2817,9 @@ public without sharing class AccountingGoalService {
     String objectApiName = sobType.getDescribe().getName();
     Set<String> names = new Set<String>();
     names.addAll(FieldCopyDefinitionService.sourceFieldApiNames(objectApiName));
-    names.addAll(InvoiceProductFieldCopyService.getSourceFieldApiNames(objectApiName));
+    names.addAll(
+      InvoiceProductFieldCopyService.getSourceFieldApiNames(objectApiName)
+    );
     return names;
   }
 
