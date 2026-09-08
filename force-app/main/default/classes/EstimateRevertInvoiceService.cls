@@ -186,6 +186,18 @@ public without sharing class EstimateRevertInvoiceService {
   }
 
   /**
+   * 仕様: Core 第12.4節・第6.6節。
+   * Version 照会済みの契約履歴は Latest 判定で取り直さない。
+   */
+  public static Boolean isLatestOrderedHistory(ContractHistory__c knownHistory) {
+    if (knownHistory == null || knownHistory.Id == null) {
+      return false;
+    }
+    return !queryRevertBlockSets(new List<ContractHistory__c>{ knownHistory })
+      .nonLatestOrderedHistoryIds.contains(knownHistory.Id);
+  }
+
+  /**
    * 差し戻し beforeUpdate 用。履歴1回＋サービス単位の MAX(Version) 集計1回で
    * 「非最新 Ordered」と「後続 Estimate」を同時に判定する（SOQL 4→2）。
    */

@@ -19,6 +19,11 @@ public without sharing class InvoiceCanonicalService {
   static Integer headerInvoiceSelectCount = 0;
   @TestVisible
   static Integer remainLineSelectCount = 0;
+  /** 仕様: Core 第12.4節。rebuild が既存請求をSELECTした回数。 */
+  @TestVisible
+  static Integer rebuildInvoiceSelectCount = 0;
+  @TestVisible
+  static Set<Id> lastRebuildInvoiceSelectIds = new Set<Id>();
 
   /**
    * 仕様: Core 第12.4節・第7.8節。
@@ -347,13 +352,25 @@ public without sharing class InvoiceCanonicalService {
   }
 
   public static void rebuildForHistories(Set<Id> contractHistoryIds) {
-    rebuildForHistories(contractHistoryIds, null);
+    rebuildForHistories(contractHistoryIds, null, null);
   }
 
   /** 仕様: Core 第5.2節・第6.1節・第12.4節。insert 直後の期間明細は取り直さない。 */
   public static void rebuildForHistories(
     Set<Id> contractHistoryIds,
     List<InvoiceProduct__c> insertedPeriodLines
+  ) {
+    rebuildForHistories(contractHistoryIds, insertedPeriodLines, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第6.6節。
+   * 行ロックした未確定は rebuild で取り直さない。取消済みは残す。
+   */
+  public static void rebuildForHistories(
+    Set<Id> contractHistoryIds,
+    List<InvoiceProduct__c> insertedPeriodLines,
+    List<Invoice__c> knownExistingInvoices
   ) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
@@ -362,17 +379,29 @@ public without sharing class InvoiceCanonicalService {
     BillingAccountKeyService.beginReferenceRefreshDefer();
     try {
       assertHistoriesAreOrdered(contractHistoryIds);
-      // ロック判定と削除を1クエリにまとめ、受注時の SOQL 消費を抑える
-      List<Invoice__c> existing = [
-        SELECT
-          Id,
-          SystemIntegrationDate__c,
-          PaymentClearingCompletedDate__c,
-          InvoiceTransactionStatus__c
-        FROM Invoice__c
-        WHERE ContractHistory__c IN :contractHistoryIds
-        WITH SYSTEM_MODE
-      ];
+      List<Invoice__c> existing;
+      if (knownExistingInvoices != null) {
+        existing = knownExistingInvoices;
+        lastRebuildInvoiceSelectIds = new Set<Id>();
+      } else {
+        rebuildInvoiceSelectCount++;
+        existing = [
+          SELECT
+            Id,
+            SystemIntegrationDate__c,
+            PaymentClearingCompletedDate__c,
+            InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE ContractHistory__c IN :contractHistoryIds
+          WITH SYSTEM_MODE
+        ];
+        lastRebuildInvoiceSelectIds = new Set<Id>();
+        for (Invoice__c invoice : existing) {
+          if (invoice.Id != null) {
+            lastRebuildInvoiceSelectIds.add(invoice.Id);
+          }
+        }
+      }
       List<Invoice__c> deletable = new List<Invoice__c>();
       for (Invoice__c invoice : existing) {
         if (InvoiceTransactionStatusService.isCancelled(invoice)) {

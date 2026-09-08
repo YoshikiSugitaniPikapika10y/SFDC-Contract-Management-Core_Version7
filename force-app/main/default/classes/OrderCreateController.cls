@@ -41,6 +41,11 @@ public without sharing class OrderCreateController {
   /** 仕様: Core 第12.4節。兄弟明細照会が取った明細Id。親請求Id照会の対象は含めない。 */
   @TestVisible
   public static Set<Id> lastDraftSiblingLineSelectIds = new Set<Id>();
+  /** 仕様: Core 第12.4節。受注直後戻しの有効確定検査と未確定収集。 */
+  @TestVisible
+  public static Integer resetHistoryInvoiceSelectCount = 0;
+  @TestVisible
+  public static Set<Id> lastResetHistoryInvoiceSelectIds = new Set<Id>();
   /** 仕様: Core 第12.4節。Ordered集計が取った履歴Id。入口で読んだ対象は含めない。 */
   @TestVisible
   public static Set<Id> lastPreviewOrderedHistoryQueryIds = new Set<Id>();
@@ -1986,15 +1991,8 @@ public without sharing class OrderCreateController {
     String expectedContentVersion
   ) {
     try {
-      Id targetHistoryId = resolveLatestOrderedHistoryIdForReset(
-        contractHistoryId,
-        versionValue
-      );
-      List<Id> draftInvoiceIds = draftInvoiceIdsOfHistory(targetHistoryId);
       Map<String, String> tokenByInvoiceId = new Map<String, String>();
-      for (Id invoiceId : draftInvoiceIds) {
-        tokenByInvoiceId.put(String.valueOf(invoiceId), expectedContentVersion);
-      }
+      tokenByInvoiceId.put(SHARED_DRAFT_TOKEN_KEY, expectedContentVersion);
       return resetLatestVersionInvoicesToPostOrder(
         contractHistoryId,
         versionValue,
@@ -2020,18 +2018,27 @@ public without sharing class OrderCreateController {
     beginInvoicePreviewWriteDefer();
     try {
       InvoiceCanonicalService.assertCanEditInvoicePreview();
-      Id targetHistoryId = resolveLatestOrderedHistoryIdForReset(
+      ContractHistory__c targetHistory = resolveLatestOrderedHistoryForReset(
         contractHistoryId,
         versionValue
       );
+      Id targetHistoryId = targetHistory.Id;
       // 仕様: Core 第7.7.2節、第6.6節。有効確定が0件なら取消済みがあっても可。
-      assertLatestVersionHasNoActiveConfirmed(targetHistoryId);
-      List<Id> draftInvoiceIds = draftInvoiceIdsOfHistory(targetHistoryId);
+      List<Id> draftInvoiceIds = assertNoActiveConfirmedAndCollectDraftIds(
+        targetHistoryId
+      );
       Map<Id, String> tokens = new Map<Id, String>();
+      String sharedToken =
+        expectedTokenByInvoiceId == null
+          ? null
+          : expectedTokenByInvoiceId.get(SHARED_DRAFT_TOKEN_KEY);
       for (Id invoiceId : draftInvoiceIds) {
         String token = null;
         if (expectedTokenByInvoiceId != null) {
           token = expectedTokenByInvoiceId.get(String.valueOf(invoiceId));
+        }
+        if (token == null) {
+          token = sharedToken;
         }
         tokens.put(invoiceId, token);
       }
@@ -2060,8 +2067,14 @@ public without sharing class OrderCreateController {
         );
         return getInvoicePreview(contractHistoryId);
       }
+      List<Invoice__c> knownExisting = new List<Invoice__c>();
+      if (prep.lockedInvoices != null) {
+        knownExisting.addAll(prep.lockedInvoices.values());
+      }
       InvoiceProductGenerationService.generateForHistories(
-        new Set<Id>{ targetHistoryId }
+        new Set<Id>{ targetHistoryId },
+        true,
+        knownExisting
       );
       stampDraftOperationKeys(
         draftInvoiceIdsOfHistory(targetHistoryId),
@@ -2083,6 +2096,18 @@ public without sharing class OrderCreateController {
 
   @TestVisible
   private static Id resolveLatestOrderedHistoryIdForReset(
+    Id contractHistoryId,
+    String versionValue
+  ) {
+    return resolveLatestOrderedHistoryForReset(contractHistoryId, versionValue)
+      .Id;
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第6.6節。
+   * Version 照会済みの対象履歴は Latest 判定と生成コンテキストで取り直さない。
+   */
+  private static ContractHistory__c resolveLatestOrderedHistoryForReset(
     Id contractHistoryId,
     String versionValue
   ) {
@@ -2108,7 +2133,12 @@ public without sharing class OrderCreateController {
     }
 
     List<ContractHistory__c> histories = [
-      SELECT Id, Version__c
+      SELECT
+        Id,
+        Version__c,
+        ContractService__c,
+        Type__c,
+        EffectiveDate__c
       FROM ContractHistory__c
       WHERE
         ContractService__c = :contractServiceId
@@ -2124,11 +2154,14 @@ public without sharing class OrderCreateController {
       );
     }
 
-    Id targetHistoryId = histories[0].Id;
-    if (!EstimateRevertInvoiceService.isLatestOrderedHistory(targetHistoryId)) {
+    ContractHistory__c targetHistory = histories[0];
+    if (!EstimateRevertInvoiceService.isLatestOrderedHistory(targetHistory)) {
       throw new IllegalArgumentException(RESET_POST_ORDER_NON_LATEST_MESSAGE);
     }
-    return targetHistoryId;
+    InvoiceProductGenerationService.rememberHistoryGenerationContext(
+      targetHistory
+    );
+    return targetHistory;
   }
 
   // 業務データはクライアントキャッシュ禁止（請求プレビュー表示は常に最新）
@@ -2681,25 +2714,47 @@ public without sharing class OrderCreateController {
   }
 
   /**
-   * 仕様: Core 第7.7.2節、第6.6節、第1.1.5節。
+   * 仕様: Core 第7.7.2節、第6.6節、第1.1.5節・第12.4節。
    * 有効な確定済みが1件でもあれば拒否する。取消済みだけでは拒否しない。
+   * 同一照会で未確定 Id も集める。
    */
-  private static void assertLatestVersionHasNoActiveConfirmed(Id contractHistoryId) {
+  private static List<Id> assertNoActiveConfirmedAndCollectDraftIds(
+    Id contractHistoryId
+  ) {
+    List<Id> invoiceIds = new List<Id>();
     if (contractHistoryId == null) {
-      return;
+      return invoiceIds;
     }
+    resetHistoryInvoiceSelectCount++;
+    lastResetHistoryInvoiceSelectIds = new Set<Id>();
     for (Invoice__c invoice : [
-      SELECT InvoiceTransactionStatus__c
+      SELECT Id, InvoiceTransactionStatus__c
       FROM Invoice__c
       WHERE ContractHistory__c = :contractHistoryId
       WITH SYSTEM_MODE
+      ORDER BY Id
     ]) {
+      if (invoice.Id != null) {
+        lastResetHistoryInvoiceSelectIds.add(invoice.Id);
+      }
       if (InvoiceTransactionStatusService.isConfirmed(invoice)) {
         throw new IllegalArgumentException(
           RESET_POST_ORDER_ACTIVE_CONFIRMED_MESSAGE
         );
       }
+      if (InvoiceTransactionStatusService.isDraft(invoice)) {
+        invoiceIds.add(invoice.Id);
+      }
     }
+    return invoiceIds;
+  }
+
+  /**
+   * 仕様: Core 第7.7.2節、第6.6節、第1.1.5節。
+   * 有効な確定済みが1件でもあれば拒否する。取消済みだけでは拒否しない。
+   */
+  private static void assertLatestVersionHasNoActiveConfirmed(Id contractHistoryId) {
+    assertNoActiveConfirmedAndCollectDraftIds(contractHistoryId);
   }
 
   /** @deprecated CHANGE-210。{@link #assertLatestVersionHasNoActiveConfirmed} を使う。 */

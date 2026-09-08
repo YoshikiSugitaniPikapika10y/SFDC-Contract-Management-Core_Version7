@@ -4338,6 +4338,81 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void resetLatestVersionInvoicesToPostOrder_reusesResolvedHistoryAndLockedDrafts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+
+      Test.startTest();
+      EstimateRevertInvoiceService.historySelectCount = 0;
+      EstimateRevertInvoiceService.clearRevertCachesForTest();
+      InvoiceProductGenerationService.historyContextSelectCount = 0;
+      OrderCreateController.resetHistoryInvoiceSelectCount = 0;
+      OrderCreateController.lastResetHistoryInvoiceSelectIds = new Set<Id>();
+      InvoiceCanonicalService.rebuildInvoiceSelectCount = 0;
+      InvoiceCanonicalService.lastRebuildInvoiceSelectIds = new Set<Id>();
+      OrderCreateController.resetLatestVersionInvoicesToPostOrder(
+        context.history.Id,
+        '1',
+        token
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        EstimateRevertInvoiceService.historySelectCount,
+        'Core 第12.4節: Version照会済みの対象履歴をLatest判定で取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceProductGenerationService.historyContextSelectCount,
+        'Core 第12.4節: 入口で解決済みの対象履歴を生成コンテキストで取り直さない'
+      );
+      System.assertEquals(
+        1,
+        OrderCreateController.resetHistoryInvoiceSelectCount,
+        'Core 第12.4節: 有効確定検査と未確定収集は1回'
+      );
+      System.assertEquals(
+        true,
+        OrderCreateController.lastResetHistoryInvoiceSelectIds.contains(
+          invoice.Id
+        ),
+        'Core 第12.4節: 対象請求の初回は切らない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.rebuildInvoiceSelectCount,
+        'Core 第12.4節: 行ロックした未確定をrebuildで取り直さない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastRebuildInvoiceSelectIds.contains(
+          invoice.Id
+        ),
+        'Core 第12.4節: ロック済み未確定をrebuild SELECTに載せない'
+      );
+      Integer drafts = [
+        SELECT COUNT()
+        FROM Invoice__c
+        WHERE
+          ContractHistory__c = :context.history.Id
+          AND InvoiceTransactionStatus__c = :InvoiceTransactionStatusService.TX_DRAFT
+      ];
+      System.assert(drafts > 0, 'Core 第6.6節: 未確定請求と契約期間明細だけを再生成する');
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_proratesEstimateWhenPartialMonthsInvoiced() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();

@@ -18,6 +18,9 @@ public without sharing class InvoiceProductGenerationService {
   private static Map<Id, List<ContractProduct__c>> cachedContractProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
   @TestVisible
   static Integer periodLineDeleteSelectCount = 0;
+  /** 仕様: Core 第12.4節。生成コンテキストが契約履歴をSELECTした回数。 */
+  @TestVisible
+  static Integer historyContextSelectCount = 0;
 
   private class InvoiceGenerationContext {
     public String historyType;
@@ -77,6 +80,18 @@ public without sharing class InvoiceProductGenerationService {
     Set<Id> contractHistoryIds,
     Boolean replaceExistingPeriodLines
   ) {
+    generateForHistories(contractHistoryIds, replaceExistingPeriodLines, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第6.6節。
+   * 受注直後戻しは行ロックした未確定を rebuild へ渡し取り直さない。
+   */
+  public static void generateForHistories(
+    Set<Id> contractHistoryIds,
+    Boolean replaceExistingPeriodLines,
+    List<Invoice__c> knownExistingInvoices
+  ) {
     if (contractHistoryIds == null || contractHistoryIds.isEmpty()) {
       return;
     }
@@ -87,7 +102,8 @@ public without sharing class InvoiceProductGenerationService {
     try {
       generateForHistoriesBody(
         contractHistoryIds,
-        replaceExistingPeriodLines == true
+        replaceExistingPeriodLines == true,
+        knownExistingInvoices
       );
     } finally {
       ContractServiceLifecycleService.endLifecycleDefer();
@@ -121,6 +137,26 @@ public without sharing class InvoiceProductGenerationService {
     loadBillingAccountsById(billingAccountIds);
   }
 
+  /**
+   * 仕様: Core 第12.4節・第6.6節。
+   * 入口で読んだ契約履歴の生成コンテキストは取り直さない。
+   * 受注の primeCachesForHistories は使わない。
+   */
+  public static void rememberHistoryGenerationContext(
+    ContractHistory__c history
+  ) {
+    if (history == null || history.Id == null) {
+      return;
+    }
+    HistoryGenerationContext context = new HistoryGenerationContext();
+    context.historyId = history.Id;
+    context.contractServiceId = history.ContractService__c;
+    context.version = history.Version__c;
+    context.historyType = history.Type__c;
+    context.effectiveDate = history.EffectiveDate__c;
+    cachedHistoryGenerationContextById.put(history.Id, context);
+  }
+
   public static Boolean hasCachedProductsForHistory(Id historyId) {
     return historyId != null &&
       cachedContractProductsByHistoryId.containsKey(historyId);
@@ -137,7 +173,8 @@ public without sharing class InvoiceProductGenerationService {
 
   private static void generateForHistoriesBody(
     Set<Id> contractHistoryIds,
-    Boolean replaceExistingPeriodLines
+    Boolean replaceExistingPeriodLines,
+    List<Invoice__c> knownExistingInvoices
   ) {
     // 仕様: Core 第5.2節、第12.4節。同一処理で見積商品・請求アカウント・コピー定義を取り直さない。
     InvoiceCanonicalService.rememberOrderedHistoryIds(contractHistoryIds);
@@ -165,7 +202,11 @@ public without sharing class InvoiceProductGenerationService {
     }
     // Cancel は期間明細・請求を新規生成しない（孤児掃除の削除＋空 rebuild のみ）
     if (generateHistoryIds.isEmpty()) {
-      InvoiceCanonicalService.rebuildForHistories(contractHistoryIds);
+      InvoiceCanonicalService.rebuildForHistories(
+        contractHistoryIds,
+        null,
+        knownExistingInvoices
+      );
       return;
     }
 
@@ -273,7 +314,8 @@ public without sharing class InvoiceProductGenerationService {
     // 仕様: Core 第5.2節・第12.4節。insert した期間明細は取り直さない。
     InvoiceCanonicalService.rebuildForHistories(
       contractHistoryIds,
-      invoiceProductsToInsert
+      invoiceProductsToInsert,
+      knownExistingInvoices
     );
   }
 
@@ -298,6 +340,7 @@ public without sharing class InvoiceProductGenerationService {
     if (missingIds.isEmpty()) {
       return contextByHistoryId;
     }
+    historyContextSelectCount++;
     for (ContractHistory__c history : queryContractHistoriesForFieldCopy(missingIds)) {
       HistoryGenerationContext context = new HistoryGenerationContext();
       context.historyId = history.Id;
