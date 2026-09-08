@@ -3743,6 +3743,13 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.previewScopeInvoiceCount = 0;
       AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoiceCanonicalService.splitInvoiceSelectCount = 0;
+      InvoiceCanonicalService.lastSplitInvoiceSelectIds = new Set<Id>();
+      InvoiceCanonicalService.splitLineSelectCount = 0;
+      InvoiceCanonicalService.lastSplitLineSelectIds = new Set<Id>();
+      InvoiceCanonicalService.periodSplitInputLineSelectCount = 0;
+      InvoiceCanonicalService.resetFactorInvoiceSelectCount = 0;
+      InvoiceCanonicalService.resetFactorSiblingSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitLinesInPlace(
         context.history.Id,
         invoice.Id,
@@ -3769,6 +3776,26 @@ private class OrderCreateControllerTest {
         true,
         AccountingCauseLockService.invoiceLockSelectCount >= 1,
         'Core 第7.8節: 書き換える請求を行ロックする'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitInvoiceSelectIds.contains(invoice.Id),
+        'Core 第12.4節・第7.8節: Canonicalは行ロックした請求を取り直さない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitLineSelectIds.contains(line.Id),
+        'Core 第12.4節・第7.8節: Canonicalは読み済み明細を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.resetFactorInvoiceSelectCount,
+        'Core 第12.4節・第7.8.4節: 端数リセットは読み済み請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.resetFactorSiblingSelectCount,
+        'Core 第12.4節・第7.8.4節: 端数リセットは読み済み兄弟明細を取り直さない'
       );
       Boolean splitMoved = false;
       Integer lineCount = 0;
@@ -3829,6 +3856,10 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.previewScopeInvoiceCount = 0;
       AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoiceCanonicalService.splitInvoiceSelectCount = 0;
+      InvoiceCanonicalService.lastSplitInvoiceSelectIds = new Set<Id>();
+      InvoiceCanonicalService.splitLineSelectCount = 0;
+      InvoiceCanonicalService.lastSplitLineSelectIds = new Set<Id>();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByDate(
         context.history.Id,
         source.Id,
@@ -3875,6 +3906,16 @@ private class OrderCreateControllerTest {
         AccountingCauseLockService.invoiceLockSelectCount >= 1,
         'Core 第7.8節: 書き換える請求を行ロックする'
       );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitInvoiceSelectIds.contains(source.Id),
+        'Core 第12.4節・第7.8節: Canonicalは行ロックした元請求を取り直さない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitLineSelectIds.contains(line.Id),
+        'Core 第12.4節・第7.8節: Canonicalは読み済み明細を取り直さない'
+      );
       System.assert(
         preview.invoices.size() >= 2,
         'Core 第7.8節: 返却カードの枚数は変えない'
@@ -3914,6 +3955,10 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.previewScopeInvoiceCount = 0;
       AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoiceCanonicalService.splitInvoiceSelectCount = 0;
+      InvoiceCanonicalService.lastSplitInvoiceSelectIds = new Set<Id>();
+      InvoiceCanonicalService.splitLineSelectCount = 0;
+      InvoiceCanonicalService.lastSplitLineSelectIds = new Set<Id>();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByBillingAccount(
         context.history.Id,
         source.Id,
@@ -3943,6 +3988,16 @@ private class OrderCreateControllerTest {
         true,
         AccountingCauseLockService.invoiceLockSelectCount >= 1,
         'Core 第7.8節: 書き換える請求を行ロックする'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitInvoiceSelectIds.contains(source.Id),
+        'Core 第12.4節・第7.8節: Canonicalは行ロックした元請求を取り直さない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitLineSelectIds.contains(line.Id),
+        'Core 第12.4節・第7.8節: Canonicalは読み済み明細を取り直さない'
       );
       System.assert(
         preview.invoiceCount >= 2,
@@ -4018,6 +4073,10 @@ private class OrderCreateControllerTest {
       OrderCreateController.previewPeriodSelectCount = 0;
       OrderCreateController.previewScopeInvoiceCount = 0;
       AccountingCauseLockService.invoiceLockSelectCount = 0;
+      InvoiceCanonicalService.splitInvoiceSelectCount = 0;
+      InvoiceCanonicalService.lastSplitInvoiceSelectIds = new Set<Id>();
+      InvoiceCanonicalService.splitLineSelectCount = 0;
+      InvoiceCanonicalService.lastSplitLineSelectIds = new Set<Id>();
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.moveLinesToExistingInvoice(
         context.history.Id,
         createdId,
@@ -4052,6 +4111,21 @@ private class OrderCreateControllerTest {
         true,
         AccountingCauseLockService.invoiceLockSelectCount >= 1,
         'Core 第7.8節: 書き換える請求を行ロックする'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitInvoiceSelectIds.contains(source.Id),
+        'Core 第12.4節・第7.8節: Canonicalは行ロックした移動先請求を取り直さない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitInvoiceSelectIds.contains(createdId),
+        'Core 第12.4節・第7.8節: Canonicalは行ロックした移動元請求を取り直さない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSplitLineSelectIds.contains(createdLineId),
+        'Core 第12.4節・第7.8節: Canonicalは読み済み明細を取り直さない'
       );
       Boolean sourceExists = false;
       for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {

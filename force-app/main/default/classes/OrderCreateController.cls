@@ -1675,7 +1675,8 @@ public without sharing class OrderCreateController {
         sourceInvoiceId,
         newInvoiceDate,
         newPaymentScheduledDate,
-        splitLines
+        splitLines,
+        splitKnownFromPrep(prep)
       );
       stampDraftOperationKeysAfterSplit(
         sourceInvoiceId,
@@ -1758,7 +1759,8 @@ public without sharing class OrderCreateController {
         newBillingAccountId,
         newInvoiceDate,
         newPaymentScheduledDate,
-        splitLines
+        splitLines,
+        splitKnownFromPrep(prep)
       );
       stampDraftOperationKeysAfterSplit(
         sourceInvoiceId,
@@ -1838,7 +1840,8 @@ public without sharing class OrderCreateController {
       InvoiceCanonicalService.moveLinesToExistingInvoice(
         sourceInvoiceId,
         targetInvoiceId,
-        lineIds
+        lineIds,
+        splitKnownFromPrep(prep)
       );
       stampDraftOperationKeysAfterSplit(
         sourceInvoiceId,
@@ -1908,7 +1911,11 @@ public without sharing class OrderCreateController {
       return returnPreviewAfterSplitWrite(contractHistoryId, prep);
     }
     try {
-      InvoiceCanonicalService.splitLinesInPlace(invoiceId, splitLines);
+      InvoiceCanonicalService.splitLinesInPlace(
+        invoiceId,
+        splitLines,
+        splitKnownFromPrep(prep)
+      );
       stampDraftOperationKeys(invoiceIds, prep.operationKey);
       ContractOperationLogService.write(
         'SplitLinesInPlace',
@@ -3207,6 +3214,19 @@ public without sharing class OrderCreateController {
     public List<InvoiceLine__c> knownLines;
   }
 
+  /** 仕様: Core 第12.4節・第7.8節。行ロックした請求と読み済み明細を Canonical へ渡す。 */
+  private static InvoiceCanonicalService.SplitKnownRows splitKnownFromPrep(
+    DraftEditPreparation prep
+  ) {
+    InvoiceCanonicalService.SplitKnownRows known = new InvoiceCanonicalService.SplitKnownRows();
+    if (prep == null) {
+      return known;
+    }
+    known.invoicesById = prep.lockedInvoices;
+    known.lines = prep.knownLines;
+    return known;
+  }
+
   private static DraftEditPreparation prepareDraftInvoiceEdit(
     Id contractHistoryId,
     List<Id> invoiceIds,
@@ -3449,15 +3469,19 @@ public without sharing class OrderCreateController {
         IsManuallyAdjusted__c,
         LineMergeKey__c,
         ProductName__c,
+        Product__c,
         HistoryVersionLabel__c,
         Unit__c,
         UnitPrice__c,
         Quantity__c,
         PeriodLabel__c,
         SourcePeriodLineIds__c,
+        ServicePeriodStartDate__c,
+        ServicePeriodEndDate__c,
         AcceptanceEndDate__c,
         RevenueRecognitionBasis__c,
         ContractProduct__c,
+        ContractProduct__r.Product__c,
         ContractProduct__r.Amount__c,
         ContractProduct__r.Unit__c,
         ContractProduct__r.BillingType__c,
@@ -3492,15 +3516,19 @@ public without sharing class OrderCreateController {
         IsManuallyAdjusted__c,
         LineMergeKey__c,
         ProductName__c,
+        Product__c,
         HistoryVersionLabel__c,
         Unit__c,
         UnitPrice__c,
         Quantity__c,
         PeriodLabel__c,
         SourcePeriodLineIds__c,
+        ServicePeriodStartDate__c,
+        ServicePeriodEndDate__c,
         AcceptanceEndDate__c,
         RevenueRecognitionBasis__c,
         ContractProduct__c,
+        ContractProduct__r.Product__c,
         ContractProduct__r.Amount__c,
         ContractProduct__r.Unit__c,
         ContractProduct__r.BillingType__c,

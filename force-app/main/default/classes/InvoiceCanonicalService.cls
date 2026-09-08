@@ -24,6 +24,33 @@ public without sharing class InvoiceCanonicalService {
   static Integer rebuildInvoiceSelectCount = 0;
   @TestVisible
   static Set<Id> lastRebuildInvoiceSelectIds = new Set<Id>();
+  /** 仕様: Core 第12.4節・第7.8節。分割・移動が請求をSELECTした回数。ロック行は含めない。 */
+  @TestVisible
+  static Integer splitInvoiceSelectCount = 0;
+  @TestVisible
+  static Set<Id> lastSplitInvoiceSelectIds = new Set<Id>();
+  /** 仕様: Core 第12.4節・第7.8節。分割・移動が明細をSELECTした回数。読み済みは含めない。 */
+  @TestVisible
+  static Integer splitLineSelectCount = 0;
+  @TestVisible
+  static Set<Id> lastSplitLineSelectIds = new Set<Id>();
+  /** 仕様: Core 第12.4節・第7.8節。期間入力組み立てが明細をSELECTした回数。 */
+  @TestVisible
+  static Integer periodSplitInputLineSelectCount = 0;
+  /** 仕様: Core 第12.4節・第7.8.4節。端数リセットが請求・兄弟明細をSELECTした回数。 */
+  @TestVisible
+  static Integer resetFactorInvoiceSelectCount = 0;
+  @TestVisible
+  static Integer resetFactorSiblingSelectCount = 0;
+
+  /**
+   * 仕様: Core 第12.4節・第7.8節。
+   * 行ロックした請求と読み済み明細。Canonical は取り直さない。
+   */
+  public class SplitKnownRows {
+    public Map<Id, Invoice__c> invoicesById = new Map<Id, Invoice__c>();
+    public List<InvoiceLine__c> lines = new List<InvoiceLine__c>();
+  }
 
   /**
    * 仕様: Core 第12.4節・第7.8節。
@@ -229,6 +256,51 @@ public without sharing class InvoiceCanonicalService {
     for (InvoiceLine__c line : lines) {
       if (line != null && line.Id != null) {
         splitPreviewTouch.deletedLineIds.add(line.Id);
+      }
+    }
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。行ロックした請求は取り直さない。 */
+  private static Invoice__c knownSplitInvoice(SplitKnownRows known, Id invoiceId) {
+    if (known == null || known.invoicesById == null || invoiceId == null) {
+      return null;
+    }
+    return known.invoicesById.get(invoiceId);
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。読み済み明細は取り直さない。 */
+  private static Map<Id, InvoiceLine__c> knownSplitLinesById(SplitKnownRows known) {
+    Map<Id, InvoiceLine__c> byId = new Map<Id, InvoiceLine__c>();
+    if (known == null || known.lines == null) {
+      return byId;
+    }
+    for (InvoiceLine__c line : known.lines) {
+      if (line != null && line.Id != null) {
+        byId.put(line.Id, line);
+      }
+    }
+    return byId;
+  }
+
+  private static void rememberSplitInvoiceSelect(Id invoiceId) {
+    if (lastSplitInvoiceSelectIds == null) {
+      lastSplitInvoiceSelectIds = new Set<Id>();
+    }
+    if (invoiceId != null) {
+      lastSplitInvoiceSelectIds.add(invoiceId);
+    }
+  }
+
+  private static void rememberSplitLineSelect(List<InvoiceLine__c> lines) {
+    if (lastSplitLineSelectIds == null) {
+      lastSplitLineSelectIds = new Set<Id>();
+    }
+    if (lines == null) {
+      return;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line != null && line.Id != null) {
+        lastSplitLineSelectIds.add(line.Id);
       }
     }
   }
@@ -1558,9 +1630,18 @@ public without sharing class InvoiceCanonicalService {
     Id invoiceId,
     List<SplitLineInput> splitLines
   ) {
+    splitLinesInPlace(invoiceId, splitLines, null);
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。行ロックした請求と読み済み明細は取り直さない。 */
+  public static void splitLinesInPlace(
+    Id invoiceId,
+    List<SplitLineInput> splitLines,
+    SplitKnownRows known
+  ) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
     try {
-      splitLinesInPlaceBody(invoiceId, splitLines);
+      splitLinesInPlaceBody(invoiceId, splitLines, known);
     } finally {
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
@@ -1570,6 +1651,14 @@ public without sharing class InvoiceCanonicalService {
     Id invoiceId,
     List<SplitLineInput> splitLines
   ) {
+    splitLinesInPlaceBody(invoiceId, splitLines, null);
+  }
+
+  private static void splitLinesInPlaceBody(
+    Id invoiceId,
+    List<SplitLineInput> splitLines,
+    SplitKnownRows known
+  ) {
     beginSplitPreviewTouch();
     assertCanEditInvoicePreview();
     // 仕様: Core 第11.4.2節
@@ -1578,57 +1667,29 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException('分割元請求・分割内容は必須です。');
     }
 
-    Invoice__c source = [
-      SELECT
-        Id,
-        Amount__c,
-        PeriodLineAmountTotal__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c,
-        InvoiceTransactionStatus__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    InvoiceLockUtil.assertInvoiceEditable(source);
-
-    Map<Id, InvoiceLine__c> sourceLineById = new Map<Id, InvoiceLine__c>(
-      [
+    Invoice__c source = knownSplitInvoice(known, invoiceId);
+    if (source == null) {
+      splitInvoiceSelectCount++;
+      rememberSplitInvoiceSelect(invoiceId);
+      source = [
         SELECT
           Id,
           Amount__c,
-          ProductName__c,
-          Product__c,
-          Unit__c,
-          UnitPrice__c,
-          Quantity__c,
-          PeriodLabel__c,
-          LineMergeKey__c,
-          HistoryVersionLabel__c,
-          SourcePeriodLineIds__c,
-          ServicePeriodStartDate__c,
-          ServicePeriodEndDate__c,
-          RevenueRecognitionBasis__c,
-          IsManuallyAdjusted__c,
+          PeriodLineAmountTotal__c,
+          TaxPercent__c,
           IsAmountAdjusted__c,
           IsSplitMoved__c,
-          ContractProduct__c,
-          ContractProduct__r.Product__c,
-          ContractProduct__r.Unit__c,
-          ContractProduct__r.BillingType__c,
-          ContractProduct__r.Amount__c,
-          ContractProduct__r.ContractHistory__c,
-          ContractProduct__r.StartDate__c,
-          ContractProduct__r.Enddate__c
-        FROM InvoiceLine__c
-        WHERE Invoice__c = :invoiceId
+          IsManuallyAdjusted__c,
+          SystemIntegrationDate__c,
+          PaymentClearingCompletedDate__c,
+          InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
         WITH SYSTEM_MODE
-      ]
-    );
-    if (sourceLineById.isEmpty()) {
-      throw new InvoiceEditException('分割対象の明細が見つかりません。');
+        LIMIT 1
+      ];
     }
+    InvoiceLockUtil.assertInvoiceEditable(source);
 
     Set<Id> targetLineIds = new Set<Id>();
     for (SplitLineInput raw : splitLines) {
@@ -1636,9 +1697,65 @@ public without sharing class InvoiceCanonicalService {
         targetLineIds.add(raw.lineId);
       }
     }
+    Map<Id, InvoiceLine__c> sourceLineById = new Map<Id, InvoiceLine__c>();
+    Map<Id, InvoiceLine__c> knownLines = knownSplitLinesById(known);
+    Boolean knownCovers = !targetLineIds.isEmpty();
+    for (Id lineId : targetLineIds) {
+      InvoiceLine__c knownLine = knownLines.get(lineId);
+      if (knownLine == null || knownLine.Invoice__c != invoiceId) {
+        knownCovers = false;
+        break;
+      }
+    }
+    if (knownCovers) {
+      for (InvoiceLine__c line : knownLines.values()) {
+        if (line != null && line.Invoice__c == invoiceId) {
+          sourceLineById.put(line.Id, line);
+        }
+      }
+    } else {
+      splitLineSelectCount++;
+      sourceLineById = new Map<Id, InvoiceLine__c>(
+        [
+          SELECT
+            Id,
+            Amount__c,
+            ProductName__c,
+            Product__c,
+            Unit__c,
+            UnitPrice__c,
+            Quantity__c,
+            PeriodLabel__c,
+            LineMergeKey__c,
+            HistoryVersionLabel__c,
+            SourcePeriodLineIds__c,
+            ServicePeriodStartDate__c,
+            ServicePeriodEndDate__c,
+            RevenueRecognitionBasis__c,
+            IsManuallyAdjusted__c,
+            IsAmountAdjusted__c,
+            IsSplitMoved__c,
+            ContractProduct__c,
+            ContractProduct__r.Product__c,
+            ContractProduct__r.Unit__c,
+            ContractProduct__r.BillingType__c,
+            ContractProduct__r.Amount__c,
+            ContractProduct__r.ContractHistory__c,
+            ContractProduct__r.StartDate__c,
+            ContractProduct__r.Enddate__c
+          FROM InvoiceLine__c
+          WHERE Invoice__c = :invoiceId
+          WITH SYSTEM_MODE
+        ]
+      );
+      rememberSplitLineSelect(sourceLineById.values());
+    }
+    if (sourceLineById.isEmpty()) {
+      throw new InvoiceEditException('分割対象の明細が見つかりません。');
+    }
     // 単価／数量／期間分割の前に、対象明細の端数調整を由来期間合計へ戻す
     resetFactorSplitLineAmountsToSource(
-      invoiceId,
+      source,
       targetLineIds,
       sourceLineById
     );
@@ -1694,7 +1811,8 @@ public without sharing class InvoiceCanonicalService {
       List<SplitLineInput> periodNormalized = buildPeriodSplitInputs(
         invoiceId,
         periodMoveIds,
-        periodRestrictLineIds
+        periodRestrictLineIds,
+        sourceLineById
       );
       for (SplitLineInput periodInput : periodNormalized) {
         periodInput.splitMode = SPLIT_MODE_PERIOD;
@@ -2083,9 +2201,24 @@ public without sharing class InvoiceCanonicalService {
     Id targetInvoiceId,
     List<Id> lineIds
   ) {
+    moveLinesToExistingInvoice(sourceInvoiceId, targetInvoiceId, lineIds, null);
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。行ロックした請求と読み済み明細は取り直さない。 */
+  public static void moveLinesToExistingInvoice(
+    Id sourceInvoiceId,
+    Id targetInvoiceId,
+    List<Id> lineIds,
+    SplitKnownRows known
+  ) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
     try {
-      moveLinesToExistingInvoiceBody(sourceInvoiceId, targetInvoiceId, lineIds);
+      moveLinesToExistingInvoiceBody(
+        sourceInvoiceId,
+        targetInvoiceId,
+        lineIds,
+        known
+      );
     } finally {
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
@@ -2095,6 +2228,20 @@ public without sharing class InvoiceCanonicalService {
     Id sourceInvoiceId,
     Id targetInvoiceId,
     List<Id> lineIds
+  ) {
+    moveLinesToExistingInvoiceBody(
+      sourceInvoiceId,
+      targetInvoiceId,
+      lineIds,
+      null
+    );
+  }
+
+  private static void moveLinesToExistingInvoiceBody(
+    Id sourceInvoiceId,
+    Id targetInvoiceId,
+    List<Id> lineIds,
+    SplitKnownRows known
   ) {
     beginSplitPreviewTouch();
     assertCanEditInvoicePreview();
@@ -2122,8 +2269,25 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException('移動する明細を選択してください。');
     }
 
-    Map<Id, Invoice__c> invoicesById = new Map<Id, Invoice__c>(
-      [
+    Map<Id, Invoice__c> invoicesById = new Map<Id, Invoice__c>();
+    Invoice__c knownSource = knownSplitInvoice(known, sourceInvoiceId);
+    Invoice__c knownTarget = knownSplitInvoice(known, targetInvoiceId);
+    if (knownSource != null) {
+      invoicesById.put(sourceInvoiceId, knownSource);
+    }
+    if (knownTarget != null) {
+      invoicesById.put(targetInvoiceId, knownTarget);
+    }
+    Set<Id> missingInvoiceIds = new Set<Id>();
+    if (knownSource == null) {
+      missingInvoiceIds.add(sourceInvoiceId);
+    }
+    if (knownTarget == null) {
+      missingInvoiceIds.add(targetInvoiceId);
+    }
+    if (!missingInvoiceIds.isEmpty()) {
+      splitInvoiceSelectCount++;
+      for (Invoice__c loaded : [
         SELECT
           Id,
           ContractService__c,
@@ -2136,10 +2300,13 @@ public without sharing class InvoiceCanonicalService {
           PaymentClearingCompletedDate__c,
           InvoiceTransactionStatus__c
         FROM Invoice__c
-        WHERE Id IN :new Set<Id>{ sourceInvoiceId, targetInvoiceId }
+        WHERE Id IN :missingInvoiceIds
         WITH SYSTEM_MODE
-      ]
-    );
+      ]) {
+        rememberSplitInvoiceSelect(loaded.Id);
+        invoicesById.put(loaded.Id, loaded);
+      }
+    }
     Invoice__c source = invoicesById.get(sourceInvoiceId);
     Invoice__c target = invoicesById.get(targetInvoiceId);
     if (source == null || target == null) {
@@ -2161,38 +2328,54 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException('税率が違う請求へは移せません。');
     }
 
-    List<InvoiceLine__c> sourceLines = [
-      SELECT
-        Id,
-        Amount__c,
-        ProductName__c,
-        Product__c,
-        Unit__c,
-        UnitPrice__c,
-        Quantity__c,
-        PeriodLabel__c,
-        LineMergeKey__c,
-        HistoryVersionLabel__c,
-        SourcePeriodLineIds__c,
-        ServicePeriodStartDate__c,
-        ServicePeriodEndDate__c,
-        AcceptanceEndDate__c,
-        RevenueRecognitionBasis__c,
-        ContractProduct__c,
-        ContractProduct__r.Product__c,
-        ContractProduct__r.Unit__c,
-        ContractProduct__r.BillingType__c,
-        ContractProduct__r.Amount__c,
-        ContractProduct__r.ContractHistory__c,
-        ContractProduct__r.StartDate__c,
-        ContractProduct__r.Enddate__c,
-        IsManuallyAdjusted__c,
-        IsAmountAdjusted__c,
-        IsSplitMoved__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :sourceInvoiceId AND Id IN :lineIdSet
-      WITH SYSTEM_MODE
-    ];
+    Map<Id, InvoiceLine__c> knownLines = knownSplitLinesById(known);
+    List<InvoiceLine__c> sourceLines = new List<InvoiceLine__c>();
+    Set<Id> missingLineIds = new Set<Id>();
+    for (Id lineId : lineIdSet) {
+      InvoiceLine__c knownLine = knownLines.get(lineId);
+      if (knownLine == null || knownLine.Invoice__c != sourceInvoiceId) {
+        missingLineIds.add(lineId);
+      } else {
+        sourceLines.add(knownLine);
+      }
+    }
+    if (!missingLineIds.isEmpty()) {
+      splitLineSelectCount++;
+      List<InvoiceLine__c> loadedLines = [
+        SELECT
+          Id,
+          Amount__c,
+          ProductName__c,
+          Product__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          PeriodLabel__c,
+          LineMergeKey__c,
+          HistoryVersionLabel__c,
+          SourcePeriodLineIds__c,
+          ServicePeriodStartDate__c,
+          ServicePeriodEndDate__c,
+          AcceptanceEndDate__c,
+          RevenueRecognitionBasis__c,
+          ContractProduct__c,
+          ContractProduct__r.Product__c,
+          ContractProduct__r.Unit__c,
+          ContractProduct__r.BillingType__c,
+          ContractProduct__r.Amount__c,
+          ContractProduct__r.ContractHistory__c,
+          ContractProduct__r.StartDate__c,
+          ContractProduct__r.Enddate__c,
+          IsManuallyAdjusted__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :sourceInvoiceId AND Id IN :missingLineIds
+        WITH SYSTEM_MODE
+      ];
+      rememberSplitLineSelect(loadedLines);
+      sourceLines.addAll(loadedLines);
+    }
     if (sourceLines.size() != lineIdSet.size()) {
       throw new InvoiceEditException('移動対象の明細が見つかりません。');
     }
@@ -2350,7 +2533,28 @@ public without sharing class InvoiceCanonicalService {
       null,
       splitLines,
       true,
-      false
+      false,
+      null
+    );
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。行ロックした請求と読み済み明細は取り直さない。 */
+  public static Id splitInvoiceByDate(
+    Id sourceInvoiceId,
+    Date newInvoiceDate,
+    Date newPaymentScheduledDate,
+    List<SplitLineInput> splitLines,
+    SplitKnownRows known
+  ) {
+    return splitInvoice(
+      sourceInvoiceId,
+      newInvoiceDate,
+      newPaymentScheduledDate,
+      null,
+      splitLines,
+      true,
+      false,
+      known
     );
   }
 
@@ -2380,7 +2584,35 @@ public without sharing class InvoiceCanonicalService {
       newBillingAccountId,
       splitLines,
       true,
-      false
+      false,
+      null
+    );
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。行ロックした請求と読み済み明細は取り直さない。 */
+  public static Id splitInvoiceByBillingAccount(
+    Id sourceInvoiceId,
+    Id newBillingAccountId,
+    Date newInvoiceDate,
+    Date newPaymentScheduledDate,
+    List<SplitLineInput> splitLines,
+    SplitKnownRows known
+  ) {
+    if (newBillingAccountId == null) {
+      throw new InvoiceEditException('分割先の請求アカウントは必須です。');
+    }
+    if (newInvoiceDate == null) {
+      throw new InvoiceEditException('分割先の請求日は必須です。');
+    }
+    return splitInvoice(
+      sourceInvoiceId,
+      newInvoiceDate,
+      newPaymentScheduledDate,
+      newBillingAccountId,
+      splitLines,
+      true,
+      false,
+      known
     );
   }
 
@@ -2393,6 +2625,28 @@ public without sharing class InvoiceCanonicalService {
     Boolean requireNewInvoiceDate,
     Boolean clearManualAdjustment
   ) {
+    return splitInvoice(
+      sourceInvoiceId,
+      newInvoiceDate,
+      newPaymentScheduledDate,
+      newBillingAccountId,
+      splitLines,
+      requireNewInvoiceDate,
+      clearManualAdjustment,
+      null
+    );
+  }
+
+  private static Id splitInvoice(
+    Id sourceInvoiceId,
+    Date newInvoiceDate,
+    Date newPaymentScheduledDate,
+    Id newBillingAccountId,
+    List<SplitLineInput> splitLines,
+    Boolean requireNewInvoiceDate,
+    Boolean clearManualAdjustment,
+    SplitKnownRows known
+  ) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
     try {
       return splitInvoiceBody(
@@ -2402,7 +2656,8 @@ public without sharing class InvoiceCanonicalService {
         newBillingAccountId,
         splitLines,
         requireNewInvoiceDate,
-        clearManualAdjustment
+        clearManualAdjustment,
+        known
       );
     } finally {
       ContractHistoryStatusPathService.endPathSyncDefer();
@@ -2417,6 +2672,28 @@ public without sharing class InvoiceCanonicalService {
     List<SplitLineInput> splitLines,
     Boolean requireNewInvoiceDate,
     Boolean clearManualAdjustment
+  ) {
+    return splitInvoiceBody(
+      sourceInvoiceId,
+      newInvoiceDate,
+      newPaymentScheduledDate,
+      newBillingAccountId,
+      splitLines,
+      requireNewInvoiceDate,
+      clearManualAdjustment,
+      null
+    );
+  }
+
+  private static Id splitInvoiceBody(
+    Id sourceInvoiceId,
+    Date newInvoiceDate,
+    Date newPaymentScheduledDate,
+    Id newBillingAccountId,
+    List<SplitLineInput> splitLines,
+    Boolean requireNewInvoiceDate,
+    Boolean clearManualAdjustment,
+    SplitKnownRows known
   ) {
     beginSplitPreviewTouch();
     assertCanEditInvoicePreview();
@@ -2434,25 +2711,30 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException('分割先の入金予定日は必須です。');
     }
 
-    Invoice__c source = [
-      SELECT
-        Id,
-        ContractService__c,
-        ContractHistory__c,
-        BillingAccountSnapShot__c,
-        InvoiceDate__c,
-        PaymentScheduledDate__c,
-        TaxPercent__c,
-        Amount__c,
-        PeriodLineAmountTotal__c,
-        SystemIntegrationDate__c,
-        PaymentClearingCompletedDate__c,
-        InvoiceTransactionStatus__c
-      FROM Invoice__c
-      WHERE Id = :sourceInvoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Invoice__c source = knownSplitInvoice(known, sourceInvoiceId);
+    if (source == null) {
+      splitInvoiceSelectCount++;
+      rememberSplitInvoiceSelect(sourceInvoiceId);
+      source = [
+        SELECT
+          Id,
+          ContractService__c,
+          ContractHistory__c,
+          BillingAccountSnapShot__c,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          TaxPercent__c,
+          Amount__c,
+          PeriodLineAmountTotal__c,
+          SystemIntegrationDate__c,
+          PaymentClearingCompletedDate__c,
+          InvoiceTransactionStatus__c
+        FROM Invoice__c
+        WHERE Id = :sourceInvoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     InvoiceLockUtil.assertInvoiceEditable(source);
     InvoiceProductFieldCopyService.rememberRecords(new List<SObject>{ source });
     Decimal sourceAmountBefore = source.Amount__c == null
@@ -2481,37 +2763,53 @@ public without sharing class InvoiceCanonicalService {
       throw new InvoiceEditException('移動する金額がありません。');
     }
 
-    List<InvoiceLine__c> sourceLines = [
-      SELECT
-        Id,
-        Amount__c,
-        ProductName__c,
-        Product__c,
-        Unit__c,
-        UnitPrice__c,
-        Quantity__c,
-        PeriodLabel__c,
-        LineMergeKey__c,
-        HistoryVersionLabel__c,
-        SourcePeriodLineIds__c,
-        ServicePeriodStartDate__c,
-        ServicePeriodEndDate__c,
-        RevenueRecognitionBasis__c,
-        ContractProduct__c,
-        ContractProduct__r.Product__c,
-        ContractProduct__r.Unit__c,
-        ContractProduct__r.BillingType__c,
-        ContractProduct__r.Amount__c,
-        ContractProduct__r.ContractHistory__c,
-        ContractProduct__r.StartDate__c,
-        ContractProduct__r.Enddate__c,
-        IsAmountAdjusted__c,
-        IsSplitMoved__c,
-        IsManuallyAdjusted__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :sourceInvoiceId AND Id IN :inputByLineId.keySet()
-      WITH SYSTEM_MODE
-    ];
+    Map<Id, InvoiceLine__c> knownLines = knownSplitLinesById(known);
+    List<InvoiceLine__c> sourceLines = new List<InvoiceLine__c>();
+    Set<Id> missingLineIds = new Set<Id>();
+    for (Id lineId : inputByLineId.keySet()) {
+      InvoiceLine__c knownLine = knownLines.get(lineId);
+      if (knownLine == null || knownLine.Invoice__c != sourceInvoiceId) {
+        missingLineIds.add(lineId);
+      } else {
+        sourceLines.add(knownLine);
+      }
+    }
+    if (!missingLineIds.isEmpty()) {
+      splitLineSelectCount++;
+      List<InvoiceLine__c> loadedLines = [
+        SELECT
+          Id,
+          Amount__c,
+          ProductName__c,
+          Product__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          PeriodLabel__c,
+          LineMergeKey__c,
+          HistoryVersionLabel__c,
+          SourcePeriodLineIds__c,
+          ServicePeriodStartDate__c,
+          ServicePeriodEndDate__c,
+          RevenueRecognitionBasis__c,
+          ContractProduct__c,
+          ContractProduct__r.Product__c,
+          ContractProduct__r.Unit__c,
+          ContractProduct__r.BillingType__c,
+          ContractProduct__r.Amount__c,
+          ContractProduct__r.ContractHistory__c,
+          ContractProduct__r.StartDate__c,
+          ContractProduct__r.Enddate__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
+          IsManuallyAdjusted__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :sourceInvoiceId AND Id IN :missingLineIds
+        WITH SYSTEM_MODE
+      ];
+      rememberSplitLineSelect(loadedLines);
+      sourceLines.addAll(loadedLines);
+    }
     if (sourceLines.size() != inputByLineId.size()) {
       throw new InvoiceEditException('分割対象の明細が見つかりません。');
     }
@@ -3130,12 +3428,13 @@ public without sharing class InvoiceCanonicalService {
    * sourceLineById はメモリ上も更新する（このあとの按分がリセット後金額を使うため）。
    */
   private static void resetFactorSplitLineAmountsToSource(
-    Id invoiceId,
+    Invoice__c invoiceHeader,
     Set<Id> lineIds,
     Map<Id, InvoiceLine__c> sourceLineById
   ) {
     if (
-      invoiceId == null ||
+      invoiceHeader == null ||
+      invoiceHeader.Id == null ||
       lineIds == null ||
       lineIds.isEmpty() ||
       sourceLineById == null ||
@@ -3143,6 +3442,7 @@ public without sharing class InvoiceCanonicalService {
     ) {
       return;
     }
+    Id invoiceId = invoiceHeader.Id;
 
     Set<Id> resetLineIds = new Set<Id>();
     for (Id lineId : lineIds) {
@@ -3155,32 +3455,50 @@ public without sharing class InvoiceCanonicalService {
       return;
     }
 
-    Invoice__c invoiceHeader = [
-      SELECT
-        Id,
-        PeriodLineAmountTotal__c,
-        TaxPercent__c,
-        IsAmountAdjusted__c,
-        IsSplitMoved__c,
-        IsManuallyAdjusted__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    Invoice__c header = invoiceHeader;
+    if (header.PeriodLineAmountTotal__c == null) {
+      resetFactorInvoiceSelectCount++;
+      header = [
+        SELECT
+          Id,
+          PeriodLineAmountTotal__c,
+          TaxPercent__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
+          IsManuallyAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+    }
     Map<Id, Decimal> amountByLineId = new Map<Id, Decimal>();
     Map<Id, InvoiceLine__c> siblingById = new Map<Id, InvoiceLine__c>();
-    for (InvoiceLine__c sibling : [
-      SELECT Id, Amount__c, IsAmountAdjusted__c, IsSplitMoved__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :invoiceId
-      WITH SYSTEM_MODE
-    ]) {
-      siblingById.put(sibling.Id, sibling);
-      amountByLineId.put(
-        sibling.Id,
-        sibling.Amount__c == null ? 0 : sibling.Amount__c
-      );
+    Boolean knownSiblingsCoverInvoice = false;
+    for (InvoiceLine__c mem : sourceLineById.values()) {
+      if (mem != null && mem.Invoice__c == invoiceId) {
+        knownSiblingsCoverInvoice = true;
+        siblingById.put(mem.Id, mem);
+        amountByLineId.put(
+          mem.Id,
+          mem.Amount__c == null ? 0 : mem.Amount__c
+        );
+      }
+    }
+    if (!knownSiblingsCoverInvoice) {
+      resetFactorSiblingSelectCount++;
+      for (InvoiceLine__c sibling : [
+        SELECT Id, Amount__c, IsAmountAdjusted__c, IsSplitMoved__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoiceId
+        WITH SYSTEM_MODE
+      ]) {
+        siblingById.put(sibling.Id, sibling);
+        amountByLineId.put(
+          sibling.Id,
+          sibling.Amount__c == null ? 0 : sibling.Amount__c
+        );
+      }
     }
     // 分割対象のメモリ上金額を優先（呼び出し直前の値）
     for (Id lineId : sourceLineById.keySet()) {
@@ -3215,7 +3533,7 @@ public without sharing class InvoiceCanonicalService {
         lineId,
         resolveAmountAdjustedResetBaseline(
           lineId,
-          invoiceHeader.PeriodLineAmountTotal__c,
+          header.PeriodLineAmountTotal__c,
           amountByLineId,
           resetLineIds,
           sumPeriodAmounts(periods)
@@ -3244,7 +3562,7 @@ public without sharing class InvoiceCanonicalService {
     deriveInvoiceManualFlagsAndRecalc(
       invoiceId,
       siblingById.values(),
-      invoiceHeader
+      header
     );
   }
 
@@ -3307,7 +3625,8 @@ public without sharing class InvoiceCanonicalService {
   private static List<SplitLineInput> buildPeriodSplitInputs(
     Id sourceInvoiceId,
     Set<Id> movePeriodIdSet,
-    Set<Id> restrictLineIds
+    Set<Id> restrictLineIds,
+    Map<Id, InvoiceLine__c> knownLinesById
   ) {
     List<SplitLineInput> splitLines = new List<SplitLineInput>();
     if (
@@ -3318,17 +3637,28 @@ public without sharing class InvoiceCanonicalService {
       return splitLines;
     }
 
-    List<InvoiceLine__c> sourceLines = [
-      SELECT
-        Id,
-        Amount__c,
-        ProductName__c,
-        SourcePeriodLineIds__c,
-        ContractProduct__r.BillingType__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :sourceInvoiceId
-      WITH SYSTEM_MODE
-    ];
+    List<InvoiceLine__c> sourceLines = new List<InvoiceLine__c>();
+    if (knownLinesById != null && !knownLinesById.isEmpty()) {
+      for (InvoiceLine__c line : knownLinesById.values()) {
+        if (line != null && line.Invoice__c == sourceInvoiceId) {
+          sourceLines.add(line);
+        }
+      }
+    }
+    if (sourceLines.isEmpty()) {
+      periodSplitInputLineSelectCount++;
+      sourceLines = [
+        SELECT
+          Id,
+          Amount__c,
+          ProductName__c,
+          SourcePeriodLineIds__c,
+          ContractProduct__r.BillingType__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :sourceInvoiceId
+        WITH SYSTEM_MODE
+      ];
+    }
     if (sourceLines.isEmpty()) {
       throw new InvoiceEditException('分割対象の明細が見つかりません。');
     }
