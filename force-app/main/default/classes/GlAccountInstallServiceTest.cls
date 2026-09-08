@@ -51,6 +51,36 @@ private class GlAccountInstallServiceTest {
         ],
         '仕様: Core 第11.4.2節 Sample_Line_ProductCode'
       );
+      FieldCopyDefinition__c lineSample = [
+        SELECT
+          SourceObject__c,
+          SourceFieldApiName__c,
+          TargetObject__c,
+          TargetFieldApiName__c
+        FROM FieldCopyDefinition__c
+        WHERE Name = 'Sample_Line_ProductCode'
+        LIMIT 1
+      ];
+      System.assertEquals(
+        'Product2',
+        lineSample.SourceObject__c,
+        '仕様: Core 第11.4.2節 Sample_Line_ProductCode From=Product2.ProductCode'
+      );
+      System.assertEquals(
+        'ProductCode',
+        lineSample.SourceFieldApiName__c,
+        '仕様: Core 第11.4.2節 Sample_Line_ProductCode From=Product2.ProductCode'
+      );
+      System.assertEquals(
+        'InvoiceLine__c',
+        lineSample.TargetObject__c,
+        '仕様: Core 第11.4.2節 Sample_Line_ProductCode To=請求明細'
+      );
+      System.assertEquals(
+        'ProductCodeSnapShot__c',
+        lineSample.TargetFieldApiName__c,
+        '仕様: Core 第11.4.2節 Sample_Line_ProductCode To=商品コード SnapShot'
+      );
       System.assertEquals(
         1,
         [
@@ -104,6 +134,143 @@ private class GlAccountInstallServiceTest {
           WHERE Name = 'Sample_Period_AccountName'
         ],
         '仕様: Core 第11.4.2節 Period見本は置かない'
+      );
+      Map<String, GlAccount__c> seeded = new Map<String, GlAccount__c>();
+      for (GlAccount__c account : [
+        SELECT Name, AccountType__c, AccountCode__c, IsActive__c
+        FROM GlAccount__c
+        WHERE
+          Name IN (
+            '売掛金',
+            '仮受金',
+            '為替差益',
+            '為替差損',
+            '支払手数料',
+            '雑収入',
+            '貸倒損失'
+          )
+      ]) {
+        seeded.put(account.Name, account);
+      }
+      System.assertEquals(
+        'Asset',
+        seeded.get('売掛金').AccountType__c,
+        'Accounting 第4.1節: 売掛金は資産'
+      );
+      System.assertEquals(
+        'Liability',
+        seeded.get('仮受金').AccountType__c,
+        'Accounting 第4.1節: 仮受金は負債'
+      );
+      System.assertEquals(
+        'Revenue',
+        seeded.get('為替差益').AccountType__c,
+        'Accounting 第4.1節: 為替差益は収益'
+      );
+      System.assertEquals(
+        'Expense',
+        seeded.get('為替差損').AccountType__c,
+        'Accounting 第4.1節: 為替差損は費用'
+      );
+      System.assertEquals(
+        'Expense',
+        seeded.get('支払手数料').AccountType__c,
+        'Accounting 第4.1節: 支払手数料は費用'
+      );
+      System.assertEquals(
+        'Revenue',
+        seeded.get('雑収入').AccountType__c,
+        'Accounting 第4.1節: 雑収入は収益'
+      );
+      System.assertEquals(
+        'Expense',
+        seeded.get('貸倒損失').AccountType__c,
+        'Accounting 第4.1節: 貸倒損失は費用'
+      );
+      for (GlAccount__c account : seeded.values()) {
+        System.assertEquals(
+          true,
+          String.isBlank(account.AccountCode__c),
+          'Accounting 第4.1節: シード科目のコードは空欄'
+        );
+        System.assertEquals(
+          true,
+          account.IsActive__c,
+          'Accounting 第4.1節: 有効の既定True'
+        );
+      }
+      Map<String, GlManualJournalSetting__c> manuals = new Map<String, GlManualJournalSetting__c>();
+      for (GlManualJournalSetting__c setting : [
+        SELECT
+          SettingKey__c,
+          Name,
+          DebitAccount__c,
+          CreditAccount__c,
+          Description__c,
+          IsActive__c
+        FROM GlManualJournalSetting__c
+      ]) {
+        manuals.put(setting.SettingKey__c, setting);
+      }
+      System.assertEquals(
+        '為替差損の計上',
+        manuals.get('FX_LOSS').Name,
+        'Accounting 第10.2節: FX_LOSS'
+      );
+      System.assertEquals(
+        seeded.get('為替差損').Id,
+        manuals.get('FX_LOSS').DebitAccount__c,
+        'Accounting 第4.1節: 手動仕訳設定へ作成した科目IDを設定する'
+      );
+      System.assertEquals(
+        seeded.get('売掛金').Id,
+        manuals.get('FX_LOSS').CreditAccount__c,
+        'Accounting 第4.1節: 手動仕訳設定へ作成した科目IDを設定する'
+      );
+      System.assertEquals(
+        '入金不足が為替変動による場合',
+        manuals.get('FX_LOSS').Description__c,
+        'Accounting 第10.2節: FX_LOSS の用途'
+      );
+      System.assertEquals(
+        true,
+        manuals.get('FX_LOSS').IsActive__c,
+        'Accounting 第10.2節: 有効の既定True'
+      );
+      System.assertEquals(
+        '為替差益の計上',
+        manuals.get('FX_GAIN').Name,
+        'Accounting 第10.2節: FX_GAIN'
+      );
+      System.assertEquals(
+        seeded.get('仮受金').Id,
+        manuals.get('FX_GAIN').DebitAccount__c,
+        'Accounting 第4.1節: 手動仕訳設定へ作成した科目IDを設定する'
+      );
+      System.assertEquals(
+        seeded.get('為替差益').Id,
+        manuals.get('FX_GAIN').CreditAccount__c,
+        'Accounting 第4.1節: 手動仕訳設定へ作成した科目IDを設定する'
+      );
+      System.assertEquals(
+        '振込手数料の当社負担',
+        manuals.get('BANK_FEE_ABSORBED').Name,
+        'Accounting 第10.2節: BANK_FEE_ABSORBED'
+      );
+      System.assertEquals(
+        seeded.get('支払手数料').Id,
+        manuals.get('BANK_FEE_ABSORBED').DebitAccount__c,
+        'Accounting 第4.1節: 手動仕訳設定へ作成した科目IDを設定する'
+      );
+      System.assertEquals(
+        '過入金の収益化',
+        manuals.get('OVERPAYMENT_INCOME').Name,
+        'Accounting 第10.2節: OVERPAYMENT_INCOME'
+      );
+      System.assertEquals(
+        '貸倒の計上',
+        manuals.get('BAD_DEBT').Name,
+        'Accounting 第10.2節: BAD_DEBT'
       );
     }
   }
@@ -255,7 +422,11 @@ private class GlAccountInstallServiceTest {
       );
 
       ContractDocumentSetting__c setting = ContractDocumentSetting__c.getOrgDefaults();
-      System.assertNotEquals(null, setting.Id, '仕様: Core 第11.6節 組織設定をシード');
+      System.assertNotEquals(
+        null,
+        setting.Id,
+        '仕様: Core 第11.6節 組織設定をシード'
+      );
       System.assertEquals(
         ContractDocumentSettingService.MODE_PDF_ONLY,
         setting.EstimateSendMode__c,
