@@ -67,9 +67,9 @@ private class InvoiceLockUtilTest {
       new Map<Id, Invoice__c>{ fakeInvoiceId => priorLocked }
     );
     System.assertEquals(
-      false,
+      true,
       paymentOnly.hasErrors(),
-      'ロック中の回収ステータス更新は許可'
+      'Core 第11.6節: 除外一覧が空なら、人が回収ステータスを直す更新は拒否'
     );
 
     Invoice__c amountChange = new Invoice__c(
@@ -385,7 +385,8 @@ private class InvoiceLockUtilTest {
     InvoiceLockUtil.assertInvoiceEditable((Id) null);
     InvoiceLockUtil.assertInvoiceEditable((Invoice__c) null);
     InvoiceLockUtil.assertVersionEditable(null);
-    InvoiceLockUtil.assertInvoicesEditable(null);
+    InvoiceLockUtil.assertInvoicesEditable((Set<Id>) null);
+    InvoiceLockUtil.assertInvoicesEditable((List<Invoice__c>) null);
     InvoiceLockUtil.assertInvoicesEditable(new Set<Id>());
     System.assertEquals(
       true,

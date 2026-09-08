@@ -25,7 +25,7 @@ describe("estimateCreateModal2 billing account formal edit (Core 4.3.3)", () => 
     const opened = proto.handleOpenBillingAccountFormalEdit.call({
       billingAccountId: "a00BA0000000001",
       canUpdateBillingAccount: true,
-      [Navigate]: navigate
+      [NavigationMixin.Navigate]: navigate
     });
     expect(opened).toBe(true);
     expect(navigate).toHaveBeenCalledWith({
@@ -54,7 +54,7 @@ describe("estimateCreateModal2 billing account formal edit (Core 4.3.3)", () => 
       proto.handleOpenBillingAccountFormalEdit.call({
         billingAccountId: "a00BA0000000001",
         canUpdateBillingAccount: false,
-        [Navigate]: navigate
+        [NavigationMixin.Navigate]: navigate
       })
     ).toBe(false);
     expect(navigate).not.toHaveBeenCalled();
