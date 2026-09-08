@@ -17,6 +17,8 @@ public without sharing class InvoiceCanonicalService {
   static Integer recalcInvoiceSelectCount = 0;
   @TestVisible
   static Integer headerInvoiceSelectCount = 0;
+  @TestVisible
+  static Integer remainLineSelectCount = 0;
 
   /**
    * 仕様: Core 第12.4節・第7.8節。
@@ -2087,6 +2089,7 @@ public without sharing class InvoiceCanonicalService {
 
     Decimal movedPeriodTotal;
     Decimal remainPeriodTotal;
+    List<InvoiceLine__c> remainingOthers = new List<InvoiceLine__c>();
     if (sourceAmountBefore == 0) {
       // 税抜合計0は金額比が使えない。明細絶対値の寄与で調整前を按分する
       Decimal movedAbsShare = 0;
@@ -2097,12 +2100,13 @@ public without sharing class InvoiceCanonicalService {
         movedAbsShare += amount.abs();
       }
       Decimal remainAbsShare = 0;
-      for (InvoiceLine__c other : [
+      remainingOthers = [
         SELECT Amount__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :sourceInvoiceId AND Id NOT IN :lineIdSet
         WITH SYSTEM_MODE
-      ]) {
+      ];
+      for (InvoiceLine__c other : remainingOthers) {
         Decimal amount = other.Amount__c == null ? 0 : other.Amount__c;
         remainAbsShare += amount.abs();
       }
@@ -2128,14 +2132,21 @@ public without sharing class InvoiceCanonicalService {
     SystemContextAccess.updateRecords(new List<Invoice__c>{ targetUpdate });
     syncAmountAdjustedFlagFromPeriodGap(targetInvoiceId);
 
-    List<InvoiceLine__c> remainLines = [
-      SELECT Id
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :sourceInvoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (remainLines.isEmpty()) {
+    Boolean remainExists;
+    if (sourceAmountBefore == 0) {
+      remainExists = !remainingOthers.isEmpty();
+    } else {
+      remainLineSelectCount++;
+      List<InvoiceLine__c> remainLines = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :sourceInvoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      remainExists = !remainLines.isEmpty();
+    }
+    if (!remainExists) {
       SystemContextAccess.deleteRecords(new List<Invoice__c>{ source });
       rememberSplitPreviewDeletedInvoice(sourceInvoiceId);
       rememberSplitPreviewDeletedLines(sourceLines);
@@ -2486,15 +2497,17 @@ public without sharing class InvoiceCanonicalService {
       }
     }
 
+    List<InvoiceLine__c> remainingOthers = new List<InvoiceLine__c>();
     if (trackAbsShare) {
-      for (InvoiceLine__c other : [
+      remainingOthers = [
         SELECT Amount__c
         FROM InvoiceLine__c
         WHERE
           Invoice__c = :sourceInvoiceId
           AND Id NOT IN :inputByLineId.keySet()
         WITH SYSTEM_MODE
-      ]) {
+      ];
+      for (InvoiceLine__c other : remainingOthers) {
         Decimal amount = other.Amount__c == null ? 0 : other.Amount__c;
         remainAbsShare += amount.abs();
       }
@@ -2557,14 +2570,21 @@ public without sharing class InvoiceCanonicalService {
     syncInvoiceManualUmbrella(created);
     SystemContextAccess.updateRecords(new List<Invoice__c>{ created });
     // 元請求が残る場合は常に分割・移動済（clearManual でも derive だけに落とさない）
-    List<InvoiceLine__c> remainLines = [
-      SELECT Id
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :sourceInvoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (remainLines.isEmpty()) {
+    Boolean remainExists;
+    if (trackAbsShare) {
+      remainExists = !sourceUpdates.isEmpty() || !remainingOthers.isEmpty();
+    } else {
+      remainLineSelectCount++;
+      List<InvoiceLine__c> remainLines = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :sourceInvoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      remainExists = !remainLines.isEmpty();
+    }
+    if (!remainExists) {
       SystemContextAccess.deleteRecords(new List<Invoice__c>{ source });
       rememberSplitPreviewDeletedInvoice(sourceInvoiceId);
       rememberSplitPreviewDeletedLines(sourceDeletes);
@@ -2642,7 +2662,15 @@ public without sharing class InvoiceCanonicalService {
   }
 
   private static void deriveInvoiceManualFlagsAndRecalc(Id invoiceId) {
-    recalcInvoiceTotals(invoiceId, null, null);
+    deriveInvoiceManualFlagsAndRecalc(invoiceId, null, null);
+  }
+
+  private static void deriveInvoiceManualFlagsAndRecalc(
+    Id invoiceId,
+    List<InvoiceLine__c> knownLines,
+    Invoice__c knownInvoice
+  ) {
+    recalcInvoiceTotals(invoiceId, null, null, knownLines, knownInvoice);
   }
 
   private static void clearInvoiceManualFlags(Invoice__c invoice) {
@@ -2971,19 +2999,27 @@ public without sharing class InvoiceCanonicalService {
     }
 
     Invoice__c invoiceHeader = [
-      SELECT Id, PeriodLineAmountTotal__c
+      SELECT
+        Id,
+        PeriodLineAmountTotal__c,
+        TaxPercent__c,
+        IsAmountAdjusted__c,
+        IsSplitMoved__c,
+        IsManuallyAdjusted__c
       FROM Invoice__c
       WHERE Id = :invoiceId
       WITH SYSTEM_MODE
       LIMIT 1
     ];
     Map<Id, Decimal> amountByLineId = new Map<Id, Decimal>();
+    Map<Id, InvoiceLine__c> siblingById = new Map<Id, InvoiceLine__c>();
     for (InvoiceLine__c sibling : [
-      SELECT Id, Amount__c
+      SELECT Id, Amount__c, IsAmountAdjusted__c, IsSplitMoved__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :invoiceId
       WITH SYSTEM_MODE
     ]) {
+      siblingById.put(sibling.Id, sibling);
       amountByLineId.put(
         sibling.Id,
         sibling.Amount__c == null ? 0 : sibling.Amount__c
@@ -2997,23 +3033,13 @@ public without sharing class InvoiceCanonicalService {
       }
     }
 
-    Set<Id> allPeriodIds = new Set<Id>();
+    Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>();
     for (Id lineId : resetLineIds) {
       InvoiceLine__c line = sourceLineById.get(lineId);
       if (line != null) {
-        allPeriodIds.addAll(parseIdList(line.SourcePeriodLineIds__c));
+        periodById.putAll(loadPeriodsByIds(line.SourcePeriodLineIds__c));
       }
     }
-    Map<Id, InvoiceProduct__c> periodById = allPeriodIds.isEmpty()
-      ? new Map<Id, InvoiceProduct__c>()
-      : new Map<Id, InvoiceProduct__c>(
-          [
-            SELECT Id, Amount__c
-            FROM InvoiceProduct__c
-            WHERE Id IN :allPeriodIds
-            WITH SYSTEM_MODE
-          ]
-        );
 
     Map<Id, Decimal> baselineByLineId = new Map<Id, Decimal>();
     for (Id lineId : resetLineIds) {
@@ -3055,7 +3081,14 @@ public without sharing class InvoiceCanonicalService {
       return;
     }
     SystemContextAccess.updateRecords(toUpdate);
-    deriveInvoiceManualFlagsAndRecalc(invoiceId);
+    for (InvoiceLine__c updated : toUpdate) {
+      siblingById.put(updated.Id, updated);
+    }
+    deriveInvoiceManualFlagsAndRecalc(
+      invoiceId,
+      siblingById.values(),
+      invoiceHeader
+    );
   }
 
   /**
@@ -3944,6 +3977,20 @@ public without sharing class InvoiceCanonicalService {
       periodsBySourceKey.put(cacheKey, periodById);
       return periodById;
     }
+    Map<Id, InvoiceProduct__c> already = peekLoadedPeriods();
+    Set<Id> missing = new Set<Id>();
+    for (Id periodId : ids) {
+      InvoiceProduct__c known = already.get(periodId);
+      if (known != null) {
+        periodById.put(periodId, known);
+      } else {
+        missing.add(periodId);
+      }
+    }
+    if (missing.isEmpty()) {
+      periodsBySourceKey.put(cacheKey, periodById);
+      return periodById;
+    }
     periodByIdsSelectCount++;
     if (lastPeriodByIdsSelectKeys == null) {
       lastPeriodByIdsSelectKeys = new List<String>();
@@ -3952,7 +3999,7 @@ public without sharing class InvoiceCanonicalService {
     for (InvoiceProduct__c period : [
       SELECT Id, StartDate__c, Enddate__c, Amount__c, ContractProduct__c
       FROM InvoiceProduct__c
-      WHERE Id IN :ids
+      WHERE Id IN :missing
       WITH SYSTEM_MODE
     ]) {
       periodById.put(period.Id, period);

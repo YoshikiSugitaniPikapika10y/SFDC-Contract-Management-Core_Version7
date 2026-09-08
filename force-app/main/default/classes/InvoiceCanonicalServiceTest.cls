@@ -957,6 +957,7 @@ private class InvoiceCanonicalServiceTest {
       );
 
       Test.startTest();
+      InvoiceCanonicalService.remainLineSelectCount = 0;
       InvoiceCanonicalService.moveLinesToExistingInvoice(
         source.Id,
         target.Id,
@@ -989,6 +990,11 @@ private class InvoiceCanonicalServiceTest {
         afterSource.PeriodLineAmountTotal__c +
         afterTarget.PeriodLineAmountTotal__c,
         '????????????E???E?????'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.remainLineSelectCount,
+        'Core 第12.4節・第7.8節: 税抜合計0の移動は残明細Amount照会のあと生存判定で同じ明細を取り直さない'
       );
     }
   }
@@ -1053,6 +1059,7 @@ private class InvoiceCanonicalServiceTest {
       split.moveAmount = 30000;
 
       Test.startTest();
+      InvoiceCanonicalService.remainLineSelectCount = 0;
       Id createdId = InvoiceCanonicalService.splitInvoiceByDate(
         source.Id,
         Date.newInstance(2026, 7, 1),
@@ -1087,6 +1094,11 @@ private class InvoiceCanonicalServiceTest {
         30000,
         created.PeriodLineAmountTotal__c + remain.PeriodLineAmountTotal__c,
         '?E????????????E???E?????'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.remainLineSelectCount,
+        'Core 第12.4節・第7.8節: 税抜合計0の日付分割は残明細Amount照会のあと生存判定で同じ明細を取り直さない'
       );
     }
   }
@@ -1944,6 +1956,66 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
+  @IsTest
+  static void splitLinesInPlace_amountReset_usesLoadPeriodsByIdsAndKnownRecalc() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c, SourcePeriodLineIds__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      Id invoiceId = line.Invoice__c;
+      Decimal baseline = line.Amount__c;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.updateLineAmount(line.Id, baseline + 10);
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = 4000;
+      split.moveUnitPrice = 6000;
+      Test.startTest();
+      InvoiceCanonicalService.periodByIdsSelectCount = 0;
+      InvoiceCanonicalService.lastPeriodByIdsSelectKeys = new List<String>();
+      InvoiceCanonicalService.recalcLineSelectCount = 0;
+      InvoiceCanonicalService.recalcInvoiceSelectCount = 0;
+      InvoiceCanonicalService.splitLinesInPlace(
+        invoiceId,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+      System.assertEquals(
+        true,
+        InvoiceCanonicalService.lastPeriodByIdsSelectKeys.contains(
+          line.SourcePeriodLineIds__c
+        ),
+        'Core 第12.4節・第7.8.4節: 端数リセットは由来期間をloadPeriodsByIdsで読む'
+      );
+      System.assertEquals(
+        1,
+        InvoiceCanonicalService.recalcLineSelectCount,
+        'Core 第12.4節・第7.8.4節: 端数リセット後の合計再計算は配下明細を取り直さない'
+      );
+      System.assertEquals(
+        1,
+        InvoiceCanonicalService.recalcInvoiceSelectCount,
+        'Core 第12.4節・第7.8.4節: 端数リセット後の合計再計算は請求を取り直さない'
+      );
+      Invoice__c invoice = [
+        SELECT Amount__c, PeriodLineAmountTotal__c, IsAmountAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+      ];
+      System.assertEquals(baseline, invoice.Amount__c);
+      System.assertEquals(baseline, invoice.PeriodLineAmountTotal__c);
+      System.assertEquals(false, invoice.IsAmountAdjusted__c);
+    }
+  }
+
   /** ????E?Change Original ???E??????????E????????E*/
   @IsTest
   static void splitLinesInPlace_negativeUnitPriceDiscount() {
@@ -2436,6 +2508,11 @@ private class InvoiceCanonicalServiceTest {
         1,
         sourceKeySelects,
         'Core 第12.4節・第7.8節: 期間入力組み立てはしきい日で読んだ期間明細を取り直さない'
+      );
+      System.assertEquals(
+        1,
+        InvoiceCanonicalService.periodByIdsSelectCount,
+        'Core 第12.4節・第7.8節: サービス期間スナップショットは組み立てで読んだ期間明細を取り直さない'
       );
       System.assertEquals(
         2,
