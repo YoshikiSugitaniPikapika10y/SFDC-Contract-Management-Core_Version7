@@ -12,9 +12,10 @@ private class JournalLockServiceTest {
       JournalLockService.unlockForInvoice(UserInfo.getUserId(), null, null);
     } catch (Exception ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('Unlockには理由が必要です'),
-        'Accounting 第9.5節: Unlockは理由必須'
+      System.assertEquals(
+        'Unlockには理由が必要です。',
+        ex.getMessage(),
+        'Accounting 第9.5節: Unlockは理由を必須とする'
       );
     }
     System.assertEquals(true, thrown);
@@ -28,9 +29,10 @@ private class JournalLockServiceTest {
       JournalLockService.unlockForInvoice(UserInfo.getUserId(), null, tooLong);
     } catch (Exception ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('Unlock理由は255文字以内'),
-        'Accounting 第9.1節: Unlock理由はテキスト255。実際: ' + ex.getMessage()
+      System.assertEquals(
+        'Unlock理由は255文字以内で指定してください。',
+        ex.getMessage(),
+        'Accounting 第9.1節: Unlock理由はテキスト(255)'
       );
     }
     System.assertEquals(true, thrown);
@@ -46,9 +48,10 @@ private class JournalLockServiceTest {
         JournalLockService.lockForInvoice(invoice.Id, new List<Id>());
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('AccountingがOFFのときはLock/Unlockできません'),
-          'Accounting 第9.5節: OFFではLockしない'
+        System.assertEquals(
+          'AccountingがOFFのときはLock/Unlockできません。',
+          ex.getMessage(),
+          'Accounting 第9.5節・第1.1節: OFFではLock／Unlockの入口を持たない'
         );
       }
       System.assertEquals(true, thrown);
@@ -65,9 +68,65 @@ private class JournalLockServiceTest {
         JournalLockService.unlockForInvoice(invoice.Id, new List<Id>(), '確認');
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('AccountingがOFFのときはLock/Unlockできません'),
-          'Accounting 第9.5節: OFFではUnlockしない'
+        System.assertEquals(
+          'AccountingがOFFのときはLock/Unlockできません。',
+          ex.getMessage(),
+          'Accounting 第9.5節・第1.1節: OFFではLock／Unlockの入口を持たない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void unlockForInvoice_rejectsEmptySelection() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      Boolean thrown = false;
+      try {
+        JournalLockService.unlockForInvoice(invoice.Id, new List<Id>(), '確認');
+      } catch (JournalLockService.LockException ex) {
+        thrown = true;
+        System.assertEquals(
+          'Unlockする仕訳を選んでください。',
+          ex.getMessage(),
+          'Accounting 第9.5節: 未選択では実行できない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void lockForInvoice_rejectsCancelledInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      try {
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED;
+        update invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+      }
+      Boolean thrown = false;
+      try {
+        JournalLockService.lockForInvoice(
+          invoice.Id,
+          new List<Id>{ invoice.Id }
+        );
+      } catch (JournalLockService.LockException ex) {
+        thrown = true;
+        System.assertEquals(
+          '取消済み請求の仕訳はLock/Unlockできません。',
+          ex.getMessage(),
+          'Core 第7.7.3節: 取消済み請求の仕訳は参照'
         );
       }
       System.assertEquals(true, thrown);
@@ -86,9 +145,10 @@ private class JournalLockServiceTest {
         JournalLockService.lockForInvoice(invoice.Id, new List<Id>());
       } catch (JournalLockService.LockException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('Lockする仕訳を選んでください'),
-          'Accounting 第9.5節: 未選択ではLockできない'
+        System.assertEquals(
+          'Lockする仕訳を選んでください。',
+          ex.getMessage(),
+          'Accounting 第9.5節: 未選択では実行できない'
         );
       }
       System.assertEquals(true, thrown);
@@ -116,7 +176,9 @@ private class JournalLockServiceTest {
       GlJournal__c first = new GlJournal__c(
         Invoice__c = invoice.Id,
         Amount__c = 1,
-        IdempotencyKey__c = AccountingDiffService.hashKey(new List<String>{ 'JL1' }),
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'JL1' }
+        ),
         DebitSlotKey__c = 'Cash',
         CreditSlotKey__c = 'UnappliedCash',
         DebitAccount__c = debit.Id,
@@ -139,16 +201,107 @@ private class JournalLockServiceTest {
       );
       Test.stopTest();
 
-      System.assertEquals(1, locked, 'Accounting 第9.5節: 選んだ行だけLockする');
+      System.assertEquals(
+        1,
+        locked,
+        'Accounting 第9.5節: 選んだ行だけLockする'
+      );
       Map<Id, GlJournal__c> loaded = new Map<Id, GlJournal__c>(
         [
-          SELECT IsLocked__c
+          SELECT
+            IsLocked__c,
+            Amount__c,
+            PostingDate__c,
+            DebitAccount__c,
+            CreditAccount__c
           FROM GlJournal__c
           WHERE Id IN :new List<Id>{ first.Id, second.Id }
         ]
       );
       System.assertEquals(true, loaded.get(first.Id).IsLocked__c);
       System.assertEquals(false, loaded.get(second.Id).IsLocked__c);
+      System.assertEquals(
+        1,
+        loaded.get(first.Id).Amount__c,
+        'Accounting 第9.5節・Core 第7.7.3節: Lockは金額を変えない'
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 6, 1),
+        loaded.get(first.Id).PostingDate__c,
+        'Accounting 第9.5節: Lockは日付を変えない'
+      );
+      System.assertEquals(
+        debit.Id,
+        loaded.get(first.Id).DebitAccount__c,
+        'Accounting 第9.5節: Lockは科目を変えない'
+      );
+      System.assertEquals(
+        credit.Id,
+        loaded.get(first.Id).CreditAccount__c,
+        'Accounting 第9.5節: Lockは借貸を変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void lockForInvoice_allowsFuturePostingDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'JLock Future Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'JLock Future Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      Date futureDate = Date.today().addYears(1);
+      GlJournal__c futureJournal = new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'JL-FUTURE' }
+        ),
+        DebitSlotKey__c = 'Cash',
+        CreditSlotKey__c = 'UnappliedCash',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = futureDate,
+        TransactionStatus__c = 'Active'
+      );
+      insert futureJournal;
+
+      Test.startTest();
+      Integer locked = JournalLockService.lockForInvoice(
+        invoice.Id,
+        new List<Id>{ futureJournal.Id },
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        null
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        1,
+        locked,
+        'Accounting 第9.5節・Core 第7.7.3節: 未来日付の行も選べる'
+      );
+      GlJournal__c loaded = [
+        SELECT IsLocked__c, PostingDate__c
+        FROM GlJournal__c
+        WHERE Id = :futureJournal.Id
+      ];
+      System.assertEquals(true, loaded.IsLocked__c);
+      System.assertEquals(
+        futureDate,
+        loaded.PostingDate__c,
+        'Accounting 第9.5節: Lockは日付を変えない'
+      );
     }
   }
 
@@ -266,10 +419,12 @@ private class JournalLockServiceTest {
       );
       insert new List<GlJournal__c>{ logicallyDeleted, reversal };
 
-      for (GlJournal__c auditJournal : new List<GlJournal__c>{
-        logicallyDeleted,
-        reversal
-      }) {
+      for (
+        GlJournal__c auditJournal : new List<GlJournal__c>{
+          logicallyDeleted,
+          reversal
+        }
+      ) {
         Boolean thrown = false;
         try {
           JournalLockService.lockForInvoice(
@@ -345,7 +500,9 @@ private class JournalLockServiceTest {
         token,
         null
       );
-      token = AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id);
+      token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
       Integer reUnlocked = JournalLockService.unlockForInvoice(
         invoice.Id,
         new List<Id>{ journal.Id },
@@ -353,7 +510,9 @@ private class JournalLockServiceTest {
         token,
         null
       );
-      token = AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id);
+      token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
       Integer locked = JournalLockService.lockForInvoice(
         invoice.Id,
         new List<Id>{ journal.Id },
@@ -421,8 +580,9 @@ private class JournalLockServiceTest {
         );
       } catch (JournalLockService.LockException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('この請求以外の仕訳はLock/Unlockできません'),
+        System.assertEquals(
+          'この請求以外の仕訳はLock/Unlockできません。',
+          ex.getMessage(),
           'Accounting 第9.5節: この請求以外の仕訳は選べない'
         );
       }
@@ -445,7 +605,8 @@ private class JournalLockServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
@@ -510,7 +671,7 @@ private class JournalLockServiceTest {
       System.assertEquals(
         JournalLockService.NEVER_EXEMPT_MESSAGE,
         ex.getMessage(),
-        'Core 第11.6節: 仕訳の金額は一覧に書いても不可'
+        'Core 第11.6節・Accounting 第9.5節: 金額・科目・日付はリストに書いても不可'
       );
     }
     System.assertEquals(true, thrown);
@@ -529,8 +690,20 @@ private class JournalLockServiceTest {
       Memo__c = 'b',
       IsLocked__c = false
     );
-    InvoiceOpsFieldService.setCachedRowsForTest(new List<InvoiceOpsField__mdt>());
-    JournalLockService.assertExemptUpdate(prior, memoOnly);
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>()
+    );
+    Boolean thrown = false;
+    try {
+      JournalLockService.assertExemptUpdate(prior, memoOnly);
+    } catch (JournalLockService.LockException ex) {
+      thrown = true;
+    }
+    System.assertEquals(
+      false,
+      thrown,
+      'Accounting 第9.5節・Core 第11.6節: 標準メモは製品固定でLock後も直せる。未Lockも直せる'
+    );
     InvoiceOpsFieldService.resetCache();
   }
 
@@ -548,7 +721,9 @@ private class JournalLockServiceTest {
       IdempotencyKey__c = 'k2',
       IsLocked__c = false
     );
-    InvoiceOpsFieldService.setCachedRowsForTest(new List<InvoiceOpsField__mdt>());
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>()
+    );
     Boolean thrown = false;
     try {
       JournalLockService.assertExemptUpdate(prior, changed);
