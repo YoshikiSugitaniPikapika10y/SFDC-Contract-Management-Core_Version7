@@ -2426,6 +2426,17 @@ private class InvoiceCanonicalServiceTest {
         ),
         'Core 第12.4節・第7.8節: しきい日解決は由来期間をloadPeriodsByIdsで読む'
       );
+      Integer sourceKeySelects = 0;
+      for (String cacheKey : InvoiceCanonicalService.lastPeriodByIdsSelectKeys) {
+        if (cacheKey == sourceLine.SourcePeriodLineIds__c) {
+          sourceKeySelects++;
+        }
+      }
+      System.assertEquals(
+        1,
+        sourceKeySelects,
+        'Core 第12.4節・第7.8節: 期間入力組み立てはしきい日で読んだ期間明細を取り直さない'
+      );
       System.assertEquals(
         2,
         [

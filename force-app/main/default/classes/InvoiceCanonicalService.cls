@@ -3145,7 +3145,6 @@ public without sharing class InvoiceCanonicalService {
 
     Map<Id, Id> invoiceLineByPeriodId = new Map<Id, Id>();
     Map<Id, String> billingTypeByLineId = new Map<Id, String>();
-    Set<Id> allPeriodIds = new Set<Id>();
     for (InvoiceLine__c line : sourceLines) {
       if (restrictLineIds != null && !restrictLineIds.contains(line.Id)) {
         continue;
@@ -3155,7 +3154,6 @@ public without sharing class InvoiceCanonicalService {
         : line.ContractProduct__r.BillingType__c;
       billingTypeByLineId.put(line.Id, billingType);
       for (Id periodId : parseIdList(line.SourcePeriodLineIds__c)) {
-        allPeriodIds.add(periodId);
         invoiceLineByPeriodId.put(periodId, line.Id);
       }
     }
@@ -3177,15 +3175,11 @@ public without sharing class InvoiceCanonicalService {
     }
 
     Map<Id, InvoiceProduct__c> periodById = new Map<Id, InvoiceProduct__c>();
-    if (!allPeriodIds.isEmpty()) {
-      for (InvoiceProduct__c periodLine : [
-        SELECT Id, Amount__c, StartDate__c, Enddate__c
-        FROM InvoiceProduct__c
-        WHERE Id IN :allPeriodIds
-        WITH SYSTEM_MODE
-      ]) {
-        periodById.put(periodLine.Id, periodLine);
+    for (InvoiceLine__c line : sourceLines) {
+      if (restrictLineIds != null && !restrictLineIds.contains(line.Id)) {
+        continue;
       }
+      periodById.putAll(loadPeriodsByIds(line.SourcePeriodLineIds__c));
     }
 
     Map<Id, List<InvoiceProduct__c>> movePeriodsByLine = new Map<Id, List<InvoiceProduct__c>>();
