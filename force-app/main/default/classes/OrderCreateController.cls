@@ -38,6 +38,9 @@ public without sharing class OrderCreateController {
   public static Integer previewProductSelectCount = 0;
   @TestVisible
   public static Integer draftLineSelectCount = 0;
+  /** 仕様: Core 第12.4節。兄弟明細照会が取った明細Id。親請求Id照会の対象は含めない。 */
+  @TestVisible
+  public static Set<Id> lastDraftSiblingLineSelectIds = new Set<Id>();
   /** 仕様: Core 第12.4節。Ordered集計が取った履歴Id。入口で読んだ対象は含めない。 */
   @TestVisible
   public static Set<Id> lastPreviewOrderedHistoryQueryIds = new Set<Id>();
@@ -1315,7 +1318,7 @@ public without sharing class OrderCreateController {
         'Invoice__c',
         invoiceIds.isEmpty() ? null : String.valueOf(invoiceIds[0])
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterDraftWrite(contractHistoryId, prep);
     }
     try {
       InvoiceCanonicalService.updateLineAmounts(
@@ -1333,7 +1336,7 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterDraftWrite(contractHistoryId, prep);
     } finally {
       loadedDraftLines = null;
       endInvoicePreviewWriteDefer();
@@ -1509,7 +1512,7 @@ public without sharing class OrderCreateController {
         'Invoice__c',
         String.valueOf(invoiceId)
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterDraftWrite(contractHistoryId, prep);
     }
     try {
       InvoiceCanonicalService.updateInvoiceHeaderAndDates(
@@ -1536,7 +1539,7 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterDraftWrite(contractHistoryId, prep);
     } finally {
       endInvoicePreviewWriteDefer();
     }
@@ -1581,7 +1584,7 @@ public without sharing class OrderCreateController {
         'Invoice__c',
         String.valueOf(invoiceId)
       );
-      return getInvoicePreview(contractHistoryId);
+      return returnPreviewAfterDraftWrite(contractHistoryId, prep);
     }
     try {
       InvoiceCanonicalService.applyBillingAccountContent(
@@ -1598,7 +1601,7 @@ public without sharing class OrderCreateController {
     } catch (Exception ex) {
       throw toAuraHandled(ex.getMessage());
     }
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterDraftWrite(contractHistoryId, prep);
     } finally {
       endInvoicePreviewWriteDefer();
     }
@@ -2638,7 +2641,7 @@ public without sharing class OrderCreateController {
       throw toAuraHandled(ex.getMessage());
     }
     rememberPreviewHistoryFromLockedInvoice(lockedInvoice);
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterDraftWrite(contractHistoryId, null);
   }
 
   /**
@@ -3356,6 +3359,24 @@ public without sharing class OrderCreateController {
         Invoice__c,
         IsAmountAdjusted__c,
         IsSplitMoved__c,
+        IsManuallyAdjusted__c,
+        LineMergeKey__c,
+        ProductName__c,
+        HistoryVersionLabel__c,
+        Unit__c,
+        UnitPrice__c,
+        Quantity__c,
+        PeriodLabel__c,
+        SourcePeriodLineIds__c,
+        AcceptanceEndDate__c,
+        RevenueRecognitionBasis__c,
+        ContractProduct__c,
+        ContractProduct__r.Amount__c,
+        ContractProduct__r.Unit__c,
+        ContractProduct__r.BillingType__c,
+        ContractProduct__r.ContractHistory__c,
+        ContractProduct__r.StartDate__c,
+        ContractProduct__r.Enddate__c,
         Invoice__r.ContractHistory__c,
         Invoice__r.ContractService__c
       FROM InvoiceLine__c
@@ -3370,9 +3391,11 @@ public without sharing class OrderCreateController {
     }
     if (parentIds.isEmpty()) {
       loadedDraftLines = editedLines;
+      lastDraftSiblingLineSelectIds = new Set<Id>();
       return invoiceIds;
     }
-    loadedDraftLines = [
+    lastDraftSiblingLineSelectIds = new Set<Id>();
+    List<InvoiceLine__c> siblingLines = [
       SELECT
         Id,
         Amount__c,
@@ -3400,15 +3423,16 @@ public without sharing class OrderCreateController {
         Invoice__r.ContractHistory__c,
         Invoice__r.ContractService__c
       FROM InvoiceLine__c
-      WHERE Invoice__c IN :parentIds
+      WHERE Invoice__c IN :parentIds AND Id NOT IN :lineIdSet
       WITH SYSTEM_MODE
     ];
-    for (InvoiceLine__c line : loadedDraftLines) {
-      if (line.Invoice__c != null) {
-        invoiceIds.add(line.Invoice__c);
-      }
+    for (InvoiceLine__c sibling : siblingLines) {
+      lastDraftSiblingLineSelectIds.add(sibling.Id);
     }
-    return new List<Id>(compactIds(invoiceIds));
+    loadedDraftLines = new List<InvoiceLine__c>();
+    loadedDraftLines.addAll(editedLines);
+    loadedDraftLines.addAll(siblingLines);
+    return new List<Id>(parentIds);
   }
 
   /** 仕様: Core 第7.7.2節・第7.9.7節。未確定だけ。取消済みは含めない。 */
@@ -3611,6 +3635,18 @@ public without sharing class OrderCreateController {
   }
 
   /**
+   * 仕様: Core 第12.4節・第7.8節・第7.8.1節・第7.7.3節・第7.9.3節。
+   * 保存後返却はロック・更新で読んだ請求・明細を取り直さない。
+   */
+  private static InvoicePreviewDto returnPreviewAfterDraftWrite(
+    Id contractHistoryId,
+    DraftEditPreparation prep
+  ) {
+    rememberPreviewInvoicesAfterSplitWrite(contractHistoryId, prep);
+    return getInvoicePreview(contractHistoryId);
+  }
+
+  /**
    * 仕様: Core 第12.4節・第7.8節・第7.8.1節。
    * 分割・移動の成功後返却は、ロック・分割で読んだ請求・明細を取り直さない。
    */
@@ -3618,8 +3654,7 @@ public without sharing class OrderCreateController {
     Id contractHistoryId,
     DraftEditPreparation prep
   ) {
-    rememberPreviewInvoicesAfterSplitWrite(contractHistoryId, prep);
-    return getInvoicePreview(contractHistoryId);
+    return returnPreviewAfterDraftWrite(contractHistoryId, prep);
   }
 
   /**
@@ -3630,11 +3665,40 @@ public without sharing class OrderCreateController {
     DraftEditPreparation prep
   ) {
     InvoiceCanonicalService.SplitPreviewTouch touch = InvoiceCanonicalService.takeSplitPreviewTouch();
+    InvoiceCancelService.CancelPreviewTouch cancelTouch = InvoiceCancelService.takeCancelPreviewTouch();
     Boolean hasTouch =
-      touch != null &&
-      (!touch.invoicesById.isEmpty() || !touch.deletedInvoiceIds.isEmpty());
-    if (!hasTouch) {
+      (touch != null &&
+      (!touch.invoicesById.isEmpty() || !touch.deletedInvoiceIds.isEmpty())) ||
+      (cancelTouch != null && !cancelTouch.invoicesById.isEmpty());
+    Boolean hasPrep =
+      prep != null &&
+      prep.lockedInvoices != null &&
+      !prep.lockedInvoices.isEmpty();
+    if (!hasTouch && !hasPrep) {
       return;
+    }
+    if (touch == null) {
+      touch = new InvoiceCanonicalService.SplitPreviewTouch();
+    }
+    if (cancelTouch != null) {
+      for (Invoice__c cancelled : cancelTouch.invoicesById.values()) {
+        if (cancelled == null || cancelled.Id == null) {
+          continue;
+        }
+        touch.invoicesById.put(cancelled.Id, cancelled);
+      }
+      for (Id invoiceId : cancelTouch.linesByInvoiceId.keySet()) {
+        List<InvoiceLine__c> rows = cancelTouch.linesByInvoiceId.get(invoiceId);
+        if (rows == null) {
+          continue;
+        }
+        List<InvoiceLine__c> existing = touch.linesByInvoiceId.get(invoiceId);
+        if (existing == null) {
+          touch.linesByInvoiceId.put(invoiceId, new List<InvoiceLine__c>(rows));
+        } else {
+          existing.addAll(rows);
+        }
+      }
     }
     Id contractServiceId = resolveContractServiceId(contractHistoryId);
     if (contractServiceId == null) {

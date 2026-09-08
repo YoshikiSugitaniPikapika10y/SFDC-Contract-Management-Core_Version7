@@ -20,6 +20,45 @@ public without sharing class InvoiceCancelService {
     public String businessOperationKey;
   }
 
+  /**
+   * 仕様: Core 第12.4節・第7.9.3節。
+   * 取消が触った請求・明細。保存後返却は取り直さない。
+   */
+  public class CancelPreviewTouch {
+    public Map<Id, Invoice__c> invoicesById = new Map<Id, Invoice__c>();
+    public Map<Id, List<InvoiceLine__c>> linesByInvoiceId = new Map<Id, List<InvoiceLine__c>>();
+  }
+
+  private static CancelPreviewTouch cancelPreviewTouch;
+
+  public static CancelPreviewTouch takeCancelPreviewTouch() {
+    CancelPreviewTouch touch = cancelPreviewTouch;
+    cancelPreviewTouch = null;
+    return touch;
+  }
+
+  private static void rememberCancelPreviewTouch(
+    Invoice__c original,
+    List<InvoiceLine__c> originalLines,
+    Invoice__c correction,
+    List<InvoiceLine__c> correctionLines
+  ) {
+    CancelPreviewTouch touch = new CancelPreviewTouch();
+    if (original != null && original.Id != null) {
+      touch.invoicesById.put(original.Id, original);
+      if (originalLines != null) {
+        touch.linesByInvoiceId.put(original.Id, originalLines);
+      }
+    }
+    if (correction != null && correction.Id != null) {
+      touch.invoicesById.put(correction.Id, correction);
+      if (correctionLines != null) {
+        touch.linesByInvoiceId.put(correction.Id, correctionLines);
+      }
+    }
+    cancelPreviewTouch = touch;
+  }
+
   /** 仕様: Core 第7.9.3節、第7.9.6節、第7.10節、日付仕様 第7.3節、Accounting 第8.2節、第8.8節、Core 第12.4節 */
   public static CancelResult cancelConfirmed(CancelRequest request) {
     ContractPermissionUtil.assertCancelInvoice();
@@ -162,6 +201,7 @@ public without sharing class InvoiceCancelService {
     result.requiresCustomerNotice = InvoiceTransactionStatusService.DELIVERY_SENT.equals(
       original.DeliveryStatus__c
     );
+    rememberCancelPreviewTouch(original, originalLines, correction, copies);
     return result;
   }
 
@@ -357,7 +397,14 @@ public without sharing class InvoiceCancelService {
       'HistoryVersionLabel__c',
       'IsSplitMoved__c',
       'IsManuallyAdjusted__c',
-      'IsAmountAdjusted__c'
+      'IsAmountAdjusted__c',
+      'Invoice__c',
+      'ContractProduct__r.Amount__c',
+      'ContractProduct__r.Unit__c',
+      'ContractProduct__r.BillingType__c',
+      'ContractProduct__r.ContractHistory__c',
+      'ContractProduct__r.StartDate__c',
+      'ContractProduct__r.Enddate__c'
     };
     fields.addAll(
       extraCorrectionFieldApiNames(

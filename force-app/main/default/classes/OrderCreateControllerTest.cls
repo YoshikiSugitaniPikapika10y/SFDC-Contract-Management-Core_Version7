@@ -1280,6 +1280,7 @@ private class OrderCreateControllerTest {
 
       Test.startTest();
       OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
       InvoiceOpsFieldService.extraFieldSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.cancelConfirmedFromPreview(
         context.history.Id,
@@ -1297,9 +1298,9 @@ private class OrderCreateControllerTest {
         'Core 第7.7.0節: 返却カードを返す'
       );
       System.assertEquals(
-        1,
-        OrderCreateController.previewInvoiceSelectCount,
-        'Core 第7.7.0節・第12.4節: 返却カードの請求・明細は1回'
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
+        'Core 第12.4節・第7.9.3節: 取消した請求をgetInvoicePreviewで取り直さない'
       );
       System.assertEquals(
         0,
@@ -5231,11 +5232,22 @@ private class OrderCreateControllerTest {
         LIMIT 1
       ];
       InvoiceLine__c line = [
-        SELECT Id, Amount__c
+        SELECT
+          Id,
+          Amount__c,
+          Invoice__c,
+          ProductName__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          RevenueRecognitionBasis__c
         FROM InvoiceLine__c
         WHERE Invoice__c = :invoice.Id
         LIMIT 1
       ];
+      InvoiceLine__c sibling = line.clone(false, true, false, false);
+      sibling.Amount__c = line.Amount__c;
+      insert sibling;
       Id invoiceId = invoice.Id;
       Id lineId = line.Id;
       Decimal originalAmount = line.Amount__c;
@@ -5246,7 +5258,9 @@ private class OrderCreateControllerTest {
 
       Test.startTest();
       OrderCreateController.draftLineSelectCount = 0;
+      OrderCreateController.lastDraftSiblingLineSelectIds = new Set<Id>();
       OrderCreateController.previewInvoiceSelectCount = 0;
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
       InvoiceCanonicalService.lineAmountSelectCount = 0;
       InvoiceCanonicalService.recalcLineSelectCount = 0;
       InvoiceCanonicalService.recalcInvoiceSelectCount = 0;
@@ -5254,6 +5268,7 @@ private class OrderCreateControllerTest {
       InvoiceProductFieldCopyService.resetCache();
       InvoiceProductFieldCopyService.catalogSelectCount = 0;
       FieldCopyDefinitionService.resetCache();
+      InvoiceOpsFieldService.extraFieldSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.updateInvoiceLineAmount(
         context.history.Id,
         lineId,
@@ -5266,6 +5281,26 @@ private class OrderCreateControllerTest {
         1,
         OrderCreateController.draftLineSelectCount,
         'Core 第12.4節: 親請求Idと兄弟明細は1回'
+      );
+      System.assertEquals(
+        false,
+        OrderCreateController.lastDraftSiblingLineSelectIds.contains(lineId),
+        'Core 第12.4節: 親請求Id照会で読んだ対象明細を兄弟明細照会で取り直さない'
+      );
+      System.assertEquals(
+        true,
+        OrderCreateController.lastDraftSiblingLineSelectIds.contains(sibling.Id),
+        'Core 第12.4節: 兄弟の初回は切らない'
+      );
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoiceId),
+        'Core 第12.4節: 返却カードは更新した請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceOpsFieldService.extraFieldSelectCount,
+        'Core 第12.4節: 返却カードの追加項目定義を取り直さない'
       );
       System.assertEquals(
         0,
@@ -5292,11 +5327,6 @@ private class OrderCreateControllerTest {
         InvoiceProductFieldCopyService.catalogSelectCount,
         'Core 第12.4節・第11.4.2節: コピー定義を2カタログで取り直さない'
       );
-      System.assertEquals(
-        1,
-        OrderCreateController.previewInvoiceSelectCount,
-        'Core 第12.4節: 返却カードの請求・明細は1回'
-      );
       InvoiceLine__c storedLine = [
         SELECT Amount__c, IsAmountAdjusted__c
         FROM InvoiceLine__c
@@ -5314,7 +5344,7 @@ private class OrderCreateControllerTest {
         WHERE Id = :invoiceId
       ];
       System.assertEquals(
-        originalAmount + 1,
+        originalAmount + sibling.Amount__c + 1,
         storedInvoice.Amount__c,
         'Core 第7.4節: 税抜合計が変わった請求は同じ処理でヘッダを合わせる'
       );
@@ -5418,6 +5448,8 @@ private class OrderCreateControllerTest {
       InvoiceProductFieldCopyService.resetCache();
       InvoiceProductFieldCopyService.catalogSelectCount = 0;
       FieldCopyDefinitionService.resetCache();
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      InvoiceOpsFieldService.extraFieldSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.updateInvoiceHeaderAndDates(
         context.history.Id,
         invoice.Id,
@@ -5446,6 +5478,16 @@ private class OrderCreateControllerTest {
         0,
         InvoiceProductFieldCopyService.catalogSelectCount,
         'Core 第12.4節・第11.4.2節: コピー定義を2カタログで取り直さない'
+      );
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
+        'Core 第12.4節・第7.7.3節: 請求情報編集の返却は対象請求を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        InvoiceOpsFieldService.extraFieldSelectCount,
+        'Core 第12.4節: 返却カードの追加項目定義を取り直さない'
       );
       Invoice__c stored = [
         SELECT
@@ -5490,6 +5532,8 @@ private class OrderCreateControllerTest {
       InvoiceProductFieldCopyService.resetCache();
       InvoiceProductFieldCopyService.catalogSelectCount = 0;
       FieldCopyDefinitionService.resetCache();
+      OrderCreateController.lastPreviewInvoiceSelectIds = new Set<Id>();
+      InvoiceOpsFieldService.extraFieldSelectCount = 0;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.applyBillingAccountContent(
         context.history.Id,
         invoice.Id,
@@ -5500,6 +5544,11 @@ private class OrderCreateControllerTest {
       System.assertEquals(1, AccountingCauseLockService.invoiceLockSelectCount);
       System.assertEquals(0, InvoiceCanonicalService.headerInvoiceSelectCount);
       System.assertEquals(0, InvoiceProductFieldCopyService.catalogSelectCount);
+      System.assertEquals(
+        false,
+        OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
+        'Core 第12.4節・第7.7.3節: 反映の返却は対象請求を取り直さない'
+      );
       Invoice__c updated = [
         SELECT InvoiceDeliveryMethodSnapShot__c
         FROM Invoice__c
