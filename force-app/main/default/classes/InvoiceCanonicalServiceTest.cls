@@ -569,6 +569,161 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void splitInvoiceByDate_deletesSourceWhenOnlyZeroAmountLinesRemain() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c paid = [
+        SELECT
+          Id,
+          Amount__c,
+          ProductName__c,
+          Product__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          PeriodLabel__c,
+          LineMergeKey__c,
+          HistoryVersionLabel__c,
+          SourcePeriodLineIds__c,
+          ServicePeriodStartDate__c,
+          ServicePeriodEndDate__c,
+          RevenueRecognitionBasis__c,
+          ContractProduct__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c zero = paid.clone(false, true, false, false);
+      zero.Amount__c = 0;
+      insert zero;
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = paid.Id;
+      split.moveAmount = paid.Amount__c;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      Id createdId = InvoiceCanonicalService.splitInvoiceByDate(
+        source.Id,
+        Date.newInstance(2026, 7, 1),
+        Date.newInstance(2026, 7, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM Invoice__c WHERE Id = :source.Id],
+        'Core 第7.8.1節: 金額0円を除く全明細を移したら元請求を削除する'
+      );
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM InvoiceLine__c WHERE Id = :zero.Id],
+        'Core 第7.8.1節: 元請求に残る0円明細は元削除に従う'
+      );
+      Invoice__c created = [
+        SELECT Amount__c
+        FROM Invoice__c
+        WHERE Id = :createdId
+      ];
+      System.assertEquals(paid.Amount__c, created.Amount__c);
+    }
+  }
+
+  @IsTest
+  static void splitInvoiceByBillingAccount_deletesSourceWhenOnlyZeroAmountLinesRemain() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id, BillingAccountSnapShot__c, ContractService__r.Account__c, InvoiceDate__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c paid = [
+        SELECT
+          Id,
+          Amount__c,
+          ProductName__c,
+          Product__c,
+          Unit__c,
+          UnitPrice__c,
+          Quantity__c,
+          PeriodLabel__c,
+          LineMergeKey__c,
+          HistoryVersionLabel__c,
+          SourcePeriodLineIds__c,
+          ServicePeriodStartDate__c,
+          ServicePeriodEndDate__c,
+          RevenueRecognitionBasis__c,
+          ContractProduct__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c zero = paid.clone(false, true, false, false);
+      zero.Amount__c = 0;
+      insert zero;
+      BillingAccount__c otherBa = new BillingAccount__c(
+        Account__c = source.ContractService__r.Account__c,
+        BillingAddressee__c = 'BUG990 BA',
+        BillingEmailTo__c = 'bug990@example.com',
+        InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 15,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
+      ContractTestDataFactory.applyRequiredFields(otherBa);
+      insert otherBa;
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = paid.Id;
+      split.moveAmount = paid.Amount__c;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      Id createdId = InvoiceCanonicalService.splitInvoiceByBillingAccount(
+        source.Id,
+        otherBa.Id,
+        source.InvoiceDate__c,
+        Date.newInstance(2026, 7, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM Invoice__c WHERE Id = :source.Id],
+        'Core 第7.8.1節: 請求アカウント分割でも金額0円を除く全明細を移したら元請求を削除する'
+      );
+      Invoice__c created = [
+        SELECT Amount__c, BillingAccountSnapShot__c
+        FROM Invoice__c
+        WHERE Id = :createdId
+      ];
+      System.assertEquals(paid.Amount__c, created.Amount__c);
+      System.assertEquals(otherBa.Id, created.BillingAccountSnapShot__c);
+    }
+  }
+
+  @IsTest
   static void splitInvoiceByDate_copiesBlankMemoFromOpportunity() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();

@@ -300,6 +300,29 @@ public without sharing class InvoiceCanonicalService {
     return known != null && known.lines != null && !known.lines.isEmpty();
   }
 
+  /**
+   * 仕様: Core 第7.8節・第7.8.1節。
+   * 金額0円は残明細と数えない。SELECTに無い金額は残るとみなす。
+   */
+  private static Boolean hasNonZeroLineAmount(List<InvoiceLine__c> lines) {
+    if (lines == null) {
+      return false;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (line == null) {
+        continue;
+      }
+      if (!line.getPopulatedFieldsAsMap().containsKey('Amount__c')) {
+        return true;
+      }
+      Decimal amount = line.Amount__c == null ? 0 : line.Amount__c;
+      if (amount != 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** 仕様: Core 第12.4節・第7.8節。行ロックした請求は取り直さない。 */
   private static Invoice__c knownSplitInvoice(
     SplitKnownRows known,
@@ -3126,20 +3149,23 @@ public without sharing class InvoiceCanonicalService {
     syncInvoiceManualUmbrella(created);
     SystemContextAccess.updateRecords(new List<Invoice__c>{ created });
     // 元請求が残る場合は常に分割・移動済（clearManual でも derive だけに落とさない）
+    // 仕様: Core 第7.8節・第7.8.1節。移動対象が金額0円を除く全明細と一致する場合だけ、元請求を削除する。
     Boolean remainExists;
     if (trackAbsShare) {
-      remainExists = !sourceUpdates.isEmpty() || !remainingOthers.isEmpty();
+      remainExists =
+        !sourceUpdates.isEmpty() || hasNonZeroLineAmount(remainingOthers);
     } else if (hasKnownLines(known)) {
       remainExists =
         !sourceUpdates.isEmpty() ||
-        !knownSiblingLines(known, sourceInvoiceId, inputByLineId.keySet())
-          .isEmpty();
+        hasNonZeroLineAmount(
+          knownSiblingLines(known, sourceInvoiceId, inputByLineId.keySet())
+        );
     } else {
       remainLineSelectCount++;
       List<InvoiceLine__c> remainLines = [
-        SELECT Id
+        SELECT Id, Amount__c
         FROM InvoiceLine__c
-        WHERE Invoice__c = :sourceInvoiceId
+        WHERE Invoice__c = :sourceInvoiceId AND Amount__c != 0
         WITH SYSTEM_MODE
         LIMIT 1
       ];
