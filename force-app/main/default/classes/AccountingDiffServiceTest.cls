@@ -108,7 +108,8 @@ private class AccountingDiffServiceTest {
       );
       System.assertEquals(0, preview.reverseCount);
       System.assert(
-        AccountingDiffService.toDisplayText(preview).contains('論理削除件数: 0'),
+        AccountingDiffService.toDisplayText(preview)
+          .contains('論理削除件数: 0'),
         'Accounting 第8.5節: 空プレビューは件数0を文言にする'
       );
     }
@@ -219,7 +220,8 @@ private class AccountingDiffServiceTest {
       );
       System.assertEquals(0, preview.reverseCount);
       System.assert(
-        AccountingDiffService.toDisplayText(preview).contains('論理削除件数: 1'),
+        AccountingDiffService.toDisplayText(preview)
+          .contains('論理削除件数: 1'),
         'Accounting 第8.5節: プレビュー文言に論理削除件数を出す'
       );
     }
@@ -231,7 +233,12 @@ private class AccountingDiffServiceTest {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertConfirmedInvoice();
       InvoicePayment__c payment = insertNonInvoicePayment(invoice.Id);
-      insertActiveJournalForPayment(invoice.Id, 'bill-skip-pay', payment.Id, false);
+      insertActiveJournalForPayment(
+        invoice.Id,
+        'bill-skip-pay',
+        payment.Id,
+        false
+      );
       Test.startTest();
       Integer beforePayment = Limits.getQueries();
       AccountingDiffService.CancelPreview paymentPreview = AccountingDiffService.previewCancel(
@@ -374,7 +381,9 @@ private class AccountingDiffServiceTest {
         [
           SELECT COUNT()
           FROM GlJournal__c
-          WHERE OriginalJournal__c = :leftover.Id AND TransactionStatus__c = 'Reversal'
+          WHERE
+            OriginalJournal__c = :leftover.Id
+            AND TransactionStatus__c = 'Reversal'
         ],
         'Accounting 第8.5節: ロック済みの取消は逆仕訳を残す'
       );
@@ -443,7 +452,9 @@ private class AccountingDiffServiceTest {
         [
           SELECT COUNT()
           FROM GlJournal__c
-          WHERE OriginalJournal__c = :leftover.Id AND TransactionStatus__c = 'Reversal'
+          WHERE
+            OriginalJournal__c = :leftover.Id
+            AND TransactionStatus__c = 'Reversal'
         ]
       );
     }
@@ -542,7 +553,8 @@ private class AccountingDiffServiceTest {
         preview.reverseDateCounts[0].reverseDate
       );
       System.assert(
-        AccountingDiffService.toDisplayText(preview).contains('2026-06-15: 1件'),
+        AccountingDiffService.toDisplayText(preview)
+          .contains('2026-06-15: 1件'),
         'Accounting 第8.5節: プレビュー文言に逆仕訳日と件数を出す'
       );
     }
@@ -725,7 +737,10 @@ private class AccountingDiffServiceTest {
         AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
         null
       );
-      System.assert(locked > 0, 'Accounting 第1.8.1節: 比較対象の元仕訳をロックする');
+      System.assert(
+        locked > 0,
+        'Accounting 第1.8.1節: 比較対象の元仕訳をロックする'
+      );
       Boolean previous = GlJournalTriggerHandler.allowEngineWrite;
       GlJournalTriggerHandler.allowEngineWrite = true;
       try {
@@ -775,8 +790,12 @@ private class AccountingDiffServiceTest {
 
   @IsTest
   static void hashKey_blankAndNullParts() {
-    String withBlank = AccountingDiffService.hashKey(new List<String>{ 'a', '' });
-    String withDash = AccountingDiffService.hashKey(new List<String>{ 'a', '-' });
+    String withBlank = AccountingDiffService.hashKey(
+      new List<String>{ 'a', '' }
+    );
+    String withDash = AccountingDiffService.hashKey(
+      new List<String>{ 'a', '-' }
+    );
     String withNullList = AccountingDiffService.hashKey(null);
     System.assertEquals(64, withBlank.length());
     System.assertEquals(64, withNullList.length());
@@ -806,7 +825,9 @@ private class AccountingDiffServiceTest {
       GlJournal__c reversal = [
         SELECT PostingDate__c, DebitSlotKey__c, CreditSlotKey__c
         FROM GlJournal__c
-        WHERE OriginalJournal__c = :leftover.Id AND TransactionStatus__c = 'Reversal'
+        WHERE
+          OriginalJournal__c = :leftover.Id
+          AND TransactionStatus__c = 'Reversal'
       ];
       System.assertEquals(
         Date.newInstance(2026, 6, 1),
@@ -826,7 +847,11 @@ private class AccountingDiffServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertConfirmedInvoice();
-      GlJournal__c original = insertActiveJournal(invoice.Id, 'rev-orig', false);
+      GlJournal__c original = insertActiveJournal(
+        invoice.Id,
+        'rev-orig',
+        false
+      );
       GlAccount__c debit = new GlAccount__c(
         Name = 'Diff Rev Debit',
         AccountType__c = 'Asset',
@@ -914,7 +939,11 @@ private class AccountingDiffServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertConfirmedInvoice();
-      GlJournal__c original = insertActiveJournal(invoice.Id, 'dup-rev-orig', false);
+      GlJournal__c original = insertActiveJournal(
+        invoice.Id,
+        'dup-rev-orig',
+        false
+      );
       insertReversalOf(original, 1000, 'DUP_REV_A');
       insertReversalOf(original, 1000, 'DUP_REV_B');
       Boolean thrown = false;
@@ -941,7 +970,11 @@ private class AccountingDiffServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertConfirmedInvoice();
-      GlJournal__c original = insertActiveJournal(invoice.Id, 'amt-rev-orig', false);
+      GlJournal__c original = insertActiveJournal(
+        invoice.Id,
+        'amt-rev-orig',
+        false
+      );
       insertReversalOf(original, 999, 'AMT_REV');
       Boolean thrown = false;
       try {
@@ -1160,30 +1193,91 @@ private class AccountingDiffServiceTest {
       enableAccounting();
       seedMaps();
       Invoice__c invoice = insertConfirmedInvoice();
-    Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
-    AccountingDiffService.applyForInvoice(
-      invoice.Id,
-      AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
-      'TEST_KNOWN_LOCK',
-      null,
-      locked
-    );
-    System.assertEquals(
-      'Confirmed',
-      locked.InvoiceTransactionStatus__c,
-      'Accounting 第8.2節: 同一処理でロック済みの請求を取り直さない'
-    );
-    GlAccountingPolicyService.requireOrgPolicy();
-    FieldCopyDefinitionService.validateAllDefinitions();
-    Integer beforeReuse = Limits.getQueries();
-    AccountingCurrentService.load(invoice.Id);
-    GlAccountingPolicyService.requireOrgPolicy();
-    FieldCopyDefinitionService.validateAllDefinitions();
-    System.assertEquals(
-      beforeReuse,
-      Limits.getQueries(),
-      'Accounting 第8.2節: 同一処理で収集したCurrent・利用設定・コピー定義を取り直さない'
-    );
+      Invoice__c locked = AccountingCauseLockService.lockInvoice(invoice.Id);
+      AccountingDiffService.applyForInvoice(
+        invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        'TEST_KNOWN_LOCK',
+        null,
+        locked
+      );
+      System.assertEquals(
+        'Confirmed',
+        locked.InvoiceTransactionStatus__c,
+        'Accounting 第8.2節: 同一処理でロック済みの請求を取り直さない'
+      );
+      GlAccountingPolicyService.requireOrgPolicy();
+      FieldCopyDefinitionService.validateAllDefinitions();
+      Integer beforeReuse = Limits.getQueries();
+      AccountingCurrentService.load(invoice.Id);
+      GlAccountingPolicyService.requireOrgPolicy();
+      FieldCopyDefinitionService.validateAllDefinitions();
+      System.assertEquals(
+        beforeReuse,
+        Limits.getQueries(),
+        'Accounting 第8.2節: 同一処理で収集したCurrent・利用設定・コピー定義を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void applyJournalCopy_allocationWithoutLine_stampsLineJournalFromAllocation() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Journal_Alloc_Name',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        SourceObject__c = 'InvoicePaymentAllocation__c',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      FieldCopyDefinitionService.resetCache();
+      String prefix = InvoicePaymentAllocation__c.SObjectType.getDescribe()
+        .getKeyPrefix();
+      Id allocationId = Id.valueOf(prefix + '000000000001');
+      InvoicePaymentAllocation__c allocation = (InvoicePaymentAllocation__c) JSON.deserialize(
+        '{"Id":"' + String.valueOf(allocationId) + '","Name":"PAL-988"}',
+        InvoicePaymentAllocation__c.class
+      );
+      Map<String, SObject> sources = new Map<String, SObject>{
+        'InvoicePaymentAllocation__c' => allocation
+      };
+      GlJournal__c withAllocation = new GlJournal__c(
+        InvoicePaymentAllocation__c = allocationId
+      );
+      FieldCopyDefinitionService.apply(
+        withAllocation,
+        'GlJournal__c',
+        AccountingDiffService.journalCopyContext(withAllocation),
+        sources
+      );
+      System.assertEquals(
+        FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        AccountingDiffService.journalCopyContext(withAllocation),
+        '仕様: Core 第11.4.2節 明細または割当がある仕訳は明細仕訳'
+      );
+      System.assertEquals(
+        'PAL-988',
+        withAllocation.Memo__c,
+        '仕様: Core 第11.4.2節 割当がある仕訳はFrom＝割当のコピー定義を空欄へ書く'
+      );
+      GlJournal__c withoutCause = new GlJournal__c();
+      FieldCopyDefinitionService.apply(
+        withoutCause,
+        'GlJournal__c',
+        AccountingDiffService.journalCopyContext(withoutCause),
+        sources
+      );
+      System.assertEquals(
+        FieldCopyDefinitionService.CONTEXT_NON_LINE_JOURNAL,
+        AccountingDiffService.journalCopyContext(withoutCause),
+        '仕様: Core 第11.4.2節 明細も割当も無い仕訳は明細外仕訳'
+      );
+      System.assertEquals(
+        null,
+        withoutCause.Memo__c,
+        '仕様: Core 第11.4.2節 明細仕訳だけの定義は明細外へ空埋めしない'
+      );
     }
   }
 
@@ -1268,7 +1362,8 @@ private class AccountingDiffServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
@@ -1320,7 +1415,8 @@ private class AccountingDiffServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     ContractService__c service = new ContractService__c(
@@ -1337,9 +1433,14 @@ private class AccountingDiffServiceTest {
       historystatus__c = 'Ordered',
       Version__c = 1
     );
-    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     insert history;
-    Product2 product = ContractTestDataFactory.buildProduct('Diff Line Product');
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Diff Line Product'
+    );
     product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
     ContractTestDataFactory.insertProduct(product);
     ContractProduct__c contractProduct = new ContractProduct__c(
@@ -1407,7 +1508,9 @@ private class AccountingDiffServiceTest {
   }
 
   private static void markCancelled(Invoice__c invoice) {
-    InvoiceTransactionStatusService.applyCancelled(new List<Invoice__c>{ invoice });
+    InvoiceTransactionStatusService.applyCancelled(
+      new List<Invoice__c>{ invoice }
+    );
     Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
     Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
     InvoiceTransactionStatusService.allowStatusWrite = true;

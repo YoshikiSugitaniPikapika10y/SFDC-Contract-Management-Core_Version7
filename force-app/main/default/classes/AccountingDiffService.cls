@@ -2079,10 +2079,25 @@ public without sharing class AccountingDiffService {
         bundle.allocations.get(journal.InvoicePaymentAllocation__c)
       );
     }
-    String context = journal.InvoiceLine__c == null
-      ? FieldCopyDefinitionService.CONTEXT_NON_LINE_JOURNAL
-      : FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL;
-    FieldCopyDefinitionService.apply(journal, 'GlJournal__c', context, sources);
+    FieldCopyDefinitionService.apply(
+      journal,
+      'GlJournal__c',
+      journalCopyContext(journal),
+      sources
+    );
+  }
+
+  /** 仕様: Core 第11.4.2節。明細または割当がある仕訳は明細仕訳。 */
+  @TestVisible
+  static String journalCopyContext(GlJournal__c journal) {
+    if (
+      journal != null &&
+      (journal.InvoiceLine__c != null ||
+      journal.InvoicePaymentAllocation__c != null)
+    ) {
+      return FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL;
+    }
+    return FieldCopyDefinitionService.CONTEXT_NON_LINE_JOURNAL;
   }
 
   private static Map<String, String> hashedKeysByJoined;
