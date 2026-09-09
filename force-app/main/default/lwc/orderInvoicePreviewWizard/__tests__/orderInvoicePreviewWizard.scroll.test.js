@@ -162,6 +162,38 @@ describe("orderInvoicePreviewWizard scroll", () => {
     );
   });
 
+  it("潰れた overflow:hidden 枠ではビューポート残りを高さにする (Core 7.7.0)", async () => {
+    const clip = document.createElement("div");
+    clip.style.overflowY = "hidden";
+    Object.defineProperty(clip, "clientHeight", {
+      configurable: true,
+      get: () => 64
+    });
+    clip.getBoundingClientRect = () => ({
+      top: 0,
+      bottom: 64,
+      left: 0,
+      right: 800,
+      width: 800,
+      height: 64
+    });
+    document.body.appendChild(clip);
+
+    const element = createElement("c-order-invoice-preview-wizard", {
+      is: OrderInvoicePreviewWizard
+    });
+    clip.appendChild(element);
+    await Promise.resolve();
+
+    const page = element.shadowRoot.querySelector(".preview-page");
+    const limit = parseInt(
+      page.style.getPropertyValue("--preview-scroll-max"),
+      10
+    );
+    expect(limit).toBeGreaterThan(240);
+    expect(element.style.height).toBe(`${limit}px`);
+  });
+
   it("下端でも枠のスクローラへホイールを渡さない (Core 7.7.0)", async () => {
     const element = buildWizard();
     await Promise.resolve();

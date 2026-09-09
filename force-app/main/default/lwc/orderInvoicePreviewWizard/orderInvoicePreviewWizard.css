@@ -41,22 +41,18 @@
 .preview-page .preview-body {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: none;
   min-height: 0;
   overflow: visible;
 }
 
 .preview-table-area {
-  flex: 1 1 auto;
+  flex: none;
   width: 100%;
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
   overflow: visible;
-}
-
-.preview-page_tab .preview-table-area {
-  flex: none;
 }
 
 .preview-body {

@@ -79,7 +79,8 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
 
   /**
    * 仕様: Core 第7.7.0節。縦スクローラはボード自身が1本。枠に入れ子しない。
-   * 親クリップの底まで高さを固定し、:host は overflow:hidden。動くのは .preview-page だけ。
+   * 高さはビューポート実測値。潰れた overflow:hidden 枠（見出し分）は使わない。
+   * :host は overflow:hidden。動くのは .preview-page だけ。
    */
   applyScrollSizing() {
     const host = this.template.host;
@@ -105,20 +106,23 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   measureBoardHeight(host, root) {
     const box = (root || host).getBoundingClientRect();
     const top = Math.max(box.top, 0);
-    const clip = this.findViewportClip(host);
-    if (clip) {
-      const bottom = clip.getBoundingClientRect().bottom;
-      return Math.max(bottom - top, 240);
-    }
     const viewportHeight =
       window.innerHeight ||
       (document.scrollingElement || document.documentElement).clientHeight ||
       0;
-    if (!viewportHeight) {
-      return 0;
-    }
     const bottomGap = this.isTabView ? 8 : 24;
-    return Math.max(viewportHeight - top - bottomGap, 240);
+    const viewportAvailable = viewportHeight
+      ? Math.max(viewportHeight - top - bottomGap, 240)
+      : 0;
+    const clip = this.findViewportClip(host);
+    if (clip) {
+      const clipAvailable = clip.getBoundingClientRect().bottom - top;
+      // モーダルが内容に潰れて見出し分しかないときはビューポート残りを正とする
+      if (clipAvailable >= viewportAvailable * 0.5 && clipAvailable >= 240) {
+        return Math.max(clipAvailable, 240);
+      }
+    }
+    return viewportAvailable;
   }
 
   findViewportClip(host) {
