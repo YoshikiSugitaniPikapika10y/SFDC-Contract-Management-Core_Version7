@@ -112,6 +112,17 @@
           </nav>
 
           <div class="est-header-actions">
+            <template if:true={isSaving}>
+              <p class="surface-wait" role="status">
+                <span class="surface-wait-spin">
+                  <lightning-spinner
+                    alternative-text="処理中"
+                    size="small"
+                  ></lightning-spinner>
+                </span>
+                処理中
+              </p>
+            </template>
             <nav class="est-header-nav" aria-label="ウィザード操作">
               <template if:false={isStep1}>
                 <button

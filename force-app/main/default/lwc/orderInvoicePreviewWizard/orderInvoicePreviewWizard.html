@@ -6,6 +6,17 @@
         <template if:true={completionNote}>
           <p class="surface-complete" role="status">{completionNote}</p>
         </template>
+        <template if:true={isSaving}>
+          <p class="surface-wait" role="status">
+            <span class="surface-wait-spin">
+              <lightning-spinner
+                alternative-text="処理中"
+                size="small"
+              ></lightning-spinner>
+            </span>
+            処理中
+          </p>
+        </template>
       </div>
       <button
         type="button"

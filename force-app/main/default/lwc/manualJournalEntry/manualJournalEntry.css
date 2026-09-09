@@ -14,6 +14,22 @@
   color: #1b4332;
 }
 
+.surface-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.surface-wait-spin {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
+}
+
 .ops-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
@@ -49,6 +65,7 @@
 
 .panel-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 

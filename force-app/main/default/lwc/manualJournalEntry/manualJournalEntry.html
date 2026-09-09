@@ -66,6 +66,17 @@
       </template>
     </div>
     <div class="panel-actions">
+      <template if:true={busy}>
+        <p class="surface-wait" role="status">
+          <span class="surface-wait-spin">
+            <lightning-spinner
+              alternative-text="処理中"
+              size="small"
+            ></lightning-spinner>
+          </span>
+          処理中
+        </p>
+      </template>
       <button
         type="button"
         class="solid-btn"
@@ -149,6 +160,17 @@
           </template>
         </div>
         <div class="panel-actions">
+          <template if:true={busy}>
+            <p class="surface-wait" role="status">
+              <span class="surface-wait-spin">
+                <lightning-spinner
+                  alternative-text="処理中"
+                  size="small"
+                ></lightning-spinner>
+              </span>
+              処理中
+            </p>
+          </template>
           <button
             type="button"
             class="ghost-btn"

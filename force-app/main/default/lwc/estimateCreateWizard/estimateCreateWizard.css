@@ -153,6 +153,23 @@
   min-width: 0;
 }
 
+.surface-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.surface-wait-spin {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
+}
+
 .est-header-bar .est-stepper {
   justify-self: center;
 }
