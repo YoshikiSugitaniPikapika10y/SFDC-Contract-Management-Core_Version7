@@ -312,7 +312,6 @@
   padding: 0;
   border: 0;
   background: transparent;
-  cursor: pointer;
 }
 
 .journal-lock-key,
@@ -324,8 +323,16 @@
   line-height: 1;
 }
 
-.journal-lock-key {
-  cursor: pointer;
+.journal-lock-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.journal-row_selected > td {
+  background: #e8f1fb;
 }
 
 .journal-memo-cell {

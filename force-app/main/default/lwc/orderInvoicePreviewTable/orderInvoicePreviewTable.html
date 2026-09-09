@@ -931,6 +931,38 @@
                 </p>
               </template>
               <template if:true={invoice.hasJournals}>
+                <template if:true={invoice.showJournalLockBar}>
+                  <div class="journal-lock-bar">
+                    <template if:true={invoice.showJournalBarLock}>
+                      <button
+                        type="button"
+                        class="ghost-btn"
+                        data-invoice-id={invoice.invoiceId}
+                        onclick={handleLockJournals}
+                      >
+                        {invoice.journalLockBarLabel}
+                      </button>
+                    </template>
+                    <template if:true={invoice.showJournalBarUnlock}>
+                      <lightning-input
+                        label="Unlock理由"
+                        value={invoice.journalUnlockReasonDraft}
+                        maxlength="255"
+                        data-invoice-id={invoice.invoiceId}
+                        onchange={handleJournalBarUnlockReasonChange}
+                      ></lightning-input>
+                      <button
+                        type="button"
+                        class="ghost-btn"
+                        data-invoice-id={invoice.invoiceId}
+                        disabled={invoice.journalBarUnlockDisabled}
+                        onclick={handleUnlockJournals}
+                      >
+                        {invoice.journalUnlockBarLabel}
+                      </button>
+                    </template>
+                  </div>
+                </template>
                 <div class="ops-table-wrap">
                   <table class="ops-table ops-table_journals">
                     <thead>
@@ -960,6 +992,7 @@
                                   checked={journal.journalSelected}
                                   data-invoice-id={invoice.invoiceId}
                                   data-journal-id={journal.journalId}
+                                  onmousedown={handleJournalLockPointer}
                                   onchange={handleJournalLockToggle}
                                 ></lightning-input>
                               </template>
@@ -967,33 +1000,7 @@
                           </td>
                           <td class="journal-lock-cell">
                             <template if:true={journal.showLockKey}>
-                              <template if:true={journal.lockCellLockedClickable}>
-                                <button
-                                  type="button"
-                                  class="journal-lock-key"
-                                  data-invoice-id={invoice.invoiceId}
-                                  data-journal-id={journal.journalId}
-                                  onclick={handleJournalLockCellClick}
-                                  aria-label="Unlock"
-                                >
-                                  🔒
-                                </button>
-                              </template>
-                              <template if:false={journal.lockCellLockedClickable}>
-                                <span class="journal-lock-key-static" aria-hidden="true">🔒</span>
-                              </template>
-                            </template>
-                            <template if:false={journal.showLockKey}>
-                              <template if:true={journal.lockCellUnlockedClickable}>
-                                <button
-                                  type="button"
-                                  class="journal-lock-empty"
-                                  data-invoice-id={invoice.invoiceId}
-                                  data-journal-id={journal.journalId}
-                                  onclick={handleJournalLockCellClick}
-                                  aria-label="Lock"
-                                ></button>
-                              </template>
+                              <span class="journal-lock-key-static" aria-hidden="true">🔒</span>
                             </template>
                           </td>
                           <td>{journal.postingDate}</td>
@@ -1152,30 +1159,6 @@
                       </template>
                     </tbody>
                   </table>
-                </div>
-                <div class="panel-actions">
-                  <template if:true={invoice.showJournalBulkLock}>
-                    <button
-                      type="button"
-                      class="ghost-btn"
-                      data-invoice-id={invoice.invoiceId}
-                      disabled={invoice.journalLockDisabled}
-                      onclick={handleLockJournals}
-                    >
-                      選んだ仕訳をLock
-                    </button>
-                  </template>
-                  <template if:true={invoice.showJournalBulkUnlock}>
-                    <button
-                      type="button"
-                      class="ghost-btn"
-                      data-invoice-id={invoice.invoiceId}
-                      disabled={invoice.journalUnlockDisabled}
-                      onclick={handleUnlockJournals}
-                    >
-                      選んだ仕訳をUnlock
-                    </button>
-                  </template>
                 </div>
               </template>
               <template if:false={invoice.hasJournals}>
@@ -2443,32 +2426,5 @@
 
   <template if:false={hasInvoices}>
     <p class="empty-text">対象がありません。</p>
-  </template>
-  <template if:true={journalUnlockDialog}>
-    <div class="journal-unlock-dialog" role="dialog" aria-label="Unlock理由">
-      <lightning-textarea
-        label="Unlock理由"
-        value={journalUnlockDialogReason}
-        maxlength="255"
-        onchange={handleJournalUnlockDialogReasonChange}
-      ></lightning-textarea>
-      <div class="panel-actions">
-        <button
-          type="button"
-          class="ghost-btn"
-          onclick={handleCancelJournalUnlockDialog}
-        >
-          キャンセル
-        </button>
-        <button
-          type="button"
-          class="ghost-btn"
-          disabled={journalUnlockDialogDisabled}
-          onclick={handleSubmitJournalUnlockDialog}
-        >
-          Unlock
-        </button>
-      </div>
-    </div>
   </template>
 </template>

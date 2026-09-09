@@ -239,13 +239,13 @@ async function waitUntil(predicate, attempts = 50) {
 
 function lockButton(element) {
   return Array.from(element.shadowRoot.querySelectorAll("button")).find(
-    (button) => button.textContent.trim() === "選んだ仕訳をLock"
+    (button) => /件をLock$/.test(button.textContent.trim())
   );
 }
 
 function unlockButton(element) {
   return Array.from(element.shadowRoot.querySelectorAll("button")).find(
-    (button) => button.textContent.trim() === "選んだ仕訳をUnlock"
+    (button) => /件をUnlock$/.test(button.textContent.trim())
   );
 }
 
@@ -324,7 +324,7 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     await openJournalsTab(element);
     expect(lockButton(element)).toBeFalsy();
     expect(unlockButton(element)).toBeFalsy();
-    expect(lockCheckbox(element)).toBeFalsy();
-    expect(lockEmptyButton(element)).toBeTruthy();
+    expect(lockCheckbox(element)).toBeTruthy();
+    expect(lockEmptyButton(element)).toBeFalsy();
   });
 });

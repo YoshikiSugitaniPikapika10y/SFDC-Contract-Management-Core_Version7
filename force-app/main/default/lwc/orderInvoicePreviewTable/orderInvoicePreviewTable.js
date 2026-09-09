@@ -291,7 +291,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   @track memoDrafts = {};
   @track journalMemoDrafts = {};
   @track journalLockSelected = {};
-  @track journalUnlockDialog = null;
+  @track journalLockAnchorByInvoice = {};
+  @track journalUnlockReasonByInvoice = {};
   @track invoiceSplitState = null;
   @track invoiceMoveState = null;
   /** 仕様: Core 第7.8.1節。他の未確定があるときの新規／既存の選択。 */
@@ -1252,17 +1253,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return "取消";
     }
     return status || "";
-  }
-
-  get journalUnlockDialogReason() {
-    return this.journalUnlockDialog?.reason || "";
-  }
-
-  get journalUnlockDialogDisabled() {
-    return (
-      this.isBlankReasonText(this.journalUnlockDialog?.reason) ||
-      this.isUnlockReasonTooLong(this.journalUnlockDialog?.reason)
-    );
   }
 
   documentTemplateLabel(key) {
@@ -2268,23 +2258,41 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             accountingEnabled &&
             !isCancelled &&
             (this.canLockJournal || this.canUnlockJournal),
+          // 仕様: Core 第7.7.3節、Accounting 第9.5節。有効が1行でも左チェック。未選択はボタンなし。
           showJournalSelectCheckbox:
             accountingEnabled &&
             !isCancelled &&
             (this.canLockJournal || this.canUnlockJournal) &&
-            activeJournalCount >= 2,
-          showJournalBulkLock:
+            activeJournalCount >= 1,
+          showJournalBarLock:
             accountingEnabled &&
             !isCancelled &&
             this.canLockJournal &&
-            selectedActiveJournals.length >= 2 &&
-            allSelectedUnlocked,
-          showJournalBulkUnlock:
+            selectedActiveJournals.length >= 1 &&
+            !allSelectedLocked,
+          showJournalBarUnlock:
             accountingEnabled &&
             !isCancelled &&
             this.canUnlockJournal &&
-            selectedActiveJournals.length >= 2 &&
+            selectedActiveJournals.length >= 1 &&
             allSelectedLocked,
+          showJournalLockBar:
+            accountingEnabled &&
+            !isCancelled &&
+            selectedActiveJournals.length >= 1 &&
+            ((this.canLockJournal && !allSelectedLocked) ||
+              (this.canUnlockJournal && allSelectedLocked)),
+          journalLockBarLabel: `${selectedActiveJournals.length}件をLock`,
+          journalUnlockBarLabel: `${selectedActiveJournals.length}件をUnlock`,
+          journalUnlockReasonDraft:
+            this.journalUnlockReasonByInvoice[invoiceId] || "",
+          journalBarUnlockDisabled:
+            this.isBlankReasonText(
+              this.journalUnlockReasonByInvoice[invoiceId]
+            ) ||
+            this.isUnlockReasonTooLong(
+              this.journalUnlockReasonByInvoice[invoiceId]
+            ),
           memoDraft:
             this.memoDrafts[invoiceId] != null
               ? this.memoDrafts[invoiceId]
@@ -2774,6 +2782,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             if (isAuditRow) {
               rowClasses.push("journal-row_audit");
             }
+            if (isActive && this.journalLockSelected?.[invoiceId]?.[journal.journalId] === true) {
+              rowClasses.push("journal-row_selected");
+            }
             const debitParts = splitSlotAccountDisplay(journal.debitAccountName);
             const creditParts = splitSlotAccountDisplay(
               journal.creditAccountName
@@ -2816,16 +2827,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
               this.journalLockSelected?.[invoiceId]?.[journal.journalId] ===
                 true,
             showLockKey: journal.isLocked === true,
-            lockCellUnlockedClickable:
-              !isCancelled &&
-              isActive &&
-              journal.isLocked !== true &&
-              this.canLockJournal === true,
-            lockCellLockedClickable:
-              !isCancelled &&
-              isActive &&
-              journal.isLocked === true &&
-              this.canUnlockJournal === true,
+            lockCellUnlockedClickable: false,
+            lockCellLockedClickable: false,
             memoDraft:
               this.journalMemoDrafts[journal.journalId] != null
                 ? this.journalMemoDrafts[journal.journalId]
@@ -6065,7 +6068,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     );
   }
 
-  // 仕様: Core 第7.7.3節、Accounting 第2.3節・第9.5節、第12.2節
+  // 仕様: Core 第7.7.3節、Accounting 第9.5節。Shift＋クリックは間の選べる行だけ同じON／OFF。
+  handleJournalLockPointer(event) {
+    this._journalLockShift = event.shiftKey === true;
+  }
+
   handleJournalLockToggle(event) {
     const invoiceId = event.target.dataset.invoiceId;
     const journalId = event.target.dataset.journalId;
@@ -6077,17 +6084,51 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
     const journals =
       this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
-    const target = journals.find((journal) => journal.journalId === journalId);
-    if (!target || target.transactionStatus !== "Active") {
+    const displayed = journalDisplayRows(journals);
+    const selectableIds = displayed
+      .filter((journal) => journal.transactionStatus === "Active")
+      .map((journal) => journal.journalId);
+    if (!selectableIds.includes(journalId)) {
       return;
     }
     const checked = event.target.checked === true;
+    const shift = this._journalLockShift === true;
+    this._journalLockShift = false;
+    let idsToSet = [journalId];
+    const anchorId = this.journalLockAnchorByInvoice[invoiceId];
+    if (shift && anchorId) {
+      const from = selectableIds.indexOf(anchorId);
+      const to = selectableIds.indexOf(journalId);
+      if (from >= 0 && to >= 0) {
+        const start = Math.min(from, to);
+        const end = Math.max(from, to);
+        idsToSet = selectableIds.slice(start, end + 1);
+      }
+    }
+    const nextSelected = {
+      ...(this.journalLockSelected[invoiceId] || {})
+    };
+    idsToSet.forEach((id) => {
+      nextSelected[id] = checked;
+    });
+    this.journalLockAnchorByInvoice = {
+      ...this.journalLockAnchorByInvoice,
+      [invoiceId]: journalId
+    };
     this.journalLockSelected = {
       ...this.journalLockSelected,
-      [invoiceId]: {
-        ...(this.journalLockSelected[invoiceId] || {}),
-        [journalId]: checked
-      }
+      [invoiceId]: nextSelected
+    };
+  }
+
+  handleJournalBarUnlockReasonChange(event) {
+    const invoiceId = event.target.dataset.invoiceId;
+    if (!invoiceId) {
+      return;
+    }
+    this.journalUnlockReasonByInvoice = {
+      ...this.journalUnlockReasonByInvoice,
+      [invoiceId]: event.detail.value
     };
   }
 
@@ -6096,27 +6137,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     await this.lockSelectedOrRefuse(invoiceId, this.selectedJournalIds(invoiceId));
   }
 
-  async handleJournalLockCellClick(event) {
+  handleUnlockJournals(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
-    const journalId = event.currentTarget.dataset.journalId;
-    if (!invoiceId || !journalId) {
-      return;
-    }
-    const journals =
-      this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
-    const target = journals.find((journal) => journal.journalId === journalId);
-    if (!target || target.transactionStatus !== "Active") {
-      return;
-    }
-    if (target.isLocked === true) {
-      this.journalUnlockDialog = {
-        invoiceId,
-        journalIds: [journalId],
-        reason: ""
-      };
-      return;
-    }
-    await this.lockSelectedOrRefuse(invoiceId, [journalId]);
+    this.unlockSelectedFromBar(invoiceId, this.selectedJournalIds(invoiceId));
   }
 
   async lockSelectedOrRefuse(invoiceId, journalIds) {
@@ -6180,27 +6203,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
   }
 
-  handleJournalUnlockDialogReasonChange(event) {
-    if (!this.journalUnlockDialog) {
-      return;
-    }
-    this.journalUnlockDialog = {
-      ...this.journalUnlockDialog,
-      reason: event.detail.value
-    };
-  }
-
-  handleCancelJournalUnlockDialog() {
-    this.journalUnlockDialog = null;
-  }
-
-  handleUnlockJournals(event) {
-    const invoiceId = event.currentTarget.dataset.invoiceId;
-    const journalIds = this.selectedJournalIds(invoiceId);
-    this.openJournalUnlockDialog(invoiceId, journalIds);
-  }
-
-  openJournalUnlockDialog(invoiceId, journalIds) {
+  async unlockSelectedFromBar(invoiceId, journalIds) {
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -6234,21 +6237,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
-    this.journalUnlockDialog = {
-      invoiceId,
-      journalIds,
-      reason: ""
-    };
-  }
-
-  async handleSubmitJournalUnlockDialog() {
-    const dialog = this.journalUnlockDialog;
-    if (!dialog) {
-      return;
-    }
-    const invoiceId = dialog.invoiceId;
-    const journalIds = dialog.journalIds || [];
-    if (this.isBlankReasonText(dialog.reason)) {
+    const reason = this.journalUnlockReasonByInvoice[invoiceId];
+    if (this.isBlankReasonText(reason)) {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "Unlockには理由が必要です",
@@ -6257,7 +6247,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
-    if (this.isUnlockReasonTooLong(dialog.reason)) {
+    if (this.isUnlockReasonTooLong(reason)) {
       this.dispatchEvent(
         new ShowToastEvent({
           title: "Unlock理由は255文字以内で指定してください。",
@@ -6271,12 +6261,15 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       await unlockJournalsForInvoice({
         invoiceId,
         journalIds,
-        reason: dialog.reason,
+        reason,
         expectedToken: this.findInvoice(invoiceId)?.lastModifiedToken,
         businessOperationKey: key
       });
       this.clearPendingOperationKey(invoiceId);
-      this.journalUnlockDialog = null;
+      this.journalUnlockReasonByInvoice = {
+        ...this.journalUnlockReasonByInvoice,
+        [invoiceId]: ""
+      };
       this.journalLockSelected = {
         ...this.journalLockSelected,
         [invoiceId]: {}

@@ -239,13 +239,13 @@ async function waitUntil(predicate, attempts = 50) {
 
 function lockButton(element) {
   return Array.from(element.shadowRoot.querySelectorAll("button")).find(
-    (button) => button.textContent.trim() === "選んだ仕訳をLock"
+    (button) => /件をLock$/.test(button.textContent.trim())
   );
 }
 
 function unlockButton(element) {
   return Array.from(element.shadowRoot.querySelectorAll("button")).find(
-    (button) => button.textContent.trim() === "選んだ仕訳をUnlock"
+    (button) => /件をUnlock$/.test(button.textContent.trim())
   );
 }
 
