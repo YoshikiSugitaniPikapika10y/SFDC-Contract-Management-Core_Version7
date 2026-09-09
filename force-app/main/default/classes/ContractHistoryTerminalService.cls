@@ -45,24 +45,10 @@ public without sharing class ContractHistoryTerminalService {
       return errors;
     }
 
-    // 仕様: Core 第12.4節。同一処理で読んだ最新 Ordered を Cancel 終端判定に使う。
-    Map<Id, Decimal> cancelVersionByServiceId = new Map<Id, Decimal>();
-    for (Id serviceId : serviceIds) {
-      ContractHistory__c latest = EstimateQueryService.queryLatestActiveOrderedHistory(
-        serviceId
-      );
-      if (
-        latest != null &&
-        latest.Type__c == HISTORY_TYPE_CANCEL &&
-        latest.Version__c != null
-      ) {
-        putMaxVersion(
-          cancelVersionByServiceId,
-          serviceId,
-          latest.Version__c
-        );
-      }
-    }
+    // 仕様: Core 第6.4節、第12.4節。Cancel Ordered の最大 Version を1照会で取る。
+    Map<Id, Decimal> cancelVersionByServiceId = EstimateQueryService.queryMaxCancelOrderedVersionByServiceIds(
+      serviceIds
+    );
 
     // before insert の同一 DML 内に Cancel と後続が含まれる場合も塞ぐ。
     for (ContractHistory__c history : histories) {

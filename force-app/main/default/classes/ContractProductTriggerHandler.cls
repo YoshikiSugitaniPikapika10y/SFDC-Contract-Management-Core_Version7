@@ -164,6 +164,9 @@ public without sharing class ContractProductTriggerHandler {
     ContractArrCalculationService.recalculateForHistories(
       collectArrHistoryIds(newProducts, oldMap)
     );
+    InvoiceProductGenerationService.forgetContractProductsForHistories(
+      collectHistoryIds(newProducts, oldMap)
+    );
   }
 
   public static void handleAfterDelete(List<ContractProduct__c> oldProducts) {
@@ -174,6 +177,9 @@ public without sharing class ContractProductTriggerHandler {
       }
     }
     ContractArrCalculationService.recalculateForHistories(historyIds);
+    InvoiceProductGenerationService.forgetContractProductsForHistories(
+      historyIds
+    );
   }
 
   private static Set<Id> collectHistoryIds(

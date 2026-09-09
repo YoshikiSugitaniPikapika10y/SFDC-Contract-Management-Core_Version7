@@ -171,6 +171,19 @@ public without sharing class InvoiceProductGenerationService {
       : new List<ContractProduct__c>(cached);
   }
 
+  /**
+   * 仕様: Core 第6.6節、第12.4節。
+   * 見積商品が変わったあとの再受注・再生成は、同一処理の照会済み行を使い続けない。
+   */
+  public static void forgetContractProductsForHistories(Set<Id> historyIds) {
+    if (historyIds == null || historyIds.isEmpty()) {
+      return;
+    }
+    for (Id historyId : historyIds) {
+      cachedContractProductsByHistoryId.remove(historyId);
+    }
+  }
+
   private static void generateForHistoriesBody(
     Set<Id> contractHistoryIds,
     Boolean replaceExistingPeriodLines,
@@ -283,7 +296,8 @@ public without sharing class InvoiceProductGenerationService {
       if (historyContext.historyType == HISTORY_TYPE_CHANGE) {
         PastPeriodKeyContext pastContext = loadPastPeriodKeyContext(
           historyContext.contractServiceId,
-          historyContext.version
+          historyContext.version,
+          historyContext.historyId
         );
         invoiceProductsToInsert.addAll(
           buildChangeInvoiceProducts(
@@ -695,17 +709,19 @@ public without sharing class InvoiceProductGenerationService {
   /** Change past 累計と打消しサンプルを1クエリで構築する */
   private static PastPeriodKeyContext loadPastPeriodKeyContext(
     Id contractServiceId,
-    Decimal currentVersion
+    Decimal currentVersion,
+    Id currentHistoryId
   ) {
     PastPeriodKeyContext context = new PastPeriodKeyContext();
-    if (contractServiceId == null || currentVersion == null) {
+    if (contractServiceId == null) {
       return context;
     }
 
     for (
       InvoiceProduct__c invoiceProduct : queryPastOrderedInvoiceProducts(
         contractServiceId,
-        currentVersion
+        currentVersion,
+        currentHistoryId
       )
     ) {
       String periodKey = InvoiceProductMergeKeyUtil.buildPeriodKey(
@@ -1721,7 +1737,8 @@ public without sharing class InvoiceProductGenerationService {
 
   private static List<InvoiceProduct__c> queryPastOrderedInvoiceProducts(
     Id contractServiceId,
-    Decimal currentVersion
+    Decimal currentVersion,
+    Id currentHistoryId
   ) {
     Set<String> selectFields = new Set<String>{
       'StartDate__c',
@@ -1754,15 +1771,25 @@ public without sharing class InvoiceProductGenerationService {
     selectList.add('ContractProduct__r.Unit__c');
     selectList.add('ContractProduct__r.BillingType__c');
     selectList.add('ContractProduct__r.Product__r.BillingType__c');
+    selectList.add('ContractHistory__c');
     selectList.add('ContractHistory__r.ContractService__c');
+    selectList.add('ContractHistory__r.Version__c');
+    selectList.add('ContractHistory__r.historystatus__c');
 
     String soql =
       'SELECT ' +
       String.join(selectList, ',') +
       ' FROM InvoiceProduct__c' +
       ' WHERE ContractHistory__r.ContractService__c = :contractServiceId' +
-      ' AND ContractHistory__r.historystatus__c = :HISTORY_STATUS_ORDERED' +
-      ' AND ContractHistory__r.Version__c < :currentVersion' +
+      ' AND ContractHistory__r.historystatus__c = :HISTORY_STATUS_ORDERED';
+    if (currentHistoryId != null) {
+      soql += ' AND ContractHistory__c != :currentHistoryId';
+    }
+    if (currentVersion != null) {
+      soql +=
+        ' AND (ContractHistory__r.Version__c = null OR ContractHistory__r.Version__c < :currentVersion)';
+    }
+    soql +=
       ' WITH SYSTEM_MODE' +
       ' ORDER BY ContractHistory__r.Version__c DESC, CreatedDate DESC, Id DESC';
     return (List<InvoiceProduct__c>) Database.query(soql);
@@ -1804,6 +1831,7 @@ public without sharing class InvoiceProductGenerationService {
     }
 
     String billingType = resolveBillingType(contractProduct);
+    Boolean isOneTimeBilling = isOneTimeBillingType(billingType);
     Boolean usesBulkInvoiceDate = ContractMetadataService.usesBulkContractProductInvoiceDate(
       invoiceSetting
     );
@@ -1815,6 +1843,7 @@ public without sharing class InvoiceProductGenerationService {
       );
     }
     if (
+      !isOneTimeBilling &&
       billingType == BILLING_TYPE_RECURRING &&
       ContractMetadataService.isRecurringBillingType(billingType)
     ) {
@@ -1868,6 +1897,9 @@ public without sharing class InvoiceProductGenerationService {
     InvoiceGenerationContext context
   ) {
     Date startDate = contractProduct.StartDate__c;
+    if (isOneTimeBillingType(resolveBillingType(contractProduct))) {
+      return startDate;
+    }
     if (isOriginalProductType(contractProduct)) {
       return startDate;
     }
@@ -1936,10 +1968,7 @@ public without sharing class InvoiceProductGenerationService {
     ContractProduct__c contractProduct,
     HistoryGenerationContext historyContext
   ) {
-    if (
-      contractProduct == null ||
-      contractProduct.InvoiceAnchorDate__c != null
-    ) {
+    if (contractProduct == null) {
       return;
     }
     InvoiceAnchorDateUtil.applyToContractProduct(

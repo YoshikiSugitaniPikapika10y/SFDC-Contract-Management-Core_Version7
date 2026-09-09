@@ -297,7 +297,11 @@ public without sharing class EstimateValidationService {
         '解約済みの契約履歴から追加変更は作成できません。'
       );
     }
-    if (!EstimateQueryService.isRenewEligibleHistory(previousHistory)) {
+    // 仕様: Core 第4.4.2節。一回課金だけの Change はヘッダー終了到達の対象外。
+    if (
+      !isChangeOneTimeAddOnly(request.products) &&
+      !EstimateQueryService.isRenewEligibleHistory(previousHistory)
+    ) {
       throw new ChangeConsistencyException(
         '前回の版の期間終了日と一致する継続課金商品がないため追加変更できません。'
       );
@@ -790,7 +794,7 @@ public without sharing class EstimateValidationService {
     if (lifecycle != ContractDomainConstants.LIFECYCLE_TERM) {
       throw wrapAura('Lifecycleが不正です。');
     }
-    validateChangeEligibility(request.previousHistoryId);
+    validateChangeEligibility(request.previousHistoryId, request.products);
     validateChangePeriodDates(request);
     validateProductLines(request.products, true);
     if (!isChangeOneTimeAddOnly(request.products)) {
@@ -801,18 +805,29 @@ public without sharing class EstimateValidationService {
   }
 
   public static void validateChangeEligibility(Id previousHistoryId) {
+    validateChangeEligibility(previousHistoryId, null);
+  }
+
+  public static void validateChangeEligibility(
+    Id previousHistoryId,
+    List<EstimateCreateController.ProductLineItem> products
+  ) {
     ContractHistory__c previousHistory = loadPreviousHistoryTerm(
       previousHistoryId
     );
     if (previousHistory.Type__c == HISTORY_TYPE_CANCEL) {
       throw wrapAura('解約済みの契約履歴から追加変更は作成できません。');
     }
-    // Renew / Cancel と同じ: 期間終了日まで届く継続課金が必須
-    if (!EstimateQueryService.isRenewEligibleHistory(previousHistory)) {
-      throw wrapAura(
-        '前回の版の期間終了日と一致する継続課金商品がないため追加変更できません。'
-      );
+    // 仕様: Core 第4.4.2節。一回課金だけの Change は継続課金終了日到達の対象外。
+    if (
+      isChangeOneTimeAddOnly(products) ||
+      EstimateQueryService.isRenewEligibleHistory(previousHistory)
+    ) {
+      return;
     }
+    throw wrapAura(
+      '前回の版の期間終了日と一致する継続課金商品がないため追加変更できません。'
+    );
   }
 
   public static ContractHistory__c loadPreviousHistoryTerm(
@@ -944,6 +959,8 @@ public without sharing class EstimateValidationService {
       request.contractEndDate
     );
 
+    Boolean oneTimeAddOnly = isChangeOneTimeAddOnly(request.products);
+
     for (Integer i = 0; i < request.products.size(); i++) {
       EstimateCreateController.ProductLineItem line = request.products[i];
       Integer rowNumber = i + 1;
@@ -951,7 +968,10 @@ public without sharing class EstimateValidationService {
         line.recordType
       );
 
-      if (EstimateCreateSupport.isChangeOriginalLine(line)) {
+      if (
+        !oneTimeAddOnly &&
+        EstimateCreateSupport.isChangeOriginalLine(line)
+      ) {
         if (line.sourceContractProductId == null) {
           throw wrapAura(
             '商品明細' +
@@ -975,7 +995,10 @@ public without sharing class EstimateValidationService {
         continue;
       }
 
-      if (EstimateCreateSupport.isChangeRemakeLine(line)) {
+      if (
+        !oneTimeAddOnly &&
+        EstimateCreateSupport.isChangeRemakeLine(line)
+      ) {
         if (line.sourceContractProductId == null) {
           throw wrapAura(
             '商品明細' +
@@ -1060,7 +1083,8 @@ public without sharing class EstimateValidationService {
       }
     }
 
-    for (ContractProduct__c source : sourceProducts) {
+    if (!oneTimeAddOnly) {
+      for (ContractProduct__c source : sourceProducts) {
       if (!originalBySourceId.containsKey(source.Id)) {
         throw wrapAura(
           '前回の版の継続課金商品すべてに変更前の行が必要です。'
@@ -1088,6 +1112,7 @@ public without sharing class EstimateValidationService {
       );
       if (midTermError != null) {
         throw wrapAura(midTermError);
+      }
       }
     }
 

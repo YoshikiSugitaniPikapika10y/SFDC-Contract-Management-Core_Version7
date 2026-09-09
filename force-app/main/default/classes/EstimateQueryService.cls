@@ -337,6 +337,38 @@ public without sharing class EstimateQueryService {
     return histories[0];
   }
 
+  /**
+   * 仕様: Core 第6.4節、第12.4節。
+   * Cancel Ordered の最大 Version をサービス単位で1回取る。Latest Ordered キャッシュは使わない。
+   */
+  public static Map<Id, Decimal> queryMaxCancelOrderedVersionByServiceIds(
+    Set<Id> serviceIds
+  ) {
+    Map<Id, Decimal> cancelVersionByServiceId = new Map<Id, Decimal>();
+    if (serviceIds == null || serviceIds.isEmpty()) {
+      return cancelVersionByServiceId;
+    }
+    for (ContractHistory__c history : [
+      SELECT ContractService__c, Version__c
+      FROM ContractHistory__c
+      WHERE
+        ContractService__c IN :serviceIds
+        AND historystatus__c = :HISTORY_STATUS_ORDERED
+        AND Type__c = :HISTORY_TYPE_CANCEL
+        AND Version__c != NULL
+      WITH SYSTEM_MODE
+    ]) {
+      Decimal current = cancelVersionByServiceId.get(history.ContractService__c);
+      if (current == null || history.Version__c > current) {
+        cancelVersionByServiceId.put(
+          history.ContractService__c,
+          history.Version__c
+        );
+      }
+    }
+    return cancelVersionByServiceId;
+  }
+
   private static Boolean isActiveOrderedType(String historyType) {
     return historyType == HISTORY_TYPE_NEW ||
       historyType == HISTORY_TYPE_CHANGE ||
