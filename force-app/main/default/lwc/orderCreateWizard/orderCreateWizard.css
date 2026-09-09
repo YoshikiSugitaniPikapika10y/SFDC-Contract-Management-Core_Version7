@@ -64,7 +64,7 @@
 
 .ord-subtitle {
   margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: #64748b;
 }
 
@@ -81,7 +81,7 @@
   background: #ecfdf5;
   border: 1px solid #a7f3d0;
   color: #047857;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -173,7 +173,7 @@
 }
 
 .ord-stepper-label {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -211,7 +211,7 @@
 .ord-btn {
   padding: 0.4375rem 1rem;
   border-radius: 6px;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
@@ -307,7 +307,7 @@
 
 .ord-card-subtitle {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: #64748b;
   line-height: 1.5;
 }
@@ -359,7 +359,7 @@
 .ord-version {
   margin-left: 0.375rem;
   color: #64748b;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .ord-table-wrap {
@@ -369,7 +369,7 @@
 .ord-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .ord-table th,
@@ -429,7 +429,7 @@
 
 .confirm-history-title {
   margin: 0 0 0.5rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: #3e3e3c;
 }
@@ -523,7 +523,7 @@
 
 .confirm-subtitle {
   margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.4;
   color: #706e6b;
 }
@@ -557,7 +557,7 @@
 .confirm-list {
   margin: 0.625rem 0 0;
   padding: 0 0 0 1.125rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.55;
   color: #514f4d;
 }
@@ -581,7 +581,7 @@
 .btn {
   padding: 0.4375rem 0.9375rem;
   border-radius: 0.375rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid #c9c7c5;
@@ -617,7 +617,7 @@
   margin: 0 0 0.75rem;
   padding: 0.625rem 0.75rem;
   border-radius: 0.375rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.5;
   white-space: pre-wrap;
 }

@@ -3,7 +3,7 @@
     <template if:true={completionNote}>
       <p class="surface-complete" role="status">{completionNote}</p>
     </template>
-    <p class="ops-form-title">手動仕訳を登録</p>
+    <h3 class="ops-form-title">手動仕訳を登録</h3>
     <div class="ops-form-grid">
       <div>
         <lightning-combobox
@@ -120,66 +120,69 @@
                   </template>
                 </td>
               </tr>
+              <template if:true={header.isCancelOpen}>
+                <tr key={header.cancelRowKey} class="ops-inline-form-row">
+                  <td colspan="5">
+                    <div class="ops-form">
+                      <h3 class="ops-form-title">手動仕訳の取消</h3>
+                      <div class="ops-form-grid">
+                        <lightning-combobox
+                          label="取消理由"
+                          value={cancelReason}
+                          options={cancelReasonOptions}
+                          data-field="cancelReason"
+                          onchange={handleFieldChange}
+                          disabled={busy}
+                          required
+                        ></lightning-combobox>
+                        <lightning-input
+                          label="取消理由の内容"
+                          value={cancelReasonText}
+                          data-field="cancelReasonText"
+                          onchange={handleFieldChange}
+                          disabled={busy}
+                          required={cancelReasonTextRequired}
+                        ></lightning-input>
+                        <template if:true={cancelRequiresDate}>
+                          <lightning-input
+                            type="date"
+                            label="取消基準日"
+                            value={cancelDate}
+                            data-field="cancelDate"
+                            onchange={handleFieldChange}
+                            disabled={busy}
+                            required
+                          ></lightning-input>
+                        </template>
+                      </div>
+                      <div class="panel-actions">
+                        <template if:true={busy}>
+                          <p class="surface-wait" role="status">
+                            <span class="surface-wait-spin">
+                              <lightning-spinner
+                                alternative-text="処理中"
+                                size="small"
+                              ></lightning-spinner>
+                            </span>
+                            処理中
+                          </p>
+                        </template>
+                        <button
+                          type="button"
+                          class="ghost-btn"
+                          onclick={handleCancel}
+                          disabled={cancelConfirmDisabled}
+                        >
+                          取り消す
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </template>
           </tbody>
         </table>
-      </div>
-    </template>
-
-    <template if:true={cancelHeaderId}>
-      <div class="ops-form">
-        <p class="ops-form-title">手動仕訳の取消</p>
-        <div class="ops-form-grid">
-          <lightning-combobox
-            label="取消理由"
-            value={cancelReason}
-            options={cancelReasonOptions}
-            data-field="cancelReason"
-            onchange={handleFieldChange}
-            disabled={busy}
-            required
-          ></lightning-combobox>
-          <lightning-input
-            label="取消理由の内容"
-            value={cancelReasonText}
-            data-field="cancelReasonText"
-            onchange={handleFieldChange}
-            disabled={busy}
-            required={cancelReasonTextRequired}
-          ></lightning-input>
-          <template if:true={cancelRequiresDate}>
-            <lightning-input
-              type="date"
-              label="取消基準日"
-              value={cancelDate}
-              data-field="cancelDate"
-              onchange={handleFieldChange}
-              disabled={busy}
-              required
-            ></lightning-input>
-          </template>
-        </div>
-        <div class="panel-actions">
-          <template if:true={busy}>
-            <p class="surface-wait" role="status">
-              <span class="surface-wait-spin">
-                <lightning-spinner
-                  alternative-text="処理中"
-                  size="small"
-                ></lightning-spinner>
-              </span>
-              処理中
-            </p>
-          </template>
-          <button
-            type="button"
-            class="ghost-btn"
-            onclick={handleCancel}
-            disabled={cancelConfirmDisabled}
-          >
-            取り消す
-          </button>
-        </div>
       </div>
     </template>
   </div>

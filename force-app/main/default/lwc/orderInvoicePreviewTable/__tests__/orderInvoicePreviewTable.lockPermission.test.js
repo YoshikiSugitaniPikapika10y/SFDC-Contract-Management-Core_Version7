@@ -418,7 +418,7 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     expect(rowText()).toContain("請求本体");
     expect(rowText()).toContain("入金");
     const monthFilter = element.shadowRoot.querySelector(
-      "lightning-combobox[name='journalPostingMonth']"
+      "lightning-combobox[data-filter='postingMonth']"
     );
     monthFilter.dispatchEvent(
       new CustomEvent("change", { detail: { value: "2026-06" } })

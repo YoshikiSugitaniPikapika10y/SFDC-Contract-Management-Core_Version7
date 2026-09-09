@@ -201,6 +201,16 @@
   color: var(--preview-warn);
 }
 
+.invoice-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.625rem;
+  margin-top: 0.5rem;
+  min-width: 0;
+  font-size: 0.75rem;
+}
+
 .invoice-status-meta {
   display: flex;
   flex-wrap: wrap;
@@ -249,6 +259,8 @@
 }
 
 .ops-panel {
+  display: flex;
+  flex-direction: column;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--preview-border);
   background: var(--preview-surface);
@@ -270,15 +282,16 @@
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
-  font-size: 0.75rem;
+  font-size: var(--preview-font-table);
 }
 
 .ops-table th,
 .ops-table td {
-  padding: 0.35rem 0.5rem;
+  padding: 0.28rem 0.45rem;
   border-bottom: 1px solid var(--preview-row-rule);
   text-align: left;
   vertical-align: middle;
+  line-height: 1.25;
 }
 
 .ops-table_journals {
@@ -328,7 +341,33 @@
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.5rem;
-  margin: 0 0 0.5rem;
+  margin: 0;
+  padding: 0.35rem 0.45rem 0.45rem;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--preview-surface);
+}
+
+.journal-scroll {
+  max-height: min(70vh, 36rem);
+  overflow: auto;
+}
+
+.journal-scroll .ops-table-wrap {
+  margin-bottom: 0;
+}
+
+.journal-scroll .ops-table_journals thead th {
+  position: sticky;
+  top: 2.75rem;
+  z-index: 2;
+}
+
+.ops-table_journals th lightning-combobox {
+  display: block;
+  min-width: 7.5rem;
+  margin-top: 0.2rem;
 }
 
 .journal-row_selected > td {
@@ -394,7 +433,7 @@
 .ops-table th {
   color: var(--preview-muted);
   background: var(--preview-surface-muted);
-  font-size: 0.75rem;
+  font-size: var(--preview-font-table-head);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -422,8 +461,21 @@
 .ops-form-title {
   margin: 0;
   color: var(--preview-text);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 700;
+}
+
+.ops-form_register {
+  order: -1;
+}
+
+.ops-inline-form-row td {
+  padding: 0.5rem 0.45rem;
+  background: var(--preview-surface-muted);
+}
+
+.ops-table lightning-input {
+  --slds-c-input-sizing-min-height: 1.55rem;
 }
 
 .ops-readonly {
@@ -555,6 +607,10 @@
 }
 
 .invoice-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
   margin: 0;
   flex: 0 0 auto;
 }

@@ -1851,6 +1851,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
                     ""
                   : line.acceptanceEndDate || "",
               // 仕様: Core 第7.6節・第1.1.5節・第12.2節。取消済みは参照だけ。
+              showAcceptanceCancelForm:
+                this.invoiceUiState[invoiceId]?.acceptanceDraft?.lineId ===
+                lineId,
               showAcceptanceEndDateInput:
                 accountingEnabled &&
                 this.canEdit &&
@@ -2167,7 +2170,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
               !isCancelled,
             isPaymentEditOpen:
               this.paymentEditState?.invoiceId === invoiceId &&
-              this.paymentEditState?.paymentId === payment.paymentId
+              this.paymentEditState?.paymentId === payment.paymentId,
+            showPaymentCancelForm:
+              Boolean(cancelDraft) &&
+              cancelDraft.paymentId === payment.paymentId,
+            editRowKey: `${payment.paymentId}-edit`,
+            cancelRowKey: `${payment.paymentId}-cancel`
           }));
         const opsBusy = this.invoiceOpsProcessingId != null;
         const purpose = paymentDraft?.purpose || "Invoice";
@@ -2343,6 +2351,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
               : invoice.memo || "",
           isInvoiceCancelOpen:
             this.invoiceCancelState?.invoiceId === invoiceId,
+          isCardWorkOpen:
+            this.invoiceCancelState?.invoiceId === invoiceId ||
+            isBillingEditOpen ||
+            isInvoiceIssueOpen ||
+            isInvoiceSendOpen,
           requiresCustomerNotice: invoice.deliveryStatus === "Sent",
           customerNotice:
             invoice.deliveryStatus === "Sent" ? CUSTOMER_CANCEL_NOTICE : "",
@@ -2677,6 +2690,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             ? this.billingEditState.taxPercent
             : this.billingEditTaxPercent(invoice.taxPercent),
           activeTab,
+          showJournalWorkStrip:
+            accountingEnabled && activeTab === "journals",
           isLinesTab: activeTab === "lines",
           isPaymentsTab: activeTab === "payments",
           // 仕様: Accounting 第1.1節。OFFは仕訳タブ内容を出さない。
@@ -3145,7 +3160,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     this.invoiceSendState = null;
-    this.updateInvoiceUiState(invoiceId, { activeTab: "lines" });
     this.invoiceIssueState = {
       invoiceId,
       documentTemplateKey: this.defaultInvoiceDocumentTemplateKey,
@@ -3239,7 +3253,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     this.invoiceIssueState = null;
-    this.updateInvoiceUiState(invoiceId, { activeTab: "lines" });
     this.invoiceSendState = {
       invoiceId,
       documentTemplateKey: this.defaultInvoiceDocumentTemplateKey,
@@ -5506,7 +5519,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!invoice || this.isCancelledInvoice(invoice)) {
       return;
     }
-    this.updateInvoiceUiState(invoiceId, { activeTab: "lines" });
     this.invoiceSplitState = null;
     this.invoiceMoveState = null;
     this.invoiceDestinationChoiceState = null;

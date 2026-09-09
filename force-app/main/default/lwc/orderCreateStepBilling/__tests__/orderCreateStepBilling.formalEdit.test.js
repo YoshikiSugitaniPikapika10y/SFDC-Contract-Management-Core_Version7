@@ -81,7 +81,7 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
       isMissingBillingFieldValue:
         OrderCreateStepBilling.prototype.isMissingBillingFieldValue,
       _billingCustomFields: {},
-      [NavigationMixin.Navigate]: navigate
+      [Symbol.for("NavigationMixin.Navigate")]: navigate
     };
 
     const opened =

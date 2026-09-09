@@ -23,7 +23,7 @@
 
 .ba-help {
   margin: 0 0 0.625rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--ba-muted);
   line-height: 1.45;
 }
@@ -47,7 +47,7 @@
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 @media (max-width: 720px) {

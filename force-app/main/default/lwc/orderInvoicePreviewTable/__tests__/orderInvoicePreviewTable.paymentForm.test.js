@@ -1497,43 +1497,28 @@ describe("orderInvoicePreviewTable payment form", () => {
     element.preview = buildPreview();
     element.contractHistoryId = "a0H000000000001AAA";
     document.body.appendChild(element);
-    const dispatchSpy = jest.spyOn(element, "dispatchEvent");
     await flush();
     await openPaymentsTab(element);
 
-    const amountInput = element.shadowRoot.querySelector(
-      'lightning-input[data-field="amount"]'
-    );
-    amountInput.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "100" } })
-    );
+    const saveButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "追加");
+    saveButton.click();
     await flush();
+    await flush();
+    const cancelDate = element.shadowRoot.querySelector(
+      'lightning-input[data-field="cancellationDate"]'
+    );
+    expect(cancelDate).not.toBeNull();
+    expect(cancelDate.value).toBe("2026-08-29");
     Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
       .find((button) => button.textContent.trim() === "追加")
       .click();
     await flush();
     await flush();
-    const cancelDate = await waitUntil(() =>
-      element.shadowRoot.querySelector(
-        'lightning-input[data-field="cancellationDate"]'
-      )
-    );
-    cancelDate.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "2026-08-29" } })
-    );
-    await flush();
-    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
-      .find((button) => button.textContent.trim() === "追加")
-      .click();
-    const toast = await waitUntil(() =>
-      dispatchSpy.mock.calls
-        .map((args) => args[0])
-        .find((evt) => evt?.detail?.title === "入出金を追加しました")
-    );
-    expect(toast).toBeTruthy();
-    expect(String(toast.detail.message || "")).not.toContain("逆仕訳件数");
-    expect(String(toast.detail.message || "")).not.toContain("論理削除件数");
     expect(savePaymentFromPreview).toHaveBeenCalled();
+    expect(String(element.completionNote || "")).not.toContain("逆仕訳件数");
+    expect(String(element.completionNote || "")).not.toContain("論理削除件数");
     expect(savePaymentFromPreview.mock.calls[0][0].businessOperationKey).toBe(
       "op-key-1"
     );

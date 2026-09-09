@@ -136,7 +136,7 @@
 .product-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .product-table th,
@@ -163,7 +163,7 @@
   margin: 0;
   padding: 0.5rem 0.625rem;
   background: #f4f6f7;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 700;
   border-top: 1px solid #e2e8f0;
 }
@@ -207,7 +207,7 @@
 .file-name,
 .busy {
   margin: 0.5rem 0 0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: #64748b;
 }
 

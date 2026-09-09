@@ -149,7 +149,9 @@ export default class ManualJournalEntry extends LightningElement {
       ...header,
       transactionStatusLabel:
         header.transactionStatusLabel ||
-        this.manualJournalStatusLabel(header.transactionStatus)
+        this.manualJournalStatusLabel(header.transactionStatus),
+      isCancelOpen: this.cancelHeaderId === header.headerId,
+      cancelRowKey: `${header.headerId}-cancel`
     }));
   }
 

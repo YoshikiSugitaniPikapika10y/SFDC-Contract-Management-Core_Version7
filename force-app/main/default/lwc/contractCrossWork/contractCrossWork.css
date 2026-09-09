@@ -84,7 +84,7 @@
 .btn {
   border-radius: 0.5rem;
   padding: 0.4rem 0.75rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .btn_secondary {
@@ -116,7 +116,7 @@
 .alert {
   margin: 0;
   padding: 0.5rem 1rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .alert_error {
@@ -201,7 +201,7 @@
   color: #181818;
   border-radius: 0.5rem;
   padding: 0.25rem 0.65rem;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -330,7 +330,7 @@
 .cross-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
 }
 
 .cross-table th,
