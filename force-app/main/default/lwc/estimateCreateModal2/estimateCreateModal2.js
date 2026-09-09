@@ -607,6 +607,16 @@ export default class EstimateCreateModal2 extends NavigationMixin(
     this.maybeAutoSelectBillingAccount();
   }
 
+  handleBillingAccountsRetry() {
+    this.billingAccountsLoadError = "";
+    return refreshApex(this._wiredRelatedBillingAccounts);
+  }
+
+  handleContractServicesRetry() {
+    this.contractServicesLoadError = "";
+    return refreshApex(this._wiredActiveContractServices);
+  }
+
   @wire(getActiveContractServicesByAccount, {
     accountId: "$opportunityAccountId"
   })

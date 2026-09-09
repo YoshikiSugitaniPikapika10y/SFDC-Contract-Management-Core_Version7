@@ -72,7 +72,7 @@ describe("estimateSendRecordAction without Loop_05 (共通基盤 10.4)", () => {
     await Promise.resolve();
 
     expect(element.shadowRoot.textContent).toContain(
-      "見積を送る権限がありません。"
+      "この操作の権限がありません。"
     );
   });
 });

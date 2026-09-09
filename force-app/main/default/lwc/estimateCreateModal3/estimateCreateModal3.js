@@ -428,6 +428,22 @@ export default class EstimateCreateModal3 extends LightningElement {
     this.loadAccountingPolicy();
   }
 
+  handleReloadChangeProducts() {
+    this.changeLoadError = "";
+    return this.loadChangeProducts();
+  }
+
+  handleReloadRenewProducts() {
+    this.renewLoadError = "";
+    return this.loadRenewProducts();
+  }
+
+  handleReloadCancelLoad() {
+    this.cancelLoadError = "";
+    this.initCancelEligibility();
+    return this.loadHistoryDates();
+  }
+
   get showRevenueRecognitionColumn() {
     return (
       this.accountingPolicyResolved === true && this.accountingEnabled === true

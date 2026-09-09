@@ -1,7 +1,7 @@
 :host {
   display: block;
   /* ラベルはパネル共通、値は明細の請求設定（一括前払など）と同じ control サイズ */
-  --est-font-label: calc(0.75rem * var(--est-density, 1));
+  --est-font-label: 0.875rem;
   --est-font-control: calc(0.9rem * var(--est-density, 1));
   --est-font-meta: calc(0.8125rem * var(--est-density, 1));
   --est-input-height: calc(2.125rem * var(--est-density, 1));

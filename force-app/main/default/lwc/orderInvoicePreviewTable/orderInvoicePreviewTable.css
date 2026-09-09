@@ -23,7 +23,7 @@
   --preview-row-rule: #e2e8f0;
   --preview-font-table: 0.875rem;
   --preview-font-table-head: 0.8125rem;
-  --preview-font-meta: 0.6875rem;
+  --preview-font-meta: 0.75rem;
 }
 
 .version-filter-row {
@@ -117,7 +117,7 @@
 
 .amount-compare-k {
   color: var(--preview-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -325,7 +325,7 @@
   display: inline-block;
   margin-left: 0.25rem;
   padding: 0.15rem 0.4rem;
-  font-size: 0.7rem;
+  font-size: 0.875rem;
   vertical-align: middle;
 }
 
@@ -347,7 +347,7 @@
 .ops-table th {
   color: var(--preview-muted);
   background: var(--preview-surface-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -393,13 +393,13 @@
 .ops-readonly dt {
   margin: 0;
   color: #475569;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
 }
 
 .ops-readonly dd {
   margin: 0.125rem 0 0;
   color: var(--preview-text);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -529,7 +529,7 @@
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.3;
-  overflow: clip;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -558,7 +558,7 @@
 
 .invoice-meta-k {
   color: var(--preview-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -690,7 +690,7 @@
   border-radius: 999px;
   background: var(--preview-accent-soft);
   color: var(--preview-accent-dark);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
@@ -878,7 +878,7 @@
 
 .split-pane-kicker {
   margin: 0 0 0.15rem;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.2;
@@ -961,7 +961,7 @@
 
 .split-field-label {
   color: var(--preview-muted);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.2;
 }
@@ -1004,7 +1004,7 @@
 }
 
 .split-table-caption-hint {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--preview-accent-dark);
 }
@@ -1063,7 +1063,7 @@
   color: var(--preview-muted);
   font-size: 0.75rem;
   white-space: nowrap;
-  overflow: clip;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
@@ -1220,7 +1220,7 @@
 
 .split-factor-k {
   color: var(--preview-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.2;
@@ -1326,7 +1326,7 @@
 }
 
 .split-formula-label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: #64748b;
 }
 
@@ -1344,13 +1344,13 @@
 }
 
 .split-formula-error {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: #b91c1c;
   line-height: 1.3;
 }
 
 .split-formula-hint {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: #64748b;
   line-height: 1.3;
 }
@@ -1455,13 +1455,13 @@
 /* 金額以外: ヘッダ・値とも小さく・詰め気味にして左へ寄せる */
 .preview-table th:not(.amount-col),
 .preview-table td:not(.amount-col) {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   padding-left: 0.28rem;
   padding-right: 0.28rem;
 }
 
 .preview-table th:not(.amount-col) {
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   letter-spacing: 0.01em;
 }
 
@@ -1524,7 +1524,7 @@
   white-space: nowrap;
   padding-left: 0.35rem;
   padding-right: 0.35rem;
-  overflow: clip;
+  overflow: visible;
 }
 
 .preview-table th.num-col.amount-col {
@@ -1538,7 +1538,7 @@
   max-width: 4.5rem;
   padding-left: 0.15rem;
   padding-right: 0.15rem;
-  overflow: clip;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   position: relative;
@@ -1551,17 +1551,17 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.25;
   white-space: nowrap;
-  overflow: clip;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .version-pill {
   color: var(--preview-muted);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
@@ -1604,7 +1604,7 @@
   text-align: left;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  overflow: clip;
+  overflow: visible;
 }
 
 .amount-yen-slot lightning-formatted-number {
@@ -1624,18 +1624,18 @@
   width: 5.5rem;
   min-width: 5.5rem;
   max-width: 5.5rem;
-  overflow: clip;
+  overflow: visible;
 }
 
 .adjusted-pill {
   flex: 0 0 auto;
   padding: 0.02rem 0.2rem;
-  font-size: 0.5625rem;
+  font-size: 0.75rem;
 }
 
 .line-drift {
   flex: 0 0 auto;
-  font-size: 0.5625rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
@@ -1685,7 +1685,7 @@
   border-radius: 3px;
   background: #e9eef5;
   color: #64748b;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.3;
   text-align: center;
@@ -1745,7 +1745,7 @@
 
 .money-label {
   color: var(--preview-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;

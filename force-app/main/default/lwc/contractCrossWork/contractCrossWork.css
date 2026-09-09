@@ -381,7 +381,7 @@
 }
 
 .sub {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: #64748b;
 }
 
@@ -410,6 +410,12 @@
 
 .right-empty {
   margin: 2rem 0 0;
+  color: #64748b;
+}
+
+.empty-text {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
   color: #64748b;
 }
 

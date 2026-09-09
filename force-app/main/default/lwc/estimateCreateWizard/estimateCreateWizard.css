@@ -46,11 +46,6 @@
 }
 
 .est-page_modal {
-  /*
-   * 75% 相当の密度。zoom / transform:scale は使わない（環境差・ルックアップずれの原因）。
-   * 標準の CSS 変数で縮小し、子 LWC へ継承する。
-   */
-  --est-density: 0.75;
   width: 100%;
   height: 100%;
   max-width: 100%;
@@ -62,19 +57,6 @@
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
-  --est-font-title: calc(1.125rem * var(--est-density));
-  --est-font-desc: calc(1rem * var(--est-density));
-  --est-font-label: calc(0.875rem * var(--est-density));
-  --est-font-control: calc(1.125rem * var(--est-density));
-  --est-font-meta: calc(0.875rem * var(--est-density));
-  --est-input-height: calc(2.75rem * var(--est-density));
-  --lwc-heightInput: calc(2.75rem * var(--est-density));
-  --lwc-fontSize2: calc(0.875rem * var(--est-density));
-  --lwc-fontSize3: calc(1.125rem * var(--est-density));
-  --lwc-fontSize4: calc(1.25rem * var(--est-density));
-  --lwc-fontSize5: calc(1.375rem * var(--est-density));
-  --slds-c-button-font-size: calc(1rem * var(--est-density));
-  --slds-c-input-text-font-size: calc(1.125rem * var(--est-density));
 }
 
 /* Edit/Copy preset 読込中: 本文は触らせない（ヘッダーの閉じるは可） */
@@ -143,7 +125,7 @@
 
 .est-header-title {
   margin: 0;
-  font-size: calc(0.875rem * var(--est-density, 1));
+  font-size: 0.875rem;
   font-weight: 700;
   line-height: 1.2;
   color: #0f172a;
@@ -156,7 +138,7 @@
   border-radius: 4px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
-  font-size: calc(0.6875rem * var(--est-density, 1));
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #1d4ed8;
@@ -227,7 +209,7 @@
   border-radius: 999px;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #475569;
@@ -304,7 +286,7 @@
   height: 1.2rem;
   border-radius: 50%;
   background: #cbd5e1;
-  font-size: calc(0.6875rem * var(--est-density, 1));
+  font-size: 0.75rem;
   font-weight: 700;
   color: #475569;
 }
@@ -320,7 +302,7 @@
 }
 
 .est-step-label {
-  font-size: calc(0.6875rem * var(--est-density, 1));
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
@@ -363,7 +345,7 @@
   padding: 0.25rem 0.75rem;
   min-height: 1.75rem;
   border-radius: 5px;
-  font-size: calc(0.75rem * var(--est-density, 1));
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition:

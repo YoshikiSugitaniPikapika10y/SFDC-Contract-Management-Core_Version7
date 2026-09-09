@@ -664,6 +664,9 @@
               </template>
             </tbody>
           </table>
+          <template if:true={showLeftEmpty}>
+            <p class="empty-text">対象がありません。</p>
+          </template>
         </div>
 
         <div class="pager">

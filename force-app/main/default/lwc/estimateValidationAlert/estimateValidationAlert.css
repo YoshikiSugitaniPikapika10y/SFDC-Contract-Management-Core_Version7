@@ -2,7 +2,7 @@
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
   /* ウィザード内ラベル／コントロールと同程度 */
-  font-size: calc(0.75rem * var(--est-density, 1));
+  font-size: 0.875rem;
 }
 
 .est-alert_error {
@@ -23,7 +23,7 @@
 
 .est-alert-title {
   margin: 0 0 0.25rem;
-  font-size: calc(0.75rem * var(--est-density, 1));
+  font-size: 0.875rem;
   font-weight: 700;
   line-height: 1.35;
 }
@@ -35,7 +35,7 @@
 
 .est-alert-message {
   margin: 0.2rem 0 0;
-  font-size: calc(0.75rem * var(--est-density, 1));
+  font-size: 0.875rem;
   line-height: 1.4;
 }
 
@@ -54,7 +54,7 @@
   min-height: 1.75rem;
   padding: 0.25rem 0.75rem;
   border-radius: 6px;
-  font-size: calc(0.75rem * var(--est-density, 1));
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
 }

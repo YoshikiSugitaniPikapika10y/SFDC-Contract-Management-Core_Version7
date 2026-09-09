@@ -76,7 +76,16 @@
         </div>
       </template>
       <template if:true={changeLoadError}>
-        <div class="est-alert est-alert_error">{changeLoadError}</div>
+        <div class="est-alert est-alert_error">
+          <span>{changeLoadError}</span>
+          <button
+            type="button"
+            class="slds-button slds-button_neutral slds-m-left_small"
+            onclick={handleReloadChangeProducts}
+          >
+            再読み込み
+          </button>
+        </div>
       </template>
     </template>
 
@@ -90,13 +99,31 @@
         </div>
       </template>
       <template if:true={renewLoadError}>
-        <div class="est-alert est-alert_error">{renewLoadError}</div>
+        <div class="est-alert est-alert_error">
+          <span>{renewLoadError}</span>
+          <button
+            type="button"
+            class="slds-button slds-button_neutral slds-m-left_small"
+            onclick={handleReloadRenewProducts}
+          >
+            再読み込み
+          </button>
+        </div>
       </template>
     </template>
 
     <template if:true={isCancelType}>
       <template if:true={cancelLoadError}>
-        <div class="est-alert est-alert_error">{cancelLoadError}</div>
+        <div class="est-alert est-alert_error">
+          <span>{cancelLoadError}</span>
+          <button
+            type="button"
+            class="slds-button slds-button_neutral slds-m-left_small"
+            onclick={handleReloadCancelLoad}
+          >
+            再読み込み
+          </button>
+        </div>
       </template>
     </template>
 

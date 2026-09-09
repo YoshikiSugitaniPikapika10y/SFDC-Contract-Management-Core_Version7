@@ -16,7 +16,7 @@
   /* 親ウィザードの --est-density（モーダル時 0.75）を尊重 */
   --est-font-title: calc(1rem * var(--est-density, 1));
   --est-font-desc: calc(0.8125rem * var(--est-density, 1));
-  --est-font-label: calc(0.75rem * var(--est-density, 1));
+  --est-font-label: 0.875rem;
   --est-font-control: calc(0.875rem * var(--est-density, 1));
   --est-font-meta: calc(0.8125rem * var(--est-density, 1));
   --est-input-height: calc(1.875rem * var(--est-density, 1));

@@ -34,7 +34,16 @@
           class="est-alert est-alert_error slds-m-around_medium"
           role="alert"
         >
-          {wizardFieldConfigError}
+          <div>{wizardFieldConfigError}</div>
+          <div class="slds-m-top_small">
+            <button
+              type="button"
+              class="est-btn est-btn_header-secondary"
+              onclick={handleFieldConfigRetry}
+            >
+              再読み込み
+            </button>
+          </div>
         </div>
       </template>
 

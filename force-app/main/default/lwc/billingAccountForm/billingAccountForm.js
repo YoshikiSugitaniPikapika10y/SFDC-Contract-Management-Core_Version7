@@ -381,10 +381,7 @@ export default class BillingAccountForm extends NavigationMixin(
     if (this.isView || this.showForm) {
       return "";
     }
-    if (this.isNew) {
-      return "請求アカウントを作る権限がありません。";
-    }
-    return "請求アカウントを直す権限がありません。";
+    return "この操作の権限がありません。";
   }
 
   get showEditButton() {

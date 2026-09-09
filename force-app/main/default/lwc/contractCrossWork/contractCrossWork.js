@@ -738,6 +738,10 @@ export default class ContractCrossWork extends NavigationMixin(
     return this.windowRows(this.builtRows, this.page, this.pageSize);
   }
 
+  get showLeftEmpty() {
+    return this.loading !== true && this.dataRowCount === 0;
+  }
+
   get currentPageCheckable() {
     return this.displayRows.filter(
       (row) => row.kind === "data" && row.canCheck === true

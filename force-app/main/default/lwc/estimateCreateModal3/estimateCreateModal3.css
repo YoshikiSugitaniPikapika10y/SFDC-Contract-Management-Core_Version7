@@ -154,7 +154,7 @@
 .est-panel_period,
 .est-panel_custom,
 .est-panel_remarks {
-  --est-font-label: calc(0.75rem * var(--est-density, 1));
+  --est-font-label: 0.875rem;
   --est-font-control: calc(0.875rem * var(--est-density, 1));
   --est-font-meta: calc(0.8125rem * var(--est-density, 1));
   --est-font-desc: calc(0.8125rem * var(--est-density, 1));
@@ -529,8 +529,8 @@
   --est-cell-sub-h: calc(1.5rem * var(--est-density, 1));
   --est-cell-gap: calc(0.2rem * var(--est-density, 1));
   --est-font-control: calc(0.9rem * var(--est-density, 1));
-  --est-font-label: calc(0.7rem * var(--est-density, 1));
-  --est-font-meta: calc(0.7rem * var(--est-density, 1));
+  --est-font-label: 0.75rem;
+  --est-font-meta: 0.75rem;
   --est-font-desc: calc(0.8rem * var(--est-density, 1));
   /* 横罫線: --est-border よりわずかに濃く（極端にしない） */
   --est-row-rule: #b6c2d1;
@@ -914,7 +914,7 @@
 }
 
 .est-amount-inline-label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--est-muted, #64748b);
 }
 
@@ -927,13 +927,13 @@
 }
 
 .est-amount-inline-error {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: #b91c1c;
   line-height: 1.3;
 }
 
 .est-amount-inline-hint {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--est-muted, #64748b);
   line-height: 1.3;
 }
@@ -1174,7 +1174,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  font-size: 0.5625rem;
+  font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1380,7 +1380,7 @@
 }
 
 .est-line-custom-label {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--est-muted);
   text-transform: uppercase;

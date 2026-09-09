@@ -2,14 +2,14 @@
   <lightning-quick-action-panel header="見積を送る">
     <template if:true={isLoading}>
       <lightning-spinner
-        alternative-text="見積の送付情報を読み込んでいます"
+        alternative-text="読み込み中"
         size="small"
       ></lightning-spinner>
     </template>
 
     <template if:true={isSending}>
       <lightning-spinner
-        alternative-text="送付中"
+        alternative-text="処理中"
         size="small"
       ></lightning-spinner>
     </template>
@@ -152,6 +152,15 @@
         role="alert"
       >
         <span>{errorMessage}</span>
+        <template if:true={showLoadRetry}>
+          <button
+            type="button"
+            class="slds-button slds-button_neutral slds-m-left_small"
+            onclick={handleLoadRetry}
+          >
+            再読み込み
+          </button>
+        </template>
       </div>
     </template>
 

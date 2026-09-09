@@ -23,7 +23,6 @@
           options={invoiceFilterOptions}
           onchange={handleInvoiceFilterChange}
           dropdown-alignment="left"
-          variant="label-hidden"
         >
         </lightning-combobox>
       </div>
@@ -228,16 +227,30 @@
                   </button>
                 </template>
                 <template if:true={invoice.showSendAction}>
-                  <button
-                    type="button"
-                    class="solid-btn"
-                    data-invoice-id={invoice.invoiceId}
-                    onclick={handleOpenInvoiceSend}
-                    disabled={invoice.sendActionDisabled}
-                    title={invoice.sendActionTitle}
-                  >
-                    {invoice.sendActionLabel}
-                  </button>
+                  <template if:true={invoice.showConfirmAction}>
+                    <button
+                      type="button"
+                      class="ghost-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      onclick={handleOpenInvoiceSend}
+                      disabled={invoice.sendActionDisabled}
+                      title={invoice.sendActionTitle}
+                    >
+                      {invoice.sendActionLabel}
+                    </button>
+                  </template>
+                  <template if:false={invoice.showConfirmAction}>
+                    <button
+                      type="button"
+                      class="solid-btn"
+                      data-invoice-id={invoice.invoiceId}
+                      onclick={handleOpenInvoiceSend}
+                      disabled={invoice.sendActionDisabled}
+                      title={invoice.sendActionTitle}
+                    >
+                      {invoice.sendActionLabel}
+                    </button>
+                  </template>
                 </template>
                 <template if:true={invoice.showCancelAction}>
                   <button
@@ -257,7 +270,13 @@
               <p class="edit-note" role="status">{invoice.lockNote}</p>
             </template>
             <template if:true={invoice.showEditProcessing}>
-              <p class="edit-note" role="status">処理中</p>
+              <p class="edit-note" role="status">
+                <lightning-spinner
+                  alternative-text="処理中"
+                  size="small"
+                ></lightning-spinner>
+                処理中
+              </p>
             </template>
             <div class="invoice-status-meta" aria-label="請求ステータス">
               <span class="invoice-date-item">
@@ -330,6 +349,14 @@
               </template>
               <template if:true={invoice.opsError}>
                 <p class="edit-note">{invoice.opsError}</p>
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  data-invoice-id={invoice.invoiceId}
+                  onclick={handleRetryOpsBundle}
+                >
+                  再読み込み
+                </button>
               </template>
               </template>
               <template if:true={invoice.showPaymentHistory}>
@@ -849,6 +876,14 @@
               </template>
               <template if:true={invoice.opsError}>
                 <p class="edit-note">{invoice.opsError}</p>
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  data-invoice-id={invoice.invoiceId}
+                  onclick={handleRetryOpsBundle}
+                >
+                  再読み込み
+                </button>
               </template>
               <template if:true={invoice.showAccountingOffNote}>
                 <p class="edit-note" role="status">
@@ -1544,7 +1579,7 @@
                 </button>
                 <button
                   type="button"
-                  class="solid-btn"
+                  class="ghost-btn"
                   onclick={handleChooseExistingInvoiceDestination}
                 >
                   既存の未確定へ移す
@@ -1813,6 +1848,14 @@
               <p class="edit-note line-split-status">
                 {invoice.lineSplitError}
               </p>
+              <button
+                type="button"
+                class="ghost-btn"
+                data-invoice-id={invoice.invoiceId}
+                onclick={handleRetryLineSplit}
+              >
+                再読み込み
+              </button>
             </template>
           </template>
 

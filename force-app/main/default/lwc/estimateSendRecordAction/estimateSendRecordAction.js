@@ -168,13 +168,21 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     return Boolean(this.unavailableMessage);
   }
 
+  get showLoadRetry() {
+    return Boolean(this.errorMessage) && this.canSendEstimates === true;
+  }
+
+  handleLoadRetry() {
+    return this.load();
+  }
+
   async load() {
     if (!this._recordId) {
       return;
     }
     if (this.canSendEstimates !== true) {
       this.estimate = null;
-      this.errorMessage = "見積を送る権限がありません。";
+      this.errorMessage = "この操作の権限がありません。";
       this.isLoading = false;
       return;
     }

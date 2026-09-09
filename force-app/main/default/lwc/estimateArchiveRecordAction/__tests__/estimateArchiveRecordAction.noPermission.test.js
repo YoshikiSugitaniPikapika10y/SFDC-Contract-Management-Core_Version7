@@ -68,7 +68,7 @@ describe("estimateArchiveRecordAction without Loop_03 (共通基盤 10.4)", () =
     await Promise.resolve();
 
     expect(element.shadowRoot.textContent).toContain(
-      "見積アーカイブを実行する権限がありません。"
+      "この操作の権限がありません。"
     );
     const archiveButton = Array.from(
       element.shadowRoot.querySelectorAll("button")

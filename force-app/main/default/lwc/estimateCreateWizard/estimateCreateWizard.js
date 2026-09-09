@@ -284,6 +284,17 @@ export default class EstimateCreateWizard extends LightningElement {
     );
   }
 
+  handleFieldConfigRetry() {
+    this.wizardFieldConfigError = "";
+    const wires = [
+      this._wiredServiceFieldDefinitions,
+      this._wiredHistoryFieldDefinitions,
+      this._wiredProductFieldDefinitions,
+      this._wiredOpportunityDefaultContext
+    ].filter((item) => item);
+    return Promise.all(wires.map((item) => refreshApex(item)));
+  }
+
   syncOpportunityIdForContext() {
     const next = this.effectiveRecordId || undefined;
     if (this.opportunityIdForContext !== next) {

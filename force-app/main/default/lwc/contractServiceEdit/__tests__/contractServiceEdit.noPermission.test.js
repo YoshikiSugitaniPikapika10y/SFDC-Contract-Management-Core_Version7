@@ -48,7 +48,7 @@ describe("contractServiceEdit without Loop_08 (Core 3.4.1)", () => {
     await Promise.resolve();
 
     expect(element.shadowRoot.textContent).toContain(
-      "契約サービスを編集する権限がありません。"
+      "この操作の権限がありません。"
     );
     expect(
       element.shadowRoot.querySelector("lightning-input")

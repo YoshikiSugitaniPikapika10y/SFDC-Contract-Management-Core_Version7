@@ -586,6 +586,17 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.updateInvoiceUiState(invoiceId, { pendingOperationKey: null });
   }
 
+  handleRetryOpsBundle(event) {
+    const invoiceId = event.currentTarget.dataset.invoiceId;
+    return this.loadOpsBundle(invoiceId);
+  }
+
+  handleRetryLineSplit(event) {
+    const invoiceId = event.currentTarget.dataset.invoiceId;
+    this.lineSplitState = null;
+    return this.ensureLineSplitState(invoiceId);
+  }
+
   async loadOpsBundle(invoiceId) {
     if (!invoiceId) {
       return;
@@ -1674,7 +1685,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return "このVersionに連携済または消込済の請求があるため編集できません。";
     }
     if (this.preview?.canEdit !== true) {
-      return "請求ボード編集の権限がありません。";
+      return "この操作の権限がありません。";
     }
     return "";
   }

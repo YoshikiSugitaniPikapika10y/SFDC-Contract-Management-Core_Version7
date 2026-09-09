@@ -97,6 +97,15 @@
                   <p class="est-billing-hint est-billing-hint_error">
                     {billingAccountsLoadError}
                   </p>
+                  <div>
+                    <button
+                      type="button"
+                      class="est-billing-reselect"
+                      onclick={handleBillingAccountsRetry}
+                    >
+                      再読み込み
+                    </button>
+                  </div>
                 </template>
                 <template if:true={showRelatedBillingEmptyMessage}>
                   <p class="est-billing-hint">{relatedBillingEmptyMessage}</p>
@@ -378,6 +387,15 @@
           <p class="est-billing-hint est-billing-hint_error">
             {contractServicesLoadError}
           </p>
+          <div>
+            <button
+              type="button"
+              class="est-billing-reselect"
+              onclick={handleContractServicesRetry}
+            >
+              再読み込み
+            </button>
+          </div>
         </template>
         <template if:true={showActiveContractServiceEmptyMessage}>
           <p class="est-billing-hint">{activeContractServiceEmptyMessage}</p>

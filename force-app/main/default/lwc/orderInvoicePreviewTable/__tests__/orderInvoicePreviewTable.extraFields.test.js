@@ -634,7 +634,9 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     await flush();
     expect(billing.disabled).toBe(true);
     expect(element.shadowRoot.textContent).toContain("処理中");
-    expect(element.shadowRoot.querySelector("lightning-spinner")).toBeNull();
+    expect(
+      element.shadowRoot.querySelector("lightning-spinner")
+    ).not.toBeNull();
   });
 
   it("発行処理中は当該ボードの請求書情報を止める (Core 7.10)", async () => {

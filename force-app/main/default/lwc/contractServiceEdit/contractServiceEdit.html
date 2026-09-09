@@ -5,7 +5,7 @@
     </template>
     <template if:false={loading}>
       <template if:false={canEditService}>
-        <p class="slds-p-around_medium">契約サービスを編集する権限がありません。</p>
+        <p class="slds-p-around_medium">この操作の権限がありません。</p>
       </template>
       <template if:true={canEditService}>
         <div class="slds-p-around_medium">
@@ -58,6 +58,15 @@
             </div>
           </template>
           <div class="slds-m-top_medium slds-grid slds-grid_align-end">
+            <template if:true={saving}>
+              <p class="slds-m-right_small" role="status">
+                <lightning-spinner
+                  alternative-text="処理中"
+                  size="small"
+                ></lightning-spinner>
+                処理中
+              </p>
+            </template>
             <lightning-button
               label="キャンセル"
               disabled={saving}

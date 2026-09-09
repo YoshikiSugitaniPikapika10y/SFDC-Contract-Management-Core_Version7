@@ -275,7 +275,13 @@
         </section>
         <div class="ba-toolbar">
           <template if:true={isSaving}>
-            <p class="ba-help" role="status">保存中</p>
+            <p class="ba-help" role="status">
+              <lightning-spinner
+                alternative-text="処理中"
+                size="small"
+              ></lightning-spinner>
+              処理中
+            </p>
           </template>
           <lightning-button
             class="slds-m-right_small"

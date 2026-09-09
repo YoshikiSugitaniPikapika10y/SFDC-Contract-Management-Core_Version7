@@ -55,7 +55,7 @@ describe("orderCreateRecordAction without Loop_06 (Core 4.3.1 / 5.1)", () => {
       element.shadowRoot.querySelector("c-order-create-wizard")
     ).toBeNull();
     expect(element.shadowRoot.textContent).toContain(
-      "受注を実行する権限がありません。"
+      "この操作の権限がありません。"
     );
   });
 });

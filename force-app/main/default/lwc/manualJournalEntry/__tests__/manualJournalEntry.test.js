@@ -273,7 +273,7 @@ describe("manualJournalEntry", () => {
     );
     await flush();
 
-    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
+    Array.from(element.shadowRoot.querySelectorAll("button"))
       .find((button) => button.textContent.trim() === "取り消す")
       .click();
     await flush();

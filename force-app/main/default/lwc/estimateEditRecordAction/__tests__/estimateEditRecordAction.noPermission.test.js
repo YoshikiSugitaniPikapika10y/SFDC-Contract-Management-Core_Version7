@@ -54,7 +54,7 @@ describe("estimateEditRecordAction without Loop_03 (共通基盤 10.4)", () => {
       element.shadowRoot.querySelector("c-estimate-create-wizard")
     ).toBeNull();
     expect(element.shadowRoot.textContent).toContain(
-      "見積編集を実行する権限がありません。"
+      "この操作の権限がありません。"
     );
   });
 });
