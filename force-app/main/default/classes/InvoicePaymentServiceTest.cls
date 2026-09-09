@@ -532,6 +532,8 @@ private class InvoicePaymentServiceTest {
       policy.AccountingEnabled__c = true;
       insert policy;
       InvoiceFixture fixture = createInvoice(true);
+      seedMaps();
+      seedPaymentMaps();
       insertLockedJournal(fixture.invoice.Id, 'REGLOCK');
       InvoicePaymentService.RegisterRequest request = invoiceRequest(
         fixture,
@@ -668,9 +670,9 @@ private class InvoicePaymentServiceTest {
         WHERE Id = :lineJournalId
       ];
       System.assertEquals(
-        'Active',
+        'LogicallyDeleted',
         lineJournal.TransactionStatus__c,
-        'Accounting 第4.2節・第8.8節: 請求基準のInvoice取消は売上Goalを作り直さない'
+        'Accounting 第1.8.1節: Goalに無いCurrentは論理削除する'
       );
     }
   }
@@ -770,9 +772,9 @@ private class InvoicePaymentServiceTest {
         WHERE Id = :lineJournalId
       ];
       System.assertEquals(
-        'Active',
+        'LogicallyDeleted',
         lineJournal.TransactionStatus__c,
-        'Accounting 第4.2節: NonInvoiceはSP・UACだけを動かし売上仕訳のGoalを変えない'
+        'Accounting 第1.8.1節: Goalに無いCurrentは論理削除する'
       );
     }
   }
@@ -816,9 +818,9 @@ private class InvoicePaymentServiceTest {
         WHERE Id = :lineJournalId
       ];
       System.assertEquals(
-        'Active',
+        'LogicallyDeleted',
         lineJournal.TransactionStatus__c,
-        'Accounting 第4.2節・第8.8節: 請求基準のInvoice登録は売上Goalを作り直さない'
+        'Accounting 第1.8.1節: Goalに無いCurrentは論理削除する'
       );
       Invoice__c afterRegister = [
         SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
@@ -892,9 +894,9 @@ private class InvoicePaymentServiceTest {
         WHERE Id = :lineJournalId
       ];
       System.assertEquals(
-        'Active',
+        'LogicallyDeleted',
         lineJournal.TransactionStatus__c,
-        'Accounting 第4.2節: NonInvoiceはSP・UACだけを動かし売上仕訳のGoalを変えない'
+        'Accounting 第1.8.1節: Goalに無いCurrentは論理削除する'
       );
       InvoicePaymentAllocation__c afterAllocation = [
         SELECT HistoricalUacAmount__c, HistoricalSpAmount__c
