@@ -533,6 +533,57 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void queryInvoices_cancelledHidesTrueAccountingTags() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      GlAccountingPolicyService.clearCachedOrgPolicy();
+      InvoiceFixture cancelled = insertInvoice('Cancelled', true);
+      InvoiceFixture confirmed = insertInvoice('Confirmed', true);
+      insert new GlAccountingTagRule__c(
+        Name = 'CHANGE973 Tag',
+        TagKey__c = 'c973_' + String.valueOf(Crypto.getRandomInteger()),
+        TagLabel__c = 'AR残あり',
+        Expression__c = 'AR',
+        ComparisonOperator__c = 'NE',
+        ComparisonValue__c = 0,
+        TargetFieldApiName__c = 'IsManuallyAdjusted__c',
+        IsEnabled__c = true
+      );
+
+      ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
+      filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_CONFIRMED;
+      filter.includeCancelled = true;
+      ContractCrossController.ListResultDto result = ContractCrossController.queryInvoices(
+        filter
+      );
+      Map<Id, ContractCrossController.InvoiceRowDto> byId = new Map<Id, ContractCrossController.InvoiceRowDto>();
+      for (ContractCrossController.InvoiceRowDto row : result.invoices) {
+        byId.put(row.id, row);
+      }
+      System.assertEquals(
+        new List<String>{ 'AR残あり' },
+        byId.get(confirmed.invoice.Id).trueTagLabels,
+        '共通基盤操作31: 確定済みはTrueのタグラベルを出す'
+      );
+      System.assertEquals(
+        0,
+        byId.get(cancelled.invoice.Id).trueTagLabels.size(),
+        'Core 第8.10節・共通基盤操作31: 取消済みの行は空'
+      );
+      Invoice__c savedCancelled = [
+        SELECT IsManuallyAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :cancelled.invoice.Id
+      ];
+      System.assertEquals(
+        true,
+        savedCancelled.IsManuallyAdjusted__c,
+        'Accounting 第7.6節: 評価・保存は変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void queryInvoices_dateRangeKeepsBlankInvoiceDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       HistoryFixture historyFixture = insertHistory(
@@ -2221,6 +2272,13 @@ private class ContractCrossControllerTest {
   }
 
   private static InvoiceFixture insertInvoice(String status) {
+    return insertInvoice(status, false);
+  }
+
+  private static InvoiceFixture insertInvoice(
+    String status,
+    Boolean manuallyAdjusted
+  ) {
     HistoryFixture historyFixture = insertHistory(
       'Ordered',
       ContractCrossQueryService.organizationToday(),
@@ -2234,6 +2292,7 @@ private class ContractCrossControllerTest {
       TaxAmount__c = 100,
       BillingAccountSnapShot__c = historyFixture.billingAccount.Id,
       InvoiceTransactionStatus__c = status,
+      IsManuallyAdjusted__c = manuallyAdjusted,
       SystemIntegrationDate__c = status == 'Confirmed'
         ? ContractCrossQueryService.organizationToday()
         : null
