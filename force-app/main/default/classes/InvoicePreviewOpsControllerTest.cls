@@ -177,7 +177,7 @@ private class InvoicePreviewOpsControllerTest {
       insert GlAccountingPolicyService.newOrgDefault();
       InvoiceFixture fixture = createInvoice(true);
       insertJournal(fixture.invoice.Id, false, 'Active', 'SLOTNETZ');
-      insertJournal(fixture.invoice.Id, false, 'Reversal', 'SLOTNETR');
+      insertSwappedReversalJournal(fixture.invoice.Id, 'SLOTNETR');
       Test.startTest();
       InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
         fixture.invoice.Id
@@ -335,6 +335,37 @@ private class InvoicePreviewOpsControllerTest {
       );
       Test.stopTest();
     }
+  }
+
+  private static void insertSwappedReversalJournal(
+    Id invoiceId,
+    String keySuffix
+  ) {
+    GlAccount__c debit = new GlAccount__c(
+      Name = keySuffix + ' Debit',
+      AccountType__c = 'Liability',
+      IsActive__c = true
+    );
+    GlAccount__c credit = new GlAccount__c(
+      Name = keySuffix + ' Credit',
+      AccountType__c = 'Asset',
+      IsActive__c = true
+    );
+    insert new List<GlAccount__c>{ debit, credit };
+    insert new GlJournal__c(
+      Invoice__c = invoiceId,
+      Amount__c = 1,
+      IdempotencyKey__c = AccountingDiffService.hashKey(
+        new List<String>{ keySuffix, String.valueOf(invoiceId) }
+      ),
+      DebitSlotKey__c = 'UnappliedCash',
+      CreditSlotKey__c = 'Cash',
+      DebitAccount__c = debit.Id,
+      CreditAccount__c = credit.Id,
+      PostingDate__c = Date.newInstance(2026, 6, 1),
+      TransactionStatus__c = 'Reversal',
+      IsLocked__c = false
+    );
   }
 
   private static void insertJournal(

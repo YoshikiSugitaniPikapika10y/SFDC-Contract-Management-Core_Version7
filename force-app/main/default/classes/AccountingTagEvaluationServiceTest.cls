@@ -822,8 +822,12 @@ private class AccountingTagEvaluationServiceTest {
         Date.newInstance(2026, 6, 1),
         'tag-active'
       );
-      insertArDebitJournal(
+      insertSlotJournal(
         invoice.Id,
+        'DeferredRevenue',
+        'AccountsReceivable',
+        'Liability',
+        'Asset',
         1000,
         'Reversal',
         false,
@@ -840,7 +844,119 @@ private class AccountingTagEvaluationServiceTest {
       System.assertEquals(
         false,
         stored.IsSplitMoved__c,
-        'Accounting 第7.3節: 有効な元仕訳と取消仕訳をNet集計する（+1000と取消-1000でAR!=0はFalse）'
+        'Accounting 第7.3節・第8.8節: 有効な元仕訳と借貸逆の取消仕訳をNet集計する（AR!=0はFalse）'
+      );
+    }
+  }
+
+  @IsTest
+  static void evaluateForInvoice_netsCancelledOriginalAndSwappedReversalToZero() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      markConfirmed(invoice);
+      markCancelled(invoice);
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'tag-diff-ar',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'tag-diff-rev',
+        AccountType__c = 'Revenue',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlJournal__c leftover = new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1000,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'tag-diff-locked', String.valueOf(invoice.Id) }
+        ),
+        JournalLineKey__c = 'tag-diff-locked',
+        DebitSlotKey__c = AccountingSlotFixedCatalog.AccountsReceivable.key,
+        CreditSlotKey__c = AccountingSlotFixedCatalog.Revenue.key,
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'Active',
+        IsLocked__c = true
+      );
+      insert leftover;
+      AccountingDiffService.applyForInvoice(
+        invoice.Id,
+        AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
+        'TEST_TAG_DIFF_SWAP_REV',
+        Date.newInstance(2026, 6, 15)
+      );
+      leftover = [
+        SELECT
+          DebitSlotKey__c,
+          CreditSlotKey__c,
+          Amount__c,
+          TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Id = :leftover.Id
+      ];
+      GlJournal__c reversal = [
+        SELECT
+          DebitSlotKey__c,
+          CreditSlotKey__c,
+          Amount__c,
+          TransactionStatus__c,
+          OriginalJournal__c
+        FROM GlJournal__c
+        WHERE
+          OriginalJournal__c = :leftover.Id
+          AND TransactionStatus__c = 'Reversal'
+      ];
+      System.assertEquals(
+        'Cancelled',
+        leftover.TransactionStatus__c,
+        'Accounting 第8.8節: ロック済み元仕訳は残してCancelledにする'
+      );
+      System.assertEquals(
+        leftover.CreditSlotKey__c,
+        reversal.DebitSlotKey__c,
+        'Accounting 第8.8節: 取消仕訳は元の貸方を借方へ引き継ぐ'
+      );
+      System.assertEquals(
+        leftover.DebitSlotKey__c,
+        reversal.CreditSlotKey__c,
+        'Accounting 第8.8節: 取消仕訳は元の借方を貸方へ引き継ぐ'
+      );
+      System.assertEquals(
+        leftover.Amount__c,
+        reversal.Amount__c,
+        'Accounting 第8.8節: 取消仕訳は元と同額'
+      );
+      insertEnabledRule('net-diff-swap', 'IsSplitMoved__c');
+      AccountingTagEvaluationService.clearCachedEnabledRules();
+      AccountingTagEvaluationService.evaluateForInvoice(invoice.Id);
+      Invoice__c stored = [
+        SELECT IsSplitMoved__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        false,
+        stored.IsSplitMoved__c,
+        'Accounting 第7.3節・第8.8節: 取消済元行と借貸逆の取消仕訳をNet集計する（AR!=0はFalse）'
+      );
+      Map<String, Decimal> nets = AccountingTagEvaluationService.slotAbbreviationNets(
+        new List<GlJournal__c>{ leftover, reversal }
+      );
+      System.assertEquals(
+        0,
+        nets.get('AR'),
+        'Accounting 第7.3節・第8.8節: Diffの借貸逆取消はスロットNetでARを打ち消す'
+      );
+      System.assertEquals(
+        0,
+        nets.get('REV'),
+        'Accounting 第7.3節・第8.8節: Diffの借貸逆取消はスロットNetでREVを打ち消す'
       );
     }
   }
@@ -1052,6 +1168,39 @@ private class AccountingTagEvaluationServiceTest {
       TargetFieldApiName__c = targetField,
       IsEnabled__c = true
     );
+  }
+
+  private static void markConfirmed(Invoice__c invoice) {
+    InvoiceTransactionStatusService.applyConfirmed(
+      new List<Invoice__c>{ invoice },
+      Date.newInstance(2026, 6, 1)
+    );
+    Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+    Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+    InvoiceTransactionStatusService.allowStatusWrite = true;
+    InvoiceLockUtil.allowLockedStatusWrite = true;
+    try {
+      update invoice;
+    } finally {
+      InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+      InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+    }
+  }
+
+  private static void markCancelled(Invoice__c invoice) {
+    InvoiceTransactionStatusService.applyCancelled(
+      new List<Invoice__c>{ invoice }
+    );
+    Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+    Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+    InvoiceTransactionStatusService.allowStatusWrite = true;
+    InvoiceLockUtil.allowLockedStatusWrite = true;
+    try {
+      update invoice;
+    } finally {
+      InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+      InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+    }
   }
 
   private static Invoice__c insertInvoice() {

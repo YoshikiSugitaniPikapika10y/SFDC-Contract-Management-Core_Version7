@@ -324,6 +324,10 @@ public without sharing class AccountingTagEvaluationService {
     }
   }
 
+  /**
+   * 仕様: Accounting 第7.3節・第8.8節。
+   * 通常残高方向を正、反対方向を負。取消仕訳は同額・借貸逆なので状態符号は掛けない。論理削除は除外する。
+   */
   private static Map<String, Decimal> slotBalancesFrom(
     List<GlJournal__c> journals
   ) {
@@ -332,14 +336,12 @@ public without sharing class AccountingTagEvaluationService {
       return balances;
     }
     for (GlJournal__c journal : journals) {
-      if (journal.TransactionStatus__c == 'LogicallyDeleted') {
+      if (journal == null || journal.TransactionStatus__c == 'LogicallyDeleted') {
         continue;
       }
-      Decimal signed = journal.TransactionStatus__c == 'Reversal'
-        ? -nvl(journal.Amount__c)
-        : nvl(journal.Amount__c);
-      addBalance(balances, journal.DebitSlotKey__c, signed, true);
-      addBalance(balances, journal.CreditSlotKey__c, signed, false);
+      Decimal amount = nvl(journal.Amount__c);
+      addBalance(balances, journal.DebitSlotKey__c, amount, true);
+      addBalance(balances, journal.CreditSlotKey__c, amount, false);
     }
     return balances;
   }
