@@ -46,20 +46,21 @@ jest.mock(
   { virtual: true }
 );
 
-const Navigate = Symbol.for("NavigationMixin.Navigate");
-
 jest.mock(
   "lightning/navigation",
-  () => ({
-    NavigationMixin: Object.assign(
-      (Base) =>
-        class extends Base {
-          [Navigate]() {}
-        },
-      { Navigate }
-    ),
-    CurrentPageReference: class CurrentPageReference {}
-  }),
+  () => {
+    const Navigate = Symbol.for("NavigationMixin.Navigate");
+    return {
+      NavigationMixin: Object.assign(
+        (Base) =>
+          class extends Base {
+            [Navigate]() {}
+          },
+        { Navigate }
+      ),
+      CurrentPageReference: class CurrentPageReference {}
+    };
+  },
   { virtual: true }
 );
 
@@ -81,7 +82,7 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
       isMissingBillingFieldValue:
         OrderCreateStepBilling.prototype.isMissingBillingFieldValue,
       _billingCustomFields: {},
-      [Symbol.for("NavigationMixin.Navigate")]: navigate
+      [NavigationMixin.Navigate]: navigate
     };
 
     const opened =
