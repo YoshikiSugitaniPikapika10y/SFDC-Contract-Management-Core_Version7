@@ -153,10 +153,23 @@ ${confirmPanelHas} {
 }
 
 ${largeHas} {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
     height: 100% !important;
     max-width: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+${largeContainerHas} .slds-modal__content > *,
+${largePanelHas} > * {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: 100% !important;
     max-height: 100% !important;
     overflow: hidden !important;
     box-sizing: border-box !important;

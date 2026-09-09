@@ -64,6 +64,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       window.removeEventListener("resize", this._onViewportResize);
       this._resizeBound = false;
     }
+    this.restoreClipAncestorStyles();
   }
 
   renderedCallback() {
@@ -79,7 +80,8 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
 
   /**
    * 仕様: Core 第7.7.0節。縦スクローラはボード自身が1本。枠に入れ子しない。
-   * 高さはビューポート実測値。潰れた overflow:hidden 枠（見出し分）は使わない。
+   * 高さはビューポート実測値。潰れた overflow:hidden の親は同じ高さまで広げる。
+   * 親が見出し分のままだと、ホストだけ高くしても中身は切れる。
    * :host は overflow:hidden。動くのは .preview-page だけ。
    */
   applyScrollSizing() {
@@ -93,14 +95,17 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return;
     }
     const px = `${Math.round(available)}px`;
+    this.expandClipAncestors(host, px);
     host.style.setProperty("height", px);
     host.style.setProperty("max-height", px);
-    host.style.setProperty("min-height", "0");
+    host.style.setProperty("min-height", px);
     host.style.setProperty("overflow", "hidden");
     if (!root) {
       return;
     }
     root.style.setProperty("--preview-scroll-max", px);
+    root.style.setProperty("height", px);
+    root.style.setProperty("max-height", px);
   }
 
   measureBoardHeight(host, root) {
@@ -111,54 +116,138 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       (document.scrollingElement || document.documentElement).clientHeight ||
       0;
     const bottomGap = this.isTabView ? 8 : 24;
-    const viewportAvailable = viewportHeight
+    return viewportHeight
       ? Math.max(viewportHeight - top - bottomGap, 240)
       : 0;
-    const clip = this.findViewportClip(host);
-    if (clip) {
-      const clipAvailable = clip.getBoundingClientRect().bottom - top;
-      // モーダルが内容に潰れて見出し分しかないときはビューポート残りを正とする
-      if (clipAvailable >= viewportAvailable * 0.5 && clipAvailable >= 240) {
-        return Math.max(clipAvailable, 240);
-      }
-    }
-    return viewportAvailable;
   }
 
-  findViewportClip(host) {
-    let el = host.parentElement;
+  nextAncestor(el) {
     if (!el) {
-      const rootNode = host.getRootNode();
-      if (rootNode instanceof ShadowRoot) {
-        el = rootNode.host;
-      }
+      return null;
     }
+    if (el.parentElement) {
+      return el.parentElement;
+    }
+    const rootNode = el.getRootNode && el.getRootNode();
+    if (rootNode instanceof ShadowRoot && rootNode.host) {
+      return rootNode.host;
+    }
+    return null;
+  }
+
+  expandClipAncestors(host, px) {
+    let el = this.nextAncestor(host);
     while (el && el.nodeType === 1) {
       if (el === document.body || el === document.documentElement) {
         break;
       }
-      const oy = getComputedStyle(el).overflowY;
+      const classList = el.classList;
       if (
-        (oy === "auto" ||
-          oy === "scroll" ||
-          oy === "hidden" ||
-          oy === "overlay") &&
-        el.clientHeight > 50
+        classList &&
+        (classList.contains("slds-modal") ||
+          classList.contains("slds-modal__container"))
       ) {
-        return el;
+        break;
       }
-      if (el.parentElement) {
-        el = el.parentElement;
-      } else {
-        const rootNode = el.getRootNode && el.getRootNode();
-        if (rootNode instanceof ShadowRoot && rootNode.host) {
-          el = rootNode.host;
-        } else {
-          break;
-        }
+      if (this.shouldExpandClipAncestor(el)) {
+        this.applyBoardClipHeight(el, px);
       }
+      const tag = el.tagName ? el.tagName.toLowerCase() : "";
+      if (
+        tag === "runtime_platform_actions-quick-action-panel" ||
+        (classList && classList.contains("slds-modal__content"))
+      ) {
+        break;
+      }
+      el = this.nextAncestor(el);
     }
-    return null;
+  }
+
+  shouldExpandClipAncestor(el) {
+    const classList = el.classList;
+    const tag = el.tagName ? el.tagName.toLowerCase() : "";
+    if (classList && classList.contains("action-frame")) {
+      return true;
+    }
+    if (tag === "runtime_platform_actions-quick-action-panel") {
+      return true;
+    }
+    if (classList && classList.contains("slds-modal__content")) {
+      return true;
+    }
+    if (tag.indexOf("-") >= 0) {
+      return true;
+    }
+    if (typeof getComputedStyle !== "function") {
+      return false;
+    }
+    const oy = getComputedStyle(el).overflowY;
+    return (
+      oy === "hidden" || oy === "auto" || oy === "scroll" || oy === "overlay"
+    );
+  }
+
+  applyBoardClipHeight(el, px) {
+    if (!el || !el.style) {
+      return;
+    }
+    this.backupClipAncestorStyle(el);
+    el.style.setProperty("height", px, "important");
+    el.style.setProperty("max-height", px, "important");
+    el.style.setProperty("min-height", px, "important");
+    el.style.setProperty("overflow", "hidden", "important");
+    el.style.setProperty("display", "flex", "important");
+    el.style.setProperty("flex-direction", "column", "important");
+    el.style.setProperty("box-sizing", "border-box", "important");
+  }
+
+  backupClipAncestorStyle(el) {
+    if (!this._clipStyleBackups) {
+      this._clipStyleBackups = [];
+    }
+    if (!this._clipBackedEls) {
+      this._clipBackedEls = new WeakSet();
+    }
+    if (this._clipBackedEls.has(el)) {
+      return;
+    }
+    this._clipBackedEls.add(el);
+    this._clipStyleBackups.push({
+      el,
+      height: el.style.getPropertyValue("height"),
+      maxHeight: el.style.getPropertyValue("max-height"),
+      minHeight: el.style.getPropertyValue("min-height"),
+      overflow: el.style.getPropertyValue("overflow"),
+      display: el.style.getPropertyValue("display"),
+      flexDirection: el.style.getPropertyValue("flex-direction"),
+      boxSizing: el.style.getPropertyValue("box-sizing")
+    });
+  }
+
+  restoreClipAncestorStyles() {
+    (this._clipStyleBackups || []).forEach((entry) => {
+      const el = entry.el;
+      if (!el || !el.style) {
+        return;
+      }
+      this.restoreStyleProperty(el, "height", entry.height);
+      this.restoreStyleProperty(el, "max-height", entry.maxHeight);
+      this.restoreStyleProperty(el, "min-height", entry.minHeight);
+      this.restoreStyleProperty(el, "overflow", entry.overflow);
+      this.restoreStyleProperty(el, "display", entry.display);
+      this.restoreStyleProperty(el, "flex-direction", entry.flexDirection);
+      this.restoreStyleProperty(el, "box-sizing", entry.boxSizing);
+    });
+    this._clipStyleBackups = [];
+    this._clipBackedEls = null;
+  }
+
+  restoreStyleProperty(el, name, value) {
+    if (value == null || value === "") {
+      el.style.removeProperty(name);
+      return;
+    }
+    el.style.setProperty(name, value);
   }
 
   @wire(CurrentPageReference)

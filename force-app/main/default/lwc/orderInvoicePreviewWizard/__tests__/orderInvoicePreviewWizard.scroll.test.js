@@ -162,7 +162,7 @@ describe("orderInvoicePreviewWizard scroll", () => {
     );
   });
 
-  it("潰れた overflow:hidden 枠ではビューポート残りを高さにする (Core 7.7.0)", async () => {
+  it("潰れた overflow:hidden 枠をビューポート高さまで広げて中身を切らない (Core 7.7.0)", async () => {
     const clip = document.createElement("div");
     clip.style.overflowY = "hidden";
     Object.defineProperty(clip, "clientHeight", {
@@ -192,6 +192,9 @@ describe("orderInvoicePreviewWizard scroll", () => {
     );
     expect(limit).toBeGreaterThan(240);
     expect(element.style.height).toBe(`${limit}px`);
+    expect(element.style.minHeight).toBe(`${limit}px`);
+    expect(clip.style.height).toBe(`${limit}px`);
+    expect(clip.style.overflow).toBe("hidden");
   });
 
   it("下端でも枠のスクローラへホイールを渡さない (Core 7.7.0)", async () => {
