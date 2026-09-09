@@ -26,6 +26,7 @@ public with sharing class AccountingEventFixedCatalog {
     'ACCEPTANCE_DATE_CHANGED',
     '一括計上明細の保存済み検収終了日を別の日付へ変更したときの取消と再生成'
   );
+  /** 仕様: Accounting 第4.2節。短いname。括弧はdescription。 */
   public static final Definition PAYMENT_RECORDED = new Definition(
     '請求入出金登録',
     'PAYMENT_RECORDED',

@@ -946,17 +946,17 @@ private class ContractHistoryTriggerHandlerTest {
   }
 
   @IsTest
-  static void afterUpdate_archivePurgesStrayBilling() {
+  static void afterUpdate_archiveDoesNotPurgeStrayBilling() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
-        'Archive Purge Billing'
+        'Archive Keep Billing'
       );
       ContractService__c service = insertServiceWithBillingAccount(
         account,
-        'Archive Purge Service'
+        'Archive Keep Service'
       );
       ContractHistory__c history = new ContractHistory__c(
-        Name = 'Archive Purge History',
+        Name = 'Archive Keep History',
         ContractService__c = service.Id,
         Type__c = 'New',
         historystatus__c = 'Estimate',
@@ -966,7 +966,7 @@ private class ContractHistoryTriggerHandlerTest {
       );
       insertWithOpportunity(history, account.Id);
       Product2 product = ContractTestDataFactory.buildProduct(
-        'Archive Purge Product'
+        'Archive Keep Product'
       );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(product);
@@ -1004,22 +1004,22 @@ private class ContractHistoryTriggerHandlerTest {
       Test.stopTest();
 
       System.assertEquals(
-        0,
+        1,
         [
           SELECT COUNT()
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :history.Id
         ],
-        'Archive ???????????E'
+        '仕様: Core 第2.3節・第5.5節・第6.1節。Archiveは期間明細を物理削除しない'
       );
       System.assertEquals(
-        0,
+        1,
         [
           SELECT COUNT()
           FROM Invoice__c
           WHERE ContractHistory__c = :history.Id
         ],
-        'Archive ?????E????E'
+        '仕様: Core 第2.3節・第5.5節。Archiveは未確定請求を物理削除しない'
       );
     }
   }

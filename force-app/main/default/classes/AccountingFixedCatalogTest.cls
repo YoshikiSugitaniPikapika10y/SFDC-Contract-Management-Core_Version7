@@ -328,6 +328,19 @@ private class AccountingFixedCatalogTest {
       AccountingEventFixedCatalog.PAYMENT_RECORDED.name
     );
     System.assertEquals(
+      false,
+      AccountingEventFixedCatalog.PAYMENT_RECORDED.name.contains('（') ||
+        AccountingEventFixedCatalog.PAYMENT_RECORDED.name.contains('('),
+      'Accounting 第4.2節: 短いnameに括弧説明を入れない'
+    );
+    System.assertEquals(
+      true,
+      AccountingEventFixedCatalog.PAYMENT_RECORDED.description.contains(
+        'Purpose=Invoice'
+      ),
+      'Accounting 第4.2節: 括弧はdescriptionだけ'
+    );
+    System.assertEquals(
       'InvoicePayment__c',
       AccountingCatalogTypes.objectApiName(
         AccountingCatalogTypes.ConditionObject.InvoicePayment

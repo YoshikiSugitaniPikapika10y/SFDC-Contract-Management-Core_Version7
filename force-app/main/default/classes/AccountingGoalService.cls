@@ -64,11 +64,14 @@ public without sharing class AccountingGoalService {
   private static Map<Id, Map<Id, GlManualJournalSetting__c>> cachedSettingsByInvoice = new Map<Id, Map<Id, GlManualJournalSetting__c>>();
   private static Map<Id, RelatedRecords> cachedRelatedByInvoice = new Map<Id, RelatedRecords>();
   private static Map<Id, Map<Id, InvoicePayment__c>> collectedPaymentsByInvoice = new Map<Id, Map<Id, InvoicePayment__c>>();
+  private static Set<Id> rememberedPaymentInvoiceIds = new Set<Id>();
   private static Map<Id, Map<Id, InvoicePaymentAllocation__c>> collectedAllocationsByInvoice = new Map<Id, Map<Id, InvoicePaymentAllocation__c>>();
   @TestVisible
   static Integer allocationLoadSelectCount = 0;
   @TestVisible
   static Integer lineLoadSelectCount = 0;
+  @TestVisible
+  static Integer paymentLoadSelectCount = 0;
   private static Map<String, List<GlJournal__c>> activeJournalsByGeneration;
 
   private class RelatedRecords {
@@ -91,7 +94,55 @@ public without sharing class AccountingGoalService {
     cachedSettingsByInvoice.remove(invoiceId);
     cachedRelatedByInvoice.remove(invoiceId);
     collectedPaymentsByInvoice.remove(invoiceId);
+    rememberedPaymentInvoiceIds.remove(invoiceId);
     collectedAllocationsByInvoice.remove(invoiceId);
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節。同一処理で読んだ Active 入出金は Goal で取り直さない。
+   * Goal.build が put した収集結果だけでは再照会を省略しない。
+   */
+  public static void rememberCollectedPayments(
+    Id invoiceId,
+    List<InvoicePayment__c> payments
+  ) {
+    if (invoiceId == null) {
+      return;
+    }
+    Map<Id, InvoicePayment__c> rows = new Map<Id, InvoicePayment__c>();
+    if (payments != null) {
+      for (InvoicePayment__c payment : payments) {
+        if (payment == null || payment.Id == null) {
+          continue;
+        }
+        if (
+          payment.PaymentTransactionStatus__c !=
+          InvoicePaymentService.STATUS_ACTIVE
+        ) {
+          continue;
+        }
+        rows.put(payment.Id, payment);
+      }
+    }
+    collectedPaymentsByInvoice.put(invoiceId, rows);
+    rememberedPaymentInvoiceIds.add(invoiceId);
+  }
+
+  /**
+   * 仕様: Accounting 第8.2節。Net再計算の入出金 SELECT は Goal が読む項目を含む。
+   */
+  public static Set<String> paymentSelectFieldsForGoal() {
+    Set<String> selectFields = new Set<String>{
+      'Id',
+      'CreatedDate',
+      'Invoice__c',
+      'Amount__c',
+      'PaymentPurpose__c',
+      'PaymentDate__c',
+      'PaymentTransactionStatus__c'
+    };
+    selectFields.addAll(tenantConditionFields(InvoicePayment__c.SObjectType));
+    return selectFields;
   }
 
   /** 仕様: Accounting 第8.2節、Core 第12.4節。同一処理のコピーは Goal が収集した原因を使う。 */
@@ -3102,17 +3153,17 @@ public without sharing class AccountingGoalService {
   }
 
   private static Map<Id, InvoicePayment__c> loadPayments(Id invoiceId) {
+    if (rememberedPaymentInvoiceIds.contains(invoiceId)) {
+      Map<Id, InvoicePayment__c> remembered = collectedPaymentsByInvoice.get(
+        invoiceId
+      );
+      return remembered == null
+        ? new Map<Id, InvoicePayment__c>()
+        : remembered;
+    }
+    paymentLoadSelectCount++;
     Map<Id, InvoicePayment__c> rows = new Map<Id, InvoicePayment__c>();
-    Set<String> selectFields = new Set<String>{
-      'Id',
-      'CreatedDate',
-      'Invoice__c',
-      'Amount__c',
-      'PaymentPurpose__c',
-      'PaymentDate__c',
-      'PaymentTransactionStatus__c'
-    };
-    selectFields.addAll(tenantConditionFields(InvoicePayment__c.SObjectType));
+    Set<String> selectFields = paymentSelectFieldsForGoal();
     String soql =
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +

@@ -417,7 +417,7 @@ public without sharing class InvoicePaymentService {
         originalAllocations
       );
       skipTriggerNetRecalc = false;
-      recalculateNets(new Set<Id>{ original.Invoice__c });
+      recalculateNets(new Set<Id>{ original.Invoice__c }, true);
       setPaymentRecordedCandidateScope(original.PaymentPurpose__c);
       try {
         AccountingDiffService.applyForInvoice(
@@ -605,6 +605,17 @@ public without sharing class InvoicePaymentService {
 
   /** 仕様: Core 第8.1節、第7.11節 */
   public static void recalculateNets(Set<Id> invoiceIds) {
+    recalculateNets(invoiceIds, false);
+  }
+
+  /**
+   * 仕様: Core 第8.1節、Accounting 第8.2節。
+   * rememberForGoal のとき Active 入出金を Goal へ渡し、取り直さない。
+   */
+  public static void recalculateNets(
+    Set<Id> invoiceIds,
+    Boolean rememberForGoal
+  ) {
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return;
     }
@@ -612,17 +623,23 @@ public without sharing class InvoicePaymentService {
     Map<Id, Decimal> invoiceNets = new Map<Id, Decimal>();
     Map<Id, Decimal> inclusiveNets = new Map<Id, Decimal>();
     Map<Id, Integer> invoicePurposeCounts = new Map<Id, Integer>();
+    Map<Id, List<InvoicePayment__c>> activeByInvoice = new Map<Id, List<InvoicePayment__c>>();
     for (Id invoiceId : invoiceIds) {
       invoiceNets.put(invoiceId, 0);
       inclusiveNets.put(invoiceId, 0);
       invoicePurposeCounts.put(invoiceId, 0);
+      activeByInvoice.put(invoiceId, new List<InvoicePayment__c>());
     }
-    for (InvoicePayment__c payment : [
-      SELECT Invoice__c, Amount__c, PaymentPurpose__c, PaymentTransactionStatus__c
-      FROM InvoicePayment__c
-      WHERE Invoice__c IN :invoiceIds
-      WITH SYSTEM_MODE
-    ]) {
+    String soql =
+      'SELECT ' +
+      String.join(
+        new List<String>(AccountingGoalService.paymentSelectFieldsForGoal()),
+        ','
+      ) +
+      ' FROM InvoicePayment__c WHERE Invoice__c IN :invoiceIds';
+    for (
+      InvoicePayment__c payment : Database.query(soql, AccessLevel.SYSTEM_MODE)
+    ) {
       if (payment.PaymentTransactionStatus__c != STATUS_ACTIVE) {
         continue;
       }
@@ -639,6 +656,17 @@ public without sharing class InvoicePaymentService {
         invoicePurposeCounts.put(
           payment.Invoice__c,
           invoicePurposeCounts.get(payment.Invoice__c) + 1
+        );
+      }
+      if (rememberForGoal == true) {
+        activeByInvoice.get(payment.Invoice__c).add(payment);
+      }
+    }
+    if (rememberForGoal == true) {
+      for (Id invoiceId : invoiceIds) {
+        AccountingGoalService.rememberCollectedPayments(
+          invoiceId,
+          activeByInvoice.get(invoiceId)
         );
       }
     }

@@ -676,6 +676,51 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
+  static void cancel_reusesNetRecalcActivePaymentsForGoal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      seedMaps();
+      seedPaymentMaps();
+      Id paymentId = InvoicePaymentService.register(
+        invoiceRequest(fixture, 1100)
+      );
+      InvoicePaymentService.CancelRequest cancel = new InvoicePaymentService.CancelRequest();
+      cancel.paymentId = paymentId;
+      cancel.cancellationReason = 'Duplicate';
+      cancel.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      AccountingGoalService.paymentLoadSelectCount = 0;
+      Test.startTest();
+      InvoicePaymentService.cancel(cancel);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        AccountingGoalService.paymentLoadSelectCount,
+        'Accounting 第8.2節: 取消はNet再計算のActive入出金をGoalで取り直さない'
+      );
+      Invoice__c afterCancel = [
+        SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      System.assertEquals(
+        0,
+        afterCancel.InvoicePaymentNet__c,
+        'Core 第8.1節: 取消後の請求金額Netは再計算結果'
+      );
+      System.assertEquals(
+        0,
+        afterCancel.PaymentInclusiveTotal__c,
+        'Core 第8.1節: 取消後の全入出金Netは再計算結果'
+      );
+    }
+  }
+
+  @IsTest
   static void cancel_nonInvoice_keepsLineJournalsAndInvoiceCopySource() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();

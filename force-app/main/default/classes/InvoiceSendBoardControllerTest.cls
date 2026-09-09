@@ -576,6 +576,26 @@ private class InvoiceSendBoardControllerTest {
         AccountingGoalService.lineLoadSelectCount,
         'Accounting 第8.2節: collectLinesした明細をapplyが取り直さない'
       );
+      InvoiceLine__c persisted = [
+        SELECT AllocatedTaxAmount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c collected = AccountingGoalService.collectedLines(
+          invoice.Id
+        )
+        .get(persisted.Id);
+      System.assertNotEquals(
+        null,
+        collected,
+        'Accounting 第8.2節: 確定で集めた明細を残す'
+      );
+      System.assertEquals(
+        persisted.AllocatedTaxAmount__c,
+        collected.AllocatedTaxAmount__c,
+        'Core 第7.4節・Accounting 第8.4節: Goalの明細は配分後の税額'
+      );
     }
   }
 

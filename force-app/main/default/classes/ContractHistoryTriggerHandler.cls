@@ -2,7 +2,8 @@
  * ContractHistory__c トリガ処理。
  * 見積削除時の関連整理、受注／アーカイブ遷移に伴う同期・請求調整を呼び出す。
  *
- * 不変条件: 契約期間明細・請求・請求明細は historystatus = Ordered のときだけ存在する。
+ * 有効な契約期間明細・請求・請求明細は Ordered にだけ生成する。
+ * Archive はそれらを物理削除しない（Core 第2.3節・第5.5節・第6.1節）。
  */
 public without sharing class ContractHistoryTriggerHandler {
   private static final String HISTORY_STATUS_ESTIMATE = ContractDomainConstants.HISTORY_STATUS_ESTIMATE;
@@ -186,14 +187,13 @@ public without sharing class ContractHistoryTriggerHandler {
     ContractIrregularOperationLog.logDelete(oldHistories);
   }
 
-  /** 仕様: Core 第5.3節、第6.1節 */
+  /** 仕様: Core 第2.3節、第5.3節、第5.5節、第6.1節 */
   public static void handleAfterUpdate(
     List<ContractHistory__c> newHistories,
     Map<Id, ContractHistory__c> oldMap
   ) {
     Set<Id> orderedHistoryIds = new Set<Id>();
     Set<Id> revertToEstimateHistoryIds = new Set<Id>();
-    Set<Id> archivedHistoryIds = new Set<Id>();
     List<ContractHistory__c> orderedTransitionHistories = new List<ContractHistory__c>();
     List<ContractHistory__c> revertToEstimateHistories = new List<ContractHistory__c>();
 
@@ -207,15 +207,6 @@ public without sharing class ContractHistoryTriggerHandler {
       ) {
         revertToEstimateHistoryIds.add(history.Id);
         revertToEstimateHistories.add(history);
-      }
-
-      if (
-        oldHistory != null &&
-        oldHistory.historystatus__c != HISTORY_STATUS_ARCHIVE &&
-        oldHistory.historystatus__c != HISTORY_STATUS_ESTIMATE &&
-        history.historystatus__c == HISTORY_STATUS_ARCHIVE
-      ) {
-        archivedHistoryIds.add(history.Id);
       }
 
       if (
@@ -243,12 +234,6 @@ public without sharing class ContractHistoryTriggerHandler {
       ContractOrderedHistorySyncService.syncForHistories(
         revertToEstimateHistories
       );
-    }
-
-    // 仕様: Core 第5.2節・第5.5節・第6.1節・第12.4節。
-    // Estimate の Archive に有効な期間明細・請求は無い。Ordered 以外の Archive だけ掃除する。
-    if (!archivedHistoryIds.isEmpty()) {
-      InvoiceCanonicalService.purgeBillingForHistories(archivedHistoryIds);
     }
 
     if (!orderedHistoryIds.isEmpty() || !orderedTransitionHistories.isEmpty()) {

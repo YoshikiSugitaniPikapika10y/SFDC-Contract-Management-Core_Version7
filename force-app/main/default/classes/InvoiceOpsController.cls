@@ -290,7 +290,7 @@ public without sharing class InvoiceOpsController {
     return succeeded;
   }
 
-  /** 仕様: Accounting 第3.1節、第8.2節、Core 第7.9.7節、第12.4節 */
+  /** 仕様: Accounting 第3.1節、第8.2節、第8.4節、Core 第7.4節、第7.9.7節、第12.4節 */
   private static void confirmOneInvoice(
     Invoice__c invoice,
     Date integrationDate,

@@ -254,7 +254,20 @@ private class InvoiceTaxAllocationServiceTest {
       ];
       System.assertEquals(60, lines[0].AllocatedTaxAmount__c);
       System.assertEquals(40, lines[1].AllocatedTaxAmount__c);
+      Decimal knownAllocated = 0;
+      for (InvoiceLine__c row : known) {
+        knownAllocated += nvlAllocated(row.AllocatedTaxAmount__c);
+      }
+      System.assertEquals(
+        100,
+        knownAllocated,
+        'Core 第7.4節: 配分税額は収集した明細インスタンスへ載せる'
+      );
     }
+  }
+
+  private static Decimal nvlAllocated(Decimal value) {
+    return value == null ? 0 : value;
   }
 
   private static Invoice__c insertAllocationInvoice(String label, Decimal tax) {

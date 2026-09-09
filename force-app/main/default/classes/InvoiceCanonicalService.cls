@@ -561,8 +561,9 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /**
-   * 契約履歴に紐づく請求正本（明細 MD 含む）と契約期間明細を削除する。
-   * Ordered 以外へ落ちたとき／削除時の不変条件維持用。
+   * 仕様: Core 第2.3節、第5.3節、第6.1節。
+   * 差し戻しおよび Version 再生成で、契約履歴に紐づく未確定請求と契約期間明細を物理削除する。
+   * Archive からは呼ばない。
    */
   public static void purgeBillingForHistories(Set<Id> contractHistoryIds) {
     purgeBillingForHistories(contractHistoryIds, null);

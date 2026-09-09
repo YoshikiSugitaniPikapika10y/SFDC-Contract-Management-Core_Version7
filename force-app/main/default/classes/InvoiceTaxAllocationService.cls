@@ -77,6 +77,9 @@ public without sharing class InvoiceTaxAllocationService {
     }
     List<InvoiceLine__c> updates = new List<InvoiceLine__c>();
     for (Integer i = 0; i < lines.size(); i++) {
+      // 仕様: Core 第7.4節、Accounting 第8.2節・第8.4節。
+      // 配分税額は同一処理で集めた明細インスタンスへ載せ、Goalが配分前のキャッシュを使わない。
+      lines[i].AllocatedTaxAmount__c = truncated[i];
       updates.add(
         new InvoiceLine__c(
           Id = lines[i].Id,
