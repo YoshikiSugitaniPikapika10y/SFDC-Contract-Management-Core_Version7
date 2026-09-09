@@ -290,13 +290,9 @@ public without sharing class InvoicePaymentService {
     return hydrated;
   }
 
-  /** 仕様: Accounting 第4.2節・第8.8節。請求基準とNonInvoiceは売上Goalを作り直さない。 */
+  /** 仕様: Accounting 第4.2節・第8.5節・第8.8節。入出金のGoal Diffは請求書のCurrent全体（売上含む）を数える。 */
   private static void setPaymentRecordedCandidateScope(String purpose) {
-    GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    Boolean includeRevenue =
-      purpose == PURPOSE_INVOICE &&
-      policy.RevenueRecognitionBasis__c == 'CashBasis';
-    AccountingDiffService.setPaymentCancelCandidateScope(includeRevenue, false);
+    AccountingDiffService.setPaymentCancelCandidateScope(true, true);
   }
 
   private static void applyPaymentRecorded(
@@ -422,11 +418,7 @@ public without sharing class InvoicePaymentService {
       );
       skipTriggerNetRecalc = false;
       recalculateNets(new Set<Id>{ original.Invoice__c });
-      GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-      Boolean includeRevenue =
-        original.PaymentPurpose__c == PURPOSE_INVOICE &&
-        policy.RevenueRecognitionBasis__c == 'CashBasis';
-      AccountingDiffService.setPaymentCancelCandidateScope(includeRevenue, false);
+      setPaymentRecordedCandidateScope(original.PaymentPurpose__c);
       try {
         AccountingDiffService.applyForInvoice(
           original.Invoice__c,
@@ -491,10 +483,7 @@ public without sharing class InvoicePaymentService {
     }
     InvoicePayment__c payment = resolvePaymentForPreview(paymentId, knownPayment);
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    Boolean includeRevenue =
-      payment.PaymentPurpose__c == PURPOSE_INVOICE &&
-      policy.RevenueRecognitionBasis__c == 'CashBasis';
-    AccountingDiffService.setPaymentCancelCandidateScope(includeRevenue, false);
+    setPaymentRecordedCandidateScope(payment.PaymentPurpose__c);
     try {
       if (policy.AccountingEnabled__c != true) {
         return AccountingDiffService.previewCancel(

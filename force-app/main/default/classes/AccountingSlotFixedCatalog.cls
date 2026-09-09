@@ -136,6 +136,21 @@ public with sharing class AccountingSlotFixedCatalog {
     OtherExpense.key => OtherExpense
   };
 
+  private static final Map<String, Definition> BY_NAME = new Map<String, Definition>{
+    AccountsReceivable.name => AccountsReceivable,
+    ContractAsset.name => ContractAsset,
+    Cash.name => Cash,
+    DeferredRevenue.name => DeferredRevenue,
+    TaxPayable.name => TaxPayable,
+    UnappliedCash.name => UnappliedCash,
+    SuspensePayment.name => SuspensePayment,
+    Revenue.name => Revenue,
+    FxGain.name => FxGain,
+    FxLoss.name => FxLoss,
+    OtherIncome.name => OtherIncome,
+    OtherExpense.name => OtherExpense
+  };
+
   /** 仕様: Accounting 第4.3節。設定の`GlSlotKey`ラベルは`name`。未知キーはキーそのもの。 */
   public static String nameOf(String key) {
     if (String.isBlank(key)) {
@@ -145,12 +160,15 @@ public with sharing class AccountingSlotFixedCatalog {
     return found == null ? key : found.name;
   }
 
-  /** 仕様: Accounting 第4.3節。画面の借貸は略称。未知キーはキーそのもの。 */
+  /** 仕様: Accounting 第4.3節。画面の借貸は略称。和名が来ても略称にする。未知キーはキーそのもの。 */
   public static String abbreviationOf(String key) {
     if (String.isBlank(key)) {
       return '';
     }
     Definition found = BY_KEY.get(key);
+    if (found == null) {
+      found = BY_NAME.get(key);
+    }
     return found == null ? key : found.abbreviation;
   }
 

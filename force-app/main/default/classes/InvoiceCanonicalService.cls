@@ -285,7 +285,7 @@ public without sharing class InvoiceCanonicalService {
       return others;
     }
     for (InvoiceLine__c line : known.lines) {
-      if (line == null || line.Id == null || line.Invoice__c != invoiceId) {
+      if (!lineBelongsToInvoice(line, invoiceId) || line.Id == null) {
         continue;
       }
       if (excludeIds != null && excludeIds.contains(line.Id)) {
@@ -325,6 +325,28 @@ public without sharing class InvoiceCanonicalService {
       }
     }
     return byId;
+  }
+
+  /** 仕様: Core 第12.4節・第7.8節。SELECTに無い請求書参照は使わず取り直す。 */
+  private static Boolean lineBelongsToInvoice(InvoiceLine__c line, Id invoiceId) {
+    if (line == null || invoiceId == null) {
+      return false;
+    }
+    if (!line.getPopulatedFieldsAsMap().containsKey('Invoice__c')) {
+      return false;
+    }
+    return line.Invoice__c == invoiceId;
+  }
+
+  /** 仕様: Core 第12.4節・第7.8.3節。SELECTに無い手動調整フラグは使わず取り直す。 */
+  private static Boolean invoiceHasManualUmbrellaFields(Invoice__c invoice) {
+    if (invoice == null) {
+      return false;
+    }
+    Map<String, Object> populated = invoice.getPopulatedFieldsAsMap();
+    return populated.containsKey('IsManuallyAdjusted__c') &&
+      populated.containsKey('IsAmountAdjusted__c') &&
+      populated.containsKey('IsSplitMoved__c');
   }
 
   private static void rememberSplitInvoiceSelect(Id invoiceId) {
@@ -1726,6 +1748,9 @@ public without sharing class InvoiceCanonicalService {
     }
 
     Invoice__c source = knownSplitInvoice(known, invoiceId);
+    if (source != null && !invoiceHasManualUmbrellaFields(source)) {
+      source = null;
+    }
     if (source == null) {
       splitInvoiceSelectCount++;
       rememberSplitInvoiceSelect(invoiceId);
@@ -1760,14 +1785,14 @@ public without sharing class InvoiceCanonicalService {
     Boolean knownCovers = !targetLineIds.isEmpty();
     for (Id lineId : targetLineIds) {
       InvoiceLine__c knownLine = knownLines.get(lineId);
-      if (knownLine == null || knownLine.Invoice__c != invoiceId) {
+      if (!lineBelongsToInvoice(knownLine, invoiceId)) {
         knownCovers = false;
         break;
       }
     }
     if (knownCovers) {
       for (InvoiceLine__c line : knownLines.values()) {
-        if (line != null && line.Invoice__c == invoiceId) {
+        if (lineBelongsToInvoice(line, invoiceId)) {
           sourceLineById.put(line.Id, line);
         }
       }
@@ -1777,6 +1802,7 @@ public without sharing class InvoiceCanonicalService {
         [
           SELECT
             Id,
+            Invoice__c,
             Amount__c,
             ProductName__c,
             Product__c,
@@ -2328,6 +2354,12 @@ public without sharing class InvoiceCanonicalService {
     Map<Id, Invoice__c> invoicesById = new Map<Id, Invoice__c>();
     Invoice__c knownSource = knownSplitInvoice(known, sourceInvoiceId);
     Invoice__c knownTarget = knownSplitInvoice(known, targetInvoiceId);
+    if (knownSource != null && !invoiceHasManualUmbrellaFields(knownSource)) {
+      knownSource = null;
+    }
+    if (knownTarget != null && !invoiceHasManualUmbrellaFields(knownTarget)) {
+      knownTarget = null;
+    }
     if (knownSource != null) {
       invoicesById.put(sourceInvoiceId, knownSource);
     }
@@ -2354,7 +2386,10 @@ public without sharing class InvoiceCanonicalService {
           MergeKey__c,
           SystemIntegrationDate__c,
           PaymentClearingCompletedDate__c,
-          InvoiceTransactionStatus__c
+          InvoiceTransactionStatus__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
+          IsManuallyAdjusted__c
         FROM Invoice__c
         WHERE Id IN :missingInvoiceIds
         WITH SYSTEM_MODE
@@ -2389,7 +2424,7 @@ public without sharing class InvoiceCanonicalService {
     Set<Id> missingLineIds = new Set<Id>();
     for (Id lineId : lineIdSet) {
       InvoiceLine__c knownLine = knownLines.get(lineId);
-      if (knownLine == null || knownLine.Invoice__c != sourceInvoiceId) {
+      if (!lineBelongsToInvoice(knownLine, sourceInvoiceId)) {
         missingLineIds.add(lineId);
       } else {
         sourceLines.add(knownLine);
@@ -2400,6 +2435,7 @@ public without sharing class InvoiceCanonicalService {
       List<InvoiceLine__c> loadedLines = [
         SELECT
           Id,
+          Invoice__c,
           Amount__c,
           ProductName__c,
           Product__c,
@@ -2791,6 +2827,9 @@ public without sharing class InvoiceCanonicalService {
     }
 
     Invoice__c source = knownSplitInvoice(known, sourceInvoiceId);
+    if (source != null && !invoiceHasManualUmbrellaFields(source)) {
+      source = null;
+    }
     if (source == null) {
       splitInvoiceSelectCount++;
       rememberSplitInvoiceSelect(sourceInvoiceId);
@@ -2807,7 +2846,10 @@ public without sharing class InvoiceCanonicalService {
           PeriodLineAmountTotal__c,
           SystemIntegrationDate__c,
           PaymentClearingCompletedDate__c,
-          InvoiceTransactionStatus__c
+          InvoiceTransactionStatus__c,
+          IsAmountAdjusted__c,
+          IsSplitMoved__c,
+          IsManuallyAdjusted__c
         FROM Invoice__c
         WHERE Id = :sourceInvoiceId
         WITH SYSTEM_MODE
@@ -2847,7 +2889,7 @@ public without sharing class InvoiceCanonicalService {
     Set<Id> missingLineIds = new Set<Id>();
     for (Id lineId : inputByLineId.keySet()) {
       InvoiceLine__c knownLine = knownLines.get(lineId);
-      if (knownLine == null || knownLine.Invoice__c != sourceInvoiceId) {
+      if (!lineBelongsToInvoice(knownLine, sourceInvoiceId)) {
         missingLineIds.add(lineId);
       } else {
         sourceLines.add(knownLine);
@@ -2858,6 +2900,7 @@ public without sharing class InvoiceCanonicalService {
       List<InvoiceLine__c> loadedLines = [
         SELECT
           Id,
+          Invoice__c,
           Amount__c,
           ProductName__c,
           Product__c,
@@ -3382,7 +3425,8 @@ public without sharing class InvoiceCanonicalService {
       }
     }
     Invoice__c invoice = knownInvoice != null &&
-      knownInvoice.Id == invoiceId
+      knownInvoice.Id == invoiceId &&
+      invoiceHasManualUmbrellaFields(knownInvoice)
       ? knownInvoice
       : null;
     if (invoice == null) {
@@ -3759,7 +3803,7 @@ public without sharing class InvoiceCanonicalService {
     List<InvoiceLine__c> sourceLines = new List<InvoiceLine__c>();
     if (knownLinesById != null && !knownLinesById.isEmpty()) {
       for (InvoiceLine__c line : knownLinesById.values()) {
-        if (line != null && line.Invoice__c == sourceInvoiceId) {
+        if (lineBelongsToInvoice(line, sourceInvoiceId)) {
           sourceLines.add(line);
         }
       }
@@ -3769,6 +3813,7 @@ public without sharing class InvoiceCanonicalService {
       sourceLines = [
         SELECT
           Id,
+          Invoice__c,
           Amount__c,
           ProductName__c,
           SourcePeriodLineIds__c,
