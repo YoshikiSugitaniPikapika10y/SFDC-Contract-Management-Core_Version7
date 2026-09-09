@@ -856,6 +856,8 @@ private class AccountingTagEvaluationServiceTest {
       policy.AccountingEnabled__c = true;
       insert policy;
       Invoice__c invoice = insertInvoice();
+      invoice.IsSplitMoved__c = true;
+      update invoice;
       markConfirmed(invoice);
       markCancelled(invoice);
       GlAccount__c debit = new GlAccount__c(
@@ -934,19 +936,12 @@ private class AccountingTagEvaluationServiceTest {
       );
       insertEnabledRule('net-diff-swap', 'IsSplitMoved__c');
       AccountingTagEvaluationService.clearCachedEnabledRules();
-      AccountingTagEvaluationService.evaluateForInvoice(invoice.Id);
-      Invoice__c stored = [
-        SELECT IsSplitMoved__c
-        FROM Invoice__c
-        WHERE Id = :invoice.Id
-      ];
-      System.assertEquals(
-        false,
-        stored.IsSplitMoved__c,
-        'Accounting 第7.3節・第8.8節: 取消済元行と借貸逆の取消仕訳をNet集計する（AR!=0はFalse）'
-      );
+      List<GlJournal__c> diffWritten = new List<GlJournal__c>{
+        leftover,
+        reversal
+      };
       Map<String, Decimal> nets = AccountingTagEvaluationService.slotAbbreviationNets(
-        new List<GlJournal__c>{ leftover, reversal }
+        diffWritten
       );
       System.assertEquals(
         0,
@@ -957,6 +952,21 @@ private class AccountingTagEvaluationServiceTest {
         0,
         nets.get('REV'),
         'Accounting 第7.3節・第8.8節: Diffの借貸逆取消はスロットNetでREVを打ち消す'
+      );
+      AccountingTagEvaluationService.evaluateForInvoice(
+        invoice.Id,
+        null,
+        diffWritten
+      );
+      Invoice__c stored = [
+        SELECT IsSplitMoved__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        false,
+        stored.IsSplitMoved__c,
+        'Accounting 第7.3節・第8.8節: 取消済元行と借貸逆の取消仕訳をNet集計する（AR!=0はFalse）'
       );
     }
   }
