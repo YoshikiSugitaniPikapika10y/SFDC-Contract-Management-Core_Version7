@@ -425,7 +425,7 @@ private class InvoicePreviewOpsControllerTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          '明細別割当の請求明細と金額は必須です。',
+          '請求金額の入出金は明細別割当が1件以上必要です。',
           ex.getMessage(),
           'Core 第8.6節・第8.9節: 画面の割当が空なら proposeLines で埋めない'
         );
@@ -2317,7 +2317,8 @@ private class InvoicePreviewOpsControllerTest {
       Name = 'PayPrev Service',
       Account__c = account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
     );
     ContractTestDataFactory.applyRequiredFields(service);
     insert service;
