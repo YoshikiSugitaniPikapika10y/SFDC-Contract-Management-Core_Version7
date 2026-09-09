@@ -25,20 +25,22 @@
       <section class="est-panel est-panel_period">
         <div class="est-panel-header est-panel-header_row">
           <div class="est-panel-header-lead">
-            <button
-              type="button"
-              class={recurringPeriodToggleClass}
-              title="契約期間を開閉"
-              aria-expanded={recurringPeriodExpandedAria}
-              onclick={handleToggleRecurringPeriod}
-            >
-              <lightning-icon
-                icon-name="utility:chevronright"
-                size="xx-small"
-                class={recurringPeriodChevronClass}
-              ></lightning-icon>
-              <span class="est-panel-title">契約期間</span>
-            </button>
+            <h2 class="est-panel-title">
+              <button
+                type="button"
+                class={recurringPeriodToggleClass}
+                title="契約期間を開閉"
+                aria-expanded={recurringPeriodExpandedAria}
+                onclick={handleToggleRecurringPeriod}
+              >
+                <lightning-icon
+                  icon-name="utility:chevronright"
+                  size="xx-small"
+                  class={recurringPeriodChevronClass}
+                ></lightning-icon>
+                契約期間
+              </button>
+            </h2>
           </div>
         </div>
         <template if:true={recurringPeriodExpanded}>
@@ -70,7 +72,7 @@
       <template if:true={isLoadingChangeProducts}>
         <div class="est-loading">
           <lightning-spinner
-            alternative-text="読込中"
+            alternative-text="読み込み中"
             size="small"
           ></lightning-spinner>
         </div>
@@ -93,7 +95,7 @@
       <template if:true={isLoadingRenewProducts}>
         <div class="est-loading">
           <lightning-spinner
-            alternative-text="読込中"
+            alternative-text="読み込み中"
             size="small"
           ></lightning-spinner>
         </div>
@@ -130,7 +132,7 @@
     <template if:true={isLoadingDates}>
       <div class="est-loading est-loading_inline">
         <lightning-spinner
-          alternative-text="日付読込中"
+            alternative-text="読み込み中"
           size="small"
         ></lightning-spinner>
       </div>
@@ -152,20 +154,22 @@
       <section class="est-panel est-panel_table">
         <div class="est-panel-header est-panel-header_row">
           <div class="est-panel-header-lead">
-            <button
-              type="button"
-              class={productLinesToggleClass}
-              title="商品明細を開閉"
-              aria-expanded={productLinesExpandedAria}
-              onclick={handleToggleProductLines}
-            >
-              <lightning-icon
-                icon-name="utility:chevronright"
-                size="xx-small"
-                class={productLinesChevronClass}
-              ></lightning-icon>
-              <span class="est-panel-title">商品明細</span>
-            </button>
+            <h2 class="est-panel-title">
+              <button
+                type="button"
+                class={productLinesToggleClass}
+                title="商品明細を開閉"
+                aria-expanded={productLinesExpandedAria}
+                onclick={handleToggleProductLines}
+              >
+                <lightning-icon
+                  icon-name="utility:chevronright"
+                  size="xx-small"
+                  class={productLinesChevronClass}
+                ></lightning-icon>
+                商品明細
+              </button>
+            </h2>
           </div>
           <div class="est-panel-header-actions">
             <template if:true={hasProductCustomFields}>
@@ -259,9 +263,9 @@
                         <td colspan={productTableColspan}>
                           <div class={item.groupHeaderClass}>
                             <div class="est-change-group-card__header-text">
-                              <span class="est-change-group-card__title"
-                                >{item.groupHeaderTitle}</span
-                              >
+                              <h3 class="est-change-group-card__title">
+                                {item.groupHeaderTitle}
+                              </h3>
                             </div>
                             <template if:true={item.isSectionHeader}>
                               <button
@@ -989,27 +993,29 @@
       <section class="est-panel est-panel_custom">
         <div class="est-panel-header est-panel-header_row">
           <div class="est-panel-header-lead">
-            <button
-              type="button"
-              class={contractCustomToggleClass}
-              title="契約のカスタム項目を開閉"
-              aria-expanded={contractCustomExpandedAria}
-              onclick={handleToggleContractCustomFields}
-            >
-              <lightning-icon
-                icon-name="utility:chevronright"
-                size="xx-small"
-                class={contractCustomChevronClass}
-              ></lightning-icon>
-              <span class="est-panel-title">{contractCustomSectionTitle}</span>
-            </button>
+            <h2 class="est-panel-title">
+              <button
+                type="button"
+                class={contractCustomToggleClass}
+                title="契約のカスタム項目を開閉"
+                aria-expanded={contractCustomExpandedAria}
+                onclick={handleToggleContractCustomFields}
+              >
+                <lightning-icon
+                  icon-name="utility:chevronright"
+                  size="xx-small"
+                  class={contractCustomChevronClass}
+                ></lightning-icon>
+                {contractCustomSectionTitle}
+              </button>
+            </h2>
           </div>
         </div>
         <template if:true={contractCustomFieldsExpanded}>
           <div class="est-panel-body">
             <template if:true={hasServiceCustomFields}>
               <div class="est-contract-custom">
-                <p class="est-contract-custom-title">契約サービス</p>
+                <h3 class="est-contract-custom-title">契約サービス</h3>
                 <c-estimate-wizard-custom-field-grid
                   fields={serviceCustomFieldInputs}
                   field-target="contractService"
@@ -1021,7 +1027,7 @@
             </template>
             <template if:true={hasHistoryCustomFields}>
               <div class="est-contract-custom">
-                <p class="est-contract-custom-title">契約履歴</p>
+                <h3 class="est-contract-custom-title">契約履歴</h3>
                 <c-estimate-wizard-custom-field-grid
                   fields={historyCustomFieldInputs}
                   field-target="contractHistory"
@@ -1033,7 +1039,7 @@
             </template>
             <template if:true={hasOrderCustomFields}>
               <div class="est-contract-custom">
-                <p class="est-contract-custom-title">受注</p>
+                <h3 class="est-contract-custom-title">受注</h3>
                 <c-estimate-wizard-custom-field-grid
                   fields={orderCustomFieldInputs}
                   field-target="contractHistory"
@@ -1052,7 +1058,7 @@
       <section class="est-panel est-panel_remarks">
         <div class="est-panel-header est-panel-header_row">
           <div class="est-panel-header-lead">
-            <span class="est-panel-title">見積書</span>
+            <h2 class="est-panel-title">見積書</h2>
           </div>
         </div>
         <div class="est-panel-body est-remarks-body">
@@ -1134,20 +1140,22 @@
       <section class="est-panel est-panel_remarks">
         <div class="est-panel-header est-panel-header_row">
           <div class="est-panel-header-lead">
-            <button
-              type="button"
-              class={remarksToggleClass}
-              title="備考を開閉"
-              aria-expanded={remarksExpandedAria}
-              onclick={handleToggleRemarks}
-            >
-              <lightning-icon
-                icon-name="utility:chevronright"
-                size="xx-small"
-                class={remarksChevronClass}
-              ></lightning-icon>
-              <span class="est-panel-title">備考</span>
-            </button>
+            <h2 class="est-panel-title">
+              <button
+                type="button"
+                class={remarksToggleClass}
+                title="備考を開閉"
+                aria-expanded={remarksExpandedAria}
+                onclick={handleToggleRemarks}
+              >
+                <lightning-icon
+                  icon-name="utility:chevronright"
+                  size="xx-small"
+                  class={remarksChevronClass}
+                ></lightning-icon>
+                備考
+              </button>
+            </h2>
           </div>
         </div>
         <template if:true={remarksExpanded}>

@@ -1,7 +1,7 @@
 <template>
   <div class={alertClass} role={alertRole} aria-live={liveMode}>
     <template if:true={hasTitle}>
-      <p class="est-alert-title">{title}</p>
+      <h3 class="est-alert-title">{title}</h3>
     </template>
     <ul class="est-alert-list">
       <template for:each={messages} for:item="message">

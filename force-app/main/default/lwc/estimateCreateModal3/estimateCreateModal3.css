@@ -113,6 +113,10 @@
   text-align: left;
 }
 
+.est-panel-toggle:hover {
+  color: var(--est-accent);
+}
+
 .est-panel-toggle:hover .est-panel-title {
   color: var(--est-accent);
 }
@@ -121,8 +125,13 @@
   color: var(--est-text);
 }
 
-.est-panel-toggle .est-panel-title {
+.est-panel-toggle .est-panel-title,
+.est-panel-title .est-panel-toggle {
   margin: 0;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
 }
 
 .est-panel-title,
@@ -216,6 +225,7 @@
 }
 
 .est-change-group-card__title {
+  margin: 0;
   font-size: var(--est-font-title);
   font-weight: 700;
   color: var(--est-accent-dark, #1d4ed8);
@@ -875,7 +885,7 @@
   background: transparent;
   color: var(--est-muted, #64748b);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -953,7 +963,7 @@
   background: #0f172a;
   color: #ffffff;
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 
