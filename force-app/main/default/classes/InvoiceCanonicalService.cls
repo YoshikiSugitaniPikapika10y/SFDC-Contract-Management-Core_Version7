@@ -1846,6 +1846,7 @@ public without sharing class InvoiceCanonicalService {
           Amount__c,
           PeriodLineAmountTotal__c,
           TaxPercent__c,
+          TaxAmount__c,
           IsAmountAdjusted__c,
           IsSplitMoved__c,
           IsManuallyAdjusted__c,
@@ -2476,6 +2477,7 @@ public without sharing class InvoiceCanonicalService {
           Amount__c,
           PeriodLineAmountTotal__c,
           TaxPercent__c,
+          TaxAmount__c,
           MergeKey__c,
           SystemIntegrationDate__c,
           PaymentClearingCompletedDate__c,
@@ -2940,6 +2942,7 @@ public without sharing class InvoiceCanonicalService {
           InvoiceDate__c,
           PaymentScheduledDate__c,
           TaxPercent__c,
+          TaxAmount__c,
           Amount__c,
           PeriodLineAmountTotal__c,
           SystemIntegrationDate__c,
@@ -3545,7 +3548,9 @@ public without sharing class InvoiceCanonicalService {
       invoice = [
         SELECT
           Id,
+          Amount__c,
           TaxPercent__c,
+          TaxAmount__c,
           IsAmountAdjusted__c,
           IsSplitMoved__c,
           IsManuallyAdjusted__c
@@ -3555,11 +3560,19 @@ public without sharing class InvoiceCanonicalService {
         LIMIT 1
       ];
     }
+    Decimal previousAmount = invoice.Amount__c == null ? 0 : invoice.Amount__c;
+    Map<String, Object> populated = invoice.getPopulatedFieldsAsMap();
+    Boolean keepTax =
+      previousAmount == amountTotal &&
+      populated.containsKey('TaxAmount__c');
     invoice.Amount__c = amountTotal;
-    invoice.TaxAmount__c = TaxCalculationUtil.calculateTaxAmount(
-      amountTotal,
-      TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
-    );
+    // 仕様: Core 第7.4節・第7.8節。税抜合計が同じならヘッダ税は据え置く。
+    if (!keepTax) {
+      invoice.TaxAmount__c = TaxCalculationUtil.calculateTaxAmount(
+        amountTotal,
+        TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
+      );
+    }
     // 端数: 強制オン、または明細に残存
     Boolean amountFlag = forceAmountAdjusted == true || amountAdjustedCount > 0;
     // 分割・移動: 強制オン、または明細に残存（請求情報編集では立てない）

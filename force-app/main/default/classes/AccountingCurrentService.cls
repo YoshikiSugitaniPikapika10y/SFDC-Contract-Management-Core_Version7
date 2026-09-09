@@ -158,6 +158,12 @@ public without sharing class AccountingCurrentService {
         fields.add(copyField);
       }
     }
+    // 仕様: Core 第11.4.4節、Accounting 第8.7節。差替え時に人が直した画面定義項目を読む。
+    for (String screenField : InvoiceOpsFieldService.journalScreenFieldApiNames()) {
+      if (!fields.contains(screenField)) {
+        fields.add(screenField);
+      }
+    }
     return fields;
   }
 

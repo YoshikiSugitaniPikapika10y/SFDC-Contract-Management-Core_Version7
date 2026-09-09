@@ -311,6 +311,8 @@ public without sharing class AccountingDiffService {
       if (sameContent(existing, next)) {
         continue;
       }
+      // 仕様: Core 第11.4.4節、Accounting 第8.7節。差替えinsertは人が直した画面定義項目を載せない。
+      carryScreenJournalExtraFields(existing, next);
       if (existing.IsLocked__c == true) {
         plan.reversals.add(existing);
         next.IdempotencyKey__c = idempotencyKey(
@@ -1455,6 +1457,23 @@ public without sharing class AccountingDiffService {
       }
     }
     return true;
+  }
+
+  /** 仕様: Core 第11.4.4節、Accounting 第8.7節。差替えinsertへ人が直した画面定義項目を載せる。 */
+  private static void carryScreenJournalExtraFields(
+    GlJournal__c current,
+    GlJournal__c goal
+  ) {
+    if (current == null || goal == null) {
+      return;
+    }
+    Map<String, Object> currentFields = current.getPopulatedFieldsAsMap();
+    for (String fieldName : InvoiceOpsFieldService.journalScreenFieldApiNames()) {
+      if (!currentFields.containsKey(fieldName)) {
+        continue;
+      }
+      goal.put(fieldName, current.get(fieldName));
+    }
   }
 
   private static String idempotencyKey(

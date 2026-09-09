@@ -1282,6 +1282,91 @@ private class AccountingDiffServiceTest {
   }
 
   @IsTest
+  static void collectPersistDiff_replaceInsert_keepsScreenJournalExtra() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      seedMaps();
+      Invoice__c invoice = insertDraftInvoiceWithLine();
+      invoice.BillingAddresseeSnapShot__c = 'コピー宛名';
+      invoice.TaxAmount__c = 100;
+      update invoice;
+      InvoiceTaxAllocationService.allocateOnConfirm(invoice);
+      markConfirmed(invoice);
+      AccountingDiffService.applyForInvoice(
+        invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        'TEST_SCREEN_EXTRA_CONF',
+        null
+      );
+      List<GlJournal__c> currents = [
+        SELECT Id, Amount__c, Memo__c, InvoiceLine__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id AND TransactionStatus__c = 'Active'
+      ];
+      System.assert(
+        !currents.isEmpty(),
+        'Accounting 第8.2節: 確定で仕訳がある'
+      );
+      for (GlJournal__c journal : currents) {
+        journal.Memo__c = '人が直した';
+      }
+      update currents;
+      Boolean previousWrite = GlJournalTriggerHandler.allowEngineWrite;
+      GlJournalTriggerHandler.allowEngineWrite = true;
+      try {
+        for (GlJournal__c journal : currents) {
+          journal.Amount__c = journal.Amount__c + 1;
+        }
+        update currents;
+      } finally {
+        GlJournalTriggerHandler.allowEngineWrite = previousWrite;
+      }
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Jnl_Screen_Extra',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL,
+        SourceObject__c = 'Invoice__c',
+        SourceFieldApiName__c = 'BillingAddresseeSnapShot__c',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      FieldCopyDefinitionService.resetCache();
+      InvoiceOpsField__mdt journalExtra = new InvoiceOpsField__mdt(
+        DeveloperName = 'JnlScreenMemo',
+        Active__c = true,
+        TargetObject__c = 'GlJournal__c',
+        FieldApiName__c = 'Memo__c'
+      );
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{ journalExtra }
+      );
+      AccountingCurrentService.invalidate(invoice.Id);
+      Test.startTest();
+      AccountingDiffService.applyForInvoice(
+        invoice.Id,
+        AccountingEventFixedCatalog.BILLING_CONFIRMED.key,
+        'TEST_SCREEN_EXTRA_REPLACE',
+        null
+      );
+      Test.stopTest();
+      List<GlJournal__c> active = [
+        SELECT Memo__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :invoice.Id AND TransactionStatus__c = 'Active'
+      ];
+      System.assertEquals(false, active.isEmpty());
+      for (GlJournal__c journal : active) {
+        System.assertEquals(
+          '人が直した',
+          journal.Memo__c,
+          'Core 第11.4.4節、Accounting 第8.7節: 差替えinsertは人が直した画面定義項目をコピーで埋め直さない'
+        );
+      }
+      InvoiceOpsFieldService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+    }
+  }
+
+  @IsTest
   static void toDisplayText_emptyReverseDates_saysNone() {
     AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
     preview.logicalDeleteCount = 2;

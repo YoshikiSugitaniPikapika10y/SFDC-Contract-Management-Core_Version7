@@ -1886,6 +1886,61 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void splitLinesInPlace_keepsHeaderTaxWhenAmountUnchanged() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c invoice = [
+        SELECT Id, Amount__c, TaxAmount__c, TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c, UnitPrice__c, Quantity__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      Decimal keptTax = (invoice.TaxAmount__c == null ? 0 : invoice.TaxAmount__c) + 7;
+      invoice.TaxAmount__c = keptTax;
+      update invoice;
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = 4000;
+      split.moveUnitPrice = 6000;
+
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        invoice.Id,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      Invoice__c stored = [
+        SELECT Amount__c, TaxAmount__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        30000,
+        stored.Amount__c,
+        'Core 第7.8節: 同一請求内分割は税抜合計を変えない'
+      );
+      System.assertEquals(
+        keptTax,
+        stored.TaxAmount__c,
+        'Core 第7.4節・第7.8節: 税抜合計が同じならヘッダ税は据え置く'
+      );
+    }
+  }
+
+  @IsTest
   static void splitLinesInPlace_copiesUnitFromSourceLine() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();
