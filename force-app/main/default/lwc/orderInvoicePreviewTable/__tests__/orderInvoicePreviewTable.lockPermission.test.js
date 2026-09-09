@@ -364,6 +364,70 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     expect(lockKeyButton(element)).toBeFalsy();
   });
 
+  it("filters journal rows by posting month and event in the header (Core 7.7.3)", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [
+        {
+          journalId: "a03JNL000000001",
+          eventKey: "BILLING_CONFIRMED",
+          eventName: "請求本体",
+          amount: 1100,
+          postingDate: "2026-06-01",
+          transactionStatus: "Active",
+          isLocked: false,
+          memo: ""
+        },
+        {
+          journalId: "a03JNL000000002",
+          eventKey: "PAYMENT_INVOICE_CURRENT",
+          eventName: "入金",
+          amount: 1100,
+          postingDate: "2026-07-15",
+          transactionStatus: "Active",
+          isLocked: false,
+          memo: ""
+        }
+      ],
+      manualJournals: []
+    });
+    const element = mount(buildPreview());
+    await flush();
+    await openJournalsTab(element);
+    const headers = Array.from(
+      element.shadowRoot.querySelectorAll("table.ops-table_journals thead th")
+    ).map((th) => th.textContent.replace(/\s+/g, " ").trim());
+    expect(headers.slice(0, 4)).toEqual(["選択", "Lock", "計上日", "イベント"]);
+    const rowText = () =>
+      Array.from(
+        element.shadowRoot.querySelectorAll(
+          "table.ops-table_journals tbody tr.journal-row"
+        )
+      )
+        .map((row) => row.textContent)
+        .join(" ");
+    expect(rowText()).toContain("請求本体");
+    expect(rowText()).toContain("入金");
+    const monthFilter = element.shadowRoot.querySelector(
+      "lightning-combobox[name='journalPostingMonth']"
+    );
+    monthFilter.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "2026-06" } })
+    );
+    await flush();
+    expect(rowText()).toContain("請求本体");
+    expect(rowText()).not.toContain("入金");
+  });
+
   it("hides Lock and Unlock when Accounting is OFF", async () => {
     getBoardContext.mockResolvedValue({
       featureEnabled: false,

@@ -969,11 +969,35 @@
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
                         <th scope="col">Lock</th>
-                        <th scope="col">計上日</th>
+                        <th scope="col">
+                          計上日
+                          <lightning-combobox
+                            name="journalPostingMonth"
+                            label="計上日"
+                            variant="label-hidden"
+                            value={invoice.journalPostingMonthFilter}
+                            options={invoice.journalPostingMonthOptions}
+                            data-invoice-id={invoice.invoiceId}
+                            data-filter="postingMonth"
+                            onchange={handleJournalViewFilterChange}
+                          ></lightning-combobox>
+                        </th>
+                        <th scope="col">
+                          イベント
+                          <lightning-combobox
+                            name="journalEvent"
+                            label="イベント"
+                            variant="label-hidden"
+                            value={invoice.journalEventFilter}
+                            options={invoice.journalEventOptions}
+                            data-invoice-id={invoice.invoiceId}
+                            data-filter="eventName"
+                            onchange={handleJournalViewFilterChange}
+                          ></lightning-combobox>
+                        </th>
                         <th scope="col">借方</th>
                         <th scope="col">貸方</th>
                         <th class="num-col" scope="col">金額</th>
-                        <th scope="col">イベント</th>
                         <th scope="col">計上時期</th>
                         <th scope="col">状態</th>
                         <th scope="col">メモ</th>
@@ -1005,6 +1029,18 @@
                           </td>
                           <td>{journal.postingDate}</td>
                           <td>
+                            <button
+                              type="button"
+                              class="journal-toggle"
+                              data-journal-id={journal.journalId}
+                              onclick={handleToggleJournalExtras}
+                              aria-expanded={journal.extrasOpen}
+                            >
+                              {journal.toggleGlyph}
+                            </button>
+                            {journal.eventName}
+                          </td>
+                          <td>
                             <template if:true={journal.debitAbbreviation}>
                               <span class="journal-slot-abbr">{journal.debitAbbreviation}</span>
                               <template if:true={journal.debitAccountLabel}>
@@ -1027,18 +1063,6 @@
                             </template>
                           </td>
                           <td class="num-col">{journal.amount}</td>
-                          <td>
-                            <button
-                              type="button"
-                              class="journal-toggle"
-                              data-journal-id={journal.journalId}
-                              onclick={handleToggleJournalExtras}
-                              aria-expanded={journal.extrasOpen}
-                            >
-                              {journal.toggleGlyph}
-                            </button>
-                            {journal.eventName}
-                          </td>
                           <td>{journal.postingPeriod}</td>
                           <td>{journal.transactionStatusLabel}</td>
                           <td class="journal-memo-cell">

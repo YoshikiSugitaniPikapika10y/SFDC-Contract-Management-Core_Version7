@@ -92,6 +92,29 @@ function journalDisplayRows(journals) {
     .sort(compareJournalDisplayOrder);
 }
 
+function postingMonthKey(postingDate) {
+  const iso = String(postingDate || "").slice(0, 10);
+  return iso.length >= 7 ? iso.slice(0, 7) : "";
+}
+
+function journalEventDisplayName(journal) {
+  return journal?.eventName || journal?.eventKey || "";
+}
+
+function journalMatchesViewFilter(journal, postingMonth, eventName) {
+  if (postingMonth && postingMonthKey(journal.postingDate) !== postingMonth) {
+    return false;
+  }
+  if (eventName && journalEventDisplayName(journal) !== eventName) {
+    return false;
+  }
+  return true;
+}
+
+function uniqueSorted(values) {
+  return Array.from(new Set(values.filter((value) => value))).sort();
+}
+
 /** 仕様: Accounting 第8.7節。計上日・sameDayOrder・原因CreatedDate・回番号・原因ID。 */
 function compareJournalDisplayOrder(left, right) {
   const dateCmp = compareIsoDate(left.postingDate, right.postingDate);
@@ -293,6 +316,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   @track journalLockSelected = {};
   @track journalLockAnchorByInvoice = {};
   @track journalUnlockReasonByInvoice = {};
+  @track journalViewFilterByInvoice = {};
   @track invoiceSplitState = null;
   @track invoiceMoveState = null;
   /** 仕様: Core 第7.8.1節。他の未確定があるときの新規／既存の選択。 */
@@ -2072,7 +2096,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           paymentDraft: this.newPaymentDraft(invoiceId)
         };
         const bundle = uiState.bundle;
-        const displayedJournals = journalDisplayRows(bundle?.journals);
+        const allJournals = journalDisplayRows(bundle?.journals);
+        const viewFilter = this.journalViewFilterByInvoice[invoiceId] || {};
+        const postingMonthFilter = viewFilter.postingMonth || "";
+        const eventNameFilter = viewFilter.eventName || "";
+        const displayedJournals = allJournals.filter((journal) =>
+          journalMatchesViewFilter(journal, postingMonthFilter, eventNameFilter)
+        );
         const activeJournalCount = displayedJournals.filter(
           (journal) => journal.transactionStatus === "Active"
         ).length;
@@ -2293,6 +2323,20 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             this.isUnlockReasonTooLong(
               this.journalUnlockReasonByInvoice[invoiceId]
             ),
+          journalPostingMonthFilter: postingMonthFilter,
+          journalEventFilter: eventNameFilter,
+          journalPostingMonthOptions: [
+            { label: "（すべて）", value: "" },
+            ...uniqueSorted(allJournals.map((journal) => postingMonthKey(journal.postingDate))).map(
+              (month) => ({ label: month, value: month })
+            )
+          ],
+          journalEventOptions: [
+            { label: "（すべて）", value: "" },
+            ...uniqueSorted(allJournals.map((journal) => journalEventDisplayName(journal))).map(
+              (name) => ({ label: name, value: name })
+            )
+          ],
           memoDraft:
             this.memoDrafts[invoiceId] != null
               ? this.memoDrafts[invoiceId]
@@ -2836,7 +2880,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             rowClass: rowClasses.join(" ")
           };
           }),
-          hasJournals: displayedJournals.length > 0,
+          hasJournals: allJournals.length > 0,
           // 仕様: Core 第8.10節・第7.7.3節、Accounting 第7.6節。有効ルールを金額行直下。Trueは活性、Falseは非活性。OFFと未確定と取消済みは出さない。評価・保存は変えない。
           tagResults: (bundle?.tagResults || []).map((tag) => ({
             ...tag,
@@ -6084,7 +6128,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
     const journals =
       this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
-    const displayed = journalDisplayRows(journals);
+    const viewFilter = this.journalViewFilterByInvoice[invoiceId] || {};
+    const displayed = journalDisplayRows(journals).filter((journal) =>
+      journalMatchesViewFilter(
+        journal,
+        viewFilter.postingMonth || "",
+        viewFilter.eventName || ""
+      )
+    );
     const selectableIds = displayed
       .filter((journal) => journal.transactionStatus === "Active")
       .map((journal) => journal.journalId);
@@ -6118,6 +6169,22 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.journalLockSelected = {
       ...this.journalLockSelected,
       [invoiceId]: nextSelected
+    };
+  }
+
+  handleJournalViewFilterChange(event) {
+    const invoiceId = event.target.dataset.invoiceId;
+    const field = event.target.dataset.filter;
+    if (!invoiceId || (field !== "postingMonth" && field !== "eventName")) {
+      return;
+    }
+    const current = this.journalViewFilterByInvoice[invoiceId] || {};
+    this.journalViewFilterByInvoice = {
+      ...this.journalViewFilterByInvoice,
+      [invoiceId]: {
+        ...current,
+        [field]: event.detail.value || ""
+      }
     };
   }
 
