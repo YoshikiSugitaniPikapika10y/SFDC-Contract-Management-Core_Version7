@@ -342,8 +342,10 @@ private class InvoiceSendBoardControllerTest {
     ContractTestDataFactory.applyRequiredFields(contractProduct);
     contractProduct.Amount__c = 1000;
     insert contractProduct;
-    history.historystatus__c = 'Ordered';
-    update history;
+    update new ContractHistory__c(
+      Id = history.Id,
+      historystatus__c = 'Ordered'
+    );
 
     List<Invoice__c> generated = [
       SELECT Id, ContractHistory__c, ContractService__c
@@ -376,14 +378,15 @@ private class InvoiceSendBoardControllerTest {
       return invoice;
     }
 
-    history = [
-      SELECT DeltaAmountSum__c
-      FROM ContractHistory__c
-      WHERE Id = :history.Id
-    ];
-    Decimal estimateExcl = history.DeltaAmountSum__c == null
-      ? 0
-      : history.DeltaAmountSum__c;
+    Decimal estimateExcl = 0;
+    for (AggregateResult rolled : [
+      SELECT SUM(Amount__c) amountSum
+      FROM ContractProduct__c
+      WHERE ContractHistory__c = :history.Id
+    ]) {
+      Decimal amountSum = (Decimal) rolled.get('amountSum');
+      estimateExcl = amountSum == null ? 0 : amountSum;
+    }
     invoice = new Invoice__c(
       ContractService__c = service.Id,
       ContractHistory__c = history.Id,
@@ -429,13 +432,6 @@ private class InvoiceSendBoardControllerTest {
       invoice.TaxAmount__c = 0;
       invoice.TaxPercent__c = null;
       update invoice;
-      ContractHistory__c history = [
-        SELECT Id
-        FROM ContractHistory__c
-        WHERE Id = :invoice.ContractHistory__c
-      ];
-      history.DeltaAmountSum__c = 0;
-      update history;
       Boolean rejected = false;
       Test.startTest();
       try {
