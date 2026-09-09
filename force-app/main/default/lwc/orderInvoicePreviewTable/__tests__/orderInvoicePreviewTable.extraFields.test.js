@@ -717,6 +717,85 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     ).toBe(false);
   });
 
+  it("確定後の入金タブ0件は対象がありません (Core 8.9)", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [],
+      manualJournals: []
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    const paymentsTab = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "入金"
+      )
+    );
+    paymentsTab.click();
+    const empty = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("p")).find((p) =>
+        p.textContent.includes("対象がありません。")
+      )
+    );
+    expect(empty).toBeTruthy();
+    const paymentPanel = element.shadowRoot.querySelector(".ops-panel");
+    expect(paymentPanel.textContent).not.toContain("入金はありません。");
+    expect(paymentPanel.textContent).not.toContain(
+      "請求を確定してから入金できます。"
+    );
+  });
+
+  it("取消済みの入金タブ0件は対象がありません (Core 8.9)", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: false,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [],
+      manualJournals: []
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.initialInvoiceId = "a00INV000000001";
+    element.preview = buildPreview({
+      invoiceTransactionStatus: "Cancelled",
+      isCancelled: true
+    });
+    document.body.appendChild(element);
+    const paymentsTab = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("button")).find(
+        (button) => button.textContent.trim() === "入金"
+      )
+    );
+    paymentsTab.click();
+    const empty = await waitUntil(() =>
+      Array.from(element.shadowRoot.querySelectorAll("p")).find((p) =>
+        p.textContent.includes("対象がありません。")
+      )
+    );
+    expect(empty).toBeTruthy();
+    const paymentPanel = element.shadowRoot.querySelector(".ops-panel");
+    expect(paymentPanel.textContent).not.toContain("入金はありません。");
+  });
+
   it("保存後のpreview取り直しでは同じ請求の仕訳タブに戻す (Core 7.7.0)", async () => {
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
