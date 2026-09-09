@@ -330,22 +330,37 @@
 
 .journal-memo-cell {
   white-space: nowrap;
+  width: 28%;
+  min-width: 12rem;
 }
 
-.journal-memo-cell lightning-input {
-  display: inline-block;
-  width: auto;
-  min-width: 8rem;
-  max-width: 14rem;
-  vertical-align: middle;
+.journal-memo-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  min-width: 0;
 }
 
-.journal-memo-save {
-  display: inline-block;
-  margin-left: 0.25rem;
-  padding: 0.15rem 0.4rem;
-  font-size: 0.875rem;
-  vertical-align: middle;
+.journal-memo-edit lightning-input {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+  --slds-c-input-sizing-width: 100%;
+}
+
+.journal-memo-save.ghost-btn {
+  flex: 0 0 auto;
+  margin: 0;
+  height: 1.55rem;
+  min-height: 1.55rem;
+  padding: 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  border-radius: 3px;
 }
 
 .journal-unlock-dialog {

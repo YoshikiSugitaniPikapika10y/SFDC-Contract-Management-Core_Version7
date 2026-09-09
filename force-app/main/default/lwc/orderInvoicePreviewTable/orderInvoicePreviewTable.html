@@ -1036,22 +1036,24 @@
                           <td>{journal.transactionStatusLabel}</td>
                           <td class="journal-memo-cell">
                             <template if:true={invoice.canEditJournalMemo}>
-                              <lightning-input
-                                label="仕訳メモ"
-                                variant="label-hidden"
-                                value={journal.memoDraft}
-                                data-journal-id={journal.journalId}
-                                onchange={handleJournalMemoChange}
-                              ></lightning-input>
-                              <button
-                                type="button"
-                                class="ghost-btn journal-memo-save"
-                                data-journal-id={journal.journalId}
-                                data-invoice-id={invoice.invoiceId}
-                                onclick={handleSaveJournalMemo}
-                              >
-                                メモを保存
-                              </button>
+                              <div class="journal-memo-edit">
+                                <lightning-input
+                                  label="仕訳メモ"
+                                  variant="label-hidden"
+                                  value={journal.memoDraft}
+                                  data-journal-id={journal.journalId}
+                                  onchange={handleJournalMemoChange}
+                                ></lightning-input>
+                                <button
+                                  type="button"
+                                  class="ghost-btn journal-memo-save"
+                                  data-journal-id={journal.journalId}
+                                  data-invoice-id={invoice.invoiceId}
+                                  onclick={handleSaveJournalMemo}
+                                >
+                                  メモを保存
+                                </button>
+                              </div>
                             </template>
                             <template if:false={invoice.canEditJournalMemo}>
                               <span class="muted">{journal.memoDraft}</span>
