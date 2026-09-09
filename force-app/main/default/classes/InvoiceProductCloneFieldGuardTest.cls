@@ -15,10 +15,12 @@ private class InvoiceProductCloneFieldGuardTest {
         Date.newInstance(2026, 7, 31)
       );
 
+      String lineBucketKey = 'LINE|CP=|UP=8000|Q=1';
       InvoiceProduct__c source = new InvoiceProduct__c(
         StartDate__c = Date.newInstance(2026, 6, 1),
         Enddate__c = Date.newInstance(2026, 6, 30),
         InvoiceBucketKey__c = exportMergeKey,
+        LineBucketKey__c = lineBucketKey,
         Amount__c = 8000
       );
 
@@ -32,7 +34,12 @@ private class InvoiceProductCloneFieldGuardTest {
       System.assertEquals(
         exportMergeKey,
         cloned.InvoiceBucketKey__c,
-        'ExportMergeKey は期間明細クローンに引き継ぐ'
+        'Core 第6.7節: 期間明細の InvoiceBucketKey はクローンに載せる'
+      );
+      System.assertEquals(
+        lineBucketKey,
+        cloned.LineBucketKey__c,
+        'Core 第6.7節: 期間明細の LineBucketKey はクローンに載せる'
       );
     }
   }
@@ -42,7 +49,7 @@ private class InvoiceProductCloneFieldGuardTest {
     System.assertEquals(
       false,
       Product2.SObjectType.getDescribe().fields.getMap().containsKey('RevenueCategory__c'),
-      'Core 第3.1節: 商品に RevenueCategory__c は持たない。科目は割当とテナント条件'
+      'Core 第3.1節: 商品一覧に RevenueCategory__c は出さない。科目は割当とテナント条件'
     );
   }
 }
