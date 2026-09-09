@@ -2006,6 +2006,21 @@ private class EstimateValidationServiceTest {
       );
       fillContractProductRequired(sourceProduct);
       insert sourceProduct;
+      sourceProduct = [
+        SELECT
+          Id,
+          Product__c,
+          Quantity__c,
+          UnitPrice__c,
+          Amount__c,
+          StartDate__c,
+          Enddate__c,
+          InvoiceSetting__c,
+          RevenueRecognitionBasis__c,
+          BillingType__c
+        FROM ContractProduct__c
+        WHERE Id = :sourceProduct.Id
+      ];
 
       EstimateCreateController.EstimateSaveRequest changeReq = new EstimateCreateController.EstimateSaveRequest();
       changeReq.previousHistoryId = previous.Id;
@@ -2035,11 +2050,71 @@ private class EstimateValidationServiceTest {
         badOriginalEx
       );
 
-      badOriginal.sourceContractProductId = sourceProduct.Id;
-      badOriginal.amount = sourceProduct.Amount__c == null
+      ContractService__c remakeService = insertServiceWithBilling(
+        account.Id,
+        'Coverage Remake Isolated Service'
+      );
+      remakeService.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
+      update remakeService;
+      ContractHistory__c remakePrevious = new ContractHistory__c(
+        Name = 'Coverage Remake Isolated Previous',
+        ContractService__c = remakeService.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insertHistory(remakePrevious, account.Id);
+      ContractProduct__c remakeSourceProduct = new ContractProduct__c(
+        ContractHistory__c = remakePrevious.Id,
+        Product__c = available.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      fillContractProductRequired(remakeSourceProduct);
+      insert remakeSourceProduct;
+      remakeSourceProduct = [
+        SELECT
+          Id,
+          Product__c,
+          Quantity__c,
+          UnitPrice__c,
+          Amount__c,
+          StartDate__c,
+          Enddate__c,
+          InvoiceSetting__c,
+          RevenueRecognitionBasis__c,
+          BillingType__c
+        FROM ContractProduct__c
+        WHERE Id = :remakeSourceProduct.Id
+      ];
+      EstimateCreateController.EstimateSaveRequest remakeReq = new EstimateCreateController.EstimateSaveRequest();
+      remakeReq.previousHistoryId = remakePrevious.Id;
+      remakeReq.contractStartDate = String.valueOf(termStart);
+      remakeReq.contractEndDate = String.valueOf(termEnd);
+      remakeReq.effectiveDate = String.valueOf(termStart);
+      EstimateCreateController.ProductLineItem remakeLockedOriginal = new EstimateCreateController.ProductLineItem();
+      remakeLockedOriginal.productId = remakeSourceProduct.Product__c;
+      remakeLockedOriginal.quantity = remakeSourceProduct.Quantity__c;
+      remakeLockedOriginal.unitPrice = remakeSourceProduct.UnitPrice__c;
+      remakeLockedOriginal.billingType = remakeSourceProduct.BillingType__c;
+      remakeLockedOriginal.invoiceType = remakeSourceProduct.InvoiceSetting__c;
+      remakeLockedOriginal.startDate = String.valueOf(remakeSourceProduct.StartDate__c);
+      remakeLockedOriginal.endDate = String.valueOf(remakeSourceProduct.Enddate__c);
+      remakeLockedOriginal.recordType = 'Original';
+      remakeLockedOriginal.sourceContractProductId = remakeSourceProduct.Id;
+      remakeLockedOriginal.amount = remakeSourceProduct.Amount__c == null
         ? null
-        : -sourceProduct.Amount__c;
-      fillLineRequired(badOriginal);
+        : -remakeSourceProduct.Amount__c;
+      remakeLockedOriginal.revenueRecognitionBasis = remakeSourceProduct.RevenueRecognitionBasis__c;
+      fillLineRequired(remakeLockedOriginal);
       EstimateCreateController.ProductLineItem badRemake = new EstimateCreateController.ProductLineItem();
       badRemake.productId = fakeId(Product2.SObjectType, 8);
       badRemake.quantity = 1;
@@ -2049,16 +2124,16 @@ private class EstimateValidationServiceTest {
       badRemake.startDate = String.valueOf(termStart);
       badRemake.endDate = String.valueOf(termEnd);
       badRemake.recordType = 'Remake';
-      badRemake.sourceContractProductId = sourceProduct.Id;
+      badRemake.sourceContractProductId = remakeSourceProduct.Id;
       fillLineRequired(badRemake);
       badRemake.amount = 96000;
-      changeReq.products = new List<EstimateCreateController.ProductLineItem>{
-        badOriginal,
+      remakeReq.products = new List<EstimateCreateController.ProductLineItem>{
+        remakeLockedOriginal,
         badRemake
       };
       Exception badRemakeEx = null;
       try {
-        EstimateValidationService.validateChangeProductLineRules(changeReq);
+        EstimateValidationService.validateChangeProductLineRules(remakeReq);
       } catch (Exception ex) {
         badRemakeEx = ex;
       }
@@ -2211,29 +2286,30 @@ private class EstimateValidationServiceTest {
       remakeBillingMismatch.startDate = String.valueOf(termStart);
       remakeBillingMismatch.endDate = String.valueOf(termEnd);
       remakeBillingMismatch.recordType = 'Remake';
-      remakeBillingMismatch.sourceContractProductId = sourceProduct.Id;
+      remakeBillingMismatch.sourceContractProductId = remakeSourceProduct.Id;
       fillLineRequired(remakeBillingMismatch);
       EstimateCreateController.ProductLineItem remakeOriginal = new EstimateCreateController.ProductLineItem();
-      remakeOriginal.productId = available.Id;
-      remakeOriginal.quantity = 1;
-      remakeOriginal.unitPrice = 8000;
-      remakeOriginal.amount = sourceProduct.Amount__c == null
+      remakeOriginal.productId = remakeSourceProduct.Product__c;
+      remakeOriginal.quantity = remakeSourceProduct.Quantity__c;
+      remakeOriginal.unitPrice = remakeSourceProduct.UnitPrice__c;
+      remakeOriginal.amount = remakeSourceProduct.Amount__c == null
         ? null
-        : -sourceProduct.Amount__c;
-      remakeOriginal.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
-      remakeOriginal.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
-      remakeOriginal.startDate = String.valueOf(termStart);
-      remakeOriginal.endDate = String.valueOf(termEnd);
+        : -remakeSourceProduct.Amount__c;
+      remakeOriginal.billingType = remakeSourceProduct.BillingType__c;
+      remakeOriginal.invoiceType = remakeSourceProduct.InvoiceSetting__c;
+      remakeOriginal.startDate = String.valueOf(remakeSourceProduct.StartDate__c);
+      remakeOriginal.endDate = String.valueOf(remakeSourceProduct.Enddate__c);
       remakeOriginal.recordType = 'Original';
-      remakeOriginal.sourceContractProductId = sourceProduct.Id;
+      remakeOriginal.sourceContractProductId = remakeSourceProduct.Id;
+      remakeOriginal.revenueRecognitionBasis = remakeSourceProduct.RevenueRecognitionBasis__c;
       fillLineRequired(remakeOriginal);
-      changeReq.products = new List<EstimateCreateController.ProductLineItem>{
+      remakeReq.products = new List<EstimateCreateController.ProductLineItem>{
         remakeOriginal,
         remakeBillingMismatch
       };
       Exception remakeBillingEx = null;
       try {
-        EstimateValidationService.validateChangeProductLineRules(changeReq);
+        EstimateValidationService.validateChangeProductLineRules(remakeReq);
       } catch (Exception ex) {
         remakeBillingEx = ex;
       }
@@ -2342,7 +2418,7 @@ private class EstimateValidationServiceTest {
         Name = 'Coverage Cancel Isolated Previous',
         ContractService__c = cancelService.Id,
         Type__c = 'New',
-        historystatus__c = 'Ordered',
+        historystatus__c = 'Estimate',
         Version__c = 1,
         CurrentTermStartDate__c = termStart,
         CurrentTermEndDate__c = termEnd,
