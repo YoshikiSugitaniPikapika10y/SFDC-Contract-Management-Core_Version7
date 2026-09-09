@@ -136,3 +136,18 @@ section {
 .row-note-text {
   color: #3e3e3c;
 }
+
+.surface-complete {
+  margin: 0.5rem 1rem 0;
+  font-size: 0.875rem;
+  color: #1b4332;
+}
+
+.surface-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 1rem 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}

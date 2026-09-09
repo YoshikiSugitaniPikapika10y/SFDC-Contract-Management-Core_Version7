@@ -132,6 +132,8 @@ export default class ContractDocumentSettings extends LightningElement {
   links = {};
   hasAccountingMaster = false;
   loading = true;
+  isSaving = false;
+  completionNote = "";
   _pendingOperationKey = "";
 
   // 仕様: Core 第11.6節
@@ -147,8 +149,12 @@ export default class ContractDocumentSettings extends LightningElement {
     return "組織設定を保存しました。";
   }
 
+  get waitBusy() {
+    return this.loading === true || this.isSaving === true;
+  }
+
   get settingsBodyClass() {
-    return this.loading
+    return this.loading === true || this.isSaving === true
       ? "slds-p-around_medium settings-body_busy"
       : "slds-p-around_medium";
   }
@@ -365,7 +371,7 @@ export default class ContractDocumentSettings extends LightningElement {
   }
 
   async handleSave() {
-    if (this.loading) {
+    if (this.waitBusy) {
       return;
     }
     this.applyNamedFieldValues();
@@ -378,7 +384,8 @@ export default class ContractDocumentSettings extends LightningElement {
     if (!this.reportValidity()) {
       return;
     }
-    this.loading = true;
+    this.isSaving = true;
+    this.completionNote = "";
     try {
       // 仕様: Core 第11.6節。押下時サーバ発行。応答のキーだけを再試行に使う。
       if (!this._pendingOperationKey) {
@@ -392,7 +399,7 @@ export default class ContractDocumentSettings extends LightningElement {
       });
       this._pendingOperationKey = "";
       this.settings = { ...saved, businessOperationKey: null };
-      this.toast("保存完了", this.saveSuccessMessage, "success");
+      this.completionNote = this.saveSuccessMessage;
     } catch (error) {
       const msg = this.message(error);
       this.toast("保存エラー", msg, "error");
@@ -402,7 +409,7 @@ export default class ContractDocumentSettings extends LightningElement {
         await this.load();
       }
     } finally {
-      this.loading = false;
+      this.isSaving = false;
     }
   }
 

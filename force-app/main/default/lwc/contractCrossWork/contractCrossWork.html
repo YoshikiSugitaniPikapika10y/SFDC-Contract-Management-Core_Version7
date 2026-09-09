@@ -469,6 +469,17 @@
 
         <template if:true={showJournalSave}>
           <div class={journalActionClass}>
+            <template if:true={saving}>
+              <p class="surface-wait" role="status">
+                <span class="surface-wait-spin">
+                  <lightning-spinner
+                    alternative-text="処理中"
+                    size="small"
+                  ></lightning-spinner>
+                </span>
+                処理中
+              </p>
+            </template>
             <template if:true={showJournalLockSelection}>
               <button type="button" class="btn btn_link" onclick={handleSelectPage} disabled={saving}>
                 一括選択

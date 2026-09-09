@@ -1,14 +1,23 @@
 <template>
   <lightning-card title={settingsPageTitle} icon-name="standard:settings">
     <div class="actions slds-p-horizontal_medium">
-      <lightning-button label="再読込" onclick={load} disabled={loading}></lightning-button>
+      <lightning-button label="再読込" onclick={load} disabled={waitBusy}></lightning-button>
       <template lwc:if={canManageOrgSettings}>
-        <lightning-button variant="brand" label="保存" onclick={handleSave} disabled={loading}></lightning-button>
+        <lightning-button variant="brand" label="保存" onclick={handleSave} disabled={waitBusy}></lightning-button>
       </template>
     </div>
 
+    <template lwc:if={completionNote}>
+      <p class="surface-complete" role="status">{completionNote}</p>
+    </template>
+    <template lwc:if={isSaving}>
+      <p class="surface-wait" role="status">
+        <lightning-spinner alternative-text="処理中" size="small"></lightning-spinner>
+        処理中
+      </p>
+    </template>
     <template lwc:if={loading}>
-      <lightning-spinner alternative-text="処理中"></lightning-spinner>
+      <lightning-spinner alternative-text="読み込み中"></lightning-spinner>
     </template>
 
     <div class={settingsBodyClass}>

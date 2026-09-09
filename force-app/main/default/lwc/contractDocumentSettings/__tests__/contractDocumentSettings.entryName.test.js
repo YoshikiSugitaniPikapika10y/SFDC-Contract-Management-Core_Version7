@@ -594,6 +594,8 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
       expect(payload.invoiceSendMode).toBe(stored);
       expect(payload.estimateSendMode).not.toBe(label);
       expect(payload.invoiceSendMode).not.toBe(label);
+      expect(instance.completionNote).toBe("組織設定を保存しました。");
+      expect(instance.toast).not.toHaveBeenCalled();
     });
   });
 
@@ -724,6 +726,9 @@ describe("contractDocumentSettings save busy (Core 11.6 / 4.3.12)", () => {
       "settingsBodyClass"
     ).get;
     expect(settingsBodyClass.call({ loading: true })).toBe(
+      "slds-p-around_medium settings-body_busy"
+    );
+    expect(settingsBodyClass.call({ isSaving: true })).toBe(
       "slds-p-around_medium settings-body_busy"
     );
   });
