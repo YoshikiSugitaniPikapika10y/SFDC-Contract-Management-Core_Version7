@@ -134,18 +134,48 @@ describe("orderInvoicePreviewWizard scroll", () => {
     expect(state.scrollTop).toBe(240);
   });
 
-  it("先頭で上方向ホイールは奪わない", async () => {
+  it("先頭の上方向でも枠のスクローラへホイールを渡さない (Core 7.7.0)", async () => {
     const element = buildWizard();
     await Promise.resolve();
 
     const page = element.shadowRoot.querySelector(".preview-page");
-    makeScrollable(page);
+    const state = makeScrollable(page);
 
     const event = wheelOver(
       element.shadowRoot.querySelector(".preview-header"),
       -120
     );
 
-    expect(event.defaultPrevented).toBe(false);
+    expect(state.scrollTop).toBe(0);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("ホストはクリップし枠へ入れ子スクローラを作らない (Core 7.7.0)", async () => {
+    const element = buildWizard();
+    await Promise.resolve();
+
+    expect(element.style.overflow).toBe("hidden");
+    expect(element.style.height).toMatch(/^\d+px$/);
+    const page = element.shadowRoot.querySelector(".preview-page");
+    expect(page.style.getPropertyValue("--preview-scroll-max")).toBe(
+      element.style.height
+    );
+  });
+
+  it("下端でも枠のスクローラへホイールを渡さない (Core 7.7.0)", async () => {
+    const element = buildWizard();
+    await Promise.resolve();
+
+    const page = element.shadowRoot.querySelector(".preview-page");
+    const state = makeScrollable(page);
+    state.scrollTop = 1500;
+
+    const event = wheelOver(
+      element.shadowRoot.querySelector(".preview-header"),
+      80
+    );
+
+    expect(state.scrollTop).toBe(1500);
+    expect(event.defaultPrevented).toBe(true);
   });
 });

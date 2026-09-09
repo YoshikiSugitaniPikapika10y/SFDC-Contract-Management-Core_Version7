@@ -77,9 +77,8 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   /**
-   * 親（モーダル枠・タブページ）に確定した高さが無いと height:100% が auto に落ち、
-   * スクローラが1本も成立せずポインタ位置でホイールが死ぬ。
-   * ビューポート基準の実測値を max-height に流し込んで、常に自前スクローラを作る。
+   * 仕様: Core 第7.7.0節。縦スクローラはボード自身が1本。枠に入れ子しない。
+   * 親クリップの底まで高さを固定し、:host は overflow:hidden。動くのは .preview-page だけ。
    */
   applyScrollSizing() {
     const host = this.template.host;
@@ -87,30 +86,74 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     if (!host || !host.style) {
       return;
     }
-    if (this.isTabView) {
-      host.style.removeProperty("height");
-      host.style.removeProperty("min-height");
-    } else {
-      host.style.setProperty("height", "100%");
-      host.style.setProperty("min-height", "0");
+    const available = this.measureBoardHeight(host, root);
+    if (!available) {
+      return;
     }
+    const px = `${Math.round(available)}px`;
+    host.style.setProperty("height", px);
+    host.style.setProperty("max-height", px);
+    host.style.setProperty("min-height", "0");
+    host.style.setProperty("overflow", "hidden");
     if (!root) {
       return;
+    }
+    root.style.setProperty("--preview-scroll-max", px);
+  }
+
+  measureBoardHeight(host, root) {
+    const box = (root || host).getBoundingClientRect();
+    const top = Math.max(box.top, 0);
+    const clip = this.findViewportClip(host);
+    if (clip) {
+      const bottom = clip.getBoundingClientRect().bottom;
+      return Math.max(bottom - top, 240);
     }
     const viewportHeight =
       window.innerHeight ||
       (document.scrollingElement || document.documentElement).clientHeight ||
       0;
     if (!viewportHeight) {
-      return;
+      return 0;
     }
-    const top = Math.max(root.getBoundingClientRect().top, 0);
     const bottomGap = this.isTabView ? 8 : 24;
-    const available = Math.max(viewportHeight - top - bottomGap, 240);
-    root.style.setProperty(
-      "--preview-scroll-max",
-      `${Math.round(available)}px`
-    );
+    return Math.max(viewportHeight - top - bottomGap, 240);
+  }
+
+  findViewportClip(host) {
+    let el = host.parentElement;
+    if (!el) {
+      const rootNode = host.getRootNode();
+      if (rootNode instanceof ShadowRoot) {
+        el = rootNode.host;
+      }
+    }
+    while (el && el.nodeType === 1) {
+      if (el === document.body || el === document.documentElement) {
+        break;
+      }
+      const oy = getComputedStyle(el).overflowY;
+      if (
+        (oy === "auto" ||
+          oy === "scroll" ||
+          oy === "hidden" ||
+          oy === "overlay") &&
+        el.clientHeight > 50
+      ) {
+        return el;
+      }
+      if (el.parentElement) {
+        el = el.parentElement;
+      } else {
+        const rootNode = el.getRootNode && el.getRootNode();
+        if (rootNode instanceof ShadowRoot && rootNode.host) {
+          el = rootNode.host;
+        } else {
+          break;
+        }
+      }
+    }
+    return null;
   }
 
   @wire(CurrentPageReference)
@@ -561,8 +604,9 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   /**
-   * ポインタ直下に自力で動けるスクローラがあればブラウザ既定に任せ、
-   * ない位置（ヘッダ・余白・overflow を持たないセル等）だけ肩代わりする。
+   * 仕様: Core 第7.7.0節。ホイールはボードの1本へ届ける。
+   * combobox の listbox 等、ポインタ直下の小スクローラだけ既定に任せる。
+   * 枠のスクローラへは連鎖しない。
    */
   handlePreviewWheel(event) {
     if (!event || event.ctrlKey) {
@@ -574,15 +618,15 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     }
     const path = event.composedPath ? event.composedPath() : [];
     const root = this.scrollRoot;
-    // combobox のドロップダウン等、ポインタ直下の内側スクローラは尊重する
     if (this.findInnerScroller(path, deltaY, root)) {
       return;
     }
-    const scroller = this.resolvePreviewScroller(deltaY);
-    if (!scroller) {
+    if (!root || !this.canScrollY(root)) {
       return;
     }
-    scroller.scrollTop += deltaY;
+    if (this.canConsumeY(root, deltaY)) {
+      root.scrollTop += deltaY;
+    }
     event.preventDefault();
   }
 
@@ -594,67 +638,28 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       if (node === root || node === this.template.host) {
         break;
       }
-      if (this.canConsumeY(node, deltaY)) {
-        return node;
+      if (!this.isSmallScroller(node) || !this.canConsumeY(node, deltaY)) {
+        continue;
       }
+      return node;
     }
     return null;
   }
 
-  resolvePreviewScroller(deltaY) {
-    // ポインタ位置に関係なく、まず自前のルートスクローラで受ける
-    const root = this.scrollRoot;
-    if (root && this.canConsumeY(root, deltaY)) {
-      return root;
+  isSmallScroller(el) {
+    const role = el.getAttribute ? el.getAttribute("role") : "";
+    if (role === "listbox" || role === "menu" || role === "list") {
+      return true;
     }
-    // overflow:hidden の祖先は自力では動かないが scrollTop は効く。
-    // 本来のスクローラが1つも無い組み方に落ちたときの最後の受け皿にする。
-    let clipped = null;
-    let el = this.template.host.parentElement;
-    if (!el) {
-      const root = this.template.host.getRootNode();
-      if (root instanceof ShadowRoot) {
-        el = root.host;
-      }
+    const tag = el.tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT") {
+      return true;
     }
-    while (el) {
-      if (this.canConsumeY(el, deltaY)) {
-        return el;
-      }
-      if (!clipped && this.canConsumeYWhenClipped(el, deltaY)) {
-        clipped = el;
-      }
-      if (el.parentElement) {
-        el = el.parentElement;
-      } else {
-        const root = el.getRootNode && el.getRootNode();
-        if (root instanceof ShadowRoot && root.host) {
-          el = root.host;
-        } else {
-          break;
-        }
-      }
-    }
-    const doc = document.scrollingElement || document.documentElement;
-    if (this.canConsumeY(doc, deltaY)) {
-      return doc;
-    }
-    return clipped;
-  }
-
-  canConsumeYWhenClipped(el, deltaY) {
-    if (!el || el.nodeType !== 1) {
-      return false;
-    }
-    if (getComputedStyle(el).overflowY !== "hidden") {
-      return false;
-    }
-    if (el.scrollHeight <= el.clientHeight + 1) {
-      return false;
-    }
-    return deltaY < 0
-      ? el.scrollTop > 0
-      : el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    return Boolean(
+      el.classList &&
+        (el.classList.contains("slds-listbox") ||
+          el.classList.contains("slds-dropdown"))
+    );
   }
 
   resolveWheelDeltaY(event) {
