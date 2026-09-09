@@ -1269,6 +1269,11 @@ private class OrderCreateControllerTest {
         WHERE ContractHistory__c = :context.history.Id
         LIMIT 1
       ];
+      Integer invoicesBeforeCancel = [
+        SELECT COUNT()
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+      ];
       invoice.SystemIntegrationDate__c = Date.today();
       invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       InvoiceTransactionStatusService.allowStatusWrite = true;
@@ -1357,9 +1362,9 @@ private class OrderCreateControllerTest {
         'Core 第7.9.3節: 取消済みカードを返す'
       );
       System.assertEquals(
-        1,
+        invoicesBeforeCancel,
         activeCards,
-        'Core 第7.9.3節: 訂正用の未確定を返す'
+        'Core 第7.9.3節: 他の未確定は残し、取消した1枚の代わりに訂正用未確定を返す'
       );
       System.assertEquals(
         0,
@@ -1805,8 +1810,12 @@ private class OrderCreateControllerTest {
       invoices[0].SystemIntegrationDate__c = Date.today();
       invoices[0].InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
       update invoices[0];
       InvoiceTransactionStatusService.allowStatusWrite = false;
+      InvoiceLockUtil.allowLockedStatusWrite = false;
+      InvoiceLockUtil.clearLockedInvoiceCacheForTest();
+      InvoiceLockUtil.testCanBypassLockedDml = false;
       Integer invoiceCountBefore = [
         SELECT COUNT()
         FROM Invoice__c
@@ -4991,20 +5000,22 @@ private class OrderCreateControllerTest {
         WHERE ContractHistory__c = :context.history.Id
         ORDER BY StartDate__c ASC
       ];
-      System.assertEquals(12, periodLines.size(), '??: 12???E?????');
+      System.assertEquals(12, periodLines.size(), 'Core 第6.5節: 12サイクル');
 
-      List<InvoiceProduct__c> periodUpdates = new List<InvoiceProduct__c>();
       List<String> allPeriodIdTexts = new List<String>();
+      Decimal keepPeriodSum = 0;
+      Decimal movePeriodSum = 0;
       for (Integer i = 0; i < periodLines.size(); i++) {
-        periodUpdates.add(
-          new InvoiceProduct__c(
-            Id = periodLines[i].Id,
-            Amount__c = i < 6 ? 40000 : 60000
-          )
-        );
         allPeriodIdTexts.add(String.valueOf(periodLines[i].Id));
+        Decimal periodAmount = periodLines[i].Amount__c == null
+          ? 0
+          : periodLines[i].Amount__c;
+        if (i < 6) {
+          keepPeriodSum += periodAmount;
+        } else {
+          movePeriodSum += periodAmount;
+        }
       }
-      update periodUpdates;
 
       List<InvoiceLine__c> allLines = [
         SELECT
@@ -5096,7 +5107,7 @@ private class OrderCreateControllerTest {
       Decimal deltaSum = 0;
       for (OrderCreateController.InvoiceGroupDto invoice : preview.invoices) {
         for (OrderCreateController.InvoiceMergedLineDto row : invoice.lines) {
-          if (row.amount != 240000 && row.amount != 360000) {
+          if (row.amount != keepPeriodSum && row.amount != movePeriodSum) {
             continue;
           }
           sawSplitLines++;
@@ -5106,7 +5117,7 @@ private class OrderCreateControllerTest {
           System.assertEquals(
             false,
             row.hasAmountDrift,
-            '???????????????????E amount=' +
+            'Core 第7.8.4節・第7.8.5節: 期間分割後の由来期間ID共有で水増ししない amount=' +
               row.amount +
               ' delta=' +
               row.amountDeltaFromSource +
@@ -5116,11 +5127,18 @@ private class OrderCreateControllerTest {
           System.assertEquals(
             0,
             row.amountDeltaFromSource,
-            '?E????????E'
+            'Core 第7.8.5節: 期間分割後の端数は0'
           );
         }
       }
-      System.assertEquals(2, sawSplitLines, '240000/360000 ?2???????');
+      System.assertEquals(
+        2,
+        sawSplitLines,
+        'Core 第7.8.4節: 期間金額の按分で2行 keep=' +
+          keepPeriodSum +
+          ' move=' +
+          movePeriodSum
+      );
       System.assertEquals(0, deltaSum, '??????0');
     }
   }
