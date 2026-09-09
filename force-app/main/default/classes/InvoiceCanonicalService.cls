@@ -45,6 +45,17 @@ public without sharing class InvoiceCanonicalService {
   /** 仕様: Core 第12.4節・第7.8節。端数ギャップ同期が請求をSELECTした回数。 */
   @TestVisible
   static Integer syncPeriodGapSelectCount = 0;
+  /**
+   * 仕様: Core 第7.6節・第7.8.2節。
+   * 請求情報編集・別の請求へ分ける・同一請求内分割の実行中。
+   */
+  @TestVisible
+  static Set<Id> exclusiveHeaderOrSplitInvoiceIds = new Set<Id>();
+  /**
+   * 仕様: Core 第7.8節。請求アカウントの内容を反映の実行中。
+   */
+  @TestVisible
+  static Set<Id> applyingBillingAccountInvoiceIds = new Set<Id>();
 
   /**
    * 仕様: Core 第12.4節・第7.8節。
@@ -1114,6 +1125,8 @@ public without sharing class InvoiceCanonicalService {
       acceptanceEndDateByLineId,
       knownAcceptanceLines
     );
+    // 仕様: Core 第7.6節・第7.8.2節。表示中は画面、実行中はここでも止める。
+    assertAcceptanceNotDuringExclusiveEdit(lines);
     Map<Id, Invoice__c> lockedById = lockConfirmedAcceptanceInvoices(
       lines,
       cancellationDate
@@ -1366,6 +1379,37 @@ public without sharing class InvoiceCanonicalService {
     return lines;
   }
 
+  /** 仕様: Core 第7.6節・第7.8.2節。 */
+  private static void beginExclusiveHeaderOrSplit(Id invoiceId) {
+    if (invoiceId != null) {
+      exclusiveHeaderOrSplitInvoiceIds.add(invoiceId);
+    }
+  }
+
+  /** 仕様: Core 第7.6節・第7.8.2節。 */
+  private static void endExclusiveHeaderOrSplit(Id invoiceId) {
+    exclusiveHeaderOrSplitInvoiceIds.remove(invoiceId);
+  }
+
+  /** 仕様: Core 第7.6節・第7.8.2節。実行中の請求情報編集・分ける・分割は検収終了日を変えない。 */
+  private static void assertAcceptanceNotDuringExclusiveEdit(
+    List<InvoiceLine__c> lines
+  ) {
+    if (lines == null) {
+      return;
+    }
+    for (InvoiceLine__c line : lines) {
+      if (
+        line != null &&
+        exclusiveHeaderOrSplitInvoiceIds.contains(line.Invoice__c)
+      ) {
+        throw new InvoiceEditException(
+          '請求情報編集、別の請求へ分けるまたは同一請求内分割の操作中は、検収終了日を変更できません。'
+        );
+      }
+    }
+  }
+
   /**
    * 仕様: Accounting 第8.2節。この検収操作のCurrent収集はロック後に1回。
    * 直前の別処理（確定・仕訳ロック）のキャッシュは使わない。
@@ -1540,6 +1584,47 @@ public without sharing class InvoiceCanonicalService {
     if (invoiceId == null) {
       throw new InvoiceEditException('請求は必須です。');
     }
+    // 仕様: Core 第7.8節。反映の実行中は請求情報編集を保存できない。
+    if (applyingBillingAccountInvoiceIds.contains(invoiceId)) {
+      throw new InvoiceEditException(
+        '反映の実行中は請求情報編集を保存できません。'
+      );
+    }
+    beginExclusiveHeaderOrSplit(invoiceId);
+    try {
+    updateInvoiceHeaderAndDatesBody(
+      invoiceId,
+      invoiceDate,
+      paymentScheduledDate,
+      billingAccountId,
+      billingAddressee,
+      billingEmailTo,
+      billingEmailCc,
+      billingEmailBcc,
+      paymentTerm,
+      taxPercent,
+      extraFieldValues,
+      knownLockedInvoice
+    );
+    } finally {
+      endExclusiveHeaderOrSplit(invoiceId);
+    }
+  }
+
+  private static void updateInvoiceHeaderAndDatesBody(
+    Id invoiceId,
+    Date invoiceDate,
+    Date paymentScheduledDate,
+    Id billingAccountId,
+    String billingAddressee,
+    String billingEmailTo,
+    String billingEmailCc,
+    String billingEmailBcc,
+    String paymentTerm,
+    Decimal taxPercent,
+    Map<String, Object> extraFieldValues,
+    Invoice__c knownLockedInvoice
+  ) {
     // billingAccountId / paymentTerm は Aura 互換のため残すが意図的に未使用。
     Invoice__c invoice;
     if (knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId) {
@@ -1638,6 +1723,18 @@ public without sharing class InvoiceCanonicalService {
     if (invoiceId == null) {
       throw new InvoiceEditException('請求は必須です。');
     }
+    applyingBillingAccountInvoiceIds.add(invoiceId);
+    try {
+    applyBillingAccountContentBody(invoiceId, knownLockedInvoice);
+    } finally {
+      applyingBillingAccountInvoiceIds.remove(invoiceId);
+    }
+  }
+
+  private static void applyBillingAccountContentBody(
+    Id invoiceId,
+    Invoice__c knownLockedInvoice
+  ) {
     Invoice__c invoice;
     if (knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId) {
       invoice = knownLockedInvoice;
@@ -1705,7 +1802,12 @@ public without sharing class InvoiceCanonicalService {
   ) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
     try {
-      splitLinesInPlaceBody(invoiceId, splitLines, known);
+      beginExclusiveHeaderOrSplit(invoiceId);
+      try {
+        splitLinesInPlaceBody(invoiceId, splitLines, known);
+      } finally {
+        endExclusiveHeaderOrSplit(invoiceId);
+      }
     } finally {
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
@@ -2279,12 +2381,19 @@ public without sharing class InvoiceCanonicalService {
   ) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
     try {
-      moveLinesToExistingInvoiceBody(
-        sourceInvoiceId,
-        targetInvoiceId,
-        lineIds,
-        known
-      );
+      beginExclusiveHeaderOrSplit(sourceInvoiceId);
+      beginExclusiveHeaderOrSplit(targetInvoiceId);
+      try {
+        moveLinesToExistingInvoiceBody(
+          sourceInvoiceId,
+          targetInvoiceId,
+          lineIds,
+          known
+        );
+      } finally {
+        endExclusiveHeaderOrSplit(sourceInvoiceId);
+        endExclusiveHeaderOrSplit(targetInvoiceId);
+      }
     } finally {
       ContractHistoryStatusPathService.endPathSyncDefer();
     }
@@ -2748,16 +2857,21 @@ public without sharing class InvoiceCanonicalService {
   ) {
     ContractHistoryStatusPathService.beginPathSyncDefer();
     try {
-      return splitInvoiceBody(
-        sourceInvoiceId,
-        newInvoiceDate,
-        newPaymentScheduledDate,
-        newBillingAccountId,
-        splitLines,
-        requireNewInvoiceDate,
-        clearManualAdjustment,
-        known
-      );
+      beginExclusiveHeaderOrSplit(sourceInvoiceId);
+      try {
+        return splitInvoiceBody(
+          sourceInvoiceId,
+          newInvoiceDate,
+          newPaymentScheduledDate,
+          newBillingAccountId,
+          splitLines,
+          requireNewInvoiceDate,
+          clearManualAdjustment,
+          known
+        );
+      } finally {
+        endExclusiveHeaderOrSplit(sourceInvoiceId);
+      }
     } finally {
       ContractHistoryStatusPathService.endPathSyncDefer();
     }

@@ -4120,7 +4120,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
    * 仕様: Core 第7.6節、第7.7.3節、第7.9.6節、Accounting 第8.5節、第8.8節、第1.1.10節。空欄へは変えない。
    */
   async handleAcceptanceEndDateChange(event) {
-    if (!this.canEdit || this.isSaving) {
+    // 仕様: Core 第7.6節・第7.8.2節。入力無効でも既に開いた保存は止めないので、ここでも止める。
+    if (
+      !this.canEdit ||
+      this.isSaving ||
+      this.isBillingEditUiOpen ||
+      this.isSplitOrMoveUiOpen
+    ) {
       return;
     }
     const lineId = event.currentTarget.dataset.lineId;
@@ -4240,11 +4246,18 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.updateInvoiceUiState(invoiceId, { acceptanceDraft: null });
   }
 
-  // 仕様: Core 第7.6節、第7.9.6節、Accounting 第8.5節、日付仕様 第7.3節
+  // 仕様: Core 第7.6節、第7.8.2節、第7.9.6節、Accounting 第8.5節、日付仕様 第7.3節
   async handleAcceptanceCancelSave(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
     const draft = this.invoiceUiState[invoiceId]?.acceptanceDraft;
-    if (!invoiceId || !draft || this.invoiceOpsProcessingId != null) {
+    if (
+      !invoiceId ||
+      !draft ||
+      this.invoiceOpsProcessingId != null ||
+      this.isSaving ||
+      this.isBillingEditUiOpen ||
+      this.isSplitOrMoveUiOpen
+    ) {
       return;
     }
     if (draft.requiresDate && !draft.cancellationDate) {
@@ -5483,12 +5496,16 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     };
   }
 
-  // 仕様: Core 第7.8節・第4.6節・第1.1.10節
+  // 仕様: Core 第7.8節・第4.6節・第1.1.10節。反映の実行中は保存しない。
   async handleSaveBillingHeader() {
     if (!this.billingEditState?.invoiceId) {
       return;
     }
-    if (this.isSaving || this.isDocumentOpsWaiting) {
+    if (
+      this.isSaving ||
+      this.isDocumentOpsWaiting ||
+      this.isConcurrentEditBusy
+    ) {
       return;
     }
     if (this.hasAmountDrafts) {

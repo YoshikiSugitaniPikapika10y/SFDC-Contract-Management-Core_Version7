@@ -409,6 +409,31 @@ describe("orderInvoicePreviewTable confirm gate (Core 7.9.1 / 7.6 / 11.9)", () =
     expect(event.type).not.toBe("saveacceptanceenddate");
   });
 
+  it("請求情報編集の表示中は検収終了日の保存ダイアログを止める (Core 7.6 / 7.8.2)", async () => {
+    const dispatchEvent = jest.fn();
+    await proto.handleAcceptanceCancelSave.call(
+      {
+        canEdit: true,
+        isSaving: false,
+        isBillingEditUiOpen: true,
+        isSplitOrMoveUiOpen: false,
+        invoiceOpsProcessingId: null,
+        invoiceUiState: {
+          a00INV000000001: {
+            acceptanceDraft: {
+              lineId: "a01LINE00000001",
+              nextDate: "2027-04-30",
+              requiresDate: false
+            }
+          }
+        },
+        dispatchEvent
+      },
+      { currentTarget: { dataset: { invoiceId: "a00INV000000001" } } }
+    );
+    expect(dispatchEvent).not.toHaveBeenCalled();
+  });
+
   it("請求送付のTo空白のみと不正アドレスを止める (Core 7.10 / 1.1.10)", () => {
     expect(proto.isBlankReasonText("   ")).toBe(true);
     expect(proto.hasInvalidEmailList("not-an-email")).toBe(true);

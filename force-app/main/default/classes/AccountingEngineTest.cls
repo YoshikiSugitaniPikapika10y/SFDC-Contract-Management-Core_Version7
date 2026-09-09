@@ -1301,6 +1301,51 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void acceptance_rejectsWhileHeaderOrSplitInProgress() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('AccExcl');
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.exclusiveHeaderOrSplitInvoiceIds.add(
+        fixture.invoice.Id
+      );
+      Date originalDate = fixture.line.AcceptanceEndDate__c;
+      Boolean thrown = false;
+      try {
+        Test.startTest();
+        InvoiceCanonicalService.updateLineAcceptanceEndDates(
+          new Map<Id, Date>{
+            fixture.line.Id => Date.newInstance(2026, 8, 31)
+          },
+          null
+        );
+        Test.stopTest();
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求情報編集、別の請求へ分けるまたは同一請求内分割の操作中は、検収終了日を変更できません。',
+          ex.getMessage()
+        );
+      } finally {
+        InvoiceCanonicalService.exclusiveHeaderOrSplitInvoiceIds.clear();
+      }
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.6節・第7.8.2節: 請求情報編集・分ける・分割の操作中は検収終了日を変えない'
+      );
+      System.assertEquals(
+        originalDate,
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :fixture.line.Id
+        ]
+        .AcceptanceEndDate__c
+      );
+    }
+  }
+
+  @IsTest
   static void acceptance_previewDoesNotPersistOrBuildGoal() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('PrevNoGoal');

@@ -4146,6 +4146,60 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void updateInvoiceHeaderAndDates_rejectsWhileApplyInProgress() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c invoice = [
+        SELECT Id, InvoiceDate__c, PaymentScheduledDate__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      InvoiceCanonicalService.applyingBillingAccountInvoiceIds.add(invoice.Id);
+      Boolean thrown = false;
+      try {
+        Test.startTest();
+        InvoiceCanonicalService.updateInvoiceHeaderAndDates(
+          invoice.Id,
+          invoice.InvoiceDate__c.addDays(1),
+          invoice.PaymentScheduledDate__c,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          8
+        );
+        Test.stopTest();
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        thrown = true;
+        System.assertEquals(
+          '反映の実行中は請求情報編集を保存できません。',
+          ex.getMessage()
+        );
+      } finally {
+        InvoiceCanonicalService.applyingBillingAccountInvoiceIds.clear();
+      }
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.8節: 反映の実行中は請求情報編集を保存できない'
+      );
+      Invoice__c stored = [
+        SELECT InvoiceDate__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(invoice.InvoiceDate__c, stored.InvoiceDate__c);
+    }
+  }
+
+  @IsTest
   static void rebuildForHistories_snapshotsDeliveryMethod() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();

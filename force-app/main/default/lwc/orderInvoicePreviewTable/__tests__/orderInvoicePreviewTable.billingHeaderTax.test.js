@@ -67,4 +67,23 @@ describe("orderInvoicePreviewTable billing header (Core 7.8)", () => {
     expect(event.type).toBe("savebillingheader");
     expect(event.detail.taxPercent).toBeUndefined();
   });
+
+  it("反映の実行中は請求情報編集を保存しない", async () => {
+    const dispatchEvent = jest.fn();
+    await proto.handleSaveBillingHeader.call({
+      billingEditState: {
+        invoiceId: "a00INV000000001",
+        invoiceDate: "2026-06-01",
+        paymentScheduledDate: "2026-07-31",
+        extraFieldValues: {}
+      },
+      isSaving: false,
+      isDocumentOpsWaiting: false,
+      isConcurrentEditBusy: true,
+      editProcessingInvoiceId: "a00INV000000001",
+      hasAmountDrafts: false,
+      dispatchEvent
+    });
+    expect(dispatchEvent).not.toHaveBeenCalled();
+  });
 });
