@@ -332,7 +332,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 
 契約期間明細と請求書は契約履歴に従属し、請求明細は請求書に従属する。標準操作では親を別レコードへ付け替えない。具体的な共有、CRUD、項目権限および緊急操作権限は `共通基盤.md` に従う。
 
-契約履歴と契約サービスは、標準操作では画面、関連リスト、API、Data Loaderその他の全経路で物理削除しない。見積を閉じる操作はArchiveであり、論理削除項目は持たない。101 と 103 の物理削除は`共通基盤.md`第3.6節。未確定請求の物理削除は、次の正規処理だけが行う。(1)Version再生成 (2)差し戻し (3)全明細移動で元請求が空になるとき（第7.8節・第7.8.1節）。契約期間明細の物理削除は、Version再生成および差し戻しの正規処理だけが行う。契約横断は一括削除を持たない。`docs/横断画面.md`。第9章。
+契約履歴と契約サービスは、標準操作では画面、関連リスト、API、Data Loaderその他の全経路で物理削除しない。見積を閉じる操作はArchiveであり、論理削除項目は持たない。101 と 103 の物理削除は`共通基盤.md`第3.6節。未確定請求の物理削除は、次の正規処理だけが行う。(1)Version再生成 (2)差し戻し (3)全明細移動で元請求が空になるとき（第7.8節・第7.8.1節）。契約期間明細の物理削除は、Version再生成および差し戻しの正規処理だけが行う。Archiveは未確定請求および契約期間明細を物理削除しない。契約横断は一括削除を持たない。`docs/横断画面.md`。第9章。
 
 #### 2.3.1 Core取引レコードの物理削除・論理削除
 
@@ -1386,7 +1386,14 @@ Lifecycle=Termでは、`ServiceStartDate__c`（サービス開始日）はFirst 
 - Archive後は編集、受注、コピー、見積書発行および差し戻しを行えない。
 - 契約履歴から「アーカイブ」を選ぶと確認画面を開く。「アーカイブする」で不採用にし、「キャンセル」では何も変更せず閉じる。ブラウザ標準の確認ダイアログは使用しない。
 - 手動・受注時自動のどちらでもArchive遷移時に`PreviousHistory__c`をnullにする。
+- Archiveは有効な契約期間明細および未確定請求を物理削除しない。削除経路は第2.3節。正規Archiveの対象はそれらを持たないEstimateである。
   **実装仕様（開発者向け）:** 確認画面は`estimateArchiveRecordAction`、更新処理は`EstimateArchiveController.archiveEstimate`を使用し、`window.confirm`には依存しない。契約サービス`FlexiPage124`のDynamic Related ListはArchive履歴をadminFiltersで除外する。
+
+<div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
+<strong style="color:#1a5276;">ToBe</strong>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateArchiveController.archiveEstimate</code>、<code>ContractHistoryArchiveService.archiveSupersededEstimates</code>
+／ Archiveで<code>InvoiceCanonicalService.purgeBillingForHistories</code>は呼ばない。
+</div>
 
 ### 5.6 更新商談
 
@@ -1434,11 +1441,17 @@ Cancelの「02_受注」は、解約の注文を受け付けて受注済みに�
 
 ### 6.1 生成条件
 
-契約期間明細は、Cancel以外の契約履歴をOrderedにするときに生成する。New・Renewは当該Versionの全条件を生成する。Changeは継続課金について過去条件との差分、一回課金Type=Newについて今回Versionの追加額全額を生成する。Estimate・Archiveには有効な契約期間明細を作成・残存させない。
+契約期間明細は、Cancel以外の契約履歴をOrderedにするときに生成する。New・Renewは当該Versionの全条件を生成する。Changeは継続課金について過去条件との差分、一回課金Type=Newについて今回Versionの追加額全額を生成する。Estimateへは有効な契約期間明細を作成しない。正規Archiveの対象は期間明細を持たないEstimateである。Archiveは第2.3節の物理削除に足さない。直insertの残存はデータ異常であり、Archiveで消さない。
 
 再生成ではVersion内の契約期間明細と未確定の請求正本を削除して作り直す。取消済み請求は監査情報として保持し、再生成対象にも新しい請求の集約対象にも含めない。実行条件とロックは第6.6節に従う。請求ボードを開いただけでは生成せず、既存Orderedに有効な正本が無い場合も予定行を仮生成しない。
 
 有効な契約期間明細`InvoiceProduct__c`、請求`Invoice__c`、請求明細`InvoiceLine__c`はOrdered履歴にだけ存在する。取消済みの`Invoice__c`と`InvoiceLine__c`だけはEstimate・Archiveへ遷移した元履歴にも残す。契約期間明細から請求アカウント・宛名・メール等の請求寄せ項目は削除済みで、期間・数量・金額と`InvoiceBucketKey__c` / `LineBucketKey__c`を持つ。請求アカウントと請求先情報の正本は請求ヘッダーだけが持つ。
+
+<div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
+<strong style="color:#1a5276;">ToBe</strong>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceProductGenerationService.generateForHistories</code>
+／ Archiveからの掃除は置かない。差し戻し・再生成の削除は第2.3節。
+</div>
 
 ### 6.2 期間の分割
 
@@ -1820,7 +1833,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceBoardDocumentService.issueFromPreview</code> / <code>sendFromPreview</code>、<code>InvoiceOpsController.updateInvoiceMemo</code>、<code>InvoicePreviewOpsController.updateJournalMemo</code> / <code>lockJournalsForInvoice</code> / <code>unlockJournalsForInvoice</code>
 ／ PDF本体は<code>InvoiceDocumentService.issueInvoiceDocument</code>。画面は<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code>。部品は枠に載せない。
-／ 請求情報編集・反映の主たる節は第7.8節。取消の入口は第7.9.3節。Lock／Unlockは選択した仕訳IDだけ。<code>InvoicePreviewOpsController.lockJournalsForInvoice</code> / <code>unlockJournalsForInvoice</code>。未選択はエラー。OFFでは仕訳タブを出さない。仕訳タブの表は<code>orderInvoicePreviewTable</code>。フィルタは置かない。
+／ 請求情報編集・反映の主たる節は第7.8節。取消の入口は第7.9.3節。Lock／Unlockは選択した仕訳IDだけ。<code>InvoicePreviewOpsController.lockJournalsForInvoice</code> / <code>unlockJournalsForInvoice</code>。未選択はエラー。OFFでは仕訳タブを出さない。仕訳タブの表は<code>orderInvoicePreviewTable</code>。フィルタは置かない。計上時期は動的な表示列。
 </div>
 
 ### 7.8 例外編集
