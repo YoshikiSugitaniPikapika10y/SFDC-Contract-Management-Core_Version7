@@ -27,6 +27,18 @@ private class TaxCalculationUtilTest {
   static void calculateTaxAmount_floorsTax() {
     System.assertEquals(0, TaxCalculationUtil.calculateTaxAmount(null, 10));
     System.assertEquals(0, TaxCalculationUtil.calculateTaxAmount(0, 10));
+    Boolean zeroAmountEmptyRate = false;
+    try {
+      TaxCalculationUtil.calculateTaxAmount(0, null);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      zeroAmountEmptyRate = true;
+      System.assert(ex.getMessage().contains('空'), ex.getMessage());
+    }
+    System.assertEquals(
+      true,
+      zeroAmountEmptyRate,
+      'Core 第7.4節: 税抜0でも税率空は0%にせずエラー'
+    );
     System.assertEquals(1200, TaxCalculationUtil.calculateTaxAmount(12000, 10));
     System.assertEquals(800, TaxCalculationUtil.calculateTaxAmount(8000, 10));
     System.assertEquals(-100, TaxCalculationUtil.calculateTaxAmount(-1000, 10));

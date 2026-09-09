@@ -14,12 +14,12 @@ private class InvoiceProductGenerationServiceTest {
         FROM ContractService__c
         WHERE Id = :history.ContractService__c
       ];
-      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
-        service.Account__c,
-        history.Name + ' Opp'
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        service.Account__c
       );
-      history.Opportunity__c = opportunity.Id;
     }
+    ContractTestDataFactory.applyRequiredFields(history);
     insert history;
   }
 
@@ -209,12 +209,15 @@ private class InvoiceProductGenerationServiceTest {
   }
 
   private static void updateInvoicesAllowingStatus(List<Invoice__c> invoices) {
-    Boolean previous = InvoiceTransactionStatusService.allowStatusWrite;
+    Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+    Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
     InvoiceTransactionStatusService.allowStatusWrite = true;
+    InvoiceLockUtil.allowLockedStatusWrite = true;
     try {
       update invoices;
     } finally {
-      InvoiceTransactionStatusService.allowStatusWrite = previous;
+      InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+      InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
   }
 
@@ -235,8 +238,10 @@ private class InvoiceProductGenerationServiceTest {
       Name = name,
       Account__c = account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     return service;
   }
@@ -724,8 +729,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Calendar Month Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Calendar Month History',
@@ -968,6 +975,7 @@ private class InvoiceProductGenerationServiceTest {
       );
       update pricedProduct;
       data.recurringProduct.UnitPrice__c = 9000;
+      data.recurringProduct.Amount__c = 9000;
       update data.recurringProduct;
       orderHistory(data.history);
       Test.stopTest();
@@ -1036,6 +1044,15 @@ private class InvoiceProductGenerationServiceTest {
         true,
         thrown,
         '??E????????????E????????'
+      );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE Id = :firstPeriodLine.Id
+        ],
+        'Core 第6.6節: ロック拒否の前に期間明細を消さない'
       );
       InvoiceProduct__c preservedProduct = [
         SELECT Amount__c
@@ -1113,8 +1130,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Billing Day Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Billing Day History',
@@ -1181,8 +1200,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Prepaid Billing Day Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Prepaid Billing Day History',
@@ -1265,8 +1286,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Snapshot Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
@@ -1405,8 +1428,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Immediate Snapshot Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Product2 product = ContractTestDataFactory.buildProduct(
         'Immediate Snapshot Product'
@@ -1496,6 +1521,7 @@ private class InvoiceProductGenerationServiceTest {
       BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
       Type__c = 'Renew'
     );
+    ContractTestDataFactory.applyRequiredFields(data.recurringProduct);
     insert data.recurringProduct;
     if (includeOriginal) {
       Product2 originalProduct = ContractTestDataFactory.buildProduct(
@@ -2816,8 +2842,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Change Billing Day Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Date termStart = Date.newInstance(2026, 6, 1);
       Date termEnd = Date.newInstance(2027, 5, 31);
@@ -2945,8 +2973,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Change Prepaid Effective Anchor Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Date termStart = Date.newInstance(2026, 4, 1);
       Date termEnd = Date.newInstance(2027, 6, 30);
@@ -3120,8 +3150,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Change Prepaid One Time Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Date termStart = Date.newInstance(2026, 6, 1);
       Date termEnd = Date.newInstance(2027, 5, 31);
@@ -3256,8 +3288,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Change Prepaid Discontinued Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Date termStart = Date.newInstance(2024, 4, 1);
       Date termEnd = Date.newInstance(2025, 3, 31);
@@ -3397,8 +3431,10 @@ private class InvoiceProductGenerationServiceTest {
         Name = 'Change Gap Block Service',
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Date termStart = Date.newInstance(2024, 4, 1);
       Date termEnd = Date.newInstance(2025, 3, 31);

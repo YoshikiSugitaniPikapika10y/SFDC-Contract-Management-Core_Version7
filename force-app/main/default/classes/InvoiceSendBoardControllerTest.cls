@@ -418,6 +418,134 @@ private class InvoiceSendBoardControllerTest {
   }
 
   @IsTest
+  static void confirmInvoiceFromPreview_rejectsZeroAmountEmptyTaxPercent() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createInvoice(
+        '税抜0税率空取引先',
+        'Draft',
+        'zero-tax@example.com'
+      );
+      invoice.Amount__c = 0;
+      invoice.TaxAmount__c = 0;
+      invoice.TaxPercent__c = null;
+      update invoice;
+      ContractHistory__c history = [
+        SELECT Id
+        FROM ContractHistory__c
+        WHERE Id = :invoice.ContractHistory__c
+      ];
+      history.DeltaAmountSum__c = 0;
+      update history;
+      Boolean rejected = false;
+      Test.startTest();
+      try {
+        InvoiceSendBoardController.confirmInvoiceFromPreview(
+          invoice.Id,
+          Date.today(),
+          currentToken(invoice.Id),
+          null,
+          invoice.ContractHistory__c
+        );
+      } catch (Exception ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('空'),
+          'Core 第7.4節・第7.9.1節: 税抜0でも税率空は確定しない。実際: ' +
+            ex.getMessage()
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, rejected);
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_DRAFT,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+        .InvoiceTransactionStatus__c,
+        'Core 第7.4節: 税率空の確定は通さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void confirmInvoiceFromPreview_withoutLoop11_rejectsNonDraftWithStatus() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createInvoice(
+        '確定11無し状態取引先',
+        'Confirmed',
+        'no-loop11-status@example.com'
+      );
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.CONFIRM_INVOICE => false
+      };
+      Boolean rejected = false;
+      try {
+        Test.startTest();
+        InvoiceSendBoardController.confirmInvoiceFromPreview(
+          invoice.Id,
+          Date.today(),
+          currentToken(invoice.Id),
+          null,
+          invoice.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assert(
+          ex.getMessage().contains('未確定の請求のみ確定できます'),
+          '共通基盤第3.8節: Loop_11無しでも未確定でない請求は状態エラー。実際: ' +
+            ex.getMessage()
+        );
+        System.assert(
+          !ex.getMessage().contains('権限がありません'),
+          '共通基盤第3.8節: 状態不足と権限不足を分けない'
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+        Test.stopTest();
+      }
+      System.assertEquals(true, rejected);
+    }
+  }
+
+  @IsTest
+  static void confirmInvoiceFromPreview_withoutLoop11_rejectsDraftWithPermission() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createInvoice(
+        '未確定11無し権限取引先',
+        'Draft',
+        'no-loop11-perm@example.com'
+      );
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.CONFIRM_INVOICE => false
+      };
+      Boolean rejected = false;
+      try {
+        Test.startTest();
+        InvoiceSendBoardController.confirmInvoiceFromPreview(
+          invoice.Id,
+          Date.today(),
+          currentToken(invoice.Id),
+          null,
+          invoice.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assertEquals(
+          '請求を確定する権限がありません。',
+          ex.getMessage(),
+          '共通基盤第3.1節: 確定そのものは Loop_11。実際: ' + ex.getMessage()
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+        Test.stopTest();
+      }
+      System.assertEquals(true, rejected);
+    }
+  }
+
+  @IsTest
   static void confirmInvoiceFromPreview_rejectsConfirmedInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = createInvoice(

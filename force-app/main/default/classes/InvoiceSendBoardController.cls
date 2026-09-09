@@ -153,7 +153,7 @@ public without sharing class InvoiceSendBoardController {
     );
   }
 
-  /** 仕様: Core 第7.7.3節、第7.9.7節、第12.4節、Accounting 第8.2節。 */
+  /** 仕様: Core 第7.7.3節、第7.9.1節、第7.9.7節、第12.4節、Accounting 第8.2節、共通基盤第3.8節。 */
   private static ConfirmResultDto confirmInvoiceFromPreview(
     Id invoiceId,
     Date confirmationDate,
@@ -189,15 +189,15 @@ public without sharing class InvoiceSendBoardController {
         );
         return existing;
       }
+      if (!InvoiceTransactionStatusService.isDraft(invoice)) {
+        throw handledMessage('未確定の請求のみ確定できます。');
+      }
       AccountingCurrentService.load(invoice.Id);
       AccountingCauseLockService.assertInvoiceOperationUnchanged(
         invoiceId,
         expectedToken,
         invoice.LastModifiedDate
       );
-      if (!InvoiceTransactionStatusService.isDraft(invoice)) {
-        throw handledMessage('未確定の請求のみ確定できます。');
-      }
       Integer confirmedCount = InvoiceOpsController.markInvoiced(
         invoice.ContractHistory__c,
         new List<Id>{ invoice.Id },

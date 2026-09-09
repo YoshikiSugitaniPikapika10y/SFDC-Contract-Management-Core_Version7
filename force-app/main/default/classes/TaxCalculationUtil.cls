@@ -61,15 +61,15 @@ public without sharing class TaxCalculationUtil {
     return resolveTaxPercent(displayPercent);
   }
 
-  /** 仕様: Core 第11.9節 */
+  /** 仕様: Core 第7.4節・第11.9節。税抜0でも税率空は0%にしない。 */
   public static Decimal calculateTaxAmount(
     Decimal amountExclTax,
     Decimal taxPercent
   ) {
+    Decimal rate = resolveTaxPercent(taxPercent) / 100;
     if (amountExclTax == null || amountExclTax == 0) {
       return 0;
     }
-    Decimal rate = resolveTaxPercent(taxPercent) / 100;
     return (amountExclTax * rate).setScale(
       0,
       AmountCalculationSettingService.taxRoundingMode()

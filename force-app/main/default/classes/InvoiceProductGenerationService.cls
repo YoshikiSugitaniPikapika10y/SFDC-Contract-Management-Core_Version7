@@ -246,6 +246,8 @@ public without sharing class InvoiceProductGenerationService {
       cachedContractProductsByHistoryId,
       changeHistories
     );
+    // 仕様: Core 第6.6節。有効な確定済みがあるVersionは再生成しない。期間明細を消してから拒否しない。
+    InvoiceLockUtil.assertNoLockedInvoices(contractHistoryIds);
     if (replaceExistingPeriodLines == true) {
       deleteAllInvoiceProducts(contractHistoryIds);
     }
