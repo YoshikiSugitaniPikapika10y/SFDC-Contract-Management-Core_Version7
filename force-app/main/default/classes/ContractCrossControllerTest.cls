@@ -524,6 +524,11 @@ private class ContractCrossControllerTest {
         result.invoices[0].latestIssuedContentDocumentId,
         '横断画面.md 操作23: 取消済みは取消前のPDF'
       );
+      System.assertEquals(
+        0,
+        result.invoices[0].trueTagLabels.size(),
+        '共通基盤操作31: 取消済みの行は空'
+      );
     }
   }
 

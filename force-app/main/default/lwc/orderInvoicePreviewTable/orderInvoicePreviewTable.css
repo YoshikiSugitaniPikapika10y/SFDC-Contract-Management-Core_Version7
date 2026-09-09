@@ -188,7 +188,7 @@
   min-width: 0;
   box-sizing: border-box;
   background: var(--preview-surface);
-  border: 1px solid var(--preview-border);
+  border: 1px solid var(--preview-border-strong);
   border-radius: var(--preview-radius);
   /* overflow:hidden はスクロールコンテナになり、マウス位置でホイールを奪うことがある */
   overflow: visible;
@@ -491,6 +491,13 @@
 .invoice-card_cancelled .invoice-header {
   background: linear-gradient(180deg, #ffffff 0%, #f4f4f5 100%);
   border-left-color: #94a3b8;
+}
+
+.invoice-card_cancelled .invoice-title .invoice-index,
+.invoice-card_cancelled .invoice-index_link,
+.invoice-card_cancelled .invoice-addressee,
+.invoice-card_cancelled .invoice-header .edit-note {
+  color: var(--preview-muted);
 }
 
 .invoice-header-bar {

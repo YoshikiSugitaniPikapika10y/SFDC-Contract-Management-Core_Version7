@@ -2815,11 +2815,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           };
           }),
           hasJournals: displayedJournals.length > 0,
-          // 仕様: Core 第8.10節、Accounting 第7.6節。Trueのタグラベルを金額行直下。OFFとDraftは出さない。
+          // 仕様: Core 第8.10節・第7.7.3節、Accounting 第7.6節。Trueのタグラベルを金額行直下。OFFと未確定と取消済みは出さない。評価・保存は変えない。
           tagResults: bundle?.tagResults || [],
           showCardAccountingTags:
             accountingEnabled &&
             !isDraft &&
+            !isCancelled &&
             (bundle?.tagResults || []).length > 0,
           manualSettings: bundle?.manualSettings || [],
           manualJournals: (bundle?.manualJournals || []).map((header) => ({

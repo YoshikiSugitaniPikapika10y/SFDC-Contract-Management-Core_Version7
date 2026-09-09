@@ -443,7 +443,8 @@ public with sharing class ContractCrossQueryService {
         dto.nextAcceptance = agg.nextAcceptance;
       }
       dto.trueTagLabels = new List<String>();
-      if (accountingOn) {
+      // 仕様: Core 第8.10節・第7.7.3節、Accounting 第7.6節、共通基盤操作31。取消済みの行は空。評価・保存は変えない。
+      if (accountingOn && dto.cancelled != true) {
         for (ContractCrossController.TagRuleDto rule : tagRules) {
           if (String.isBlank(rule.fieldApiName)) {
             continue;

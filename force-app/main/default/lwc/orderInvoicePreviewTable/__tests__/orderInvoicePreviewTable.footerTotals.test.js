@@ -834,6 +834,40 @@ describe("orderInvoicePreviewTable footer totals", () => {
     ).toBe(0);
   });
 
+  it("does not show accounting tag badges for Cancelled invoices", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      tagResults: [
+        { fieldApiName: "TagA__c", name: "AR残あり", value: true }
+      ]
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview({
+      amountTotal: 1000,
+      taxTotal: 100,
+      clearedAmount: 0,
+      sourceHistoryVersion: "1"
+    });
+    preview.invoices[0].invoiceTransactionStatus = "Cancelled";
+    preview.invoices[0].isCancelled = true;
+    element.initialInvoiceId = "a00INV000000001";
+    element.preview = preview;
+    document.body.appendChild(element);
+    await waitUntil(() => getOpsBundle.mock.calls.length > 0);
+    await waitUntil(() =>
+      element.shadowRoot.querySelector(
+        'button[data-tab="journals"], footer.invoice-footer'
+      )
+    );
+    expect(
+      element.shadowRoot.querySelectorAll(
+        "footer.invoice-footer lightning-badge"
+      ).length
+    ).toBe(0);
+  });
+
   it("does not show accounting tag badges when Accounting is OFF", async () => {
     getOpsBundle.mockResolvedValue({
       accountingEnabled: false,
