@@ -155,22 +155,23 @@ ${confirmPanelHas} {
 ${largeHas} {
     display: flex !important;
     flex-direction: column !important;
+    position: absolute !important;
+    inset: 0 !important;
     width: 100% !important;
     height: 100% !important;
     max-width: 100% !important;
     max-height: 100% !important;
+    min-height: 0 !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
 }
 
-${largeContainerHas} .slds-modal__content > *,
-${largePanelHas} > * {
+c-order-invoice-preview-wizard {
     display: flex !important;
     flex-direction: column !important;
-    flex: 1 1 auto !important;
-    min-height: 0 !important;
+    width: 100% !important;
     height: 100% !important;
-    max-height: 100% !important;
+    min-height: 0 !important;
     overflow: hidden !important;
     box-sizing: border-box !important;
 }
@@ -371,11 +372,78 @@ function applyInlineLayout(container, size, host) {
   }
 }
 
+function nextLayoutParent(node) {
+  if (!node) {
+    return null;
+  }
+  if (node.parentNode && node.parentNode !== document) {
+    return node.parentNode;
+  }
+  return node.host || null;
+}
+
+/**
+ * モーダルは 95vh でも、途中の枠が見出し分だと height:100% が潰れる。
+ * ホストは枠へ absolute で貼る。途中枠は 100% にして入れ子スクローラは作らない。
+ */
+function fillActionHostChain(host, container) {
+  if (!host || !host.style) {
+    return;
+  }
+  const target =
+    container && container.classList && container.classList.contains("slds-modal")
+      ? container.querySelector(".slds-modal__container") || container
+      : container;
+  if (target && target.style) {
+    target.style.setProperty("position", "relative", "important");
+  }
+  host.style.setProperty("position", "absolute", "important");
+  host.style.setProperty("top", "0", "important");
+  host.style.setProperty("right", "0", "important");
+  host.style.setProperty("bottom", "0", "important");
+  host.style.setProperty("left", "0", "important");
+  host.style.setProperty("width", "100%", "important");
+  host.style.setProperty("height", "100%", "important");
+  host.style.setProperty("max-height", "100%", "important");
+  host.style.setProperty("min-height", "0", "important");
+  host.style.setProperty("overflow", "hidden", "important");
+  host.style.setProperty("display", "flex", "important");
+  host.style.setProperty("flex-direction", "column", "important");
+  host.style.setProperty("box-sizing", "border-box", "important");
+
+  let node = nextLayoutParent(host);
+  for (let depth = 0; depth < 50 && node && node.nodeType === 1; depth++) {
+    if (node === document.body || node === document.documentElement) {
+      break;
+    }
+    const classList = node.classList;
+    if (classList && classList.contains("slds-modal")) {
+      break;
+    }
+    if (node.style && node !== target) {
+      node.style.setProperty("display", "flex", "important");
+      node.style.setProperty("flex-direction", "column", "important");
+      node.style.setProperty("height", "100%", "important");
+      node.style.setProperty("max-height", "100%", "important");
+      node.style.setProperty("min-height", "0", "important");
+      node.style.setProperty("overflow", "hidden", "important");
+      node.style.setProperty("box-sizing", "border-box", "important");
+    }
+    if (node === target) {
+      break;
+    }
+    node = nextLayoutParent(node);
+  }
+}
+
 function applyOnce(host, size) {
   ensureGlobalStyle();
   const container = findModalContainer(host);
   if (container) {
     applyInlineLayout(container, size, host);
+    if (size !== "confirm") {
+      fillActionHostChain(host, container);
+    }
   }
 }
 

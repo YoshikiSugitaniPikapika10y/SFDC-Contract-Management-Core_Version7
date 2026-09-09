@@ -155,14 +155,14 @@ describe("orderInvoicePreviewWizard scroll", () => {
     await Promise.resolve();
 
     expect(element.style.overflow).toBe("hidden");
-    expect(element.style.height).toMatch(/^\d+px$/);
+    expect(element.style.height).toBe("100%");
     const page = element.shadowRoot.querySelector(".preview-page");
-    expect(page.style.getPropertyValue("--preview-scroll-max")).toBe(
-      element.style.height
+    expect(page.style.getPropertyValue("--preview-scroll-max")).toMatch(
+      /^\d+px$/
     );
   });
 
-  it("潰れた overflow:hidden 枠をビューポート高さまで広げて中身を切らない (Core 7.7.0)", async () => {
+  it("潰れた親枠があってもホスト高さは 100% のまま親 DOM は触らない (Core 7.7.0)", async () => {
     const clip = document.createElement("div");
     clip.style.overflowY = "hidden";
     Object.defineProperty(clip, "clientHeight", {
@@ -191,10 +191,8 @@ describe("orderInvoicePreviewWizard scroll", () => {
       10
     );
     expect(limit).toBeGreaterThan(240);
-    expect(element.style.height).toBe(`${limit}px`);
-    expect(element.style.minHeight).toBe(`${limit}px`);
-    expect(clip.style.height).toBe(`${limit}px`);
-    expect(clip.style.overflow).toBe("hidden");
+    expect(element.style.height).toBe("100%");
+    expect(clip.style.height).toBe("");
   });
 
   it("下端でも枠のスクローラへホイールを渡さない (Core 7.7.0)", async () => {
