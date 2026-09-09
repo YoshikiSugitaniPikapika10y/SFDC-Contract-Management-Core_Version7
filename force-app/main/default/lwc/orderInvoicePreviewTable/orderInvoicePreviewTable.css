@@ -29,9 +29,10 @@
 .version-filter-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-bottom: 0.625rem;
+  align-items: flex-end;
+  column-gap: 1.5rem;
+  row-gap: 0.75rem;
+  margin-bottom: 0.875rem;
 }
 
 .version-filter {
@@ -41,6 +42,18 @@
 
 .invoice-filter {
   max-width: 16rem;
+}
+
+.board-filter-check,
+.board-filter-action {
+  display: flex;
+  align-items: center;
+  min-height: 2.125rem;
+  margin-bottom: 0.125rem;
+}
+
+.board-filter-check lightning-input {
+  display: block;
 }
 
 .memo-row {

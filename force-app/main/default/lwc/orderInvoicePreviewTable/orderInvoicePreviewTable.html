@@ -4,14 +4,13 @@
       <div class="version-filter">
         <lightning-combobox
           name="versionFilter"
-          label="Version"
+          label="版"
           value={selectedVersion}
           options={versionOptions}
           onchange={handleVersionChange}
           disabled={versionFilterDisabled}
           title={versionFilterTitle}
           dropdown-alignment="left"
-          variant="label-hidden"
         >
         </lightning-combobox>
       </div>
@@ -26,22 +25,26 @@
         >
         </lightning-combobox>
       </div>
-      <lightning-input
-        type="checkbox"
-        label="取消済みを含める"
-        checked={includeCancelled}
-        onchange={handleIncludeCancelledChange}
-      ></lightning-input>
+      <div class="board-filter-check">
+        <lightning-input
+          type="checkbox"
+          label="取消済みを含める"
+          checked={includeCancelled}
+          onchange={handleIncludeCancelledChange}
+        ></lightning-input>
+      </div>
       <template if:true={showResetPostOrderButton}>
-        <button
-          type="button"
-          class="ghost-btn reset-post-order-btn"
-          onclick={handleResetPostOrderClick}
-          disabled={resetPostOrderDisabled}
-          title={resetPostOrderTitle}
-        >
-          受注直後の請求に戻す
-        </button>
+        <div class="board-filter-action">
+          <button
+            type="button"
+            class="ghost-btn reset-post-order-btn"
+            onclick={handleResetPostOrderClick}
+            disabled={resetPostOrderDisabled}
+            title={resetPostOrderTitle}
+          >
+            受注直後の請求に戻す
+          </button>
+        </div>
       </template>
     </div>
   </template>
