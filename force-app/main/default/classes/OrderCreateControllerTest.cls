@@ -1318,6 +1318,54 @@ private class OrderCreateControllerTest {
         .InvoiceTransactionStatus__c,
         'Core 第7.9.3節: 範囲内の確定済みは取り消す'
       );
+
+      Integer cancelledCards = 0;
+      Integer activeCards = 0;
+      for (OrderCreateController.InvoiceGroupDto card : preview.invoices) {
+        if (card == null) {
+          continue;
+        }
+        if (card.isCancelled == true) {
+          cancelledCards++;
+          if (card.lines == null) {
+            continue;
+          }
+          for (OrderCreateController.InvoiceMergedLineDto row : card.lines) {
+            System.assertEquals(
+              false,
+              row.hasAmountDrift,
+              'Core 第7.7.0節・第7.8.5節: 取消済み明細は端数按分の母に入れない'
+            );
+          }
+        } else {
+          activeCards++;
+          if (card.lines == null) {
+            continue;
+          }
+          for (OrderCreateController.InvoiceMergedLineDto row : card.lines) {
+            System.assertEquals(
+              false,
+              row.hasAmountDrift,
+              'Core 第7.8.5節: 訂正用は取消済みと期間IDを共有しても偽の端数ありにしない'
+            );
+          }
+        }
+      }
+      System.assertEquals(
+        1,
+        cancelledCards,
+        'Core 第7.9.3節: 取消済みカードを返す'
+      );
+      System.assertEquals(
+        1,
+        activeCards,
+        'Core 第7.9.3節: 訂正用の未確定を返す'
+      );
+      System.assertEquals(
+        0,
+        preview.manualAdjustmentAmount,
+        'Core 第7.8.5節: 端数調整実績は取消済み明細を母にしない'
+      );
     }
   }
 
@@ -2706,6 +2754,7 @@ private class OrderCreateControllerTest {
       confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
       Test.startTest();
       Id renewOpportunityId = attachRenewOpportunityAfterOrdered(context);
+      archiveNewerEstimates(context.service.Id, context.history.Id);
       OrderCreateController.revertOrder(context.history.Id, true);
       Test.stopTest();
       System.assertEquals(
@@ -2950,6 +2999,7 @@ private class OrderCreateControllerTest {
       confirmOrderWithWizardHistoryDefaults(context.history.Id, false);
       Test.startTest();
       attachRenewOpportunityAfterOrdered(context);
+      archiveNewerEstimates(context.service.Id, context.history.Id);
       ContractHistory__c ordered = [
         SELECT RenewalOpportunity__c, RenewOpportunityRequestCount__c
         FROM ContractHistory__c
@@ -5432,6 +5482,29 @@ private class OrderCreateControllerTest {
     return renew.Id;
   }
 
+  /** 仕様: Core 第5.3節。差し戻しは後続Estimateを自動Archiveしない。上のVersionのEstimateは先にArchiveする。 */
+  private static void archiveNewerEstimates(Id serviceId, Id orderedHistoryId) {
+    ContractHistory__c ordered = [
+      SELECT Version__c
+      FROM ContractHistory__c
+      WHERE Id = :orderedHistoryId
+    ];
+    List<ContractHistory__c> newer = [
+      SELECT Id
+      FROM ContractHistory__c
+      WHERE
+        ContractService__c = :serviceId
+        AND historystatus__c = :ContractDomainConstants.HISTORY_STATUS_ESTIMATE
+        AND Version__c > :ordered.Version__c
+    ];
+    for (ContractHistory__c row : newer) {
+      row.historystatus__c = ContractDomainConstants.HISTORY_STATUS_ARCHIVE;
+    }
+    if (!newer.isEmpty()) {
+      update newer;
+    }
+  }
+
   private static OrderTestContext createEstimateContextWithOpportunity() {
     OrderTestContext context = createEstimateContext();
     context.opportunity = ContractTestDataFactory.insertOpportunity(
@@ -5444,7 +5517,9 @@ private class OrderCreateControllerTest {
   }
 
   private static OrderTestContext createSpotEstimateContextWithOpportunity() {
-    OrderTestContext context = createEstimateContext();
+    OrderTestContext context = createEstimateContext(
+      ContractDomainConstants.LIFECYCLE_SPOT
+    );
     context.opportunity = ContractTestDataFactory.insertOpportunity(
       context.account.Id,
       'Order Spot Source Opportunity'
@@ -5452,7 +5527,6 @@ private class OrderCreateControllerTest {
     context.history.Opportunity__c = context.opportunity.Id;
     update context.history;
 
-    // ???????????????Epot ????E?E
     List<ContractProduct__c> products = [
       SELECT Id, Product__c
       FROM ContractProduct__c
@@ -5473,13 +5547,18 @@ private class OrderCreateControllerTest {
   }
 
   private static OrderTestContext createEstimateContext() {
+    return createEstimateContext(ContractDomainConstants.LIFECYCLE_TERM);
+  }
+
+  private static OrderTestContext createEstimateContext(String lifecycle) {
     OrderTestContext context = new OrderTestContext();
     context.account = ContractTestDataFactory.insertAccount(
       'Order Wizard Account'
     );
     context.service = ContractTestDataFactory.insertContractService(
       context.account.Id,
-      'Order Wizard Service'
+      'Order Wizard Service',
+      lifecycle
     );
     context.billingAccount = [
       SELECT Id, BillingEmailTo__c

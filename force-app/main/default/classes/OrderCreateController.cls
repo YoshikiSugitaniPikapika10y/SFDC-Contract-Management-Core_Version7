@@ -4668,10 +4668,11 @@ public without sharing class OrderCreateController {
   }
 
   /**
-   * 仕様: Core 第12.4節、第4.3.11節、第7.7.0節。
+   * 仕様: Core 第12.4節、第4.3.11節、第7.7.0節、第7.8.5節、第1.1.5節。
    * 端数調整実績 = 由来付き請求明細の金額合計 − 由来 InvoiceProduct 金額合計。
    * 請求日／BA 金額分割で同一期間 ID が明細間に重複しても、期間 ID は重複排除する
    * （明細ごとに由来合計を引くと偽の大きなマイナスになる）。
+   * 取消済み請求の明細は母に入れない（訂正用と期間 ID を共有しても二重に足さない）。
    * Version 別も同じ定義。履歴一致検査で読んだ期間明細は取り直さない。
    */
   private static void applyManualAdjustmentAmounts(
@@ -4695,7 +4696,7 @@ public without sharing class OrderCreateController {
 
     Set<Id> sourceIds = new Set<Id>();
     for (InvoiceGroupDto invoice : preview.invoices) {
-      if (invoice == null || invoice.lines == null) {
+      if (invoice == null || invoice.lines == null || invoice.isCancelled == true) {
         continue;
       }
       for (InvoiceMergedLineDto line : invoice.lines) {
@@ -4761,7 +4762,7 @@ public without sharing class OrderCreateController {
     Map<String, Set<Id>> sourceIdsByVersion = new Map<String, Set<Id>>();
 
     for (InvoiceGroupDto invoice : preview.invoices) {
-      if (invoice == null || invoice.lines == null) {
+      if (invoice == null || invoice.lines == null || invoice.isCancelled == true) {
         continue;
       }
       String versionValue = invoice.historyVersion == null
@@ -4833,12 +4834,13 @@ public without sharing class OrderCreateController {
   }
 
   /**
-   * 仕様: Core 第12.4節、第4.3.11節、第7.7節。
+   * 仕様: Core 第12.4節、第4.3.11節、第7.7節、第7.8.5節、第1.1.5節。
    * 明細ごとの端数ずれ = 請求明細金額 − 見積（CP.Amount を請求月数で按分）。
    * 上部バーの「見積額 vs 請求額」と同じ定義。
    * 継続: Amount × (ユニーク請求月数 / CP月数)。同一 CP 複数明細への配分は
    * 由来 InvoiceProduct 金額比（期間 ID 重複時はその期間金額を明細金額比で按分）。
    * 一回: 請求明細があれば Amount 全額を金額比で配分。
+   * 取消済み請求の明細は按分母に入れない。フラグはリセットだけする。
    * 請求・明細1回照会が載せた見積商品は取り直さない。明細の見積ずれは変えない。
    */
   private static void applyEstimateDriftToLines(
@@ -4855,6 +4857,7 @@ public without sharing class OrderCreateController {
       if (invoice == null || invoice.lines == null) {
         continue;
       }
+      Boolean skipCancelled = invoice.isCancelled == true;
       for (InvoiceMergedLineDto line : invoice.lines) {
         if (line == null) {
           continue;
@@ -4862,6 +4865,9 @@ public without sharing class OrderCreateController {
         line.sourceAmountTotal = null;
         line.amountDeltaFromSource = null;
         line.hasAmountDrift = false;
+        if (skipCancelled) {
+          continue;
+        }
         allLines.add(line);
         if (line.sourceInvoiceProductIds != null) {
           sourceIds.addAll(line.sourceInvoiceProductIds);
