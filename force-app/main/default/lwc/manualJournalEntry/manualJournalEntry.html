@@ -1,5 +1,8 @@
 <template>
   <div class="manual-entry">
+    <template if:true={completionNote}>
+      <p class="surface-complete" role="status">{completionNote}</p>
+    </template>
     <p class="ops-form-title">手動仕訳を登録</p>
     <div class="ops-form-grid">
       <div>

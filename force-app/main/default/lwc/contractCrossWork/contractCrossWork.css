@@ -32,6 +32,12 @@
   font-weight: 700;
 }
 
+.surface-complete {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #1b4332;
+}
+
 .menu {
   display: flex;
   gap: 0.25rem;

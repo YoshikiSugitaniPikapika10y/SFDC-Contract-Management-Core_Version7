@@ -370,14 +370,6 @@ export default class OrderCreateWizard extends NavigationMixin(
       }
       this._pendingOperationKey = "";
       notifyOrderRecordStatusChanged(this, this.recordId);
-      const renewCreated = Boolean(result?.renewOpportunityId);
-      this.showToast(
-        "受注完了",
-        renewCreated
-          ? "ステータスを受注済みに更新し、更新商談を作成しました。"
-          : "ステータスを受注済みに更新しました。",
-        "success"
-      );
       this.notifyOverlayBusy(false);
       this.closeAction();
     } catch (error) {

@@ -43,6 +43,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   @track errorMessage = "";
   @track contentLoadFailed = false;
   @track invoicePreview;
+  @track completionNote = "";
   @track billingAccountOptions = [];
   @track previewScope;
 
@@ -555,14 +556,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     this.errorMessage = "";
     try {
       this.invoicePreview = await action();
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "保存しました",
-          message: successMessage || "請求正本を更新しました。",
-          variant: "success",
-          mode: successMessage ? "sticky" : "dismissable"
-        })
-      );
+      this.completionNote = "請求情報を保存しました。";
       return true;
     } catch (error) {
       this.errorMessage = this.reduceError(error);

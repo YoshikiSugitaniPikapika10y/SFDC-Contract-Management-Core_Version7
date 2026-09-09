@@ -49,6 +49,10 @@
     </div>
   </template>
 
+  <template if:true={completionNote}>
+    <p class="surface-complete" role="status">{completionNote}</p>
+  </template>
+
   <template if:true={showAmountCompare}>
     <div class={amountCompareClass}>
       <div class="amount-compare-main">

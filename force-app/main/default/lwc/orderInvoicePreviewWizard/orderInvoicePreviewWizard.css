@@ -137,3 +137,9 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.surface-complete {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #1b4332;
+}

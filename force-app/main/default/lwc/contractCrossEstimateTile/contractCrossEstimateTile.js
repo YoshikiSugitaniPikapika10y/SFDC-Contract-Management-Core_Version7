@@ -65,6 +65,7 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
   issueBusy = false;
   issueError = "";
   issueSucceeded = false;
+  completionNote = "";
   templateKey = "";
   templateOptions = [];
   issueFileName = "";
@@ -311,13 +312,7 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
       this.issueSucceeded = true;
       this.issuedContentDocumentId = issued?.contentDocumentId || "";
       this.showSendThisFile = issued?.showSendThisFile === true;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "見積書を発行しました",
-          message: issued?.fileName || "",
-          variant: "success"
-        })
-      );
+      this.completionNote = "見積書を発行しました。";
       this.dispatchEvent(new CustomEvent("issuestatechange"));
     } catch (error) {
       this.issueError = this.reduceError(error);

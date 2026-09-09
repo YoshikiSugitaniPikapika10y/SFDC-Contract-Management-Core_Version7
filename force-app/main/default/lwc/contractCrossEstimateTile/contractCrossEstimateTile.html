@@ -178,7 +178,7 @@
             </template>
           </template>
           <template if:true={issueSucceeded}>
-            <p>発行したファイルは標準 Files で確認できます。</p>
+            <p class="surface-complete" role="status">{completionNote}</p>
             <template if:true={showIssuePdfPreview}>
               <p>
                 <button

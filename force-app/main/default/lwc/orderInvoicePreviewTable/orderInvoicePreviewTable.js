@@ -241,6 +241,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   @api billingAccountOptions = [];
   @track editProcessingInvoiceId = null;
   @track invoiceOpsProcessingMode = null;
+  @track completionNote = "";
   _isSaving = false;
   _invoiceOpsContextLoaded = false;
   @api
@@ -3380,6 +3381,20 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     );
   }
 
+  noteCompletion(text) {
+    const raw = String(text || "")
+      .replace(/しました。?$/, "しました")
+      .replace(/[。．.]+$/, "");
+    const mapped = {
+      請求書PDFを発行しました: "請求書を発行しました",
+      入出金を追加しました: "入金を登録しました",
+      入出金を更新しました: "入金を更新しました",
+      入出金を取消しました: "入金を取り消しました"
+    };
+    const sentence = mapped[raw] || raw;
+    this.completionNote = sentence ? `${sentence}。` : "";
+  }
+
   // 仕様: Core 第7.10節。発行・送付は処理中に重ねず、当該ボードは応答まで待たせる。
   async runInvoiceOperation(invoiceId, mode, action) {
     if (!invoiceId || this.invoiceOpsProcessingId != null) {
@@ -3394,15 +3409,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       const labels = {
         confirm: "請求を確定しました",
         send: "請求書を送付しました",
-        issue: "請求書PDFを発行しました",
+        issue: "請求書を発行しました",
         cancel: "請求を取り消しました"
       };
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: labels[mode],
-          variant: "success"
-        })
-      );
+      this.noteCompletion(labels[mode]);
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
       this.dispatchEvent(
@@ -3939,23 +3949,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.clearPendingOperationKey(invoiceId);
       const successTitle =
         typeof success === "string" ? success : success?.title;
-      const extraMessage =
-        typeof success === "string" ? "" : success?.message || "";
-      const paymentCancelNotice =
-        successTitle === "入出金を取消しました"
-          ? "この現預金移動を別の請求書へ記録する必要がある場合は、対象請求書で新しく請求入出金を登録してください。"
-          : "";
-      const message = [extraMessage, paymentCancelNotice]
-        .filter((part) => part)
-        .join("\n");
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: successTitle || "更新しました",
-          message,
-          variant: "success",
-          mode: message ? "sticky" : "dismissable"
-        })
-      );
+      this.noteCompletion(successTitle || "更新しました");
       await this.loadOpsBundle(invoiceId);
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
@@ -5753,12 +5747,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         memo: this.memoDrafts[invoiceId] ?? this.findInvoice(invoiceId)?.memo ?? "",
         contractHistoryId: this.contractHistoryId
       });
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "メモを保存しました",
-          variant: "success"
-        })
-      );
+      this.noteCompletion("メモを保存しました");
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
       this.dispatchEvent(
@@ -6005,12 +5994,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           })
         )
       });
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "仕訳メモを保存しました",
-          variant: "success"
-        })
-      );
+      this.noteCompletion("仕訳メモを保存しました");
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
       this.dispatchEvent(
@@ -6139,12 +6123,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         ...this.journalLockSelected,
         [invoiceId]: {}
       };
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "仕訳をLockしました",
-          variant: "success"
-        })
-      );
+      this.noteCompletion("仕訳をLockしました");
       this.dispatchEvent(new CustomEvent("journalslockcomplete"));
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
@@ -6259,12 +6238,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         ...this.journalLockSelected,
         [invoiceId]: {}
       };
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "仕訳をUnlockしました",
-          variant: "success"
-        })
-      );
+      this.noteCompletion("仕訳をUnlockしました");
       this.dispatchEvent(new CustomEvent("journalslockcomplete"));
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {

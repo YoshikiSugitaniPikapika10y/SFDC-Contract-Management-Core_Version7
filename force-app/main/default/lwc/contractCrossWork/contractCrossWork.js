@@ -266,6 +266,7 @@ export default class ContractCrossWork extends NavigationMixin(
 
   bootstrapped = false;
   loading = false;
+  completionNote = "";
   saving = false;
   errorMessage = "";
   truncated = false;
@@ -1604,12 +1605,7 @@ export default class ContractCrossWork extends NavigationMixin(
       } else {
         this.applyLocalJournalEdits(memos);
       }
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "保存しました",
-          variant: "success"
-        })
-      );
+      this.completionNote = "仕訳を保存しました。";
     } catch (error) {
       this.dispatchEvent(
         new ShowToastEvent({
@@ -2126,14 +2122,7 @@ export default class ContractCrossWork extends NavigationMixin(
         options?.restrictToOpenedVersion === true
           ? restrictPreviewToOpenedVersion(next)
           : next;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "保存しました",
-          message: successMessage || "請求正本を更新しました。",
-          variant: "success",
-          mode: successMessage ? "sticky" : "dismissable"
-        })
-      );
+      this.completionNote = "請求情報を保存しました。";
       return true;
     } catch (error) {
       this.invoiceError = this.reduceError(error);

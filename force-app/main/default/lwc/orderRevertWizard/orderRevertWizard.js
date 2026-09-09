@@ -229,13 +229,6 @@ export default class OrderRevertWizard extends NavigationMixin(
       }
       this._pendingOperationKey = "";
       notifyOrderRecordStatusChanged(this, this.recordId);
-      this.showToast(
-        "差し戻し完了",
-        shouldDeleteRenew
-          ? "ステータスを見積に戻し、更新商談を削除しました。"
-          : "ステータスを見積に戻しました。",
-        "success"
-      );
       this.closeAction();
     } catch (error) {
       this.errorMessage = this.reduceError(error);

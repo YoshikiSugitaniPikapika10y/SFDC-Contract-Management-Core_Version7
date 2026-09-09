@@ -3,6 +3,9 @@
     <header class="preview-header">
       <div>
         <h1 class="preview-title">請求ボード</h1>
+        <template if:true={completionNote}>
+          <p class="surface-complete" role="status">{completionNote}</p>
+        </template>
       </div>
       <button
         type="button"

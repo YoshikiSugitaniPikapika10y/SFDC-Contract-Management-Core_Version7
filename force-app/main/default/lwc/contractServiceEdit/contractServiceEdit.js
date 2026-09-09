@@ -282,7 +282,6 @@ export default class ContractServiceEdit extends LightningElement {
         this._pendingOperationKey = result.businessOperationKey;
       }
       this._pendingOperationKey = "";
-      this.toast("成功", "契約サービスを更新しました。", "success");
       this.dispatchEvent(new CloseActionScreenEvent());
     } catch (error) {
       const msg = this.messageOf(error);

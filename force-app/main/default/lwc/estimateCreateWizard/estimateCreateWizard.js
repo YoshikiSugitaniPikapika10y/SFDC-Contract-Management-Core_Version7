@@ -1691,13 +1691,6 @@ export default class EstimateCreateWizard extends LightningElement {
         }
         this._saveSucceededThisSession = true;
         this._pendingOperationKey = "";
-        this.showToast(
-          "成功",
-          this.isEditMode
-            ? "見積データを更新しました。"
-            : "見積データを保存しました。",
-          "success"
-        );
         this.dispatch({ type: WIZARD_ACTIONS.SAVE_END });
         if (this.modalMode) {
           requestEstimateWizardClose(this, {

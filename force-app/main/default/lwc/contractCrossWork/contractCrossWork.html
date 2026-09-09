@@ -2,6 +2,9 @@
   <div class="cross-page">
     <header class="cross-header">
       <h1 class="cross-title">契約横断</h1>
+      <template if:true={completionNote}>
+        <p class="surface-complete" role="status">{completionNote}</p>
+      </template>
       <nav class="menu" aria-label="一覧">
         <template if:true={showEstimateMenu}>
           <button

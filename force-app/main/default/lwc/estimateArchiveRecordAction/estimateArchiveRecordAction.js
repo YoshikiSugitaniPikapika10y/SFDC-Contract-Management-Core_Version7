@@ -125,13 +125,6 @@ export default class EstimateArchiveRecordAction extends LightningElement {
         this._pendingOperationKey = result.businessOperationKey;
       }
       this._pendingOperationKey = "";
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "アーカイブ完了",
-          message: "ステータスを不採用に更新しました。",
-          variant: "success"
-        })
-      );
       this.closeAction(true);
     } catch (error) {
       const alert = resolveSaveErrorAlert(error);

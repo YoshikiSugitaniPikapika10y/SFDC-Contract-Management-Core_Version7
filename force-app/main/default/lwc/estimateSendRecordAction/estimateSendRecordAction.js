@@ -407,13 +407,6 @@ export default class EstimateSendRecordAction extends NavigationMixin(
           attachmentId: this.attachmentId
         }
       });
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: this.isResend ? "見積を再送しました" : "見積を送付しました",
-          message: this.toAddresses,
-          variant: "success"
-        })
-      );
       this.dispatchEvent(new RefreshEvent());
       this.notifyOverlayBusy(false);
       this.dispatchEvent(

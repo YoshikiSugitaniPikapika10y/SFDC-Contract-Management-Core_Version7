@@ -8,6 +8,12 @@
   font-weight: 600;
 }
 
+.surface-complete {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #1b4332;
+}
+
 .ops-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
