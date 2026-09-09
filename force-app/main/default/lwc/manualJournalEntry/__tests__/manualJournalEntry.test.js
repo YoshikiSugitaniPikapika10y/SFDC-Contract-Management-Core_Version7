@@ -317,7 +317,7 @@ describe("manualJournalEntry", () => {
     expect(register.disabled).toBe(true);
   });
 
-  it("seeds register cancel date only when the invoice has locked journals (CHANGE-245)", async () => {
+  it("omits register cancel date even when the invoice has locked journals", async () => {
     const element = createElement("c-manual-journal-entry", {
       is: ManualJournalEntry
     });
@@ -327,11 +327,11 @@ describe("manualJournalEntry", () => {
     document.body.appendChild(element);
     await flush();
 
-    const dateInput = element.shadowRoot.querySelector(
-      'lightning-input[data-field="registerCancelDate"]'
-    );
-    expect(dateInput).not.toBeNull();
-    expect(dateInput.value).toBe(OPERATION_DAY);
+    expect(
+      element.shadowRoot.querySelector(
+        'lightning-input[data-field="registerCancelDate"]'
+      )
+    ).toBeNull();
   });
 
   it("omits register cancel date when the invoice has no locked journals (CHANGE-245)", async () => {
@@ -441,7 +441,51 @@ describe("manualJournalEntry", () => {
     expect(registerManualJournal).toHaveBeenCalled();
   });
 
-  it("passes register cancel date when the invoice has locked journals (CHANGE-245)", async () => {
+  it("asks for register cancel date after Diff reversals require it", async () => {
+    previewRegisterManualJournal.mockResolvedValue({
+      displayText: ""
+    });
+    registerManualJournal.mockRejectedValue({
+      body: { message: "ロック済み仕訳がある取消では取消基準日が必要です。" }
+    });
+    const element = createElement("c-manual-journal-entry", {
+      is: ManualJournalEntry
+    });
+    element.invoiceId = "a00INV000000001";
+    element.operationDay = OPERATION_DAY;
+    element.hasLockedJournals = true;
+    element.settings = [{ settingId: "a06SET000000001", label: "為替差損" }];
+    document.body.appendChild(element);
+    await flush();
+
+    const setting = element.shadowRoot.querySelector(
+      'lightning-combobox[data-field="settingId"]'
+    );
+    setting.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "a06SET000000001" } })
+    );
+    const amount = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amount.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "100" } })
+    );
+    await flush();
+
+    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
+      .find((button) => button.textContent.trim() === "登録")
+      .click();
+    await flush();
+    await flush();
+
+    const dateInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="registerCancelDate"]'
+    );
+    expect(dateInput).not.toBeNull();
+    expect(dateInput.value).toBe(OPERATION_DAY);
+  });
+
+  it("does not pass register cancel date when locked journals do not reverse", async () => {
     previewRegisterManualJournal.mockResolvedValue({
       displayText: "逆仕訳件数: 1"
     });
@@ -478,12 +522,12 @@ describe("manualJournalEntry", () => {
 
     expect(previewRegisterManualJournal).toHaveBeenCalledWith(
       expect.objectContaining({
-        cancellationDate: OPERATION_DAY
+        cancellationDate: null
       })
     );
     expect(registerManualJournal).toHaveBeenCalledWith(
       expect.objectContaining({
-        cancellationDate: OPERATION_DAY
+        cancellationDate: null
       })
     );
   });

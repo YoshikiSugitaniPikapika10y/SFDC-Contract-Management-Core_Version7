@@ -1900,7 +1900,7 @@ export default class ContractCrossWork extends NavigationMixin(
     if (!lineId) {
       return;
     }
-    await this.runEdit(
+    const saved = await this.runEdit(
       () =>
         updateInvoiceLineAcceptanceEndDate({
           contractHistoryId: this.previewHistoryId,
@@ -1913,6 +1913,15 @@ export default class ContractCrossWork extends NavigationMixin(
         }),
       journalPreviewText || ""
     );
+    if (
+      !saved &&
+      String(this.invoiceError || "").includes("取消基準日が必要")
+    ) {
+      const table = this.template.querySelector("c-order-invoice-preview-table");
+      if (table && typeof table.showAcceptanceCancelDateRequired === "function") {
+        table.showAcceptanceCancelDateRequired(lineId, acceptanceEndDate);
+      }
+    }
   }
 
   async handleSaveBillingHeader(event) {

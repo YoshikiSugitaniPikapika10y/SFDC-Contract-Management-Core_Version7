@@ -1123,15 +1123,8 @@ public without sharing class InvoiceCanonicalService {
         locked == null ? null : locked.LastModifiedDate
       );
     }
-    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。この操作の逆仕訳対象のLockだけ取消基準日を取る。
-    if (
-      acceptanceLockedJournalCount(lines, confirmedInvoiceIds) > 0 &&
-      cancellationDate == null
-    ) {
-      throw new InvoiceEditException(
-        'ロック済み仕訳がある取消では取消基準日が必要です。'
-      );
-    }
+    // 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。
+    // 取消基準日の要否は保存時のこの操作のDiff逆仕訳（plan.reversals）。変えた明細のActive Lockだけでは取らない。
     for (InvoiceLine__c line : lines) {
       line.AcceptanceEndDate__c = acceptanceEndDateByLineId.get(line.Id);
     }
@@ -1189,10 +1182,7 @@ public without sharing class InvoiceCanonicalService {
       return preview;
     }
     // 仕様: Accounting 第8.8節、Core 第7.9.6節。確認は業務確認と必要な取消基準日。Goal Diffは組まない。
-    preview.reverseCount = acceptanceLockedJournalCount(
-      lines,
-      confirmedInvoiceIds
-    );
+    // 要否は保存時のplan.reversals。プレビューは件数を出さない。
     preview.displayText = AccountingDiffService.toDisplayText(preview);
     return preview;
   }
@@ -1445,36 +1435,6 @@ public without sharing class InvoiceCanonicalService {
     } catch (SObjectException ex) {
       return false;
     }
-  }
-
-  /**
-   * 仕様: Accounting 第8.5節・第8.8節。変えた明細に紐づく Active Lock だけ取消基準日の要否にする。
-   */
-  private static Integer acceptanceLockedJournalCount(
-    List<InvoiceLine__c> lines,
-    Set<Id> confirmedInvoiceIds
-  ) {
-    Integer lockedCount = 0;
-    Map<Id, Set<Id>> lineIdsByInvoice = acceptanceLineIdsByInvoice(
-      lines,
-      confirmedInvoiceIds
-    );
-    for (Id invoiceId : lineIdsByInvoice.keySet()) {
-      Set<Id> lineIds = lineIdsByInvoice.get(invoiceId);
-      for (GlJournal__c journal : AccountingCurrentService.load(invoiceId)) {
-        if (
-          journal == null ||
-          journal.IsLocked__c != true ||
-          journal.TransactionStatus__c != 'Active' ||
-          journal.InvoiceLine__c == null ||
-          !lineIds.contains(journal.InvoiceLine__c)
-        ) {
-          continue;
-        }
-        lockedCount++;
-      }
-    }
-    return lockedCount;
   }
 
   /**

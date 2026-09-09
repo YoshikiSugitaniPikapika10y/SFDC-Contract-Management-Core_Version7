@@ -54,7 +54,7 @@ private class ManualJournalServiceTest {
         System.assertEquals(
           'ロック済み仕訳がある取消では取消基準日が必要です。',
           ex.getMessage(),
-          'Accounting 第8.5節・第8.8節: Lockがある手動登録は取消基準日必須'
+          'Accounting 第8.5節: この操作のDiffで逆仕訳になるLockなら取消基準日必須'
         );
       }
       System.assertEquals(true, thrown);
@@ -198,7 +198,7 @@ private class ManualJournalServiceTest {
       System.assertEquals(
         1,
         AccountingCurrentService.currentLoadSelectCount,
-        'Accounting 第8.2節手順2: hasActiveLockedで集めたCurrentをapplyForInvoiceで取り直さない'
+        'Accounting 第8.2節手順2: 収集したCurrentをapplyForInvoiceで取り直さない'
       );
       System.assertEquals(
         0,
@@ -245,7 +245,7 @@ private class ManualJournalServiceTest {
   }
 
   @IsTest
-  static void previewRegister_requiresCancellationDateWhenInvoiceHasLockedJournal() {
+  static void previewRegister_lockedInvoiceJournals_doesNotRequireCancellationDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
       policy.AccountingEnabled__c = true;
@@ -285,18 +285,16 @@ private class ManualJournalServiceTest {
       request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
         invoice.Id
       );
-      Boolean thrown = false;
-      try {
-        ManualJournalService.previewRegister(request);
-      } catch (Exception ex) {
-        thrown = true;
-        System.assertEquals(
-          'ロック済み仕訳がある取消では取消基準日が必要です。',
-          ex.getMessage(),
-          'Accounting 第8.5節・第8.8節: Lockがある手動登録プレビューも取消基準日必須'
-        );
-      }
-      System.assertEquals(true, thrown);
+      Test.startTest();
+      AccountingDiffService.CancelPreview preview = ManualJournalService.previewRegister(
+        request
+      );
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        preview.reverseCount,
+        'Accounting 第8.5節: 実行前プレビューは請求書のActive Lock全体で取消基準日を必須にしない'
+      );
     }
   }
 

@@ -13,6 +13,8 @@ export default class ManualJournalEntry extends LightningElement {
   @api headers = [];
   @api disabled = false;
   @api expectedToken;
+  /** 仕様: Accounting 第8.5節。登録の要否には使わない。親が渡す請求書Lock。 */
+  @api hasLockedJournals = false;
   /** 仕様: 日付仕様 第8章。請求ボード `getInvoicePreview.operationDay`。 */
   @api
   get operationDay() {
@@ -29,20 +31,11 @@ export default class ManualJournalEntry extends LightningElement {
     this.seedRegisterCancelDate();
   }
 
-  /** 仕様: Accounting 第8.5節・第8.8節。請求書単位の Active Lock。 */
-  @api
-  get hasLockedJournals() {
-    return this._hasLockedJournals === true;
-  }
-  set hasLockedJournals(value) {
-    this._hasLockedJournals = value === true;
-    this.seedRegisterCancelDate();
-  }
-
   @track settingId = "";
   @track postingDate = "";
   @track amount = "";
   @track registerCancelDate = "";
+  @track registerNeedsCancelDateFromDiff = false;
   @track cancelHeaderId = "";
   @track cancelReason = "";
   @track cancelReasonText = "";
@@ -95,9 +88,9 @@ export default class ManualJournalEntry extends LightningElement {
     return this.selectedSetting()?.creditAccountName || "";
   }
 
-  // 仕様: Accounting 第8.5節・第8.8節。ONかつ Active Lock があるときだけ取消基準日。
+  // 仕様: Accounting 第8.5節・第8.8節。この操作のDiff逆仕訳があるときだけ取消基準日。
   get registerRequiresDate() {
-    return this.hasLockedJournals === true;
+    return this.registerNeedsCancelDateFromDiff === true;
   }
 
   // 仕様: Accounting 第2.4節・第10.4節、Core 第1.1.10節。「その他」だけ理由テキスト必須。
@@ -272,6 +265,7 @@ export default class ManualJournalEntry extends LightningElement {
         contractHistoryId: this.contractHistoryId
       });
       this.pendingOperationKey = null;
+      this.registerNeedsCancelDateFromDiff = false;
       this.dispatchEvent(
         new ShowToastEvent({
           title: "手動仕訳を登録しました",
@@ -282,10 +276,15 @@ export default class ManualJournalEntry extends LightningElement {
       this.amount = "";
       this.dispatchEvent(new CustomEvent("complete"));
     } catch (error) {
+      const message = this.reduceError(error);
+      if (String(message || "").includes("取消基準日が必要")) {
+        this.registerNeedsCancelDateFromDiff = true;
+        this.seedRegisterCancelDate();
+      }
       this.dispatchEvent(
         new ShowToastEvent({
           title: "手動仕訳の登録に失敗しました",
-          message: this.reduceError(error),
+          message,
           variant: "error"
         })
       );

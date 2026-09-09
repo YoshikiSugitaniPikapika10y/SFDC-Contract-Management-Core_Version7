@@ -1209,6 +1209,61 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void manualRegister_lockedBillingJournals_doesNotRequireCancellationDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('MjLockStay');
+      enableAccounting();
+      seedMaps();
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      confirmWithJournals(fixture.invoice);
+      JournalLockService.lockForInvoice(
+        fixture.invoice.Id,
+        activeJournalIds(fixture.invoice.Id),
+        AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id),
+        null
+      );
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'Engine MJ Debit',
+        AccountType__c = 'Expense',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'Engine MJ Credit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlManualJournalSetting__c setting = new GlManualJournalSetting__c(
+        Name = '為替差損の計上',
+        DebitSlotKey__c = 'FxLoss',
+        DebitAccount__c = debit.Id,
+        CreditSlotKey__c = 'AccountsReceivable',
+        CreditAccount__c = credit.Id,
+        Description__c = '検証',
+        IsActive__c = true
+      );
+      insert setting;
+      ManualJournalService.RegisterRequest request = new ManualJournalService.RegisterRequest();
+      request.invoiceId = fixture.invoice.Id;
+      request.settingId = setting.Id;
+      request.postingDate = Date.newInstance(2026, 12, 1);
+      request.amount = 100;
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
+      Test.startTest();
+      Id headerId = ManualJournalService.register(request);
+      Test.stopTest();
+      System.assertNotEquals(
+        null,
+        headerId,
+        'Accounting 第8.5節: 請求書のActive Lock全体では手動登録の取消基準日を必須にしない'
+      );
+    }
+  }
+
+  @IsTest
   static void acceptance_rejectsCancelledInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('AccCancel');
@@ -1313,9 +1368,10 @@ private class AccountingEngineTest {
         null
       );
       Test.stopTest();
-      System.assert(
-        preview.reverseCount > 0,
-        'Accounting 第8.5節・第8.8節: 変えた明細の Active Lock だけ取消基準日が要る'
+      System.assertEquals(
+        0,
+        preview.reverseCount,
+        'Accounting 第8.5節・第8.8節: 実行前プレビューはGoal Diffを組まず件数で要否を出さない'
       );
       System.assertEquals(
         originalDate,
@@ -1576,6 +1632,50 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void acceptance_lockedJournals_sameDate_doesNotRequireCancellationDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('AccLockSame');
+      enableAccounting();
+      seedMaps();
+      fixture.invoice.TaxAmount__c = 100;
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      confirmWithJournals(fixture.invoice);
+      JournalLockService.lockForInvoice(
+        fixture.invoice.Id,
+        activeJournalIds(fixture.invoice.Id),
+        AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id),
+        null
+      );
+      Date originalDate = [
+        SELECT AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Id = :fixture.line.Id
+      ]
+      .AcceptanceEndDate__c;
+      Test.startTest();
+      InvoiceCanonicalService.updateLineAcceptanceEndDates(
+        new Map<Id, Date>{ fixture.line.Id => originalDate },
+        null,
+        null,
+        AccountingCauseLockService.resolveInvoiceOperationToken(
+          fixture.invoice.Id
+        )
+      );
+      Test.stopTest();
+      System.assertEquals(
+        originalDate,
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :fixture.line.Id
+        ]
+        .AcceptanceEndDate__c,
+        'Accounting 第8.5節: Diffで逆仕訳にならない変えた明細のLockだけでは取消基準日を取らない'
+      );
+    }
+  }
+
+  @IsTest
   static void acceptance_lockedJournals_requiresCancellationDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('AccLock');
@@ -1607,7 +1707,7 @@ private class AccountingEngineTest {
         thrown = true;
         System.assert(
           ex.getMessage().contains('取消基準日が必要'),
-          'Accounting 第8.8節、日付仕様 第7.3節: 空を操作日で埋めない'
+          'Accounting 第8.5節: この操作のDiffで逆仕訳になるLockなら取消基準日必須'
         );
       }
       Test.stopTest();

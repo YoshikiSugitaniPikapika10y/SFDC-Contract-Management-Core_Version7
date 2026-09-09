@@ -4120,9 +4120,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   /**
-   * 検収終了日は金額と違いドラフトを溜めない。Accounting ON では件数プレビューと確認のあと保存する。
-   * 取消基準日はロック済み仕訳があるときだけ取る。
-   * 仕様: Core 第7.6節、第7.7.3節、第7.9.6節、Accounting 第8.8節、第1.1.10節。空欄へは変えない。
+   * 検収終了日は金額と違いドラフトを溜めない。Accounting ON では確認のあと保存する。
+   * 取消基準日はプレビューのDiff逆仕訳、または保存時のplan.reversals未入力エラーのときだけ取る。
+   * 仕様: Core 第7.6節、第7.7.3節、第7.9.6節、Accounting 第8.5節、第8.8節、第1.1.10節。空欄へは変えない。
    */
   async handleAcceptanceEndDateChange(event) {
     if (!this.canEdit || this.isSaving) {
@@ -4200,6 +4200,27 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         }
       })
     );
+  }
+
+  /**
+   * 仕様: Accounting 第8.5節。保存時にこの操作のDiff逆仕訳へ取消基準日が要るときだけ出す。
+   */
+  @api
+  showAcceptanceCancelDateRequired(lineId, nextDate) {
+    const invoiceId = (this.preview?.invoices || []).find((invoice) =>
+      (invoice.lines || []).some((row) => row.lineId === lineId)
+    )?.invoiceId;
+    if (!invoiceId || !lineId) {
+      return;
+    }
+    this.updateInvoiceUiState(invoiceId, {
+      acceptanceDraft: {
+        lineId,
+        nextDate,
+        cancellationDate: this.todayLocalIso(),
+        requiresDate: true
+      }
+    });
   }
 
   handleAcceptanceCancelDraftChange(event) {

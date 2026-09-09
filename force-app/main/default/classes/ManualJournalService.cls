@@ -137,13 +137,7 @@ public without sharing class ManualJournalService {
       throw new ManualJournalException('確定済みの請求にだけ手動仕訳を登録できます。');
     }
     // 仕様: Accounting 第8.2節・第8.5節・第8.8節、Core 第7.9.6節。
-    // 手動登録も Goal/Diff/Lock。請求書単位の Active Lock があるとき取消基準日必須（入金登録と同じ）。
-    if (
-      AccountingCurrentService.hasActiveLocked(invoice.Id) &&
-      request.cancellationDate == null
-    ) {
-      throw new ManualJournalException('ロック済み仕訳がある取消では取消基準日が必要です。');
-    }
+    // 取消基準日の要否は保存時のこの操作のDiff逆仕訳（plan.reversals）。請求書のActive Lock全体では取らない。
     GlManualJournalSetting__c setting = [
       SELECT Id, IsActive__c, DebitSlotKey__c, CreditSlotKey__c
       FROM GlManualJournalSetting__c
