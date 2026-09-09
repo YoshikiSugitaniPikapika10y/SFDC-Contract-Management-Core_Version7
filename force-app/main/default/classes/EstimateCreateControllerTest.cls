@@ -608,15 +608,16 @@ private class EstimateCreateControllerTest {
         historystatus__c = 'Ordered',
         Version__c = 1
       );
-      insertWithOpportunity(older);
       ContractHistory__c latest = new ContractHistory__c(
         Name = 'History v2',
         ContractService__c = service.Id,
         Type__c = 'Renew',
         historystatus__c = 'Ordered',
-        Version__c = 2,
-        PreviousHistory__c = older.Id
+        Version__c = 2
       );
+      insertWithOpportunity(new List<ContractHistory__c>{ older, latest });
+      latest.PreviousHistory__c = older.Id;
+      update latest;
       ContractHistory__c estimate = new ContractHistory__c(
         Name = 'Estimate v3',
         ContractService__c = service.Id,
@@ -625,7 +626,7 @@ private class EstimateCreateControllerTest {
         Version__c = 3,
         PreviousHistory__c = latest.Id
       );
-      insertWithOpportunity(new List<ContractHistory__c>{ latest, estimate });
+      insertWithOpportunity(estimate);
 
       Test.startTest();
       EstimateCreateController.ContractHistoryDto result = EstimateCreateController.getLatestContractHistory(
@@ -5427,7 +5428,8 @@ private class EstimateCreateControllerTest {
       );
       ContractService__c blankOrderedService = ContractTestDataFactory.insertContractService(
         account.Id,
-        'Blank Lifecycle Ordered Service'
+        'Blank Lifecycle Ordered Service',
+        null
       );
       ContractService__c termService = ContractTestDataFactory.insertContractService(
         account.Id,

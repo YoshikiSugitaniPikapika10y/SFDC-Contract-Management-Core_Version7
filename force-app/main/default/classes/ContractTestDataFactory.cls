@@ -619,6 +619,18 @@ public class ContractTestDataFactory {
     Id accountId,
     String name
   ) {
+    return insertContractService(
+      accountId,
+      name,
+      ContractDomainConstants.LIFECYCLE_TERM
+    );
+  }
+
+  public static ContractService__c insertContractService(
+    Id accountId,
+    String name,
+    String lifecycle
+  ) {
     BillingAccount__c billingAccount = insertBillingAccount(accountId);
     ContractService__c service = new ContractService__c(
       Name = name,
@@ -626,6 +638,9 @@ public class ContractTestDataFactory {
       BiilingAcccount__c = billingAccount.Id,
       TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
     );
+    if (String.isNotBlank(lifecycle)) {
+      service.Lifecycle__c = lifecycle;
+    }
     applyRequiredFields(service);
     insert service;
     return service;
