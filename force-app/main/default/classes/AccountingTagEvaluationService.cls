@@ -344,21 +344,38 @@ public without sharing class AccountingTagEvaluationService {
     return balances;
   }
 
-  /** 仕様: Accounting 第7.3節。画面のスロットNet。0とヘッダ略称は含めない。 */
+  /** 仕様: Core 第8.10節、Accounting 第7.3節。画面のスロットNet。登場したスロットは0でも含める。未登場とヘッダ略称は含めない。 */
   public static Map<String, Decimal> slotAbbreviationNets(
     List<GlJournal__c> journals
   ) {
+    Set<String> appeared = new Set<String>();
+    if (journals != null) {
+      for (GlJournal__c journal : journals) {
+        if (journal == null || journal.TransactionStatus__c == 'LogicallyDeleted') {
+          continue;
+        }
+        addAppearedAbbreviation(appeared, journal.DebitSlotKey__c);
+        addAppearedAbbreviation(appeared, journal.CreditSlotKey__c);
+      }
+    }
     Map<String, Decimal> all = slotBalancesFrom(journals);
     Map<String, Decimal> result = new Map<String, Decimal>();
     for (
       AccountingSlotFixedCatalog.Definition slot : AccountingSlotFixedCatalog.values()
     ) {
-      Decimal amount = all.get(slot.abbreviation);
-      if (amount != null && amount != 0) {
-        result.put(slot.abbreviation, amount);
+      if (!appeared.contains(slot.abbreviation)) {
+        continue;
       }
+      result.put(slot.abbreviation, nvl(all.get(slot.abbreviation)));
     }
     return result;
+  }
+
+  private static void addAppearedAbbreviation(Set<String> appeared, String slotKey) {
+    if (appeared == null || String.isBlank(slotKey)) {
+      return;
+    }
+    appeared.add(AccountingSlotFixedCatalog.require(slotKey).abbreviation);
   }
 
   private static void addBalance(

@@ -1409,7 +1409,7 @@ public without sharing class InvoicePreviewOpsController {
     }
   }
 
-  /** 仕様: Accounting 第7.6節、第11.2節、Core 第12.4節・第4.3.11節・第7.7.3節 */
+  /** 仕様: Accounting 第7.6節、第11.2節、Core 第12.4節・第4.3.11節・第7.7.3節・第8.10節 */
   private static List<TagResultRowDto> loadTagResults(Invoice__c invoice) {
     List<TagResultRowDto> rows = new List<TagResultRowDto>();
     ensureEnabledTagRules();
@@ -1423,13 +1423,10 @@ public without sharing class InvoicePreviewOpsController {
       Boolean value = invoiceFields.containsKey(rule.TargetFieldApiName__c)
         ? (Boolean) invoice.get(rule.TargetFieldApiName__c) == true
         : false;
-      if (value != true) {
-        continue;
-      }
       TagResultRowDto row = new TagResultRowDto();
       row.name = rule.TagLabel__c;
       row.fieldApiName = rule.TargetFieldApiName__c;
-      row.value = true;
+      row.value = value;
       rows.add(row);
     }
     return rows;

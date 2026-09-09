@@ -281,8 +281,14 @@
   vertical-align: middle;
 }
 
+.ops-table_journals {
+  font-size: 0.75rem;
+}
+
 .ops-table_journals th,
 .ops-table_journals td {
+  padding: 0.28rem 0.45rem;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
@@ -301,8 +307,8 @@
 
 .journal-lock-empty {
   display: block;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.1rem;
+  height: 1.1rem;
   padding: 0;
   border: 0;
   background: transparent;
@@ -314,7 +320,7 @@
   border: 0;
   background: transparent;
   padding: 0;
-  font-size: 1rem;
+  font-size: 0.85rem;
   line-height: 1;
 }
 
@@ -352,9 +358,15 @@
   background: var(--preview-surface);
 }
 
-.invoice-footer .summary-row_tags .accounting-tag-badge {
+.invoice-footer .summary-row_tags .accounting-tag-badge_on {
   --slds-c-badge-color-background: #ea580c;
   --slds-c-badge-text-color: #fff;
+  filter: drop-shadow(0 0 0.28rem rgba(234, 88, 12, 0.7));
+}
+
+.invoice-footer .summary-row_tags .accounting-tag-badge_off {
+  --slds-c-badge-color-background: #e2e8f0;
+  --slds-c-badge-text-color: #94a3b8;
 }
 
 .ops-table th {
@@ -636,6 +648,21 @@
 .invoice-footer .summary-row_totals .money-label {
   color: #475569;
   font-size: 0.75rem;
+}
+
+.invoice-footer .summary-row_slot-nets .money-label {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.invoice-footer .summary-row_slot-nets .money-item_slot-zero .money-value {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.invoice-footer .summary-row_slot-nets .money-item_slot-nonzero .money-value {
+  color: var(--preview-text);
+  font-weight: 700;
 }
 
 .invoice-footer .summary-row_totals .money-value {

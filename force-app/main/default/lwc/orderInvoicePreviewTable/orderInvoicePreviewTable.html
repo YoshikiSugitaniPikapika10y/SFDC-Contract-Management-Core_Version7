@@ -802,6 +802,39 @@
                       </ul>
                     </div>
                   </template>
+                  <template if:true={invoice.showPaymentSignMismatch}>
+                    <div class="edit-note" role="status">
+                      <p>
+                        金額の符号が登録可能額と一致していません。目的を「請求金額以外」にするか、登録可能額と同符号の金額にしてください。
+                      </p>
+                      <ul class="ops-overflow-list">
+                        <li>目的: {invoice.paymentOverflowPurposeLabel}</li>
+                        <li>
+                          登録可能額:
+                          <lightning-formatted-number
+                            value={invoice.paymentAllowedAmount}
+                            format-style="currency"
+                            currency-code="JPY"
+                            maximum-fraction-digits="0"
+                          ></lightning-formatted-number>
+                        </li>
+                        <li>
+                          入力額:
+                          <lightning-formatted-number
+                            value={invoice.paymentInputAmount}
+                            format-style="currency"
+                            currency-code="JPY"
+                            maximum-fraction-digits="0"
+                          ></lightning-formatted-number>
+                        </li>
+                      </ul>
+                    </div>
+                  </template>
+                  <template if:true={invoice.showPaymentInvoicePurposeBlocked}>
+                    <p class="edit-note" role="status">
+                      未処理額が0のため、目的「請求金額」では登録できません。目的を「請求金額以外」にしてください。
+                    </p>
+                  </template>
                   <template if:true={invoice.showPaymentAllocations}>
                     <table class="ops-table">
                       <thead>
@@ -2372,11 +2405,11 @@
             </div>
             </template>
             <template if:true={invoice.showJournalSlotFooter}>
-            <div class="summary-row summary-row_totals" aria-label="スロット残高">
+            <div class="summary-row summary-row_totals summary-row_slot-nets" aria-label="スロット残高">
               <template for:each={invoice.slotNets} for:item="slotNet">
-                <div key={slotNet.key} class="money-item">
-                  <span class="money-label">{slotNet.abbreviation}</span>
-                  <span class="money-value money-value_secondary">
+                <div key={slotNet.key} class={slotNet.itemClass}>
+                  <span class="money-label journal-slot-abbr">{slotNet.abbreviation}</span>
+                  <span class="money-value">
                     <lightning-formatted-number
                       value={slotNet.amount}
                       format-style="currency"
@@ -2394,7 +2427,7 @@
                 <template for:each={invoice.tagResults} for:item="tag">
                   <lightning-badge
                     key={tag.fieldApiName}
-                    class="accounting-tag-badge"
+                    class={tag.badgeClass}
                     label={tag.name}
                   ></lightning-badge>
                 </template>

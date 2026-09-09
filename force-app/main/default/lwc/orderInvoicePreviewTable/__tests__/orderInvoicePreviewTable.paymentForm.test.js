@@ -406,6 +406,103 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(purposeInput.value).toBe("Invoice");
   });
 
+  it("shows sign mismatch on the payment form, not as a hover title", async () => {
+    getOpsBundle.mockResolvedValue(mockBundle());
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "-100" } })
+    );
+    await flush();
+
+    expect(element.shadowRoot.textContent).toContain(
+      "金額の符号が登録可能額と一致していません"
+    );
+    expect(element.shadowRoot.textContent).toContain("目的:");
+    expect(element.shadowRoot.textContent).toContain("登録可能額:");
+    expect(element.shadowRoot.textContent).toContain("入力額:");
+    expect(element.shadowRoot.textContent).not.toContain("超過額:");
+    const saveButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "追加");
+    expect(saveButton.disabled).toBe(true);
+    expect(saveButton.title).toBeFalsy();
+  });
+
+  it("does not note empty or zero payment amount", async () => {
+    getOpsBundle.mockResolvedValue(mockBundle());
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "" } })
+    );
+    await flush();
+    expect(element.shadowRoot.textContent).not.toContain(
+      "金額の符号が登録可能額と一致していません"
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "0" } })
+    );
+    await flush();
+    expect(element.shadowRoot.textContent).not.toContain(
+      "未処理額が0のため"
+    );
+    expect(element.shadowRoot.textContent).not.toContain(
+      "金額の符号が登録可能額と一致していません"
+    );
+  });
+
+  it("notes Invoice purpose when unpaid net is 0 and amount is filled", async () => {
+    getOpsBundle.mockResolvedValue({
+      ...mockBundle(),
+      invoicePaymentNet: 1100
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview();
+    preview.invoices[0].invoicePaymentNet = 1100;
+    element.preview = preview;
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "100" } })
+    );
+    await flush();
+    expect(element.shadowRoot.textContent).toContain(
+      "未処理額が0のため、目的「請求金額」では登録できません"
+    );
+    expect(element.shadowRoot.textContent).not.toContain("超過額:");
+    const saveButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "追加");
+    expect(saveButton.disabled).toBe(true);
+    expect(saveButton.title).toBeFalsy();
+  });
+
   it("shows cancel date only when locked journals exist", async () => {
     getOpsBundle.mockResolvedValue(mockBundle({ hasLockedJournals: false }));
     const element = createElement("c-order-invoice-preview-table", {

@@ -163,11 +163,31 @@ private class InvoicePreviewOpsControllerTest {
         bundle.journals[0].creditAccountName,
         'Accounting 第4.3節: 貸方は略称と科目'
       );
-      System.assertEquals(2, bundle.slotNets.size(), 'Core 第8.10節: 0円スロットは出さない');
+      System.assertEquals(2, bundle.slotNets.size(), 'Core 第8.10節: 未登場スロットは出さない');
       System.assertEquals('CASH', bundle.slotNets[0].abbreviation);
       System.assertEquals(1, bundle.slotNets[0].amount);
       System.assertEquals('UAC', bundle.slotNets[1].abbreviation);
       System.assertEquals(1, bundle.slotNets[1].amount);
+    }
+  }
+
+  @IsTest
+  static void getOpsBundle_slotNetsIncludesAppearedZero() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      insertJournal(fixture.invoice.Id, false, 'Active', 'SLOTNETZ');
+      insertJournal(fixture.invoice.Id, false, 'Reversal', 'SLOTNETR');
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+      System.assertEquals(2, bundle.slotNets.size(), 'Core 第8.10節: 登場したスロットは0でも出す');
+      System.assertEquals('CASH', bundle.slotNets[0].abbreviation);
+      System.assertEquals(0, bundle.slotNets[0].amount);
+      System.assertEquals('UAC', bundle.slotNets[1].abbreviation);
+      System.assertEquals(0, bundle.slotNets[1].amount);
     }
   }
 
@@ -698,23 +718,32 @@ private class InvoicePreviewOpsControllerTest {
         'Core 第12.4節・第4.3.11節: 本体で読んだ請求をタグ結果で取り直さない'
       );
       Boolean foundTrue = false;
+      Boolean foundFalse = false;
       if (bundle.tagResults != null) {
         for (InvoicePreviewOpsController.TagResultRowDto row : bundle.tagResults) {
           if (row.name == 'BUG806残あり') {
             foundTrue = true;
             System.assertEquals(true, row.value, 'Accounting 第7.6節: Trueのタグ行は変えない');
           }
-          System.assertNotEquals(
-            'BUG806端数',
-            row.name,
-            'Accounting 第7.6節: Falseは出さない'
-          );
+          if (row.name == 'BUG806端数') {
+            foundFalse = true;
+            System.assertEquals(
+              false,
+              row.value,
+              'Accounting 第7.6節: Falseも非活性アイコン用に返す'
+            );
+          }
         }
       }
       System.assertEquals(
         true,
         foundTrue,
         'Accounting 第7.6節・Core 第7.7.3節: Trueのタグラベルを返す'
+      );
+      System.assertEquals(
+        true,
+        foundFalse,
+        'Accounting 第7.6節・Core 第8.10節: Falseのタグラベルも返す'
       );
       System.assertEquals(
         true,

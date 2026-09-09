@@ -2192,6 +2192,16 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           0,
           10
         );
+        const paymentInputComplete =
+          Number.isFinite(inputAmount) &&
+          inputAmount !== 0 &&
+          amountNotInteger !== true &&
+          Boolean(purpose) &&
+          Boolean(paymentDraft?.paymentDate);
+        const showPaymentSignMismatch =
+          signMismatch === true && paymentInputComplete;
+        const showPaymentInvoicePurposeBlocked =
+          invoicePurposeBlocked === true && paymentInputComplete;
         const showPaymentDateBeforeInvoiceWarning = Boolean(
           paymentDateIso && invoiceDateIso && paymentDateIso < invoiceDateIso
         );
@@ -2625,7 +2635,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             accountingEnabled && activeTab === "journals"
               ? "スロット残高"
               : "請求金額",
-          slotNets: bundle?.slotNets || [],
+          slotNets: (bundle?.slotNets || []).map((slotNet) => ({
+            ...slotNet,
+            itemClass:
+              Number(slotNet.amount) === 0
+                ? "money-item money-item_slot-zero"
+                : "money-item money-item_slot-nonzero"
+          })),
           linesTabClass:
             activeTab === "lines" ? "invoice-tab invoice-tab_active" : "invoice-tab",
           paymentsTabClass:
@@ -2687,6 +2703,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             invoiceUnprocessedNet !== 0,
           paymentAllocationTotalMismatch,
           showPaymentOverflow: sameSignOverflow === true,
+          // 仕様: Core 第8.9節。符号不一致と未処理0は超過と同じ入金フォーム上の注記。
+          showPaymentSignMismatch,
+          showPaymentInvoicePurposeBlocked,
           paymentOverflowPurposeLabel: this.paymentPurposeLabel(purpose),
           paymentAllowedAmount: invoiceUnprocessedNet,
           paymentInputAmount: inputAmount,
@@ -2815,8 +2834,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           };
           }),
           hasJournals: displayedJournals.length > 0,
-          // 仕様: Core 第8.10節・第7.7.3節、Accounting 第7.6節。Trueのタグラベルを金額行直下。OFFと未確定と取消済みは出さない。評価・保存は変えない。
-          tagResults: bundle?.tagResults || [],
+          // 仕様: Core 第8.10節・第7.7.3節、Accounting 第7.6節。有効ルールを金額行直下。Trueは活性、Falseは非活性。OFFと未確定と取消済みは出さない。評価・保存は変えない。
+          tagResults: (bundle?.tagResults || []).map((tag) => ({
+            ...tag,
+            badgeClass:
+              tag.value === true
+                ? "accounting-tag-badge accounting-tag-badge_on"
+                : "accounting-tag-badge accounting-tag-badge_off"
+          })),
           showCardAccountingTags:
             accountingEnabled &&
             !isDraft &&

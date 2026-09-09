@@ -773,11 +773,12 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(element.shadowRoot.textContent).not.toContain("差額なし");
   });
 
-  it("shows true accounting tag labels as badges under the money row when Accounting is ON and not Draft", async () => {
+  it("shows true accounting tag labels as glowing badges and false tags as inactive", async () => {
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
       tagResults: [
-        { fieldApiName: "TagA__c", name: "AR残あり", value: true }
+        { fieldApiName: "TagA__c", name: "AR残あり", value: true },
+        { fieldApiName: "TagB__c", name: "完了", value: false }
       ]
     });
     const element = createElement("c-order-invoice-preview-table", {
@@ -799,7 +800,12 @@ describe("orderInvoicePreviewTable footer totals", () => {
       );
       return nodes.length ? nodes : null;
     });
-    expect(Array.from(badges).map((node) => node.label)).toEqual(["AR残あり"]);
+    expect(Array.from(badges).map((node) => node.label)).toEqual([
+      "AR残あり",
+      "完了"
+    ]);
+    expect(badges[0].className).toContain("accounting-tag-badge_on");
+    expect(badges[1].className).toContain("accounting-tag-badge_off");
   });
 
   it("does not show accounting tag badges for Draft invoices", async () => {
@@ -1278,6 +1284,7 @@ describe("orderInvoicePreviewTable journal footer (Core 8.10)", () => {
       ],
       slotNets: [
         { key: "AR", abbreviation: "AR", amount: 1000 },
+        { key: "CASH", abbreviation: "CASH", amount: 0 },
         { key: "DEF", abbreviation: "DEF", amount: 1000 }
       ],
       tagResults: [],
@@ -1309,7 +1316,14 @@ describe("orderInvoicePreviewTable journal footer (Core 8.10)", () => {
     const footer = element.shadowRoot.querySelector("footer.invoice-footer");
     expect(footer.getAttribute("aria-label")).toBe("スロット残高");
     expect(footer.textContent).toContain("AR");
+    expect(footer.textContent).toContain("CASH");
     expect(footer.textContent).toContain("DEF");
+    expect(
+      footer.querySelector(".money-item_slot-zero .journal-slot-abbr").textContent
+    ).toBe("CASH");
+    expect(
+      footer.querySelectorAll(".money-item_slot-nonzero .journal-slot-abbr").length
+    ).toBe(2);
     expect(footer.textContent).not.toContain("税抜");
     expect(footer.textContent).not.toContain("未入金額");
     expect(footer.textContent).not.toContain("借方合計");
