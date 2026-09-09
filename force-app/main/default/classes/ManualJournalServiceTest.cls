@@ -543,18 +543,19 @@ private class ManualJournalServiceTest {
       request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
         invoice.Id
       );
-      Boolean thrown = false;
-      try {
-        ManualJournalService.cancel(request);
-      } catch (Exception ex) {
-        thrown = true;
-        System.assertEquals(
-          'ロック済み仕訳がある取消では取消基準日が必要です。',
-          ex.getMessage(),
-          'Accounting 第8.5節: 請求書単位の Active Lock で取消基準日必須'
-        );
-      }
-      System.assertEquals(true, thrown);
+      Test.startTest();
+      ManualJournalService.cancel(request);
+      Test.stopTest();
+      System.assertEquals(
+        'Cancelled',
+        [
+            SELECT TransactionStatus__c
+            FROM GlManualJournalHeader__c
+            WHERE Id = :header.Id
+          ]
+          .TransactionStatus__c,
+        'Accounting 第8.5節: 請求書の他原因Lockだけでは取消基準日を取らない'
+      );
     }
   }
 
