@@ -545,16 +545,24 @@ private class EstimateRevertInvoiceServiceTest {
       );
       System.assertEquals(
         false,
-        EstimateRevertInvoiceService.isLatestOrderedHistory(null),
-        'Core 第4.9節: Latest Ordered だけ差し戻せる。空の履歴は最新と証明できない'
+        EstimateRevertInvoiceService.isLatestOrderedHistory((Id) null),
+        'Core 第5.3節: Latest Ordered だけ差し戻せる。空の履歴は最新と証明できない'
+      );
+      System.assertEquals(
+        false,
+        EstimateRevertInvoiceService.isLatestOrderedHistory(
+          (ContractHistory__c) null
+        ),
+        'Core 第5.3節: Latest Ordered だけ差し戻せる。空の履歴は最新と証明できない'
       );
       System.assertEquals(
         false,
         EstimateRevertInvoiceService.hasNewerEstimateVersion(null),
-        'Core 第4.9節: より新しい Estimate の判定も空の履歴ではしない'
+        'Core 第5.3節: より新しい Estimate の判定も空の履歴ではしない'
       );
-      EstimateRevertInvoiceService.RevertBlockSets emptyBlocks =
-        EstimateRevertInvoiceService.queryRevertBlockSets(null);
+      EstimateRevertInvoiceService.RevertBlockSets emptyBlocks = EstimateRevertInvoiceService.queryRevertBlockSets(
+        (Set<Id>) null
+      );
       System.assertEquals(
         0,
         emptyBlocks.nonLatestOrderedHistoryIds.size(),
