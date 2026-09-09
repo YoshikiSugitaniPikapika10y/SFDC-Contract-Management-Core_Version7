@@ -626,6 +626,63 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void splitInvoiceByDate_copiesBlankMemoFromContractProduct() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, ContractProduct__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      ContractProduct__c contractProduct = [
+        SELECT Unit__c
+        FROM ContractProduct__c
+        WHERE Id = :line.ContractProduct__c
+      ];
+      insert new FieldCopyDefinition__c(
+        Name = 'BUG986_Inv_Memo_From_CpUnit',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_PRODUCT,
+        SourceFieldApiName__c = 'Unit__c',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = 10000;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+
+      Test.startTest();
+      Id createdId = InvoiceCanonicalService.splitInvoiceByDate(
+        source.Id,
+        Date.newInstance(2026, 7, 1),
+        Date.newInstance(2026, 7, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      Invoice__c created = [SELECT Memo__c FROM Invoice__c WHERE Id = :createdId];
+      System.assertEquals(
+        contractProduct.Unit__c,
+        created.Memo__c,
+        '仕様: Core 第11.4.2節 分割で増える新請求は From＝見積商品を空欄へスタンプする'
+      );
+    }
+  }
+
+  @IsTest
   static void splitInvoiceByDate_requiresPaymentScheduledDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();

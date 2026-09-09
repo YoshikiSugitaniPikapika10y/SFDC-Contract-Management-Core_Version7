@@ -2926,6 +2926,16 @@ public without sharing class InvoiceCanonicalService {
     );
     // 仕様: Core 第7.11節。分割で新しく作る未確定も送付状態の種を書く。
     InvoiceTransactionStatusService.seedDefaults(created);
+    List<Id> splitContractProductIds = new List<Id>();
+    for (InvoiceLine__c sourceLine : sourceLines) {
+      if (sourceLine.ContractProduct__c != null) {
+        splitContractProductIds.add(sourceLine.ContractProduct__c);
+      }
+    }
+    // 仕様: Core 第11.4.2節。分割の新請求は作成時コピーだけ空欄へ。From＝見積商品。
+    InvoiceProductFieldCopyService.rememberInvoiceInsertContractProducts(
+      splitContractProductIds
+    );
     SystemContextAccess.insertRecords(new List<Invoice__c>{ created });
 
     List<InvoiceLine__c> newLines = new List<InvoiceLine__c>();

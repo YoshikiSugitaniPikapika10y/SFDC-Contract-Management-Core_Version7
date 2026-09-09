@@ -154,6 +154,28 @@ public without sharing class InvoiceProductFieldCopyService {
   private static Map<Id, Set<String>> cachedAccountFieldsById = new Map<Id, Set<String>>();
   private static Map<Id, Invoice__c> cachedInvoicesById = new Map<Id, Invoice__c>();
   private static Map<Id, Set<String>> cachedInvoiceFieldsById = new Map<Id, Set<String>>();
+  /** 仕様: Core 第11.4.2節。分割の新請求 insert で届く見積商品。 */
+  private static List<Id> pendingInvoiceInsertContractProductIds;
+
+  /**
+   * 仕様: Core 第11.4.2節。請求書に見積商品参照が無いので、分割の新規 insert 直前に載せる。
+   */
+  public static void rememberInvoiceInsertContractProducts(
+    List<Id> contractProductIds
+  ) {
+    pendingInvoiceInsertContractProductIds = new List<Id>();
+    if (contractProductIds == null || contractProductIds.isEmpty()) {
+      return;
+    }
+    Set<Id> seen = new Set<Id>();
+    for (Id contractProductId : contractProductIds) {
+      if (contractProductId == null || seen.contains(contractProductId)) {
+        continue;
+      }
+      seen.add(contractProductId);
+      pendingInvoiceInsertContractProductIds.add(contractProductId);
+    }
+  }
 
   @TestVisible
   static void resetCache() {
@@ -174,6 +196,7 @@ public without sharing class InvoiceProductFieldCopyService {
     cachedAccountFieldsById = new Map<Id, Set<String>>();
     cachedInvoicesById = new Map<Id, Invoice__c>();
     cachedInvoiceFieldsById = new Map<Id, Set<String>>();
+    pendingInvoiceInsertContractProductIds = null;
   }
 
   private static Boolean cacheCovers(Set<String> have, Set<String> need) {
@@ -720,6 +743,9 @@ public without sharing class InvoiceProductFieldCopyService {
         sources
       );
     }
+    if (targetObjectApiName == TARGET_INVOICE) {
+      pendingInvoiceInsertContractProductIds = null;
+    }
   }
 
   /**
@@ -853,6 +879,9 @@ public without sharing class InvoiceProductFieldCopyService {
         }
         if (baId != null) {
           billingAccountIds.add(baId);
+        }
+        if (pendingInvoiceInsertContractProductIds != null) {
+          contractProductIds.addAll(pendingInvoiceInsertContractProductIds);
         }
       } else if (targetObjectApiName == TARGET_INVOICE_LINE) {
         Id cpId = (Id) record.get('ContractProduct__c');
@@ -1311,6 +1340,17 @@ public without sharing class InvoiceProductFieldCopyService {
       if (accountId != null && maps.accountById.containsKey(accountId)) {
         sources.put(OBJECT_ACCOUNT, maps.accountById.get(accountId));
       }
+      // 仕様: Core 第11.4.2節。請求書の From に見積商品・商品がある。分割の新規も空欄へ。
+      ContractProduct__c invoiceCp = firstPendingInvoiceContractProduct(maps);
+      if (invoiceCp != null) {
+        sources.put(OBJECT_CONTRACT_PRODUCT, invoiceCp);
+        if (
+          invoiceCp.Product__c != null &&
+          maps.productById.containsKey(invoiceCp.Product__c)
+        ) {
+          sources.put(OBJECT_PRODUCT, maps.productById.get(invoiceCp.Product__c));
+        }
+      }
       return sources;
     }
 
@@ -1357,6 +1397,28 @@ public without sharing class InvoiceProductFieldCopyService {
       sources.put(OBJECT_BILLING_ACCOUNT, maps.billingAccountById.get(baId));
     }
     return sources;
+  }
+
+  /** 仕様: Core 第11.4.2節。届く見積商品だけ載せる。 */
+  private static ContractProduct__c firstPendingInvoiceContractProduct(
+    InsertSourceMaps maps
+  ) {
+    if (
+      maps == null ||
+      pendingInvoiceInsertContractProductIds == null ||
+      pendingInvoiceInsertContractProductIds.isEmpty()
+    ) {
+      return null;
+    }
+    for (Id contractProductId : pendingInvoiceInsertContractProductIds) {
+      ContractProduct__c contractProduct = maps.contractProductById.get(
+        contractProductId
+      );
+      if (contractProduct != null) {
+        return contractProduct;
+      }
+    }
+    return null;
   }
 
   /**

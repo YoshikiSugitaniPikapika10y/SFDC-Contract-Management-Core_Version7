@@ -138,6 +138,43 @@ private class InvoiceFieldCopyTriggerHandlerTest {
   }
 
   @IsTest
+  static void invoiceBeforeInsert_copiesBlankMemoFromContractProductUnit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('CpUnit');
+      insert new FieldCopyDefinition__c(
+        Name = 'Test_Inv_Memo_From_CpUnit',
+        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE,
+        SourceObject__c = InvoiceProductFieldCopyService.OBJECT_CONTRACT_PRODUCT,
+        SourceFieldApiName__c = 'Unit__c',
+        TargetFieldApiName__c = 'Memo__c'
+      );
+      InvoiceProductFieldCopyService.resetCache();
+      FieldCopyDefinitionService.resetCache();
+      Invoice__c invoice = new Invoice__c(
+        ContractHistory__c = fixture.history.Id,
+        ContractService__c = fixture.service.Id,
+        InvoiceDate__c = Date.today(),
+        Amount__c = 1000
+      );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      InvoiceProductFieldCopyService.rememberInvoiceInsertContractProducts(
+        new List<Id>{ fixture.contractProduct.Id }
+      );
+
+      Test.startTest();
+      insert invoice;
+      Test.stopTest();
+
+      Invoice__c loaded = [SELECT Memo__c FROM Invoice__c WHERE Id = :invoice.Id];
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
+        loaded.Memo__c,
+        '仕様: Core 第11.4.2節 請求書の From に見積商品がある。空欄へコピーする'
+      );
+    }
+  }
+
+  @IsTest
   static void invoiceBeforeInsert_copiesBlankMemoFromHistoryName() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('HistName');
