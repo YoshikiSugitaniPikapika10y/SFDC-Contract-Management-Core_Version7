@@ -348,7 +348,7 @@
               </template>
               <template if:false={invoice.showDraftPaymentGuide}>
               <template if:true={invoice.opsLoading}>
-                <p class="edit-note">入金情報を読み込み中…</p>
+                <p class="edit-note">読み込み中</p>
               </template>
               <template if:true={invoice.opsError}>
                 <p class="edit-note">{invoice.opsError}</p>
@@ -430,7 +430,7 @@
 
               <template if:true={invoice.isPaymentEditOpen}>
                 <div class="ops-form">
-                  <p class="ops-form-title">入出金を編集</p>
+                  <h3 class="ops-form-title">入出金を編集</h3>
                   <section class="billing-edit-section">
                     <h3 class="billing-edit-heading">入出金</h3>
                     <dl class="ops-readonly">
@@ -549,7 +549,7 @@
 
               <template if:true={invoice.showPaymentCancelForm}>
                 <div class="ops-form">
-                  <p class="ops-form-title">入出金を取消</p>
+                  <h3 class="ops-form-title">入出金を取消</h3>
                   <dl class="ops-readonly">
                     <div>
                       <dt>請求書</dt>
@@ -627,7 +627,7 @@
               </template>
               <template if:true={invoice.showPaymentForm}>
                 <div class="ops-form">
-                  <p class="ops-form-title">{invoice.paymentFormTitle}</p>
+                  <h3 class="ops-form-title">{invoice.paymentFormTitle}</h3>
                   <section class="billing-edit-section">
                     <h3 class="billing-edit-heading">入出金</h3>
                     <div class="ops-form-grid">
@@ -875,7 +875,7 @@
           <template if:true={invoice.isJournalsTab}>
             <div class="ops-panel">
               <template if:true={invoice.opsLoading}>
-                <p class="edit-note">仕訳情報を読み込み中…</p>
+                <p class="edit-note">読み込み中</p>
               </template>
               <template if:true={invoice.opsError}>
                 <p class="edit-note">{invoice.opsError}</p>
@@ -1140,7 +1140,7 @@
                 </div>
               </template>
               <template if:false={invoice.hasJournals}>
-                <p class="edit-note">この請求の仕訳はありません。</p>
+                <p class="edit-note">対象がありません。</p>
               </template>
               <template if:true={invoice.showManualJournalEntry}>
                 <c-manual-journal-entry
@@ -1845,7 +1845,7 @@
 
           <template if:true={invoice.isLineSplitOpen}>
             <template if:true={invoice.lineSplitLoading}>
-              <p class="edit-note line-split-status">分割候補を読み込み中…</p>
+              <p class="edit-note line-split-status">読み込み中</p>
             </template>
             <template if:true={invoice.lineSplitError}>
               <p class="edit-note line-split-status">
@@ -2278,7 +2278,7 @@
           </div>
           <template if:true={invoice.acceptanceCancelDraft}>
             <div class="ops-form">
-              <p class="ops-form-title">検収終了日の変更</p>
+              <h3 class="ops-form-title">検収終了日の変更</h3>
               <lightning-input
                 type="date"
                 label="逆仕訳基準日"
@@ -2402,7 +2402,7 @@
   </template>
 
   <template if:false={hasInvoices}>
-    <p class="empty-text">請求がありません。</p>
+    <p class="empty-text">対象がありません。</p>
   </template>
   <template if:true={journalUnlockDialog}>
     <div class="journal-unlock-dialog" role="dialog" aria-label="Unlock理由">

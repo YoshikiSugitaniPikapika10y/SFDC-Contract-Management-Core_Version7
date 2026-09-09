@@ -132,7 +132,7 @@ describe("orderInvoicePreviewTable issue/send gate (Core 11.3.1 / 11.3.2 / 7.10 
         true,
         false
       )
-    ).toBe("利用できる請求書テンプレートがありません。");
+    ).toBe("対象がありません。");
     expect(
       proto.invoiceSendUnavailableReason.call(
         sendCtx({ hasInvoiceDocumentTemplates: false }),
@@ -140,7 +140,7 @@ describe("orderInvoicePreviewTable issue/send gate (Core 11.3.1 / 11.3.2 / 7.10 
         true,
         false
       )
-    ).toBe("利用できる請求書テンプレートがありません。");
+    ).toBe("対象がありません。");
   });
 
   it("発行画面は最新発行PDFのダウンロードURLを出す (横断画面.md 操作21)", () => {

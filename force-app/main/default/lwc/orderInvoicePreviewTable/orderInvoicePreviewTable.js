@@ -1023,7 +1023,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return this.companyBlockedReason;
     }
     if (!this.hasInvoiceDocumentTemplates) {
-      return "利用できる請求書テンプレートがありません。";
+      return "対象がありません。";
     }
     return "";
   }
@@ -1053,7 +1053,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return "不正なメールアドレスがあるため送れません。";
     }
     if (!this.hasInvoiceDocumentTemplates) {
-      return "利用できる請求書テンプレートがありません。";
+      return "対象がありません。";
     }
     if (this.orgFromResolved !== true) {
       return "PDFとメール送付のとき、組織の送信元を選んでください。";
