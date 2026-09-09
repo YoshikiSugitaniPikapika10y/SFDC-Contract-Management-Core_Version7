@@ -248,8 +248,10 @@ private class AmountAccuracyAuditTest {
         Name = 'Audit Change Qty Service',
         Account__c = account.Id,
         BiilingAcccount__c = ba.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
@@ -278,6 +280,7 @@ private class AmountAccuracyAuditTest {
         CurrentTermEndDate__c = termEnd,
         EffectiveDate__c = termStart
       );
+      ContractTestDataFactory.applyRequiredFields(prior);
       insert prior;
       ContractProduct__c priorCp = new ContractProduct__c(
         ContractHistory__c = prior.Id,
@@ -308,6 +311,7 @@ private class AmountAccuracyAuditTest {
         EffectiveDate__c = effectiveDate,
         PreviousHistory__c = prior.Id
       );
+      ContractTestDataFactory.applyRequiredFields(changeHistory);
       insert changeHistory;
       insert new List<ContractProduct__c>{
         new ContractProduct__c(
@@ -384,8 +388,10 @@ private class AmountAccuracyAuditTest {
         Name = 'Audit Zero Remake Service',
         Account__c = account.Id,
         BiilingAcccount__c = ba.Id,
-        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
@@ -413,6 +419,7 @@ private class AmountAccuracyAuditTest {
         CurrentTermEndDate__c = termEnd,
         EffectiveDate__c = termStart
       );
+      ContractTestDataFactory.applyRequiredFields(prior);
       insert prior;
       ContractProduct__c priorCp = new ContractProduct__c(
         ContractHistory__c = prior.Id,
@@ -443,6 +450,7 @@ private class AmountAccuracyAuditTest {
         EffectiveDate__c = effectiveDate,
         PreviousHistory__c = prior.Id
       );
+      ContractTestDataFactory.applyRequiredFields(changeHistory);
       insert changeHistory;
       insert new List<ContractProduct__c>{
         new ContractProduct__c(
@@ -729,15 +737,17 @@ private class AmountAccuracyAuditTest {
       ContractService__c service = new ContractService__c(
         Name = 'Audit Cancel Service',
         Account__c = account.Id,
-        BiilingAcccount__c = ba.Id
+        BiilingAcccount__c = ba.Id,
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Audit Cancel Opp'
       );
       Date termEnd = Date.newInstance(2027, 3, 31);
-      insert new ContractHistory__c(
+      ContractHistory__c priorCancel = new ContractHistory__c(
         Name = 'Audit Cancel Prior',
         ContractService__c = service.Id,
         Opportunity__c = opportunity.Id,
@@ -748,6 +758,8 @@ private class AmountAccuracyAuditTest {
         CurrentTermEndDate__c = termEnd,
         EffectiveDate__c = Date.newInstance(2026, 4, 1)
       );
+      ContractTestDataFactory.applyRequiredFields(priorCancel);
+      insert priorCancel;
       ContractHistory__c cancelHistory = new ContractHistory__c(
         Name = 'Audit Cancel History',
         ContractService__c = service.Id,
@@ -759,6 +771,7 @@ private class AmountAccuracyAuditTest {
         CurrentTermEndDate__c = termEnd.addDays(1),
         EffectiveDate__c = termEnd.addDays(1)
       );
+      ContractTestDataFactory.applyRequiredFields(cancelHistory);
       insert cancelHistory;
 
       Test.startTest();
@@ -806,8 +819,10 @@ private class AmountAccuracyAuditTest {
       Account account = ContractTestDataFactory.insertAccount('Audit ARR');
       ContractService__c service = new ContractService__c(
         Name = 'Audit ARR Service',
-        Account__c = account.Id
+        Account__c = account.Id,
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
+      ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Audit ARR History',
@@ -822,6 +837,7 @@ private class AmountAccuracyAuditTest {
         history,
         account.Id
       );
+      ContractTestDataFactory.applyRequiredFields(history);
       insert history;
       line.ContractHistory__c = history.Id;
       line.Product__r = new Product2(
@@ -887,8 +903,10 @@ private class AmountAccuracyAuditTest {
       Name = 'Audit Service',
       Account__c = account.Id,
       BiilingAcccount__c = ba.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
     );
+    ContractTestDataFactory.applyRequiredFields(service);
     insert service;
     Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
       account.Id,
@@ -915,6 +933,7 @@ private class AmountAccuracyAuditTest {
       CurrentTermEndDate__c = termEnd,
       EffectiveDate__c = termStart
     );
+    ContractTestDataFactory.applyRequiredFields(history);
     insert history;
     insert new ContractProduct__c(
       ContractHistory__c = history.Id,

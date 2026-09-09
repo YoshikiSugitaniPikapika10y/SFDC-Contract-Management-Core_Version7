@@ -1024,22 +1024,35 @@ private class InvoiceProductGenerationServiceTest {
         invoice.PaymentClearingCompletedDate__c = Date.today();
       }
       updateInvoicesAllowingStatus(lockedInvoices);
-      data.recurringProduct.UnitPrice__c = 9000;
-      update data.recurringProduct;
+      InvoiceLockUtil.clearLockedInvoiceCacheForTest();
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE Id = :firstPeriodLine.Id
+        ],
+        'Core 第6.6節: 再生成入口の前に期間明細が残っている'
+      );
       Boolean thrown = false;
+      Boolean previousBypass = InvoiceLockUtil.testCanBypassLockedDml;
+      Boolean previousLockedWrite = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceLockUtil.allowLockedStatusWrite = false;
+      InvoiceLockUtil.testCanBypassLockedDml = false;
       Test.startTest();
       try {
-        generateInvoiceProducts(
-          new Set<Id>{ data.history.Id }
-        );
+        generateInvoiceProducts(new Set<Id>{ data.history.Id });
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
         System.assertEquals(
           InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
           ex.getMessage()
         );
+      } finally {
+        InvoiceLockUtil.allowLockedStatusWrite = previousLockedWrite;
+        InvoiceLockUtil.testCanBypassLockedDml = previousBypass;
+        Test.stopTest();
       }
-      Test.stopTest();
       System.assertEquals(
         true,
         thrown,
