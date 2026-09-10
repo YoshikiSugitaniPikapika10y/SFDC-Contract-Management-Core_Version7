@@ -560,7 +560,7 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(panel.querySelectorAll(".billing-edit-row_extra")).toHaveLength(1);
   });
 
-  it("仕訳タブの表列に確認用を常時出さない (Accounting 9.1.1 / Core 11.4.4)", async () => {
+  it("仕訳タブの表列に確認用を常時出す (Accounting 9.1.1 / Core 7.7.3)", async () => {
     getInvoiceOpsFieldDefinitions.mockResolvedValue([]);
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
@@ -606,9 +606,9 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     )
       .map((th) => th.textContent.trim())
       .join(" ");
-    expect(headerText).not.toContain("確認用");
+    expect(headerText).toContain("確認用");
     expect(headerText).toContain(
-      "選択 Lock 計上日 イベント 借方 貸方 金額 計上時期 状態  メモ"
+      "選択 Lock 状態 計上日 イベント 借貸 金額 確認用  メモ"
     );
     const journalTable = element.shadowRoot.querySelector(
       "table.ops-table_journals"
@@ -616,18 +616,19 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(
       journalTable.querySelector("td.journal-toggle-col button.journal-toggle")
     ).not.toBeNull();
-    const eventCell = Array.from(journalTable.querySelectorAll("tbody tr.journal-row td"))[3];
+    const eventCell = Array.from(journalTable.querySelectorAll("tbody tr.journal-row td"))[4];
     expect(eventCell.querySelector("button.journal-toggle")).toBeNull();
     expect(
       journalTable.querySelector("td.num-col").textContent.trim()
     ).toBe("1,100");
-    expect(element.shadowRoot.textContent).not.toContain("明細税抜 1,100円");
+    expect(element.shadowRoot.textContent).toContain("明細税抜 1,100円");
     const abbrs = Array.from(
       element.shadowRoot.querySelectorAll(".journal-slot-abbr")
     ).map((node) => node.textContent.trim());
     expect(abbrs).toEqual(["AR", "DEF"]);
     expect(element.shadowRoot.textContent).toContain("売掛金");
     expect(element.shadowRoot.textContent).toContain("前受収益");
+    expect(element.shadowRoot.textContent).toContain(" / ");
   });
 
   it("保存中は請求書情報を止め当該カードに処理中を出す (Core 7.8.2)", async () => {

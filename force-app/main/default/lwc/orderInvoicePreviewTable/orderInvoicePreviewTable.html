@@ -1428,6 +1428,7 @@
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
                         <th scope="col">Lock</th>
+                        <th scope="col">状態</th>
                         <th scope="col">
                           計上日
                           <lightning-combobox
@@ -1454,11 +1455,21 @@
                             onchange={handleJournalViewFilterChange}
                           ></lightning-combobox>
                         </th>
-                        <th scope="col">借方</th>
-                        <th scope="col">貸方</th>
+                        <th scope="col">借貸</th>
                         <th class="num-col" scope="col">金額</th>
-                        <th scope="col">計上時期</th>
-                        <th scope="col">状態</th>
+                        <th class="journal-confirmation-col" scope="col">
+                          確認用
+                          <lightning-combobox
+                            name="journalLine"
+                            label="明細"
+                            variant="label-hidden"
+                            value={invoice.journalLineFilter}
+                            options={invoice.journalLineOptions}
+                            data-invoice-id={invoice.invoiceId}
+                            data-filter="lineKey"
+                            onchange={handleJournalViewFilterChange}
+                          ></lightning-combobox>
+                        </th>
                         <th class="journal-toggle-col" scope="col" aria-label="行の詳細"></th>
                         <th scope="col">メモ</th>
                       </tr>
@@ -1487,7 +1498,13 @@
                               <span class="journal-lock-key-static" aria-hidden="true">🔒</span>
                             </template>
                           </td>
-                          <td>{journal.postingDate}</td>
+                          <td>{journal.transactionStatusLabel}</td>
+                          <td>
+                            {journal.postingDate}
+                            <template if:true={journal.postingPeriod}>
+                              <span> {journal.postingPeriod}</span>
+                            </template>
+                          </td>
                           <td>{journal.eventName}</td>
                           <td>
                             <template if:true={journal.debitAbbreviation}>
@@ -1499,8 +1516,7 @@
                             <template if:false={journal.debitAbbreviation}>
                               {journal.debitAccountName}
                             </template>
-                          </td>
-                          <td>
+                            <span> / </span>
                             <template if:true={journal.creditAbbreviation}>
                               <span class="journal-slot-abbr">{journal.creditAbbreviation}</span>
                               <template if:true={journal.creditAccountLabel}>
@@ -1512,8 +1528,7 @@
                             </template>
                           </td>
                           <td class="num-col">{journal.amountDisplay}</td>
-                          <td>{journal.postingPeriod}</td>
-                          <td>{journal.transactionStatusLabel}</td>
+                          <td class="journal-confirmation-cell" title={journal.confirmationText}>{journal.confirmationText}</td>
                           <td class="journal-toggle-col">
                             <button
                               type="button"
@@ -1554,14 +1569,8 @@
                         </tr>
                         <template if:true={journal.extrasOpen}>
                           <tr key={journal.extraRowKey} class="journal-extra-row">
-                            <td colspan="11">
+                            <td colspan="10">
                               <div class="journal-extra-panel">
-                                <p class="journal-confirmation">
-                                  <span class="invoice-meta-k">確認用</span>
-                                  <span class="invoice-meta-v"
-                                    >{journal.confirmationText}</span
-                                  >
-                                </p>
                                 <div class="ops-form-grid">
                                   <template
                                     for:each={journal.extraFields}

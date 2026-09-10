@@ -101,14 +101,91 @@ function journalEventDisplayName(journal) {
   return journal?.eventName || journal?.eventKey || "";
 }
 
-function journalMatchesViewFilter(journal, postingMonth, eventName) {
+/** 仕様: Core 第7.7.3節。明細なしは候補「明細なし」。確認用の文面では絞らない。 */
+const JOURNAL_LINE_NONE = "__NONE__";
+
+function formatPeriodSlash(iso) {
+  const isoDay = String(iso || "").slice(0, 10);
+  if (isoDay.length < 10) {
+    return "";
+  }
+  return `${isoDay.slice(0, 4)}/${isoDay.slice(5, 7)}/${isoDay.slice(8, 10)}`;
+}
+
+function journalLineFilterKey(journal) {
+  return journal?.invoiceLineId || JOURNAL_LINE_NONE;
+}
+
+function journalLinePeriodLabel(journal) {
+  const start = formatPeriodSlash(journal?.servicePeriodStartDate);
+  const end = formatPeriodSlash(journal?.servicePeriodEndDate);
+  if (start && end) {
+    return `${start}～${end}`;
+  }
+  return start || end;
+}
+
+function journalLineFilterLabel(journal, duplicateNames) {
+  if (!journal?.invoiceLineId) {
+    return "明細なし";
+  }
+  const name = journal.productName || "";
+  if (duplicateNames.has(name)) {
+    const period = journalLinePeriodLabel(journal);
+    return period ? `${name} ${period}` : name;
+  }
+  return name;
+}
+
+function journalMatchesViewFilter(journal, postingMonth, eventName, lineKey) {
   if (postingMonth && postingMonthKey(journal.postingDate) !== postingMonth) {
     return false;
   }
   if (eventName && journalEventDisplayName(journal) !== eventName) {
     return false;
   }
+  if (lineKey && journalLineFilterKey(journal) !== lineKey) {
+    return false;
+  }
   return true;
+}
+
+function journalLineFilterOptions(journals) {
+  const firstByKey = new Map();
+  (journals || []).forEach((journal) => {
+    const key = journalLineFilterKey(journal);
+    if (!firstByKey.has(key)) {
+      firstByKey.set(key, journal);
+    }
+  });
+  const nameCounts = new Map();
+  firstByKey.forEach((journal) => {
+    if (!journal.invoiceLineId) {
+      return;
+    }
+    const name = journal.productName || "";
+    nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
+  });
+  const duplicateNames = new Set();
+  nameCounts.forEach((count, name) => {
+    if (count > 1) {
+      duplicateNames.add(name);
+    }
+  });
+  return Array.from(firstByKey.entries())
+    .map(([value, journal]) => ({
+      label: journalLineFilterLabel(journal, duplicateNames),
+      value
+    }))
+    .sort((left, right) => {
+      if (left.value === JOURNAL_LINE_NONE) {
+        return 1;
+      }
+      if (right.value === JOURNAL_LINE_NONE) {
+        return -1;
+      }
+      return left.label < right.label ? -1 : left.label > right.label ? 1 : 0;
+    });
 }
 
 function uniqueSorted(values) {
@@ -2107,8 +2184,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         const viewFilter = this.journalViewFilterByInvoice[invoiceId] || {};
         const postingMonthFilter = viewFilter.postingMonth || "";
         const eventNameFilter = viewFilter.eventName || "";
+        const lineKeyFilter = viewFilter.lineKey || "";
         const displayedJournals = allJournals.filter((journal) =>
-          journalMatchesViewFilter(journal, postingMonthFilter, eventNameFilter)
+          journalMatchesViewFilter(
+            journal,
+            postingMonthFilter,
+            eventNameFilter,
+            lineKeyFilter
+          )
         );
         const activeJournalCount = displayedJournals.filter(
           (journal) => journal.transactionStatus === "Active"
@@ -2337,6 +2420,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             ),
           journalPostingMonthFilter: postingMonthFilter,
           journalEventFilter: eventNameFilter,
+          journalLineFilter: lineKeyFilter,
           journalPostingMonthOptions: [
             { label: "（すべて）", value: "" },
             ...uniqueSorted(allJournals.map((journal) => postingMonthKey(journal.postingDate))).map(
@@ -2348,6 +2432,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             ...uniqueSorted(allJournals.map((journal) => journalEventDisplayName(journal))).map(
               (name) => ({ label: name, value: name })
             )
+          ],
+          journalLineOptions: [
+            { label: "（すべて）", value: "" },
+            ...journalLineFilterOptions(allJournals)
           ],
           memoDraft:
             this.memoDrafts[invoiceId] != null
@@ -6161,7 +6249,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       journalMatchesViewFilter(
         journal,
         viewFilter.postingMonth || "",
-        viewFilter.eventName || ""
+        viewFilter.eventName || "",
+        viewFilter.lineKey || ""
       )
     );
     const selectableIds = displayed
@@ -6203,7 +6292,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   handleJournalViewFilterChange(event) {
     const invoiceId = event.target.dataset.invoiceId;
     const field = event.target.dataset.filter;
-    if (!invoiceId || (field !== "postingMonth" && field !== "eventName")) {
+    if (
+      !invoiceId ||
+      (field !== "postingMonth" && field !== "eventName" && field !== "lineKey")
+    ) {
       return;
     }
     const current = this.journalViewFilterByInvoice[invoiceId] || {};

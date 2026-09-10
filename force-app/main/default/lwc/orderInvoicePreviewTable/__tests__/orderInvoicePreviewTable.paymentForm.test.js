@@ -672,13 +672,17 @@ describe("orderInvoicePreviewTable payment form", () => {
         ".ops-panel .ops-table-wrap .ops-table tbody tr"
       );
     const statuses = Array.from(journalRows()).map((row) =>
-      row.querySelectorAll("td")[8].textContent.trim()
+      row.querySelectorAll("td")[2].textContent.trim()
     );
     expect(statuses).toEqual(["有効", "取消", "取消済"]);
     const periods = Array.from(journalRows()).map((row) =>
-      row.querySelectorAll("td")[7].textContent.trim()
+      row.querySelectorAll("td")[3].textContent.trim()
     );
-    expect(periods).toEqual(["到来済み", "到来済み", "到来済み"]);
+    expect(periods).toEqual([
+      "2026-06-01 到来済み",
+      "2026-06-02 到来済み",
+      "2026-06-04 到来済み"
+    ]);
     expect(
       element.shadowRoot.querySelector(".journal-filters")
     ).toBeNull();
@@ -688,9 +692,11 @@ describe("orderInvoicePreviewTable payment form", () => {
       )
     ).map((head) => head.textContent.trim());
     expect(journalHeads).toContain("イベント");
+    expect(journalHeads).toContain("確認用");
+    expect(journalHeads).toContain("借貸");
     expect(journalHeads).not.toContain("パターン");
-    expect(element.shadowRoot.textContent).toContain("計上時期");
-    expect(element.shadowRoot.textContent).not.toContain("確認用");
+    expect(element.shadowRoot.textContent).toContain("到来済み");
+    expect(element.shadowRoot.textContent).toContain("確認用");
     expect(journalRows()[1].className).toContain("journal-row_audit");
     expect(journalRows()[2].className).toContain("journal-row_audit");
   });
@@ -834,8 +840,8 @@ describe("orderInvoicePreviewTable payment form", () => {
       element.shadowRoot.querySelectorAll(
         ".ops-panel .ops-table-wrap .ops-table tbody tr"
       )
-    ).map((row) => row.querySelectorAll("td")[7].textContent.trim());
-    expect(periods).toEqual(["到来済み", "将来"]);
+    ).map((row) => row.querySelectorAll("td")[3].textContent.trim());
+    expect(periods).toEqual(["2020-01-15 到来済み", "2020-01-16 将来"]);
   });
 
   it("does not filter journals by accounting event", async () => {

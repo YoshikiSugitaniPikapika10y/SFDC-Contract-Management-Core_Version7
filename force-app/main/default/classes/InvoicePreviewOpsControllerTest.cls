@@ -172,6 +172,75 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void getOpsBundle_journalLineFieldsForBoardFilter() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      InvoiceLine__c line = [
+        SELECT Id, ProductName__c, ServicePeriodStartDate__c, ServicePeriodEndDate__c
+        FROM InvoiceLine__c
+        WHERE Id = :fixture.line.Id
+      ];
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'LINEFLT Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'LINEFLT Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      Boolean previous = GlJournalTriggerHandler.allowEngineWrite;
+      GlJournalTriggerHandler.allowEngineWrite = true;
+      try {
+        insert new GlJournal__c(
+          Invoice__c = fixture.invoice.Id,
+          InvoiceLine__c = line.Id,
+          Amount__c = 1,
+          IdempotencyKey__c = AccountingDiffService.hashKey(
+            new List<String>{ 'LINEFLT', String.valueOf(fixture.invoice.Id) }
+          ),
+          DebitSlotKey__c = 'Cash',
+          CreditSlotKey__c = 'UnappliedCash',
+          DebitAccount__c = debit.Id,
+          CreditAccount__c = credit.Id,
+          PostingDate__c = Date.newInstance(2026, 6, 1),
+          TransactionStatus__c = 'Active',
+          IsLocked__c = false
+        );
+      } finally {
+        GlJournalTriggerHandler.allowEngineWrite = previous;
+      }
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+      System.assertEquals(1, bundle.journals.size(), 'Core 第7.7.3節: 仕訳を返す');
+      System.assertEquals(
+        line.Id,
+        bundle.journals[0].invoiceLineId,
+        'Core 第7.7.3節: 明細フィルタは明細Lookup'
+      );
+      System.assertEquals(
+        line.ProductName__c,
+        bundle.journals[0].productName,
+        'Core 第7.7.3節: 候補は商品名'
+      );
+      System.assertEquals(
+        line.ServicePeriodStartDate__c,
+        bundle.journals[0].servicePeriodStartDate
+      );
+      System.assertEquals(
+        line.ServicePeriodEndDate__c,
+        bundle.journals[0].servicePeriodEndDate
+      );
+    }
+  }
+
+  @IsTest
   static void getOpsBundle_slotNetsIncludesAppearedZero() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

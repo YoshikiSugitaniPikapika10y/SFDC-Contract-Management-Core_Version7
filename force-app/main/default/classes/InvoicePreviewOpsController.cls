@@ -75,9 +75,18 @@ public without sharing class InvoicePreviewOpsController {
     public Boolean isLocked;
     @AuraEnabled
     public String memo;
-    /** 仕様: Accounting 第9.1.1節。行トグル展開で出す。 */
+    /** 仕様: Accounting 第9.1.1節、Core 第7.7.3節。表列に出す。 */
     @AuraEnabled
     public String confirmationText;
+    /** 仕様: Core 第7.7.3節。明細フィルタ。商品名列は置かない。 */
+    @AuraEnabled
+    public Id invoiceLineId;
+    @AuraEnabled
+    public String productName;
+    @AuraEnabled
+    public Date servicePeriodStartDate;
+    @AuraEnabled
+    public Date servicePeriodEndDate;
     /** 仕様: Core 第11.4.4節。 */
     @AuraEnabled
     public Map<String, Object> extraFieldValues;
@@ -1300,6 +1309,9 @@ public without sharing class InvoicePreviewOpsController {
         ConfirmationText__c,
         RecognitionSequence__c,
         InvoiceLine__c,
+        InvoiceLine__r.ProductName__c,
+        InvoiceLine__r.ServicePeriodStartDate__c,
+        InvoiceLine__r.ServicePeriodEndDate__c,
         InvoiceLine__r.CreatedDate,
         InvoicePayment__c,
         InvoicePayment__r.CreatedDate,
@@ -1335,6 +1347,16 @@ public without sharing class InvoicePreviewOpsController {
       row.isLocked = journal.IsLocked__c == true;
       row.memo = journal.Memo__c;
       row.confirmationText = journal.ConfirmationText__c;
+      row.invoiceLineId = journal.InvoiceLine__c;
+      row.productName = journal.InvoiceLine__r == null
+        ? null
+        : journal.InvoiceLine__r.ProductName__c;
+      row.servicePeriodStartDate = journal.InvoiceLine__r == null
+        ? null
+        : journal.InvoiceLine__r.ServicePeriodStartDate__c;
+      row.servicePeriodEndDate = journal.InvoiceLine__r == null
+        ? null
+        : journal.InvoiceLine__r.ServicePeriodEndDate__c;
       row.sameDayOrder = sameDayOrderOf(journal.JournalPatternKey__c);
       row.recognitionSequence = journal.RecognitionSequence__c == null
         ? 0

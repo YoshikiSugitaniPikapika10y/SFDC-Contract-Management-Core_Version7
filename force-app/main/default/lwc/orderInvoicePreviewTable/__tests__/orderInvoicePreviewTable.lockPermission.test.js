@@ -385,7 +385,9 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
           postingDate: "2026-06-01",
           transactionStatus: "Active",
           isLocked: false,
-          memo: ""
+          memo: "",
+          invoiceLineId: "a01LINE00000001",
+          productName: "本体商品"
         },
         {
           journalId: "a03JNL000000002",
@@ -395,7 +397,9 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
           postingDate: "2026-07-15",
           transactionStatus: "Active",
           isLocked: false,
-          memo: ""
+          memo: "",
+          invoiceLineId: "a01LINE00000002",
+          productName: "入金商品"
         }
       ],
       manualJournals: []
@@ -406,7 +410,7 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     const headers = Array.from(
       element.shadowRoot.querySelectorAll("table.ops-table_journals thead th")
     ).map((th) => th.textContent.replace(/\s+/g, " ").trim());
-    expect(headers.slice(0, 4)).toEqual(["選択", "Lock", "計上日", "イベント"]);
+    expect(headers.slice(0, 5)).toEqual(["選択", "Lock", "状態", "計上日", "イベント"]);
     const rowText = () =>
       Array.from(
         element.shadowRoot.querySelectorAll(
@@ -422,6 +426,19 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     );
     monthFilter.dispatchEvent(
       new CustomEvent("change", { detail: { value: "2026-06" } })
+    );
+    await flush();
+    expect(rowText()).toContain("請求本体");
+    expect(rowText()).not.toContain("入金");
+    monthFilter.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "" } })
+    );
+    await flush();
+    const lineFilter = element.shadowRoot.querySelector(
+      "lightning-combobox[data-filter='lineKey']"
+    );
+    lineFilter.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "a01LINE00000001" } })
     );
     await flush();
     expect(rowText()).toContain("請求本体");
