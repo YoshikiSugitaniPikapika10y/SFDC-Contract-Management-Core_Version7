@@ -2870,6 +2870,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           isJournalsTab: accountingEnabled && activeTab === "journals",
           showInvoiceMoneyFooter: !(accountingEnabled && activeTab === "journals"),
           showJournalSlotFooter: accountingEnabled && activeTab === "journals",
+          footerClass:
+            accountingEnabled && activeTab === "journals"
+              ? "invoice-footer invoice-footer_journal"
+              : "invoice-footer",
           footerAriaLabel:
             accountingEnabled && activeTab === "journals"
               ? "スロット残高"

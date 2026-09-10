@@ -849,6 +849,33 @@
   border-radius: 0 0 var(--preview-radius) var(--preview-radius);
 }
 
+.invoice-footer_journal {
+  margin-top: 0.75rem;
+  border-top: 0;
+  padding: 0.75rem 1rem 0.875rem;
+  background: var(--preview-surface-muted);
+}
+
+.invoice-footer_journal .summary-row {
+  justify-content: flex-start;
+}
+
+.invoice-footer_journal .summary-row_slot-nets {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: 0.65rem 1.15rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--preview-border);
+  border-radius: calc(var(--preview-radius) - 2px);
+  background: var(--preview-surface);
+}
+
+.invoice-footer_journal .summary-row_tags {
+  justify-content: flex-start;
+  padding-top: 0.35rem;
+}
+
 .invoice-footer .summary-row {
   justify-content: flex-end;
 }
