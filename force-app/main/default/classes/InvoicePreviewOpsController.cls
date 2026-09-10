@@ -188,13 +188,14 @@ public without sharing class InvoicePreviewOpsController {
     public String creditAccountName;
   }
 
+  /** 仕様: Core 第8.6節。LWC JSON は {get;set;} が無いと空。 */
   public class PaymentLineRemainingDto {
     @AuraEnabled
-    public Id lineId;
+    public Id lineId { get; set; }
     @AuraEnabled
-    public String productName;
+    public String productName { get; set; }
     @AuraEnabled
-    public Decimal remainingInclusive;
+    public Decimal remainingInclusive { get; set; }
   }
 
   /** 仕様: Core 第8.6節・第8.9節。LWCから入る明細別割当。受信は get/set。 */
@@ -1205,7 +1206,7 @@ public without sharing class InvoicePreviewOpsController {
     }
     List<PaymentLineRemainingDto> rows = new List<PaymentLineRemainingDto>();
     for (InvoiceLine__c line : [
-      SELECT Id, ProductName__c, Amount__c, AllocatedTaxAmount__c
+      SELECT Id, ProductName__c, TaxInclusiveAmount__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :invoiceId
       WITH SYSTEM_MODE
@@ -1214,7 +1215,8 @@ public without sharing class InvoicePreviewOpsController {
       PaymentLineRemainingDto row = new PaymentLineRemainingDto();
       row.lineId = line.Id;
       row.productName = line.ProductName__c;
-      Decimal inclusive = nvl(line.Amount__c) + nvl(line.AllocatedTaxAmount__c);
+      // 仕様: Core 第8.6節。明細の決済対象額は明細税込。
+      Decimal inclusive = nvl(line.TaxInclusiveAmount__c);
       row.remainingInclusive =
         inclusive - (allocatedByLine.containsKey(line.Id) ? allocatedByLine.get(line.Id) : 0);
       rows.add(row);

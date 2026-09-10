@@ -722,10 +722,30 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         current.paymentDraft ||
         this.newPaymentDraft(invoiceId, remaining, bundle?.paymentLines);
       // 仕様: Core 第8.9節。初期金額は符号付き未処理Net。未処理0はInvoice目的を登録できない。
-      const nextDraft =
-        draft.amount === "" || draft.amount == null
-          ? this.newPaymentDraft(invoiceId, remaining, bundle?.paymentLines)
-          : draft;
+      const amountMissing = draft.amount === "" || draft.amount == null;
+      let nextDraft = amountMissing
+        ? this.newPaymentDraft(invoiceId, remaining, bundle?.paymentLines)
+        : { ...draft };
+      if (!nextDraft.paymentDate) {
+        nextDraft = {
+          ...nextDraft,
+          paymentDate: this.todayLocalIso()
+        };
+      }
+      // 仕様: Core 第8.6節・第8.9節。請求金額目的は明細別割当が必須。金額だけ入った初期下書きは空割当のまま残さない。
+      if ((nextDraft.purpose || "Invoice") === "Invoice") {
+        const lines = bundle?.paymentLines || [];
+        if (lines.length > 0 && (nextDraft.allocations || []).length === 0) {
+          nextDraft = {
+            ...nextDraft,
+            allocations: this.proposePaymentAllocations(
+              lines,
+              Number(nextDraft.amount),
+              remaining
+            )
+          };
+        }
+      }
       this.updateInvoiceUiState(invoiceId, {
         bundle,
         paymentDraft: nextDraft,

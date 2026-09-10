@@ -372,6 +372,11 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(allocationInput).toBeTruthy();
     expect(allocationInput.disabled).toBe(true);
     expect(element.shadowRoot.textContent).not.toContain("削除");
+    const saveButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "追加");
+    expect(saveButton).toBeTruthy();
+    expect(saveButton.disabled).toBe(false);
   });
 
   it("shows overflow guidance and does not auto-change Purpose", async () => {
