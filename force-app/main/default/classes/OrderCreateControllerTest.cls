@@ -1361,6 +1361,46 @@ private class OrderCreateControllerTest {
         cancelledCards,
         'Core 第7.9.3節: 取消済みカードを返す'
       );
+      String originalName = [
+        SELECT Name
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ]
+      .Name;
+      String correctionNameOnCard;
+      Id correctionId;
+      for (OrderCreateController.InvoiceGroupDto card : preview.invoices) {
+        if (card == null || card.isCancelled == true) {
+          continue;
+        }
+        correctionId = card.invoiceId;
+        correctionNameOnCard = card.invoiceName;
+      }
+      System.assertNotEquals(
+        null,
+        correctionId,
+        'Core 第7.9.3節: 訂正用カードを返す'
+      );
+      System.assertEquals(
+        false,
+        String.isBlank(correctionNameOnCard),
+        'Core 第7.9.3節・第7.7.0節: 訂正用カードの見出しは請求番号'
+      );
+      System.assertNotEquals(
+        '—',
+        correctionNameOnCard,
+        'Core 第7.9.3節・第7.7.0節: 訂正用カードの見出しを — にしない'
+      );
+      System.assertNotEquals(
+        originalName,
+        correctionNameOnCard,
+        'Core 第7.9.3節: 新しい請求名は自動採番する'
+      );
+      System.assertEquals(
+        [SELECT Name FROM Invoice__c WHERE Id = :correctionId].Name,
+        correctionNameOnCard,
+        'Core 第7.9.3節: 返却カードの請求番号は採番済み Name'
+      );
       System.assertEquals(
         invoicesBeforeCancel,
         activeCards,

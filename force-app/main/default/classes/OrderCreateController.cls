@@ -4249,6 +4249,10 @@ public without sharing class OrderCreateController {
     Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(
       JSON.serialize(invoice)
     );
+    // 仕様: Core 第7.7.0節・第7.9.3節。見出しは請求番号。JSON 往復で自動採番 Name が落ちない。
+    if (invoice != null && String.isNotBlank(invoice.Name)) {
+      root.put('Name', invoice.Name);
+    }
     List<Object> records = new List<Object>();
     if (lines != null) {
       for (InvoiceLine__c line : lines) {

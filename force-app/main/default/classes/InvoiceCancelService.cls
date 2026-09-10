@@ -166,6 +166,7 @@ public without sharing class InvoiceCancelService {
       InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
       InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
+    correction = applyInsertedAutoNumberName(correction);
     List<InvoiceLine__c> copies = new List<InvoiceLine__c>();
     for (InvoiceLine__c line : originalLines) {
       InvoiceLine__c copy = line.clone(false, true, false, false);
@@ -361,6 +362,32 @@ public without sharing class InvoiceCancelService {
       billingAccountCopySelectFields(),
       BillingAccount__c.SObjectType
     );
+  }
+
+  /**
+   * 仕様: Core 第7.9.3節・第12.4節。
+   * 新しい Name は自動採番。clone(preserveAutonumber=false) の insert 直後メモリには乗らない。
+   * 元請求の取り直しではない。採番済みの訂正用 Id の Name だけ載せる。
+   */
+  private static Invoice__c applyInsertedAutoNumberName(Invoice__c inserted) {
+    if (inserted == null || inserted.Id == null) {
+      return inserted;
+    }
+    if (String.isNotBlank(inserted.Name)) {
+      return inserted;
+    }
+    Invoice__c named = [
+      SELECT Name
+      FROM Invoice__c
+      WHERE Id = :inserted.Id
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(
+      JSON.serialize(inserted)
+    );
+    root.put('Name', named.Name);
+    return (Invoice__c) JSON.deserialize(JSON.serialize(root), Invoice__c.class);
   }
 
   /** 仕様: Core 第7.9.3節・第11.4.2節・第11.4.4節。訂正用は元の顧客追加項目をコピーし、空欄だけ定義スタンプする。 */
