@@ -355,4 +355,136 @@ private class RenewOpportunityCreateServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void deleteByLockedHistory_nullDoesNotThrow() {
+    RenewOpportunityCreateService.deleteByLockedHistory(null);
+    ContractHistory__c blank = new ContractHistory__c();
+    RenewOpportunityCreateService.deleteByLockedHistory(blank);
+    System.assertEquals(
+      null,
+      RenewOpportunityCreateService.findBySourceHistory(null),
+      'Core 第11.5節: 元契約履歴が無ければ更新商談 Id は返さない'
+    );
+  }
+
+  @IsTest
+  static void deleteByLockedHistory_switchOffDoesNotDelete() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.RenewOpportunityEnabled__c = false;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Account account = ContractTestDataFactory.insertAccount(
+        'Renew Locked Off Acct'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Renew Locked Off Service'
+      );
+      Opportunity quoteOpp = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Renew Locked Off Quote'
+      );
+      ContractHistory__c source = new ContractHistory__c(
+        Name = 'Renew Locked Off Source',
+        ContractService__c = service.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1,
+        Opportunity__c = quoteOpp.Id,
+        RenewOpportunityRequestCount__c = 2
+      );
+      ContractTestDataFactory.applyRequiredFields(source);
+      insert source;
+      Opportunity renewOpp = ContractTestDataFactory.buildOpportunity(
+        account.Id,
+        'Renew Locked Off Opp',
+        quoteOpp.Id,
+        false,
+        service.Id
+      );
+      ContractTestDataFactory.applyOpportunityDefaults(renewOpp);
+      insert renewOpp;
+      renewOpp.SourceContractHistory__c = source.Id;
+      update renewOpp;
+      source.RenewalOpportunity__c = renewOpp.Id;
+      update source;
+      source = [
+        SELECT Id, RenewalOpportunity__c, RenewOpportunityRequestCount__c
+        FROM ContractHistory__c
+        WHERE Id = :source.Id
+      ];
+      RenewOpportunityCreateService.deleteByLockedHistory(source);
+      System.assertEquals(
+        1,
+        [SELECT COUNT() FROM Opportunity WHERE Id = :renewOpp.Id],
+        'Core 第5.6節: OFFなら商談削除もしない'
+      );
+    }
+  }
+
+  @IsTest
+  static void deleteByLockedHistory_findsOpportunityWhenLookupBlank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
+      Account account = ContractTestDataFactory.insertAccount(
+        'Renew Lookup Blank Acct'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Renew Lookup Blank Service'
+      );
+      Opportunity quoteOpp = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Renew Lookup Blank Quote'
+      );
+      ContractHistory__c source = new ContractHistory__c(
+        Name = 'Renew Lookup Blank Source',
+        ContractService__c = service.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1,
+        Opportunity__c = quoteOpp.Id,
+        RenewOpportunityRequestCount__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(source);
+      insert source;
+      Opportunity renewOpp = ContractTestDataFactory.buildOpportunity(
+        account.Id,
+        'Renew Lookup Blank Opp',
+        quoteOpp.Id,
+        false,
+        service.Id
+      );
+      ContractTestDataFactory.applyOpportunityDefaults(renewOpp);
+      insert renewOpp;
+      renewOpp.SourceContractHistory__c = source.Id;
+      update renewOpp;
+      source = [
+        SELECT Id, RenewalOpportunity__c, RenewOpportunityRequestCount__c
+        FROM ContractHistory__c
+        WHERE Id = :source.Id
+      ];
+      System.assertEquals(null, source.RenewalOpportunity__c);
+      Test.startTest();
+      RenewOpportunityCreateService.deleteByLockedHistory(source);
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM Opportunity WHERE Id = :renewOpp.Id],
+        'Core 第5.6節・第11.5節: Lookupが空でも元契約履歴から作成した更新商談を削除する'
+      );
+      System.assertEquals(
+        null,
+        [
+            SELECT RenewalOpportunity__c
+            FROM ContractHistory__c
+            WHERE Id = :source.Id
+          ]
+          .RenewalOpportunity__c,
+        'Core 第5.6節: 削除ONなら RenewalOpportunity を空にする'
+      );
+    }
+  }
 }

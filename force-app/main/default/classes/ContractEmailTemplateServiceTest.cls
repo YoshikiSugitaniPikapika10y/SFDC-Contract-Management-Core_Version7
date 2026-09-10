@@ -415,4 +415,40 @@ private class ContractEmailTemplateServiceTest {
       'Core 第11.3.2節: 有効な既定がちょうど1つでなければ未選択'
     );
   }
+
+  @IsTest
+  static void resolveForOperation_ignoresOrgDefaultAndDoesNotFillBlank() {
+    ContractEmailTemplateService.clearTestState();
+    ContractEmailTemplateService.seedActiveRowForTest(
+      ContractEmailTemplateService.TYPE_INVOICE,
+      'InvoiceMailIgnoreDefault'
+    );
+    Boolean blankThrown = false;
+    try {
+      ContractEmailTemplateService.resolveForOperation(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        '',
+        'InvoiceMailIgnoreDefault'
+      );
+    } catch (ContractEmailTemplateService.EmailTemplateException ex) {
+      blankThrown = true;
+      System.assertEquals(
+        ContractEmailTemplateService.MISSING_API_NAME_MESSAGE,
+        ex.getMessage(),
+        'Core 第11.3.2節: 指定が空ならエラー。orgDefault は空埋めに使わない'
+      );
+    }
+    System.assertEquals(true, blankThrown);
+    ContractEmailTemplateService.EmailTemplateDefinition matched =
+      ContractEmailTemplateService.resolveForOperation(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        'InvoiceMailIgnoreDefault',
+        'NotACatalogDefault'
+      );
+    System.assertEquals(
+      'InvoiceMailIgnoreDefault',
+      matched.apiName,
+      'Core 第11.3.2節: 指定の送付メールをカタログと照合する。組織設定の既定メールは無い'
+    );
+  }
 }

@@ -572,4 +572,125 @@ private class ManualJournalControllerTest {
     insert setting;
     return setting;
   }
+
+  @IsTest
+  static void register_withToken_persistsActiveHeaderAndPreviewDoesNot() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertConfirmedInvoice();
+      GlManualJournalSetting__c setting = insertActiveSetting();
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Id headerId = ManualJournalController.register(
+        invoice.Id,
+        setting.Id,
+        Date.today(),
+        100,
+        token,
+        null
+      );
+      System.assertNotEquals(null, headerId);
+      GlManualJournalHeader__c header = [
+        SELECT TransactionStatus__c, Amount__c, Invoice__c
+        FROM GlManualJournalHeader__c
+        WHERE Id = :headerId
+      ];
+      System.assertEquals(
+        'Active',
+        header.TransactionStatus__c,
+        'Accounting 第10.3節: 登録は手動仕訳ヘッダーを Active で残す'
+      );
+      System.assertEquals(100, header.Amount__c);
+      System.assertEquals(invoice.Id, header.Invoice__c);
+      Integer beforePreview = [
+        SELECT COUNT()
+        FROM GlManualJournalHeader__c
+        WHERE Invoice__c = :invoice.Id
+      ];
+      ManualJournalController.previewRegister(
+        invoice.Id,
+        setting.Id,
+        Date.today(),
+        50,
+        null,
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        invoice.ContractHistory__c
+      );
+      System.assertEquals(
+        beforePreview,
+        [
+          SELECT COUNT()
+          FROM GlManualJournalHeader__c
+          WHERE Invoice__c = :invoice.Id
+        ],
+        'Accounting 第10.3節: 件数プレビューは保存しない'
+      );
+    }
+  }
+
+  @IsTest
+  static void cancel_withToken_marksHeaderCancelled() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertConfirmedInvoice();
+      GlManualJournalSetting__c setting = insertActiveSetting();
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Id headerId = ManualJournalController.register(
+        invoice.Id,
+        setting.Id,
+        Date.today(),
+        80,
+        token,
+        null
+      );
+      ManualJournalController.cancel(
+        headerId,
+        'Duplicate',
+        null,
+        Date.today(),
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        null
+      );
+      System.assertEquals(
+        'Cancelled',
+        [
+            SELECT TransactionStatus__c
+            FROM GlManualJournalHeader__c
+            WHERE Id = :headerId
+          ]
+          .TransactionStatus__c,
+        'Accounting 第10.4節: 取消は元ヘッダーを Cancelled にし別ヘッダーは作らない'
+      );
+    }
+  }
+
+  @IsTest
+  static void cancel_unknownHeader_wrapsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        ManualJournalController.cancel(
+          UserInfo.getUserId(),
+          'Duplicate',
+          null,
+          Date.today()
+        );
+      } catch (Exception ex) {
+        thrown = true;
+        System.assertEquals(
+          '取消する手動仕訳が指定されていません。',
+          ex.getMessage(),
+          'Accounting 第10.4節: 取消対象の手動仕訳が無ければ始めない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
 }

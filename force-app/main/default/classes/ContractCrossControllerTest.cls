@@ -2339,4 +2339,259 @@ private class ContractCrossControllerTest {
     insert journal;
     return journal;
   }
+
+  @IsTest
+  static void getBootstrap_unusedEstimateMode_hidesIssueAndSend() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractCrossController.BootstrapDto dto = ContractCrossController.getBootstrap();
+      System.assertEquals(
+        ContractDocumentSettingService.MODE_UNUSED,
+        dto.estimateSendMode,
+        '横断画面.md 第1節: 見積書3択を返す'
+      );
+      System.assertEquals(
+        false,
+        dto.canIssueEstimate,
+        'Core 第4.8節: 使わないなら発行しない'
+      );
+      System.assertEquals(
+        false,
+        dto.canSendEstimate,
+        'Core 第4.8節: 使わないなら送付しない'
+      );
+    }
+  }
+
+  @IsTest
+  static void getEstimateIssueContext_unusedSendMode_cannotIssue() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      HistoryFixture history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Unused Issue Ctx'
+      );
+      ContractCrossController.IssueContextDto dto = ContractCrossController.getEstimateIssueContext(
+        history.history.Id
+      );
+      System.assertEquals(
+        false,
+        dto.canIssue,
+        'Core 第4.8節・横断画面.md 操作4: 使わないなら発行画面でも発行できない'
+      );
+      System.assertEquals(false, dto.canSendAfterIssue);
+    }
+  }
+
+  @IsTest
+  static void issueEstimate_pdfOnly_hidesSendThisFile() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_PDF_ONLY;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      HistoryFixture history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Cross Issue Pdf'
+      );
+      Test.startTest();
+      ContractCrossController.IssueResultDto dto = ContractCrossController.issueEstimate(
+        history.history.Id,
+        'StandardEstimate'
+      );
+      Test.stopTest();
+      System.assertNotEquals(null, dto.contentDocumentId);
+      System.assertEquals(
+        false,
+        dto.showSendThisFile,
+        'Core 第4.8節: PDFのみならこのファイルを送るを出さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void issueEstimate_pdfAndEmail_showsSendThisFile() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_PDF_AND_EMAIL;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      HistoryFixture history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Cross Issue Mail'
+      );
+      Test.startTest();
+      ContractCrossController.IssueResultDto dto = ContractCrossController.issueEstimate(
+        history.history.Id,
+        'StandardEstimate'
+      );
+      Test.stopTest();
+      System.assertEquals(
+        true,
+        dto.showSendThisFile,
+        'Core 第4.8節: PDFとメール送付かつ見積送付権限ならこのファイルを送るを出す'
+      );
+    }
+  }
+
+  @IsTest
+  static void issueEstimate_unusedSendMode_wrapsKnownMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      HistoryFixture history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Cross Issue Unused'
+      );
+      Boolean thrown = false;
+      try {
+        ContractCrossController.issueEstimate(
+          history.history.Id,
+          'StandardEstimate'
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '見積書設定が使わないのため、発行も送付もできません。',
+          ex.getMessage(),
+          'Core 第4.8節: 使わないなら発行しない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void issueEstimate_without04_throws() {
+    HistoryFixture history;
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Cross Issue Perm'
+      );
+    }
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.ISSUE_ESTIMATE => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.issueEstimate(
+        history.history.Id,
+        'StandardEstimate'
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assertEquals(
+        '見積書発行を実行する権限がありません。',
+        ex.getMessage(),
+        '共通基盤.md 第3章・第10.4節: 横断の見積書発行は 04'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void previewEstimateIssueFileName_missingHistory_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        ContractCrossController.previewEstimateIssueFileName(
+          UserInfo.getUserId(),
+          'StandardEstimate'
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '契約履歴が見つかりません。',
+          ex.getMessage(),
+          '横断画面.md 操作4: 発行ファイル名は契約履歴が要る'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void saveJournals_rejectsInvalidLockStateAndBlankUnlockReason() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture fixture = insertInvoice('Confirmed');
+      GlJournal__c journal = insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        Date.newInstance(2026, 6, 1),
+        'LockState'
+      );
+      ContractCrossController.JournalSaveRequestDto badState = new ContractCrossController.JournalSaveRequestDto();
+      badState.checkedJournalIds = new List<Id>{ journal.Id };
+      badState.lockState = 'Draft';
+      Boolean stateThrown = false;
+      try {
+        ContractCrossController.saveJournals(badState);
+      } catch (AuraHandledException ex) {
+        stateThrown = true;
+        System.assertEquals(
+          'Lockは未Lock／Lock済みです。',
+          ex.getMessage(),
+          '横断画面.md 第2.3節: Lockは未Lock／Lock済み'
+        );
+      }
+      System.assertEquals(true, stateThrown);
+
+      ContractCrossController.JournalSaveRequestDto blankReason = new ContractCrossController.JournalSaveRequestDto();
+      blankReason.checkedJournalIds = new List<Id>{ journal.Id };
+      blankReason.lockState = ContractCrossQueryService.LOCK_LOCKED;
+      blankReason.unlockReason = '';
+      Boolean reasonThrown = false;
+      try {
+        ContractCrossController.saveJournals(blankReason);
+      } catch (AuraHandledException ex) {
+        reasonThrown = true;
+        System.assertEquals(
+          'Unlockには理由が必要です。',
+          ex.getMessage(),
+          '横断画面.md 第2.3節: Unlockには理由が必要'
+        );
+      }
+      System.assertEquals(true, reasonThrown);
+    }
+  }
+
+  @IsTest
+  static void queryEstimates_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.queryEstimates(
+        new ContractCrossController.EstimateFilterDto()
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤.md 第10.4節: 横断の見積一覧は 18'
+    );
+  }
 }
