@@ -1,6 +1,5 @@
 import { LightningElement, api, track, wire } from "lwc";
 import { CurrentPageReference } from "lightning/navigation";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import { resolveSaveErrorAlert } from "c/estimateValidationAlertUtils";
 import {
   closeOrderWizardTab,
@@ -232,7 +231,6 @@ export default class OrderRevertWizard extends NavigationMixin(
       this.closeAction();
     } catch (error) {
       this.errorMessage = this.reduceError(error);
-      this.showToast("差し戻しエラー", this.errorMessage, "error", "sticky");
       // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";
@@ -256,17 +254,6 @@ export default class OrderRevertWizard extends NavigationMixin(
       return;
     }
     requestOrderWizardClose(this, { refresh, recordId: this.recordId });
-  }
-
-  showToast(title, message, variant, mode) {
-    this.dispatchEvent(
-      new ShowToastEvent({
-        title,
-        message,
-        variant,
-        mode
-      })
-    );
   }
 
   reduceError(error) {

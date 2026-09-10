@@ -52,35 +52,32 @@
   padding: 0.25rem 1.25rem 1rem;
 }
 
-.action-list {
-  list-style: none;
+.confirm-list {
   margin: 0;
+  padding: 0 0 0 1.25rem;
+  color: #3e3e3c;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.confirm-list li + li {
+  margin-top: 0.25rem;
+}
+
+.confirm-list-action {
+  display: inline;
   padding: 0;
-  border: 1px solid #ecebea;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.action-list li + li {
-  border-top: 1px solid #ecebea;
-}
-
-.action-row {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0.75rem 1rem;
   border: 0;
-  background: #ffffff;
+  background: transparent;
   color: #181818;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
+  text-align: left;
 }
 
-.action-row:hover {
-  background: #f3f3f3;
+.confirm-list-action:hover {
+  text-decoration: underline;
 }
 
 .empty {

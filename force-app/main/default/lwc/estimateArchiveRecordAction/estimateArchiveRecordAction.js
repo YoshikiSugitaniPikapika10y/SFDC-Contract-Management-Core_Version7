@@ -1,5 +1,4 @@
 import { LightningElement, api } from "lwc";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import { CloseActionScreenEvent } from "lightning/actions";
 import { RefreshEvent } from "lightning/refresh";
 import { getRecordNotifyChange } from "lightning/uiRecordApi";
@@ -84,6 +83,11 @@ export default class EstimateArchiveRecordAction extends LightningElement {
     }
   }
 
+  handleReloadContext() {
+    this.errorMessage = "";
+    return this.loadContext();
+  }
+
   get hasPermission() {
     return hasArchiveEstimate === true;
   }
@@ -129,14 +133,6 @@ export default class EstimateArchiveRecordAction extends LightningElement {
     } catch (error) {
       const alert = resolveSaveErrorAlert(error);
       this.errorMessage = alert.messages.map((entry) => entry.text).join("\n");
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "アーカイブエラー",
-          message: this.errorMessage,
-          variant: "error",
-          mode: "sticky"
-        })
-      );
       // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";

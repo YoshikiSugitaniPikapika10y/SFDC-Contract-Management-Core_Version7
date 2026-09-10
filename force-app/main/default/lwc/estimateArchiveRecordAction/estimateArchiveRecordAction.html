@@ -24,7 +24,18 @@
       </template>
 
       <template if:true={errorMessage}>
-        <div class="alert alert_error" role="alert">{errorMessage}</div>
+        <div class="alert alert_error" role="alert">
+          <div>{errorMessage}</div>
+          <div class="alert-reload">
+            <button
+              type="button"
+              class="btn btn_secondary"
+              onclick={handleReloadContext}
+            >
+              再読み込み
+            </button>
+          </div>
+        </div>
       </template>
 
       <template if:true={hasPermission}>

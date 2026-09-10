@@ -147,6 +147,10 @@
   border: 1px solid #f9a8b4;
 }
 
+.alert-reload {
+  margin-top: 0.5rem;
+}
+
 .loading {
   display: flex;
   justify-content: center;

@@ -1,6 +1,5 @@
 import { LightningElement, api, track, wire } from "lwc";
 import { CurrentPageReference } from "lightning/navigation";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import { resolveSaveErrorAlert } from "c/estimateValidationAlertUtils";
 import {
   closeOrderWizardTab,
@@ -338,7 +337,6 @@ export default class OrderCreateWizard extends NavigationMixin(
       const historyError = this.validateHistoryFields();
       if (historyError) {
         this.errorMessage = historyError;
-        this.showToast("入力エラー", historyError, "error");
         this.isSaving = false;
         this.notifyOverlayBusy(false);
         return;
@@ -346,7 +344,6 @@ export default class OrderCreateWizard extends NavigationMixin(
       const validationError = this.validateBillingStep();
       if (validationError) {
         this.errorMessage = validationError;
-        this.showToast("入力エラー", validationError, "error");
         this.guideToBillingAccountFormalEdit();
         this.isSaving = false;
         this.notifyOverlayBusy(false);
@@ -374,7 +371,6 @@ export default class OrderCreateWizard extends NavigationMixin(
       this.closeAction();
     } catch (error) {
       this.errorMessage = this.reduceError(error);
-      this.showToast("受注エラー", this.errorMessage, "error");
       // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";
@@ -405,16 +401,6 @@ export default class OrderCreateWizard extends NavigationMixin(
       return;
     }
     requestOrderWizardClose(this, { refresh, recordId: this.recordId });
-  }
-
-  showToast(title, message, variant) {
-    this.dispatchEvent(
-      new ShowToastEvent({
-        title,
-        message,
-        variant
-      })
-    );
   }
 
   reduceError(error) {

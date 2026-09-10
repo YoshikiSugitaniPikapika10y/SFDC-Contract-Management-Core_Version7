@@ -14,6 +14,7 @@ export default class ManualJournalEntry extends LightningElement {
   @api disabled = false;
   @api expectedToken;
   completionNote = "";
+  surfaceError = "";
   /** 仕様: Accounting 第8.5節。登録の要否には使わない。親が渡す請求書Lock。 */
   @api hasLockedJournals = false;
   /** 仕様: 日付仕様 第8章。請求ボード `getInvoicePreview.operationDay`。 */
@@ -270,6 +271,7 @@ export default class ManualJournalEntry extends LightningElement {
       this.pendingOperationKey = null;
       this.registerNeedsCancelDateFromDiff = false;
       this.completionNote = "手動仕訳を登録しました。";
+      this.surfaceError = "";
       this.settingId = "";
       this.amount = "";
       this.dispatchEvent(new CustomEvent("complete"));
@@ -398,6 +400,7 @@ export default class ManualJournalEntry extends LightningElement {
       });
       this.pendingOperationKey = null;
       this.completionNote = "手動仕訳を取り消しました。";
+      this.surfaceError = "";
       this.cancelHeaderId = "";
       this.cancelRequiresDate = false;
       this.cancelDate = "";
@@ -422,5 +425,21 @@ export default class ManualJournalEntry extends LightningElement {
       error?.message ||
       "処理に失敗しました。"
     );
+  }
+
+  dispatchEvent(event) {
+    if (
+      event &&
+      (event.type === "lightning__showtoast" ||
+        event.constructor?.name === "ShowToastEvent")
+    ) {
+      const detail = event.detail || {};
+      if (detail.variant === "error" || !detail.variant) {
+        this.surfaceError = String(detail.message || detail.title || "");
+        return true;
+      }
+      return true;
+    }
+    return super.dispatchEvent(event);
   }
 }

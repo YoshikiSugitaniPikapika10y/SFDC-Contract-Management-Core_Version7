@@ -1,5 +1,4 @@
 import { LightningElement, track } from "lwc";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import { resolveSaveErrorAlert } from "c/estimateValidationAlertUtils";
 import {
   NavigationMixin,
@@ -1542,6 +1541,7 @@ export default class ContractCrossWork extends NavigationMixin(
     if (this.saving) {
       return;
     }
+    this.errorMessage = "";
     const checked =
       this.showJournalLockSelection === true
         ? this.currentPageCheckable
@@ -1550,33 +1550,18 @@ export default class ContractCrossWork extends NavigationMixin(
         : [];
     const memos = this.dirtyJournalEdits();
     if (!checked.length && !memos.length) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title:
-            "チェックが無くメモの変更も追加項目の変更も無ければ実行できません。",
-          variant: "error"
-        })
-      );
+      this.errorMessage =
+        "チェックが無くメモの変更も追加項目の変更も無ければ実行できません。";
       return;
     }
     const unlocking = this.jouLock === "Locked";
     if (checked.length) {
       if (unlocking && this.isBlankReasonText(this.unlockReason)) {
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "Unlockには理由が必要です",
-            variant: "error"
-          })
-        );
+        this.errorMessage = "Unlockには理由が必要です";
         return;
       }
       if (unlocking && this.isUnlockReasonTooLong(this.unlockReason)) {
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "Unlock理由は255文字以内で指定してください。",
-            variant: "error"
-          })
-        );
+        this.errorMessage = "Unlock理由は255文字以内で指定してください。";
         return;
       }
     }
@@ -1607,13 +1592,7 @@ export default class ContractCrossWork extends NavigationMixin(
       }
       this.completionNote = "仕訳を保存しました。";
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "保存エラー",
-          message: this.reduceError(error),
-          variant: "error"
-        })
-      );
+      this.errorMessage = this.reduceError(error);
     } finally {
       this.saving = false;
     }
@@ -2126,13 +2105,6 @@ export default class ContractCrossWork extends NavigationMixin(
       return true;
     } catch (error) {
       this.invoiceError = this.reduceError(error);
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "保存エラー",
-          message: this.invoiceError,
-          variant: "error"
-        })
-      );
       if (this.invoiceError === VERSION_CONFLICT_MESSAGE) {
         await this.reloadInvoiceTile();
       }

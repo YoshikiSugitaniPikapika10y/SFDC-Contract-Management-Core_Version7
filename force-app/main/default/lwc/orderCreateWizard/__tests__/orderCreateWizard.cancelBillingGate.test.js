@@ -86,11 +86,10 @@ describe("orderCreateWizard cancel billing gate (Core 5.2 / 1.1.10)", () => {
       validateHistoryFields: () => null,
       validateBillingStep: () => missing,
       guideToBillingAccountFormalEdit: jest.fn(),
-      notifyOverlayBusy: jest.fn(),
-      showToast: jest.fn()
+      notifyOverlayBusy: jest.fn()
     };
     await proto.handleConfirmOrder.call(ctx);
-    expect(ctx.showToast).toHaveBeenCalledWith("入力エラー", missing, "error");
+    expect(ctx.errorMessage).toBe(missing);
     expect(ctx.guideToBillingAccountFormalEdit).toHaveBeenCalled();
     expect(confirmOrder).not.toHaveBeenCalled();
   });

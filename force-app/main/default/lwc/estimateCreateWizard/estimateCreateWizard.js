@@ -84,6 +84,7 @@ export default class EstimateCreateWizard extends LightningElement {
   @track contractPanelSessionItems = ["p-0"];
   /** EstimateWizardField__mdt 不正時の設定エラー（保存不可） */
   @track wizardFieldConfigError = "";
+  @track documentDefaultsError = "";
   /**
    * getOpportunityDefaultContext 用。getter は wire の $ に使えないため同期する。
    * 空文字は Id 型として無効になり wire が失敗するため、未確定時は undefined のままにする。
@@ -835,6 +836,7 @@ export default class EstimateCreateWizard extends LightningElement {
           return;
         }
         this._documentDefaults = defaults;
+        this.documentDefaultsError = "";
         this.wizardState = applyEstimateDocumentDefaults(
           {
             ...this.wizardState,
@@ -857,12 +859,16 @@ export default class EstimateCreateWizard extends LightningElement {
           ...this.wizardState,
           async: { ...this.wizardState.async, loadingDocumentDefaults: false }
         };
-        const message =
+        this.documentDefaultsError =
           (error && error.body && error.body.message) ||
           error.message ||
           "契約帳票・送付設定を読めませんでした。";
-        this.showToast("エラー", message, "error");
       });
+  }
+
+  handleDocumentDefaultsRetry() {
+    this.documentDefaultsError = "";
+    this.loadDocumentDefaults();
   }
 
   reapplyDocumentDefaultsFromCache() {

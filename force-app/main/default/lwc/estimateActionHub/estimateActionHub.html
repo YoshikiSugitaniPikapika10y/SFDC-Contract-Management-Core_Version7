@@ -17,12 +17,12 @@
 
     <main class="confirm-body">
       <template if:true={hasVisibleActions}>
-        <ul class="action-list">
+        <ul class="confirm-list">
           <template for:each={visibleActions} for:item="row">
             <li key={row.key}>
               <button
                 type="button"
-                class="action-row"
+                class="confirm-list-action"
                 data-key={row.key}
                 onclick={handleSelect}
               >

@@ -257,6 +257,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   accountingPolicyResolved = false;
   /** 仕様: Core 第4.3.11節。読込失敗時はOFF扱いにせずエラー表示する（BUG-075）。 */
   @track accountingPolicyLoadError = "";
+  @track amountApplyError = "";
   _accountingPolicyRequestSeq = 0;
   defaultInvoiceType = "";
   @track productModalRowId = null;
@@ -3281,17 +3282,11 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (this.isAmountModalOpen) {
       // 保存時の flush と同様、未適用の金額下書きを捨てない
       if (this.applyAmountModalDraft() !== true) {
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "金額の入力を確定してください",
-            message:
-              "数式ポップアップを適用（またはキャンセル）してから商品を選択してください。",
-            variant: "error",
-            mode: "dismissable"
-          })
-        );
+        this.amountApplyError =
+          "数式ポップアップを適用（またはキャンセル）してから商品を選択してください。";
         return;
       }
+      this.amountApplyError = "";
     }
     // 別行へ切り替えるとき、前行の遅延 onchange / in-flight 適用を無効化
     const previousRowId = this.productModalRowId;

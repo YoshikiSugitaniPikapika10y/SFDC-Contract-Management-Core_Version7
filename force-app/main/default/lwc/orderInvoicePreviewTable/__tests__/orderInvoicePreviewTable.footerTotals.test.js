@@ -1284,7 +1284,8 @@ describe("orderInvoicePreviewTable lock note (Core 7.8 / 7.8.2 / 7.11)", () => {
     };
     document.body.appendChild(element);
     await Promise.resolve();
-    expect(element.shadowRoot.textContent).toContain(
+    expect(element.shadowRoot.textContent).toContain("確定済み");
+    expect(element.shadowRoot.textContent).not.toContain(
       "確定済み・取消済みの請求は編集できません。"
     );
     expect(element.shadowRoot.textContent).not.toContain("連携済または消込済");

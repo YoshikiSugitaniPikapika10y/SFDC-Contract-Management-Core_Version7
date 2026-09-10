@@ -89,7 +89,7 @@
   margin: 0 0 0.25rem;
   font-size: 0.875rem;
   font-weight: 700;
-  color: #0176d3;
+  color: #475569;
 }
 
 .ord-step-note {
@@ -135,8 +135,8 @@
 }
 
 .ord-stepper-step_active {
-  background: #059669;
-  border-color: #059669;
+  background: #334155;
+  border-color: #334155;
   color: #ffffff;
 }
 
@@ -164,12 +164,12 @@
 
 .ord-stepper-step_active .ord-stepper-num {
   background: #ffffff;
-  color: #059669;
+  color: #334155;
 }
 
 .ord-stepper-step_done .ord-stepper-num {
-  background: #ecfdf5;
-  color: #047857;
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .ord-stepper-label {

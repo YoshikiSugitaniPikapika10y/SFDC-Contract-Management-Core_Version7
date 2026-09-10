@@ -47,6 +47,24 @@
         </div>
       </template>
 
+      <template if:true={documentDefaultsError}>
+        <div
+          class="est-alert est-alert_error slds-m-around_medium"
+          role="alert"
+        >
+          <div>{documentDefaultsError}</div>
+          <div class="slds-m-top_small">
+            <button
+              type="button"
+              class="est-btn est-btn_header-secondary"
+              onclick={handleDocumentDefaultsRetry}
+            >
+              再読み込み
+            </button>
+          </div>
+        </div>
+      </template>
+
       <template if:true={showMissingRecordError}>
         <div class="est-alert est-alert_error">
           商談IDが指定されていません。商談画面から見積作成を開いてください。

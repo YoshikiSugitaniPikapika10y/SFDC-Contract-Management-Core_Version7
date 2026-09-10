@@ -658,4 +658,23 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     }
     return el.scrollHeight > el.clientHeight + 1;
   }
+
+  dispatchEvent(event) {
+    if (
+      event &&
+      (event.type === "lightning__showtoast" ||
+        event.constructor?.name === "ShowToastEvent")
+    ) {
+      const detail = event.detail || {};
+      if (detail.variant === "error" || !detail.variant) {
+        this.errorMessage = String(detail.message || detail.title || "").replace(
+          /Version/g,
+          "版"
+        );
+        return true;
+      }
+      return true;
+    }
+    return super.dispatchEvent(event);
+  }
 }

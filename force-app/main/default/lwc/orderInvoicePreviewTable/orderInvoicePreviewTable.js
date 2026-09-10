@@ -342,6 +342,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   @track editProcessingInvoiceId = null;
   @track invoiceOpsProcessingMode = null;
   @track completionNote = "";
+  @track surfaceError = "";
   _isSaving = false;
   _invoiceOpsContextLoaded = false;
   @api
@@ -3572,6 +3573,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     };
     const sentence = mapped[raw] || raw;
     this.completionNote = sentence ? `${sentence}。` : "";
+    this.surfaceError = "";
   }
 
   // 仕様: Core 第7.10節。発行・送付は処理中に重ねず、当該ボードは応答まで待たせる。
@@ -6477,5 +6479,24 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   handleManualJournalComplete() {
     this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
+  }
+
+  dispatchEvent(event) {
+    if (
+      event &&
+      (event.type === "lightning__showtoast" ||
+        event.constructor?.name === "ShowToastEvent")
+    ) {
+      const detail = event.detail || {};
+      if (detail.variant === "error" || !detail.variant) {
+        this.surfaceError = String(detail.message || detail.title || "").replace(
+          /Version/g,
+          "版"
+        );
+        return true;
+      }
+      return true;
+    }
+    return super.dispatchEvent(event);
   }
 }

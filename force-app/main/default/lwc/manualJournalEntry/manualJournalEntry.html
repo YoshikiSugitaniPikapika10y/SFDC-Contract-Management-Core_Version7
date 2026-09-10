@@ -3,6 +3,9 @@
     <template if:true={completionNote}>
       <p class="surface-complete" role="status">{completionNote}</p>
     </template>
+    <template if:true={surfaceError}>
+      <p class="edit-note" role="alert">{surfaceError}</p>
+    </template>
     <h3 class="ops-form-title">手動仕訳を登録</h3>
     <div class="ops-form-grid">
       <div>

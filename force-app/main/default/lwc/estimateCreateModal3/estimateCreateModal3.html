@@ -1,5 +1,10 @@
 <template>
   <div class="est-step3">
+    <template if:true={amountApplyError}>
+      <div class="est-alert est-alert_error" role="alert">
+        {amountApplyError}
+      </div>
+    </template>
     <template if:true={accountingPolicyLoadError}>
       <div class="est-alert est-alert_error" role="alert">
         <span>{accountingPolicyLoadError}</span>

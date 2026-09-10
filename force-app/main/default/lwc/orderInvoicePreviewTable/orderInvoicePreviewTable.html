@@ -52,6 +52,9 @@
   <template if:true={completionNote}>
     <p class="surface-complete" role="status">{completionNote}</p>
   </template>
+  <template if:true={surfaceError}>
+    <p class="edit-note" role="alert">{surfaceError}</p>
+  </template>
 
   <template if:true={showAmountCompare}>
     <div class={amountCompareClass}>
@@ -274,9 +277,6 @@
                 </template>
               </div>
             </div>
-            <template if:true={invoice.lockNote}>
-              <p class="edit-note" role="status">{invoice.lockNote}</p>
-            </template>
             <template if:true={invoice.showEditProcessing}>
               <p class="edit-note" role="status">
                 <lightning-spinner
@@ -1429,46 +1429,52 @@
                         <th class="split-select-col" scope="col">選択</th>
                         <th scope="col">Lock</th>
                         <th scope="col">状態</th>
-                        <th scope="col">
-                          計上日
-                          <lightning-combobox
-                            name="journalPostingMonth"
-                            label="計上日"
-                            variant="label-hidden"
-                            value={invoice.journalPostingMonthFilter}
-                            options={invoice.journalPostingMonthOptions}
-                            data-invoice-id={invoice.invoiceId}
-                            data-filter="postingMonth"
-                            onchange={handleJournalViewFilterChange}
-                          ></lightning-combobox>
+                        <th class="journal-filter-col" scope="col">
+                          <span class="journal-filter-head">
+                            <span class="journal-filter-label">計上日</span>
+                            <lightning-combobox
+                              name="journalPostingMonth"
+                              label="計上日"
+                              variant="label-hidden"
+                              value={invoice.journalPostingMonthFilter}
+                              options={invoice.journalPostingMonthOptions}
+                              data-invoice-id={invoice.invoiceId}
+                              data-filter="postingMonth"
+                              onchange={handleJournalViewFilterChange}
+                            ></lightning-combobox>
+                          </span>
                         </th>
-                        <th scope="col">
-                          イベント
-                          <lightning-combobox
-                            name="journalEvent"
-                            label="イベント"
-                            variant="label-hidden"
-                            value={invoice.journalEventFilter}
-                            options={invoice.journalEventOptions}
-                            data-invoice-id={invoice.invoiceId}
-                            data-filter="eventName"
-                            onchange={handleJournalViewFilterChange}
-                          ></lightning-combobox>
+                        <th class="journal-filter-col" scope="col">
+                          <span class="journal-filter-head">
+                            <span class="journal-filter-label">イベント</span>
+                            <lightning-combobox
+                              name="journalEvent"
+                              label="イベント"
+                              variant="label-hidden"
+                              value={invoice.journalEventFilter}
+                              options={invoice.journalEventOptions}
+                              data-invoice-id={invoice.invoiceId}
+                              data-filter="eventName"
+                              onchange={handleJournalViewFilterChange}
+                            ></lightning-combobox>
+                          </span>
                         </th>
                         <th scope="col">借貸</th>
                         <th class="num-col" scope="col">金額</th>
-                        <th class="journal-confirmation-col" scope="col">
-                          確認用
-                          <lightning-combobox
-                            name="journalLine"
-                            label="明細"
-                            variant="label-hidden"
-                            value={invoice.journalLineFilter}
-                            options={invoice.journalLineOptions}
-                            data-invoice-id={invoice.invoiceId}
-                            data-filter="lineKey"
-                            onchange={handleJournalViewFilterChange}
-                          ></lightning-combobox>
+                        <th class="journal-confirmation-col journal-filter-col" scope="col">
+                          <span class="journal-filter-head">
+                            <span class="journal-filter-label">確認用</span>
+                            <lightning-combobox
+                              name="journalLine"
+                              label="明細"
+                              variant="label-hidden"
+                              value={invoice.journalLineFilter}
+                              options={invoice.journalLineOptions}
+                              data-invoice-id={invoice.invoiceId}
+                              data-filter="lineKey"
+                              onchange={handleJournalViewFilterChange}
+                            ></lightning-combobox>
+                          </span>
                         </th>
                         <th class="journal-toggle-col" scope="col" aria-label="行の詳細"></th>
                         <th scope="col">メモ</th>
