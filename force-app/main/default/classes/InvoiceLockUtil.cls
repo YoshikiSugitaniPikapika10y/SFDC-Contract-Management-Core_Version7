@@ -259,6 +259,15 @@ public without sharing class InvoiceLockUtil {
     return !queryHistoryIdsWithLockedInvoices(contractHistoryIds).isEmpty();
   }
 
+  /**
+   * 仕様: Core 第1.1.5節・第5.3節。同一処理内の確定済み集計だけ使い回す。
+   * 請求の insert／update／delete／undelete のあとは見ない。
+   */
+  public static void invalidateLockedInvoiceHistoryQuery() {
+    cachedLockInputIds = null;
+    cachedLockedHistoryIds = null;
+  }
+
   public static Set<Id> queryHistoryIdsWithLockedInvoices(
     Set<Id> contractHistoryIds
   ) {
@@ -294,8 +303,7 @@ public without sharing class InvoiceLockUtil {
   static Integer lockedInvoiceQueryCount = 0;
   @TestVisible
   static void clearLockedInvoiceCacheForTest() {
-    cachedLockInputIds = null;
-    cachedLockedHistoryIds = null;
+    invalidateLockedInvoiceHistoryQuery();
   }
   private static Set<Id> cachedLockInputIds;
   private static Set<Id> cachedLockedHistoryIds;

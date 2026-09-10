@@ -18,6 +18,7 @@ public without sharing class InvoiceTriggerHandler {
 
   /** 仕様: Core 第3.3.3節、第5.7節 */
   public static void handleAfterInsert(List<Invoice__c> newRecords) {
+    InvoiceLockUtil.invalidateLockedInvoiceHistoryQuery();
     ContractHistoryStatusPathService.syncForInvoices(newRecords);
     BillingAccountKeyService.markHasReferenceTrue(
       collectBillingAccountIds(newRecords, null)
@@ -29,6 +30,7 @@ public without sharing class InvoiceTriggerHandler {
     List<Invoice__c> newRecords,
     Map<Id, Invoice__c> oldMap
   ) {
+    InvoiceLockUtil.invalidateLockedInvoiceHistoryQuery();
     Set<Id> historyIds = new Set<Id>();
     for (Invoice__c invoice : newRecords) {
       if (invoice == null) {
@@ -76,6 +78,7 @@ public without sharing class InvoiceTriggerHandler {
   }
 
   public static void handleAfterDelete(List<Invoice__c> oldRecords) {
+    InvoiceLockUtil.invalidateLockedInvoiceHistoryQuery();
     ContractHistoryStatusPathService.syncForInvoices(oldRecords);
     BillingAccountKeyService.refreshHasReference(
       collectBillingAccountIds(oldRecords, null)
@@ -84,6 +87,7 @@ public without sharing class InvoiceTriggerHandler {
   }
 
   public static void handleAfterUndelete(List<Invoice__c> newRecords) {
+    InvoiceLockUtil.invalidateLockedInvoiceHistoryQuery();
     ContractHistoryStatusPathService.syncForInvoices(newRecords);
     BillingAccountKeyService.markHasReferenceTrue(
       collectBillingAccountIds(newRecords, null)

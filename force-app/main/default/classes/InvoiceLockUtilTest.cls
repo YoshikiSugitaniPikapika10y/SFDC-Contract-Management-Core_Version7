@@ -333,6 +333,40 @@ private class InvoiceLockUtilTest {
   }
 
   @IsTest
+  static void queryHistoryIdsWithLockedInvoices_seesConfirmedAfterGenerateCache() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderedFixture fixture = insertOrderedFixture('Lock Cache');
+      Set<Id> historyIds = new Set<Id>{ fixture.history.Id };
+      InvoiceLockUtil.testCanBypassLockedDml = false;
+      System.assertEquals(
+        false,
+        InvoiceLockUtil.hasLockedInvoices(historyIds),
+        '受注生成直後は有効な確定済みが無い'
+      );
+
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = fixture.service.Id,
+        ContractHistory__c = fixture.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 1000,
+        TaxAmount__c = 100,
+        BillingAccountSnapShot__c = fixture.service.BiilingAcccount__c
+      );
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
+
+      System.assertEquals(
+        true,
+        InvoiceLockUtil.queryHistoryIdsWithLockedInvoices(historyIds)
+          .contains(fixture.history.Id),
+        'Core 第1.1.5節・第5.3節: 確定後は差し戻しを許さない'
+      );
+    }
+  }
+
+  @IsTest
   static void assertNoLockedInvoices_throwsKnownMessage() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderedFixture fixture = insertOrderedFixture('Lock Message');

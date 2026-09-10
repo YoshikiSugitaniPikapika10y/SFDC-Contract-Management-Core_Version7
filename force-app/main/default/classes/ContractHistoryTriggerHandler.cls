@@ -111,6 +111,7 @@ public without sharing class ContractHistoryTriggerHandler {
     );
     Set<Id> nonLatestHistoryIds = revertBlocks.nonLatestOrderedHistoryIds;
     Set<Id> newerEstimateHistoryIds = revertBlocks.newerEstimateHistoryIds;
+    // 仕様: Core 第1.1.5節・第5.3節。有効な確定済みが1件でもあれば差し戻しを拒否する。
     Set<Id> lockedInvoiceHistoryIds = InvoiceLockUtil.queryHistoryIdsWithLockedInvoices(
       revertToEstimateHistoryIds
     );
