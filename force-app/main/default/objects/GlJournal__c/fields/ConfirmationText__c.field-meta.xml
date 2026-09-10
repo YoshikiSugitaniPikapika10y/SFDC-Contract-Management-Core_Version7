@@ -29,18 +29,20 @@
     )
   ),
   "",
+  IF(ISBLANK(InvoiceLine__r.ProductName__c), "", InvoiceLine__r.ProductName__c &amp; " ")
+  &amp;
   CASE(
     JournalPatternKey__c,
-    "BILLING_BASIS_REVENUE_BODY", "明細税抜 ",
-    "CASH_BASIS_REVENUE_BODY", "明細税抜 ",
-    "BILLING_BASIS_INVOICE_BODY", "明細税抜 ",
-    "CASH_BASIS_INVOICE_BODY_CTA_TRANSFER", "明細税抜 ",
-    "BILLING_BASIS_REVENUE_TAX", "明細税 ",
-    "CASH_BASIS_REVENUE_TAX", "明細税 ",
-    "BILLING_TAX_AT_INVOICE", "明細税 ",
-    "BILLING_BASIS_INVOICE_TAX_DEFERRED", "明細税 ",
-    "CASH_BASIS_INVOICE_TAX_CTA_TRANSFER", "明細税 ",
-    "明細税込 "
+    "BILLING_BASIS_REVENUE_BODY", "税抜 ",
+    "CASH_BASIS_REVENUE_BODY", "税抜 ",
+    "BILLING_BASIS_INVOICE_BODY", "税抜 ",
+    "CASH_BASIS_INVOICE_BODY_CTA_TRANSFER", "税抜 ",
+    "BILLING_BASIS_REVENUE_TAX", "税 ",
+    "CASH_BASIS_REVENUE_TAX", "税 ",
+    "BILLING_TAX_AT_INVOICE", "税 ",
+    "BILLING_BASIS_INVOICE_TAX_DEFERRED", "税 ",
+    "CASH_BASIS_INVOICE_TAX_CTA_TRANSFER", "税 ",
+    "税込 "
   )
   &amp;
   IF(

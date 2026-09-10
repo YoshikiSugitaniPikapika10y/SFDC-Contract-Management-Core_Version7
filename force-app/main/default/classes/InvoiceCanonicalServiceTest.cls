@@ -4079,7 +4079,7 @@ private class InvoiceCanonicalServiceTest {
     System.assertEquals(
       '-50,000',
       discount.AmountCommaText__c,
-      'Accounting 第9.1.1節: 値引きは 明細税抜 -50,000円'
+      'Accounting 第9.1.1節: 値引きは符号付きカンマ'
     );
   }
 
@@ -4097,6 +4097,7 @@ private class InvoiceCanonicalServiceTest {
       insert invoice;
       InvoiceLine__c line = new InvoiceLine__c(
         Invoice__c = invoice.Id,
+        ProductName__c = '確認用商品',
         Amount__c = 300000,
         AllocatedTaxAmount__c = 30000,
         RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
@@ -4126,9 +4127,54 @@ private class InvoiceCanonicalServiceTest {
         'Accounting 第3.2節: 1/11～3/24 は3'
       );
       System.assertEquals(
-        '明細税抜 300,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目',
+        '確認用商品 税抜 300,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目',
         journal.ConfirmationText__c,
-        'Accounting 第9.1.1節: 売上本体（月次）の確認用'
+        'Accounting 第9.1.1節: 売上本体（月次）の確認用は商品名 税抜'
+      );
+    }
+  }
+
+  @IsTest
+  static void confirmationText_blankProductName_omitsMeisai() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = fixture.history.ContractService__c,
+        ContractHistory__c = fixture.history.Id,
+        InvoiceDate__c = Date.newInstance(2025, 1, 11),
+        Amount__c = 300000,
+        TaxAmount__c = 30000
+      );
+      insert invoice;
+      InvoiceLine__c line = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 300000,
+        AllocatedTaxAmount__c = 30000,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+        ServicePeriodStartDate__c = Date.newInstance(2025, 1, 11),
+        ServicePeriodEndDate__c = Date.newInstance(2025, 3, 24)
+      );
+      insert line;
+      insert new GlJournal__c(
+        Invoice__c = invoice.Id,
+        InvoiceLine__c = line.Id,
+        Amount__c = 100000,
+        IdempotencyKey__c = 'CONF-TEXT-REV-BODY-BLANK-NAME',
+        JournalPatternKey__c = 'BILLING_BASIS_REVENUE_BODY',
+        RecognitionSequence__c = 2,
+        DebitSlotKey__c = 'DEF',
+        CreditSlotKey__c = 'REV',
+        PostingDate__c = Date.newInstance(2025, 2, 10)
+      );
+      GlJournal__c journal = [
+        SELECT ConfirmationText__c
+        FROM GlJournal__c
+        WHERE IdempotencyKey__c = 'CONF-TEXT-REV-BODY-BLANK-NAME'
+      ];
+      System.assertEquals(
+        '税抜 300,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目',
+        journal.ConfirmationText__c,
+        'Accounting 第9.1.1節: 商品名が空なら明細を出さず税抜だけ'
       );
     }
   }
