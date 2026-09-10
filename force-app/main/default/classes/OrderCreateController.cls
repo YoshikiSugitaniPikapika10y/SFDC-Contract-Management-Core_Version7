@@ -1214,7 +1214,10 @@ public without sharing class OrderCreateController {
       : TaxCalculationUtil.fromPercentFieldStorage(
           sourceHistory.ContractService__r.TaxPercent__c
         );
-    preview.versionOptions = loadOrderedVersionOptions(estimateSummary);
+    preview.versionOptions = loadOrderedVersionOptions(
+      estimateSummary,
+      preview
+    );
     enrichVersionAmountSummaries(
       preview,
       displayTaxPercent,
@@ -2272,18 +2275,42 @@ public without sharing class OrderCreateController {
     return false;
   }
 
+  /**
+   * 仕様: Core 第7.7.0節、第0.1節。親候補は請求書がある受注済み Version の VersionN。
+   * 全Version は画面側。同一取得の preview.invoices を使い、履歴を取り直さない。
+   */
   private static List<VersionOptionDto> loadOrderedVersionOptions(
-    ScopedEstimateSummary estimateSummary
+    ScopedEstimateSummary estimateSummary,
+    InvoicePreviewDto preview
   ) {
     List<VersionOptionDto> options = new List<VersionOptionDto>();
     if (estimateSummary == null || estimateSummary.orderedVersions == null) {
       return options;
     }
 
+    Set<String> versionsWithInvoice = new Set<String>();
+    if (preview != null && preview.invoices != null) {
+      for (InvoiceGroupDto invoice : preview.invoices) {
+        if (invoice == null || invoice.historyVersion == null) {
+          continue;
+        }
+        versionsWithInvoice.add(
+          String.valueOf(invoice.historyVersion.intValue())
+        );
+      }
+    }
+
     for (Decimal version : estimateSummary.orderedVersions) {
+      if (version == null) {
+        continue;
+      }
+      String value = String.valueOf(version.intValue());
+      if (!versionsWithInvoice.contains(value)) {
+        continue;
+      }
       VersionOptionDto option = new VersionOptionDto();
       option.version = version;
-      option.value = String.valueOf(version.intValue());
+      option.value = value;
       option.label = InvoiceProductMergeService.formatHistoryVersionLabel(
         version
       );

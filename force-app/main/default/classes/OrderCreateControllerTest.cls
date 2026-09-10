@@ -3612,6 +3612,53 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_versionOptionsOmitOrderedWithoutInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+
+      ContractHistory__c newerHistory = new ContractHistory__c(
+        Name = 'Order Wizard History v2 no invoice',
+        ContractService__c = context.service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 2,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1),
+        PreviousHistory__c = context.history.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(newerHistory);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        newerHistory,
+        context.account.Id
+      );
+      insert newerHistory;
+
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      Test.stopTest();
+
+      Set<String> values = new Set<String>();
+      for (OrderCreateController.VersionOptionDto option : preview.versionOptions) {
+        values.add(option.value);
+      }
+      System.assertEquals(
+        true,
+        values.contains(String.valueOf(context.history.Version__c.intValue())),
+        '第7.7.0節: 請求書がある Version は VersionN で出す'
+      );
+      System.assertEquals(
+        false,
+        values.contains('2'),
+        '第7.7.0節: 請求書の無い受注済み Version は版フィルタに出さない'
+      );
+    }
+  }
+
+  @IsTest
   static void confirmOrder_blocksWhenContractProductAmountIsNull() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
