@@ -917,6 +917,42 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
+  static void register_reusesNetRecalcActivePaymentsForGoal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      InvoiceFixture fixture = createInvoice(true);
+      seedMaps();
+      seedPaymentMaps();
+      AccountingGoalService.paymentLoadSelectCount = 0;
+      Test.startTest();
+      InvoicePaymentService.register(invoiceRequest(fixture, 1100));
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        AccountingGoalService.paymentLoadSelectCount,
+        'Accounting 第8.2節: 登録はNet再計算のActive入出金をGoalで取り直さない'
+      );
+      Invoice__c afterRegister = [
+        SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      System.assertEquals(
+        1100,
+        afterRegister.InvoicePaymentNet__c,
+        'Core 第8.1節: 登録後の請求金額Netは親Amount'
+      );
+      System.assertEquals(
+        1100,
+        afterRegister.PaymentInclusiveTotal__c,
+        'Core 第8.1節: 登録後の全入出金Netは親Amount'
+      );
+    }
+  }
+
+  @IsTest
   static void register_reusesLockedInvoiceSnapshotNetsAndCopyOnce() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

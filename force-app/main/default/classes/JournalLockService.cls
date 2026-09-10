@@ -145,6 +145,19 @@ public without sharing class JournalLockService {
         throw new LockException('有効な仕訳だけをLock/Unlockできます。');
       }
     }
+    // 仕様: Accounting 第9.5節、Core 第7.7.3節。Lock済みと未Lockの混在は拒否する。
+    Boolean sawLocked = false;
+    Boolean sawUnlocked = false;
+    for (GlJournal__c journal : journals) {
+      if (journal.IsLocked__c == true) {
+        sawLocked = true;
+      } else {
+        sawUnlocked = true;
+      }
+    }
+    if (sawLocked && sawUnlocked) {
+      throw new LockException('LockとUnlockが混在しています');
+    }
     List<GlJournal__c> updates = new List<GlJournal__c>();
     Boolean allAlreadyApplied = true;
     for (GlJournal__c journal : journals) {

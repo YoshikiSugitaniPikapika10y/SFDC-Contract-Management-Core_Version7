@@ -258,7 +258,8 @@ public without sharing class InvoicePaymentService {
         );
       }
       skipTriggerNetRecalc = false;
-      recalculateNets(new Set<Id>{ invoice.Id });
+      // 仕様: Accounting 第8.2節、Core 第12.4節。Net再計算のActive入出金をGoalで取り直さない。
+      recalculateNets(new Set<Id>{ invoice.Id }, true);
     } finally {
       skipTriggerNetRecalc = previousSkipNet;
     }

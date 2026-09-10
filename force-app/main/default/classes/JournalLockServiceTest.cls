@@ -156,6 +156,83 @@ private class JournalLockServiceTest {
   }
 
   @IsTest
+  static void unlockForInvoice_rejectsMixedLockSelection() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'JLock Mix Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'JLock Mix Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlJournal__c locked = new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'JL-MIX-L' }
+        ),
+        DebitSlotKey__c = 'Cash',
+        CreditSlotKey__c = 'UnappliedCash',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'Active',
+        IsLocked__c = true
+      );
+      GlJournal__c unlocked = locked.clone(false, false, false, false);
+      unlocked.IdempotencyKey__c = AccountingDiffService.hashKey(
+        new List<String>{ 'JL-MIX-U' }
+      );
+      unlocked.IsLocked__c = false;
+      insert new List<GlJournal__c>{ locked, unlocked };
+
+      Boolean thrown = false;
+      try {
+        JournalLockService.unlockForInvoice(
+          invoice.Id,
+          new List<Id>{ locked.Id, unlocked.Id },
+          '確認',
+          AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+          null
+        );
+      } catch (JournalLockService.LockException ex) {
+        thrown = true;
+        System.assertEquals(
+          'LockとUnlockが混在しています',
+          ex.getMessage(),
+          'Accounting 第9.5節・Core 第7.7.3節: UnlockはLock済みと未Lockの混在を拒否する'
+        );
+      }
+      System.assertEquals(true, thrown);
+      Map<Id, GlJournal__c> loaded = new Map<Id, GlJournal__c>(
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id IN :new List<Id>{ locked.Id, unlocked.Id }
+        ]
+      );
+      System.assertEquals(
+        true,
+        loaded.get(locked.Id).IsLocked__c,
+        'Accounting 第9.5節: 混在拒否ではLock済みを外さない'
+      );
+      System.assertEquals(
+        false,
+        loaded.get(unlocked.Id).IsLocked__c,
+        'Accounting 第9.5節: 混在拒否では未Lockを変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void lockForInvoice_locksOnlySelectedJournals() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
