@@ -798,7 +798,7 @@
               </template>
               <template if:true={invoice.showPaymentHistory}>
                 <div class="ops-table-wrap">
-                  <table class="ops-table">
+                  <table class="ops-table ops-table_payments">
                     <thead>
                       <tr>
                         <th scope="col">日付</th>
@@ -1256,7 +1256,7 @@
                     </p>
                   </template>
                   <template if:true={invoice.showPaymentAllocations}>
-                    <table class="ops-table">
+                    <table class="ops-table ops-table_payments">
                       <thead>
                         <tr>
                           <th scope="col">明細</th>

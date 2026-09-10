@@ -328,6 +328,39 @@
   --slds-c-form-element-spacing-block-end: 0;
 }
 
+.ops-table_payments {
+  font-size: 0.75rem;
+}
+
+.ops-table_payments th,
+.ops-table_payments td {
+  padding: 0.28rem 0.45rem;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.ops-table_payments tbody td {
+  padding-top: 0.12rem;
+  padding-bottom: 0.12rem;
+}
+
+.ops-table_payments tbody lightning-input {
+  margin: 0;
+  padding: 0;
+  --slds-c-input-sizing-min-height: 1.55rem;
+  --slds-c-input-spacing-block-start: 0.05rem;
+  --slds-c-input-spacing-block-end: 0.05rem;
+  --slds-c-form-element-spacing-gap: 0;
+  --slds-c-form-element-spacing-block-start: 0;
+  --slds-c-form-element-spacing-block-end: 0;
+}
+
+.ops-table_payments .ghost-btn,
+.ops-table_payments .solid-btn {
+  min-height: 1.55rem;
+  padding: 0.12rem 0.5rem;
+}
+
 .journal-confirmation-col,
 .journal-confirmation-cell {
   width: 28%;
@@ -430,6 +463,10 @@
   overflow: auto;
 }
 
+.journal-scroll_filter-open {
+  overflow: visible;
+}
+
 .journal-scroll .ops-table-wrap {
   margin-bottom: 0;
 }
@@ -497,10 +534,11 @@
 }
 
 .journal-multi-filter-menu {
-  position: absolute;
-  z-index: 8;
+  position: fixed;
+  z-index: 80;
   left: 0;
-  min-width: 100%;
+  top: 0;
+  min-width: 10rem;
   max-height: 14rem;
   overflow: auto;
   padding: 0.25rem 0.4rem;
