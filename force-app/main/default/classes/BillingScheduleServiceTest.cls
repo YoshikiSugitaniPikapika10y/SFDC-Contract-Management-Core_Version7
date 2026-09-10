@@ -273,4 +273,99 @@ private class BillingScheduleServiceTest {
       'Core 第7.2節: MonthEnd のときは指定日を空にする'
     );
   }
+
+  @IsTest
+  static void assertSchedule_rejectsNullAccount() {
+    Boolean rejected = false;
+    try {
+      BillingScheduleService.assertSchedule(null);
+    } catch (BillingScheduleService.ScheduleException ex) {
+      rejected = true;
+      System.assertEquals(
+        '請求アカウントが指定されていません。',
+        ex.getMessage(),
+        'Core 第7.2節: 請求アカウント無しでは請求日も支払条件も計算しない'
+      );
+    }
+    System.assertEquals(true, rejected);
+  }
+
+  @IsTest
+  static void computeInvoiceDate_fiveArgUsesProductStartWhenPeriodStartBlank() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applyOnOrAfterBillingDay(account, 1);
+    Date invoiceDate = BillingScheduleService.computeInvoiceDate(
+      account,
+      null,
+      Date.newInstance(2026, 6, 30),
+      Date.newInstance(2026, 6, 1),
+      Date.newInstance(2026, 6, 30)
+    );
+    System.assertEquals(
+      Date.newInstance(2026, 6, 1),
+      invoiceDate,
+      'Core 第7.2節: 期間開始が空なら見積商品開始日を基準にする。推測で埋めない'
+    );
+  }
+
+  @IsTest
+  static void computeInvoiceDateFromAnchor_nullAnchorReturnsNull() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applySameDayBilling(account);
+    System.assertEquals(
+      null,
+      BillingScheduleService.computeInvoiceDateFromAnchor(account, null),
+      'Core 第7.2節: 基準日が空なら請求日を作らない'
+    );
+  }
+
+  @IsTest
+  static void computePaymentScheduledDate_nullInvoiceDateReturnsNull() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applyPaymentMonthEnd(account, 0);
+    System.assertEquals(
+      null,
+      BillingScheduleService.computePaymentScheduledDate(account, null),
+      'Core 第7.5節: 請求日が空なら入金予定日を推測しない'
+    );
+  }
+
+  @IsTest
+  static void computePaymentScheduledDate_usesCalendarMonthNotCycle() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applyPaymentMonthDay(account, 1, 15);
+    System.assertEquals(
+      Date.newInstance(2026, 2, 15),
+      BillingScheduleService.computePaymentScheduledDate(
+        account,
+        Date.newInstance(2026, 1, 31)
+      ),
+      '日付仕様 第5章: 支払条件は暦月。1/31基準の1か月後の15日は2/15でありサイクル終了（2/27）ではない'
+    );
+  }
+
+  @IsTest
+  static void applySnapshots_copiesBlankInvoiceFieldsFromAccount() {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applyOnOrAfterBillingDay(account, 25);
+    ContractTestDataFactory.applyPaymentMonthEnd(account, 0);
+    Invoice__c invoice = new Invoice__c();
+    BillingScheduleService.applySnapshots(invoice, account);
+    System.assertEquals(
+      account.InvoiceDateMethod__c,
+      invoice.InvoiceDateMethodSnapShot__c,
+      'Core 第7.2節: 生成時だけ請求日ルールをスナップショットする'
+    );
+    System.assertEquals(
+      account.PaymentTermMethod__c,
+      invoice.PaymentTermMethodSnapShot__c,
+      'Core 第7.5節: 生成時だけ支払条件をスナップショットする'
+    );
+  }
+
+  @IsTest
+  static void applySnapshots_nullArgumentsDoNotThrow() {
+    BillingScheduleService.applySnapshots(null, new BillingAccount__c());
+    BillingScheduleService.applySnapshots(new Invoice__c(), null);
+  }
 }

@@ -272,6 +272,45 @@ private class InvoiceSendBoardControllerTest {
     }
   }
 
+  @IsTest
+  static void getBoardContext_unusedMode_featureDisabled() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
+      System.assertEquals(
+        false,
+        context.featureEnabled,
+        'Core 第11.3節・第7.10節: 請求書設定が使わないなら送付機能は出さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void confirmInvoiceFromPreview_blankInvoiceId_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean thrown = false;
+      try {
+        InvoiceSendBoardController.confirmInvoiceFromPreview(
+          null,
+          Date.today(),
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求を確定できませんでした。 請求が指定されていません。',
+          ex.getMessage(),
+          'Core 第7.7.3節: 請求IDが空では確定しない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
   private static Invoice__c createInvoice(
     String accountName,
     String collectionStatus,

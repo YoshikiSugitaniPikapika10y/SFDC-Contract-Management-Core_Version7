@@ -1084,6 +1084,70 @@ private class InvoiceProductGenerationServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void generateForHistories_cancelDoesNotCreatePeriodLines() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Cancel Generate Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Cancel Generate Service',
+        account
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Cancel Generate History',
+        ContractService__c = service.Id,
+        Type__c = 'Cancel',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2026, 8, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1)
+      );
+      insertHistory(history);
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Cancel Generate Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      insert new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 10000,
+        Amount__c = 10000,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2026, 8, 31),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+
+      Test.startTest();
+      orderHistory(history);
+      Test.stopTest();
+
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE ContractHistory__c = :history.Id
+        ],
+        'Core 第6.4節: Cancel は契約期間明細を生成しない'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE ContractHistory__c = :history.Id
+        ],
+        'Core 第6.4節: Cancel は請求書を生成しない'
+      );
+    }
+  }
   @IsTest
   static void estimateToOrdered_setsPaymentScheduledDateFromPaymentTerm() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {

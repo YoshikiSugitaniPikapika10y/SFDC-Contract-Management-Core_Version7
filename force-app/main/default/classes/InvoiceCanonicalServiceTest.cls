@@ -603,6 +603,7 @@ private class InvoiceCanonicalServiceTest {
         LIMIT 1
       ];
       InvoiceLine__c zero = paid.clone(false, true, false, false);
+      zero.Invoice__c = source.Id;
       zero.Amount__c = 0;
       insert zero;
 
@@ -674,6 +675,7 @@ private class InvoiceCanonicalServiceTest {
         LIMIT 1
       ];
       InvoiceLine__c zero = paid.clone(false, true, false, false);
+      zero.Invoice__c = source.Id;
       zero.Amount__c = 0;
       insert zero;
       BillingAccount__c otherBa = new BillingAccount__c(
@@ -4296,6 +4298,365 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
+  @IsTest
+  static void assertAcceptanceRules_rejectsOverTimeDateAndPointInTimeBlank() {
+    InvoiceLine__c overTime = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      AcceptanceEndDate__c = Date.newInstance(2026, 6, 30)
+    );
+    InvoiceLine__c pointInTime = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+      AcceptanceEndDate__c = null
+    );
+    InvoiceCanonicalService.assertAcceptanceRules(
+      new List<InvoiceLine__c>{ overTime, pointInTime }
+    );
+    System.assertEquals(
+      true,
+      overTime.hasErrors(),
+      'Core 第7.6節: 月次計上に検収終了日は設定できない'
+    );
+    System.assertEquals(
+      '月次計上に検収終了日は設定できません。',
+      overTime.getErrors()[0].getMessage()
+    );
+    System.assertEquals(
+      true,
+      pointInTime.hasErrors(),
+      'Core 第7.6節: 一括計上の検収終了日は空にできない'
+    );
+    System.assertEquals(
+      '一括計上の検収終了日は空にできません。',
+      pointInTime.getErrors()[0].getMessage()
+    );
+  }
+
+  @IsTest
+  static void assertAcceptanceRules_locksExistingRevenueBasis() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c prior = [
+        SELECT Id, RevenueRecognitionBasis__c, AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c next = new InvoiceLine__c(
+        Id = prior.Id,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+        AcceptanceEndDate__c = Date.newInstance(2026, 6, 30)
+      );
+      InvoiceCanonicalService.assertAcceptanceRules(
+        new List<InvoiceLine__c>{ next },
+        new Map<Id, InvoiceLine__c>{ prior.Id => prior }
+      );
+      System.assertEquals(
+        true,
+        next.hasErrors(),
+        'Core 第7.6節: 既存請求明細の売上計上基準は変更できない'
+      );
+      System.assertEquals(
+        '既存請求明細の売上計上基準は変更できません。',
+        next.getErrors()[0].getMessage()
+      );
+    }
+  }
+
+  @IsTest
+  static void updateLineAcceptanceEndDates_rejectsOverTime() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      Boolean thrown = false;
+      try {
+        Test.startTest();
+        InvoiceCanonicalService.updateLineAcceptanceEndDates(
+          new Map<Id, Date>{ line.Id => Date.newInstance(2026, 6, 30) },
+          null
+        );
+        Test.stopTest();
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        thrown = true;
+        System.assertEquals(
+          '月次計上に検収終了日は設定できません。',
+          ex.getMessage(),
+          'Core 第7.6節: 月次計上は検収終了日の対象外。黙ってクリアしない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void previewLineAcceptanceEndDates_rejectsOverTime() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      Boolean thrown = false;
+      try {
+        Test.startTest();
+        InvoiceCanonicalService.previewLineAcceptanceEndDates(
+          new Map<Id, Date>{ line.Id => Date.newInstance(2026, 6, 30) },
+          null
+        );
+        Test.stopTest();
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        thrown = true;
+        System.assertEquals(
+          '月次計上に検収終了日は設定できません。',
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void updateLineAcceptanceEndDates_rejectsDuringExclusiveEdit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Fixture fixture = createPointInTimeFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.exclusiveHeaderOrSplitInvoiceIds.add(
+        line.Invoice__c
+      );
+      Date original = line.AcceptanceEndDate__c;
+      Boolean thrown = false;
+      try {
+        Test.startTest();
+        InvoiceCanonicalService.updateLineAcceptanceEndDates(
+          new Map<Id, Date>{ line.Id => Date.newInstance(2026, 8, 31) },
+          null
+        );
+        Test.stopTest();
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求情報編集、別の請求へ分けるまたは同一請求内分割の操作中は、検収終了日を変更できません。',
+          ex.getMessage(),
+          'Core 第7.6節・第7.8.2節: 請求情報編集・分割の実行中は検収終了日を変えない'
+        );
+      } finally {
+        InvoiceCanonicalService.exclusiveHeaderOrSplitInvoiceIds.clear();
+      }
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        original,
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :line.Id
+        ]
+        .AcceptanceEndDate__c
+      );
+    }
+  }
+
+  @IsTest
+  static void updateLineAcceptanceEndDates_savesPointInTimeOnConfirmed() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      disableAccounting();
+      Fixture fixture = createPointInTimeFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+        invoice.SystemIntegrationDate__c = InvoiceTransactionStatusService.organizationToday();
+        update invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+      }
+      Date nextDate = Date.newInstance(2026, 8, 15);
+      Test.startTest();
+      InvoiceCanonicalService.updateLineAcceptanceEndDates(
+        new Map<Id, Date>{ line.Id => nextDate },
+        InvoiceTransactionStatusService.organizationToday(),
+        null,
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id)
+      );
+      Test.stopTest();
+      InvoiceLine__c stored = [
+        SELECT AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Id = :line.Id
+      ];
+      System.assertEquals(
+        nextDate,
+        stored.AcceptanceEndDate__c,
+        'Core 第7.6節: 確定済みでも検収終了日は変えられる。InvoiceLock は通さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void purgeBillingForHistories_deletesDraftInvoicesAndPeriodLines() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      System.assert(
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE ContractHistory__c = :fixture.history.Id
+        ] > 0
+      );
+      Test.startTest();
+      InvoiceCanonicalService.purgeBillingForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE ContractHistory__c = :fixture.history.Id
+        ],
+        'Core 第5.3節・第6.6節: 差し戻しは未確定請求を物理削除する'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE ContractHistory__c = :fixture.history.Id
+        ],
+        'Core 第5.3節: 差し戻しは契約期間明細も物理削除する'
+      );
+    }
+  }
+
+  @IsTest
+  static void deleteInvoicesForHistories_leavesPeriodLines() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Integer periodCount = [
+        SELECT COUNT()
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :fixture.history.Id
+      ];
+      Test.startTest();
+      InvoiceCanonicalService.deleteInvoicesForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Test.stopTest();
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE ContractHistory__c = :fixture.history.Id
+        ]
+      );
+      System.assertEquals(
+        periodCount,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE ContractHistory__c = :fixture.history.Id
+        ],
+        '期間明細の削除は purge の側。請求正本削除だけでは期間明細を残す'
+      );
+    }
+  }
+
+  @IsTest
+  static void assertHistoriesAreOrdered_rejectsEstimate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('Estimate');
+      Boolean thrown = false;
+      try {
+        InvoiceCanonicalService.assertHistoriesAreOrdered(
+          new Set<Id>{ fixture.history.Id }
+        );
+      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+        thrown = true;
+        System.assertEquals(
+          '期間明細・請求・請求明細は受注済みの契約履歴にのみ作成できます。',
+          ex.getMessage(),
+          'Core 第5.2節: 期間明細・請求正本は Ordered のみ'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void yenCommaText_groupsAccountingFormat() {
+    System.assertEquals(
+      '1,000,000',
+      InvoiceCanonicalService.yenCommaText(1000000),
+      'Accounting 第9.1.1節: 桁区切りはカンマ'
+    );
+    System.assertEquals(
+      '-1,000',
+      InvoiceCanonicalService.yenCommaText(-1000),
+      'Accounting 第9.1.1節: 負は先頭に -'
+    );
+  }
+
+  private static void disableAccounting() {
+    GlAccountingPolicy__c policy = ContractTestDataFactory.ensureOrgAccountingPolicy();
+    if (policy.AccountingEnabled__c == true) {
+      policy.AccountingEnabled__c = false;
+      update policy;
+      GlAccountingPolicyService.clearCachedOrgPolicy();
+    }
+  }
+
   private static Decimal nvl(Decimal value) {
     return value == null ? 0 : value;
   }
@@ -4316,6 +4677,100 @@ private class InvoiceCanonicalServiceTest {
     return createFixture('Ordered');
   }
 
+  private static Fixture createPointInTimeFixture() {
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
+    Account account = ContractTestDataFactory.insertAccount(
+      'Canonical PIT Account'
+    );
+    BillingAccount__c billingAccount = new BillingAccount__c(
+      Account__c = account.Id,
+      BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+      BillingEmailTo__c = 'to@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST,
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 1,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 0,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
+    ContractTestDataFactory.applyRequiredFields(billingAccount);
+    insert billingAccount;
+
+    ContractService__c service = new ContractService__c(
+      Name = 'Canonical PIT Service',
+      Account__c = account.Id,
+      BiilingAcccount__c = billingAccount.Id,
+      TaxPercent__c = 0.1
+    );
+    insert service;
+
+    ContractHistory__c history = new ContractHistory__c(
+      Name = 'Canonical PIT History',
+      ContractService__c = service.Id,
+      Type__c = 'New',
+      historystatus__c = 'Ordered',
+      Version__c = 1,
+      CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+      CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
+    );
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
+    insert history;
+
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Canonical PIT Product'
+    );
+    product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+    product.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+    ContractTestDataFactory.insertProduct(product);
+
+    ContractProduct__c contractProduct = new ContractProduct__c(
+      ContractHistory__c = history.Id,
+      Product__c = product.Id,
+      Quantity__c = 1,
+      UnitPrice__c = 10000,
+      Amount__c = 10000,
+      Unit__c = 'ID',
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2026, 6, 30),
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+      Type__c = 'New',
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+    );
+    insert contractProduct;
+
+    Date invoiceDate = Date.newInstance(2026, 6, 1);
+    Date paymentDate = Date.newInstance(2026, 6, 30);
+    String bucketKey = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
+      billingAccount.Id,
+      history.Id,
+      invoiceDate,
+      paymentDate
+    );
+    insert withLineBucketKey(
+      new InvoiceProduct__c(
+        ContractHistory__c = history.Id,
+        ContractProduct__c = contractProduct.Id,
+        InvoiceBucketKey__c = bucketKey,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2026, 6, 30),
+        Quantity__c = 1,
+        UnitPrice__c = 10000,
+        Amount__c = 10000
+      )
+    );
+
+    Fixture fixture = new Fixture();
+    fixture.history = history;
+    return fixture;
+  }
+
   private static Fixture createFixture(String historyStatus) {
     ContractTestDataFactory.ensureOrgAccountingPolicy();
     Account account = ContractTestDataFactory.insertAccount(
@@ -4325,6 +4780,7 @@ private class InvoiceCanonicalServiceTest {
       Account__c = account.Id,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST,
       InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
       InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
       InvoiceDateDayOfMonth__c = 1,

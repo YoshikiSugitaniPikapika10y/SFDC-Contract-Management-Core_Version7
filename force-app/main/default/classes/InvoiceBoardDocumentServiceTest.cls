@@ -119,6 +119,118 @@ private class InvoiceBoardDocumentServiceTest {
   }
 
   @IsTest
+  static void issueFromPreview_rejectsDraft() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfOnly';
+      update setting;
+      ContractDocumentSettingService.clearCache();
+
+      Invoice__c invoice = createDraftInvoice();
+      Boolean thrown = false;
+      try {
+        InvoiceBoardDocumentService.issueFromPreview(
+          invoice.Id,
+          'StandardInvoice',
+          token(invoice.Id)
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          InvoiceBoardDocumentService.DRAFT_BLOCK_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.10節: 確定済みの請求だけ発行できる'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void sendFromPreview_blankAttachment_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfAndEmail';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        'InvoiceMail'
+      );
+
+      Invoice__c invoice = createConfirmedInvoice();
+      InvoiceBoardDocumentService.SendDraftDto draft = new InvoiceBoardDocumentService.SendDraftDto();
+      draft.subject = '件名';
+      draft.body = '本文';
+      draft.fileName = 'invoice-send.pdf';
+      draft.attachmentId = null;
+      InvoiceBoardDocumentService.skipEmailSend = true;
+      Boolean thrown = false;
+      try {
+        InvoiceBoardDocumentService.sendFromPreview(
+          invoice.Id,
+          'StandardInvoice',
+          'InvoiceMail',
+          token(invoice.Id),
+          draft
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          InvoiceBoardDocumentService.MISSING_ATTACHMENT_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.10節: 未選択では送れない'
+        );
+      } finally {
+        InvoiceBoardDocumentService.skipEmailSend = false;
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void sendFromPreview_blankFileName_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfAndEmail';
+      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        'InvoiceMail'
+      );
+
+      Invoice__c invoice = createConfirmedInvoice();
+      InvoiceBoardDocumentService.SendDraftDto draft = new InvoiceBoardDocumentService.SendDraftDto();
+      draft.fileName = '';
+      draft.attachmentId = InvoiceBoardDocumentService.ATTACHMENT_NEW;
+      InvoiceBoardDocumentService.skipEmailSend = true;
+      Boolean thrown = false;
+      try {
+        InvoiceBoardDocumentService.sendFromPreview(
+          invoice.Id,
+          'StandardInvoice',
+          'InvoiceMail',
+          token(invoice.Id),
+          draft
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          InvoiceBoardDocumentService.MISSING_ATTACHMENT_NAME_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.10節: 添付ファイル名が空では送れない'
+        );
+      } finally {
+        InvoiceBoardDocumentService.skipEmailSend = false;
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
   static void previewIssueFromPreview_rejectsCancelled() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = createConfirmedInvoice();
@@ -834,10 +946,21 @@ private class InvoiceBoardDocumentServiceTest {
   }
 
   private static Invoice__c createConfirmedInvoice() {
-    return createConfirmedInvoice(InvoiceDeliveryMethodService.EMAIL);
+    return createBoardInvoice(InvoiceDeliveryMethodService.EMAIL, true);
   }
 
   private static Invoice__c createConfirmedInvoice(String deliveryMethod) {
+    return createBoardInvoice(deliveryMethod, true);
+  }
+
+  private static Invoice__c createDraftInvoice() {
+    return createBoardInvoice(InvoiceDeliveryMethodService.EMAIL, false);
+  }
+
+  private static Invoice__c createBoardInvoice(
+    String deliveryMethod,
+    Boolean confirmed
+  ) {
     Account account = ContractTestDataFactory.insertAccount('Board Doc Account');
     ContractService__c service = ContractTestDataFactory.insertContractService(
       account.Id,
@@ -898,8 +1021,10 @@ private class InvoiceBoardDocumentServiceTest {
       InvoiceDeliveryMethodSnapShot__c = deliveryMethod
     );
     ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
-    invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
-    invoice.SystemIntegrationDate__c = InvoiceTransactionStatusService.organizationToday();
+    if (confirmed == true) {
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = InvoiceTransactionStatusService.organizationToday();
+    }
     invoice.DeliveryStatus__c = InvoiceDeliveryMethodService.EMAIL.equals(
         deliveryMethod
       )
