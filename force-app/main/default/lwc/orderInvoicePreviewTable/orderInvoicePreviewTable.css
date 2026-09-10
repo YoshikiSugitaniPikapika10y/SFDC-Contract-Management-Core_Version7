@@ -347,6 +347,22 @@
   white-space: nowrap;
 }
 
+.ops-table_journals tbody td {
+  padding-top: 0.12rem;
+  padding-bottom: 0.12rem;
+}
+
+.ops-table_journals tbody lightning-input {
+  margin: 0;
+  padding: 0;
+  --slds-c-input-sizing-min-height: 1.55rem;
+  --slds-c-input-spacing-block-start: 0.05rem;
+  --slds-c-input-spacing-block-end: 0.05rem;
+  --slds-c-form-element-spacing-gap: 0;
+  --slds-c-form-element-spacing-block-start: 0;
+  --slds-c-form-element-spacing-block-end: 0;
+}
+
 .journal-confirmation-col,
 .journal-confirmation-cell {
   overflow: hidden;
@@ -489,6 +505,7 @@
   width: 100%;
   max-width: none;
   --slds-c-input-sizing-width: 100%;
+  --slds-c-input-sizing-min-height: 1.55rem;
 }
 
 .journal-memo-save.ghost-btn {
