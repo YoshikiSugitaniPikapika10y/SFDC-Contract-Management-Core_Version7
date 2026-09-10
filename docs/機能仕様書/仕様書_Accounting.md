@@ -1603,7 +1603,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 ### 8.8 逆仕訳と再生成
 
-**逆仕訳は、ロック済みの元仕訳を帳簿上で打ち消すため、元仕訳と同額で借方・貸方を逆にした取消仕訳を追加する処理である。**元仕訳は残し、取消仕訳は元仕訳のスロット、勘定科目割当および実勘定科目を借貸逆に引き継ぐ。請求明細、仕訳パターンキー、売上計上回番号は元のまま保持する。取消時点の仕訳パターンや科目割当を再評価しない。未ロックの元仕訳は逆仕訳を作らず論理削除する。逆仕訳と論理削除は、第1.8.1節のDiffがロック済み／未ロックのCurrentへ適用する手段である。手続の本体は原因の増減後にGoalを再計算し、Currentとの差分をLock規則で反映することであり、対象パターン番号の打ち消しだけを独立した手続にしない。
+**逆仕訳は、ロック済みの元仕訳を帳簿上で打ち消すため、元仕訳と同額で借方・貸方を逆にした取消仕訳を追加する処理である。**元仕訳は残し、取消仕訳は元仕訳のスロット、勘定科目割当および実勘定科目を借貸逆に引き継ぐ。取消仕訳の`IsLocked__c`はFalseとする。元のLockは引き継がない。請求明細、仕訳パターンキー、売上計上回番号は元のまま保持する。取消時点の仕訳パターンや科目割当を再評価しない。未ロックの元仕訳は逆仕訳を作らず論理削除する。逆仕訳と論理削除は、第1.8.1節のDiffがロック済み／未ロックのCurrentへ適用する手段である。手続の本体は原因の増減後にGoalを再計算し、Currentとの差分をLock規則で反映することであり、対象パターン番号の打ち消しだけを独立した手続にしない。
 
 逆仕訳を行うシーンは次のとおりである。
 
@@ -1631,6 +1631,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 ／ 入口は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePaymentService.register</code> / <code>cancel</code>、<code>InvoiceCancelService.cancelConfirmed</code>、<code>InvoiceCanonicalService.updateLineAcceptanceEndDates</code>、<code>ManualJournalService.register</code> / <code>cancel</code>
 ／ 画面 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable.handleAcceptanceEndDateChange</code> / <code>handleAcceptanceCancelSave</code>、<code>OrderCreateController.previewInvoiceLineAcceptanceEndDate</code>
 ／ 検収日変更は変えた請求明細に紐づく仕訳だけを再計算する。入出金仕訳またはNo.6～9の日付書換だけで終わらせない。確認は業務確認と必要な取消基準日。件数・日付内訳は出さない。入出金取消の取消基準日は第8.5節（この操作の逆仕訳対象のLock。請求書全体でも入出金Lookupだけでもない）。
+／ 取消仕訳は`IsLocked__c=False`で作る。元のLockは引き継がない。
 </div>
 
 ### 8.9 生成エラー
@@ -1783,16 +1784,16 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 ### 9.5 ロック
 
-ロック状態は`IsLocked__c`で保持し、Falseを未ロック、Trueをロック済みとする。`IsLocked__c = True`の仕訳は通常の変更・削除を禁止し、打消しには取消仕訳を生成する。`IsLocked__c = False`の仕訳は取消仕訳を作らず論理削除する。
+ロック状態は`IsLocked__c`で保持し、Falseを未ロック、Trueをロック済みとする。`IsLocked__c = True`の仕訳は通常の変更・削除を禁止し、打消しには取消仕訳を生成する。`IsLocked__c = False`の仕訳は取消仕訳を作らず論理削除する。Lockは目検OKであり、計上日が来たあと外部へ出してよい印である。送信は第12.3節どおり顧客実装であり、パッケージは送らない。
 
-手動Lockと手動Unlockは標準操作とし、請求ボードの仕訳タブおよび契約横断の仕訳一覧から行う。横断の置き方は`docs/横断画面.md`。業務結果は本節。Accounting OFFでは仕訳タブと横断の仕訳一覧を出さず、Lock／Unlockの入口も持たない。第1.1節。人が目で選んだ仕訳行だけを対象にする。未選択では実行できない。請求ボードの仕訳タブは、フッタのLock／Unlockボタンと常時のUnlock理由欄を置かない。有効が1行でも左チェック。チェックでは実行しない。1件以上選んだとき表の直上に「N件をLock」／全部Lock済みなら「N件をUnlock」。Unlock理由はバーから必須。Lock列はLock済みだけ鍵アイコン。未Lockは空。空セル・鍵は実行しない（鍵は表示）。Shift＋クリックで間の選べる行を同じON／OFF。選べない行は塗らない。実行前確認は出さない（Core第0.2節）。混在は拒否する。未来日付の行も選べる。過ぎた分だけ、という制限はパッケージに持たない。請求ボードではこの請求以外の仕訳は選べない。この請求の未Lock全部／Lock済み全部を一括するボタンは持たない。自動Lockは提供しない。顧客が導入時にバッチを足してよい。パッケージは外部送信の成功をLockの条件にしない。それぞれ専用のカスタム権限を必要とし、片方で他方を代替しない。閲覧権限、請求ボード編集権限、請求確定権限および101〜103では実行しない。Unlockは理由を必須とし、対象仕訳の`UnlockReason__c`と`BusinessOperationKey__c`へ書く。実行者・日時はSalesforceの監査項目。操作ログは Core 第2.5節。再Unlockは理由を上書きする。Lockでは`UnlockReason__c`を消さない。取消理由スナップショットとメモとは別項目である。Lockは`IsLocked__c`と操作キーを変える。Unlockはそれに`UnlockReason__c`を足す。金額、科目、日付、借貸は変えない。仕訳行の金額、科目、日付、借貸の**更新**は101〜103を問わず禁止する。101の新規作成と削除は`共通基盤.md`第3.6節。権限と緊急操作を問わず、画面から仕訳金額を直す経路は持たない。メモ`Memo__c`はLock済みでも直せる。画面定義の追加項目はメモ扱いである。GoalキーにもDiff比較にも入れない。未Lockは出している追加項目を直せる。Lock後の追加項目は仕訳ロック除外`GlJournalLockExemptFields__c`にある項目だけ。金額・科目・日付はリストに書いても不可。定義から除外一覧へ自動では書かない。Core第11.4.4節・第11.6節。イレギュラーの書き込みであり、仕訳キーにもGoalにも含めない。手動仕訳ヘッダーにメモは持たない。登録時にヘッダーから転記しない。利用者が仕訳レコードへ付ける。請求ボードのメモ・追加項目の行保存に操作キー、行ロック、版比較は使わない。同時に書いたときは後から保存した文が残る。請求書のメモと同じ。横断の仕訳一覧でLock／Unlockを含む保存はCore第7.9.7節。同じ文を全行へ一括する操作は持たない。取消・取消済の追加項目は参照だけとする。置き方は`docs/横断画面.md`。Lock/Unlockの操作キーと版比較はCore第7.9.7節。
+手動Lockと手動Unlockは標準操作とし、請求ボードの仕訳タブおよび契約横断の仕訳一覧から行う。横断の置き方は`docs/横断画面.md`。業務結果は本節。Accounting OFFでは仕訳タブと横断の仕訳一覧を出さず、Lock／Unlockの入口も持たない。第1.1節。人が目で選んだ仕訳行だけを対象にする。未選択では実行できない。対象は有効と取消。取消済と論理削除は選べない。請求ボードの仕訳タブは、フッタのLock／Unlockボタンと常時のUnlock理由欄を置かない。有効または取消が1行でも左チェック。チェックでは実行しない。1件以上選んだとき表の直上に「N件をLock」／全部Lock済みなら「N件をUnlock」。Unlock理由はバーから必須。Lock列はLock済みだけ鍵アイコン。未Lockは空。空セル・鍵は実行しない（鍵は表示）。Shift＋クリックで間の選べる行を同じON／OFF。選べない行は塗らない。実行前確認は出さない（Core第0.2節）。混在は拒否する。未来日付の行も選べる。過ぎた分だけ、という制限はパッケージに持たない。請求ボードではこの請求以外の仕訳は選べない。この請求の未Lock全部／Lock済み全部を一括するボタンは持たない。自動Lockは提供しない。顧客が導入時にバッチを足してよい。パッケージは外部送信の成功をLockの条件にしない。それぞれ専用のカスタム権限を必要とし、片方で他方を代替しない。閲覧権限、請求ボード編集権限、請求確定権限および101〜103では実行しない。Unlockは理由を必須とし、対象仕訳の`UnlockReason__c`と`BusinessOperationKey__c`へ書く。実行者・日時はSalesforceの監査項目。操作ログは Core 第2.5節。再Unlockは理由を上書きする。Lockでは`UnlockReason__c`を消さない。取消理由スナップショットとメモとは別項目である。Lockは`IsLocked__c`と操作キーを変える。Unlockはそれに`UnlockReason__c`を足す。金額、科目、日付、借貸は変えない。仕訳行の金額、科目、日付、借貸の**更新**は101〜103を問わず禁止する。101の新規作成と削除は`共通基盤.md`第3.6節。権限と緊急操作を問わず、画面から仕訳金額を直す経路は持たない。メモ`Memo__c`はLock済みでも直せる。画面定義の追加項目はメモ扱いである。GoalキーにもDiff比較にも入れない。未Lockは出している追加項目を直せる。Lock後の追加項目は仕訳ロック除外`GlJournalLockExemptFields__c`にある項目だけ。金額・科目・日付はリストに書いても不可。定義から除外一覧へ自動では書かない。Core第11.4.4節・第11.6節。イレギュラーの書き込みであり、仕訳キーにもGoalにも含めない。手動仕訳ヘッダーにメモは持たない。登録時にヘッダーから転記しない。利用者が仕訳レコードへ付ける。請求ボードのメモ・追加項目の行保存に操作キー、行ロック、版比較は使わない。同時に書いたときは後から保存した文が残る。請求書のメモと同じ。横断の仕訳一覧でLock／Unlockを含む保存はCore第7.9.7節。同じ文を全行へ一括する操作は持たない。取消・取消済の追加項目は参照だけとする。置き方は`docs/横断画面.md`。Lock/Unlockの操作キーと版比較はCore第7.9.7節。
 
 Unlock後も金額、科目、日付、借貸は直せない。以降の原因操作は未Lockとして扱い、差があれば論理削除して作り直せる。正式な権限API名は`Loop_16_Can_LockJournal` / `Loop_17_Can_UnlockJournal`（`共通基盤.md`第3章）。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>JournalLockService.lockForInvoice</code> / <code>unlockForInvoice</code>
-／ ボード入口は<code>InvoicePreviewOpsController.lockJournalsForInvoice</code> / <code>unlockJournalsForInvoice</code> / <code>updateJournalMemo</code>。画面のLock／Unlock表示は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>の<code>@salesforce/customPermission</code> <code>Loop_16_Can_LockJournal</code> / <code>Loop_17_Can_UnlockJournal</code>。選択した仕訳IDだけを対象にする。未選択はエラー。仕訳確認にLock入口は置かない。行内容は変えない。Unlock理由は<code>GlJournal__c.UnlockReason__c</code>。Lock後の除外は <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>JournalLockService.assertExemptUpdate</code>、<code>GlJournalLockExemptFields__c</code>。横断入口は<code>ContractCrossController.saveJournals</code>。
+／ ボード入口は<code>InvoicePreviewOpsController.lockJournalsForInvoice</code> / <code>unlockJournalsForInvoice</code> / <code>updateJournalMemo</code>。画面のLock／Unlock表示は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>の<code>@salesforce/customPermission</code> <code>Loop_16_Can_LockJournal</code> / <code>Loop_17_Can_UnlockJournal</code>。選択した仕訳IDだけを対象にする。未選択はエラー。対象は有効と取消。取消済と論理削除は拒否。仕訳確認にLock入口は置かない。行内容は変えない。Unlock理由は<code>GlJournal__c.UnlockReason__c</code>。Lock後の除外は <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>JournalLockService.assertExemptUpdate</code>、<code>GlJournalLockExemptFields__c</code>。横断入口は<code>ContractCrossController.saveJournals</code>。
 </div>
 
 ### 9.6 削除・取消・逆仕訳
