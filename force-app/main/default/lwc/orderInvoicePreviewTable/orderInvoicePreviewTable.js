@@ -531,6 +531,19 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.loadInvoiceOpsContext();
     this.loadInvoiceOpsFieldDefinitions();
     this.applyDefaultVersionFilter();
+    this._onJournalFilterOutside = (event) =>
+      this.handleJournalFilterOutside(event);
+    this._onJournalFilterReposition = () =>
+      this.syncJournalFilterMenuPosition();
+    this._onJournalFilterEscape = (event) => {
+      if (event.key === "Escape") {
+        this.closeJournalFilterMenus();
+      }
+    };
+    window.addEventListener("pointerdown", this._onJournalFilterOutside, true);
+    window.addEventListener("scroll", this._onJournalFilterReposition, true);
+    window.addEventListener("resize", this._onJournalFilterReposition);
+    window.addEventListener("keydown", this._onJournalFilterEscape);
   }
 
   @api
@@ -1024,6 +1037,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this._resizeObserver.observe(this.template.host);
     }
     this.scheduleFitProductNames();
+    this.syncJournalFilterMenuPosition();
   }
 
   scheduleFitProductNames() {
@@ -1078,6 +1092,24 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
+    }
+    if (this._onJournalFilterOutside) {
+      window.removeEventListener(
+        "pointerdown",
+        this._onJournalFilterOutside,
+        true
+      );
+    }
+    if (this._onJournalFilterReposition) {
+      window.removeEventListener(
+        "scroll",
+        this._onJournalFilterReposition,
+        true
+      );
+      window.removeEventListener("resize", this._onJournalFilterReposition);
+    }
+    if (this._onJournalFilterEscape) {
+      window.removeEventListener("keydown", this._onJournalFilterEscape);
     }
   }
 
@@ -2470,14 +2502,23 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             selectedActiveJournals.length >= 1 &&
             ((this.canLockJournal && !allSelectedLocked) ||
               (this.canUnlockJournal && allSelectedLocked)),
-          journalScrollClass:
+          journalScrollClass: [
+            "journal-scroll",
             accountingEnabled &&
             !isCancelled &&
             selectedActiveJournals.length >= 1 &&
             ((this.canLockJournal && !allSelectedLocked) ||
               (this.canUnlockJournal && allSelectedLocked))
-              ? "journal-scroll journal-scroll_has-lock-bar"
-              : "journal-scroll",
+              ? "journal-scroll_has-lock-bar"
+              : "",
+            filterMenu.postingMonth === true ||
+            filterMenu.eventName === true ||
+            filterMenu.lineKey === true
+              ? "journal-scroll_filter-open"
+              : ""
+          ]
+            .filter(Boolean)
+            .join(" "),
           journalLockBarLabel: `${selectedActiveJournals.length}件をLock`,
           journalUnlockBarLabel: `${selectedActiveJournals.length}件をUnlock`,
           journalUnlockReasonDraft:
@@ -6410,6 +6451,63 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         [field]: current[field] !== true
       }
     };
+  }
+
+  closeJournalFilterMenus() {
+    if (!this.hasOpenJournalFilterMenu()) {
+      return;
+    }
+    this.journalFilterMenuByInvoice = {};
+  }
+
+  hasOpenJournalFilterMenu() {
+    return Object.values(this.journalFilterMenuByInvoice || {}).some(
+      (menu) =>
+        menu?.postingMonth === true ||
+        menu?.eventName === true ||
+        menu?.lineKey === true
+    );
+  }
+
+  handleJournalFilterOutside(event) {
+    if (!this.hasOpenJournalFilterMenu()) {
+      return;
+    }
+    const path = event.composedPath ? event.composedPath() : [];
+    const insideFilter = path.some(
+      (node) =>
+        node?.classList &&
+        typeof node.classList.contains === "function" &&
+        node.classList.contains("journal-multi-filter")
+    );
+    if (insideFilter) {
+      return;
+    }
+    this.closeJournalFilterMenus();
+  }
+
+  syncJournalFilterMenuPosition() {
+    const menus = this.template.querySelectorAll(".journal-multi-filter-menu");
+    if (!menus || menus.length === 0) {
+      return;
+    }
+    menus.forEach((menu) => {
+      const trigger = menu.parentElement?.querySelector(
+        ".journal-multi-filter-trigger"
+      );
+      if (!trigger) {
+        return;
+      }
+      const box = trigger.getBoundingClientRect();
+      const maxHeight = Math.max(
+        8 * 16,
+        Math.min(14 * 16, window.innerHeight - box.bottom - 8)
+      );
+      menu.style.top = `${box.bottom}px`;
+      menu.style.left = `${box.left}px`;
+      menu.style.minWidth = `${Math.max(box.width, 8 * 16)}px`;
+      menu.style.maxHeight = `${maxHeight}px`;
+    });
   }
 
   handleJournalViewFilterToggle(event) {

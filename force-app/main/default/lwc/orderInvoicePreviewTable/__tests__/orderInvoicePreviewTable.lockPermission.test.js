@@ -529,10 +529,23 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     manual.checked = true;
     manual.dispatchEvent(new CustomEvent("change"));
     await flush();
+    expect(
+      element.shadowRoot.querySelector(".journal-multi-filter-menu")
+    ).not.toBeNull();
     expect(rowText()).toContain("為替差損の計上");
     expect(rowText()).not.toContain("請求本体");
-    manual.checked = false;
-    manual.dispatchEvent(new CustomEvent("change"));
+    document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await flush();
+    expect(
+      element.shadowRoot.querySelector(".journal-multi-filter-menu")
+    ).toBeNull();
+    eventTrigger.click();
+    await flush();
+    const stillOpen = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='eventName'][data-value='為替差損の計上']"
+    );
+    stillOpen.checked = false;
+    stillOpen.dispatchEvent(new CustomEvent("change"));
     await flush();
     const monthTrigger = element.shadowRoot.querySelector(
       "button[data-filter='postingMonth']"
