@@ -694,6 +694,11 @@ private class EstimateCreateControllerTest {
       System.assertEquals('Churn v2', result.historyName);
       System.assertEquals('Cancel', result.historyType);
       System.assertEquals(2, result.version);
+      System.assertEquals(
+        false,
+        result.renewEligible,
+        'Core 第4.3.3節: 前回がCancelなら後続操作不可'
+      );
     }
   }
 
@@ -5764,6 +5769,108 @@ private class EstimateCreateControllerTest {
         '見積を作成・編集・コピーする権限がありません。',
         ex.getMessage(),
         '共通基盤 第10.4節: 03／04／05 が無ければ送付3択を読まない'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+      ContractPermissionUtil.testAllowAll = true;
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void getEstimateEditPreset_rejectsArchive() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Create Edit Archive Acc'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Create Edit Archive Service'
+      );
+      ContractHistory__c archived = new ContractHistory__c(
+        Name = 'Create Edit Archive',
+        ContractService__c = service.Id,
+        historystatus__c = 'Archive',
+        Type__c = 'New',
+        Version__c = 1
+      );
+      insert archived;
+      Boolean thrown = false;
+      try {
+        EstimateCreateController.getEstimateEditPreset(archived.Id);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '見積／受注済み状態の契約履歴のみ編集できます。',
+          ex.getMessage(),
+          'Core 第4.7節: Archiveは編集できない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void getEstimateEditPreset_estimateKeepsServiceAndVersion() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Create EditKeep Acc'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Create EditKeep Service'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Create EditKeep Est',
+        ContractService__c = service.Id,
+        historystatus__c = 'Estimate',
+        Type__c = 'New',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
+        history.Id
+      );
+      System.assertEquals(
+        service.Id,
+        preset.contractServiceId,
+        'Core 第4.7節: Estimate編集は既存の契約サービスを維持する'
+      );
+      System.assertEquals(
+        1,
+        preset.nextHistoryVersion,
+        'Core 第4.3.3節: 編集は既存Versionを維持する'
+      );
+      System.assertEquals('Create EditKeep Est', preset.contractHistoryName);
+      System.assertEquals('Estimate', preset.historyStatus);
+    }
+  }
+
+  @IsTest
+  static void getEstimateEditPreset_rejectsWithout03() {
+    ContractPermissionUtil.testAllowAll = false;
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.ESTIMATE => false
+    };
+    Boolean thrown = false;
+    try {
+      EstimateCreateController.getEstimateEditPreset(
+        ContractTestDataFactory.insertAccount('Create Edit Deny Acc').Id
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assertEquals(
+        '見積編集を実行する権限がありません。',
+        ex.getMessage(),
+        '共通基盤 第10.4節: 見積編集は 03'
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;

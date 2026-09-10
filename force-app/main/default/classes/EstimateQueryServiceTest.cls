@@ -1032,7 +1032,8 @@ private class EstimateQueryServiceTest {
       );
       ContractService__c blankOrdered = ContractTestDataFactory.insertContractService(
         account.Id,
-        'Query Blank Lifecycle'
+        'Query Blank Lifecycle',
+        null
       );
       ContractService__c termService = ContractTestDataFactory.insertContractService(
         account.Id,
@@ -1354,6 +1355,102 @@ private class EstimateQueryServiceTest {
         'Core 第4.3.3節: 期末継続課金があれば更新可'
       );
     }
+  }
+
+  @IsTest
+  static void queryMaxCancelOrderedVersion_andRenewEligibleFalseForCancel() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Query CancelVer Acc'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Query CancelVer Service'
+      );
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c cancelled = new ContractHistory__c(
+        Name = 'Query CancelVer Ordered',
+        ContractService__c = service.Id,
+        historystatus__c = 'Ordered',
+        Type__c = 'Cancel',
+        Version__c = 3,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        cancelled,
+        account.Id
+      );
+      insert cancelled;
+      Map<Id, Decimal> versions = EstimateQueryService.queryMaxCancelOrderedVersionByServiceIds(
+        new Set<Id>{ service.Id }
+      );
+      System.assertEquals(
+        3,
+        versions.get(service.Id),
+        'Core 第4.3.3節: 前回CancelのOrdered Versionを後続判定に使う'
+      );
+      System.assertEquals(
+        false,
+        EstimateQueryService.isRenewEligibleHistory(cancelled),
+        'Core 第4.3.3節: Cancelは更新不可'
+      );
+      System.assertEquals(
+        0,
+        EstimateQueryService.countRenewSourceRecurringProducts(null, termEnd)
+      );
+      ContractHistory__c latestOrdered = EstimateQueryService.queryLatestActiveOrderedHistory(
+        service.Id
+      );
+      System.assertEquals(
+        cancelled.Id,
+        latestOrdered.Id,
+        'Core 第5.4節: Latest OrderedはVersion最大のOrdered'
+      );
+    }
+  }
+
+  @IsTest
+  static void buildCopyHistoryName_andCustomFieldPresence() {
+    System.assertEquals(
+      '元履歴のコピー',
+      EstimateQueryService.buildCopyHistoryName('元履歴'),
+      'Core 第4.3.3節・第4.7節: コピーの履歴名は元名のコピー'
+    );
+    System.assertEquals(
+      '',
+      EstimateQueryService.buildCopyHistoryName('  '),
+      'Core 第4.3.3節: 空の元名にのコピーは付けない'
+    );
+    System.assertEquals(
+      false,
+      EstimateQueryService.hasCustomFieldMapValues(null)
+    );
+    System.assertEquals(
+      false,
+      EstimateQueryService.hasCustomFieldMapValues(
+        new Map<String, Object>{ 'Field__c' => '' }
+      )
+    );
+    System.assertEquals(
+      true,
+      EstimateQueryService.hasCustomFieldMapValues(
+        new Map<String, Object>{ 'Field__c' => '値' }
+      )
+    );
+    EstimateCreateController.ProductLineItem line = new EstimateCreateController.ProductLineItem();
+    line.customFields = new Map<String, Object>{ 'Field__c' => '値' };
+    System.assertEquals(
+      true,
+      EstimateQueryService.hasProductCustomFieldValues(
+        new List<EstimateCreateController.ProductLineItem>{ line }
+      )
+    );
+    System.assertEquals(
+      false,
+      EstimateQueryService.hasProductCustomFieldValues(null)
+    );
   }
 
   private class ContractProductFixture {

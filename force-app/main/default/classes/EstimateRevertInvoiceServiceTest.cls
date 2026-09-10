@@ -631,6 +631,120 @@ private class EstimateRevertInvoiceServiceTest {
     }
   }
 
+  @IsTest
+  static void revertToEstimate_blocksWhenConfirmedInvoiceExists() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestContext context = createSingleOrderedContext();
+      Invoice__c invoice = insertDraftInvoice(context);
+      InvoiceTransactionStatusService.applyConfirmed(
+        new List<Invoice__c>{ invoice },
+        Date.newInstance(2026, 6, 1)
+      );
+      Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        update invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+      }
+
+      context.history.historystatus__c = 'Estimate';
+      Boolean thrown = false;
+      try {
+        update context.history;
+      } catch (DmlException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage()
+            .contains(InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE),
+          'Core 第5.3節・第1.1.5節: 有効な確定済み請求があれば差し戻し禁止'
+        );
+      }
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        'Ordered',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :context.history.Id
+        ]
+        .historystatus__c
+      );
+    }
+  }
+
+  @IsTest
+  static void revertBlockQueries_matchLatestAndNewerEstimateRules() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      System.assertEquals(
+        false,
+        EstimateRevertInvoiceService.isLatestOrderedHistory((Id) null)
+      );
+      System.assertEquals(
+        false,
+        EstimateRevertInvoiceService.isLatestOrderedHistory(
+          (ContractHistory__c) null
+        )
+      );
+      System.assertEquals(
+        false,
+        EstimateRevertInvoiceService.hasNewerEstimateVersion(null)
+      );
+      EstimateRevertInvoiceService.RevertBlockSets emptyBlocks = EstimateRevertInvoiceService.queryRevertBlockSets(
+        new Set<Id>()
+      );
+      System.assertEquals(0, emptyBlocks.nonLatestOrderedHistoryIds.size());
+      System.assertEquals(0, emptyBlocks.newerEstimateHistoryIds.size());
+
+      TestContext context = createTwoVersionContext(
+        Date.newInstance(2026, 6, 15)
+      );
+      context.changeHistory.historystatus__c = 'Ordered';
+      update context.changeHistory;
+      System.assertEquals(
+        false,
+        EstimateRevertInvoiceService.isLatestOrderedHistory(
+          context.priorHistory.Id
+        ),
+        'Core 第5.3節: Versionが最大でないOrderedは差し戻せない'
+      );
+      System.assertEquals(
+        true,
+        EstimateRevertInvoiceService.isLatestOrderedHistory(
+          context.changeHistory.Id
+        ),
+        'Core 第5.3節: Version最大のLatest Orderedだけ差し戻せる'
+      );
+
+      ContractHistory__c newerEstimate = new ContractHistory__c(
+        Name = 'Revert Newer Estimate',
+        ContractService__c = context.changeHistory.ContractService__c,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 3,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+        EffectiveDate__c = Date.newInstance(2026, 6, 16)
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        newerEstimate,
+        context.accountId
+      );
+      insert newerEstimate;
+      EstimateRevertInvoiceService.clearRevertCachesForTest();
+      System.assertEquals(
+        true,
+        EstimateRevertInvoiceService.hasNewerEstimateVersion(
+          context.changeHistory.Id
+        ),
+        'Core 第5.3節: 上のVersionのEstimateが残れば差し戻し禁止'
+      );
+    }
+  }
+
   private class TestContext {
     public Id accountId;
     public Id billingAccountId;
