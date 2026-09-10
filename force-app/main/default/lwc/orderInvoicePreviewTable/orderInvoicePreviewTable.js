@@ -6485,6 +6485,45 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.closeJournalFilterMenus();
   }
 
+  handleJournalFilterBulk(event) {
+    const invoiceId = event.currentTarget.dataset.invoiceId;
+    const field = event.currentTarget.dataset.filter;
+    const bulk = event.currentTarget.dataset.bulk;
+    if (
+      !invoiceId ||
+      (field !== "postingMonth" &&
+        field !== "eventName" &&
+        field !== "lineKey") ||
+      (bulk !== "all" && bulk !== "clear")
+    ) {
+      return;
+    }
+    const current = this.journalViewFilterByInvoice[invoiceId] || {};
+    let next = [];
+    if (bulk === "all") {
+      const journals =
+        this.invoiceUiState[invoiceId]?.bundle?.journals || [];
+      if (field === "postingMonth") {
+        next = uniqueSorted(
+          journals.map((journal) => postingMonthKey(journal.postingDate))
+        );
+      } else if (field === "eventName") {
+        next = uniqueSorted(
+          journals.map((journal) => journalEventDisplayName(journal))
+        );
+      } else {
+        next = journalLineFilterOptions(journals).map((row) => row.value);
+      }
+    }
+    this.journalViewFilterByInvoice = {
+      ...this.journalViewFilterByInvoice,
+      [invoiceId]: {
+        ...current,
+        [field]: next
+      }
+    };
+  }
+
   handleJournalViewFilterToggle(event) {
     const invoiceId = event.target.dataset.invoiceId;
     const field = event.target.dataset.filter;

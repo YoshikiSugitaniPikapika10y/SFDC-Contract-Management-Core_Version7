@@ -534,7 +534,7 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     ).not.toBeNull();
     expect(rowText()).toContain("為替差損の計上");
     expect(rowText()).not.toContain("請求本体");
-    document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    document.dispatchEvent(new Event("pointerdown", { bubbles: true }));
     await flush();
     expect(
       element.shadowRoot.querySelector(".journal-multi-filter-menu")
@@ -565,6 +565,83 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     await flush();
     expect(rowText()).toContain("請求本体");
     expect(rowText()).toContain("為替差損の計上");
+  });
+
+  it("selects and clears all journal filter options without hiding rows (Core 7.7.3)", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [
+        {
+          journalId: "a03JNL000000001",
+          eventKey: "BILLING_CONFIRMED",
+          eventName: "請求本体",
+          amount: 1100,
+          postingDate: "2026-06-01",
+          transactionStatus: "Active",
+          isLocked: false,
+          memo: "",
+          invoiceLineId: "a01LINE00000001",
+          productName: "本体商品"
+        },
+        {
+          journalId: "a03JNL000000004",
+          eventKey: "MANUAL_JOURNAL",
+          eventName: "為替差損の計上",
+          amount: 100,
+          postingDate: "2026-07-15",
+          transactionStatus: "Active",
+          isLocked: false,
+          memo: ""
+        }
+      ],
+      manualJournals: []
+    });
+    const element = mount(buildPreview());
+    await flush();
+    await openJournalsTab(element);
+    const rowText = () =>
+      Array.from(
+        element.shadowRoot.querySelectorAll(
+          "table.ops-table_journals tbody tr.journal-row"
+        )
+      )
+        .map((row) => row.textContent)
+        .join(" ");
+    const eventTrigger = element.shadowRoot.querySelector(
+      "button[data-filter='eventName']"
+    );
+    eventTrigger.click();
+    await flush();
+    const one = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='eventName'][data-value='請求本体']"
+    );
+    one.checked = true;
+    one.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    expect(rowText()).toContain("請求本体");
+    expect(rowText()).not.toContain("為替差損の計上");
+    element.shadowRoot
+      .querySelector("button[data-filter='eventName'][data-bulk='all']")
+      .click();
+    await flush();
+    expect(rowText()).toContain("請求本体");
+    expect(rowText()).toContain("為替差損の計上");
+    element.shadowRoot
+      .querySelector("button[data-filter='eventName'][data-bulk='clear']")
+      .click();
+    await flush();
+    expect(rowText()).toContain("請求本体");
+    expect(rowText()).toContain("為替差損の計上");
+    expect(eventTrigger.textContent.trim()).toBe("すべて");
   });
 
   it("hides Lock and Unlock when Accounting is OFF", async () => {

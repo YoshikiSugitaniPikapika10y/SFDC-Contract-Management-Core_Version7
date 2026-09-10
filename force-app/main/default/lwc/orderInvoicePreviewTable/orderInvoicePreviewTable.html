@@ -1431,6 +1431,28 @@
                               </button>
                               <template if:true={invoice.postingMonthMenuOpen}>
                                 <div class="journal-multi-filter-menu" role="listbox">
+                                  <div class="journal-multi-filter-bulk">
+                                    <button
+                                      type="button"
+                                      class="journal-multi-filter-bulk-btn"
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="postingMonth"
+                                      data-bulk="all"
+                                      onclick={handleJournalFilterBulk}
+                                    >
+                                      すべて選択
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="journal-multi-filter-bulk-btn"
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="postingMonth"
+                                      data-bulk="clear"
+                                      onclick={handleJournalFilterBulk}
+                                    >
+                                      すべて解除
+                                    </button>
+                                  </div>
                                   <template
                                     for:each={invoice.journalPostingMonthOptions}
                                     for:item="option"
@@ -1467,6 +1489,28 @@
                               </button>
                               <template if:true={invoice.eventNameMenuOpen}>
                                 <div class="journal-multi-filter-menu" role="listbox">
+                                  <div class="journal-multi-filter-bulk">
+                                    <button
+                                      type="button"
+                                      class="journal-multi-filter-bulk-btn"
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="eventName"
+                                      data-bulk="all"
+                                      onclick={handleJournalFilterBulk}
+                                    >
+                                      すべて選択
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="journal-multi-filter-bulk-btn"
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="eventName"
+                                      data-bulk="clear"
+                                      onclick={handleJournalFilterBulk}
+                                    >
+                                      すべて解除
+                                    </button>
+                                  </div>
                                   <template
                                     for:each={invoice.journalEventOptions}
                                     for:item="option"
@@ -1505,6 +1549,28 @@
                               </button>
                               <template if:true={invoice.lineKeyMenuOpen}>
                                 <div class="journal-multi-filter-menu" role="listbox">
+                                  <div class="journal-multi-filter-bulk">
+                                    <button
+                                      type="button"
+                                      class="journal-multi-filter-bulk-btn"
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="lineKey"
+                                      data-bulk="all"
+                                      onclick={handleJournalFilterBulk}
+                                    >
+                                      すべて選択
+                                    </button>
+                                    <button
+                                      type="button"
+                                      class="journal-multi-filter-bulk-btn"
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="lineKey"
+                                      data-bulk="clear"
+                                      onclick={handleJournalFilterBulk}
+                                    >
+                                      すべて解除
+                                    </button>
+                                  </div>
                                   <template
                                     for:each={invoice.journalLineOptions}
                                     for:item="option"
