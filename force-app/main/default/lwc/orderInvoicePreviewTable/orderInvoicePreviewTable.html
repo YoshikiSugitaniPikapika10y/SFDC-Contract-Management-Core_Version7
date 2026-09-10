@@ -1398,6 +1398,18 @@
                 </template>
                 <div class="ops-table-wrap">
                   <table class="ops-table ops-table_journals">
+                    <colgroup>
+                      <col class="col-journal-select" />
+                      <col class="col-journal-lock" />
+                      <col class="col-journal-status" />
+                      <col class="col-journal-posting" />
+                      <col class="col-journal-event" />
+                      <col class="col-journal-slot" />
+                      <col class="col-journal-amount" />
+                      <col class="col-journal-confirmation" />
+                      <col class="col-journal-toggle" />
+                      <col class="col-journal-memo" />
+                    </colgroup>
                     <thead>
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
@@ -1571,7 +1583,7 @@
                             </template>
                           </td>
                           <td class="num-col">{journal.amountDisplay}</td>
-                          <td class="journal-confirmation-cell" title={journal.confirmationText}>{journal.confirmationText}</td>
+                          <td class="journal-confirmation-col journal-confirmation-cell" title={journal.confirmationText}>{journal.confirmationText}</td>
                           <td class="journal-toggle-col">
                             <button
                               type="button"

@@ -361,10 +361,48 @@
   padding: 0.12rem 0.5rem;
 }
 
+.ops-table_journals col.col-journal-select {
+  width: 2.5rem;
+}
+
+.ops-table_journals col.col-journal-lock {
+  width: 2.35rem;
+}
+
+.ops-table_journals col.col-journal-status {
+  width: 3rem;
+}
+
+.ops-table_journals col.col-journal-posting {
+  width: 9.5rem;
+}
+
+.ops-table_journals col.col-journal-event {
+  width: 14%;
+}
+
+.ops-table_journals col.col-journal-slot {
+  width: 24%;
+}
+
+.ops-table_journals col.col-journal-amount {
+  width: 5rem;
+}
+
+.ops-table_journals col.col-journal-confirmation {
+  width: auto;
+}
+
+.ops-table_journals col.col-journal-toggle {
+  width: 1.75rem;
+}
+
+.ops-table_journals col.col-journal-memo {
+  width: 2.75rem;
+}
+
 .journal-confirmation-col {
-  width: 32%;
   min-width: 0;
-  overflow: hidden;
 }
 
 .journal-confirmation-cell {
@@ -382,12 +420,15 @@
   white-space: nowrap;
 }
 
-.journal-posting-col {
-  width: 9.5rem;
+.journal-filter-col {
+  overflow: visible;
 }
 
-.journal-event-col {
-  width: 14%;
+.ops-table_journals thead .journal-event-col {
+  overflow: visible;
+}
+
+.ops-table_journals tbody .journal-event-col {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -483,8 +524,8 @@
   overflow: auto;
 }
 
-.journal-scroll_filter-open {
-  overflow: visible;
+.journal-scroll_filter-open .ops-table_journals thead th {
+  z-index: 5;
 }
 
 .journal-scroll .ops-table-wrap {
@@ -495,6 +536,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
+  overflow: visible;
 }
 
 .journal-scroll_has-lock-bar .ops-table_journals thead th {
@@ -554,11 +596,11 @@
 }
 
 .journal-multi-filter-menu {
-  position: fixed;
+  position: absolute;
   z-index: 80;
+  top: 100%;
   left: 0;
-  top: 0;
-  min-width: 10rem;
+  min-width: 100%;
   max-height: 14rem;
   overflow: auto;
   padding: 0.25rem 0.4rem;

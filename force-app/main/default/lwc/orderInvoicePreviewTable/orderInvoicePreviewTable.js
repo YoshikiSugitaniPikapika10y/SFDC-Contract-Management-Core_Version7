@@ -533,16 +533,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.applyDefaultVersionFilter();
     this._onJournalFilterOutside = (event) =>
       this.handleJournalFilterOutside(event);
-    this._onJournalFilterReposition = () =>
-      this.syncJournalFilterMenuPosition();
     this._onJournalFilterEscape = (event) => {
       if (event.key === "Escape") {
         this.closeJournalFilterMenus();
       }
     };
     window.addEventListener("pointerdown", this._onJournalFilterOutside, true);
-    window.addEventListener("scroll", this._onJournalFilterReposition, true);
-    window.addEventListener("resize", this._onJournalFilterReposition);
     window.addEventListener("keydown", this._onJournalFilterEscape);
   }
 
@@ -1037,7 +1033,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this._resizeObserver.observe(this.template.host);
     }
     this.scheduleFitProductNames();
-    this.syncJournalFilterMenuPosition();
   }
 
   scheduleFitProductNames() {
@@ -1099,14 +1094,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         this._onJournalFilterOutside,
         true
       );
-    }
-    if (this._onJournalFilterReposition) {
-      window.removeEventListener(
-        "scroll",
-        this._onJournalFilterReposition,
-        true
-      );
-      window.removeEventListener("resize", this._onJournalFilterReposition);
     }
     if (this._onJournalFilterEscape) {
       window.removeEventListener("keydown", this._onJournalFilterEscape);
@@ -6496,30 +6483,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     this.closeJournalFilterMenus();
-  }
-
-  syncJournalFilterMenuPosition() {
-    const menus = this.template.querySelectorAll(".journal-multi-filter-menu");
-    if (!menus || menus.length === 0) {
-      return;
-    }
-    menus.forEach((menu) => {
-      const trigger = menu.parentElement?.querySelector(
-        ".journal-multi-filter-trigger"
-      );
-      if (!trigger) {
-        return;
-      }
-      const box = trigger.getBoundingClientRect();
-      const maxHeight = Math.max(
-        8 * 16,
-        Math.min(14 * 16, window.innerHeight - box.bottom - 8)
-      );
-      menu.style.top = `${box.bottom}px`;
-      menu.style.left = `${box.left}px`;
-      menu.style.minWidth = `${Math.max(box.width, 8 * 16)}px`;
-      menu.style.maxHeight = `${maxHeight}px`;
-    });
   }
 
   handleJournalViewFilterToggle(event) {
