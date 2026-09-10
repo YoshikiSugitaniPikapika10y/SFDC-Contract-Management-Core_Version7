@@ -2868,6 +2868,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             extrasOpen: this.journalToggleOpen[journal.journalId] === true,
             toggleGlyph:
               this.journalToggleOpen[journal.journalId] === true ? "▾" : "▸",
+            amountDisplay: this.formatJournalAmount(journal.amount),
             confirmationText: journal.confirmationText || "",
             extraFields: this.buildExtraFieldViews({
               targetObject: "GlJournal__c",
@@ -4761,6 +4762,17 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return "¥0";
     }
     return `¥${Math.round(n).toLocaleString("ja-JP")}`;
+  }
+
+  formatJournalAmount(amount) {
+    if (amount == null || amount === "") {
+      return "";
+    }
+    const n = Number(amount);
+    if (!Number.isFinite(n)) {
+      return "";
+    }
+    return Math.round(n).toLocaleString("ja-JP");
   }
 
   handleInvoiceSplitDateChange(event) {

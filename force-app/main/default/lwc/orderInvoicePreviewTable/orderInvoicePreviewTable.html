@@ -1472,6 +1472,7 @@
                         <th class="num-col" scope="col">金額</th>
                         <th scope="col">計上時期</th>
                         <th scope="col">状態</th>
+                        <th class="journal-toggle-col" scope="col" aria-label="行の詳細"></th>
                         <th scope="col">メモ</th>
                       </tr>
                     </thead>
@@ -1500,18 +1501,7 @@
                             </template>
                           </td>
                           <td>{journal.postingDate}</td>
-                          <td>
-                            <button
-                              type="button"
-                              class="journal-toggle"
-                              data-journal-id={journal.journalId}
-                              onclick={handleToggleJournalExtras}
-                              aria-expanded={journal.extrasOpen}
-                            >
-                              {journal.toggleGlyph}
-                            </button>
-                            {journal.eventName}
-                          </td>
+                          <td>{journal.eventName}</td>
                           <td>
                             <template if:true={journal.debitAbbreviation}>
                               <span class="journal-slot-abbr">{journal.debitAbbreviation}</span>
@@ -1534,9 +1524,21 @@
                               {journal.creditAccountName}
                             </template>
                           </td>
-                          <td class="num-col">{journal.amount}</td>
+                          <td class="num-col">{journal.amountDisplay}</td>
                           <td>{journal.postingPeriod}</td>
                           <td>{journal.transactionStatusLabel}</td>
+                          <td class="journal-toggle-col">
+                            <button
+                              type="button"
+                              class="journal-toggle"
+                              data-journal-id={journal.journalId}
+                              onclick={handleToggleJournalExtras}
+                              aria-expanded={journal.extrasOpen}
+                              aria-label="行の詳細"
+                            >
+                              {journal.toggleGlyph}
+                            </button>
+                          </td>
                           <td class="journal-memo-cell">
                             <template if:true={invoice.canEditJournalMemo}>
                               <div class="journal-memo-edit">
@@ -1565,7 +1567,7 @@
                         </tr>
                         <template if:true={journal.extrasOpen}>
                           <tr key={journal.extraRowKey} class="journal-extra-row">
-                            <td colspan="10">
+                            <td colspan="11">
                               <div class="journal-extra-panel">
                                 <p class="journal-confirmation">
                                   <span class="invoice-meta-k">確認用</span>
