@@ -3763,6 +3763,40 @@ private class EstimateValidationServiceTest {
         EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
         originalEx
       );
+      EstimateCreateController.ProductLineItem remakeLine = new EstimateCreateController.ProductLineItem();
+      remakeLine.productId = oneTimeProduct.Id;
+      remakeLine.quantity = 1;
+      remakeLine.unitPrice = 6000;
+      remakeLine.amount = 6000;
+      remakeLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      remakeLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      remakeLine.startDate = String.valueOf(termStart);
+      remakeLine.endDate = String.valueOf(termStart);
+      remakeLine.recordType = 'Remake';
+      remakeLine.sourceContractProductId = previousProduct.Id;
+      remakeLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+      EstimateCreateController.EstimateSaveRequest remakeReq = new EstimateCreateController.EstimateSaveRequest();
+      remakeReq.opportunityId = opportunity.Id;
+      remakeReq.contractServiceId = spotService.Id;
+      remakeReq.previousHistoryId = spotOrdered.Id;
+      remakeReq.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      remakeReq.products = new List<EstimateCreateController.ProductLineItem>{
+        originalLine,
+        remakeLine
+      };
+      Exception remakeEx = null;
+      try {
+        EstimateValidationService.validateChangeSaveRequest(
+          remakeReq,
+          'Spot Remake'
+        );
+      } catch (Exception ex) {
+        remakeEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
+        remakeEx
+      );
       EstimateCreateController.ProductLineItem inherited = new EstimateCreateController.ProductLineItem();
       inherited.productId = oneTimeProduct.Id;
       inherited.quantity = 1;
@@ -3793,7 +3827,7 @@ private class EstimateValidationServiceTest {
         inheritedEx = ex;
       }
       assertRejected(
-        EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
+        EstimateValidationService.SPOT_CHANGE_NO_PREVIOUS_PRODUCT_MESSAGE,
         inheritedEx
       );
       EstimateCreateController.EstimateSaveRequest emptyReq = new EstimateCreateController.EstimateSaveRequest();

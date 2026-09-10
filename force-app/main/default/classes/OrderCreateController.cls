@@ -696,7 +696,10 @@ public without sharing class OrderCreateController {
       ContractDocumentSettingService.requireRenewOpportunitySwitch();
     dto.hasManualAdjustment = historyHasManualDraftAdjustment(history);
     List<Datetime> productModified = new List<Datetime>{ null };
-    dto.products = loadProductLines(history.Id, productModified);
+    dto.products = loadProductLines(
+      history.ContractHistoryContractProducts__r,
+      productModified
+    );
     dto.lastModifiedToken = ContractOptimisticLockUtil.toToken(
       laterDatetime(history.LastModifiedDate, productModified[0])
     );
@@ -2949,33 +2952,21 @@ public without sharing class OrderCreateController {
     previewHistoryById.put(history.Id, history);
   }
 
-  private static List<ProductLineDto> loadProductLines(Id contractHistoryId) {
-    return loadProductLines(contractHistoryId, null);
-  }
+  /** 仕様: Core 第4.3.11節・第12.4節。受注を開く取得が見積商品を取り直した回数。 */
+  @TestVisible
+  public static Integer orderContextProductSelectCount = 0;
 
-  /** 仕様: Core 第4.3.11節。見積商品は1回取り、版トークンにも使う。 */
+  /** 仕様: Core 第4.3.11節。見積商品は契約履歴と同一取得の子行を使う。 */
   private static List<ProductLineDto> loadProductLines(
-    Id contractHistoryId,
+    List<ContractProduct__c> products,
     List<Datetime> maxModifiedOut
   ) {
     List<ProductLineDto> lines = new List<ProductLineDto>();
     Datetime maxModified;
-    for (ContractProduct__c product : [
-      SELECT
-        Product__r.Name,
-        Quantity__c,
-        UnitPrice__c,
-        Unit__c,
-        BillingType__c,
-        InvoiceSetting__c,
-        StartDate__c,
-        Enddate__c,
-        LastModifiedDate
-      FROM ContractProduct__c
-      WHERE ContractHistory__c = :contractHistoryId
-      WITH SYSTEM_MODE
-      ORDER BY StartDate__c ASC NULLS LAST, Product__r.Name ASC
-    ]) {
+    if (products == null) {
+      products = new List<ContractProduct__c>();
+    }
+    for (ContractProduct__c product : products) {
       ProductLineDto line = new ProductLineDto();
       line.productName = product.Product__r == null
         ? ''
@@ -3064,7 +3055,10 @@ public without sharing class OrderCreateController {
       'ContractService__r.BiilingAcccount__r.BillingEmailCc__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailBcc__c, ' +
       'ContractService__r.BiilingAcccount__r.Account__r.Name, ' +
-      '(SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r), ' +
+      '(SELECT Id, Product__r.Name, Quantity__c, UnitPrice__c, Unit__c, BillingType__c, ' +
+      'InvoiceSetting__c, StartDate__c, Enddate__c, LastModifiedDate ' +
+      'FROM ContractHistoryContractProducts__r ' +
+      'ORDER BY StartDate__c ASC NULLS LAST, Product__r.Name ASC), ' +
       '(SELECT Id, IsManuallyAdjusted__c, InvoiceTransactionStatus__c FROM Invoices__r ' +
       'WHERE IsManuallyAdjusted__c = TRUE AND InvoiceTransactionStatus__c = \'' +
       InvoiceTransactionStatusService.TX_DRAFT +

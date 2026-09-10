@@ -21,6 +21,9 @@ public without sharing class EstimateSaveService {
 
   /** 仕様: Core 第12.4節。同一処理で Product2 を取り直さない。 */
   private static Map<Id, Product2> productBillingTypeCache = new Map<Id, Product2>();
+  /** 仕様: Core 第12.4節。編集保存が配下見積商品を取り直した回数。 */
+  @TestVisible
+  public static Integer replaceProductSelectCount = 0;
 
   public static EstimateCreateController.EstimateSaveResult saveEstimate(
     Id opportunityId,
@@ -431,7 +434,8 @@ public without sharing class EstimateSaveService {
     ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
       existing.Id,
       request.expectedLastModifiedToken,
-      existing.LastModifiedDate
+      existing.LastModifiedDate,
+      existing.ContractHistoryContractProducts__r
     );
     if (existing.Opportunity__c != request.opportunityId) {
       throw EstimateValidationService.wrapAura(
@@ -745,7 +749,8 @@ public without sharing class EstimateSaveService {
     List<ContractProduct__c> replaced = replaceEstimateProducts(
       existing.Id,
       opportunity.AccountId,
-      request
+      request,
+      existing.ContractHistoryContractProducts__r
     );
     return buildSaveResult(serviceId, existing, replaced);
   }
@@ -804,7 +809,8 @@ public without sharing class EstimateSaveService {
     List<ContractProduct__c> replaced = replaceEstimateProducts(
       existing.Id,
       services[0].Account__c,
-      request
+      request,
+      existing.ContractHistoryContractProducts__r
     );
     return buildSaveResult(serviceId, existing, replaced);
   }
@@ -839,7 +845,8 @@ public without sharing class EstimateSaveService {
     List<ContractProduct__c> replaced = replaceEstimateProducts(
       existing.Id,
       null,
-      request
+      request,
+      existing.ContractHistoryContractProducts__r
     );
     return buildSaveResult(
       existing.ContractService__c,
@@ -854,14 +861,35 @@ public without sharing class EstimateSaveService {
     Id accountId,
     EstimateCreateController.EstimateSaveRequest request
   ) {
-    Map<Id, ContractProduct__c> existingById = new Map<Id, ContractProduct__c>(
-      [
-        SELECT Id
-        FROM ContractProduct__c
-        WHERE ContractHistory__c = :contractHistoryId
-        WITH SYSTEM_MODE
-      ]
-    );
+    return replaceEstimateProducts(contractHistoryId, accountId, request, null);
+  }
+
+  /** 仕様: Core 第4.3.12節・第12.4節。ロック照会で読んだ配下見積商品は取り直さない。 */
+  public static List<ContractProduct__c> replaceEstimateProducts(
+    Id contractHistoryId,
+    Id accountId,
+    EstimateCreateController.EstimateSaveRequest request,
+    List<ContractProduct__c> knownExisting
+  ) {
+    Map<Id, ContractProduct__c> existingById;
+    if (knownExisting != null) {
+      existingById = new Map<Id, ContractProduct__c>();
+      for (ContractProduct__c existingProduct : knownExisting) {
+        if (existingProduct != null && existingProduct.Id != null) {
+          existingById.put(existingProduct.Id, existingProduct);
+        }
+      }
+    } else {
+      replaceProductSelectCount++;
+      existingById = new Map<Id, ContractProduct__c>(
+        [
+          SELECT Id
+          FROM ContractProduct__c
+          WHERE ContractHistory__c = :contractHistoryId
+          WITH SYSTEM_MODE
+        ]
+      );
+    }
 
     if (request != null && request.selectedType == 'Cancel') {
       if (!existingById.isEmpty()) {

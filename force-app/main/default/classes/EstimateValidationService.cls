@@ -777,8 +777,11 @@ public without sharing class EstimateValidationService {
       request.contractStartDate = null;
       request.contractEndDate = null;
       request.effectiveDate = null;
-      if (!isChangeOneTimeAddOnly(request.products)) {
-        throw wrapAura('都度契約の Change は一回課金だけです。');
+      // 仕様: Core 第1.2節。Spot の Change は一回課金 Type=New だけ。Remake は拒否。
+      try {
+        assertSpotChangeProducts(request.products);
+      } catch (ChangeConsistencyException ex) {
+        throw wrapAura(ex.getMessage());
       }
       validateProductLines(request.products, true);
       validateNewProductLineRules(

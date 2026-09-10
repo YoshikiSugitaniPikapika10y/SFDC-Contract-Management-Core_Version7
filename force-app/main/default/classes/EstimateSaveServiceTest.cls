@@ -3227,6 +3227,106 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void saveEditedEstimate_doesNotRereadProducts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Edit No Reread Acc'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Edit No Reread Opp'
+      );
+      BillingAccount__c billingAccount = insertBillingAccount(account.Id);
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Edit No Reread Product'
+      );
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 10000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem lineItem = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      lineItem.billingCycle = '月';
+      EstimateCreateController.EstimateSaveResult created = EstimateSaveService.saveEstimate(
+        opportunity.Id,
+        'New',
+        'Edit No Reread CS',
+        'Edit No Reread History',
+        null,
+        null,
+        String.valueOf(termStart),
+        String.valueOf(termEnd),
+        String.valueOf(termStart),
+        String.valueOf(termStart),
+        JSON.serialize(
+          new List<EstimateCreateController.ProductLineItem>{ lineItem }
+        ),
+        null,
+        null,
+        billingAccount.Id,
+        null,
+        null,
+        '{}',
+        '{}',
+        null,
+        10,
+        null,
+        null,
+        null
+      );
+      lineItem.contractProductId = created.contractProductIds[0];
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = opportunity.Id;
+      request.selectedType = 'New';
+      request.editHistoryId = created.contractHistoryId;
+      request.contractServiceId = created.contractServiceId;
+      request.contractServiceName = 'Edit No Reread CS';
+      request.contractStartDate = String.valueOf(termStart);
+      request.contractEndDate = String.valueOf(termEnd);
+      request.effectiveDate = String.valueOf(termStart);
+      request.applicationDate = String.valueOf(termStart);
+      request.billingAccountId = billingAccount.Id;
+      request.taxPercent = 10;
+      request.products = new List<EstimateCreateController.ProductLineItem>{
+        lineItem
+      };
+      request.expectedLastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+        created.contractHistoryId
+      );
+      EstimateSaveService.replaceProductSelectCount = 0;
+      ContractOptimisticLockUtil.productMaxSelectCount = 0;
+      ContractOptimisticLockUtil.historySelectCount = 0;
+      EstimateSaveService.saveEditedEstimate(
+        request,
+        'Edit No Reread History'
+      );
+      System.assertEquals(
+        0,
+        EstimateSaveService.replaceProductSelectCount,
+        'Core 第12.4節: 編集保存はロック照会の見積商品を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        ContractOptimisticLockUtil.productMaxSelectCount,
+        'Core 第12.4節: 版比較の見積商品 MAX を取り直さない'
+      );
+      System.assertEquals(
+        0,
+        ContractOptimisticLockUtil.historySelectCount,
+        'Core 第12.4節: ロック済み契約履歴の更新日時を取り直さない'
+      );
+    }
+  }
+
+  @IsTest
   static void saveEditedEstimate_sameKeyRetry_returnsSameHistory() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(

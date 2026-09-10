@@ -11,8 +11,14 @@ private class OrderCreateControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
 
+      OrderCreateController.orderContextProductSelectCount = 0;
       OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
         context.history.Id
+      );
+      System.assertEquals(
+        0,
+        OrderCreateController.orderContextProductSelectCount,
+        'Core 第4.3.11節・第12.4節: 開く取得で見積商品を取り直さない'
       );
 
       System.assertEquals(context.history.Id, dto.contractHistoryId);
