@@ -607,9 +607,14 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
       .map((th) => th.textContent.trim())
       .join(" ");
     expect(headerText).toContain("確認用");
-    expect(headerText).toContain(
-      "選択 Lock 状態 計上日 イベント 借貸 金額 確認用  メモ"
-    );
+    expect(headerText).toContain("選択");
+    expect(headerText).toContain("Lock");
+    expect(headerText).toContain("状態");
+    expect(headerText).toContain("計上日");
+    expect(headerText).toContain("イベント");
+    expect(headerText).toContain("借貸");
+    expect(headerText).toContain("金額");
+    expect(headerText).toContain("メモ");
     const journalTable = element.shadowRoot.querySelector(
       "table.ops-table_journals"
     );

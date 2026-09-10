@@ -410,7 +410,9 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     const headers = Array.from(
       element.shadowRoot.querySelectorAll("table.ops-table_journals thead th")
     ).map((th) => th.textContent.replace(/\s+/g, " ").trim());
-    expect(headers.slice(0, 5)).toEqual(["選択", "Lock", "状態", "計上日", "イベント"]);
+    expect(headers.slice(0, 3)).toEqual(["選択", "Lock", "状態"]);
+    expect(headers[3]).toContain("計上日");
+    expect(headers[4]).toContain("イベント");
     const rowText = () =>
       Array.from(
         element.shadowRoot.querySelectorAll(
@@ -421,28 +423,125 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
         .join(" ");
     expect(rowText()).toContain("請求本体");
     expect(rowText()).toContain("入金");
-    const monthFilter = element.shadowRoot.querySelector(
-      "lightning-combobox[data-filter='postingMonth']"
+    const monthTrigger = element.shadowRoot.querySelector(
+      "button[data-filter='postingMonth']"
     );
-    monthFilter.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "2026-06" } })
+    monthTrigger.click();
+    await flush();
+    const june = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='postingMonth'][data-value='2026-06']"
     );
+    june.checked = true;
+    june.dispatchEvent(new CustomEvent("change"));
     await flush();
     expect(rowText()).toContain("請求本体");
     expect(rowText()).not.toContain("入金");
-    monthFilter.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "" } })
-    );
+    june.checked = false;
+    june.dispatchEvent(new CustomEvent("change"));
     await flush();
-    const lineFilter = element.shadowRoot.querySelector(
-      "lightning-combobox[data-filter='lineKey']"
+    const lineTrigger = element.shadowRoot.querySelector(
+      "button[data-filter='lineKey']"
     );
-    lineFilter.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "a01LINE00000001" } })
+    lineTrigger.click();
+    await flush();
+    const line = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='lineKey'][data-value='a01LINE00000001']"
     );
+    line.checked = true;
+    line.dispatchEvent(new CustomEvent("change"));
     await flush();
     expect(rowText()).toContain("請求本体");
     expect(rowText()).not.toContain("入金");
+  });
+
+  it("filters journals by manual setting name and multiple months (Accounting 5.2)", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      paymentAllowed: true,
+      taxInclusiveAmount: 1100,
+      invoicePaymentNet: 0,
+      paymentNetTotal: 0,
+      invoiceDate: "2026-06-01",
+      invoiceToken: "token",
+      hasLockedJournals: false,
+      payments: [],
+      paymentLines: [],
+      journals: [
+        {
+          journalId: "a03JNL000000001",
+          eventKey: "BILLING_CONFIRMED",
+          eventName: "請求本体",
+          amount: 1100,
+          postingDate: "2026-06-01",
+          transactionStatus: "Active",
+          isLocked: false,
+          memo: "",
+          invoiceLineId: "a01LINE00000001",
+          productName: "本体商品"
+        },
+        {
+          journalId: "a03JNL000000004",
+          eventKey: "MANUAL_JOURNAL",
+          eventName: "為替差損の計上",
+          amount: 100,
+          postingDate: "2026-07-15",
+          transactionStatus: "Active",
+          isLocked: false,
+          memo: ""
+        }
+      ],
+      manualJournals: []
+    });
+    const element = mount(buildPreview());
+    await flush();
+    await openJournalsTab(element);
+    const rowText = () =>
+      Array.from(
+        element.shadowRoot.querySelectorAll(
+          "table.ops-table_journals tbody tr.journal-row"
+        )
+      )
+        .map((row) => row.textContent)
+        .join(" ");
+    const eventTrigger = element.shadowRoot.querySelector(
+      "button[data-filter='eventName']"
+    );
+    eventTrigger.click();
+    await flush();
+    expect(
+      element.shadowRoot.querySelector(
+        "lightning-input[data-filter='eventName'][data-value='MANUAL_JOURNAL']"
+      )
+    ).toBeNull();
+    const manual = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='eventName'][data-value='為替差損の計上']"
+    );
+    manual.checked = true;
+    manual.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    expect(rowText()).toContain("為替差損の計上");
+    expect(rowText()).not.toContain("請求本体");
+    manual.checked = false;
+    manual.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    const monthTrigger = element.shadowRoot.querySelector(
+      "button[data-filter='postingMonth']"
+    );
+    monthTrigger.click();
+    await flush();
+    const june = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='postingMonth'][data-value='2026-06']"
+    );
+    const july = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='postingMonth'][data-value='2026-07']"
+    );
+    june.checked = true;
+    june.dispatchEvent(new CustomEvent("change"));
+    july.checked = true;
+    july.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    expect(rowText()).toContain("請求本体");
+    expect(rowText()).toContain("為替差損の計上");
   });
 
   it("hides Lock and Unlock when Accounting is OFF", async () => {

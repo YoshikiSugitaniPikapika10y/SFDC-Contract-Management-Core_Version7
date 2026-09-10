@@ -97,8 +97,39 @@ function postingMonthKey(postingDate) {
   return iso.length >= 7 ? iso.slice(0, 7) : "";
 }
 
+/** 仕様: Accounting 第5.2節。列／フィルタはパターン別名。手動は設定Name。起動点キーは使わない。 */
 function journalEventDisplayName(journal) {
-  return journal?.eventName || journal?.eventKey || "";
+  return journal?.eventName || "";
+}
+
+function selectedFilterValues(raw) {
+  if (Array.isArray(raw)) {
+    return raw.filter((value) => value != null && String(value) !== "");
+  }
+  if (raw == null || raw === "") {
+    return [];
+  }
+  return [String(raw)];
+}
+
+function journalFilterSummary(selected, options, emptyLabel) {
+  const values = selectedFilterValues(selected);
+  if (values.length === 0) {
+    return emptyLabel;
+  }
+  if (values.length === 1) {
+    const hit = (options || []).find((row) => row.value === values[0]);
+    return hit ? hit.label : values[0];
+  }
+  return `${values.length}件`;
+}
+
+function withFilterChecked(options, selected) {
+  const set = new Set(selectedFilterValues(selected));
+  return (options || []).map((row) => ({
+    ...row,
+    checked: set.has(row.value)
+  }));
 }
 
 /** 仕様: Core 第7.7.3節。明細なしは候補「明細なし」。確認用の文面では絞らない。 */
@@ -138,13 +169,22 @@ function journalLineFilterLabel(journal, duplicateNames) {
 }
 
 function journalMatchesViewFilter(journal, postingMonth, eventName, lineKey) {
-  if (postingMonth && postingMonthKey(journal.postingDate) !== postingMonth) {
+  const months = selectedFilterValues(postingMonth);
+  if (
+    months.length > 0 &&
+    !months.includes(postingMonthKey(journal.postingDate))
+  ) {
     return false;
   }
-  if (eventName && journalEventDisplayName(journal) !== eventName) {
+  const events = selectedFilterValues(eventName);
+  if (
+    events.length > 0 &&
+    !events.includes(journalEventDisplayName(journal))
+  ) {
     return false;
   }
-  if (lineKey && journalLineFilterKey(journal) !== lineKey) {
+  const lines = selectedFilterValues(lineKey);
+  if (lines.length > 0 && !lines.includes(journalLineFilterKey(journal))) {
     return false;
   }
   return true;
@@ -395,6 +435,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   @track journalLockAnchorByInvoice = {};
   @track journalUnlockReasonByInvoice = {};
   @track journalViewFilterByInvoice = {};
+  @track journalFilterMenuByInvoice = {};
   @track invoiceSplitState = null;
   @track invoiceMoveState = null;
   /** 仕様: Core 第7.8.1節。他の未確定があるときの新規／既存の選択。 */
@@ -2203,9 +2244,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         const bundle = uiState.bundle;
         const allJournals = journalDisplayRows(bundle?.journals);
         const viewFilter = this.journalViewFilterByInvoice[invoiceId] || {};
-        const postingMonthFilter = viewFilter.postingMonth || "";
-        const eventNameFilter = viewFilter.eventName || "";
-        const lineKeyFilter = viewFilter.lineKey || "";
+        const postingMonthFilter = selectedFilterValues(viewFilter.postingMonth);
+        const eventNameFilter = selectedFilterValues(viewFilter.eventName);
+        const lineKeyFilter = selectedFilterValues(viewFilter.lineKey);
+        const filterMenu = this.journalFilterMenuByInvoice[invoiceId] || {};
         const displayedJournals = allJournals.filter((journal) =>
           journalMatchesViewFilter(
             journal,
@@ -2439,25 +2481,44 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             this.isUnlockReasonTooLong(
               this.journalUnlockReasonByInvoice[invoiceId]
             ),
-          journalPostingMonthFilter: postingMonthFilter,
-          journalEventFilter: eventNameFilter,
-          journalLineFilter: lineKeyFilter,
-          journalPostingMonthOptions: [
-            { label: "（すべて）", value: "" },
-            ...uniqueSorted(allJournals.map((journal) => postingMonthKey(journal.postingDate))).map(
-              (month) => ({ label: month, value: month })
-            )
-          ],
-          journalEventOptions: [
-            { label: "（すべて）", value: "" },
-            ...uniqueSorted(allJournals.map((journal) => journalEventDisplayName(journal))).map(
-              (name) => ({ label: name, value: name })
-            )
-          ],
-          journalLineOptions: [
-            { label: "（すべて）", value: "" },
-            ...journalLineFilterOptions(allJournals)
-          ],
+          journalPostingMonthOptions: withFilterChecked(
+            uniqueSorted(
+              allJournals.map((journal) => postingMonthKey(journal.postingDate))
+            ).map((month) => ({ label: month, value: month })),
+            postingMonthFilter
+          ),
+          journalEventOptions: withFilterChecked(
+            uniqueSorted(
+              allJournals.map((journal) => journalEventDisplayName(journal))
+            ).map((name) => ({ label: name, value: name })),
+            eventNameFilter
+          ),
+          journalLineOptions: withFilterChecked(
+            journalLineFilterOptions(allJournals),
+            lineKeyFilter
+          ),
+          journalPostingMonthSummary: journalFilterSummary(
+            postingMonthFilter,
+            uniqueSorted(
+              allJournals.map((journal) => postingMonthKey(journal.postingDate))
+            ).map((month) => ({ label: month, value: month })),
+            "すべて"
+          ),
+          journalEventSummary: journalFilterSummary(
+            eventNameFilter,
+            uniqueSorted(
+              allJournals.map((journal) => journalEventDisplayName(journal))
+            ).map((name) => ({ label: name, value: name })),
+            "すべて"
+          ),
+          journalLineSummary: journalFilterSummary(
+            lineKeyFilter,
+            journalLineFilterOptions(allJournals),
+            "すべて"
+          ),
+          postingMonthMenuOpen: filterMenu.postingMonth === true,
+          eventNameMenuOpen: filterMenu.eventName === true,
+          lineKeyMenuOpen: filterMenu.lineKey === true,
           memoDraft:
             this.memoDrafts[invoiceId] != null
               ? this.memoDrafts[invoiceId]
@@ -2973,8 +3034,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             creditAbbreviation: creditParts.abbreviation,
             creditAccountLabel: creditParts.accountName,
             extraRowKey: `${journal.journalId}-extras`,
-            eventName:
-              journal.eventName || journal.eventKey || "",
+            eventName: journal.eventName || "",
             postingPeriod: postingPeriodLabel(
               journal.postingDate,
               this.todayLocalIso()
@@ -6271,9 +6331,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     const displayed = journalDisplayRows(journals).filter((journal) =>
       journalMatchesViewFilter(
         journal,
-        viewFilter.postingMonth || "",
-        viewFilter.eventName || "",
-        viewFilter.lineKey || ""
+        viewFilter.postingMonth,
+        viewFilter.eventName,
+        viewFilter.lineKey
       )
     );
     const selectableIds = displayed
@@ -6312,21 +6372,52 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     };
   }
 
-  handleJournalViewFilterChange(event) {
-    const invoiceId = event.target.dataset.invoiceId;
-    const field = event.target.dataset.filter;
+  handleJournalFilterMenuToggle(event) {
+    const invoiceId = event.currentTarget.dataset.invoiceId;
+    const field = event.currentTarget.dataset.filter;
     if (
       !invoiceId ||
       (field !== "postingMonth" && field !== "eventName" && field !== "lineKey")
     ) {
       return;
     }
+    const current = this.journalFilterMenuByInvoice[invoiceId] || {};
+    this.journalFilterMenuByInvoice = {
+      ...this.journalFilterMenuByInvoice,
+      [invoiceId]: {
+        postingMonth: false,
+        eventName: false,
+        lineKey: false,
+        [field]: current[field] !== true
+      }
+    };
+  }
+
+  handleJournalViewFilterToggle(event) {
+    const invoiceId = event.target.dataset.invoiceId;
+    const field = event.target.dataset.filter;
+    const value = event.target.dataset.value;
+    if (
+      !invoiceId ||
+      (field !== "postingMonth" &&
+        field !== "eventName" &&
+        field !== "lineKey") ||
+      value == null ||
+      value === ""
+    ) {
+      return;
+    }
+    const checked = event.target.checked === true;
     const current = this.journalViewFilterByInvoice[invoiceId] || {};
+    const selected = selectedFilterValues(current[field]);
+    const next = checked
+      ? Array.from(new Set([...selected, value]))
+      : selected.filter((item) => item !== value);
     this.journalViewFilterByInvoice = {
       ...this.journalViewFilterByInvoice,
       [invoiceId]: {
         ...current,
-        [field]: event.detail.value || ""
+        [field]: next
       }
     };
   }

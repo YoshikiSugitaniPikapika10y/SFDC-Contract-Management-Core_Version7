@@ -1432,31 +1432,73 @@
                         <th class="journal-filter-col" scope="col">
                           <span class="journal-filter-head">
                             <span class="journal-filter-label">計上日</span>
-                            <lightning-combobox
-                              name="journalPostingMonth"
-                              label="計上日"
-                              variant="label-hidden"
-                              value={invoice.journalPostingMonthFilter}
-                              options={invoice.journalPostingMonthOptions}
-                              data-invoice-id={invoice.invoiceId}
-                              data-filter="postingMonth"
-                              onchange={handleJournalViewFilterChange}
-                            ></lightning-combobox>
+                            <span class="journal-multi-filter">
+                              <button
+                                type="button"
+                                class="journal-multi-filter-trigger"
+                                data-invoice-id={invoice.invoiceId}
+                                data-filter="postingMonth"
+                                aria-expanded={invoice.postingMonthMenuOpen}
+                                onclick={handleJournalFilterMenuToggle}
+                              >
+                                {invoice.journalPostingMonthSummary}
+                              </button>
+                              <template if:true={invoice.postingMonthMenuOpen}>
+                                <div class="journal-multi-filter-menu" role="listbox">
+                                  <template
+                                    for:each={invoice.journalPostingMonthOptions}
+                                    for:item="option"
+                                  >
+                                    <lightning-input
+                                      key={option.value}
+                                      type="checkbox"
+                                      label={option.label}
+                                      checked={option.checked}
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="postingMonth"
+                                      data-value={option.value}
+                                      onchange={handleJournalViewFilterToggle}
+                                    ></lightning-input>
+                                  </template>
+                                </div>
+                              </template>
+                            </span>
                           </span>
                         </th>
                         <th class="journal-filter-col" scope="col">
                           <span class="journal-filter-head">
                             <span class="journal-filter-label">イベント</span>
-                            <lightning-combobox
-                              name="journalEvent"
-                              label="イベント"
-                              variant="label-hidden"
-                              value={invoice.journalEventFilter}
-                              options={invoice.journalEventOptions}
-                              data-invoice-id={invoice.invoiceId}
-                              data-filter="eventName"
-                              onchange={handleJournalViewFilterChange}
-                            ></lightning-combobox>
+                            <span class="journal-multi-filter">
+                              <button
+                                type="button"
+                                class="journal-multi-filter-trigger"
+                                data-invoice-id={invoice.invoiceId}
+                                data-filter="eventName"
+                                aria-expanded={invoice.eventNameMenuOpen}
+                                onclick={handleJournalFilterMenuToggle}
+                              >
+                                {invoice.journalEventSummary}
+                              </button>
+                              <template if:true={invoice.eventNameMenuOpen}>
+                                <div class="journal-multi-filter-menu" role="listbox">
+                                  <template
+                                    for:each={invoice.journalEventOptions}
+                                    for:item="option"
+                                  >
+                                    <lightning-input
+                                      key={option.value}
+                                      type="checkbox"
+                                      label={option.label}
+                                      checked={option.checked}
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="eventName"
+                                      data-value={option.value}
+                                      onchange={handleJournalViewFilterToggle}
+                                    ></lightning-input>
+                                  </template>
+                                </div>
+                              </template>
+                            </span>
                           </span>
                         </th>
                         <th scope="col">借貸</th>
@@ -1464,16 +1506,37 @@
                         <th class="journal-confirmation-col journal-filter-col" scope="col">
                           <span class="journal-filter-head">
                             <span class="journal-filter-label">確認用</span>
-                            <lightning-combobox
-                              name="journalLine"
-                              label="明細"
-                              variant="label-hidden"
-                              value={invoice.journalLineFilter}
-                              options={invoice.journalLineOptions}
-                              data-invoice-id={invoice.invoiceId}
-                              data-filter="lineKey"
-                              onchange={handleJournalViewFilterChange}
-                            ></lightning-combobox>
+                            <span class="journal-multi-filter">
+                              <button
+                                type="button"
+                                class="journal-multi-filter-trigger"
+                                data-invoice-id={invoice.invoiceId}
+                                data-filter="lineKey"
+                                aria-expanded={invoice.lineKeyMenuOpen}
+                                onclick={handleJournalFilterMenuToggle}
+                              >
+                                {invoice.journalLineSummary}
+                              </button>
+                              <template if:true={invoice.lineKeyMenuOpen}>
+                                <div class="journal-multi-filter-menu" role="listbox">
+                                  <template
+                                    for:each={invoice.journalLineOptions}
+                                    for:item="option"
+                                  >
+                                    <lightning-input
+                                      key={option.value}
+                                      type="checkbox"
+                                      label={option.label}
+                                      checked={option.checked}
+                                      data-invoice-id={invoice.invoiceId}
+                                      data-filter="lineKey"
+                                      data-value={option.value}
+                                      onchange={handleJournalViewFilterToggle}
+                                    ></lightning-input>
+                                  </template>
+                                </div>
+                              </template>
+                            </span>
                           </span>
                         </th>
                         <th class="journal-toggle-col" scope="col" aria-label="行の詳細"></th>

@@ -696,8 +696,8 @@ describe("orderInvoicePreviewTable payment form", () => {
         ".ops-panel .ops-table_journals thead th"
       )
     ).map((head) => head.textContent.trim());
-    expect(journalHeads).toContain("イベント");
-    expect(journalHeads).toContain("確認用");
+    expect(journalHeads.some((head) => head.includes("イベント"))).toBe(true);
+    expect(journalHeads.some((head) => head.includes("確認用"))).toBe(true);
     expect(journalHeads).toContain("借貸");
     expect(journalHeads).not.toContain("パターン");
     expect(element.shadowRoot.textContent).toContain("到来済み");
