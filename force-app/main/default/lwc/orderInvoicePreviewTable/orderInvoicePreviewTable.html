@@ -1401,7 +1401,7 @@
                     <thead>
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
-                        <th scope="col">Lock</th>
+                        <th class="journal-lock-cell" scope="col">Lock</th>
                         <th class="journal-status-col" scope="col">状態</th>
                         <th class="journal-filter-col journal-posting-col" scope="col">
                           <span class="journal-filter-head">
@@ -1514,7 +1514,7 @@
                           </span>
                         </th>
                         <th class="journal-toggle-col" scope="col" aria-label="行の詳細"></th>
-                        <th scope="col">メモ</th>
+                        <th class="journal-memo-cell" scope="col">メモ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1549,7 +1549,7 @@
                             </template>
                           </td>
                           <td class="journal-event-col" title={journal.eventDisplayName}>{journal.eventDisplayName}</td>
-                          <td class="journal-slot-col">
+                          <td class="journal-slot-col" title={journal.slotTitle}>
                             <template if:true={journal.debitAbbreviation}>
                               <span class="journal-slot-abbr">{journal.debitAbbreviation}</span>
                               <template if:true={journal.debitAccountLabel}>

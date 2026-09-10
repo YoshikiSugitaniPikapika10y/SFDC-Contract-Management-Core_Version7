@@ -3084,6 +3084,18 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             debitAccountLabel: debitParts.accountName,
             creditAbbreviation: creditParts.abbreviation,
             creditAccountLabel: creditParts.accountName,
+            slotTitle: [
+              debitParts.abbreviation
+                ? [debitParts.abbreviation, debitParts.accountName]
+                    .filter(Boolean)
+                    .join(" ")
+                : journal.debitAccountName || "",
+              creditParts.abbreviation
+                ? [creditParts.abbreviation, creditParts.accountName]
+                    .filter(Boolean)
+                    .join(" ")
+                : journal.creditAccountName || ""
+            ].join(" / "),
             extraRowKey: `${journal.journalId}-extras`,
             eventName: journal.eventName || "",
             eventDisplayName: journalEventDisplayName(journal),

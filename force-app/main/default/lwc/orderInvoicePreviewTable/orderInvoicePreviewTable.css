@@ -361,9 +361,13 @@
   padding: 0.12rem 0.5rem;
 }
 
-.journal-confirmation-col,
+.journal-confirmation-col {
+  width: 32%;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .journal-confirmation-cell {
-  width: 24%;
   max-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -371,26 +375,26 @@
 }
 
 .journal-status-col {
-  width: 3.4rem;
-  max-width: 3.4rem;
-  padding-left: 0.25rem;
-  padding-right: 0.25rem;
+  width: 3rem;
+  max-width: 3rem;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
   white-space: nowrap;
 }
 
 .journal-posting-col {
-  width: 10rem;
+  width: 9.5rem;
 }
 
 .journal-event-col {
-  width: 16%;
+  width: 14%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .journal-slot-col {
-  width: 28%;
+  width: 24%;
 }
 
 .ops-table_journals .journal-slot-col .journal-slot-abbr {
@@ -432,9 +436,17 @@
   background: transparent;
 }
 
-.journal-lock-cell,
+.journal-lock-cell {
+  width: 2.35rem;
+  max-width: 2.35rem;
+  text-align: center;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+}
+
 .journal-toggle-col {
   width: 1.75rem;
+  max-width: 1.75rem;
   text-align: center;
   padding-left: 0.2rem;
   padding-right: 0.2rem;
@@ -559,6 +571,11 @@
 .journal-multi-filter-menu lightning-input {
   display: block;
   --slds-c-input-sizing-min-height: 1.55rem;
+}
+
+.ops-table_journals .split-select-col {
+  width: 2.5rem;
+  max-width: 2.5rem;
 }
 
 .ops-table_journals .split-select-col lightning-input {
