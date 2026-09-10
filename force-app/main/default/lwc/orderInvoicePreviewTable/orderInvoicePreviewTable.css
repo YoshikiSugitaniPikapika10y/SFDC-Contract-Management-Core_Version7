@@ -388,10 +388,6 @@
   color: #dc2626;
 }
 
-.ops-table_journals .journal-slot-abbr {
-  color: inherit;
-}
-
 .journal-lock-empty {
   display: block;
   width: 1.1rem;
