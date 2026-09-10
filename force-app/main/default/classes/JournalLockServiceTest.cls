@@ -433,7 +433,7 @@ private class JournalLockServiceTest {
       } catch (JournalLockService.LockException ex) {
         thrown = true;
         System.assertEquals(
-          '有効な仕訳だけをLock/Unlockできます。',
+          '有効と取消の仕訳だけをLock/Unlockできます。',
           ex.getMessage()
         );
       }
@@ -481,54 +481,100 @@ private class JournalLockServiceTest {
         PostingDate__c = Date.newInstance(2026, 6, 1),
         TransactionStatus__c = 'LogicallyDeleted'
       );
+      insert logicallyDeleted;
+
+      Boolean thrown = false;
+      try {
+        JournalLockService.lockForInvoice(
+          invoice.Id,
+          new List<Id>{ logicallyDeleted.Id },
+          AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+          null
+        );
+      } catch (JournalLockService.LockException ex) {
+        thrown = true;
+        System.assertEquals(
+          '有効と取消の仕訳だけをLock/Unlockできます。',
+          ex.getMessage(),
+          'Accounting 第9.5節: 論理削除は請求以外扱いの拒否文にしない'
+        );
+        System.assertEquals(
+          false,
+          ex.getMessage().contains('この請求以外'),
+          '件数不一致の誤メッセージにしない'
+        );
+      }
+      System.assertEquals(
+        true,
+        thrown,
+        'Accounting 第9.5節: 論理削除仕訳はLockできない'
+      );
+    }
+  }
+
+  @IsTest
+  static void lockForInvoice_locksReversalJournal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoice.SystemIntegrationDate__c = Date.today();
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'JLock Reversal Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'JLock Reversal Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
       GlJournal__c reversal = new GlJournal__c(
         Invoice__c = invoice.Id,
         Amount__c = 1,
         IdempotencyKey__c = AccountingDiffService.hashKey(
-          new List<String>{ 'JL-REV' }
+          new List<String>{ 'JL-REV-LOCK' }
         ),
         DebitSlotKey__c = 'Cash',
         CreditSlotKey__c = 'UnappliedCash',
         DebitAccount__c = debit.Id,
         CreditAccount__c = credit.Id,
         PostingDate__c = Date.newInstance(2026, 6, 2),
-        TransactionStatus__c = 'Reversal'
+        TransactionStatus__c = 'Reversal',
+        IsLocked__c = false
       );
-      insert new List<GlJournal__c>{ logicallyDeleted, reversal };
+      insert reversal;
 
-      for (
-        GlJournal__c auditJournal : new List<GlJournal__c>{
-          logicallyDeleted,
-          reversal
-        }
-      ) {
-        Boolean thrown = false;
-        try {
-          JournalLockService.lockForInvoice(
-            invoice.Id,
-            new List<Id>{ auditJournal.Id },
-            AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
-            null
-          );
-        } catch (JournalLockService.LockException ex) {
-          thrown = true;
-          System.assertEquals(
-            '有効な仕訳だけをLock/Unlockできます。',
-            ex.getMessage(),
-            'Accounting 第2.3節・第9.5節: 監査仕訳は請求以外扱いの拒否文にしない'
-          );
-          System.assertEquals(
-            false,
-            ex.getMessage().contains('この請求以外'),
-            '件数不一致の誤メッセージにしない'
-          );
-        }
-        System.assertEquals(
-          true,
-          thrown,
-          'Accounting 第2.3節・第9.5節: 論理削除・取消仕訳はLockできない'
-        );
-      }
+      Test.startTest();
+      Integer locked = JournalLockService.lockForInvoice(
+        invoice.Id,
+        new List<Id>{ reversal.Id },
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        null
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        1,
+        locked,
+        'Accounting 第9.5節: 取消仕訳も手動Lockできる'
+      );
+      reversal = [
+        SELECT IsLocked__c
+        FROM GlJournal__c
+        WHERE Id = :reversal.Id
+      ];
+      System.assertEquals(
+        true,
+        reversal.IsLocked__c,
+        'Accounting 第9.5節: 取消行のIsLocked__cをTrueにする'
+      );
     }
   }
 

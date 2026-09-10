@@ -94,6 +94,11 @@ public without sharing class JournalLockService {
     );
   }
 
+  // 仕様: Accounting 第9.5節、Core 第7.7.3節。対象は有効と取消。
+  private static Boolean isLockSelectableStatus(String status) {
+    return status == 'Active' || status == 'Reversal';
+  }
+
   private static Integer setLocked(
     Id invoiceId,
     List<Id> journalIds,
@@ -139,10 +144,10 @@ public without sharing class JournalLockService {
     if (journals.size() != selected.size()) {
       throw new LockException('この請求以外の仕訳はLock/Unlockできません。');
     }
-    // 仕様: Accounting 第2.3節・第2.5節・第9.5節。手動Lock／Unlockは有効仕訳だけ。
+    // 仕様: Accounting 第9.5節、Core 第7.7.3節。手動Lock／Unlockの対象は有効と取消。取消済と論理削除は拒否する。
     for (GlJournal__c journal : journals) {
-      if (journal.TransactionStatus__c != 'Active') {
-        throw new LockException('有効な仕訳だけをLock/Unlockできます。');
+      if (!isLockSelectableStatus(journal.TransactionStatus__c)) {
+        throw new LockException('有効と取消の仕訳だけをLock/Unlockできます。');
       }
     }
     // 仕様: Accounting 第9.5節、Core 第7.7.3節。Lock済みと未Lockの混在は拒否する。

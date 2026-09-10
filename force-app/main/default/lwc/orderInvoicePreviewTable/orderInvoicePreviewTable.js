@@ -92,6 +92,14 @@ function journalDisplayRows(journals) {
     .sort(compareJournalDisplayOrder);
 }
 
+/** 仕様: Accounting 第9.5節、Core 第7.7.3節。Lock／Unlockの対象は有効と取消。 */
+function isJournalLockSelectable(journal) {
+  return (
+    journal?.transactionStatus === "Active" ||
+    journal?.transactionStatus === "Reversal"
+  );
+}
+
 function postingMonthKey(postingDate) {
   const iso = String(postingDate || "").slice(0, 10);
   return iso.length >= 7 ? iso.slice(0, 7) : "";
@@ -2285,20 +2293,20 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             lineKeyFilter
           )
         );
-        const activeJournalCount = displayedJournals.filter(
-          (journal) => journal.transactionStatus === "Active"
+        const lockSelectableCount = displayedJournals.filter((journal) =>
+          isJournalLockSelectable(journal)
         ).length;
-        const selectedActiveJournals = displayedJournals.filter(
+        const selectedLockableJournals = displayedJournals.filter(
           (journal) =>
-            journal.transactionStatus === "Active" &&
+            isJournalLockSelectable(journal) &&
             this.journalLockSelected?.[invoiceId]?.[journal.journalId] === true
         );
         const allSelectedLocked =
-          selectedActiveJournals.length > 0 &&
-          selectedActiveJournals.every((journal) => journal.isLocked === true);
+          selectedLockableJournals.length > 0 &&
+          selectedLockableJournals.every((journal) => journal.isLocked === true);
         const allSelectedUnlocked =
-          selectedActiveJournals.length > 0 &&
-          selectedActiveJournals.every((journal) => journal.isLocked !== true);
+          selectedLockableJournals.length > 0 &&
+          selectedLockableJournals.every((journal) => journal.isLocked !== true);
         const activeTab = restoreInvoiceTab(
           uiState.activeTab || "lines",
           accountingEnabled
@@ -2475,35 +2483,35 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             accountingEnabled &&
             !isCancelled &&
             (this.canLockJournal || this.canUnlockJournal),
-          // 仕様: Core 第7.7.3節、Accounting 第9.5節。有効が1行でも左チェック。未選択はボタンなし。
+          // 仕様: Core 第7.7.3節、Accounting 第9.5節。有効または取消が1行でも左チェック。未選択はボタンなし。
           showJournalSelectCheckbox:
             accountingEnabled &&
             !isCancelled &&
             (this.canLockJournal || this.canUnlockJournal) &&
-            activeJournalCount >= 1,
+            lockSelectableCount >= 1,
           showJournalBarLock:
             accountingEnabled &&
             !isCancelled &&
             this.canLockJournal &&
-            selectedActiveJournals.length >= 1 &&
+            selectedLockableJournals.length >= 1 &&
             !allSelectedLocked,
           showJournalBarUnlock:
             accountingEnabled &&
             !isCancelled &&
             this.canUnlockJournal &&
-            selectedActiveJournals.length >= 1 &&
+            selectedLockableJournals.length >= 1 &&
             allSelectedLocked,
           showJournalLockBar:
             accountingEnabled &&
             !isCancelled &&
-            selectedActiveJournals.length >= 1 &&
+            selectedLockableJournals.length >= 1 &&
             ((this.canLockJournal && !allSelectedLocked) ||
               (this.canUnlockJournal && allSelectedLocked)),
           journalScrollClass: [
             "journal-scroll",
             accountingEnabled &&
             !isCancelled &&
-            selectedActiveJournals.length >= 1 &&
+            selectedLockableJournals.length >= 1 &&
             ((this.canLockJournal && !allSelectedLocked) ||
               (this.canUnlockJournal && allSelectedLocked))
               ? "journal-scroll_has-lock-bar"
@@ -2516,8 +2524,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           ]
             .filter(Boolean)
             .join(" "),
-          journalLockBarLabel: `${selectedActiveJournals.length}件をLock`,
-          journalUnlockBarLabel: `${selectedActiveJournals.length}件をUnlock`,
+          journalLockBarLabel: `${selectedLockableJournals.length}件をLock`,
+          journalUnlockBarLabel: `${selectedLockableJournals.length}件をUnlock`,
           journalUnlockReasonDraft:
             this.journalUnlockReasonByInvoice[invoiceId] || "",
           journalBarUnlockDisabled:
@@ -3071,7 +3079,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             const isAuditRow =
               journal.transactionStatus === "Cancelled" ||
               journal.transactionStatus === "Reversal";
-            const isActive = journal.transactionStatus === "Active";
+            const canSelectForJournalLock = isJournalLockSelectable(journal);
             const rowClasses = ["journal-row"];
             if (journal.journalId === this.highlightJournalId) {
               rowClasses.push("journal-row_highlight");
@@ -3079,7 +3087,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             if (isAuditRow) {
               rowClasses.push("journal-row_audit");
             }
-            if (isActive && this.journalLockSelected?.[invoiceId]?.[journal.journalId] === true) {
+            if (
+              canSelectForJournalLock &&
+              this.journalLockSelected?.[invoiceId]?.[journal.journalId] === true
+            ) {
               rowClasses.push("journal-row_selected");
             }
             const debitParts = splitSlotAccountDisplay(journal.debitAccountName);
@@ -3133,11 +3144,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
               requireExemptToEdit: journal.isLocked === true
             }),
             canSaveJournalExtras: this.canEdit && !isCancelled,
-            // 仕様: Accounting 第2.3節・第9.5節、Core 第7.7.3節。
-            // 手動Lock／Unlockの選択は有効仕訳だけ。監査表示の取消済・取消は選べない。
-            canSelectForJournalLock: isActive,
+            // 仕様: Accounting 第9.5節、Core 第7.7.3節。
+            // 手動Lock／Unlockの選択は有効と取消。取消済と論理削除は選べない。
+            canSelectForJournalLock,
             journalSelected:
-              isActive &&
+              canSelectForJournalLock &&
               this.journalLockSelected?.[invoiceId]?.[journal.journalId] ===
                 true,
             showLockKey: journal.isLocked === true,
@@ -3174,12 +3185,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           journalLockDisabled:
             opsBusy ||
             isCancelled ||
-            selectedActiveJournals.length < 2 ||
+            selectedLockableJournals.length < 2 ||
             !allSelectedUnlocked,
           journalUnlockDisabled:
             opsBusy ||
             isCancelled ||
-            selectedActiveJournals.length < 2 ||
+            selectedLockableJournals.length < 2 ||
             !allSelectedLocked,
           applyBillingDisabled:
             this.hasAmountDrafts ||
@@ -6368,14 +6379,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     const selected = this.journalLockSelected?.[invoiceId] || {};
     const journals =
       this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
-    const activeIds = new Set(
+    const selectableIds = new Set(
       journals
-        .filter((journal) => journal.transactionStatus === "Active")
+        .filter((journal) => isJournalLockSelectable(journal))
         .map((journal) => journal.journalId)
     );
     return Object.keys(selected).filter(
       (journalId) =>
-        selected[journalId] === true && activeIds.has(journalId)
+        selected[journalId] === true && selectableIds.has(journalId)
     );
   }
 
@@ -6405,7 +6416,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       )
     );
     const selectableIds = displayed
-      .filter((journal) => journal.transactionStatus === "Active")
+      .filter((journal) => isJournalLockSelectable(journal))
       .map((journal) => journal.journalId);
     if (!selectableIds.includes(journalId)) {
       return;

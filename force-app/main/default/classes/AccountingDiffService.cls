@@ -1177,6 +1177,7 @@ public without sharing class AccountingDiffService {
     reversal.CreditAccount__c = original.DebitAccount__c;
     reversal.PostingDate__c = postingDate;
     reversal.TransactionStatus__c = 'Reversal';
+    // 仕様: Accounting 第8.8節。取消仕訳の IsLocked__c は False。元の Lock は引き継がない。
     reversal.IsLocked__c = false;
     reversal.OriginalJournal__c = original.Id;
     reversal.AccountingEventKey__c = eventKey;

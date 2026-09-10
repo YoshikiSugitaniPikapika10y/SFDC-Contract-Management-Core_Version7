@@ -248,4 +248,42 @@ describe("contractCrossWork journal lock UI (Accounting 9.5 / 共通基盤 10.4)
     expect(showUnlockReason.call(withUnlock)).toBe(true);
     expect(showJournalLockSelection.call(withUnlock)).toBe(true);
   });
+
+  it("allows Lock selection on Active and Reversal and denies Cancelled and LogicallyDeleted", () => {
+    const proto = ContractCrossWork.prototype;
+    const state = {
+      menu: "journal",
+      selectedId: null,
+      memoDrafts: {},
+      showJournalLockSelection: true,
+      checkedIds: {},
+      journalCells() {
+        return [];
+      }
+    };
+    expect(
+      proto.toDataRow.call(state, {
+        id: "a1",
+        transactionStatus: "Active"
+      }).canCheck
+    ).toBe(true);
+    expect(
+      proto.toDataRow.call(state, {
+        id: "r1",
+        transactionStatus: "Reversal"
+      }).canCheck
+    ).toBe(true);
+    expect(
+      proto.toDataRow.call(state, {
+        id: "c1",
+        transactionStatus: "Cancelled"
+      }).canCheck
+    ).toBe(false);
+    expect(
+      proto.toDataRow.call(state, {
+        id: "d1",
+        transactionStatus: "LogicallyDeleted"
+      }).canCheck
+    ).toBe(false);
+  });
 });

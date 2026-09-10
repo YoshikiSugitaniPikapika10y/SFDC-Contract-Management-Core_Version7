@@ -376,16 +376,17 @@ private class AccountingDiffServiceTest {
         leftover.TransactionStatus__c,
         'Accounting 第8.2節: ロック済みCurrentは逆仕訳し元をCancelledにする'
       );
+      GlJournal__c reversal = [
+        SELECT IsLocked__c, TransactionStatus__c
+        FROM GlJournal__c
+        WHERE
+          OriginalJournal__c = :leftover.Id
+          AND TransactionStatus__c = 'Reversal'
+      ];
       System.assertEquals(
-        1,
-        [
-          SELECT COUNT()
-          FROM GlJournal__c
-          WHERE
-            OriginalJournal__c = :leftover.Id
-            AND TransactionStatus__c = 'Reversal'
-        ],
-        'Accounting 第8.5節: ロック済みの取消は逆仕訳を残す'
+        false,
+        reversal.IsLocked__c,
+        'Accounting 第8.8節: 取消仕訳のIsLocked__cはFalse。元のLockは引き継がない'
       );
     }
   }

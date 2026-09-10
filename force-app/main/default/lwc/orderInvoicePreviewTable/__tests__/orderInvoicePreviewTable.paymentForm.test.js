@@ -758,7 +758,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(journalRows()[2].className).toContain("journal-row_audit");
   });
 
-  it("shows Lock selection checkbox only for Active journals", async () => {
+  it("shows Lock selection checkbox for Active and Reversal journals", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({
         accountingEnabled: true,
@@ -847,7 +847,8 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(checkboxes[0].dataset.journalId).toBe("a03JNL000000001");
     expect(checkboxes[1]).toBeTruthy();
     expect(checkboxes[1].dataset.journalId).toBe("a03JNL000000005");
-    expect(checkboxes[2]).toBeNull();
+    expect(checkboxes[2]).toBeTruthy();
+    expect(checkboxes[2].dataset.journalId).toBe("a03JNL000000002");
     expect(checkboxes[3]).toBeNull();
   });
 
