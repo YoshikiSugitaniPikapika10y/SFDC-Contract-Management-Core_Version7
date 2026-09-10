@@ -139,4 +139,76 @@ private class ContractHistoryVersionUtilTest {
     System.assertEquals(null, describe.getRelationshipOrder());
     System.assertEquals(false, describe.isCascadeDelete());
   }
+
+  @IsTest
+  static void getNextHistoryVersion_nullServiceStartsAtOne() {
+    System.assertEquals(
+      1,
+      ContractHistoryVersionUtil.getNextHistoryVersion(null),
+      'Core 第1.1.1節: Newは Version 1 から開始する'
+    );
+    System.assertEquals(
+      1,
+      ContractHistoryVersionUtil.allocateNextVersion(null, null),
+      'Core 第1.1.1節: 契約サービスが無ければ Version 1'
+    );
+    System.assertEquals(
+      0,
+      ContractHistoryVersionUtil.buildVersionAllocator(null).size(),
+      'Core 第12.4節: 対象が無ければ最新 Ordered を取らない'
+    );
+    System.assertEquals(
+      0,
+      ContractHistoryVersionUtil.buildVersionAllocator(new Set<Id>()).size()
+    );
+  }
+
+  @IsTest
+  static void allocateNextVersion_missingServiceStartsAtOneAndDoesNotAdvance() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Missing Version Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Missing Version Service'
+      );
+      Map<Id, Decimal> allocator = ContractHistoryVersionUtil.buildVersionAllocator(
+        new Set<Id>{ service.Id }
+      );
+      System.assertEquals(
+        0,
+        allocator.get(service.Id),
+        'Core 第1.1.1節: Ordered が無ければ基準 Version は 0'
+      );
+      System.assertEquals(
+        1,
+        ContractHistoryVersionUtil.allocateNextVersion(allocator, service.Id),
+        'Core 第1.1.1節: Newは Version 1 から開始する'
+      );
+      System.assertEquals(
+        1,
+        ContractHistoryVersionUtil.allocateNextVersion(
+          new Map<Id, Decimal>(),
+          service.Id
+        ),
+        'Core 第1.1.1節: マップに無い契約サービスも Version 1'
+      );
+      insertOrderedHistory(service, account.Id, 3, 'New');
+      Map<Id, Decimal> afterOrder = ContractHistoryVersionUtil.buildVersionAllocator(
+        new Set<Id>{ service.Id }
+      );
+      System.assertEquals(3, afterOrder.get(service.Id));
+      System.assertEquals(
+        4,
+        ContractHistoryVersionUtil.allocateNextVersion(afterOrder, service.Id),
+        'Core 第1.1.1節: Change・Renew・Cancelは Latest Ordered に1を加える'
+      );
+      System.assertEquals(
+        4,
+        ContractHistoryVersionUtil.getNextHistoryVersion(service.Id),
+        'Core 第4.3節: 最新 Ordered の Version を取り直さず +1 する'
+      );
+    }
+  }
 }

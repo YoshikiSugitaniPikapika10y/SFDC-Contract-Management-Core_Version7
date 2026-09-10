@@ -36,7 +36,8 @@ private class ContractDerivedRecalcServiceTest {
       Account account = ContractTestDataFactory.insertAccount('Recalc Account');
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
-        'Recalc Service'
+        'Recalc Service',
+        ContractDomainConstants.LIFECYCLE_SPOT
       );
       Date termStart = Date.newInstance(2026, 6, 1);
       Date termEnd = Date.newInstance(2026, 6, 30);
@@ -132,6 +133,67 @@ private class ContractDerivedRecalcServiceTest {
         reloadedHistory.StatusPath__c,
         '共通基盤 第3.6節: StatusPath を再計算する。Core 第5.7節: 未確定請求が残れば Invoicing'
       );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'IrregularRecalc'
+            AND TargetRecordId__c = :String.valueOf(service.Id)
+        ],
+        '共通基盤 第12章: 102 の公式再計算は IrregularRecalc を1回書く'
+      );
+    }
+  }
+
+  @IsTest
+  static void recalculate_emptySetWith102_doesNotWriteLog() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.FIX_CONTRACT => true
+    };
+    try {
+      Integer before = [SELECT COUNT() FROM ContractOperationLog__c];
+      ContractDerivedRecalcService.recalculate(null);
+      ContractDerivedRecalcService.recalculate(new Set<Id>());
+      System.assertEquals(
+        before,
+        [SELECT COUNT() FROM ContractOperationLog__c],
+        '共通基盤 第3.6節: 対象が無ければ再計算も操作ログも書かない'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+  }
+
+  @IsTest
+  static void recalculate_blocksWithout102EvenWhenServiceSpecified() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Recalc Denied Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Recalc Denied Service'
+      );
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.FIX_CONTRACT => false,
+        ContractPermissionUtil.MIGRATE_ALL => false
+      };
+      Boolean blocked = false;
+      try {
+        ContractDerivedRecalcService.recalculate(new Set<Id>{ service.Id });
+      } catch (AuraHandledException ex) {
+        blocked = true;
+        System.assertEquals(
+          '契約と見積の再計算を実行する権限がありません。',
+          ex.getMessage(),
+          '共通基盤 第3.6節: 公式再計算は 102'
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+      System.assertEquals(true, blocked);
     }
   }
 }

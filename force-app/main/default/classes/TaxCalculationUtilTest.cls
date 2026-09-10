@@ -200,4 +200,77 @@ private class TaxCalculationUtilTest {
     System.assertEquals('10', TaxCalculationUtil.formatTaxPercentLabel(10));
     System.assertEquals('0', TaxCalculationUtil.formatTaxPercentLabel(0));
   }
+
+  @IsTest
+  static void resolveTaxPercent_rejectsWithExactMessagesAndAllowsOneHundred() {
+    try {
+      TaxCalculationUtil.resolveTaxPercent(null);
+      System.assert(false, '空は例外になる');
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      System.assertEquals(
+        '消費税率が空です。',
+        ex.getMessage(),
+        'Core 第1.1.10節: 税率の空欄は 0% にせずエラー'
+      );
+    }
+    try {
+      TaxCalculationUtil.resolveTaxPercent(-5);
+      System.assert(false, '負数は例外になる');
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      System.assertEquals(
+        '消費税率が不正です（負の値は指定できません）: -5',
+        ex.getMessage(),
+        'Core 第1.1.10節: 負の税率は推測して進めない'
+      );
+    }
+    try {
+      TaxCalculationUtil.resolveTaxPercent(0.08);
+      System.assert(false, '小数は例外になる');
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      System.assertEquals(
+        '消費税率が不正です（0〜1の小数ではなくパーセント値を入力してください）: 0.08',
+        ex.getMessage(),
+        'Core 第1.1.10節: 0〜1の小数はパーセント値ではない'
+      );
+    }
+    try {
+      TaxCalculationUtil.resolveTaxPercent(1000);
+      System.assert(false, '100超は例外になる');
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      System.assertEquals(
+        '消費税率が不正です（100を超える値は指定できません）: 1000',
+        ex.getMessage(),
+        'Core 第1.1.10節: 100超は不正'
+      );
+    }
+    System.assertEquals(
+      100,
+      TaxCalculationUtil.resolveTaxPercent(100),
+      'Core 第1.1.10節: 100はパーセント値として受け付ける'
+    );
+  }
+
+  @IsTest
+  static void calculateTaxAmount_roundsTowardZeroPerOrgSetting() {
+    System.assertEquals(
+      100,
+      TaxCalculationUtil.calculateTaxAmount(1001, 10),
+      'Core 第7.4節・第11.9節: シードの税額丸めは0方向切捨て。1001×10%は100'
+    );
+    System.assertEquals(
+      0,
+      TaxCalculationUtil.calculateAmountInclTax(null, 10),
+      'Core 第7.4節: 税抜空は0として税0を足す。税率空にはしない'
+    );
+    System.assertEquals(
+      '10.5',
+      TaxCalculationUtil.formatTaxPercentLabel(10.5),
+      'Core 第1.1.10節: 端数のある税率はゼロ埋めせず表示％のまま'
+    );
+    System.assertEquals(
+      0,
+      TaxCalculationUtil.fromPercentFieldStorage(0),
+      '0は小数表記ではなく表示％の0%'
+    );
+  }
 }
