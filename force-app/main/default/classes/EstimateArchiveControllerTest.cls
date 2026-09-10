@@ -570,6 +570,127 @@ private class EstimateArchiveControllerTest {
     }
   }
 
+  @IsTest
+  static void archiveEstimate_rejectsAlreadyArchivedWithDifferentKey() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Irreversible Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Archive Irreversible Service'
+      );
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Irreversible History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
+      );
+      String token = ContractOptimisticLockUtil.toHistoryProductToken(
+        history.Id
+      );
+      EstimateArchiveController.archiveEstimate(
+        history.Id,
+        token,
+        'archive-first-key'
+      );
+
+      EstimateArchiveController.ArchiveContext context = EstimateArchiveController.getArchiveContext(
+        history.Id
+      );
+      System.assertEquals(
+        'Archive',
+        context.historyStatus,
+        'Core 第5.5節: Archiveは参照のみ。状態はArchiveのまま返す'
+      );
+
+      Boolean thrown = false;
+      try {
+        EstimateArchiveController.archiveEstimate(
+          history.Id,
+          context.lastModifiedToken,
+          'archive-other-key'
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '見積状態の契約履歴のみ不採用にできます。',
+          ex.getMessage(),
+          'Core 第5.5節: Archiveから他状態へ復活できない。手動ArchiveできるのはEstimateだけ'
+        );
+      }
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        'Archive',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .historystatus__c
+      );
+    }
+  }
+
+  @IsTest
+  static void archiveEstimate_blankKey_issuesKeyAndKeepsOpportunity() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Blank Key Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Archive Blank Key Service'
+      );
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Blank Key History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
+      );
+      Id opportunityId = [
+        SELECT Opportunity__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ]
+      .Opportunity__c;
+
+      EstimateArchiveController.ArchiveResult result = EstimateArchiveController.archiveEstimate(
+        history.Id,
+        ContractOptimisticLockUtil.toHistoryProductToken(history.Id),
+        null
+      );
+      System.assertEquals('Archive', result.historyStatus);
+      System.assertEquals(
+        false,
+        String.isBlank(result.businessOperationKey),
+        'Core 第4.3.12節: 手動Archiveの操作キーはサーバが発行する'
+      );
+      ContractHistory__c archived = [
+        SELECT historystatus__c, Opportunity__c, PreviousHistory__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      System.assertEquals('Archive', archived.historystatus__c);
+      System.assertEquals(
+        opportunityId,
+        archived.Opportunity__c,
+        'Core 第5.5節: 手動Archiveは見積を消さない。商談参照を外すのは差し戻しの更新商談削除だけ'
+      );
+      System.assertEquals(null, archived.PreviousHistory__c);
+    }
+  }
+
   private static ContractHistory__c insertEstimateHistory(
     Id serviceId,
     Id accountId,

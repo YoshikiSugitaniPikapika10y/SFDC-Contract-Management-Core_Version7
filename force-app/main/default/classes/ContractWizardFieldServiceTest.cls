@@ -473,6 +473,12 @@ private class ContractWizardFieldServiceTest {
       '{"CustomerMemo__c":"abc"}'
     );
     System.assertEquals('abc', parsed.get('CustomerMemo__c'));
+    System.assertEquals(
+      0,
+      ContractWizardFieldService.parseCustomFieldsJson('["not-an-object"]')
+        .size(),
+      'Core 第11.4.1節: 追加項目JSONはオブジェクト以外を空として扱う'
+    );
   }
 
   @IsTest
@@ -1190,6 +1196,125 @@ private class ContractWizardFieldServiceTest {
       )
     );
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+  }
+
+  @IsTest
+  static void wizardFieldHelpers_typeVisibilityPicklistAndNulls() {
+    ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+    System.assertEquals(
+      0,
+      ContractWizardFieldService.extractCustomFields(
+          null,
+          ContractWizardFieldService.WizardTarget.ContractService
+        )
+        .size()
+    );
+    ContractWizardFieldService.applyCustomFields(
+      null,
+      new Map<String, Object>{ 'CustomerMemo__c' => 'x' },
+      ContractWizardFieldService.WizardTarget.ContractService
+    );
+    ContractWizardFieldService.applyCustomFields(
+      new ContractService__c(),
+      new Map<String, Object>(),
+      ContractWizardFieldService.WizardTarget.ContractService
+    );
+
+    List<ContractWizardFieldService.PicklistOptionDefinition> typeOptions = ContractWizardFieldService.buildPicklistOptions(
+      ContractHistory__c.Type__c.getDescribe()
+    );
+    System.assert(
+      typeOptions.size() > 0,
+      'Core 第11.4.1節: 選択リストの追加項目は有効な選択肢を出す'
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.isSupportedType(Schema.DisplayType.EMAIL)
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.isSupportedType(Schema.DisplayType.PHONE)
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.isSupportedType(Schema.DisplayType.URL)
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.isSupportedType(Schema.DisplayType.PERCENT)
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.isSupportedType(Schema.DisplayType.LONG)
+    );
+    System.assertEquals(
+      false,
+      ContractWizardFieldService.isSupportedType(Schema.DisplayType.TIME),
+      'Core 第11.4.1節: 時刻型はウィザード非対応'
+    );
+
+    Schema.DescribeFieldResult percentDescribe = ContractService__c.TaxPercent__c.getDescribe();
+    System.assertEquals(
+      10.5,
+      ContractWizardFieldService.coerceValue(percentDescribe, '10.5')
+    );
+    System.assertEquals(
+      null,
+      ContractWizardFieldService.coerceValue(
+        ContractHistory__c.Opportunity__c.getDescribe(),
+        'not-an-id'
+      )
+    );
+    System.assertEquals(
+      null,
+      ContractWizardFieldService.coerceValue(
+        User.IsActive.getDescribe(),
+        ' '
+      )
+    );
+    System.assertEquals(
+      false,
+      ContractWizardFieldService.coerceValue(
+        User.IsActive.getDescribe(),
+        '0'
+      )
+    );
+    System.assertEquals(
+      '有効なレコードを選択してください',
+      ContractWizardFieldService.getTypeErrorMessage(
+        Schema.DisplayType.REFERENCE,
+        'not-an-id'
+      )
+    );
+    System.assertEquals(
+      '数値で入力してください',
+      ContractWizardFieldService.getTypeErrorMessage(
+        Schema.DisplayType.PERCENT,
+        'abc'
+      )
+    );
+
+    ContractWizardFieldService.resetCache();
+    System.assert(
+      ContractWizardFieldService.getContractHistoryFieldDefinitions().size() >=
+        0
+    );
+    System.assertEquals(
+      0,
+      ContractWizardFieldService.buildPicklistOptions(
+          ContractHistory__c.CurrentTermStartDate__c.getDescribe()
+        )
+        .size()
+    );
+    List<String> productSelect = ContractWizardFieldService.getProduct2RelationshipSelectFields(
+      'Product__r'
+    );
+    for (String path : productSelect) {
+      System.assert(
+        path.startsWith('Product__r.'),
+        'Core 第11.4.1節: Product2参照項目は関係名付きで取る'
+      );
+    }
   }
 
   private static void assertWizardConfigRejected(
