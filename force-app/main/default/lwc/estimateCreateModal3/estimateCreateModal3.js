@@ -249,6 +249,8 @@ export default class EstimateCreateModal3 extends LightningElement {
   @track fixedEffectiveDate = "";
   @track isLoadingDates = false;
   @track remarkMasterPickerKey = "remark-master-0";
+  @track remarkMasterLoadError = "";
+  _pendingRemarkMasterId = "";
   @track invoiceSettingOptions = [];
   /** 仕様: Core 第4.3.4節・第4.3.8節。会計方針の読込完了まで列出し分けと保存を確定しない。 */
   accountingEnabled = false;
@@ -442,6 +444,18 @@ export default class EstimateCreateModal3 extends LightningElement {
     this.cancelLoadError = "";
     this.initCancelEligibility();
     return this.loadHistoryDates();
+  }
+
+  async handleReloadRemarkMaster() {
+    const masterId = this._pendingRemarkMasterId;
+    if (!masterId) {
+      this.remarkMasterLoadError = "";
+      return;
+    }
+    this.remarkMasterLoadError = "";
+    await this.handleRemarkMasterChange({
+      detail: { recordId: masterId }
+    });
   }
 
   get showRevenueRecognitionColumn() {
@@ -3886,13 +3900,16 @@ export default class EstimateCreateModal3 extends LightningElement {
     let masterText = "";
     try {
       masterText = (await getEstimateRemarkMasterText({ masterId })) || "";
+      this.remarkMasterLoadError = "";
+      this._pendingRemarkMasterId = "";
     } catch (error) {
       await this.revertRemarkMasterPicker(previousMasterId);
-      this.showToast(
-        "見積備考マスタの取得に失敗しました。",
-        this.reduceErrorMessage(error),
-        "error"
-      );
+      this._pendingRemarkMasterId = masterId;
+      this.remarkMasterLoadError =
+        "見積備考マスタの取得に失敗しました。" +
+        (this.reduceErrorMessage(error)
+          ? ` ${this.reduceErrorMessage(error)}`
+          : "");
       return;
     }
 

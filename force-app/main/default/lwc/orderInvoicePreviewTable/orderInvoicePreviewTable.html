@@ -125,6 +125,13 @@
   </template>
   <template if:true={invoiceOpsFieldConfigError}>
     <p class="edit-note" role="alert">{invoiceOpsFieldConfigError}</p>
+    <button
+      type="button"
+      class="ghost-btn"
+      onclick={handleRetryInvoiceOpsFieldDefinitions}
+    >
+      再読み込み
+    </button>
   </template>
 
   <template if:true={hasInvoices}>
@@ -844,9 +851,7 @@
                             <td colspan="6">
                               <div class="ops-form">
                   <h3 class="ops-form-title">入出金を編集</h3>
-                  <section class="billing-edit-section">
-                    <h3 class="billing-edit-heading">入出金</h3>
-                    <dl class="ops-readonly">
+                  <dl class="ops-readonly">
                     <div>
                       <dt>目的</dt>
                       <dd>{invoice.paymentEditPurposeLabel}</dd>
@@ -866,20 +871,14 @@
                       <dt>入出金日</dt>
                       <dd>{invoice.paymentEditDate}</dd>
                     </div>
-                    </dl>
-                  </section>
-                  <section class="billing-edit-section">
-                    <h3 class="billing-edit-heading">メモ</h3>
+                  </dl>
+                  <div class="ops-form-grid">
                     <lightning-input
                       label="メモ"
                       value={invoice.paymentEditMemo}
                       onchange={handlePaymentEditFieldChange}
                     ></lightning-input>
-                  </section>
                   <template if:true={invoice.showPaymentEditExtraFields}>
-                  <section class="billing-edit-section">
-                    <h3 class="billing-edit-heading">追加項目</h3>
-                    <div class="ops-form-grid">
                     <template
                       for:each={invoice.paymentEditExtraFields}
                       for:item="field"
@@ -938,9 +937,8 @@
                         </template>
                       </div>
                     </template>
-                  </div>
-                  </section>
                   </template>
+                  </div>
                   <div class="panel-actions">
                     <button
                       type="button"
@@ -1058,9 +1056,7 @@
               <template if:true={invoice.showPaymentForm}>
                 <div class="ops-form ops-form_register">
                   <h3 class="ops-form-title">{invoice.paymentFormTitle}</h3>
-                  <section class="billing-edit-section">
-                    <h3 class="billing-edit-heading">入出金</h3>
-                    <div class="ops-form-grid">
+                  <div class="ops-form-grid">
                     <lightning-combobox
                       label="目的"
                       value={invoice.paymentDraftType}
@@ -1105,10 +1101,6 @@
                         </p>
                       </div>
                     </template>
-                    </div>
-                  </section>
-                  <section class="billing-edit-section">
-                    <h3 class="billing-edit-heading">メモ</h3>
                     <lightning-input
                       label="メモ"
                       value={invoice.paymentDraftMemo}
@@ -1116,11 +1108,7 @@
                       data-field="memo"
                       onchange={handlePaymentDraftChange}
                     ></lightning-input>
-                  </section>
                   <template if:true={invoice.showPaymentRegisterExtraFields}>
-                  <section class="billing-edit-section">
-                    <h3 class="billing-edit-heading">追加項目</h3>
-                    <div class="ops-form-grid">
                     <template
                       for:each={invoice.paymentRegisterExtraFields}
                       for:item="field"
@@ -1183,9 +1171,8 @@
                         </template>
                       </div>
                     </template>
-                  </div>
-                  </section>
                   </template>
+                  </div>
                   <template if:true={invoice.showPaymentDateBeforeInvoiceWarning}>
                     <p class="edit-note" role="status">
                       入出金日が請求日より前です。請求日へ置き換えません。

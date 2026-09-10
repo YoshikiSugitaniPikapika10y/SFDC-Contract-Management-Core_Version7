@@ -48,7 +48,9 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
       originalTaxPercent: 10,
       fieldDefinitions: [],
       customFields: {},
-      toast: jest.fn(),
+      surfaceError: "",
+      canRetryLoad: false,
+      setSurfaceError: proto.setSurfaceError,
       taxChanged: proto.taxChanged,
       validateDisplayTaxPercent: proto.validateDisplayTaxPercent,
       ...overrides
@@ -81,21 +83,15 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
       customFields: { Memo__c: "  " }
     });
     await proto.handleSave.call(c);
-    expect(c.toast).toHaveBeenCalledWith(
-      "エラー",
-      expect.stringContaining("メモ"),
-      "error"
-    );
+    expect(c.surfaceError).toEqual(expect.stringContaining("メモ"));
     expect(save).not.toHaveBeenCalled();
   });
 
   it("表示用税率の0超〜1未満を画面で止める", async () => {
     const c = ctx({ taxPercent: 0.5 });
     await proto.handleSave.call(c);
-    expect(c.toast).toHaveBeenCalledWith(
-      "エラー",
-      "消費税率は0〜100のパーセント値で入力してください。",
-      "error"
+    expect(c.surfaceError).toBe(
+      "消費税率は0〜100のパーセント値で入力してください。"
     );
     expect(save).not.toHaveBeenCalled();
   });
@@ -103,21 +99,15 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
   it("表示用税率の負数を画面で止める", async () => {
     const c = ctx({ taxPercent: -1 });
     await proto.handleSave.call(c);
-    expect(c.toast).toHaveBeenCalledWith(
-      "エラー",
-      "消費税率が不正です（負の値は指定できません）。",
-      "error"
-    );
+    expect(c.surfaceError).toBe("消費税率が不正です（負の値は指定できません）。");
     expect(save).not.toHaveBeenCalled();
   });
 
   it("表示用税率の100超を画面で止める", async () => {
     const c = ctx({ taxPercent: 101 });
     await proto.handleSave.call(c);
-    expect(c.toast).toHaveBeenCalledWith(
-      "エラー",
-      "消費税率が不正です（100を超える値は指定できません）。",
-      "error"
+    expect(c.surfaceError).toBe(
+      "消費税率が不正です（100を超える値は指定できません）。"
     );
     expect(save).not.toHaveBeenCalled();
   });
@@ -130,33 +120,21 @@ describe("contractServiceEdit save gate (Core 3.4.1 / 4.6 / 1.1.10)", () => {
   it("空の名前を画面で止める (Core 3.4.1 / 1.1.10)", async () => {
     const c = ctx({ name: "   " });
     await proto.handleSave.call(c);
-    expect(c.toast).toHaveBeenCalledWith(
-      "エラー",
-      "名前を入力してください。",
-      "error"
-    );
+    expect(c.surfaceError).toBe("名前を入力してください。");
     expect(save).not.toHaveBeenCalled();
   });
 
   it("空の請求アカウントを画面で止める (Core 3.4.1 / 1.1.10)", async () => {
     const c = ctx({ billingAccountId: "" });
     await proto.handleSave.call(c);
-    expect(c.toast).toHaveBeenCalledWith(
-      "エラー",
-      "請求アカウントを入力してください。",
-      "error"
-    );
+    expect(c.surfaceError).toBe("請求アカウントを入力してください。");
     expect(save).not.toHaveBeenCalled();
   });
 
   it("空欄の税率を画面で止める (Core 3.4.1 / 1.1.10)", async () => {
     const c = ctx({ taxPercent: null });
     await proto.handleSave.call(c);
-    expect(c.toast).toHaveBeenCalledWith(
-      "エラー",
-      "税率を入力してください。",
-      "error"
-    );
+    expect(c.surfaceError).toBe("税率を入力してください。");
     expect(save).not.toHaveBeenCalled();
   });
 

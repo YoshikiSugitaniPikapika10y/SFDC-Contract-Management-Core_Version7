@@ -432,7 +432,7 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     expect(memoSave.classList.contains("ghost-btn")).toBe(true);
   });
 
-  it("請求書情報の中身は見出しの下に置き、入出金追加は入出金とメモの見出しを出す (Core 7.8 / 11.4.4)", async () => {
+  it("請求書情報の中身は見出しの下に置き、入出金追加は内側見出しを出さない (Core 7.8 / 11.4.4)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -473,7 +473,8 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
     const headings = Array.from(
       form.querySelectorAll(".billing-edit-heading")
     ).map((node) => node.textContent.trim());
-    expect(headings).toEqual(["入出金", "メモ"]);
+    expect(headings).toEqual([]);
+    expect(form.querySelector(".ops-form-title")).toBeTruthy();
     expect(form.textContent).not.toContain("追加項目");
   });
 

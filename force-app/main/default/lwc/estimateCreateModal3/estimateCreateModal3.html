@@ -783,7 +783,7 @@
                                 if:true={item.showAmountEntryRoundingDiff}
                               >
                                 <div
-                                  class="est-price-meta est-amount-entry-diff"
+                                  class="est-price-meta"
                                   title={item.amountEntryRoundingTitle}
                                   role="status"
                                 >
@@ -1062,6 +1062,18 @@
           </div>
         </div>
         <div class="est-panel-body est-remarks-body">
+          <template if:true={remarkMasterLoadError}>
+            <div class="est-alert est-alert_error" role="alert">
+              <span>{remarkMasterLoadError}</span>
+              <button
+                type="button"
+                class="slds-button slds-button_neutral slds-m-left_small"
+                onclick={handleReloadRemarkMaster}
+              >
+                再読み込み
+              </button>
+            </div>
+          </template>
           <div class="est-field">
             <span class="est-label">見積日</span>
             <template if:true={isEstimateDocumentReadonly}>
@@ -1160,6 +1172,18 @@
         </div>
         <template if:true={remarksExpanded}>
           <div class="est-panel-body est-remarks-body">
+            <template if:true={remarkMasterLoadError}>
+              <div class="est-alert est-alert_error" role="alert">
+                <span>{remarkMasterLoadError}</span>
+                <button
+                  type="button"
+                  class="slds-button slds-button_neutral slds-m-left_small"
+                  onclick={handleReloadRemarkMaster}
+                >
+                  再読み込み
+                </button>
+              </div>
+            </template>
             <div class="est-field est-field_remark-master">
               <span class="est-label">見積備考マスタ</span>
               <template if:true={isRemarksReadonly}>

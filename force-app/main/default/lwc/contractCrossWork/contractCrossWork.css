@@ -275,15 +275,14 @@
 }
 
 .tag-chip.is-true {
-  background: #0b5cab;
-  border-color: #0b5cab;
+  background: #c05621;
+  border-color: #c05621;
   color: #ffffff;
 }
 
 .tag-chip.is-false {
   background: #e2e8f0;
   color: #94a3b8;
-  text-decoration: line-through;
 }
 
 .group-item,

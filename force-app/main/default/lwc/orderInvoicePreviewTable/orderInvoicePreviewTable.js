@@ -774,6 +774,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
   }
 
+  handleRetryInvoiceOpsFieldDefinitions() {
+    return this.loadInvoiceOpsFieldDefinitions();
+  }
+
   opsFieldDefinitionsFor(targetObject) {
     return (this.invoiceOpsFieldDefinitions || []).filter(
       (row) => row && row.targetObject === targetObject

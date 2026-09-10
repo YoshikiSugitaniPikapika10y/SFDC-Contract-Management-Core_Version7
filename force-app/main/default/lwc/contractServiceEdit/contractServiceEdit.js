@@ -1,5 +1,5 @@
 import { LightningElement, api } from "lwc";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
+import { CloseActionScreenEvent } from "lightning/actions";
 import { CloseActionScreenEvent } from "lightning/actions";
 import getContext from "@salesforce/apex/ContractServiceEditController.getContext";
 import save from "@salesforce/apex/ContractServiceEditController.save";
@@ -32,6 +32,8 @@ export default class ContractServiceEdit extends LightningElement {
   saving = false;
   lastModifiedToken = "";
   _pendingOperationKey = "";
+  surfaceError = "";
+  canRetryLoad = false;
 
   // 仕様: Core 第3.4.1節。Quick Action の recordId は後から入ることがある。空では getContext しない。
   @api
@@ -119,9 +121,10 @@ export default class ContractServiceEdit extends LightningElement {
         this.allowOtherAccountBilling = this.isBillingOutsideRelated(
           this.billingAccountId
         );
+        this.setSurfaceError("");
       })
       .catch((error) => {
-        this.toast("エラー", this.messageOf(error), "error");
+        this.setSurfaceError(this.messageOf(error), true);
       })
       .finally(() => {
         this.loading = false;
@@ -236,16 +239,17 @@ export default class ContractServiceEdit extends LightningElement {
     if (this.saving) {
       return;
     }
+    this.setSurfaceError("");
     if (!this.name || String(this.name).trim() === "") {
-      this.toast("エラー", "名前を入力してください。", "error");
+      this.setSurfaceError("名前を入力してください。");
       return;
     }
     if (!this.billingAccountId) {
-      this.toast("エラー", "請求アカウントを入力してください。", "error");
+      this.setSurfaceError("請求アカウントを入力してください。");
       return;
     }
     if (this.taxPercent === "" || this.taxPercent == null) {
-      this.toast("エラー", "税率を入力してください。", "error");
+      this.setSurfaceError("税率を入力してください。");
       return;
     }
     const customError = validateCustomFieldMaps(
@@ -254,12 +258,12 @@ export default class ContractServiceEdit extends LightningElement {
       "契約サービス"
     );
     if (customError) {
-      this.toast("エラー", customError, "error");
+      this.setSurfaceError(customError);
       return;
     }
     const taxError = this.validateDisplayTaxPercent(this.taxPercent);
     if (taxError) {
-      this.toast("エラー", taxError, "error");
+      this.setSurfaceError(taxError);
       return;
     }
     // 仕様: Core 第0.2節・第3.4節。税率変更の実行前確認は出さない。
@@ -285,7 +289,7 @@ export default class ContractServiceEdit extends LightningElement {
       this.dispatchEvent(new CloseActionScreenEvent());
     } catch (error) {
       const msg = this.messageOf(error);
-      this.toast("エラー", msg, "error");
+      this.setSurfaceError(msg);
       // 仕様: Core 第3.4.1節・第4.3.12節。版比較失敗時は画面を読み直す。
       if (msg === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";
@@ -296,15 +300,22 @@ export default class ContractServiceEdit extends LightningElement {
     }
   }
 
+  handleReloadContext() {
+    this.surfaceError = "";
+    this.canRetryLoad = false;
+    this.loadContext();
+  }
+
+  setSurfaceError(message, canRetry) {
+    this.surfaceError = message || "";
+    this.canRetryLoad = canRetry === true && !!this.surfaceError;
+  }
+
   messageOf(error) {
     return (
       (error && error.body && error.body.message) ||
       error.message ||
       "処理に失敗しました。"
     );
-  }
-
-  toast(title, message, variant) {
-    this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
   }
 }

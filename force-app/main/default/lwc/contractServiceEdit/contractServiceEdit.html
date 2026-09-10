@@ -13,6 +13,20 @@
         </div>
       </template>
       <template if:false={loading}>
+        <template if:true={surfaceError}>
+          <div class="alert alert_error" role="alert">
+            <span>{surfaceError}</span>
+            <template if:true={canRetryLoad}>
+              <button
+                type="button"
+                class="btn btn_secondary"
+                onclick={handleReloadContext}
+              >
+                再読み込み
+              </button>
+            </template>
+          </div>
+        </template>
         <template if:false={canEditService}>
           <div class="alert alert_error" role="alert">
             この操作の権限がありません。
