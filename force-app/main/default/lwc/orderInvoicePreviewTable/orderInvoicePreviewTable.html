@@ -1428,8 +1428,8 @@
                       <tr>
                         <th class="split-select-col" scope="col">選択</th>
                         <th scope="col">Lock</th>
-                        <th scope="col">状態</th>
-                        <th class="journal-filter-col" scope="col">
+                        <th class="journal-status-col" scope="col">状態</th>
+                        <th class="journal-filter-col journal-posting-col" scope="col">
                           <span class="journal-filter-head">
                             <span class="journal-filter-label">計上日</span>
                             <span class="journal-multi-filter">
@@ -1465,9 +1465,7 @@
                             </span>
                           </span>
                         </th>
-                        <th class="journal-filter-col" scope="col">
-                          <span class="journal-filter-head">
-                            <span class="journal-filter-label">イベント</span>
+                        <th class="journal-filter-col journal-event-col" scope="col">
                             <span class="journal-multi-filter">
                               <button
                                 type="button"
@@ -1501,7 +1499,7 @@
                             </span>
                           </span>
                         </th>
-                        <th scope="col">借貸</th>
+                        <th class="journal-slot-col" scope="col">借貸</th>
                         <th class="num-col" scope="col">金額</th>
                         <th class="journal-confirmation-col journal-filter-col" scope="col">
                           <span class="journal-filter-head">
@@ -1567,15 +1565,15 @@
                               <span class="journal-lock-key-static" aria-hidden="true">🔒</span>
                             </template>
                           </td>
-                          <td>{journal.transactionStatusLabel}</td>
-                          <td>
+                          <td class="journal-status-col">{journal.transactionStatusLabel}</td>
+                          <td class="journal-posting-col">
                             {journal.postingDate}
                             <template if:true={journal.postingPeriod}>
                               <span> {journal.postingPeriod}</span>
                             </template>
                           </td>
-                          <td>{journal.eventName}</td>
-                          <td>
+                          <td class="journal-event-col" title={journal.eventName}>{journal.eventName}</td>
+                          <td class="journal-slot-col">
                             <template if:true={journal.debitAbbreviation}>
                               <span class="journal-slot-abbr">{journal.debitAbbreviation}</span>
                               <template if:true={journal.debitAccountLabel}>

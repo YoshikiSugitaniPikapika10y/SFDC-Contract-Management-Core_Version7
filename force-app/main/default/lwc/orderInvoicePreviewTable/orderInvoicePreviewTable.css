@@ -365,9 +365,37 @@
 
 .journal-confirmation-col,
 .journal-confirmation-cell {
+  width: 28%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.journal-status-col {
+  width: 3.4rem;
+  max-width: 3.4rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  white-space: nowrap;
+}
+
+.journal-posting-col {
+  width: 10rem;
+}
+
+.journal-event-col {
+  width: 16%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journal-slot-col {
+  width: 22%;
+}
+
+.ops-table_journals .num-col {
+  width: 5rem;
 }
 
 .journal-confirmation-col lightning-combobox {
