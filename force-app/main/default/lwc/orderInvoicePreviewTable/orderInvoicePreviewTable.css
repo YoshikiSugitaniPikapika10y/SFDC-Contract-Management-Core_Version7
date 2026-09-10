@@ -337,6 +337,7 @@
 
 .ops-table_journals {
   font-size: 0.75rem;
+  table-layout: fixed;
 }
 
 .ops-table_journals th,
@@ -344,6 +345,18 @@
   padding: 0.28rem 0.45rem;
   line-height: 1.25;
   white-space: nowrap;
+}
+
+.journal-confirmation-col,
+.journal-confirmation-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journal-confirmation-col lightning-combobox {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ops-table_journals .journal-extra-row td {
