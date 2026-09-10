@@ -3109,4 +3109,513 @@ private class EstimateSaveServiceTest {
       System.assertEquals(true, rejected);
     }
   }
+
+  @IsTest
+  static void saveEditedEstimate_cancel_persistsEditedNameAndDates() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Cancel Edit Acc'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Cancel Edit Opp'
+      );
+      BillingAccount__c billingAccount = insertBillingAccount(account.Id);
+      ContractService__c service = new ContractService__c(
+        Name = 'Cancel Edit Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      insert service;
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      Date cancelDate = termEnd.addDays(1);
+      ContractHistory__c sourceHistory = new ContractHistory__c(
+        Name = 'Cancel Edit Source',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        Opportunity__c = opportunity.Id
+      );
+      insert sourceHistory;
+      Product2 cancelProduct = ContractTestDataFactory.buildProduct(
+        'Cancel Edit Product'
+      );
+      cancelProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      cancelProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(cancelProduct);
+      insert new ContractProduct__c(
+        ContractHistory__c = sourceHistory.Id,
+        Product__c = cancelProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 96000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
+      );
+      EstimateCreateController.EstimateSaveResult created = EstimateSaveService.saveEstimate(
+        opportunity.Id,
+        'Cancel',
+        null,
+        'Cancel Edit History',
+        service.Id,
+        sourceHistory.Id,
+        String.valueOf(cancelDate),
+        String.valueOf(cancelDate),
+        String.valueOf(cancelDate),
+        String.valueOf(Date.today()),
+        '[]',
+        null,
+        '解約備考',
+        null,
+        null
+      );
+      Date editedCancel = cancelDate;
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = opportunity.Id;
+      request.selectedType = 'Cancel';
+      request.editHistoryId = created.contractHistoryId;
+      request.contractServiceId = service.Id;
+      request.previousHistoryId = sourceHistory.Id;
+      request.contractStartDate = String.valueOf(editedCancel);
+      request.contractEndDate = String.valueOf(editedCancel);
+      request.effectiveDate = String.valueOf(editedCancel);
+      request.applicationDate = String.valueOf(Date.today());
+      request.products = new List<EstimateCreateController.ProductLineItem>();
+      request.remarksText = '解約備考編集';
+      request.expectedLastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+        created.contractHistoryId
+      );
+      EstimateCreateController.EstimateSaveResult edited = EstimateSaveService.saveEditedEstimate(
+        request,
+        'Cancel Edit History 2'
+      );
+      System.assertEquals(created.contractHistoryId, edited.contractHistoryId);
+      ContractHistory__c stored = [
+        SELECT
+          Name,
+          CurrentTermStartDate__c,
+          CurrentTermEndDate__c,
+          EffectiveDate__c,
+          Note__c,
+          Type__c
+        FROM ContractHistory__c
+        WHERE Id = :created.contractHistoryId
+      ];
+      System.assertEquals('Cancel Edit History 2', stored.Name);
+      System.assertEquals('Cancel', stored.Type__c);
+      System.assertEquals(editedCancel, stored.CurrentTermStartDate__c);
+      System.assertEquals(editedCancel, stored.CurrentTermEndDate__c);
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractProduct__c
+          WHERE ContractHistory__c = :created.contractHistoryId
+        ],
+        'Core 第4.7節: 解約見積の編集でも商品明細は無い'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveEditedEstimate_sameKeyRetry_returnsSameHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Edit Key Acc'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Edit Key Opp'
+      );
+      BillingAccount__c billingAccount = insertBillingAccount(account.Id);
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Edit Key Product'
+      );
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 10000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      EstimateCreateController.ProductLineItem lineItem = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      lineItem.billingCycle = '月';
+      EstimateCreateController.EstimateSaveResult created = EstimateSaveService.saveEstimate(
+        opportunity.Id,
+        'New',
+        'Edit Key CS',
+        'Edit Key History',
+        null,
+        null,
+        String.valueOf(termStart),
+        String.valueOf(termEnd),
+        String.valueOf(termStart),
+        String.valueOf(termStart),
+        JSON.serialize(
+          new List<EstimateCreateController.ProductLineItem>{ lineItem }
+        ),
+        null,
+        null,
+        billingAccount.Id,
+        null,
+        null,
+        '{}',
+        '{}',
+        null,
+        10,
+        null,
+        null,
+        null
+      );
+      lineItem.contractProductId = created.contractProductIds[0];
+      String operationKey = 'estimate-edit-retry-key';
+      EstimateCreateController.EstimateSaveRequest firstReq = new EstimateCreateController.EstimateSaveRequest();
+      firstReq.opportunityId = opportunity.Id;
+      firstReq.selectedType = 'New';
+      firstReq.editHistoryId = created.contractHistoryId;
+      firstReq.contractServiceId = created.contractServiceId;
+      firstReq.contractServiceName = 'Edit Key CS';
+      firstReq.contractStartDate = String.valueOf(termStart);
+      firstReq.contractEndDate = String.valueOf(termEnd);
+      firstReq.effectiveDate = String.valueOf(termStart);
+      firstReq.applicationDate = String.valueOf(termStart);
+      firstReq.billingAccountId = billingAccount.Id;
+      firstReq.taxPercent = 10;
+      firstReq.products = new List<EstimateCreateController.ProductLineItem>{
+        lineItem
+      };
+      firstReq.businessOperationKey = operationKey;
+      firstReq.expectedLastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+        created.contractHistoryId
+      );
+      EstimateCreateController.EstimateSaveResult first = EstimateSaveService.saveEditedEstimate(
+        firstReq,
+        'Edit Key History First'
+      );
+      EstimateCreateController.EstimateSaveRequest retryReq = new EstimateCreateController.EstimateSaveRequest();
+      retryReq.opportunityId = opportunity.Id;
+      retryReq.selectedType = 'New';
+      retryReq.editHistoryId = created.contractHistoryId;
+      retryReq.contractServiceId = created.contractServiceId;
+      retryReq.contractServiceName = 'Edit Key CS Retry';
+      retryReq.contractStartDate = String.valueOf(termStart);
+      retryReq.contractEndDate = String.valueOf(termEnd);
+      retryReq.effectiveDate = String.valueOf(termStart);
+      retryReq.applicationDate = String.valueOf(termStart);
+      retryReq.billingAccountId = billingAccount.Id;
+      retryReq.taxPercent = 10;
+      retryReq.products = new List<EstimateCreateController.ProductLineItem>{
+        lineItem
+      };
+      retryReq.businessOperationKey = operationKey;
+      retryReq.expectedLastModifiedToken = 'stale-should-not-matter';
+      EstimateCreateController.EstimateSaveResult retry = EstimateSaveService.saveEditedEstimate(
+        retryReq,
+        'Edit Key History Retry'
+      );
+      System.assertEquals(
+        first.contractHistoryId,
+        retry.contractHistoryId,
+        'Core 第4.3.12節: 同じキーの再試行は1件のまま返す'
+      );
+      System.assertEquals(
+        'Edit Key History First',
+        [
+          SELECT Name
+          FROM ContractHistory__c
+          WHERE Id = :created.contractHistoryId
+        ]
+        .Name,
+        'Core 第4.3.12節: 再試行は2回目の内容で上書きしない'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveEditedEstimate_ordered_rejectsMissingContractProductId() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+      Account account = ContractTestDataFactory.insertAccount(
+        'Ordered Line Acc'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Ordered Line Opp'
+      );
+      BillingAccount__c billingAccount = insertBillingAccount(account.Id);
+      ContractService__c service = new ContractService__c(
+        Name = 'Ordered Line Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      insert service;
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c ordered = new ContractHistory__c(
+        Name = 'Ordered Line History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart,
+        ApplicationDate__c = termStart
+      );
+      insert ordered;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Ordered Line Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.Family = ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c productRow = new ContractProduct__c(
+        ContractHistory__c = ordered.Id,
+        Product__c = product.Id,
+        Quantity__c = 2,
+        UnitPrice__c = 3000,
+        Amount__c = 72000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
+      );
+      insert productRow;
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        termStart,
+        termEnd
+      );
+      EstimateCreateController.EstimateSaveRequest missingId = new EstimateCreateController.EstimateSaveRequest();
+      missingId.opportunityId = opportunity.Id;
+      missingId.selectedType = 'New';
+      missingId.editHistoryId = ordered.Id;
+      missingId.products = new List<EstimateCreateController.ProductLineItem>{
+        line
+      };
+      missingId.contractHistoryCustomFields = new Map<String, Object>{
+        'ApplicationDate__c' => String.valueOf(termStart)
+      };
+      missingId.expectedLastModifiedToken = ContractOptimisticLockUtil.toToken(
+        [
+          SELECT LastModifiedDate
+          FROM ContractHistory__c
+          WHERE Id = :ordered.Id
+        ]
+        .LastModifiedDate
+      );
+      Boolean missingThrown = false;
+      try {
+        EstimateSaveService.saveEditedEstimate(missingId, ordered.Name);
+      } catch (AuraHandledException ex) {
+        missingThrown = true;
+        System.assertEquals(
+          'Ordered編集では見積商品IDが必要です。画面を開き直して再度保存してください。',
+          ex.getMessage(),
+          'Core 第4.7節: Ordered編集は見積商品IDが要る'
+        );
+      }
+      System.assertEquals(true, missingThrown);
+      line.contractProductId = productRow.Id;
+      line.customFields = new Map<String, Object>{
+        'Description__c' => 'ordered-custom'
+      };
+      EstimateCreateController.EstimateSaveRequest withId = new EstimateCreateController.EstimateSaveRequest();
+      withId.opportunityId = opportunity.Id;
+      withId.selectedType = 'New';
+      withId.editHistoryId = ordered.Id;
+      withId.products = new List<EstimateCreateController.ProductLineItem>{
+        line
+      };
+      withId.contractHistoryCustomFields = new Map<String, Object>{
+        'ApplicationDate__c' => String.valueOf(termStart)
+      };
+      withId.expectedLastModifiedToken = ContractOptimisticLockUtil.toToken(
+        [
+          SELECT LastModifiedDate
+          FROM ContractHistory__c
+          WHERE Id = :ordered.Id
+        ]
+        .LastModifiedDate
+      );
+      EstimateSaveService.saveEditedEstimate(withId, ordered.Name);
+      ContractProduct__c still = [
+        SELECT Quantity__c, UnitPrice__c, Description__c
+        FROM ContractProduct__c
+        WHERE Id = :productRow.Id
+      ];
+      System.assertEquals(
+        2,
+        still.Quantity__c,
+        'Core 第4.7節: Ordered編集は数量を変えない'
+      );
+      System.assertEquals(3000, still.UnitPrice__c);
+      System.assertEquals(
+        'ordered-custom',
+        still.Description__c,
+        'Core 第4.7節・第11.4.1節: Ordered編集は表示中の見積商品追加項目を保存する'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveEditedEstimate_renew_persistsEditedName() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Renew Edit Acc');
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Renew Edit Opp'
+      );
+      BillingAccount__c billingAccount = insertBillingAccount(account.Id);
+      ContractService__c service = new ContractService__c(
+        Name = 'Renew Edit Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      insert service;
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      Date renewStart = termEnd.addDays(1);
+      Date renewEnd = MonthlyBillingPeriodUtil.endDateForMonthlyCycles(
+        renewStart,
+        12
+      );
+      ContractHistory__c sourceHistory = new ContractHistory__c(
+        Name = 'Renew Edit Source',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        Opportunity__c = opportunity.Id
+      );
+      insert sourceHistory;
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Renew Edit Product'
+      );
+      product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      product.UnitPrice__c = 8000;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      insert new ContractProduct__c(
+        ContractHistory__c = sourceHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 96000,
+        Unit__c = '式/月',
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      EstimateCreateController.ProductLineItem renewLine = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'Renew',
+        renewStart,
+        renewEnd
+      );
+      renewLine.quantity = 1;
+      renewLine.unitPrice = 8000;
+      renewLine.amount = 96000;
+      renewLine.unit = '式/月';
+      renewLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      renewLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      renewLine.billingCycle = '月';
+      EstimateCreateController.EstimateSaveResult created = EstimateSaveService.saveEstimate(
+        opportunity.Id,
+        'Renew',
+        null,
+        'Renew Edit History',
+        service.Id,
+        sourceHistory.Id,
+        String.valueOf(renewStart),
+        String.valueOf(renewEnd),
+        String.valueOf(renewStart),
+        String.valueOf(Date.today()),
+        JSON.serialize(
+          new List<EstimateCreateController.ProductLineItem>{ renewLine }
+        ),
+        null,
+        'renew-edit-note',
+        null,
+        null
+      );
+      renewLine.contractProductId = created.contractProductIds[0];
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.opportunityId = opportunity.Id;
+      request.selectedType = 'Renew';
+      request.editHistoryId = created.contractHistoryId;
+      request.contractServiceId = service.Id;
+      request.previousHistoryId = sourceHistory.Id;
+      request.contractStartDate = String.valueOf(renewStart);
+      request.contractEndDate = String.valueOf(renewEnd);
+      request.effectiveDate = String.valueOf(renewStart);
+      request.applicationDate = String.valueOf(Date.today());
+      request.products = new List<EstimateCreateController.ProductLineItem>{
+        renewLine
+      };
+      request.remarksText = 'renew-edit-note-2';
+      request.expectedLastModifiedToken = ContractOptimisticLockUtil.toHistoryProductToken(
+        created.contractHistoryId
+      );
+      EstimateCreateController.EstimateSaveResult edited = EstimateSaveService.saveEditedEstimate(
+        request,
+        'Renew Edit History 2'
+      );
+      System.assertEquals(created.contractHistoryId, edited.contractHistoryId);
+      ContractHistory__c stored = [
+        SELECT Name, Note__c, Type__c, CurrentTermStartDate__c
+        FROM ContractHistory__c
+        WHERE Id = :created.contractHistoryId
+      ];
+      System.assertEquals('Renew Edit History 2', stored.Name);
+      System.assertEquals('Renew', stored.Type__c);
+      System.assertEquals(renewStart, stored.CurrentTermStartDate__c);
+      System.assertEquals('renew-edit-note-2', stored.Note__c);
+    }
+  }
+
+  @IsTest
+  static void loadEditableEstimateHistory_nullId_throws() {
+    Boolean thrown = false;
+    try {
+      EstimateSaveService.loadEditableEstimateHistory(null);
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assertEquals(
+        '編集対象の契約履歴が見つかりません。',
+        ex.getMessage(),
+        'Core 第4.7節: 編集対象が無い'
+      );
+    }
+    System.assertEquals(true, thrown);
+  }
 }

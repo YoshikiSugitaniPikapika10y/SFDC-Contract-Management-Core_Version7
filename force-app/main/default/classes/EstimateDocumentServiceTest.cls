@@ -1856,4 +1856,105 @@ private class EstimateDocumentServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void loadContext_renewAndCancel_useJapaneseTypeLabels() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture renewFixture = createEstimateFixture();
+      renewFixture.history.Type__c = 'Renew';
+      update renewFixture.history;
+      System.assertEquals(
+        '更新',
+        EstimateDocumentService.loadContext(renewFixture.history.Id).typeLabel,
+        'Core 第0.1節: 見積書の種別は更新'
+      );
+      EstimateFixture cancelFixture = createEstimateFixture();
+      cancelFixture.history.Type__c = 'Cancel';
+      update cancelFixture.history;
+      System.assertEquals(
+        '解約',
+        EstimateDocumentService.loadContext(cancelFixture.history.Id).typeLabel,
+        'Core 第0.1節: 見積書の種別は解約'
+      );
+    }
+  }
+
+  @IsTest
+  static void issueEstimateDocument_unusedSendMode_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      EstimateFixture fixture = createEstimateFixture();
+      Boolean thrown = false;
+      try {
+        EstimateDocumentService.issueEstimateDocument(
+          fixture.history.Id,
+          'StandardEstimate'
+        );
+      } catch (EstimateDocumentService.EstimateDocumentException ex) {
+        thrown = true;
+        System.assertEquals(
+          '見積書設定が使わないのため、発行も送付もできません。',
+          ex.getMessage(),
+          'Core 第4.8節: 使わないなら発行しない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void issueEstimateDocument_blankTemplateKey_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      Boolean thrown = false;
+      try {
+        EstimateDocumentService.issueEstimateDocument(fixture.history.Id, '');
+      } catch (Exception ex) {
+        thrown = true;
+        System.assertEquals(
+          ContractDocumentSettingService.withDocumentSendHeading(
+            ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE
+          ),
+          ex.getMessage(),
+          'Core 第11.3.2節: キー空は発行できない'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void loadContext_change_usesJapaneseTypeLabel() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      fixture.history.Type__c = 'Change';
+      update fixture.history;
+      System.assertEquals(
+        '追加変更',
+        EstimateDocumentService.loadContext(fixture.history.Id).typeLabel,
+        'Core 第0.1節: 見積書の種別は追加変更'
+      );
+      System.assertEquals('', EstimateDocumentService.formatDisplayDate(null));
+    }
+  }
+
+  @IsTest
+  static void issueEstimateDocument_customAttachmentFileName_isUsed() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      EstimateDocumentService.IssueResult issued = EstimateDocumentService.issueEstimateDocument(
+        fixture.history.Id,
+        'StandardEstimate',
+        'custom-estimate-name.pdf'
+      );
+      System.assertEquals(
+        'custom-estimate-name.pdf',
+        issued.fileName,
+        'Core 第7.10節: 新しく発行するの送付添付名'
+      );
+    }
+  }
 }

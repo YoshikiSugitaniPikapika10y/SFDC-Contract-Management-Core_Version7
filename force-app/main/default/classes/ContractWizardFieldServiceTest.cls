@@ -935,4 +935,276 @@ private class ContractWizardFieldServiceTest {
     }
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
   }
+
+  @IsTest
+  static void coerceValue_booleanReferenceAndEqualsVisibility() {
+    ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+    Schema.DescribeFieldResult booleanDescribe = User.IsActive.getDescribe();
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.coerceValue(booleanDescribe, 'true'),
+      'Core 第11.4.1節: 真偽は文字列 true を真にする'
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.coerceValue(booleanDescribe, '1')
+    );
+    System.assertEquals(
+      false,
+      ContractWizardFieldService.coerceValue(booleanDescribe, 'false')
+    );
+    Schema.DescribeFieldResult accountLookup = ContractService__c.Account__c.getDescribe();
+    System.assertEquals(
+      null,
+      ContractWizardFieldService.coerceValue(accountLookup, 'not-an-id'),
+      'Core 第11.4.1節: 参照の不正値は書かない'
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.evaluateVisibility(
+        'EQUALS',
+        'Software',
+        new List<String>{ 'Software' }
+      )
+    );
+    System.assertEquals(
+      false,
+      ContractWizardFieldService.evaluateVisibility(
+        'EQUALS',
+        'Hardware',
+        new List<String>{ 'Software' }
+      )
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.evaluateVisibility(
+        'NOT_EQUALS',
+        'Hardware',
+        new List<String>{ 'Software' }
+      )
+    );
+  }
+
+  @IsTest
+  static void validateActiveDefinitions_rejectsInvalidTargetBlankFieldAndUnsupportedType() {
+    assertWizardConfigRejected(
+      new EstimateWizardField__mdt(
+        DeveloperName = 'Test_Bad_Target',
+        MasterLabel = 'Test Bad Target',
+        Active__c = true,
+        TargetObject__c = 'Account',
+        FieldApiName__c = 'Name',
+        SortOrder__c = 10,
+        ShowOnNew__c = true,
+        ShowOnChange__c = true,
+        ShowOnRenew__c = true,
+        ShowOnCancel__c = true
+      ),
+      '見積ウィザードカスタム項目「Test_Bad_Target」の対象オブジェクト「Account」が不正です。ContractService__c / ContractHistory__c / ContractProduct__c のいずれかを指定してください。'
+    );
+    assertWizardConfigRejected(
+      new EstimateWizardField__mdt(
+        DeveloperName = 'Test_Blank_Field',
+        MasterLabel = 'Test Blank Field',
+        Active__c = true,
+        TargetObject__c = 'ContractService__c',
+        FieldApiName__c = '',
+        SortOrder__c = 10,
+        ShowOnNew__c = true,
+        ShowOnChange__c = true,
+        ShowOnRenew__c = true,
+        ShowOnCancel__c = true
+      ),
+      '見積ウィザードカスタム項目「Test_Blank_Field」の FieldApiName が未設定です。'
+    );
+    assertWizardConfigRejected(
+      new EstimateWizardField__mdt(
+        DeveloperName = 'Test_Missing_Field',
+        MasterLabel = 'Test Missing Field',
+        Active__c = true,
+        TargetObject__c = 'ContractService__c',
+        FieldApiName__c = 'DoesNotExistOnService__c',
+        SortOrder__c = 10,
+        ShowOnNew__c = true,
+        ShowOnChange__c = true,
+        ShowOnRenew__c = true,
+        ShowOnCancel__c = true
+      ),
+      '見積ウィザードカスタム項目「Test_Missing_Field」の項目「DoesNotExistOnService__c」が対象オブジェクトに存在しません。'
+    );
+    assertWizardConfigRejected(
+      new EstimateWizardField__mdt(
+        DeveloperName = 'Test_Unsupported_Type',
+        MasterLabel = 'Test Unsupported Type',
+        Active__c = true,
+        TargetObject__c = 'ContractService__c',
+        FieldApiName__c = 'CreatedDate',
+        SortOrder__c = 10,
+        ShowOnNew__c = true,
+        ShowOnChange__c = true,
+        ShowOnRenew__c = true,
+        ShowOnCancel__c = true
+      ),
+      '見積ウィザードカスタム項目「Test_Unsupported_Type」の項目「CreatedDate」はウィザード非対応の型です。'
+    );
+  }
+
+  @IsTest
+  static void validateActiveDefinitions_rejectsDottedVisibilityAndBadDefaultPaths() {
+    assertWizardConfigRejected(
+      new EstimateWizardField__mdt(
+        DeveloperName = 'Test_Dotted_Visibility',
+        MasterLabel = 'Test Dotted Visibility',
+        Active__c = true,
+        TargetObject__c = 'ContractProduct__c',
+        FieldApiName__c = 'Description__c',
+        VisibilityFieldApiName__c = 'Product2.Family',
+        VisibilityOperator__c = 'IN',
+        VisibilityValues__c = 'Software',
+        SortOrder__c = 10,
+        ShowOnNew__c = true,
+        ShowOnChange__c = true,
+        ShowOnRenew__c = true,
+        ShowOnCancel__c = true
+      ),
+      '見積ウィザードカスタム項目「Test_Dotted_Visibility」の VisibilityFieldApiName「Product2.Family」が不正です。Product2 の項目 API 名を指定してください（ドット不可）。'
+    );
+    assertWizardConfigRejected(
+      new EstimateWizardField__mdt(
+        DeveloperName = 'Test_Bad_Account_Path',
+        MasterLabel = 'Test Bad Account Path',
+        Active__c = true,
+        TargetObject__c = 'ContractService__c',
+        FieldApiName__c = 'CustomerMemo__c',
+        DefaultSource__c = 'Account',
+        DefaultValue__c = 'DoesNotExist__c',
+        SortOrder__c = 10,
+        ShowOnNew__c = true,
+        ShowOnChange__c = true,
+        ShowOnRenew__c = true,
+        ShowOnCancel__c = true
+      ),
+      '見積ウィザードカスタム項目「Test_Bad_Account_Path」の DefaultSource=Account に対する DefaultValue「DoesNotExist__c」が不正です。取引先の項目 API 名を指定してください。'
+    );
+    assertWizardConfigRejected(
+      new EstimateWizardField__mdt(
+        DeveloperName = 'Test_Bad_Product2_Path',
+        MasterLabel = 'Test Bad Product2 Path',
+        Active__c = true,
+        TargetObject__c = 'ContractProduct__c',
+        FieldApiName__c = 'Description__c',
+        DefaultSource__c = 'Product2',
+        DefaultValue__c = 'DoesNotExist__c',
+        SortOrder__c = 10,
+        ShowOnNew__c = true,
+        ShowOnChange__c = true,
+        ShowOnRenew__c = true,
+        ShowOnCancel__c = true
+      ),
+      '見積ウィザードカスタム項目「Test_Bad_Product2_Path」の DefaultSource=Product2 に対する DefaultValue「DoesNotExist__c」が不正です。商品の項目 API 名を指定してください。'
+    );
+  }
+
+  @IsTest
+  static void validateCustomFieldTypes_reportsIntegerAndNumberAndClearsMap() {
+    ContractWizardFieldService.setCachedDefinitionsForTest(
+      new List<EstimateWizardField__mdt>{
+        new EstimateWizardField__mdt(
+          DeveloperName = 'Test_Quantity_Type',
+          MasterLabel = '数量',
+          Active__c = true,
+          TargetObject__c = 'ContractProduct__c',
+          FieldApiName__c = 'Quantity__c',
+          SortOrder__c = 1,
+          ShowOnNew__c = true,
+          ShowOnChange__c = true,
+          ShowOnRenew__c = true,
+          ShowOnCancel__c = true
+        ),
+        new EstimateWizardField__mdt(
+          DeveloperName = 'Test_Price_Type',
+          MasterLabel = '単価',
+          Active__c = true,
+          TargetObject__c = 'ContractProduct__c',
+          FieldApiName__c = 'UnitPrice__c',
+          SortOrder__c = 2,
+          ShowOnNew__c = true,
+          ShowOnChange__c = true,
+          ShowOnRenew__c = true,
+          ShowOnCancel__c = true
+        )
+      }
+    );
+    String quantityTypeError = ContractWizardFieldService.validateCustomFieldTypes(
+      ContractWizardFieldService.WizardTarget.ContractProduct,
+      new Map<String, Object>{ 'Quantity__c' => 'abc' }
+    );
+    System.assert(
+      quantityTypeError != null &&
+        quantityTypeError.contains('カスタム項目の形式が不正です: 数量'),
+      'Core 第11.4.1節: 追加項目の型不一致は保存を止める: ' +
+        quantityTypeError
+    );
+    System.assertEquals(
+      'カスタム項目の形式が不正です: 単価（数値で入力してください）',
+      ContractWizardFieldService.validateCustomFieldTypes(
+        ContractWizardFieldService.WizardTarget.ContractProduct,
+        new Map<String, Object>{ 'UnitPrice__c' => 'abc' }
+      ),
+      'Core 第11.4.1節: 追加項目の型不一致は保存を止める'
+    );
+    Map<String, Object> cleared = ContractWizardFieldService.buildClearedCustomFields(
+      ContractWizardFieldService.WizardTarget.ContractProduct
+    );
+    System.assertEquals(null, cleared.get('Quantity__c'));
+    System.assertEquals(null, cleared.get('UnitPrice__c'));
+    Schema.DescribeFieldResult quantityDescribe = ContractProduct__c.Quantity__c.getDescribe();
+    System.assertEquals(
+      12,
+      ContractWizardFieldService.coerceValue(quantityDescribe, '12')
+    );
+    Schema.DescribeFieldResult priceDescribe = ContractProduct__c.UnitPrice__c.getDescribe();
+    System.assertEquals(
+      12.5,
+      ContractWizardFieldService.coerceValue(priceDescribe, '12.5')
+    );
+    System.assertEquals(
+      true,
+      ContractWizardFieldService.coerceValue(
+        User.IsActive.getDescribe(),
+        true
+      )
+    );
+    System.assertEquals(
+      '整数で入力してください',
+      ContractWizardFieldService.getTypeErrorMessage(
+        Schema.DisplayType.INTEGER,
+        '1.5'
+      )
+    );
+    System.assertEquals(
+      '真偽値で入力してください',
+      ContractWizardFieldService.getTypeErrorMessage(
+        Schema.DisplayType.BOOLEAN,
+        'maybe'
+      )
+    );
+    ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+  }
+
+  private static void assertWizardConfigRejected(
+    EstimateWizardField__mdt definition,
+    String expectedMessage
+  ) {
+    ContractWizardFieldService.setCachedDefinitionsForTest(
+      new List<EstimateWizardField__mdt>{ definition }
+    );
+    try {
+      ContractWizardFieldService.validateActiveDefinitions();
+      System.assert(false, expectedMessage);
+    } catch (ContractWizardFieldService.WizardFieldConfigException ex) {
+      System.assertEquals(expectedMessage, ex.getMessage());
+    }
+    ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+  }
 }

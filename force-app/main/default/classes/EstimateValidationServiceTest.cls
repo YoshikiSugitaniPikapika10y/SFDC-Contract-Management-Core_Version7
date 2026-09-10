@@ -3681,4 +3681,212 @@ private class EstimateValidationServiceTest {
       System.assertEquals(2, nextVersion);
     }
   }
+
+  @IsTest
+  static void assertSpotChangeProducts_rejectsOriginalRemakeAndInherited() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Spot Assert Acc'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Spot Assert Opp'
+      );
+      ContractService__c spotService = insertServiceWithBilling(
+        account.Id,
+        'Spot Assert Service'
+      );
+      spotService.Lifecycle__c = ContractDomainConstants.LIFECYCLE_SPOT;
+      update spotService;
+      Date termStart = ContractTestDataFactory.stableTermStart();
+      Date termEnd = ContractTestDataFactory.stableTermEnd();
+      ContractHistory__c spotOrdered = new ContractHistory__c(
+        Name = 'Spot Assert V1',
+        ContractService__c = spotService.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insert spotOrdered;
+      Product2 oneTimeProduct = ContractTestDataFactory.buildProduct(
+        'Spot Assert OneTime'
+      );
+      oneTimeProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      oneTimeProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(oneTimeProduct, false);
+      ContractProduct__c previousProduct = new ContractProduct__c(
+        ContractHistory__c = spotOrdered.Id,
+        Product__c = oneTimeProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Amount__c = 5000,
+        StartDate__c = termStart,
+        Enddate__c = termStart,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME
+      );
+      insert previousProduct;
+      EstimateCreateController.ProductLineItem originalLine = new EstimateCreateController.ProductLineItem();
+      originalLine.productId = oneTimeProduct.Id;
+      originalLine.quantity = 1;
+      originalLine.unitPrice = 5000;
+      originalLine.amount = 5000;
+      originalLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      originalLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      originalLine.startDate = String.valueOf(termStart);
+      originalLine.endDate = String.valueOf(termStart);
+      originalLine.recordType = 'Original';
+      originalLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+      EstimateCreateController.EstimateSaveRequest originalReq = new EstimateCreateController.EstimateSaveRequest();
+      originalReq.opportunityId = opportunity.Id;
+      originalReq.contractServiceId = spotService.Id;
+      originalReq.previousHistoryId = spotOrdered.Id;
+      originalReq.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      originalReq.products = new List<EstimateCreateController.ProductLineItem>{
+        originalLine
+      };
+      Exception originalEx = null;
+      try {
+        EstimateValidationService.validateChangeSaveRequest(
+          originalReq,
+          'Spot Original'
+        );
+      } catch (Exception ex) {
+        originalEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
+        originalEx
+      );
+      EstimateCreateController.ProductLineItem inherited = new EstimateCreateController.ProductLineItem();
+      inherited.productId = oneTimeProduct.Id;
+      inherited.quantity = 1;
+      inherited.unitPrice = 5000;
+      inherited.amount = 5000;
+      inherited.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      inherited.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      inherited.startDate = String.valueOf(termStart.addMonths(1));
+      inherited.endDate = String.valueOf(termStart.addMonths(1));
+      inherited.recordType = 'New';
+      inherited.sourceContractProductId = previousProduct.Id;
+      inherited.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+      EstimateCreateController.EstimateSaveRequest inheritedReq = new EstimateCreateController.EstimateSaveRequest();
+      inheritedReq.opportunityId = opportunity.Id;
+      inheritedReq.contractServiceId = spotService.Id;
+      inheritedReq.previousHistoryId = spotOrdered.Id;
+      inheritedReq.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      inheritedReq.products = new List<EstimateCreateController.ProductLineItem>{
+        inherited
+      };
+      Exception inheritedEx = null;
+      try {
+        EstimateValidationService.validateChangeSaveRequest(
+          inheritedReq,
+          'Spot Inherited'
+        );
+      } catch (Exception ex) {
+        inheritedEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
+        inheritedEx
+      );
+      EstimateCreateController.EstimateSaveRequest emptyReq = new EstimateCreateController.EstimateSaveRequest();
+      emptyReq.opportunityId = opportunity.Id;
+      emptyReq.contractServiceId = spotService.Id;
+      emptyReq.previousHistoryId = spotOrdered.Id;
+      emptyReq.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      emptyReq.products = new List<EstimateCreateController.ProductLineItem>();
+      Exception emptyEx = null;
+      try {
+        EstimateValidationService.validateChangeSaveRequest(
+          emptyReq,
+          'Spot Empty'
+        );
+      } catch (Exception ex) {
+        emptyEx = ex;
+      }
+      assertRejected(
+        '商品明細を1行以上入力してください。',
+        emptyEx
+      );
+      EstimateCreateController.ProductLineItem recurringLine = new EstimateCreateController.ProductLineItem();
+      recurringLine.productId = oneTimeProduct.Id;
+      recurringLine.quantity = 1;
+      recurringLine.unitPrice = 5000;
+      recurringLine.amount = 5000;
+      recurringLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      recurringLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      recurringLine.startDate = String.valueOf(termStart);
+      recurringLine.endDate = String.valueOf(termStart);
+      recurringLine.recordType = 'New';
+      recurringLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      EstimateCreateController.EstimateSaveRequest recurringReq = new EstimateCreateController.EstimateSaveRequest();
+      recurringReq.opportunityId = opportunity.Id;
+      recurringReq.contractServiceId = spotService.Id;
+      recurringReq.previousHistoryId = spotOrdered.Id;
+      recurringReq.selectedType = ContractDomainConstants.HISTORY_TYPE_CHANGE;
+      recurringReq.products = new List<EstimateCreateController.ProductLineItem>{
+        recurringLine
+      };
+      Exception recurringEx = null;
+      try {
+        EstimateValidationService.validateChangeSaveRequest(
+          recurringReq,
+          'Spot Recurring'
+        );
+      } catch (Exception ex) {
+        recurringEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE,
+        recurringEx
+      );
+      ContractHistory__c spotChangeEstimate = new ContractHistory__c(
+        Name = 'Spot Assert Change Est',
+        ContractService__c = spotService.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_CHANGE,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 2,
+        PreviousHistory__c = spotOrdered.Id,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termStart,
+        EffectiveDate__c = termStart
+      );
+      insert spotChangeEstimate;
+      ContractProduct__c inheritedStored = new ContractProduct__c(
+        ContractHistory__c = spotChangeEstimate.Id,
+        Product__c = oneTimeProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Amount__c = 5000,
+        StartDate__c = termStart,
+        Enddate__c = termStart,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        Type__c = 'New',
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        PreviousContractProduct__c = previousProduct.Id,
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+      );
+      insert inheritedStored;
+      Exception invoiceInheritedEx = null;
+      try {
+        EstimateValidationService.assertChangeHistoriesReadyForInvoice(
+          new Set<Id>{ spotChangeEstimate.Id }
+        );
+      } catch (Exception ex) {
+        invoiceInheritedEx = ex;
+      }
+      assertRejected(
+        EstimateValidationService.SPOT_CHANGE_NO_PREVIOUS_PRODUCT_MESSAGE,
+        invoiceInheritedEx
+      );
+    }
+  }
 }

@@ -830,4 +830,141 @@ private class EstimateSendBoardControllerTest {
     }
     System.assertEquals(true, thrown, '共通基盤 第1.4節: 送付画面の読込は 05');
   }
+
+  @IsTest
+  static void sendEstimateFromRecordPage_rejectsBlankAttachment() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractHistory__c history = createEstimate('blank-attach@example.com');
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_ESTIMATE,
+        'EstimateMail'
+      );
+      EstimateSendBoardController.SendDraftDto draft = new EstimateSendBoardController.SendDraftDto();
+      draft.toAddresses = 'blank-attach@example.com';
+      draft.subject = '件名';
+      draft.body = '本文';
+      draft.fileName = 'estimate-send.pdf';
+      draft.attachmentId = '';
+      Boolean thrown = false;
+      try {
+        EstimateSendBoardController.sendEstimateFromRecordPage(
+          history.Id,
+          'StandardEstimate',
+          'EstimateMail',
+          currentToken(history.Id),
+          draft
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          EstimateSendBoardController.MISSING_ATTACHMENT_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.10節: 未選択では送れない'
+        );
+      }
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        null,
+        [
+          SELECT EstimateSentAt__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .EstimateSentAt__c,
+        'Core 第4.8節: 送れなければ送付日を書かない'
+      );
+    }
+  }
+
+  @IsTest
+  static void previewEstimateFromRecordPage_orgFromWithoutOwe_throws() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractHistory__c history = createEstimate('org-from@example.com');
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_ESTIMATE,
+        'EstimateMail'
+      );
+      ContractDocumentSetting__c setting = [
+        SELECT Id, EstimateOrgWideEmailAddress__c
+        FROM ContractDocumentSetting__c
+        WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+        LIMIT 1
+      ];
+      setting.EstimateOrgWideEmailAddress__c = null;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Boolean thrown = false;
+      try {
+        EstimateSendBoardController.previewEstimateFromRecordPage(
+          history.Id,
+          'StandardEstimate',
+          'EstimateMail',
+          EstimateSendBoardController.FROM_ORG
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          String.isNotBlank(ex.getMessage()),
+          'Core 第4.8節・第11.3.2節: 組織Fromは検証済みOWEが要る'
+        );
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void sendEstimateFromRecordPage_rejectsUnusedMode() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractHistory__c history = createEstimate('unused-mode@example.com');
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_ESTIMATE,
+        'EstimateMail'
+      );
+      ContractDocumentSetting__c setting = [
+        SELECT Id, EstimateSendMode__c
+        FROM ContractDocumentSetting__c
+        WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+        LIMIT 1
+      ];
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      EstimateSendBoardController.SendDraftDto draft = new EstimateSendBoardController.SendDraftDto();
+      draft.toAddresses = 'unused-mode@example.com';
+      draft.subject = '件名';
+      draft.body = '本文';
+      draft.fileName = 'estimate-send.pdf';
+      draft.attachmentId = EstimateSendBoardController.ATTACHMENT_NEW;
+      draft.ccAddresses = 'cc@example.com';
+      draft.bccAddresses = 'bcc@example.com';
+      Boolean thrown = false;
+      try {
+        EstimateSendBoardController.sendEstimateFromRecordPage(
+          history.Id,
+          'StandardEstimate',
+          'EstimateMail',
+          currentToken(history.Id),
+          draft
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '見積書機能が使わないのため発行・送付できません。',
+          ex.getMessage(),
+          'Core 第4.8節: 使わないなら送付しない'
+        );
+      }
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        null,
+        [
+          SELECT EstimateSentAt__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .EstimateSentAt__c,
+        'Core 第4.8節: 送れなければ送付日を書かない'
+      );
+    }
+  }
 }
