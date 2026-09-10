@@ -1,15 +1,11 @@
 <apex:page
-  contentType="application/pdf; charset=UTF-8"
-  renderAs="pdf"
   controller="EstimateDocumentPdfController"
+  renderAs="pdf"
+  contentType="application/pdf; charset=UTF-8"
   showHeader="false"
-  sidebar="false"
-  standardStylesheets="false"
-  lightningStylesheets="false"
   applyHtmlTag="false"
-  applyBodyTag="false"
   language="ja"
-  cache="true"
+  cache="false"
 >
   <html>
     <head>
@@ -18,6 +14,9 @@
         @page {
           size: A4;
           margin: 10mm;
+        }
+        * {
+          font-family: "Arial Unicode MS", sans-serif;
         }
         html,
         body {
