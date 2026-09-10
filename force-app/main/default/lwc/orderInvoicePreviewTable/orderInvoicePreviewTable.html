@@ -1559,7 +1559,7 @@
                             <template if:false={journal.debitAbbreviation}>
                               {journal.debitAccountName}
                             </template>
-                            <span> / </span>
+                            <span class="journal-slot-sep"> / </span>
                             <template if:true={journal.creditAbbreviation}>
                               <span class="journal-slot-abbr">{journal.creditAbbreviation}</span>
                               <template if:true={journal.creditAccountLabel}>

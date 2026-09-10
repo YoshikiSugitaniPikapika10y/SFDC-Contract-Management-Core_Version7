@@ -363,7 +363,7 @@
 
 .journal-confirmation-col,
 .journal-confirmation-cell {
-  width: 28%;
+  width: 24%;
   max-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -390,7 +390,15 @@
 }
 
 .journal-slot-col {
-  width: 22%;
+  width: 28%;
+}
+
+.ops-table_journals .journal-slot-col .journal-slot-abbr {
+  margin-right: 0.45em;
+}
+
+.ops-table_journals .journal-slot-sep {
+  padding: 0 0.55em;
 }
 
 .ops-table_journals .num-col {
