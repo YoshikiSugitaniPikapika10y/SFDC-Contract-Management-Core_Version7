@@ -6,6 +6,7 @@ import updatePaymentFromPreview from "@salesforce/apex/InvoicePreviewOpsControll
 import previewRegisterFromPreview from "@salesforce/apex/InvoicePreviewOpsController.previewRegisterFromPreview";
 import previewCancelConfirmed from "@salesforce/apex/OrderCreateController.previewCancelConfirmed";
 import previewCancelPaymentFromPreview from "@salesforce/apex/InvoicePreviewOpsController.previewCancelPaymentFromPreview";
+import cancelPaymentFromPreview from "@salesforce/apex/InvoicePreviewOpsController.cancelPaymentFromPreview";
 import previewInvoiceLineAcceptanceEndDate from "@salesforce/apex/OrderCreateController.previewInvoiceLineAcceptanceEndDate";
 import getBoardContext from "@salesforce/apex/InvoiceSendBoardController.getBoardContext";
 import LightningConfirm from "lightning/confirm";
@@ -337,6 +338,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     previewRegisterFromPreview.mockClear();
     updatePaymentFromPreview.mockClear();
     previewCancelPaymentFromPreview.mockClear();
+    cancelPaymentFromPreview.mockClear();
     previewCancelConfirmed.mockClear();
     previewInvoiceLineAcceptanceEndDate.mockClear();
     LightningConfirm.open.mockClear();
@@ -528,6 +530,56 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(
       element.shadowRoot.querySelector('lightning-input[data-field="cancelDate"]')
     ).toBeNull();
+  });
+
+  it("shows 処理中 on the payment cancel form while cancel runs", async () => {
+    getOpsBundle.mockResolvedValue(mockBundle());
+    let resolveSavePreview;
+    previewCancelPaymentFromPreview
+      .mockResolvedValueOnce({ displayText: "" })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSavePreview = resolve;
+          })
+      );
+    cancelPaymentFromPreview.mockResolvedValue({});
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+
+    element.shadowRoot
+      .querySelector("button[data-payment-id='a02PAY000000001']")
+      .click();
+    await flush();
+    await flush();
+
+    const reason = element.shadowRoot.querySelector(
+      'lightning-combobox[data-field="cancellationReason"]'
+    );
+    reason.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "Duplicate" } })
+    );
+    await flush();
+
+    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
+      .find((button) => button.textContent.trim() === "取消する")
+      .click();
+    await flush();
+    await flush();
+
+    expect(element.shadowRoot.textContent).toContain("処理中");
+    const backButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.ghost-btn")
+    ).find((button) => button.textContent.trim() === "戻る");
+    expect(backButton.disabled).toBe(true);
+    resolveSavePreview({ displayText: "" });
+    await flush();
+    await flush();
   });
 
   it("hides cancelled payments by default and shows 有効／取消済み／取消 when included", async () => {

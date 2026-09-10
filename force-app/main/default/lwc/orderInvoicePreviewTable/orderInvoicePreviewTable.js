@@ -3000,6 +3000,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           paymentCancelReasonText: cancelDraft?.cancellationReasonText || "",
           paymentCancelRequiresDate: cancelDraft?.requiresDate === true,
           paymentCancelDate: cancelDraft?.cancelDate || "",
+          paymentCancelBusy: opsBusy && Boolean(cancelDraft),
           paymentCancelSaveDisabled:
             opsBusy ||
             !cancelDraft?.cancellationReason ||
@@ -4160,7 +4161,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   handlePaymentCancelClose(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
-    if (!invoiceId) {
+    if (!invoiceId || this.invoiceOpsProcessingId != null) {
       return;
     }
     this.updateInvoiceUiState(invoiceId, { cancelDraft: null });
@@ -4206,7 +4207,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
-    try {
+    await this.runInvoiceOpsMutation(invoiceId, async () => {
       const preview = await previewCancelPaymentFromPreview({
         paymentId: draft.paymentId,
         invoiceId,
@@ -4222,26 +4223,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             cancelDate: this.todayLocalIso()
           }
         });
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "請求操作エラー",
-            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-            variant: "error"
-          })
-        );
-        return;
+        throw new Error("ロック済み仕訳がある取消では取消基準日が必要です。");
       }
-    } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
-      return;
-    }
-    await this.runInvoiceOpsMutation(invoiceId, async () => {
       const key = await this.resolvePendingOperationKey(invoiceId);
       await cancelPaymentFromPreview({
         paymentId: draft.paymentId,

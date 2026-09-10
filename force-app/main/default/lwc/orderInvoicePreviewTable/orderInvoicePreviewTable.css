@@ -1460,6 +1460,22 @@
   align-items: center;
 }
 
+.surface-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.surface-wait-spin {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
+}
+
 .split-table-wrap {
   /* overflow-x:auto は overflow-y も auto 扱いとなりホイールを握る。横も親スクローラへ任せる */
   overflow: visible;

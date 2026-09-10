@@ -1004,6 +1004,7 @@
                       data-invoice-id={invoice.invoiceId}
                       data-field="cancellationReason"
                       onchange={handlePaymentCancelDraftChange}
+                      disabled={invoice.paymentCancelBusy}
                       required
                     ></lightning-combobox>
                     <lightning-input
@@ -1012,6 +1013,7 @@
                       data-invoice-id={invoice.invoiceId}
                       data-field="cancellationReasonText"
                       onchange={handlePaymentCancelDraftChange}
+                      disabled={invoice.paymentCancelBusy}
                     ></lightning-input>
                     <template if:true={invoice.paymentCancelRequiresDate}>
                       <lightning-input
@@ -1021,16 +1023,29 @@
                         data-invoice-id={invoice.invoiceId}
                         data-field="cancelDate"
                         onchange={handlePaymentCancelDraftChange}
+                        disabled={invoice.paymentCancelBusy}
                         required
                       ></lightning-input>
                     </template>
                   </div>
                   <div class="panel-actions">
+                    <template if:true={invoice.paymentCancelBusy}>
+                      <p class="surface-wait" role="status">
+                        <span class="surface-wait-spin">
+                          <lightning-spinner
+                            alternative-text="処理中"
+                            size="small"
+                          ></lightning-spinner>
+                        </span>
+                        処理中
+                      </p>
+                    </template>
                     <button
                       type="button"
                       class="ghost-btn"
                       data-invoice-id={invoice.invoiceId}
                       onclick={handlePaymentCancelClose}
+                      disabled={invoice.paymentCancelBusy}
                     >
                       戻る
                     </button>
