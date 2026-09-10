@@ -390,9 +390,15 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return this._isSaving;
   }
   set isSaving(value) {
+    const wasSaving = this._isSaving === true;
     this._isSaving = value === true;
     if (!this._isSaving) {
       this.editProcessingInvoiceId = null;
+      if (wasSaving && this.invoiceOpsProcessingMode === "cancel") {
+        this.invoiceOpsProcessingId = null;
+        this.invoiceOpsProcessingMode = null;
+        this.invoiceCancelState = null;
+      }
     }
   }
   @api initialVersion;
@@ -1574,6 +1580,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   get amountDraftActionsDisabled() {
     return this.isSaving === true;
+  }
+
+  get showAmountDraftWait() {
+    return this.isSaving === true && this.showAmountDraftActions;
   }
 
   /**
@@ -2842,11 +2852,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           lockNote:
             invoice.locked === true ? LOCKED_INVOICE_EDIT_NOTE : "",
           showEditProcessing:
-            (this.editProcessingInvoiceId
-              ? this.editProcessingInvoiceId === invoiceId
-              : this.isSaving === true) ||
-            (this.isDocumentOpsWaiting &&
-              this.invoiceOpsProcessingId === invoiceId),
+            this.editProcessingInvoiceId === invoiceId ||
+            this.invoiceOpsProcessingId === invoiceId ||
+            (this.isSaving === true &&
+              !this.editProcessingInvoiceId &&
+              this.invoiceOpsProcessingId == null),
           billingEditDisabled:
             this.hasAmountDrafts ||
             this.isSplitOrMoveUiOpen ||
@@ -3000,7 +3010,22 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           paymentCancelReasonText: cancelDraft?.cancellationReasonText || "",
           paymentCancelRequiresDate: cancelDraft?.requiresDate === true,
           paymentCancelDate: cancelDraft?.cancelDate || "",
-          paymentCancelBusy: opsBusy && Boolean(cancelDraft),
+          paymentCancelBusy:
+            Boolean(cancelDraft) &&
+            (this.invoiceOpsProcessingId === invoiceId ||
+              (this.isSaving === true &&
+                !this.editProcessingInvoiceId &&
+                this.invoiceOpsProcessingId == null)),
+          paymentRegisterBusy:
+            !cancelDraft &&
+            (this.invoiceOpsProcessingId === invoiceId ||
+              (this.isSaving === true &&
+                !this.editProcessingInvoiceId &&
+                this.invoiceOpsProcessingId == null)),
+          paymentEditBusy:
+            this.paymentEditState?.invoiceId === invoiceId &&
+            (this.invoiceOpsProcessingId === invoiceId ||
+              this.isSaving === true),
           paymentCancelSaveDisabled:
             opsBusy ||
             !cancelDraft?.cancellationReason ||
@@ -3947,40 +3972,21 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     // 仕様: Core 第7.9.6節、Accounting 第8.8節。確認は業務確認と必要な取消基準日だけ。件数・日付内訳は出さない。
 
     const showJournalPreview = bundle?.accountingEnabled === true;
-    if (showJournalPreview) {
-      let preview;
-      try {
-        preview = await previewRegisterFromPreview(paymentArgs);
-      } catch (error) {
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "請求操作エラー",
-            message: this.reduceInvoiceOpsError(error),
-            variant: "error"
-          })
-        );
-        return;
-      }
-      if (diffRequiresCancelDate(preview) && !draft.cancellationDate) {
-        const current = this.invoiceUiState[invoiceId] || {};
-        this.updateInvoiceUiState(invoiceId, {
-          paymentDraft: {
-            ...current.paymentDraft,
-            requiresDate: true,
-            cancellationDate: this.todayLocalIso()
-          }
-        });
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "請求操作エラー",
-            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-            variant: "error"
-          })
-        );
-        return;
-      }
-    }
     await this.runInvoiceOpsMutation(invoiceId, async () => {
+      if (showJournalPreview) {
+        const preview = await previewRegisterFromPreview(paymentArgs);
+        if (diffRequiresCancelDate(preview) && !draft.cancellationDate) {
+          const current = this.invoiceUiState[invoiceId] || {};
+          this.updateInvoiceUiState(invoiceId, {
+            paymentDraft: {
+              ...current.paymentDraft,
+              requiresDate: true,
+              cancellationDate: this.todayLocalIso()
+            }
+          });
+          throw new Error("ロック済み仕訳がある取消では取消基準日が必要です。");
+        }
+      }
       const key = await this.resolvePendingOperationKey(invoiceId);
       await savePaymentFromPreview({
         ...paymentArgs,
@@ -4571,6 +4577,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
+    this.editProcessingInvoiceId = invoiceId;
     try {
       const preview = await previewInvoiceLineAcceptanceEndDate({
         lineId: draft.lineId,
@@ -4593,9 +4600,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             variant: "error"
           })
         );
+        this.editProcessingInvoiceId = null;
         return;
       }
     } catch (error) {
+      this.editProcessingInvoiceId = null;
       this.dispatchEvent(
         new ShowToastEvent({
           title: "請求操作エラー",
@@ -4605,7 +4614,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
-    this.updateInvoiceUiState(invoiceId, { acceptanceDraft: null });
     this.dispatchEvent(
       new CustomEvent("saveacceptanceenddate", {
         detail: {
@@ -5780,6 +5788,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   handleCloseBillingEdit() {
+    if (this.editProcessingInvoiceId != null || this.isSaving === true) {
+      return;
+    }
     this.billingEditState = null;
   }
 
@@ -6072,6 +6083,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
+    if (this.invoiceOpsProcessingId != null) {
+      return;
+    }
+    this.invoiceOpsProcessingId = invoiceId;
     try {
       await updateInvoiceMemo({
         invoiceId,
@@ -6088,6 +6103,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           variant: "error"
         })
       );
+    } finally {
+      this.invoiceOpsProcessingId = null;
     }
   }
 
@@ -6129,6 +6146,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   handleCloseInvoiceCancel() {
+    if (this.invoiceOpsProcessingId != null || this.isSaving === true) {
+      return;
+    }
     this.invoiceCancelState = null;
   }
 
@@ -6148,7 +6168,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   // 仕様: Core 第7.9.3節、第7.9.5節、第7.9.6節、第7.10節、第1.1.10節、Accounting 第8.5節、日付仕様 第7.3節
   async handleConfirmInvoiceCancel() {
-    if (!this.invoiceCancelState?.invoiceId) {
+    if (!this.invoiceCancelState?.invoiceId || this.invoiceOpsProcessingId != null) {
       return;
     }
     const blocked = this.invoiceCancelBlockedReason(
@@ -6199,15 +6219,20 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
+    const invoiceId = this.invoiceCancelState.invoiceId;
+    this.invoiceOpsProcessingId = invoiceId;
+    this.invoiceOpsProcessingMode = "cancel";
     try {
       await previewCancelConfirmed({
-        invoiceId: this.invoiceCancelState.invoiceId,
+        invoiceId,
         cancellationDate: requiresDate
           ? this.invoiceCancelState.cancellationDate || null
           : null,
         contractHistoryId: this.contractHistoryId
       });
     } catch (error) {
+      this.invoiceOpsProcessingId = null;
+      this.invoiceOpsProcessingMode = null;
       this.dispatchEvent(
         new ShowToastEvent({
           title: "請求操作エラー",
@@ -6219,13 +6244,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
     const requiresCustomerNotice =
       (this.preview?.invoices || []).find(
-        (row) => row.invoiceId === this.invoiceCancelState.invoiceId
+        (row) => row.invoiceId === invoiceId
       )?.deliveryStatus === "Sent";
     const customerNotice = requiresCustomerNotice ? CUSTOMER_CANCEL_NOTICE : "";
     this.dispatchEvent(
       new CustomEvent("cancelconfirmed", {
         detail: {
-          invoiceId: this.invoiceCancelState.invoiceId,
+          invoiceId,
           cancellationReason: this.invoiceCancelState.cancellationReason,
           cancellationReasonText:
             this.invoiceCancelState.cancellationReasonText || null,
@@ -6234,16 +6259,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             : null,
           requiresCustomerNotice,
           customerNotice,
-          expectedContentVersion: this.findInvoice(
-            this.invoiceCancelState.invoiceId
-          )?.lastModifiedToken,
-          businessOperationKey: await this.resolvePendingOperationKey(
-            this.invoiceCancelState.invoiceId
-          )
+          expectedContentVersion: this.findInvoice(invoiceId)?.lastModifiedToken,
+          businessOperationKey: await this.resolvePendingOperationKey(invoiceId)
         }
       })
     );
-    this.invoiceCancelState = null;
   }
 
   handleJournalMemoChange(event) {
@@ -6306,6 +6326,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
+    if (this.invoiceOpsProcessingId != null) {
+      return;
+    }
+    this.invoiceOpsProcessingId = invoiceId;
     const journal = (
       this.invoiceUiState[invoiceId]?.bundle?.journals || []
     ).find((row) => row.journalId === journalId);
@@ -6335,6 +6359,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           variant: "error"
         })
       );
+    } finally {
+      this.invoiceOpsProcessingId = null;
     }
   }
 
@@ -6591,6 +6617,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
+    if (this.invoiceOpsProcessingId != null) {
+      return;
+    }
+    this.invoiceOpsProcessingId = invoiceId;
     try {
       const key = await this.resolvePendingOperationKey(invoiceId);
       await lockJournalsForInvoice({
@@ -6615,6 +6645,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           variant: "error"
         })
       );
+    } finally {
+      this.invoiceOpsProcessingId = null;
     }
   }
 
@@ -6671,6 +6703,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       );
       return;
     }
+    if (this.invoiceOpsProcessingId != null) {
+      return;
+    }
+    this.invoiceOpsProcessingId = invoiceId;
     try {
       const key = await this.resolvePendingOperationKey(invoiceId);
       await unlockJournalsForInvoice({
@@ -6700,6 +6736,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           variant: "error"
         })
       );
+    } finally {
+      this.invoiceOpsProcessingId = null;
     }
   }
 

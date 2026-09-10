@@ -109,6 +109,17 @@
       </div>
       <template if:true={showAmountDraftActions}>
         <div class="amount-compare-actions">
+          <template if:true={showAmountDraftWait}>
+            <p class="surface-wait" role="status">
+              <span class="surface-wait-spin">
+                <lightning-spinner
+                  alternative-text="処理中"
+                  size="small"
+                ></lightning-spinner>
+              </span>
+              処理中
+            </p>
+          </template>
           <button
             type="button"
             class="ghost-btn"
@@ -364,10 +375,22 @@
                 </template>
               </div>
               <div class="edit-actions">
+                <template if:true={invoice.showEditProcessing}>
+                  <p class="surface-wait" role="status">
+                    <span class="surface-wait-spin">
+                      <lightning-spinner
+                        alternative-text="処理中"
+                        size="small"
+                      ></lightning-spinner>
+                    </span>
+                    処理中
+                  </p>
+                </template>
                 <button
                   type="button"
                   class="ghost-btn"
                   onclick={handleCloseInvoiceIssue}
+                  disabled={invoice.showEditProcessing}
                 >
                   キャンセル
                 </button>
@@ -465,10 +488,22 @@
                 <p class="edit-note" role="note">{sendFailureRetryNote}</p>
               </div>
               <div class="edit-actions">
+                <template if:true={invoice.showEditProcessing}>
+                  <p class="surface-wait" role="status">
+                    <span class="surface-wait-spin">
+                      <lightning-spinner
+                        alternative-text="処理中"
+                        size="small"
+                      ></lightning-spinner>
+                    </span>
+                    処理中
+                  </p>
+                </template>
                 <button
                   type="button"
                   class="ghost-btn"
                   onclick={handleCloseInvoiceSend}
+                  disabled={invoice.showEditProcessing}
                 >
                   キャンセル
                 </button>
@@ -519,10 +554,22 @@
                 </template>
               </div>
               <div class="edit-actions">
+                <template if:true={invoice.showEditProcessing}>
+                  <p class="surface-wait" role="status">
+                    <span class="surface-wait-spin">
+                      <lightning-spinner
+                        alternative-text="処理中"
+                        size="small"
+                      ></lightning-spinner>
+                    </span>
+                    処理中
+                  </p>
+                </template>
                 <button
                   type="button"
                   class="ghost-btn"
                   onclick={handleCloseInvoiceCancel}
+                  disabled={invoice.showEditProcessing}
                 >
                   キャンセル
                 </button>
@@ -680,10 +727,22 @@
                 </section>
               </template>
               <div class="panel-actions">
+                <template if:true={invoice.showEditProcessing}>
+                  <p class="surface-wait" role="status">
+                    <span class="surface-wait-spin">
+                      <lightning-spinner
+                        alternative-text="処理中"
+                        size="small"
+                      ></lightning-spinner>
+                    </span>
+                    処理中
+                  </p>
+                </template>
                 <button
                   type="button"
                   class="ghost-btn"
                   onclick={handleCloseBillingEdit}
+                  disabled={invoice.showEditProcessing}
                 >
                   キャンセル
                 </button>
@@ -707,11 +766,23 @@
                     max-length="32768"
                   ></lightning-textarea>
                   <div class="panel-actions">
+                    <template if:true={invoice.showEditProcessing}>
+                      <p class="surface-wait" role="status">
+                        <span class="surface-wait-spin">
+                          <lightning-spinner
+                            alternative-text="処理中"
+                            size="small"
+                          ></lightning-spinner>
+                        </span>
+                        処理中
+                      </p>
+                    </template>
                     <button
                       type="button"
                       class="ghost-btn"
                       data-invoice-id={invoice.invoiceId}
                       onclick={handleSaveMemo}
+                      disabled={invoice.showEditProcessing}
                     >
                       メモを保存
                     </button>
@@ -947,10 +1018,22 @@
                   </template>
                   </div>
                   <div class="panel-actions">
+                    <template if:true={invoice.paymentEditBusy}>
+                      <p class="surface-wait" role="status">
+                        <span class="surface-wait-spin">
+                          <lightning-spinner
+                            alternative-text="処理中"
+                            size="small"
+                          ></lightning-spinner>
+                        </span>
+                        処理中
+                      </p>
+                    </template>
                     <button
                       type="button"
                       class="ghost-btn"
                       onclick={handleClosePaymentEdit}
+                      disabled={invoice.paymentEditBusy}
                     >
                       キャンセル
                     </button>
@@ -958,6 +1041,7 @@
                       type="button"
                       class="solid-btn"
                       onclick={handleSavePaymentEdit}
+                      disabled={invoice.paymentEditBusy}
                     >
                       保存
                     </button>
@@ -1318,6 +1402,17 @@
                     </template>
                   </template>
                   <div class="panel-actions">
+                    <template if:true={invoice.paymentRegisterBusy}>
+                      <p class="surface-wait" role="status">
+                        <span class="surface-wait-spin">
+                          <lightning-spinner
+                            alternative-text="処理中"
+                            size="small"
+                          ></lightning-spinner>
+                        </span>
+                        処理中
+                      </p>
+                    </template>
                     <button
                       type="button"
                       class="solid-btn"
@@ -1381,6 +1476,17 @@
                 <div class={invoice.journalScrollClass}>
                 <template if:true={invoice.showJournalLockBar}>
                   <div class="journal-lock-bar">
+                    <template if:true={invoice.showEditProcessing}>
+                      <p class="surface-wait" role="status">
+                        <span class="surface-wait-spin">
+                          <lightning-spinner
+                            alternative-text="処理中"
+                            size="small"
+                          ></lightning-spinner>
+                        </span>
+                        処理中
+                      </p>
+                    </template>
                     <template if:true={invoice.showJournalBarLock}>
                       <button
                         type="button"
@@ -1766,15 +1872,29 @@
                                   </template>
                                 </div>
                                 <template if:true={journal.canSaveJournalExtras}>
-                                  <button
-                                    type="button"
-                                    class="ghost-btn"
-                                    data-journal-id={journal.journalId}
-                                    data-invoice-id={invoice.invoiceId}
-                                    onclick={handleSaveJournalMemo}
-                                  >
-                                    保存
-                                  </button>
+                                  <div class="panel-actions">
+                                    <template if:true={invoice.showEditProcessing}>
+                                      <p class="surface-wait" role="status">
+                                        <span class="surface-wait-spin">
+                                          <lightning-spinner
+                                            alternative-text="処理中"
+                                            size="small"
+                                          ></lightning-spinner>
+                                        </span>
+                                        処理中
+                                      </p>
+                                    </template>
+                                    <button
+                                      type="button"
+                                      class="ghost-btn"
+                                      data-journal-id={journal.journalId}
+                                      data-invoice-id={invoice.invoiceId}
+                                      onclick={handleSaveJournalMemo}
+                                      disabled={invoice.showEditProcessing}
+                                    >
+                                      保存
+                                    </button>
+                                  </div>
                                 </template>
                               </div>
                             </td>
@@ -1915,10 +2035,22 @@
                 </div>
               </div>
               <div class="panel-actions">
+                <template if:true={invoice.showEditProcessing}>
+                  <p class="surface-wait" role="status">
+                    <span class="surface-wait-spin">
+                      <lightning-spinner
+                        alternative-text="処理中"
+                        size="small"
+                      ></lightning-spinner>
+                    </span>
+                    処理中
+                  </p>
+                </template>
                 <button
                   type="button"
                   class="ghost-btn"
                   onclick={handleCloseInvoiceMove}
+                  disabled={invoice.showEditProcessing}
                 >
                   キャンセル
                 </button>
@@ -2065,10 +2197,22 @@
                 </div>
               </div>
               <div class="panel-actions">
+                <template if:true={invoice.showEditProcessing}>
+                  <p class="surface-wait" role="status">
+                    <span class="surface-wait-spin">
+                      <lightning-spinner
+                        alternative-text="処理中"
+                        size="small"
+                      ></lightning-spinner>
+                    </span>
+                    処理中
+                  </p>
+                </template>
                 <button
                   type="button"
                   class="ghost-btn"
                   onclick={handleCloseInvoiceSplit}
+                  disabled={invoice.showEditProcessing}
                 >
                   キャンセル
                 </button>
@@ -2491,11 +2635,23 @@
                           </template>
 
                           <div class="split-row-actions">
+                            <template if:true={invoice.showEditProcessing}>
+                              <p class="surface-wait" role="status">
+                                <span class="surface-wait-spin">
+                                  <lightning-spinner
+                                    alternative-text="処理中"
+                                    size="small"
+                                  ></lightning-spinner>
+                                </span>
+                                処理中
+                              </p>
+                            </template>
                             <button
                               type="button"
                               class="ghost-btn"
                               data-line-id={row.lineId}
                               onclick={handleCancelLineSplitRow}
+                              disabled={invoice.showEditProcessing}
                             >
                               キャンセル
                             </button>
@@ -2530,11 +2686,23 @@
                 ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。
               </p>
               <div class="panel-actions">
+                <template if:true={invoice.showEditProcessing}>
+                  <p class="surface-wait" role="status">
+                    <span class="surface-wait-spin">
+                      <lightning-spinner
+                        alternative-text="処理中"
+                        size="small"
+                      ></lightning-spinner>
+                    </span>
+                    処理中
+                  </p>
+                </template>
                 <button
                   type="button"
                   class="ghost-btn"
                   data-invoice-id={invoice.invoiceId}
                   onclick={handleAcceptanceCancelClose}
+                  disabled={invoice.showEditProcessing}
                 >
                   戻る
                 </button>
