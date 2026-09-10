@@ -1343,39 +1343,6 @@
                   仕訳連携は停止中です。仕訳の作成・再生成は行われません。
                 </p>
               </template>
-              <template if:true={invoice.showJournalWorkStrip}>
-                <div class="journal-work-strip" aria-label="スロット残高と会計タグ">
-                  <template if:true={invoice.showJournalSlotFooter}>
-                    <div class="summary-row summary-row_totals summary-row_slot-nets">
-                      <template for:each={invoice.slotNets} for:item="slotNet">
-                        <div key={slotNet.key} class={slotNet.itemClass}>
-                          <span class="money-label journal-slot-abbr">{slotNet.abbreviation}</span>
-                          <span class="money-value">
-                            <lightning-formatted-number
-                              value={slotNet.amount}
-                              format-style="currency"
-                              currency-code="JPY"
-                              maximum-fraction-digits="0"
-                            >
-                            </lightning-formatted-number>
-                          </span>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-                  <template if:true={invoice.showCardAccountingTags}>
-                    <div class="summary-row summary-row_tags" aria-label="会計タグ">
-                      <template for:each={invoice.tagResults} for:item="tag">
-                        <lightning-badge
-                          key={tag.fieldApiName}
-                          class={tag.badgeClass}
-                          label={tag.name}
-                        ></lightning-badge>
-                      </template>
-                    </div>
-                  </template>
-                </div>
-              </template>
               <template if:true={invoice.showManualJournalEntry}>
                 <c-manual-journal-entry
                   invoice-id={invoice.invoiceId}

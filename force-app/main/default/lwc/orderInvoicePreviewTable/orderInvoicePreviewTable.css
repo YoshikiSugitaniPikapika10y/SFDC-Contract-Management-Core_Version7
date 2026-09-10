@@ -267,41 +267,6 @@
   background: var(--preview-surface);
 }
 
-.journal-work-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin: 0;
-}
-
-.journal-work-strip .summary-row {
-  justify-content: flex-start;
-}
-
-.journal-work-strip .summary-row_totals {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 1rem;
-}
-
-.journal-work-strip .summary-row_tags {
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 0.35rem;
-  padding-top: 0;
-}
-
-.journal-work-strip .summary-row_totals .money-item {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: baseline;
-  gap: 0.3rem;
-  white-space: nowrap;
-}
-
 .ops-panel > c-manual-journal-entry {
   display: block;
   margin: 0;
@@ -917,23 +882,17 @@
   font-size: 0.75rem;
 }
 
-.invoice-footer .summary-row_slot-nets .money-label,
-.journal-work-strip .summary-row_slot-nets .money-label {
+.invoice-footer .summary-row_slot-nets .money-label {
   color: #dc2626;
   font-weight: 700;
 }
 
-.invoice-footer .summary-row_slot-nets .money-item_slot-zero .money-value,
-.journal-work-strip .summary-row_slot-nets .money-item_slot-zero .money-value {
+.invoice-footer .summary-row_slot-nets .money-item_slot-zero .money-value {
   color: #94a3b8;
   font-weight: 400;
 }
 
-.invoice-footer .summary-row_slot-nets .money-item_slot-nonzero .money-value,
-.journal-work-strip
-  .summary-row_slot-nets
-  .money-item_slot-nonzero
-  .money-value {
+.invoice-footer .summary-row_slot-nets .money-item_slot-nonzero .money-value {
   color: var(--preview-text);
   font-weight: 700;
 }

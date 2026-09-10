@@ -2864,8 +2864,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             ? this.billingEditState.taxPercent
             : this.billingEditTaxPercent(invoice.taxPercent),
           activeTab,
-          showJournalWorkStrip:
-            accountingEnabled && activeTab === "journals",
           isLinesTab: activeTab === "lines",
           isPaymentsTab: activeTab === "payments",
           // 仕様: Accounting 第1.1節。OFFは仕訳タブ内容を出さない。

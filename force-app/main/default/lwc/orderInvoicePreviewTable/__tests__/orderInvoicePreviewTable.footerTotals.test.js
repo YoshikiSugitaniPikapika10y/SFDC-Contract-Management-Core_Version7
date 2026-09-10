@@ -808,7 +808,7 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(badges[1].className).toContain("accounting-tag-badge_off");
   });
 
-  it("glows accounting tags on the journal tab work strip", async () => {
+  it("does not duplicate slot nets and tags above the journal table", async () => {
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
       tagResults: [
@@ -833,18 +833,24 @@ describe("orderInvoicePreviewTable footer totals", () => {
       () => element.shadowRoot.querySelector('button[data-tab="journals"]')
     );
     journalsTab.click();
-    const badges = await waitUntil(() => {
-      const nodes = element.shadowRoot.querySelectorAll(
-        ".journal-work-strip .summary-row_tags lightning-badge"
-      );
-      return nodes.length ? nodes : null;
-    });
-    expect(Array.from(badges).map((node) => node.label)).toEqual([
+    await waitUntil(() =>
+      element.shadowRoot.querySelector("table.ops-table_journals")
+    );
+    expect(
+      element.shadowRoot.querySelector(".journal-work-strip")
+    ).toBeNull();
+    expect(
+      element.shadowRoot.querySelector(
+        ".ops-panel .summary-row_slot-nets, .ops-panel .summary-row_tags"
+      )
+    ).toBeNull();
+    const footerBadges = element.shadowRoot.querySelectorAll(
+      "footer.invoice-footer .summary-row_tags lightning-badge"
+    );
+    expect(Array.from(footerBadges).map((node) => node.label)).toEqual([
       "AR残あり",
       "完了"
     ]);
-    expect(badges[0].className).toContain("accounting-tag-badge_on");
-    expect(badges[1].className).toContain("accounting-tag-badge_off");
   });
 
   it("does not show accounting tag badges for Draft invoices", async () => {
