@@ -1716,39 +1716,41 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 | 検収日     | `AcceptanceEndDate__c`                                   | No.6～9の一括だけ文面に出す                                        |
 | N          | `GlJournal__c.RecognitionSequence__c`                    | No.6～9の月次だけ                                                  |
 | M          | `InvoiceLine__c.RecognitionBucketCount__c`               | 第3.2節。仕訳本数を数えない                                        |
-| 種類       | `GlJournal__c.JournalPatternKey__c`                      | 先頭語と「回目／検収日／なし」                                     |
+| 種類       | `GlJournal__c.JournalPatternKey__c`                      | 税抜／税／税込と「回目／検収日／なし」                             |
+| 商品名     | `InvoiceLine__c.ProductName__c`                      | 先頭。空なら種別だけ。「明細」は出さない                           |
 | 明細の有無 | `GlJournal__c.InvoiceLine__c`                            | 空なら全文空                                                       |
 
-金額は明細の満額事実である。この仕訳額、部分割当額、バケット端数は出さない。部分入金でも明細税込の満額のままである。足りているかは行の金額列と照らす。符号は明細の保存値（値引きは `明細税抜 -50,000円`）。桁区切りはカンマ。日付は `YYYY/MM/DD`。部品の区切りは全角スペース。文面の骨格は3つ。税は先頭の語だけ変える。取消仕訳は元と同じ明細・パターン・回番号を持つので同じ文面になる。
+金額は明細の満額事実である。この仕訳額、部分割当額、バケット端数は出さない。部分入金でも明細税込の満額のままである。足りているかは行の金額列と照らす。符号は明細の保存値（値引きは `{商品名} 税抜 -50,000円`。商品名が空なら `税抜 -50,000円`）。桁区切りはカンマ。日付は `YYYY/MM/DD`。部品の区切りは全角スペース。文面の骨格は3つ。先頭は `{商品名}`（半角スペース）のあと `税抜`／`税`／`税込`。商品名が空なら種別だけ。取消仕訳は元と同じ明細・パターン・回番号を持つので同じ文面になる。
 
-| パターン         | 先頭       | 金額           | 期間のあと                                           |
-| ---------------- | ---------- | -------------- | ---------------------------------------------------- |
-| No.6・7 かつ月次 | `明細税抜` | 明細税抜の満額 | `月次計上で N/M 回目`                                |
-| No.8・9 かつ月次 | `明細税`   | 明細税の満額   | `月次計上で N/M 回目`                                |
-| No.6・7 かつ一括 | `明細税抜` | 明細税抜の満額 | `一括計上で検収日 YYYY/MM/DD`                        |
-| No.8・9 かつ一括 | `明細税`   | 明細税の満額   | `一括計上で検収日 YYYY/MM/DD`                        |
-| No.1・2          | `明細税抜` | 明細税抜の満額 | `月次計上` または `一括計上`（回目なし。検収日なし） |
-| No.3・4・5       | `明細税`   | 明細税の満額   | `月次計上` または `一括計上`（回目なし。検収日なし） |
-| No.10・13～16    | `明細税込` | 明細税込の満額 | `月次計上` または `一括計上`（回目なし。検収日なし） |
-| No.11・12、手動  | （空）     | —              | —                                                    |
+| パターン         | 先頭                   | 金額           | 期間のあと                                           |
+| ---------------- | ---------------------- | -------------- | ---------------------------------------------------- |
+| No.6・7 かつ月次 | `{商品名} 税抜`        | 明細税抜の満額 | `月次計上で N/M 回目`                                |
+| No.8・9 かつ月次 | `{商品名} 税`          | 明細税の満額   | `月次計上で N/M 回目`                                |
+| No.6・7 かつ一括 | `{商品名} 税抜`        | 明細税抜の満額 | `一括計上で検収日 YYYY/MM/DD`                        |
+| No.8・9 かつ一括 | `{商品名} 税`          | 明細税の満額   | `一括計上で検収日 YYYY/MM/DD`                        |
+| No.1・2          | `{商品名} 税抜`        | 明細税抜の満額 | `月次計上` または `一括計上`（回目なし。検収日なし） |
+| No.3・4・5       | `{商品名} 税`          | 明細税の満額   | `月次計上` または `一括計上`（回目なし。検収日なし） |
+| No.10・13～16    | `{商品名} 税込`        | 明細税込の満額 | `月次計上` または `一括計上`（回目なし。検収日なし） |
+| No.11・12、手動  | （空）                 | —              | —                                                    |
 
 パターン番号は第5.2節のキーで分岐する。No.1＝`BILLING_BASIS_INVOICE_BODY`、No.2＝`CASH_BASIS_INVOICE_BODY_CTA_TRANSFER`、No.3＝`BILLING_TAX_AT_INVOICE`、No.4＝`BILLING_BASIS_INVOICE_TAX_DEFERRED`、No.5＝`CASH_BASIS_INVOICE_TAX_CTA_TRANSFER`、No.6＝`BILLING_BASIS_REVENUE_BODY`、No.7＝`CASH_BASIS_REVENUE_BODY`、No.8＝`BILLING_BASIS_REVENUE_TAX`、No.9＝`CASH_BASIS_REVENUE_TAX`、No.10＝`PAYMENT_INVOICE_CURRENT`、No.13＝`PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH`、No.14＝`PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH`、No.15＝`PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER`、No.16＝`PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER`。
 
 例:
 
-| 種類             | 確認用                                                                    |
-| ---------------- | ------------------------------------------------------------------------- |
-| 売上本体（月次） | `明細税抜 300,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目`         |
-| 売上時税（月次） | `明細税 30,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目`            |
-| 売上本体（一括） | `明細税抜 300,000円　2025/01/11～2025/03/24　一括計上で検収日 2025/03/24` |
-| 売上時税（一括） | `明細税 30,000円　2025/01/11～2025/03/24　一括計上で検収日 2025/03/24`    |
-| 入金             | `明細税込 330,000円　2025/01/11～2025/03/24　月次計上`                    |
-| 請求時税         | `明細税 30,000円　2025/01/11～2025/03/24　月次計上`                       |
+| 種類             | 確認用                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| 売上本体（月次） | `{商品名} 税抜 300,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目`               |
+| 売上時税（月次） | `{商品名} 税 30,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目`                  |
+| 売上本体（一括） | `{商品名} 税抜 300,000円　2025/01/11～2025/03/24　一括計上で検収日 2025/03/24`       |
+| 売上時税（一括） | `{商品名} 税 30,000円　2025/01/11～2025/03/24　一括計上で検収日 2025/03/24`          |
+| 入金             | `{商品名} 税込 330,000円　2025/01/11～2025/03/24　月次計上`                          |
+| 請求時税         | `{商品名} 税 30,000円　2025/01/11～2025/03/24　月次計上`                             |
+| 商品名が空       | `税抜 300,000円　2025/01/11～2025/03/24　月次計上で 2/3 回目`（「明細」は出さない） |
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>GlJournal__c.ConfirmationText__c</code>（数式。表示名「確認用」）、<code>InvoiceLine__c.AmountCommaText__c</code>、<code>InvoiceLine__c.AllocatedTaxCommaText__c</code>、<code>InvoiceLine__c.TaxInclusiveCommaText__c</code>
-／ 参照 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLine__c.RecognitionBucketCount__c</code>、<code>InvoiceLine__c.TaxInclusiveAmount__c</code>
+項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlJournal__c.ConfirmationText__c</code>（数式。表示名「確認用」）、<code>InvoiceLine__c.AmountCommaText__c</code>、<code>InvoiceLine__c.AllocatedTaxCommaText__c</code>、<code>InvoiceLine__c.TaxInclusiveCommaText__c</code>
+／ 参照 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLine__c.ProductName__c</code>、<code>InvoiceLine__c.RecognitionBucketCount__c</code>、<code>InvoiceLine__c.TaxInclusiveAmount__c</code>
 ／ 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceCanonicalService.applyYenCommaTexts</code>、<code>InvoiceLineTrigger</code>
 ／ 画面 標準仕訳レイアウトと仕訳確認には置かない。<code>orderInvoicePreviewTable</code>の仕訳タブの表列に置く。行トグルには重ねない。
 </div>
