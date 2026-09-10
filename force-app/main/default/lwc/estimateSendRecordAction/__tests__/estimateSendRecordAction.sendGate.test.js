@@ -192,7 +192,16 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
         documentTemplateOptions: [],
         emailTemplateOptions: [{ label: "メール", value: "mail" }]
       })
-    ).toBe("利用できる見積帳票テンプレートがありません。");
+    ).toBe("対象がありません。");
+    expect(
+      unavailableMessage.call({
+        estimate: { sendable: true },
+        documentTemplateKey: "std",
+        emailTemplateApiName: "",
+        documentTemplateOptions: [{ label: "標準", value: "std" }],
+        emailTemplateOptions: []
+      })
+    ).toBe("対象がありません。");
   });
 
   it("既存ファイル送付は帳票キーを求めない (Core 7.10)", () => {

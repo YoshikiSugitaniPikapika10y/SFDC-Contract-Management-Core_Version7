@@ -156,10 +156,10 @@ export default class EstimateSendRecordAction extends NavigationMixin(
       return this.estimate.sendableReason || "この見積は送付できません。";
     }
     if (!(this.documentTemplateOptions || []).length) {
-      return "利用できる見積帳票テンプレートがありません。";
+      return "対象がありません。";
     }
     if (!(this.emailTemplateOptions || []).length) {
-      return "利用できる見積送付メールがありません。";
+      return "対象がありません。";
     }
     return "";
   }
