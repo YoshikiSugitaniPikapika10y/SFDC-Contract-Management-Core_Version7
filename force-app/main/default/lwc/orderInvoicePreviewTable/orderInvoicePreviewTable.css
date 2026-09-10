@@ -331,6 +331,7 @@
 .journal-confirmation-col,
 .journal-confirmation-cell {
   width: 28%;
+  max-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -435,8 +436,12 @@
 
 .journal-scroll .ops-table_journals thead th {
   position: sticky;
-  top: 2.75rem;
+  top: 0;
   z-index: 2;
+}
+
+.journal-scroll_has-lock-bar .ops-table_journals thead th {
+  top: 2.75rem;
 }
 
 .ops-table_journals th lightning-combobox {
@@ -486,6 +491,9 @@
   border: 1px solid var(--preview-border);
   border-radius: 3px;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .journal-multi-filter-menu {

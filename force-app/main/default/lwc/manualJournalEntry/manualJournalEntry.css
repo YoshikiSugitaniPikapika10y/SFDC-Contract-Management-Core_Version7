@@ -43,8 +43,15 @@
 
 .ops-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 0.5rem 0.75rem;
+  align-items: end;
+}
+
+.ops-form-grid lightning-combobox,
+.ops-form-grid lightning-input {
+  min-width: 12rem;
+  white-space: nowrap;
 }
 
 .setting-description {
@@ -76,8 +83,10 @@
 
 .panel-actions {
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 0.5rem;
+  margin: 0.15rem 0 0.65rem;
 }
 
 .ghost-btn,
@@ -92,8 +101,8 @@
 }
 
 .solid-btn {
-  background: #059669;
-  border: 1px solid #047857;
+  background: #0f172a;
+  border: 1px solid #0f172a;
   color: #fff;
 }
 

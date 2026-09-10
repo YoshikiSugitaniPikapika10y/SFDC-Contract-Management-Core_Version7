@@ -506,6 +506,16 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     const eventTrigger = element.shadowRoot.querySelector(
       "button[data-filter='eventName']"
     );
+    expect(eventTrigger.textContent).not.toContain("<span>");
+    expect(eventTrigger.textContent.trim()).toBe("すべて");
+    expect(
+      eventTrigger
+        .closest("th")
+        .querySelector(".journal-filter-label").textContent
+    ).toBe("イベント");
+    expect(
+      element.shadowRoot.querySelector(".journal-scroll_has-lock-bar")
+    ).toBeNull();
     eventTrigger.click();
     await flush();
     expect(

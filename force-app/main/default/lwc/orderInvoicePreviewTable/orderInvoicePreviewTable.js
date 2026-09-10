@@ -2470,6 +2470,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             selectedActiveJournals.length >= 1 &&
             ((this.canLockJournal && !allSelectedLocked) ||
               (this.canUnlockJournal && allSelectedLocked)),
+          journalScrollClass:
+            accountingEnabled &&
+            !isCancelled &&
+            selectedActiveJournals.length >= 1 &&
+            ((this.canLockJournal && !allSelectedLocked) ||
+              (this.canUnlockJournal && allSelectedLocked))
+              ? "journal-scroll journal-scroll_has-lock-bar"
+              : "journal-scroll",
           journalLockBarLabel: `${selectedActiveJournals.length}件をLock`,
           journalUnlockBarLabel: `${selectedActiveJournals.length}件をUnlock`,
           journalUnlockReasonDraft:
@@ -3037,6 +3045,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             creditAccountLabel: creditParts.accountName,
             extraRowKey: `${journal.journalId}-extras`,
             eventName: journal.eventName || "",
+            eventDisplayName: journalEventDisplayName(journal),
             postingPeriod: postingPeriodLabel(
               journal.postingDate,
               this.todayLocalIso()
@@ -4955,7 +4964,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!Number.isFinite(n)) {
       return "";
     }
-    return Math.round(n).toLocaleString("ja-JP");
+    const rounded = Math.round(n);
+    const sign = rounded < 0 ? "-" : "";
+    const digits = String(Math.abs(rounded));
+    return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
   handleInvoiceSplitDateChange(event) {

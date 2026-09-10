@@ -1363,7 +1363,7 @@
                 ></c-manual-journal-entry>
               </template>
               <template if:true={invoice.hasJournals}>
-                <div class="journal-scroll">
+                <div class={invoice.journalScrollClass}>
                 <template if:true={invoice.showJournalLockBar}>
                   <div class="journal-lock-bar">
                     <template if:true={invoice.showJournalBarLock}>
@@ -1440,6 +1440,8 @@
                           </span>
                         </th>
                         <th class="journal-filter-col journal-event-col" scope="col">
+                          <span class="journal-filter-head">
+                            <span class="journal-filter-label">イベント</span>
                             <span class="journal-multi-filter">
                               <button
                                 type="button"
@@ -1546,7 +1548,7 @@
                               <span> {journal.postingPeriod}</span>
                             </template>
                           </td>
-                          <td class="journal-event-col" title={journal.eventName}>{journal.eventName}</td>
+                          <td class="journal-event-col" title={journal.eventDisplayName}>{journal.eventDisplayName}</td>
                           <td class="journal-slot-col">
                             <template if:true={journal.debitAbbreviation}>
                               <span class="journal-slot-abbr">{journal.debitAbbreviation}</span>
