@@ -481,32 +481,25 @@
 }
 
 .journal-memo-cell {
+  width: 2.75rem;
+  min-width: 2.25rem;
+  max-width: 3rem;
+  text-align: center;
   white-space: nowrap;
-  width: 28%;
-  min-width: 12rem;
 }
 
-.journal-memo-edit {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  width: 100%;
-  min-width: 0;
+.journal-memo-cell lightning-helptext {
+  display: inline-flex;
+  vertical-align: middle;
 }
 
-.journal-memo-edit lightning-input {
+.journal-toggle-memo lightning-input {
   display: block;
-  flex: 1 1 auto;
-  min-width: 0;
   width: 100%;
-  max-width: none;
-  --slds-c-input-sizing-width: 100%;
-  --slds-c-input-sizing-min-height: 1.55rem;
 }
 
-.journal-memo-save.ghost-btn {
-  flex: 0 0 auto;
-  margin: 0;
+.journal-extra-panel > .ghost-btn {
+  justify-self: start;
   height: 1.55rem;
   min-height: 1.55rem;
   padding: 0 0.35rem;
@@ -552,6 +545,11 @@
   font-size: var(--preview-font-table-head);
   font-weight: 700;
   white-space: nowrap;
+}
+
+.ops-table_journals thead th {
+  background: #e2e8f0;
+  color: #475569;
 }
 
 .ops-table tbody tr:last-child td {

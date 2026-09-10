@@ -1548,35 +1548,29 @@
                             </button>
                           </td>
                           <td class="journal-memo-cell">
-                            <template if:true={invoice.canEditJournalMemo}>
-                              <div class="journal-memo-edit">
-                                <lightning-input
-                                  label="仕訳メモ"
-                                  variant="label-hidden"
-                                  value={journal.memoDraft}
-                                  data-journal-id={journal.journalId}
-                                  onchange={handleJournalMemoChange}
-                                ></lightning-input>
-                                <button
-                                  type="button"
-                                  class="ghost-btn journal-memo-save"
-                                  data-journal-id={journal.journalId}
-                                  data-invoice-id={invoice.invoiceId}
-                                  onclick={handleSaveJournalMemo}
-                                >
-                                  メモを保存
-                                </button>
-                              </div>
-                            </template>
-                            <template if:false={invoice.canEditJournalMemo}>
-                              <span class="muted">{journal.memoDraft}</span>
-                            </template>
+                            <lightning-helptext
+                              content={journal.memoHelpText}
+                            ></lightning-helptext>
                           </td>
                         </tr>
                         <template if:true={journal.extrasOpen}>
                           <tr key={journal.extraRowKey} class="journal-extra-row">
                             <td colspan="10">
                               <div class="journal-extra-panel">
+                                <div class="journal-toggle-memo">
+                                  <template if:true={invoice.canEditJournalMemo}>
+                                    <lightning-input
+                                      label="メモ"
+                                      value={journal.memoDraft}
+                                      data-journal-id={journal.journalId}
+                                      onchange={handleJournalMemoChange}
+                                    ></lightning-input>
+                                  </template>
+                                  <template if:false={invoice.canEditJournalMemo}>
+                                    <p class="ops-form-title">メモ</p>
+                                    <p class="muted">{journal.memoDraft}</p>
+                                  </template>
+                                </div>
                                 <div class="ops-form-grid">
                                   <template
                                     for:each={journal.extraFields}

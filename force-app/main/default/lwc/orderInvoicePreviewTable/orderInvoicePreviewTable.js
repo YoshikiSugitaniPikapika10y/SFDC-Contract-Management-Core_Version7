@@ -2961,6 +2961,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             const creditParts = splitSlotAccountDisplay(
               journal.creditAccountName
             );
+            const memoDraft =
+              this.journalMemoDrafts[journal.journalId] != null
+                ? this.journalMemoDrafts[journal.journalId]
+                : journal.memo || "";
             return {
             ...journal,
             key: journal.journalId,
@@ -3002,10 +3006,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             showLockKey: journal.isLocked === true,
             lockCellUnlockedClickable: false,
             lockCellLockedClickable: false,
-            memoDraft:
-              this.journalMemoDrafts[journal.journalId] != null
-                ? this.journalMemoDrafts[journal.journalId]
-                : journal.memo || "",
+            memoDraft: memoDraft,
+            memoHelpText: memoDraft === "" ? " " : memoDraft,
             rowClass: rowClasses.join(" ")
           };
           }),
@@ -3758,7 +3760,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       paymentDraft: {
         ...current.paymentDraft,
         allocations: (current.paymentDraft?.allocations || []).map((row) =>
-          row.lineId === lineId ? { ...row, amount: nextAmount } : row
+          (row.lineId === lineId ? { ...row, amount: nextAmount } : row)
         )
       }
     });
@@ -5397,7 +5399,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       };
       window.addEventListener("keydown", this._boundUnitPriceFormulaEscape);
     }
-    // eslint-disable-next-line @lwc/lwc/no-async-operation
     Promise.resolve().then(() => {
       const input = this.template.querySelector(
         '[data-id="unit-price-formula-input"]'
