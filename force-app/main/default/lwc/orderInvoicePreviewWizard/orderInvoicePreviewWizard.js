@@ -272,25 +272,11 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return;
     }
     if (!invoiceDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求日を入力してください",
-          message: "請求日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.errorMessage = "請求日は必須です。";
       return;
     }
     if (!paymentScheduledDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "入金予定日を入力してください",
-          message: "入金予定日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.errorMessage = "入金予定日は必須です。";
       return;
     }
     const saved = await this.runEdit(() =>
@@ -335,25 +321,11 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return;
     }
     if (!newInvoiceDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求日を入力してください",
-          message: "分割先の請求日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.errorMessage = "分割先の請求日は必須です。";
       return;
     }
     if (!newPaymentScheduledDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "入金予定日を入力してください",
-          message: "分割先の入金予定日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.errorMessage = "分割先の入金予定日は必須です。";
       return;
     }
     if (mode === "billingAccount") {
@@ -522,13 +494,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return true;
     } catch (error) {
       this.errorMessage = this.reduceError(error);
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "保存エラー",
-          message: this.errorMessage,
-          variant: "error"
-        })
-      );
+      this.contentLoadFailed = true;
       // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
         await this.loadPreview();
@@ -671,9 +637,10 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
           /Version/g,
           "版"
         );
+        this.contentLoadFailed = true;
         return true;
       }
-      return true;
+      return super.dispatchEvent(event);
     }
     return super.dispatchEvent(event);
   }

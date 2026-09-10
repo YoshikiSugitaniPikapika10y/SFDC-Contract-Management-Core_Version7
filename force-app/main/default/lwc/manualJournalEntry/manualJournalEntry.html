@@ -5,6 +5,13 @@
     </template>
     <template if:true={surfaceError}>
       <p class="edit-note" role="alert">{surfaceError}</p>
+      <button
+        type="button"
+        class="ghost-btn"
+        onclick={handleSurfaceErrorReload}
+      >
+        再読み込み
+      </button>
     </template>
     <h3 class="ops-form-title">手動仕訳を登録</h3>
     <div class="ops-form-grid">

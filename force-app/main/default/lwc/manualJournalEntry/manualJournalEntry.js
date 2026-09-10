@@ -438,8 +438,13 @@ export default class ManualJournalEntry extends LightningElement {
         this.surfaceError = String(detail.message || detail.title || "");
         return true;
       }
-      return true;
+      return super.dispatchEvent(event);
     }
     return super.dispatchEvent(event);
+  }
+
+  handleSurfaceErrorReload() {
+    this.surfaceError = "";
+    this.dispatchEvent(new CustomEvent("complete"));
   }
 }

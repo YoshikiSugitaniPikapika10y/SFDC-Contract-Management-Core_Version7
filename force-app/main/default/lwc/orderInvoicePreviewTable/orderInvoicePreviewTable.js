@@ -3660,6 +3660,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.surfaceError = "";
   }
 
+  handleSurfaceErrorReload() {
+    this.surfaceError = "";
+    this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
+  }
+
   // 仕様: Core 第7.10節。発行・送付は処理中に重ねず、当該ボードは応答まで待たせる。
   async runInvoiceOperation(invoiceId, mode, action) {
     if (!invoiceId || this.invoiceOpsProcessingId != null) {
@@ -6609,7 +6614,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         );
         return true;
       }
-      return true;
+      return super.dispatchEvent(event);
     }
     return super.dispatchEvent(event);
   }

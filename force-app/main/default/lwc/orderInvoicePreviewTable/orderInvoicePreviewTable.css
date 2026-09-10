@@ -2021,9 +2021,9 @@
 }
 
 .amount-chip:hover:not(.amount-chip_split) {
-  background: #eff6ff;
-  border-color: #2563eb;
-  color: #2563eb;
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #334155;
 }
 
 .amount-chip:disabled {
@@ -2085,8 +2085,8 @@
 }
 
 tr.journal-row_highlight td {
-  background: #eef4ff;
-  box-shadow: inset 0 0 0 2px #0b5cab;
+  background: #f1f5f9;
+  box-shadow: inset 0 0 0 2px #64748b;
 }
 
 @media (max-width: 48rem) {

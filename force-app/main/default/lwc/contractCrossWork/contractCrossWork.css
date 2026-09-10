@@ -77,8 +77,8 @@
 }
 
 .menu-btn.is-active {
-  background: #eef4ff;
-  color: #0b5cab;
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .btn {
@@ -94,7 +94,7 @@
 }
 
 .btn_link {
-  color: #0b5cab;
+  color: #181818;
 }
 
 /* 仕様: 横断画面.md 第2.4節、第5節 */
@@ -207,9 +207,9 @@
 }
 
 .chrome-btn.is-open {
-  background: #eef4ff;
-  border-color: #0b5cab;
-  color: #0b5cab;
+  background: #f1f5f9;
+  border-color: #64748b;
+  color: #0f172a;
 }
 
 .filter-summary {
@@ -246,6 +246,7 @@
   grid-template-columns: 1fr 1fr;
   gap: 0.35rem 0.6rem;
   grid-column: 1 / -1;
+  align-items: end;
 }
 
 .column-mode-toggle {
@@ -420,8 +421,8 @@
 }
 
 .page-btn.is-active {
-  background: #0b5cab;
-  border-color: #0b5cab;
+  background: #334155;
+  border-color: #334155;
   color: #ffffff;
 }
 

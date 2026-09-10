@@ -663,7 +663,7 @@ export default class ContractCrossWork extends NavigationMixin(
       { label: "完了予定日", value: "closeDate" },
       { label: "取引先", value: "account" },
       { label: "契約サービス名", value: "service" },
-      { label: "Version", value: "version" },
+      { label: "版", value: "version" },
       { label: "見積種別", value: "estimateType" },
       { label: "契約履歴名", value: "historyName" },
       { label: "見積税抜", value: "amount" }
@@ -820,7 +820,7 @@ export default class ContractCrossWork extends NavigationMixin(
     this.estimateGroups
       .filter((item) => !item.on)
       .forEach((item) => headers.push({ key: item.id, label: item.label }));
-    headers.push({ key: "version", label: "Version" });
+    headers.push({ key: "version", label: "版" });
     headers.push({ key: "type", label: "見積種別" });
     headers.push({ key: "auto", label: "自動Renew" });
     headers.push({ key: "opp", label: "商談名" });

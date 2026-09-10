@@ -54,6 +54,13 @@
   </template>
   <template if:true={surfaceError}>
     <p class="edit-note" role="alert">{surfaceError}</p>
+    <button
+      type="button"
+      class="ghost-btn"
+      onclick={handleSurfaceErrorReload}
+    >
+      再読み込み
+    </button>
   </template>
 
   <template if:true={showAmountCompare}>
@@ -144,7 +151,7 @@
           <header class="invoice-header">
             <div class="invoice-header-bar">
               <div class="invoice-header-main">
-                <h2 class="invoice-title">
+                <h3 class="invoice-title">
                   <template if:true={invoice.recordUrl}>
                     <a
                       class="invoice-index invoice-index_link"
@@ -163,7 +170,7 @@
                   <span class="invoice-addressee" title={invoice.billingAddressee}
                     >{invoice.billingAddressee}</span
                   >
-                </h2>
+                </h3>
                 <template if:true={invoice.isCancelled}>
                   <p class="edit-note" role="status">{invoice.cancelledLabel}</p>
                 </template>

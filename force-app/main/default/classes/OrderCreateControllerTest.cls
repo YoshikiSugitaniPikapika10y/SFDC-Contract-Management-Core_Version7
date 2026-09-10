@@ -795,11 +795,17 @@ private class OrderCreateControllerTest {
       OrderCreateController.OrderContextDto dto = OrderCreateController.getOrderContext(
         context.history.Id
       );
+      ContractOptimisticLockUtil.productMaxSelectCount = 0;
       OrderCreateController.confirmOrder(
         context.history.Id,
         null,
         false,
         dto.lastModifiedToken
+      );
+      System.assertEquals(
+        0,
+        ContractOptimisticLockUtil.productMaxSelectCount,
+        'Core 第12.4節: 受注の版比較はロック照会の見積商品を使い MAX を取り直さない'
       );
       ContractHistory__c ordered = [
         SELECT historystatus__c
@@ -5526,6 +5532,7 @@ private class OrderCreateControllerTest {
         return;
       }
       Boolean thrown = false;
+      ContractOptimisticLockUtil.productMaxSelectCount = 0;
       try {
         OrderCreateController.confirmOrder(
           context.history.Id,
@@ -5545,6 +5552,11 @@ private class OrderCreateControllerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        0,
+        ContractOptimisticLockUtil.productMaxSelectCount,
+        'Core 第12.4節: 受注の版比較はロック照会の見積商品を使い MAX を取り直さない'
+      );
     }
   }
 
@@ -6250,6 +6262,48 @@ private class OrderCreateControllerTest {
         OrderWizardFieldService.resetCache();
       }
       System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void resolvePreviewScope_nullAndUnsupported_cannotOpen() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderCreateController.PreviewScopeDto missing = OrderCreateController.resolvePreviewScope(
+        null
+      );
+      System.assertEquals(false, missing.canOpen);
+      System.assertEquals(
+        '対象レコードが指定されていません。',
+        missing.blockReason,
+        'Core 第7.7.0節: 請求ボードは対象レコードが要る'
+      );
+
+      OrderCreateController.PreviewScopeDto unsupported = OrderCreateController.resolvePreviewScope(
+        ContractTestDataFactory.insertAccount('Preview Scope Acct').Id
+      );
+      System.assertEquals(false, unsupported.canOpen);
+      System.assertEquals(
+        '請求ボードは契約履歴・契約サービス・請求書から開きます。',
+        unsupported.blockReason,
+        'Core 第7.7.0節: 請求ボードは契約履歴・契約サービス・請求書から開く'
+      );
+    }
+  }
+
+  @IsTest
+  static void getInvoicePreview_nullHistory_returnsEmpty() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        null
+      );
+      System.assertEquals(false, preview.canView);
+      System.assertEquals(false, preview.canEdit);
+      System.assertEquals(
+        0,
+        preview.invoiceCount,
+        'Core 第7.7.0節: 契約履歴が無ければ請求正本の作成は受注時のみでプレビューは空'
+      );
+      System.assertEquals(0, preview.versionOptions.size());
     }
   }
 }

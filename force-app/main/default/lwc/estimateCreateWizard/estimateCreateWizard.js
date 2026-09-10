@@ -1,6 +1,5 @@
 import { LightningElement, api, track, wire } from "lwc";
 import { CurrentPageReference } from "lightning/navigation";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import { getRecordNotifyChange } from "lightning/uiRecordApi";
 import { refreshApex } from "@salesforce/apex";
 import saveEstimate from "@salesforce/apex/EstimateCreateController.saveEstimate";
@@ -195,7 +194,7 @@ export default class EstimateCreateWizard extends LightningElement {
   }
 
   get step3SyncBannerMessage() {
-    return "商品明細を更新しています。完了するまで「次へ」「保存」はできません。表示内容が確定したあと、その内容が保存されます。";
+    return "読み込み中";
   }
 
   get showContractHistoryLoadingBanner() {
@@ -492,10 +491,8 @@ export default class EstimateCreateWizard extends LightningElement {
       return;
     }
     if (this.hasOpenConfirm) {
-      this.showToast(
-        "確認中です",
-        "確認ダイアログに回答してから保存してください。",
-        "info"
+      this.showValidationAlert(
+        "確認ダイアログに回答してから保存してください。"
       );
       return;
     }
@@ -529,10 +526,8 @@ export default class EstimateCreateWizard extends LightningElement {
     if (this.hasOpenConfirm) {
       // 既存確認を優先。新しい備考確認は拒否して Promise を閉じる。
       this.resolveModal3Confirm(requestId, false);
-      this.showToast(
-        "確認中です",
-        "先に表示中の確認に回答してください。",
-        "info"
+      this.showValidationAlert(
+        "先に表示中の確認に回答してください。"
       );
       return;
     }
@@ -1157,10 +1152,8 @@ export default class EstimateCreateWizard extends LightningElement {
       return;
     }
     if (this.hasOpenConfirm) {
-      this.showToast(
-        "確認中です",
-        "確認ダイアログに回答してから進んでください。",
-        "info"
+      this.showValidationAlert(
+        "確認ダイアログに回答してから進んでください。"
       );
       return;
     }
@@ -1626,10 +1619,8 @@ export default class EstimateCreateWizard extends LightningElement {
         type !== "Renew" &&
         type !== "Cancel"
       ) {
-        this.showToast(
-          "情報",
-          "新規、追加変更、更新、解約のみ保存できます。",
-          "info"
+        this.showValidationAlert(
+          "新規、追加変更、更新、解約のみ保存できます。"
         );
         return;
       }
@@ -1831,16 +1822,5 @@ export default class EstimateCreateWizard extends LightningElement {
         });
       }
     });
-  }
-
-  showToast(title, message, variant) {
-    this.dispatchEvent(
-      new ShowToastEvent({
-        title,
-        message,
-        variant: variant || "info",
-        mode: "dismissable"
-      })
-    );
   }
 }

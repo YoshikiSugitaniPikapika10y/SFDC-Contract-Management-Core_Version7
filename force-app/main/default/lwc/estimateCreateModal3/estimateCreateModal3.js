@@ -1,6 +1,5 @@
 // 仕様: Core 第4.10節、第11.3節
 import { LightningElement, api, track, wire } from "lwc";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import {
   getRecord,
   getFieldValue,
@@ -258,6 +257,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   /** 仕様: Core 第4.3.11節。読込失敗時はOFF扱いにせずエラー表示する（BUG-075）。 */
   @track accountingPolicyLoadError = "";
   @track amountApplyError = "";
+  @track surfaceError = "";
   _accountingPolicyRequestSeq = 0;
   defaultInvoiceType = "";
   @track productModalRowId = null;
@@ -3975,13 +3975,12 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   showToast(title, message, variant) {
-    this.dispatchEvent(
-      new ShowToastEvent({
-        title,
-        message,
-        variant
-      })
-    );
+    if (variant === "error") {
+      const body = String(message || "").trim();
+      const head = String(title || "").trim();
+      this.surfaceError = body || head;
+      return;
+    }
   }
 
   handleRemarksChange(event) {

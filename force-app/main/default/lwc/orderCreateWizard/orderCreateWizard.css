@@ -78,9 +78,9 @@
 .ord-type-badge {
   padding: 0.25rem 0.75rem;
   border-radius: 999px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  color: #047857;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   font-size: 0.875rem;
   font-weight: 600;
 }
@@ -229,12 +229,12 @@
 }
 
 .ord-btn_confirm {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #059669;
+  border-color: #059669;
 }
 
 .ord-btn_confirm:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #047857;
 }
 
 .ord-btn_secondary {
@@ -503,9 +503,9 @@
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 0.5rem;
-  background: #d8e6fe;
-  color: #0b5cab;
-  --slds-c-icon-color-foreground-default: #0b5cab;
+  background: #f1f5f9;
+  color: #334155;
+  --slds-c-icon-color-foreground-default: #334155;
 }
 
 .confirm-heading-text {
@@ -603,14 +603,14 @@
 }
 
 .btn_primary {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #059669;
+  border-color: #059669;
   color: #ffffff;
 }
 
 .btn_primary:hover:not(:disabled) {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  background: #047857;
+  border-color: #047857;
 }
 
 .alert {

@@ -1022,13 +1022,15 @@ public without sharing class OrderCreateController {
       ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
         history.Id,
         expectedLastModifiedToken,
-        history.LastModifiedDate
+        history.LastModifiedDate,
+        history.ContractHistoryContractProducts__r
       );
     } else {
       ContractOptimisticLockUtil.assertUnchanged(
         ContractOptimisticLockUtil.resolveHistoryProductDatetime(
           history.Id,
-          history.LastModifiedDate
+          history.LastModifiedDate,
+          history.ContractHistoryContractProducts__r
         ),
         expectedLastModifiedToken,
         '契約履歴'
@@ -2275,10 +2277,6 @@ public without sharing class OrderCreateController {
     return false;
   }
 
-  /**
-   * 仕様: Core 第7.7.0節、第0.1節。親候補は請求書がある受注済み Version の VersionN。
-   * 全Version は画面側。同一取得の preview.invoices を使い、履歴を取り直さない。
-   */
   private static List<VersionOptionDto> loadOrderedVersionOptions(
     ScopedEstimateSummary estimateSummary,
     InvoicePreviewDto preview
@@ -3116,6 +3114,7 @@ public without sharing class OrderCreateController {
       'CreateRenewOpportunity__c, RenewOpportunityRequestCount__c, RenewalOpportunity__c, ' +
       'ContractService__r.Lifecycle__c, ContractService__r.Account__c, LastModifiedDate, BusinessOperationKey__c' +
       editableFieldClause +
+      ', (SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r)' +
       ' FROM ContractHistory__c WHERE Id = :contractHistoryId LIMIT 1' +
       (lockForUpdate ? ' FOR UPDATE' : '');
     return Database.queryWithBinds(
