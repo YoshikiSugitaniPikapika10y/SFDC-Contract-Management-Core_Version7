@@ -308,6 +308,11 @@ private class EstimateSendBoardControllerTest {
       } finally {
         EstimateSendBoardController.skipEmailSend = false;
       }
+      System.assertEquals(
+        'custom-estimate.pdf',
+        result.fileName,
+        'Core 第7.10節: 送付は画面の添付名を使う'
+      );
       ContractHistory__c sent = [
         SELECT EstimateSentAt__c
         FROM ContractHistory__c
@@ -339,6 +344,22 @@ private class EstimateSendBoardControllerTest {
         'Core 第4.8節: 再送の宛先初期値は見積送付先であり、前回送付で直した宛先は使わない'
       );
     }
+  }
+
+  @IsTest
+  static void sendDraftDto_keepsFileNameFromJson() {
+    EstimateSendBoardController.SendDraftDto draft = (EstimateSendBoardController.SendDraftDto) JSON.deserialize(
+      '{"fileName":"StandardEstimate_shown.pdf","subject":"件名","body":"本文","attachmentId":"NEW"}',
+      EstimateSendBoardController.SendDraftDto.class
+    );
+    System.assertEquals(
+      'StandardEstimate_shown.pdf',
+      draft.fileName,
+      'Core 第7.10節・第1.1.10節: 画面の添付名を空として扱わない'
+    );
+    System.assertEquals('件名', draft.subject);
+    System.assertEquals('本文', draft.body);
+    System.assertEquals('NEW', draft.attachmentId);
   }
 
   @IsTest

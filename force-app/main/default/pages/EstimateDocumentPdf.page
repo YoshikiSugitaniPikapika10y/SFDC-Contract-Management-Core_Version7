@@ -3,7 +3,11 @@
   renderAs="pdf"
   controller="EstimateDocumentPdfController"
   showHeader="false"
-  applyhtmltag="false"
+  sidebar="false"
+  standardStylesheets="false"
+  lightningStylesheets="false"
+  applyHtmlTag="false"
+  applyBodyTag="false"
   language="ja"
   cache="true"
 >

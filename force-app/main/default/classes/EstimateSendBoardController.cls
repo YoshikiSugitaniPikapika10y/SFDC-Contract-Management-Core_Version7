@@ -69,17 +69,26 @@ public without sharing class EstimateSendBoardController {
     @AuraEnabled public String lastModifiedToken;
   }
 
+  /** 仕様: Core 第7.10節、第1.1.10節。LWC入力は {get;set;} が無いと空。画面の添付名を空として送らせない。 */
   public class SendDraftDto {
-    @AuraEnabled public String toAddresses;
-    @AuraEnabled public String ccAddresses;
-    @AuraEnabled public String bccAddresses;
-    @AuraEnabled public String subject;
-    @AuraEnabled public String body;
-    @AuraEnabled public String fileName;
+    @AuraEnabled
+    public String toAddresses { get; set; }
+    @AuraEnabled
+    public String ccAddresses { get; set; }
+    @AuraEnabled
+    public String bccAddresses { get; set; }
+    @AuraEnabled
+    public String subject { get; set; }
+    @AuraEnabled
+    public String body { get; set; }
+    @AuraEnabled
+    public String fileName { get; set; }
     /** 仕様: Core 第4.8節。Self または Org。空なら自分。 */
-    @AuraEnabled public String fromChoice;
+    @AuraEnabled
+    public String fromChoice { get; set; }
     /** 仕様: Core 第7.10節。NEW または ContentDocument Id。 */
-    @AuraEnabled public String attachmentId;
+    @AuraEnabled
+    public String attachmentId { get; set; }
   }
 
   public class SendPreviewDto {
@@ -398,6 +407,7 @@ public without sharing class EstimateSendBoardController {
         documentTemplateKey,
         false
       );
+      // 仕様: Core 第7.10節、第1.1.10節。画面の添付名を空として送らせない。空なら送れない。
       String attachmentFileName = draft != null &&
         String.isNotBlank(draft.fileName)
         ? draft.fileName.trim()

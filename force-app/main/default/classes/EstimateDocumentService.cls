@@ -694,6 +694,7 @@ public without sharing class EstimateDocumentService {
       return Blob.valueOf('%PDF-1.4 test');
     }
 
+    // 仕様: Core 第4.8節、第7.10節。帳票VFをPDFにする。SLDSは読まない。
     PageReference pdfPage = ContractDocumentTemplateService.buildPageReference(
       template,
       contractHistoryId

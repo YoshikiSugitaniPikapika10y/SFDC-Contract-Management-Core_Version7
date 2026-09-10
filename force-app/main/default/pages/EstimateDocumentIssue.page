@@ -3,8 +3,8 @@
     sidebar="false"
     standardStylesheets="true"
     docType="html-5.0"
-    lightningStylesheets="true">
-    <!-- 仕様: Core 第4.8節・第7.10節・第11.3.2節 -->
+    lightningStylesheets="false">
+    <!-- 仕様: Core 第4.8節・第7.10節・第11.3.2節。PDFエンジンは SLDS を読まない。 -->
     <style type="text/css">
         .estimateIssueTemplate {
             min-width: 24rem;
