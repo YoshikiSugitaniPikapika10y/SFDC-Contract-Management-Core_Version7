@@ -808,6 +808,45 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(badges[1].className).toContain("accounting-tag-badge_off");
   });
 
+  it("glows accounting tags on the journal tab work strip", async () => {
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      tagResults: [
+        { fieldApiName: "TagA__c", name: "AR残あり", value: true },
+        { fieldApiName: "TagB__c", name: "完了", value: false }
+      ],
+      slotNets: [{ key: "AR", abbreviation: "AR", amount: 1000 }]
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview({
+      amountTotal: 1000,
+      taxTotal: 100,
+      clearedAmount: 0,
+      sourceHistoryVersion: "1"
+    });
+    preview.invoices[0].invoiceTransactionStatus = "Confirmed";
+    element.preview = preview;
+    document.body.appendChild(element);
+    const journalsTab = await waitUntil(
+      () => element.shadowRoot.querySelector('button[data-tab="journals"]')
+    );
+    journalsTab.click();
+    const badges = await waitUntil(() => {
+      const nodes = element.shadowRoot.querySelectorAll(
+        ".journal-work-strip .summary-row_tags lightning-badge"
+      );
+      return nodes.length ? nodes : null;
+    });
+    expect(Array.from(badges).map((node) => node.label)).toEqual([
+      "AR残あり",
+      "完了"
+    ]);
+    expect(badges[0].className).toContain("accounting-tag-badge_on");
+    expect(badges[1].className).toContain("accounting-tag-badge_off");
+  });
+
   it("does not show accounting tag badges for Draft invoices", async () => {
     getOpsBundle.mockResolvedValue({
       accountingEnabled: true,
