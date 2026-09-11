@@ -566,6 +566,7 @@ private class EstimateCreateControllerTest {
   static void saveEstimate_unsupportedType_throwsException() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           null,
@@ -586,8 +587,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown, '未対応タイプは例外になること');
+      System.assertEquals(
+        '[EST-Save-002] New、Change、Renew、Cancelタイプのみ保存できます。',
+        message,
+        'Core 第4.3節: 未対応タイプは保存ゲートで拒否する'
+      );
     }
   }
 
@@ -1256,6 +1263,7 @@ private class EstimateCreateControllerTest {
       );
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -1276,8 +1284,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '[EST-S3-New-024] 商品明細（1行目）: 開始日・終了日は明細開始日起点の月次分割である必要があります（カレンダー月分割は使えません）。',
+        message,
+        'Core 第4.4節・日付仕様（共通基盤日付部）: 継続課金は月次サイクル期間のみ'
+      );
     }
   }
 
@@ -1323,6 +1337,7 @@ private class EstimateCreateControllerTest {
       );
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -1343,8 +1358,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '[EST-S3-New-012] 期間終了日と一致する終了日の継続課金明細が1件以上必要です。',
+        message,
+        'Core 第4.5節: Newは期間終了日に届く継続課金明細が必要'
+      );
     }
   }
 
@@ -1463,6 +1484,7 @@ private class EstimateCreateControllerTest {
       firstLine.productId = product.Id;
       firstLine.quantity = 1;
       firstLine.unitPrice = 8000;
+      firstLine.amount = 96000;
       firstLine.startDate = String.valueOf(headerStart);
       firstLine.endDate = String.valueOf(headerEnd);
       firstLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
@@ -1475,6 +1497,7 @@ private class EstimateCreateControllerTest {
       secondLine.productId = product.Id;
       secondLine.quantity = 2;
       secondLine.unitPrice = 8000;
+      secondLine.amount = 128000;
       secondLine.startDate = String.valueOf(Date.newInstance(2026, 10, 1));
       secondLine.endDate = String.valueOf(headerEnd);
       secondLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
@@ -1491,6 +1514,7 @@ private class EstimateCreateControllerTest {
       );
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -1511,8 +1535,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '[EST-S3-New-013] 同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください。',
+        message,
+        'Core 第4.5.1節: 同一商品の継続課金期間重複は拒否する'
+      );
     }
   }
 
@@ -2484,6 +2514,7 @@ private class EstimateCreateControllerTest {
       oneTimeLine.recordType = 'New';
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -2506,8 +2537,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '[EST-S3-Renew-027] 更新では継続課金商品を1行以上指定してください。一回課金のみの更新はできません。',
+        message,
+        'Core 第4.3.5節: Renewは一回課金のみでは保存できない'
+      );
     }
   }
 
@@ -2872,6 +2909,7 @@ private class EstimateCreateControllerTest {
       renewLine.recordType = 'Renew';
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -2894,8 +2932,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '[EST-S3-Renew-029] 前回の版の期間終了日と一致する継続課金商品がないため更新できません。',
+        message,
+        'Core 第4.5節: Renewは継続課金が期間終了に届く前回版が必要'
+      );
     }
   }
 
@@ -2961,6 +3005,7 @@ private class EstimateCreateControllerTest {
       renewLine.recordType = 'Renew';
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -2983,8 +3028,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '[EST-S3-Renew-031] 切替日は前回契約履歴の契約終了日の翌日である必要があります。',
+        message,
+        'Core 第4.4節: Renewの切替日は前回終了の翌日（開始日ずれと同時送信時の先勝ち拒否）'
+      );
     }
   }
 
@@ -3065,6 +3116,7 @@ private class EstimateCreateControllerTest {
       newLine.recordType = 'New';
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -3090,8 +3142,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '[EST-S3-Renew-013] 同一商品の契約期間が重複しています。商品ごとに期間が重ならないよう入力してください。',
+        message,
+        'Core 第4.5.1節: Renewでも同一商品の期間重複は拒否する'
+      );
     }
   }
 
@@ -4239,6 +4297,7 @@ private class EstimateCreateControllerTest {
       derivativeLine.sourceContractProductId = sourceProduct.Id;
 
       Boolean thrown = false;
+      String message = '';
       try {
         saveEstimateWithTax(
           opportunity.Id,
@@ -4264,8 +4323,14 @@ private class EstimateCreateControllerTest {
         );
       } catch (Exception ex) {
         thrown = true;
+        message = ex.getMessage();
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        '有効日は課金内容が変更された最も古い日付（2026-06-01）と一致している必要があります。',
+        message,
+        'Core 第4.4節: Remake開始ずれのChangeは有効日不一致で先に拒否する'
+      );
     }
   }
 
@@ -5278,30 +5343,41 @@ private class EstimateCreateControllerTest {
   }
 
   @IsTest
-  static void facadeQueryMethods_areCallable() {
+  static void facadeQueryMethods_returnWizardDefaultsAndCandidates() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount('Facade Account');
       String defaultLabel = ContractMetadataService.getDefaultInvoiceSettingLabel();
       System.assertEquals(
         defaultLabel,
-        EstimateCreateController.getDefaultInvoiceSettingLabel()
+        EstimateCreateController.getDefaultInvoiceSettingLabel(),
+        'Core 第4.3.3節: 請求設定の既定ラベルを入口で返す'
       );
       List<ContractMetadataService.InvoiceSettingOption> options = EstimateCreateController.getInvoiceSettingOptions();
-      System.assertEquals(false, options.isEmpty());
+      System.assertEquals(
+        false,
+        options.isEmpty(),
+        'Core 第4.3.3節: 請求設定候補を入口で返す'
+      );
       Boolean foundDefault = false;
       for (ContractMetadataService.InvoiceSettingOption option : options) {
         if (option != null && option.label == defaultLabel) {
           foundDefault = true;
         }
       }
-      System.assertEquals(true, foundDefault);
       System.assertEquals(
-        0,
-        EstimateCreateController.getBillingAccountsByAccount(null).size()
+        true,
+        foundDefault,
+        'Core 第4.3.3節: 既定請求設定が候補に含まれる'
       );
       System.assertEquals(
         0,
-        EstimateCreateController.getActiveContractServicesByAccount(null).size()
+        EstimateCreateController.getBillingAccountsByAccount(null).size(),
+        'Core 第3.3節: 取引先未指定の請求アカウント候補は空'
+      );
+      System.assertEquals(
+        0,
+        EstimateCreateController.getActiveContractServicesByAccount(null).size(),
+        'Core 第5.4節 Lifecycle候補: 取引先未指定の契約サービス候補は空'
       );
 
       BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
@@ -5315,7 +5391,11 @@ private class EstimateCreateControllerTest {
         FROM BillingAccount__c
         WHERE Id = :billingAccount.Id
       ];
-      System.assertEquals(1, accounts.size());
+      System.assertEquals(
+        1,
+        accounts.size(),
+        'Core 第3.3節: 取引先の請求アカウント候補を返す'
+      );
       System.assertEquals(billingAccount.Id, accounts[0].id);
       System.assertEquals(namedAccount.Name, accounts[0].name);
 
@@ -5329,7 +5409,7 @@ private class EstimateCreateControllerTest {
       System.assertEquals(
         0,
         services.size(),
-        '未受注のみのサービスは候補に出ない'
+        'Core 第5.4節 Lifecycle候補: 未受注のみのサービスは候補に出ない'
       );
     }
   }

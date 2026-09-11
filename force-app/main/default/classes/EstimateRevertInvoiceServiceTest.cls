@@ -39,8 +39,10 @@ private class EstimateRevertInvoiceServiceTest {
           SELECT COUNT()
           FROM InvoiceProduct__c
           WHERE ContractHistory__c = :context.history.Id
-        ]
+        ],
+        'Core 第5.3節・第2.3節: 差し戻しは自履歴の未請求明細を物理削除する'
       );
+      assertRevertedToEstimateWithSoleOrderedCleared(context);
     }
   }
 
@@ -62,8 +64,9 @@ private class EstimateRevertInvoiceServiceTest {
           FROM Invoice__c
           WHERE ContractHistory__c = :context.history.Id
         ],
-        'Core 第4.9節: 差し戻しは自履歴の未確定請求を消す'
+        'Core 第5.3節・第2.3節: 差し戻しは自履歴の未確定請求を物理削除する'
       );
+      assertRevertedToEstimateWithSoleOrderedCleared(context);
     }
   }
 
@@ -74,6 +77,7 @@ private class EstimateRevertInvoiceServiceTest {
       Invoice__c invoice = insertDraftInvoice(context);
       insertJournal(invoice.Id, 'revert-deleted', 'LogicallyDeleted');
 
+      // Core 第5.3節: 仕訳の有無では差し戻しを拒否しない。成功すれば DRAFT_JOURNAL_REVERT_MESSAGE は出ない。
       context.history.historystatus__c = 'Estimate';
       Test.startTest();
       update context.history;
@@ -93,6 +97,7 @@ private class EstimateRevertInvoiceServiceTest {
         [SELECT COUNT() FROM GlJournal__c WHERE Invoice__c = :invoice.Id],
         'Core 第5.3節: 未確定を参照する仕訳は請求削除の前に物理削除する'
       );
+      assertRevertedToEstimateWithSoleOrderedCleared(context);
     }
   }
 
@@ -103,6 +108,7 @@ private class EstimateRevertInvoiceServiceTest {
       Invoice__c invoice = insertDraftInvoice(context);
       insertJournal(invoice.Id, 'revert-active', 'Active');
 
+      // Core 第5.3節: 仕訳の有無では差し戻しを拒否しない。成功すれば DRAFT_JOURNAL_REVERT_MESSAGE は出ない。
       context.history.historystatus__c = 'Estimate';
       Test.startTest();
       update context.history;
@@ -131,6 +137,7 @@ private class EstimateRevertInvoiceServiceTest {
         [SELECT COUNT() FROM GlJournal__c WHERE Invoice__c = :invoice.Id],
         'Core 第5.3節: 未確定を参照する仕訳は状態を問わず物理削除する'
       );
+      assertRevertedToEstimateWithSoleOrderedCleared(context);
     }
   }
 
@@ -566,9 +573,13 @@ private class EstimateRevertInvoiceServiceTest {
       System.assertEquals(
         0,
         emptyBlocks.nonLatestOrderedHistoryIds.size(),
-        'Core 第4.9節: 対象が空なら差し戻し拒否の集合も空'
+        'Core 第5.3節: 対象が空なら差し戻し拒否の集合も空（履歴を変えない空経路）'
       );
-      System.assertEquals(0, emptyBlocks.newerEstimateHistoryIds.size());
+      System.assertEquals(
+        0,
+        emptyBlocks.newerEstimateHistoryIds.size(),
+        'Core 第5.3節: 対象が空なら新しいEstimate拒否集合も空（履歴を変えない空経路）'
+      );
     }
   }
 
@@ -657,9 +668,9 @@ private class EstimateRevertInvoiceServiceTest {
         update context.history;
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains(InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE),
+        System.assertEquals(
+          InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
           'Core 第5.3節・第1.1.5節: 有効な確定済み請求があれば差し戻し禁止'
         );
       }
@@ -742,6 +753,27 @@ private class EstimateRevertInvoiceServiceTest {
         ),
         'Core 第5.3節: 上のVersionのEstimateが残れば差し戻し禁止'
       );
+
+      Set<Id> candidateIds = new Set<Id>{
+        context.priorHistory.Id,
+        context.changeHistory.Id
+      };
+      Set<Id> nonLatest = EstimateRevertInvoiceService.queryNonLatestOrderedHistoryIds(
+        candidateIds
+      );
+      System.assertEquals(
+        new Set<Id>{ context.priorHistory.Id },
+        nonLatest,
+        'Core 第5.3節: Version最大でないOrderedだけが nonLatest 拒否集合に入る'
+      );
+      Set<Id> withNewerEstimates = EstimateRevertInvoiceService.queryHistoryIdsWithNewerEstimates(
+        candidateIds
+      );
+      System.assertEquals(
+        new Set<Id>{ context.priorHistory.Id, context.changeHistory.Id },
+        withNewerEstimates,
+        'Core 第5.3節: 上のVersionのEstimateがある履歴は newerEstimate 拒否集合に入る'
+      );
     }
   }
 
@@ -753,6 +785,45 @@ private class EstimateRevertInvoiceServiceTest {
     public ContractHistory__c priorHistory;
     public ContractHistory__c changeHistory;
     public ContractProduct__c priorContractProduct;
+  }
+
+  private static void assertRevertedToEstimateWithSoleOrderedCleared(
+    TestContext context
+  ) {
+    System.assertEquals(
+      'Estimate',
+      [
+        SELECT historystatus__c
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ]
+      .historystatus__c,
+      'Core 第5.3節: 差し戻しは契約履歴を Estimate に戻す'
+    );
+    ContractService__c service = [
+      SELECT
+        FirstOrderedHistory__c,
+        LatestOrderedHistory__c,
+        Lifecycle__c
+      FROM ContractService__c
+      WHERE Id = :context.history.ContractService__c
+    ];
+    // createSingleOrderedContext は Ordered 1件のみ。差し戻し後は Ordered 0件。
+    System.assertEquals(
+      null,
+      service.FirstOrderedHistory__c,
+      'Core 第5.3節・第5.4節: Orderedが0件なら First Ordered を空にする'
+    );
+    System.assertEquals(
+      null,
+      service.LatestOrderedHistory__c,
+      'Core 第5.3節・第5.4節: Orderedが0件なら Latest Ordered を空にする'
+    );
+    System.assertEquals(
+      null,
+      service.Lifecycle__c,
+      'Core 第5.3節・第5.4節: Orderedが0件なら Lifecycle を空にする'
+    );
   }
 
   private static Invoice__c insertDraftInvoice(TestContext context) {

@@ -80,7 +80,7 @@ private class EstimateQueryServiceTest {
       System.assertEquals(
         null,
         line.unit,
-        'Core 第4.5.2節・第5.2節・第1.1.10節: Renewの空単位を商品マスタから埋めない'
+        'Core 第4.5.2節・第4.7節・第1.1.10節: Renewの空単位を商品マスタから埋めない'
       );
     }
   }
@@ -96,7 +96,7 @@ private class EstimateQueryServiceTest {
       System.assertEquals(
         null,
         lines[0].unit,
-        'Core 第1.1.10節: 照会DTOの空単位を商品マスタから埋めない'
+        'Core 第4.5.2節・第4.7節・第1.1.10節: 照会DTOの空単位を商品マスタから埋めない'
       );
     }
   }
@@ -291,7 +291,7 @@ private class EstimateQueryServiceTest {
   }
 
   @IsTest
-  static void getEstimateCopyPreset_changeNameEmpty_cancelNameHasChurnSuffix() {
+  static void getEstimateCopyPreset_changeNameEmpty_cancelNameIsCopyWithoutChurnSuffix() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Query Name Acc'
@@ -369,6 +369,11 @@ private class EstimateQueryServiceTest {
         'Query Name Cancel Estのコピー',
         cancelPreset.contractHistoryName,
         'Core 第4.3.3節: コピーの履歴名は元名のコピー'
+      );
+      System.assertEquals(
+        false,
+        cancelPreset.contractHistoryName.contains('解約'),
+        'Core 第4.3.3節: 作成・コピーの履歴名初期値に解約を付けない'
       );
     }
   }
@@ -1129,10 +1134,14 @@ private class EstimateQueryServiceTest {
         ids.contains(blankOrdered.Id),
         'Core 第4.3.3節: Lifecycle未設定の受注済みサービスは候補に出さない'
       );
-      System.assertEquals(true, ids.contains(termService.Id));
-      System.assert(
-        String.isNotBlank(currentNames) &&
-          currentNames.contains('Query Current Product'),
+      System.assertEquals(
+        true,
+        ids.contains(termService.Id),
+        'Core 第4.3.3節: Lifecycle=Termの受注済みサービスを候補にする'
+      );
+      System.assertEquals(
+        'Query Current Product',
+        currentNames,
         'Core 第4.3.3節: 期間契約の現商品名を載せる'
       );
     }
@@ -1252,7 +1261,11 @@ private class EstimateQueryServiceTest {
       List<EstimateCreateController.BillingAccountOptionDto> options = EstimateQueryService.getBillingAccountsByAccount(
         account.Id
       );
-      System.assertEquals(true, options.size() >= 1);
+      System.assertEquals(
+        1,
+        options.size(),
+        'Core 第3.3節: 自取引先の請求アカウント候補は1件'
+      );
       Boolean found = false;
       for (
         EstimateCreateController.BillingAccountOptionDto option : options
@@ -1280,13 +1293,16 @@ private class EstimateQueryServiceTest {
         EstimateQueryService.getEstimateRemarkMasterText(master.Id),
         'Core 第4.10節: 備考マスタの本文を返す'
       );
-      System.assertNotEquals(
-        null,
-        EstimateQueryService.getInvoiceSettingOptions()
+      List<ContractMetadataService.InvoiceSettingOption> invoiceOptions = EstimateQueryService.getInvoiceSettingOptions();
+      System.assertEquals(
+        false,
+        invoiceOptions.isEmpty(),
+        'Core 第4.3.7節: 有効な請求設定候補を返す'
       );
-      System.assertNotEquals(
-        null,
-        EstimateQueryService.getDefaultInvoiceSettingLabel()
+      System.assertEquals(
+        false,
+        String.isBlank(EstimateQueryService.getDefaultInvoiceSettingLabel()),
+        'Core 第4.3.7節: 既定請求設定ラベルを返す'
       );
     }
   }
@@ -1425,19 +1441,22 @@ private class EstimateQueryServiceTest {
     );
     System.assertEquals(
       false,
-      EstimateQueryService.hasCustomFieldMapValues(null)
+      EstimateQueryService.hasCustomFieldMapValues(null),
+      'Core 第4.3.4節: nullのカスタム項目Mapは値無し'
     );
     System.assertEquals(
       false,
       EstimateQueryService.hasCustomFieldMapValues(
         new Map<String, Object>{ 'Field__c' => '' }
-      )
+      ),
+      'Core 第4.3.4節: 空文字だけのカスタム項目Mapは値無し'
     );
     System.assertEquals(
       true,
       EstimateQueryService.hasCustomFieldMapValues(
         new Map<String, Object>{ 'Field__c' => '値' }
-      )
+      ),
+      'Core 第4.3.4節: 値ありのカスタム項目Mapは値有り'
     );
     EstimateCreateController.ProductLineItem line = new EstimateCreateController.ProductLineItem();
     line.customFields = new Map<String, Object>{ 'Field__c' => '値' };
@@ -1445,11 +1464,13 @@ private class EstimateQueryServiceTest {
       true,
       EstimateQueryService.hasProductCustomFieldValues(
         new List<EstimateCreateController.ProductLineItem>{ line }
-      )
+      ),
+      'Core 第4.3.4節: 明細のカスタム項目値を検出する'
     );
     System.assertEquals(
       false,
-      EstimateQueryService.hasProductCustomFieldValues(null)
+      EstimateQueryService.hasProductCustomFieldValues(null),
+      'Core 第4.3.4節: 明細リストが無いときはカスタム項目値無し'
     );
   }
 

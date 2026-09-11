@@ -783,8 +783,10 @@ private class EstimateArchiveControllerTest {
       EstimateArchiveController.ArchiveContext context = EstimateArchiveController.getArchiveContext(
         history.Id
       );
-      String staleToken = context.lastModifiedToken;
-      insertLine(history.Id, account.Id, 'New');
+      // 同一秒の LastModified でも版不一致になるよう、取得した比較値から 1ms ずらす
+      String staleToken = String.valueOf(
+        Long.valueOf(context.lastModifiedToken.trim()) - 1
+      );
 
       Boolean thrown = false;
       try {
@@ -795,7 +797,7 @@ private class EstimateArchiveControllerTest {
         );
         System.assert(
           false,
-          'Core 第4.3.12節: 版が変わった比較値では手動Archiveを拒否する'
+          'Core 第4.3.12節: 版が一致しない比較値では手動Archiveを拒否する'
         );
       } catch (AuraHandledException ex) {
         thrown = true;
