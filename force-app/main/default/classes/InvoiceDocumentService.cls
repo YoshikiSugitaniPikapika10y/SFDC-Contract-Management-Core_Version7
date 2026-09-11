@@ -324,6 +324,7 @@ public without sharing class InvoiceDocumentService {
     if (Test.isRunningTest()) {
       return Blob.valueOf('%PDF-1.4 invoice test');
     }
+    // 仕様: Core 第4.8節・第7.10節。LWC→Apex から呼ぶ。Ajax rerender 中の getContentAsPDF は使わない。
     PageReference pdfPage = ContractDocumentTemplateService.buildPageReference(
       template,
       invoiceId

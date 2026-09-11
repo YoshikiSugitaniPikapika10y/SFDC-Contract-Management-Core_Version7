@@ -695,6 +695,7 @@ public without sharing class EstimateDocumentService {
     }
 
     // 仕様: Core 第4.8節、第7.10節。帳票VFをPDFにする。SLDSは読まない。
+    // Ajax rerender 中に呼ばない（EstimateDocumentIssue は同期フルポスト。請求は LWC→Apex）。
     PageReference pdfPage = ContractDocumentTemplateService.buildPageReference(
       template,
       contractHistoryId

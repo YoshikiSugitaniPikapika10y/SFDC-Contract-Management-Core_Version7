@@ -108,19 +108,19 @@ public without sharing class ContractDocumentTemplateService {
     Id recordId
   ) {
     if (definition == null) {
-      throw new DocumentTemplateException('帳票テンプレートが指定されていません。');
+      throw new DocumentTemplateException(
+        '帳票テンプレートが指定されていません。'
+      );
     }
     if (
       String.isBlank(definition.visualforcePage) ||
-      !Pattern.matches(
-        '^[A-Za-z][A-Za-z0-9_]*$',
-        definition.visualforcePage
-      )
+      !Pattern.matches('^[A-Za-z][A-Za-z0-9_]*$', definition.visualforcePage)
     ) {
       throw new DocumentTemplateException(
         'Visualforceページ名が不正です: ' + definition.visualforcePage
       );
     }
+    // 仕様: Core 第4.8節・第7.10節・第11.3.2節。getContentAsPDF は別リクエストにする（Ajax 中の自ページ誤PDF化を避ける）。
     PageReference pageReference = new PageReference(
       '/apex/' + definition.visualforcePage
     );
@@ -128,6 +128,7 @@ public without sharing class ContractDocumentTemplateService {
       pageReference.getParameters().put('id', String.valueOf(recordId));
     }
     pageReference.getParameters().put('templateKey', definition.templateKey);
+    pageReference.setRedirect(true);
     return pageReference;
   }
 
@@ -144,7 +145,10 @@ public without sharing class ContractDocumentTemplateService {
     if (testRecords != null) {
       List<ContractDocumentTemplate__mdt> filtered = new List<ContractDocumentTemplate__mdt>();
       for (ContractDocumentTemplate__mdt record : testRecords) {
-        if (record.DocumentType__c == documentType && record.IsActive__c == true) {
+        if (
+          record.DocumentType__c == documentType &&
+          record.IsActive__c == true
+        ) {
           filtered.add(record);
         }
       }
