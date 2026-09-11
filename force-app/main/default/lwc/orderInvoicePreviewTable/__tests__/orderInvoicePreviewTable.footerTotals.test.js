@@ -1374,4 +1374,93 @@ describe("orderInvoicePreviewTable journal footer (Core 8.10)", () => {
     expect(footer.textContent).not.toContain("未入金額");
     expect(footer.textContent).not.toContain("借方合計");
   });
+
+  it("計上日で絞るとフッタは表示行のスロットNetになる", async () => {
+    getBoardContext.mockResolvedValue({
+      featureEnabled: false,
+      canSend: true,
+      accountingEnabled: true,
+      documentTemplateOptions: [],
+      emailTemplateOptions: []
+    });
+    getOpsBundle.mockResolvedValue({
+      accountingEnabled: true,
+      journals: [
+        {
+          journalId: "a03JNL000000001",
+          eventName: "請求確定",
+          debitSlotKey: "AccountsReceivable",
+          creditSlotKey: "DeferredRevenue",
+          debitAccountName: "AR 売掛金",
+          creditAccountName: "DEF 前受収益",
+          amount: 1000,
+          postingDate: "2026-06-01",
+          transactionStatus: "Active",
+          isLocked: false
+        },
+        {
+          journalId: "a03JNL000000002",
+          eventName: "入金",
+          debitSlotKey: "Cash",
+          creditSlotKey: "AccountsReceivable",
+          debitAccountName: "CASH 普通預金",
+          creditAccountName: "AR 売掛金",
+          amount: 500,
+          postingDate: "2026-07-01",
+          transactionStatus: "Active",
+          isLocked: false
+        }
+      ],
+      slotNets: [
+        { key: "AR", abbreviation: "AR", amount: 500 },
+        { key: "CASH", abbreviation: "CASH", amount: 500 },
+        { key: "DEF", abbreviation: "DEF", amount: 1000 }
+      ],
+      tagResults: [],
+      payments: [],
+      paymentLines: []
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    const preview = buildPreview({
+      amountTotal: 1000,
+      taxTotal: 100,
+      clearedAmount: 0,
+      sourceHistoryVersion: "1"
+    });
+    preview.invoices[0].invoiceTransactionStatus = "Confirmed";
+    element.preview = preview;
+    document.body.appendChild(element);
+    const journalsTab = await waitUntil(
+      () => element.shadowRoot.querySelector('button[data-tab="journals"]')
+    );
+    journalsTab.click();
+    await waitUntil(
+      () =>
+        element.shadowRoot.querySelector(
+          'footer.invoice-footer [aria-label="スロット残高"]'
+        )
+    );
+    const footer = () => element.shadowRoot.querySelector("footer.invoice-footer");
+    expect(footer().textContent).toContain("CASH");
+    const monthTrigger = element.shadowRoot.querySelector(
+      "button[data-filter='postingMonth']"
+    );
+    monthTrigger.click();
+    await waitUntil(() =>
+      element.shadowRoot.querySelector(
+        "lightning-input[data-filter='postingMonth'][data-value='2026-06']"
+      )
+    );
+    const june = element.shadowRoot.querySelector(
+      "lightning-input[data-filter='postingMonth'][data-value='2026-06']"
+    );
+    june.checked = true;
+    june.dispatchEvent(new CustomEvent("change"));
+    await waitUntil(() => !footer().textContent.includes("CASH"));
+    expect(footer().textContent).toContain("AR");
+    expect(footer().textContent).toContain("DEF");
+    expect(footer().textContent).not.toContain("CASH");
+  });
 });
