@@ -262,13 +262,16 @@ function mockBundle({
   accountingEnabled = false,
   payments,
   journals,
-  manualJournals
+  manualJournals,
+  taxInclusiveAmount = 1100,
+  invoicePaymentNet = 0,
+  paymentLines
 } = {}) {
   return {
     accountingEnabled,
     paymentAllowed: true,
-    taxInclusiveAmount: 1100,
-    invoicePaymentNet: 0,
+    taxInclusiveAmount,
+    invoicePaymentNet,
     paymentNetTotal: 0,
     invoiceDate: "2026-06-01",
     invoiceToken: "token",
@@ -285,7 +288,7 @@ function mockBundle({
         lastModifiedToken: "pay-token"
       }
     ],
-    paymentLines: [
+    paymentLines: paymentLines || [
       {
         lineId: "a01LINE00000001",
         productName: "Product",
@@ -1766,5 +1769,47 @@ describe("orderInvoicePreviewTable payment form", () => {
       )
     ).toBeNull();
     expect(previewCancelConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("rebuilds payment amount from current unpaid inclusive net after preview reload", async () => {
+    getOpsBundle.mockResolvedValue(
+      mockBundle({
+        taxInclusiveAmount: 109995,
+        invoicePaymentNet: 0,
+        paymentLines: [
+          {
+            lineId: "a01LINE00000001",
+            productName: "Product",
+            remainingInclusive: 109995
+          }
+        ]
+      })
+    );
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    getOpsBundle.mockResolvedValue(
+      mockBundle({
+        taxInclusiveAmount: 110000,
+        invoicePaymentNet: 0,
+        paymentLines: [
+          {
+            lineId: "a01LINE00000001",
+            productName: "Product",
+            remainingInclusive: 110000
+          }
+        ]
+      })
+    );
+    element.preview = buildPreview();
+    await flush();
+    await openPaymentsTab(element);
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    expect(String(amountInput.value)).toBe("110000");
   });
 });

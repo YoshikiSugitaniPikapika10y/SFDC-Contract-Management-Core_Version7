@@ -785,11 +785,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       const draft =
         current.paymentDraft ||
         this.newPaymentDraft(invoiceId, remaining, bundle?.paymentLines);
-      // 仕様: Core 第8.9節。初期金額は符号付き未処理Net。未処理0はInvoice目的を登録できない。
-      const amountMissing = draft.amount === "" || draft.amount == null;
-      let nextDraft = amountMissing
-        ? this.newPaymentDraft(invoiceId, remaining, bundle?.paymentLines)
-        : { ...draft };
+      // 仕様: Core 第8.9節・第8.3節。初期金額は今の符号付き未処理Net。
+      // 仕様: Core 第7.7.0節。未保存の金額初期値は戻さない。サーバ反映後は今の未処理Netで作り直す。
+      let nextDraft = {
+        ...draft,
+        amount: String(remaining)
+      };
       if (!nextDraft.paymentDate) {
         nextDraft = {
           ...nextDraft,
