@@ -534,7 +534,10 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     ).not.toBeNull();
     expect(rowText()).toContain("為替差損の計上");
     expect(rowText()).not.toContain("請求本体");
-    document.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    const outsideRow = element.shadowRoot.querySelector("tr.journal-row");
+    outsideRow.dispatchEvent(
+      new MouseEvent("pointerdown", { bubbles: true, composed: true })
+    );
     await flush();
     expect(
       element.shadowRoot.querySelector(".journal-multi-filter-menu")

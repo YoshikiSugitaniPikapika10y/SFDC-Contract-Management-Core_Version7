@@ -239,6 +239,94 @@ function uniqueSorted(values) {
   return Array.from(new Set(values.filter((value) => value))).sort();
 }
 
+/** 仕様: Accounting 第4.3節。通常残高方向。表示Netの符号は第7.3節。 */
+const JOURNAL_SLOT_CATALOG = [
+  { key: "AccountsReceivable", abbreviation: "AR", debitNormal: true },
+  { key: "ContractAsset", abbreviation: "CTA", debitNormal: true },
+  { key: "Cash", abbreviation: "CASH", debitNormal: true },
+  { key: "DeferredRevenue", abbreviation: "DEF", debitNormal: false },
+  { key: "TaxPayable", abbreviation: "TAX", debitNormal: false },
+  { key: "UnappliedCash", abbreviation: "UAC", debitNormal: false },
+  { key: "SuspensePayment", abbreviation: "SP", debitNormal: true },
+  { key: "Revenue", abbreviation: "REV", debitNormal: false },
+  { key: "FxGain", abbreviation: "FXG", debitNormal: false },
+  { key: "FxLoss", abbreviation: "FXL", debitNormal: true },
+  { key: "OtherIncome", abbreviation: "OIN", debitNormal: false },
+  { key: "OtherExpense", abbreviation: "OEX", debitNormal: true }
+];
+
+const JOURNAL_SLOT_BY_KEY = JOURNAL_SLOT_CATALOG.reduce((map, slot) => {
+  map[slot.key] = slot;
+  return map;
+}, {});
+
+function journalViewFilterActive(postingMonth, eventName, lineKey) {
+  return (
+    selectedFilterValues(postingMonth).length > 0 ||
+    selectedFilterValues(eventName).length > 0 ||
+    selectedFilterValues(lineKey).length > 0
+  );
+}
+
+function addJournalSlotNet(appeared, amounts, slotKey, amount, debitSide) {
+  const slot = JOURNAL_SLOT_BY_KEY[slotKey];
+  if (!slot) {
+    return;
+  }
+  const signed = debitSide
+    ? slot.debitNormal
+      ? amount
+      : -amount
+    : slot.debitNormal
+      ? -amount
+      : amount;
+  appeared.add(slot.abbreviation);
+  amounts[slot.abbreviation] = (amounts[slot.abbreviation] || 0) + signed;
+}
+
+/** 仕様: Core 第8.10節、Accounting 第7.3節。表示行のスロットNet。登場は0でも出す。 */
+function slotNetsFromDisplayedJournals(journals) {
+  const appeared = new Set();
+  const amounts = {};
+  (journals || []).forEach((journal) => {
+    if (!journal || journal.transactionStatus === "LogicallyDeleted") {
+      return;
+    }
+    const amount = Number(journal.amount) || 0;
+    addJournalSlotNet(
+      appeared,
+      amounts,
+      journal.debitSlotKey,
+      amount,
+      true
+    );
+    addJournalSlotNet(
+      appeared,
+      amounts,
+      journal.creditSlotKey,
+      amount,
+      false
+    );
+  });
+  return JOURNAL_SLOT_CATALOG.filter((slot) => appeared.has(slot.abbreviation)).map(
+    (slot) => ({
+      key: slot.abbreviation,
+      abbreviation: slot.abbreviation,
+      amount: amounts[slot.abbreviation] || 0
+    })
+  );
+}
+
+function decorateSlotNets(slotNets) {
+  return (slotNets || []).map((slotNet) => ({
+    ...slotNet,
+    itemClass:
+      Number(slotNet.amount) === 0
+        ? "money-item money-item_slot-zero"
+        : "money-item money-item_slot-nonzero"
+  }));
+}
+
 /** 仕様: Accounting 第8.7節。計上日・sameDayOrder・原因CreatedDate・回番号・原因ID。 */
 function compareJournalDisplayOrder(left, right) {
   const dateCmp = compareIsoDate(left.postingDate, right.postingDate);
@@ -551,6 +639,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         this.closeJournalFilterMenus();
       }
     };
+    this.template.addEventListener(
+      "pointerdown",
+      this._onJournalFilterOutside
+    );
     window.addEventListener("pointerdown", this._onJournalFilterOutside, true);
     window.addEventListener("keydown", this._onJournalFilterEscape);
   }
@@ -1103,6 +1195,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this._resizeObserver = null;
     }
     if (this._onJournalFilterOutside) {
+      this.template.removeEventListener(
+        "pointerdown",
+        this._onJournalFilterOutside
+      );
       window.removeEventListener(
         "pointerdown",
         this._onJournalFilterOutside,
@@ -2932,13 +3028,15 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             accountingEnabled && activeTab === "journals"
               ? "スロット残高"
               : "請求金額",
-          slotNets: (bundle?.slotNets || []).map((slotNet) => ({
-            ...slotNet,
-            itemClass:
-              Number(slotNet.amount) === 0
-                ? "money-item money-item_slot-zero"
-                : "money-item money-item_slot-nonzero"
-          })),
+          slotNets: decorateSlotNets(
+            journalViewFilterActive(
+              postingMonthFilter,
+              eventNameFilter,
+              lineKeyFilter
+            )
+              ? slotNetsFromDisplayedJournals(displayedJournals)
+              : bundle?.slotNets || []
+          ),
           linesTabClass:
             activeTab === "lines" ? "invoice-tab invoice-tab_active" : "invoice-tab",
           paymentsTabClass:
@@ -6231,18 +6329,40 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     );
   }
 
+  isInsideJournalFilter(event) {
+    const path = event.composedPath ? event.composedPath() : [];
+    if (
+      path.some(
+        (node) =>
+          node?.classList &&
+          typeof node.classList.contains === "function" &&
+          node.classList.contains("journal-multi-filter")
+      )
+    ) {
+      return true;
+    }
+    const target = event.target;
+    return Boolean(
+      target &&
+        typeof target.closest === "function" &&
+        target.closest(".journal-multi-filter")
+    );
+  }
+
   handleJournalFilterOutside(event) {
     if (!this.hasOpenJournalFilterMenu()) {
       return;
     }
-    const path = event.composedPath ? event.composedPath() : [];
-    const insideFilter = path.some(
-      (node) =>
-        node?.classList &&
-        typeof node.classList.contains === "function" &&
-        node.classList.contains("journal-multi-filter")
-    );
-    if (insideFilter) {
+    if (this.isInsideJournalFilter(event)) {
+      return;
+    }
+    const host = this.template && this.template.host;
+    if (
+      event.currentTarget === window &&
+      host &&
+      (event.target === host ||
+        (event.composedPath && event.composedPath().includes(host)))
+    ) {
       return;
     }
     this.closeJournalFilterMenus();
