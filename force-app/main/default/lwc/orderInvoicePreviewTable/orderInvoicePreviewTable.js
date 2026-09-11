@@ -4559,7 +4559,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   handleAcceptanceCancelClose(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
-    if (!invoiceId) {
+    if (
+      !invoiceId ||
+      this.editProcessingInvoiceId === invoiceId ||
+      this.invoiceOpsProcessingId != null ||
+      this.isSaving === true
+    ) {
       return;
     }
     this.updateInvoiceUiState(invoiceId, { acceptanceDraft: null });
@@ -6180,7 +6185,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   // 仕様: Core 第7.9.3節、第7.9.5節、第7.9.6節、第7.10節、第1.1.10節、Accounting 第8.5節、日付仕様 第7.3節
   async handleConfirmInvoiceCancel() {
-    if (!this.invoiceCancelState?.invoiceId || this.invoiceOpsProcessingId != null) {
+    if (
+      !this.invoiceCancelState?.invoiceId ||
+      this.invoiceOpsProcessingId != null ||
+      this.isSaving === true
+    ) {
       return;
     }
     const blocked = this.invoiceCancelBlockedReason(

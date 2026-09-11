@@ -1,6 +1,5 @@
 import { LightningElement, api } from "lwc";
 import { CloseActionScreenEvent } from "lightning/actions";
-import { CloseActionScreenEvent } from "lightning/actions";
 import getContext from "@salesforce/apex/ContractServiceEditController.getContext";
 import save from "@salesforce/apex/ContractServiceEditController.save";
 import issueContractServiceOperationKey from "@salesforce/apex/ContractServiceEditController.issueContractServiceOperationKey";
