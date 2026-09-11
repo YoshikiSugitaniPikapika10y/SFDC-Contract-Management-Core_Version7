@@ -4,6 +4,7 @@
   </template>
 
   <template if:true={showForm}>
+    <h1 class="ba-page-title">{pageTitle}</h1>
     <template if:true={isView}>
       <lightning-record-view-form
         record-id={recordId}
@@ -11,11 +12,13 @@
       >
         <div class="ba-toolbar">
           <template if:true={showEditButton}>
-            <lightning-button
-              label="編集"
-              variant="brand"
+            <button
+              type="button"
+              class="ba-btn ba-btn_primary"
               onclick={handleOpenEdit}
-            ></lightning-button>
+            >
+              編集
+            </button>
           </template>
         </div>
         <section class="ba-section">
@@ -283,18 +286,17 @@
               処理中
             </p>
           </template>
-          <lightning-button
-            class="slds-m-right_small"
-            label="キャンセル"
+          <button
+            type="button"
+            class="ba-btn ba-btn_ghost"
             disabled={isSaving}
             onclick={handleCancel}
-          ></lightning-button>
-          <lightning-button
-            type="submit"
-            variant="brand"
-            label="保存"
-            disabled={isSaving}
-          ></lightning-button>
+          >
+            キャンセル
+          </button>
+          <button type="submit" class="ba-btn ba-btn_primary" disabled={isSaving}>
+            保存
+          </button>
         </div>
       </lightning-record-edit-form>
     </template>

@@ -1,6 +1,5 @@
 import { LightningElement, api, track } from "lwc";
 import LightningConfirm from "lightning/confirm";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import {
   NavigationMixin,
   openContentDocumentFilePreview
@@ -3226,15 +3225,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (this.hasAmountDrafts || this.isSaving) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "端数調整を先に確定してください",
-          message:
-            "未保存の端数調整があります。保存または取消してからVersionを切り替えてください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("端数調整を先に確定してください", "未保存の端数調整があります。保存または取消してからVersionを切り替えてください。");
       return;
     }
     this.selectedVersion = next;
@@ -3376,14 +3367,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
       this.clearPendingOperationKey(invoiceId);
       if (result?.issueWarning) {
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "確定後のPDF発行ができませんでした",
-            message: result.issueWarning,
-            variant: "warning",
-            mode: "sticky"
-          })
-        );
+        this.setSurfaceError("確定後のPDF発行ができませんでした", result.issueWarning);
       }
     });
   }
@@ -3434,13 +3418,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       await this.reloadInvoiceIssuePreview();
     } catch (error) {
       this.invoiceIssueState = null;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
     }
   }
 
@@ -3478,13 +3456,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     try {
       await this.reloadInvoiceIssuePreview();
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
     }
   }
 
@@ -3527,13 +3499,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       await this.reloadInvoiceSendPreview();
     } catch (error) {
       this.invoiceSendState = null;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
     }
   }
 
@@ -3772,14 +3738,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.noteCompletion(labels[mode]);
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
     } finally {
       this.invoiceOpsProcessingId = null;
       this.invoiceOpsProcessingMode = null;
@@ -3934,13 +3893,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
     // 仕様: Core 第8.3節。0円と小数は登録しない。
     if (!Number.isFinite(amount) || amount !== Math.trunc(amount)) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "入出金金額は整数にしてください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "入出金金額は整数にしてください。");
       return;
     }
     const remaining =
@@ -4135,13 +4088,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
       requiresDate = diffRequiresCancelDate(preview);
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
       return;
     }
     this.updateInvoiceUiState(invoiceId, {
@@ -4193,36 +4140,18 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (!draft.cancellationReason) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "取消理由を入力してください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "取消理由を入力してください。");
       return;
     }
     if (
       draft.cancellationReason === "Other" &&
       this.isBlankReasonText(draft.cancellationReasonText)
     ) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "取消理由がその他のときは内容を入力してください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "取消理由がその他のときは内容を入力してください。");
       return;
     }
     if (draft.requiresDate && !draft.cancelDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "ロック済み仕訳がある取消では取消基準日が必要です。");
       return;
     }
     await this.runInvoiceOpsMutation(invoiceId, async () => {
@@ -4274,14 +4203,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
       const message = this.reduceInvoiceOpsError(error);
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message,
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", message);
       // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
       if (message === VERSION_CONFLICT_MESSAGE) {
         this.clearPendingOperationKey(invoiceId);
@@ -4472,13 +4394,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (!next) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "検収終了日は空にできません。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "検収終了日は空にできません。");
       return;
     }
     try {
@@ -4500,13 +4416,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         return;
       }
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
       return;
     }
     this.dispatchEvent(
@@ -4585,13 +4495,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (draft.requiresDate && !draft.cancellationDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "ロック済み仕訳がある取消では取消基準日が必要です。");
       return;
     }
     this.editProcessingInvoiceId = invoiceId;
@@ -4610,25 +4514,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             cancellationDate: this.todayLocalIso()
           }
         });
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "請求操作エラー",
-            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-            variant: "error"
-          })
-        );
+        this.setSurfaceError("請求操作エラー", "ロック済み仕訳がある取消では取消基準日が必要です。");
         this.editProcessingInvoiceId = null;
         return;
       }
     } catch (error) {
       this.editProcessingInvoiceId = null;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
       return;
     }
     this.dispatchEvent(
@@ -5127,36 +5019,15 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (!this.invoiceSplitState.newInvoiceDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求日を入力してください",
-          message: "分割先の請求日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("請求日を入力してください", "分割先の請求日は必須です。");
       return;
     }
     if (!this.invoiceSplitState.newPaymentDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "入金予定日を入力してください",
-          message: "分割先の入金予定日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("入金予定日を入力してください", "分割先の入金予定日は必須です。");
       return;
     }
     if (!this.invoiceSplitState.newBillingAccountId) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求アカウントを選択してください",
-          message: "分割先の請求アカウントは必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("請求アカウントを選択してください", "分割先の請求アカウントは必須です。");
       return;
     }
     const invoice = this.findInvoice(this.invoiceSplitState.invoiceId);
@@ -5171,14 +5042,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       }))
       .filter((row) => row.moveAmount !== 0);
     if (splitLines.length === 0) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "明細を選択してください",
-          message: "分ける明細にチェックを入れてから実行してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("明細を選択してください", "分ける明細にチェックを入れてから実行してください。");
       return;
     }
     // 仕様: Core 第0.2節。全明細移動でも元削除の実行前確認は出さない。
@@ -5219,14 +5083,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (!this.invoiceMoveState.targetInvoiceId) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "移動先を選択してください",
-          message: "同じVersionの移動先請求を選んでから実行してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("移動先を選択してください", "同じVersionの移動先請求を選んでから実行してください。");
       return;
     }
     const invoice = this.findInvoice(this.invoiceMoveState.invoiceId);
@@ -5237,14 +5094,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       )
       .map((line) => line.lineId);
     if (lineIds.length === 0) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "明細を選択してください",
-          message: "移す明細にチェックを入れてから実行してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("明細を選択してください", "移す明細にチェックを入れてから実行してください。");
       return;
     }
     const targetInvoice = this.findInvoice(
@@ -5253,14 +5103,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     const sourceTax = this.normalizeTaxPercent(invoice?.taxPercent);
     const targetTax = this.normalizeTaxPercent(targetInvoice?.taxPercent);
     if (sourceTax !== targetTax) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "税率が違う請求へは移せません",
-          message: `移動先の税率（${targetTax}%）が元請求（${sourceTax}%）と異なります。同じ税率の未確定へだけ移せます。`,
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("税率が違う請求へは移せません", `移動先の税率（${targetTax}%）が元請求（${sourceTax}%）と異なります。同じ税率の未確定へだけ移せます。`);
       return;
     }
     this.editProcessingInvoiceId = (this.invoiceMoveState.invoiceId);
@@ -5591,14 +5434,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     const lineId = event.target.dataset.lineId;
     const resolved = resolveScaledNumericInput(event.detail.value, 2);
     if (!resolved.ok) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "単価を確定できません",
-          message: resolved.message,
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("単価を確定できません", resolved.message);
       return;
     }
     this.updateLineSplitRow(lineId, {
@@ -5696,38 +5532,16 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (this.unitPriceFormulaLineId != null) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "単価の入力を確定してください",
-          message:
-            "数式ポップアップを適用（またはキャンセル）してから分割を実行してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("単価の入力を確定してください", "数式ポップアップを適用（またはキャンセル）してから分割を実行してください。");
       return;
     }
     if (this.lineSplitState.loadingThresholds) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "分割候補を読み込み中です",
-          message: "読み込み完了後に分割を実行してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("分割候補を読み込み中です", "読み込み完了後に分割を実行してください。");
       return;
     }
     const splitLines = this.buildSplitLinesPayload();
     if (splitLines.length === 0) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "分割内容を入力してください",
-          message: "明細を選択し、期間／単価／数量の分割内容を確定してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("分割内容を入力してください", "明細を選択し、期間／単価／数量の分割内容を確定してください。");
       return;
     }
     const invoice = this.findInvoice(this.lineSplitState.invoiceId);
@@ -5850,37 +5664,15 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (this.hasAmountDrafts) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "端数調整を先に確定してください",
-          message:
-            "未保存の端数調整があります。保存または取消してから請求情報を保存してください。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("端数調整を先に確定してください", "未保存の端数調整があります。保存または取消してから請求情報を保存してください。");
       return;
     }
     if (!this.billingEditState.invoiceDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求日を入力してください",
-          message: "請求日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("請求日を入力してください", "請求日は必須です。");
       return;
     }
     if (!this.billingEditState.paymentScheduledDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "入金予定日を入力してください",
-          message: "入金予定日は必須です。",
-          variant: "error",
-          mode: "dismissable"
-        })
-      );
+      this.setSurfaceError("入金予定日を入力してください", "入金予定日は必須です。");
       return;
     }
     const invoiceId = this.billingEditState.invoiceId;
@@ -6091,13 +5883,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "取消済み請求のメモは編集できません。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "取消済み請求のメモは編集できません。");
       return;
     }
     if (this.invoiceOpsProcessingId != null) {
@@ -6113,13 +5899,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.noteCompletion("メモを保存しました");
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "メモの保存に失敗しました",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("メモの保存に失敗しました", this.reduceInvoiceOpsError(error));
     } finally {
       this.invoiceOpsProcessingId = null;
     }
@@ -6138,13 +5918,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.invoiceUiState[invoiceId]?.bundle
     );
     if (blocked) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: blocked,
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", blocked);
       return;
     }
     this.invoiceCancelState = {
@@ -6196,48 +5970,25 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.invoiceUiState[this.invoiceCancelState.invoiceId]?.bundle
     );
     if (blocked) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: blocked,
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", blocked);
       return;
     }
     if (!this.invoiceCancelState.cancellationReason) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "取消理由を入力してください",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("取消理由を入力してください", undefined);
       return;
     }
     if (
       this.invoiceCancelState.cancellationReason === "Other" &&
       this.isBlankReasonText(this.invoiceCancelState.cancellationReasonText)
     ) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "取消理由がその他のときは内容を入力してください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "取消理由がその他のときは内容を入力してください。");
       return;
     }
     const requiresDate = requiresCancelDate(
       this.invoiceUiState[this.invoiceCancelState.invoiceId]?.bundle
     );
     if (requiresDate && !this.invoiceCancelState.cancellationDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "ロック済み仕訳がある取消では取消基準日が必要です。");
       return;
     }
     const invoiceId = this.invoiceCancelState.invoiceId;
@@ -6254,13 +6005,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     } catch (error) {
       this.invoiceOpsProcessingId = null;
       this.invoiceOpsProcessingMode = null;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
       return;
     }
     const requiresCustomerNotice =
@@ -6338,13 +6083,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "取消済み請求の仕訳メモは編集できません。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "取消済み請求の仕訳メモは編集できません。");
       return;
     }
     if (this.invoiceOpsProcessingId != null) {
@@ -6373,13 +6112,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.noteCompletion("仕訳メモを保存しました");
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "仕訳メモの保存に失敗しました",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("仕訳メモの保存に失敗しました", this.reduceInvoiceOpsError(error));
     } finally {
       this.invoiceOpsProcessingId = null;
     }
@@ -6606,22 +6339,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   async lockSelectedOrRefuse(invoiceId, journalIds) {
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "取消済み請求の仕訳はLock/Unlockできません。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "取消済み請求の仕訳はLock/Unlockできません。");
       return;
     }
     if (!journalIds.length) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "Lockする仕訳を選んでください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("Lockする仕訳を選んでください。", undefined);
       return;
     }
     const journals =
@@ -6630,12 +6352,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       journalIds.includes(journal.journalId)
     );
     if (selected.some((journal) => journal.isLocked === true)) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "LockとUnlockが混在しています",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("LockとUnlockが混在しています", undefined);
       return;
     }
     if (this.invoiceOpsProcessingId != null) {
@@ -6659,13 +6376,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.dispatchEvent(new CustomEvent("journalslockcomplete"));
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "Lockに失敗しました",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("Lockに失敗しました", this.reduceInvoiceOpsError(error));
     } finally {
       this.invoiceOpsProcessingId = null;
     }
@@ -6673,22 +6384,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   async unlockSelectedFromBar(invoiceId, journalIds) {
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "請求操作エラー",
-          message: "取消済み請求の仕訳はLock/Unlockできません。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("請求操作エラー", "取消済み請求の仕訳はLock/Unlockできません。");
       return;
     }
     if (!journalIds.length) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "Unlockする仕訳を選んでください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("Unlockする仕訳を選んでください。", undefined);
       return;
     }
     const journals =
@@ -6697,31 +6397,16 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       journalIds.includes(journal.journalId)
     );
     if (selected.some((journal) => journal.isLocked !== true)) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "LockとUnlockが混在しています",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("LockとUnlockが混在しています", undefined);
       return;
     }
     const reason = this.journalUnlockReasonByInvoice[invoiceId];
     if (this.isBlankReasonText(reason)) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "Unlockには理由が必要です",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("Unlockには理由が必要です", undefined);
       return;
     }
     if (this.isUnlockReasonTooLong(reason)) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "Unlock理由は255文字以内で指定してください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("Unlock理由は255文字以内で指定してください。", undefined);
       return;
     }
     if (this.invoiceOpsProcessingId != null) {
@@ -6750,13 +6435,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.dispatchEvent(new CustomEvent("journalslockcomplete"));
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "Unlockに失敗しました",
-          message: this.reduceInvoiceOpsError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("Unlockに失敗しました", this.reduceInvoiceOpsError(error));
     } finally {
       this.invoiceOpsProcessingId = null;
     }
@@ -6766,22 +6445,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
   }
 
-  dispatchEvent(event) {
-    if (
-      event &&
-      (event.type === "lightning__showtoast" ||
-        event.constructor?.name === "ShowToastEvent")
-    ) {
-      const detail = event.detail || {};
-      if (detail.variant === "error" || !detail.variant) {
-        this.surfaceError = String(detail.message || detail.title || "").replace(
-          /Version/g,
-          "版"
-        );
-        return true;
-      }
-      return super.dispatchEvent(event);
-    }
-    return super.dispatchEvent(event);
+  setSurfaceError(title, message) {
+    this.surfaceError = String(message || title || "");
   }
 }

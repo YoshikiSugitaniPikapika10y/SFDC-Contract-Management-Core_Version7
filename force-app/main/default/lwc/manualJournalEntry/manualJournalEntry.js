@@ -1,5 +1,4 @@
 import { LightningElement, api, track } from "lwc";
-import { ShowToastEvent } from "lightning/platformShowToastEvent";
 import registerManualJournal from "@salesforce/apex/ManualJournalController.register";
 import cancelManualJournal from "@salesforce/apex/ManualJournalController.cancel";
 import previewCancelManualJournal from "@salesforce/apex/ManualJournalController.previewCancel";
@@ -210,23 +209,11 @@ export default class ManualJournalEntry extends LightningElement {
     const amount = Number(this.amount);
     // 仕様: Accounting 第10.3節。0より大きい整数円。入金画面と同じ検査。
     if (!Number.isFinite(amount) || amount <= 0 || amount !== Math.trunc(amount)) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の登録に失敗しました",
-          message: "金額は0より大きい整数にしてください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の登録に失敗しました", "金額は0より大きい整数にしてください。");
       return;
     }
     if (this.registerRequiresDate && !this.registerCancelDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の登録に失敗しました",
-          message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の登録に失敗しました", "ロック済み仕訳がある取消では取消基準日が必要です。");
       return;
     }
     const cancellationDate = this.registerRequiresDate
@@ -245,13 +232,7 @@ export default class ManualJournalEntry extends LightningElement {
       });
     } catch (error) {
       this.busy = false;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の登録に失敗しました",
-          message: this.reduceError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の登録に失敗しました", this.reduceError(error));
       return;
     }
     try {
@@ -281,13 +262,7 @@ export default class ManualJournalEntry extends LightningElement {
         this.registerNeedsCancelDateFromDiff = true;
         this.seedRegisterCancelDate();
       }
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の登録に失敗しました",
-          message,
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の登録に失敗しました", message);
     } finally {
       this.busy = false;
     }
@@ -311,13 +286,7 @@ export default class ManualJournalEntry extends LightningElement {
       this.cancelRequiresDate = (preview?.reverseCount || 0) > 0;
       this.cancelDate = this.cancelRequiresDate ? this.todayLocalIso() : "";
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳エラー",
-          message: this.reduceError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳エラー", this.reduceError(error));
     }
   }
 
@@ -331,23 +300,11 @@ export default class ManualJournalEntry extends LightningElement {
       this.cancelReason === "Other" &&
       this.isBlankReasonText(this.cancelReasonText)
     ) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の取消に失敗しました",
-          message: "取消理由がその他のときは内容を入力してください。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の取消に失敗しました", "取消理由がその他のときは内容を入力してください。");
       return;
     }
     if (this.cancelRequiresDate && !this.cancelDate) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の取消に失敗しました",
-          message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の取消に失敗しました", "ロック済み仕訳がある取消では取消基準日が必要です。");
       return;
     }
     this.busy = true;
@@ -363,24 +320,12 @@ export default class ManualJournalEntry extends LightningElement {
         this.cancelRequiresDate = true;
         this.cancelDate = this.todayLocalIso();
         this.busy = false;
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: "手動仕訳の取消に失敗しました",
-            message: "ロック済み仕訳がある取消では取消基準日が必要です。",
-            variant: "error"
-          })
-        );
+        this.setSurfaceError("手動仕訳の取消に失敗しました", "ロック済み仕訳がある取消では取消基準日が必要です。");
         return;
       }
     } catch (error) {
       this.busy = false;
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の取消に失敗しました",
-          message: this.reduceError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の取消に失敗しました", this.reduceError(error));
       return;
     }
     try {
@@ -406,13 +351,7 @@ export default class ManualJournalEntry extends LightningElement {
       this.cancelDate = "";
       this.dispatchEvent(new CustomEvent("complete"));
     } catch (error) {
-      this.dispatchEvent(
-        new ShowToastEvent({
-          title: "手動仕訳の取消に失敗しました",
-          message: this.reduceError(error),
-          variant: "error"
-        })
-      );
+      this.setSurfaceError("手動仕訳の取消に失敗しました", this.reduceError(error));
     } finally {
       this.busy = false;
     }
@@ -427,20 +366,8 @@ export default class ManualJournalEntry extends LightningElement {
     );
   }
 
-  dispatchEvent(event) {
-    if (
-      event &&
-      (event.type === "lightning__showtoast" ||
-        event.constructor?.name === "ShowToastEvent")
-    ) {
-      const detail = event.detail || {};
-      if (detail.variant === "error" || !detail.variant) {
-        this.surfaceError = String(detail.message || detail.title || "");
-        return true;
-      }
-      return super.dispatchEvent(event);
-    }
-    return super.dispatchEvent(event);
+  setSurfaceError(title, message) {
+    this.surfaceError = String(message || title || "");
   }
 
   handleSurfaceErrorReload() {

@@ -356,6 +356,16 @@ export default class BillingAccountForm extends NavigationMixin(
     return Boolean(this.recordId) && !this.isNew && !this.isEdit;
   }
 
+  get pageTitle() {
+    if (this.isNew) {
+      return "請求アカウントを作成";
+    }
+    if (this.isEdit) {
+      return "請求アカウントを編集";
+    }
+    return "請求アカウント";
+  }
+
   get canCreate() {
     return Boolean(this._objectInfo?.createable);
   }
