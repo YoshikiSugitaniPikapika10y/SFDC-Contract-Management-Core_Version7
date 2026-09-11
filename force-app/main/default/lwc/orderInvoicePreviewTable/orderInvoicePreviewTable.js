@@ -608,8 +608,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         bundle: previous?.bundle || null,
         loading: previous?.loading === true,
         error: previous?.error || "",
-        paymentDraft:
-          previous?.paymentDraft || this.newPaymentDraft(invoice.invoiceId),
+        // 仕様: Core 第7.7.0節。保存成功・版不一致の読み直しで未保存の入金下書きは戻さない。
+        paymentDraft: this.newPaymentDraft(invoice.invoiceId),
         cancelDraft: previous?.cancelDraft || null
       };
     }

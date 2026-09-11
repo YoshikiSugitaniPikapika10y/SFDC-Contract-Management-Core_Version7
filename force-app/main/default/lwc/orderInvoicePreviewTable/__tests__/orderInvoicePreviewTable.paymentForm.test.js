@@ -1850,8 +1850,43 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openPaymentsTab(element);
     const remaining = element.shadowRoot.querySelector(
-      ".ops-table_payments tbody td.num-col lightning-formatted-number"
+      ".ops-form_register .ops-table_payments tbody lightning-formatted-number"
     );
     expect(Number(remaining.value)).toBe(110000);
+  });
+
+  it("does not restore unsaved payment purpose and date after preview reload", async () => {
+    getOpsBundle.mockResolvedValue(mockBundle());
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+    const purposeInput = element.shadowRoot.querySelector(
+      'lightning-combobox[data-field="purpose"]'
+    );
+    purposeInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "NonInvoice" } })
+    );
+    const dateInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="paymentDate"]'
+    );
+    dateInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "2026-01-01" } })
+    );
+    await flush();
+    element.preview = buildPreview();
+    await flush();
+    await openPaymentsTab(element);
+    expect(
+      element.shadowRoot.querySelector('lightning-combobox[data-field="purpose"]')
+        .value
+    ).toBe("Invoice");
+    expect(
+      element.shadowRoot.querySelector('lightning-input[data-field="paymentDate"]')
+        .value
+    ).toBe("2026-08-29");
   });
 });
