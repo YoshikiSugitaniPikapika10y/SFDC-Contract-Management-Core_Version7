@@ -260,7 +260,7 @@ public without sharing class InvoicePreviewOpsController {
     return buildOpsBundle(invoices[0]);
   }
 
-  /** 仕様: Core 第7.7.3節、第7.10節。専用の保存済みPDF一覧は返さない。閲覧は「PDFを見る」。 */
+  /** 仕様: Core 第7.7.3節、第7.10節。専用の保存済みPDF一覧は返さない。閲覧は「最新のPDFを見る」。 */
   public static OpsBundleDto getOpsBundle(Id invoiceId) {
     ContractPermissionUtil.assertViewInvoicePreview();
     if (invoiceId == null) {

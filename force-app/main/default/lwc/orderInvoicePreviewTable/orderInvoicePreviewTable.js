@@ -3509,14 +3509,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     });
   }
 
-  /** 仕様: 横断画面.md 操作21。発行画面で最新PDFをダウンロードする。PDFを見るは操作23。 */
+  /** 仕様: 共通基盤.md 操作21。発行画面で最新PDFをダウンロードする。最新のPDFを見るは操作23。 */
   issuedPdfDownloadUrl(documentId) {
     return documentId
       ? `/sfc/servlet.shepherd/document/download/${documentId}`
       : "";
   }
 
-  // 仕様: Core 第7.7.3節、第7.10節。印付きのうち最新の1つを標準 Files プレビューで開く。
+  // 仕様: Core 第7.7.3節、第7.10節。表示名は「最新のPDFを見る」。印付きのうち最新の1つを標準 Files プレビューで開く。
   handleViewIssuedPdf(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
     const documentId = this.findInvoice(invoiceId)?.latestIssuedContentDocumentId;

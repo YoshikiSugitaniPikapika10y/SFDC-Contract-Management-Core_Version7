@@ -156,7 +156,7 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
       : "";
   }
 
-  /** 仕様: 横断画面.md 操作4。発行画面で最新PDFをダウンロードする。独立の「PDFを見る」は置かない。 */
+  /** 仕様: 共通基盤.md 操作4。発行画面で最新PDFをダウンロードする。独立の「最新のPDFを見る」は置かない。 */
   get latestPdfDownloadUrl() {
     const documentId =
       this.issuedContentDocumentId || this.latestIssuedContentDocumentId;
