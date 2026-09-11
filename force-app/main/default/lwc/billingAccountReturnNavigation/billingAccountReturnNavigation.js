@@ -23,6 +23,51 @@ export const RETURN_CALLER_TARGETS = {
   }
 };
 
+/** Lightning の record Edit は custom state を落とすことがあるため、開き直し用に控える。 */
+const RETURN_STORAGE_KEY = "c.billingAccountFormalEdit.returnCaller";
+
+export function rememberReturnCaller(returnTo, returnRecordId) {
+  if (typeof sessionStorage === "undefined") {
+    return;
+  }
+  if (!returnTo || !returnRecordId) {
+    sessionStorage.removeItem(RETURN_STORAGE_KEY);
+    return;
+  }
+  sessionStorage.setItem(
+    RETURN_STORAGE_KEY,
+    JSON.stringify({ returnTo, returnRecordId })
+  );
+}
+
+export function consumeReturnCaller() {
+  if (typeof sessionStorage === "undefined") {
+    return { returnTo: "", returnRecordId: "" };
+  }
+  try {
+    const raw = sessionStorage.getItem(RETURN_STORAGE_KEY);
+    sessionStorage.removeItem(RETURN_STORAGE_KEY);
+    if (!raw) {
+      return { returnTo: "", returnRecordId: "" };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      returnTo: parsed.returnTo || "",
+      returnRecordId: parsed.returnRecordId || ""
+    };
+  } catch (e) {
+    sessionStorage.removeItem(RETURN_STORAGE_KEY);
+    return { returnTo: "", returnRecordId: "" };
+  }
+}
+
+function clearRememberedReturnCaller() {
+  if (typeof sessionStorage === "undefined") {
+    return;
+  }
+  sessionStorage.removeItem(RETURN_STORAGE_KEY);
+}
+
 /** 仕様: Core 第3.3.3節・第4.3.3節・第5.2節。呼び出し元へ戻すための Edit 遷移。 */
 export function buildBillingAccountFormalEditPageRef(
   recordId,
@@ -42,6 +87,8 @@ export function buildBillingAccountFormalEditPageRef(
       c__returnTo: returnTo,
       c__returnRecordId: returnRecordId
     };
+    // 仕様: Core 第3.3.3節。record Edit の state 欠落に備えて控えを残す。
+    rememberReturnCaller(returnTo, returnRecordId);
   }
   return pageRef;
 }
@@ -60,4 +107,23 @@ export function readReturnCallerFromPageRef(pageRef) {
     }
   }
   return { returnTo, returnRecordId };
+}
+
+/**
+ * 仕様: Core 第3.3.3節。
+ * @api → pageRef/URL → sessionStorage の順。pageRef で取れたら控えは捨てる。
+ */
+export function resolveReturnCaller({
+  returnTo = "",
+  returnRecordId = "",
+  pageRef = null
+} = {}) {
+  const fromPage = readReturnCallerFromPageRef(pageRef);
+  const resolvedTo = returnTo || fromPage.returnTo;
+  const resolvedId = returnRecordId || fromPage.returnRecordId;
+  if (resolvedTo && resolvedId) {
+    clearRememberedReturnCaller();
+    return { returnTo: resolvedTo, returnRecordId: resolvedId };
+  }
+  return consumeReturnCaller();
 }

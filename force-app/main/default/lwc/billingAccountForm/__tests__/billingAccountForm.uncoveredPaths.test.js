@@ -317,6 +317,37 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
     );
   });
 
+  it("handleCancel reopens from session when page state is missing (Core 3.3.3)", () => {
+    sessionStorage.setItem(
+      "c.billingAccountFormalEdit.returnCaller",
+      JSON.stringify({
+        returnTo: "estimateCreate",
+        returnRecordId: "006000000000001AAA"
+      })
+    );
+    const ctx = bind({
+      returnTo: "",
+      returnRecordId: "",
+      _pageRef: { attributes: { actionName: "edit" } }
+    });
+    ctx.handleCancel();
+    expect(ctx[Navigate]).toHaveBeenCalledWith(
+      {
+        type: "standard__quickAction",
+        attributes: {
+          apiName: "Opportunity.EstimateCreate"
+        },
+        state: {
+          objectApiName: "Opportunity",
+          context: "RECORD_DETAIL",
+          recordId: "006000000000001AAA",
+          backgroundContext: "/lightning/r/Opportunity/006000000000001AAA/view"
+        }
+      },
+      true
+    );
+  });
+
   it("cancel reopens estimate create when return caller is set (Core 3.3.3)", () => {
     const ctx = bind({
       returnTo: "estimateCreate",

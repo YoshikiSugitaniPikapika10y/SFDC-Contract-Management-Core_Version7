@@ -19,7 +19,7 @@ import PAYMENT_TERM_ADJUST_FIELD from "@salesforce/schema/BillingAccount__c.Paym
 import ACCOUNT_FIELD from "@salesforce/schema/BillingAccount__c.Account__c";
 import {
   RETURN_CALLER_TARGETS,
-  readReturnCallerFromPageRef
+  resolveReturnCaller
 } from "c/billingAccountReturnNavigation";
 
 export {
@@ -611,9 +611,11 @@ export default class BillingAccountForm extends NavigationMixin(
 
   /** 仕様: Core 第3.3.3節。未保存の呼び出し元入力は戻さない（開き直し）。 */
   navigateToReturnCaller() {
-    const fromPage = readReturnCallerFromPageRef(this._pageRef);
-    const returnTo = this.returnTo || fromPage.returnTo;
-    const returnRecordId = this.returnRecordId || fromPage.returnRecordId;
+    const { returnTo, returnRecordId } = resolveReturnCaller({
+      returnTo: this.returnTo,
+      returnRecordId: this.returnRecordId,
+      pageRef: this._pageRef
+    });
     const target = RETURN_CALLER_TARGETS[returnTo];
     if (!target || !returnRecordId) {
       return false;
