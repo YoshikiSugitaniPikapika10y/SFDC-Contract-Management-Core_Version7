@@ -368,6 +368,14 @@ describe("orderInvoicePreviewTable payment form", () => {
     );
     expect(purposeInput.value).toBe("Invoice");
     expect(String(amountInput.value)).toBe("1100");
+    expect(amountInput.fieldLevelHelp).toBe(
+      "初期値はカードの未入金額（税込）です。明細タブの金額は税抜です。"
+    );
+    expect(amountInput.label).toBe("金額");
+    const remainingHeader = Array.from(
+      element.shadowRoot.querySelectorAll(".ops-table_payments thead th")
+    ).find((cell) => cell.textContent.includes("処理可能残額"));
+    expect(remainingHeader.textContent.trim()).toBe("処理可能残額（税込）");
     const allocationInput = element.shadowRoot.querySelector(
       'lightning-input[data-line-id="a01LINE00000001"]'
     );

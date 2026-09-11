@@ -1175,6 +1175,7 @@
                     <lightning-input
                       type="number"
                       label="金額"
+                      field-level-help="初期値はカードの未入金額（税込）です。明細タブの金額は税抜です。"
                       step="1"
                       value={invoice.paymentDraftAmount}
                       data-invoice-id={invoice.invoiceId}
@@ -1359,7 +1360,7 @@
                       <thead>
                         <tr>
                           <th scope="col">明細</th>
-                          <th class="num-col" scope="col">処理可能残額</th>
+                          <th class="num-col" scope="col">処理可能残額（税込）</th>
                           <th class="num-col" scope="col">割当額</th>
                         </tr>
                       </thead>
