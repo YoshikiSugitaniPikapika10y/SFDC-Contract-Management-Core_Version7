@@ -427,6 +427,111 @@ private class InvoiceOpsControllerTest {
   }
 
   @IsTest
+  static void updateInvoiceMemo_cancelledInvoice_isRejected() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertOpsInvoice(
+        'Ops Memo Cancelled',
+        null,
+        null,
+        null
+      );
+      Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      try {
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED;
+        update invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+      }
+
+      Boolean rejected = false;
+      try {
+        InvoiceOpsController.updateInvoiceMemo(
+          invoice.Id,
+          '取消後メモ',
+          invoice.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assertEquals(
+          '取消済み請求のメモは編集できません。',
+          ex.getMessage(),
+          'Core 第7.7.0節: 取消済みはメモ編集の対象外'
+        );
+      }
+      System.assertEquals(true, rejected);
+    }
+  }
+
+  @IsTest
+  static void assertInvoicesInScope_lockedInvoiceAndNullHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertOpsInvoice(
+        'Ops Scope Locked',
+        null,
+        null,
+        null
+      );
+      Boolean missingHistory = false;
+      try {
+        InvoiceOpsController.assertInvoicesInScope(
+          null,
+          new List<Id>{ invoice.Id }
+        );
+      } catch (AuraHandledException ex) {
+        missingHistory = true;
+        System.assertEquals(
+          InvoiceOpsController.SCOPE_MISMATCH_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.7.3節: 契約履歴が無い請求操作は拒否'
+        );
+      }
+      System.assertEquals(true, missingHistory);
+
+      Invoice__c locked = new Invoice__c(
+        Id = invoice.Id,
+        ContractHistory__c = fakeHistoryId(),
+        ContractService__c = invoice.ContractService__c
+      );
+      Boolean lockedMismatch = false;
+      try {
+        InvoiceOpsController.assertInvoicesInScope(
+          invoice.ContractHistory__c,
+          new List<Id>{ invoice.Id },
+          locked
+        );
+      } catch (AuraHandledException ex) {
+        lockedMismatch = true;
+        System.assertEquals(
+          InvoiceOpsController.SCOPE_MISMATCH_MESSAGE,
+          ex.getMessage(),
+          'Core 第12.4節: 先行ロック済みでも契約履歴が違えば拒否'
+        );
+      }
+      System.assertEquals(true, lockedMismatch);
+
+      Boolean missingInvoice = false;
+      try {
+        InvoiceOpsController.updateInvoiceMemo(null, 'memo');
+      } catch (AuraHandledException ex) {
+        missingInvoice = true;
+        System.assertEquals('請求が指定されていません。', ex.getMessage());
+      }
+      System.assertEquals(true, missingInvoice);
+
+      System.assertEquals(
+        0,
+        InvoiceOpsController.markInvoiced(
+          invoice.ContractHistory__c,
+          new List<Id>(),
+          Date.today(),
+          'ops-empty-key'
+        )
+      );
+    }
+  }
+
+  @IsTest
   static void markInvoiced_emptyIds_returnsZero() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       System.assertEquals(
@@ -626,6 +731,11 @@ private class InvoiceOpsControllerTest {
       );
     }
     return invoice;
+  }
+
+  private static Id fakeHistoryId() {
+    return (Id) (ContractHistory__c.SObjectType.getDescribe().getKeyPrefix() +
+      '000000000001');
   }
 
   private static void insertOpsLine(Id invoiceId) {

@@ -1957,4 +1957,160 @@ private class EstimateDocumentServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void issueEstimateDocument_nullHistoryAndAttachmentHelpers() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Boolean missingThrown = false;
+      try {
+        EstimateDocumentService.issueEstimateDocument(null);
+      } catch (EstimateDocumentService.EstimateDocumentException ex) {
+        missingThrown = true;
+        System.assertEquals(
+          ContractDocumentSettingService.withDocumentSendHeading(
+            ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE
+          ),
+          ex.getMessage(),
+          'Core 第11.3.2節: キー空は発行できない'
+        );
+      }
+      System.assertEquals(true, missingThrown);
+
+      Boolean lockThrown = false;
+      try {
+        EstimateDocumentService.issueEstimateDocument(
+          null,
+          'StandardEstimate'
+        );
+      } catch (EstimateDocumentService.EstimateDocumentException ex) {
+        lockThrown = true;
+        System.assertEquals(
+          '契約履歴が指定されていません。',
+          ex.getMessage(),
+          'Core 第4.8節: 契約履歴が無い発行は拒否'
+        );
+      }
+      System.assertEquals(true, lockThrown);
+
+      Boolean issueDateThrown = false;
+      try {
+        EstimateDocumentService.ensureIssueDate(null);
+      } catch (EstimateDocumentService.EstimateDocumentException ex) {
+        issueDateThrown = true;
+        System.assertEquals(
+          '契約履歴が指定されていません。',
+          ex.getMessage(),
+          'Core 第4.10節: 発行日は履歴が無いと取れない'
+        );
+      }
+      System.assertEquals(true, issueDateThrown);
+
+      Date orgToday = InvoiceTransactionStatusService.organizationToday();
+      System.assertEquals(
+        String.valueOf(orgToday.year()) +
+          '_' +
+          String.valueOf(orgToday.month()).leftPad(2, '0') +
+          '_' +
+          String.valueOf(orgToday.day()).leftPad(2, '0'),
+        EstimateDocumentService.formatFileDate(null),
+        'Core 第11.3.2節: 発行日空のファイル日付は組織の本日'
+      );
+
+      EstimateDocumentService.FileOptionDto issued = new EstimateDocumentService.FileOptionDto();
+      issued.value = 'doc-1';
+      issued.fileName = 'issued-estimate.pdf';
+      issued.issued = true;
+      System.assertEquals(
+        EstimateDocumentService.ATTACHMENT_NEW,
+        EstimateDocumentService.initialAttachmentId(
+          new List<EstimateDocumentService.FileOptionDto>{ issued },
+          EstimateDocumentService.ATTACHMENT_NEW
+        ),
+        'Core 第7.10節: 新しく発行するを選んだ初期値'
+      );
+      System.assertEquals(
+        'new-issue.pdf',
+        EstimateDocumentService.fileNameForAttachment(
+          new List<EstimateDocumentService.FileOptionDto>{ issued },
+          EstimateDocumentService.ATTACHMENT_NEW,
+          'new-issue.pdf'
+        ),
+        'Core 第7.10節: 新しく発行するの添付名'
+      );
+      System.assertEquals(
+        'issued-estimate.pdf',
+        EstimateDocumentService.fileNameForAttachment(
+          new List<EstimateDocumentService.FileOptionDto>{ issued },
+          'doc-1',
+          'new-issue.pdf'
+        ),
+        'Core 第7.10節: 既存発行ファイルの添付名は Files の Title'
+      );
+
+      System.assertEquals(
+        'new-issue.pdf',
+        EstimateDocumentService.fileNameForAttachment(
+          new List<EstimateDocumentService.FileOptionDto>{ issued },
+          '',
+          'new-issue.pdf'
+        ),
+        'Core 第7.10節: 添付が空なら新しく発行するの名前'
+      );
+
+      System.assertEquals(
+        'new-issue.pdf',
+        EstimateDocumentService.fileNameForAttachment(
+          new List<EstimateDocumentService.FileOptionDto>{ issued },
+          'missing-doc',
+          'new-issue.pdf'
+        ),
+        'Core 第7.10節: 候補に無い添付は新しく発行するの名前'
+      );
+
+      ContractHistory__c namedHistory = new ContractHistory__c(
+        Name = 'DOC-HIST',
+        EstimateTitleName__c = '見積タイトル'
+      );
+      System.assert(
+        EstimateDocumentService.buildFileName(
+            namedHistory,
+            Date.newInstance(2026, 1, 2),
+            null
+          )
+          .endsWith('.pdf'),
+        'Core 第11.3.2節: 帳票無しのファイル名'
+      );
+      List<ContractDocumentTemplateService.TemplateDefinition> templates = ContractDocumentTemplateService.getActiveTemplates(
+        'Estimate'
+      );
+      System.assertEquals(false, templates.isEmpty());
+      ContractDocumentTemplateService.TemplateDefinition tmpl = templates[0];
+      tmpl.fileNamePattern = '{Title}_{yyyyMMdd}';
+      String patterned = EstimateDocumentService.buildFileName(
+        namedHistory,
+        Date.newInstance(2026, 1, 2),
+        tmpl
+      );
+      System.assertEquals(
+        true,
+        patterned.toLowerCase().endsWith('.pdf'),
+        'Core 第11.3.2節: パターンに拡張子が無くても pdf を付ける'
+      );
+
+      EstimateDocumentService.allocateGrandTaxToGroups(
+        new List<EstimateDocumentService.GroupDto>(),
+        0,
+        0
+      );
+      EstimateDocumentService.GroupDto blankGroup = new EstimateDocumentService.GroupDto(
+        'Empty'
+      );
+      EstimateDocumentService.allocateGrandTaxToGroups(
+        new List<EstimateDocumentService.GroupDto>{ null, blankGroup },
+        0,
+        1
+      );
+      System.assertEquals(0, blankGroup.taxAmount);
+    }
+  }
 }
