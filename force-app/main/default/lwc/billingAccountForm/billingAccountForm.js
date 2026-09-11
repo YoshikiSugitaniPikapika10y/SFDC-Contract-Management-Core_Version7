@@ -16,6 +16,18 @@ import PAYMENT_TERM_DAY_OF_MONTH_FIELD from "@salesforce/schema/BillingAccount__
 import PAYMENT_TERM_MONTH_OFFSET_FIELD from "@salesforce/schema/BillingAccount__c.PaymentTermMonthOffset__c";
 import PAYMENT_TERM_DAY_OFFSET_FIELD from "@salesforce/schema/BillingAccount__c.PaymentTermDayOffset__c";
 import PAYMENT_TERM_ADJUST_FIELD from "@salesforce/schema/BillingAccount__c.PaymentTermAdjust__c";
+import {
+  RETURN_CALLER_TARGETS,
+  readReturnCallerFromPageRef
+} from "c/billingAccountReturnNavigation";
+
+export {
+  RETURN_TO_ORDER,
+  RETURN_TO_ESTIMATE_CREATE,
+  RETURN_TO_ESTIMATE_EDIT,
+  RETURN_TO_ESTIMATE_COPY,
+  buildBillingAccountFormalEditPageRef
+} from "c/billingAccountReturnNavigation";
 
 export const METHOD_SAME_DAY = "SameDay";
 export const METHOD_ON_OR_AFTER = "OnOrAfterSpecifiedDay";
@@ -245,6 +257,12 @@ export default class BillingAccountForm extends NavigationMixin(
   @api objectApiName = "BillingAccount__c";
   /** 仕様: Core 第3.3.2節。Aura 上書きは new／edit。未指定はページ参照。 */
   @api formMode = "";
+  /**
+   * 仕様: Core 第3.3.3節。見積／受注からの戻り先。
+   * Aura 上書きが pageReference.state から渡す。未指定は CurrentPageReference。
+   */
+  @api returnTo = "";
+  @api returnRecordId = "";
   _defaultFieldValues = "";
 
   _pageRef;
@@ -534,6 +552,10 @@ export default class BillingAccountForm extends NavigationMixin(
     this.isSaving = false;
     this.errorMessage = "";
     this.dispatchEvent(new CloseActionScreenEvent());
+    // 仕様: Core 第3.3.3節。見積／受注からの導線は呼び出し元を開き直す。
+    if (this.navigateToReturnCaller()) {
+      return;
+    }
     const recordId = event.detail.id;
     this[NavigationMixin.Navigate]({
       type: "standard__recordPage",
@@ -560,6 +582,10 @@ export default class BillingAccountForm extends NavigationMixin(
       return;
     }
     this.dispatchEvent(new CloseActionScreenEvent());
+    // 仕様: Core 第3.3.3節。見積／受注からの導線は呼び出し元を開き直す。
+    if (this.navigateToReturnCaller()) {
+      return;
+    }
     if (this.recordId) {
       this[NavigationMixin.Navigate]({
         type: "standard__recordPage",
@@ -578,6 +604,34 @@ export default class BillingAccountForm extends NavigationMixin(
         actionName: "home"
       }
     });
+  }
+
+  /** 仕様: Core 第3.3.3節。未保存の呼び出し元入力は戻さない（開き直し）。 */
+  navigateToReturnCaller() {
+    const fromPage = readReturnCallerFromPageRef(this._pageRef);
+    const returnTo = this.returnTo || fromPage.returnTo;
+    const returnRecordId = this.returnRecordId || fromPage.returnRecordId;
+    const target = RETURN_CALLER_TARGETS[returnTo];
+    if (!target || !returnRecordId) {
+      return false;
+    }
+    const backgroundContext = `/lightning/r/${target.objectApiName}/${returnRecordId}/view`;
+    this[NavigationMixin.Navigate](
+      {
+        type: "standard__quickAction",
+        attributes: {
+          apiName: target.apiName
+        },
+        state: {
+          objectApiName: target.objectApiName,
+          context: "RECORD_DETAIL",
+          recordId: returnRecordId,
+          backgroundContext
+        }
+      },
+      true
+    );
+    return true;
   }
 
   handleOpenEdit() {

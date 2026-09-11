@@ -15,6 +15,10 @@ import {
   isBillingScheduleFieldVisible,
   paymentTermMethodHelp
 } from "c/billingAccountForm";
+import {
+  buildBillingAccountFormalEditPageRef,
+  RETURN_TO_ORDER
+} from "c/billingAccountReturnNavigation";
 
 const EMPTY_LABEL = "—";
 const DELIVERY_FIELD_API_SET = new Set(DELIVERY_FIELD_APIS);
@@ -83,6 +87,7 @@ export default class OrderCreateStepBilling extends NavigationMixin(
 
   /**
    * 仕様: Core 第5.2節。必須不足時は請求アカウントの正規編集画面へ誘導する。
+   * 保存・キャンセル後は受注を開き直す（第3.3.3節）。
    */
   @api
   openBillingAccountFormalEdit() {
@@ -90,14 +95,14 @@ export default class OrderCreateStepBilling extends NavigationMixin(
     if (!recordId || this.canUpdateBillingAccount === false) {
       return false;
     }
-    this[NavigationMixin.Navigate]({
-      type: "standard__recordPage",
-      attributes: {
+    const returnRecordId = this.context?.contractHistoryId || "";
+    this[NavigationMixin.Navigate](
+      buildBillingAccountFormalEditPageRef(
         recordId,
-        objectApiName: "BillingAccount__c",
-        actionName: "edit"
-      }
-    });
+        RETURN_TO_ORDER,
+        returnRecordId
+      )
+    );
     return true;
   }
 

@@ -6,6 +6,8 @@
   <aura:attribute name="pageReference" type="Object" />
   <aura:attribute name="formMode" type="String" default="new" />
   <aura:attribute name="defaultFieldValues" type="String" default="" />
+  <aura:attribute name="returnTo" type="String" default="" />
+  <aura:attribute name="returnRecordId" type="String" default="" />
   <aura:handler name="init" value="{!this}" action="{!c.syncMode}" />
   <aura:handler
     name="change"
@@ -23,6 +25,8 @@
       objectApiName="{!v.sObjectName}"
       formMode="{!v.formMode}"
       defaultFieldValues="{!v.defaultFieldValues}"
+      returnTo="{!v.returnTo}"
+      returnRecordId="{!v.returnRecordId}"
     />
   </div>
 </aura:component>

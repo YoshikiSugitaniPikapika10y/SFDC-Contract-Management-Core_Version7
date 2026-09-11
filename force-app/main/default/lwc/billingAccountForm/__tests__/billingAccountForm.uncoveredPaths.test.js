@@ -261,7 +261,61 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
     const ctx = bind();
     ctx.handleSuccess({ detail: { id: "a00NEW" } });
     expect(ctx.isSaving).toBe(false);
-    expect(ctx[Navigate]).toHaveBeenCalled();
+    expect(ctx[Navigate]).toHaveBeenCalledWith({
+      type: "standard__recordPage",
+      attributes: {
+        recordId: "a00NEW",
+        objectApiName: "BillingAccount__c",
+        actionName: "view"
+      }
+    });
+  });
+
+  it("handleSuccess reopens order when return caller is set (Core 3.3.3)", () => {
+    const ctx = bind({
+      returnTo: "order",
+      returnRecordId: "a0H000000000001AAA"
+    });
+    ctx.handleSuccess({ detail: { id: "a00BA" } });
+    expect(ctx[Navigate]).toHaveBeenCalledWith(
+      {
+        type: "standard__quickAction",
+        attributes: {
+          apiName: "ContractHistory__c.Order_Process"
+        },
+        state: {
+          objectApiName: "ContractHistory__c",
+          context: "RECORD_DETAIL",
+          recordId: "a0H000000000001AAA",
+          backgroundContext:
+            "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
+        }
+      },
+      true
+    );
+  });
+
+  it("cancel reopens estimate create when return caller is set (Core 3.3.3)", () => {
+    const ctx = bind({
+      returnTo: "estimateCreate",
+      returnRecordId: "006000000000001AAA"
+    });
+    ctx.handleCancel();
+    expect(ctx[Navigate]).toHaveBeenCalledWith(
+      {
+        type: "standard__quickAction",
+        attributes: {
+          apiName: "Opportunity.EstimateCreate"
+        },
+        state: {
+          objectApiName: "Opportunity",
+          context: "RECORD_DETAIL",
+          recordId: "006000000000001AAA",
+          backgroundContext: "/lightning/r/Opportunity/006000000000001AAA/view"
+        }
+      },
+      true
+    );
   });
 
   it("show invoice/payment offsets follow method (Core 7.2 / 7.5)", () => {

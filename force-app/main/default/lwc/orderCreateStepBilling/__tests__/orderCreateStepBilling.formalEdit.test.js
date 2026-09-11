@@ -69,6 +69,7 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
     const navigate = jest.fn();
     const element = {
       billingAccountId: "a00BA0000000001",
+      context: { contractHistoryId: "a0H000000000001AAA" },
       fieldDefinitions: [
         {
           apiName: "BillingAddressee__c",
@@ -96,6 +97,10 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
         recordId: "a00BA0000000001",
         objectApiName: "BillingAccount__c",
         actionName: "edit"
+      },
+      state: {
+        c__returnTo: "order",
+        c__returnRecordId: "a0H000000000001AAA"
       }
     });
 

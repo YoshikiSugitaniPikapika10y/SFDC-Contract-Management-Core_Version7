@@ -20,6 +20,12 @@ import {
   buildCreateServiceName
 } from "c/estimateWizardState";
 import { addDaysToIsoDate } from "c/estimateLineItemUtils";
+import {
+  buildBillingAccountFormalEditPageRef,
+  RETURN_TO_ESTIMATE_COPY,
+  RETURN_TO_ESTIMATE_CREATE,
+  RETURN_TO_ESTIMATE_EDIT
+} from "c/billingAccountReturnNavigation";
 
 const CS_BILLING_ACCOUNT_NAME_FIELD =
   "ContractService__c.BiilingAcccount__r.Name";
@@ -48,6 +54,10 @@ export default class EstimateCreateModal2 extends NavigationMixin(
 ) {
   @api recordId;
   @api editMode = false;
+  /** 仕様: Core 第4.3.3節。正規Editからの戻り先（編集元の契約履歴）。 */
+  @api editHistoryId = "";
+  /** 仕様: Core 第4.3.3節。正規Editからの戻り先（コピー元の契約履歴）。 */
+  @api copyFromHistoryId = "";
   @api orderedCustomFieldsOnly = false;
   @api selectedType = "";
   @api loadingContractHistory = false;
@@ -870,21 +880,40 @@ export default class EstimateCreateModal2 extends NavigationMixin(
     this.emitChange({ billingAccountId: "" });
   }
 
-  /** 仕様: Core 第4.3.3節。19 が無ければ遷移は出さない。 */
+  /** 仕様: Core 第4.3.3節。19 が無ければ遷移は出さない。保存・キャンセル後は見積を開き直す。 */
   handleOpenBillingAccountFormalEdit() {
     const recordId = this.billingAccountId;
     if (!recordId || this.canUpdateBillingAccount === false) {
       return false;
     }
-    this[NavigationMixin.Navigate]({
-      type: "standard__recordPage",
-      attributes: {
-        recordId,
-        objectApiName: "BillingAccount__c",
-        actionName: "edit"
-      }
-    });
+    const { returnTo, returnRecordId } = this.resolveBillingAccountReturnCaller();
+    this[NavigationMixin.Navigate](
+      buildBillingAccountFormalEditPageRef(recordId, returnTo, returnRecordId)
+    );
     return true;
+  }
+
+  /** 仕様: Core 第3.3.3節・第4.3.3節。未保存入力は戻さない。 */
+  resolveBillingAccountReturnCaller() {
+    if (this.editMode && this.editHistoryId) {
+      return {
+        returnTo: RETURN_TO_ESTIMATE_EDIT,
+        returnRecordId: this.editHistoryId
+      };
+    }
+    if (this.copyFromHistoryId) {
+      return {
+        returnTo: RETURN_TO_ESTIMATE_COPY,
+        returnRecordId: this.copyFromHistoryId
+      };
+    }
+    if (this.recordId) {
+      return {
+        returnTo: RETURN_TO_ESTIMATE_CREATE,
+        returnRecordId: this.recordId
+      };
+    }
+    return { returnTo: "", returnRecordId: "" };
   }
 
   handleAllowOtherAccountBillingChange(event) {

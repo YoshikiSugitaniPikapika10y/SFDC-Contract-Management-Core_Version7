@@ -508,7 +508,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> LWC <code>billingAccountForm</code>
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> Aura <code>billingAccountFormOverride</code>（New／Edit。<code>lightning:actionOverride</code>）
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> View は <code>BillingAccount_RecordPage</code>。<code>orderCreateStepBilling</code>
-／ 見積・受注からの戻りは <code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>。呼び出し元の開き直し。埋め込みはしない。計算 Apex は新設しない。削除は標準。
+／ 見積・受注からの戻りは <code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>。<code>billingAccountReturnNavigation</code> の戻り先キーで呼び出し元の Quick Action を開き直す。埋め込みはしない。計算 Apex は新設しない。削除は標準。
 </div>
 
 #### 3.3.3 編集
