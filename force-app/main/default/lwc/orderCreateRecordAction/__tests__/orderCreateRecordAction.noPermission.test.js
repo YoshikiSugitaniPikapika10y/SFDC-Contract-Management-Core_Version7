@@ -2,6 +2,11 @@ import { createElement } from "lwc";
 import OrderCreateRecordAction from "c/orderCreateRecordAction";
 
 jest.mock(
+  "lightning/actions",
+  () => ({ CloseActionScreenEvent: class CloseActionScreenEvent {} }),
+  { virtual: true }
+);
+jest.mock(
   "@salesforce/customPermission/Loop_06_Can_Order",
   () => ({ __esModule: true, default: false }),
   { virtual: true }
