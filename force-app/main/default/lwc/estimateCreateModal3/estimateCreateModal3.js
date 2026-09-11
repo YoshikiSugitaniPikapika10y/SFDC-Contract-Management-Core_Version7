@@ -525,22 +525,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   get stepBusyBannerMessage() {
-    if (this.accountingPolicyResolved !== true) {
-      return "会計方針を読み込んでいます。完了するまで『次へ』『保存』はできません。";
-    }
-    if (this.isLoadingDates) {
-      return "契約期間を読み込んでいます。完了するまで内容は確定しません。";
-    }
-    if (this.isLoadingChangeProducts || this.isLoadingRenewProducts) {
-      return "商品明細を読み込んでいます。完了するまで表示内容は保存対象と一致しません。";
-    }
-    if (this._productDefaultsInFlight > 0) {
-      return "選択した商品の情報を取得しています。完了するまで保存しないでください。";
-    }
-    if (this._bootstrapInFlight) {
-      return "商品明細を更新しています。完了するまで保存しないでください。";
-    }
-    return "商品明細を更新しています。";
+    return "読み込み中";
   }
 
   /**

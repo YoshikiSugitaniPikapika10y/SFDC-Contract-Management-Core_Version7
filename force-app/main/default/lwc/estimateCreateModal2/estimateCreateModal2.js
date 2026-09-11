@@ -352,7 +352,7 @@ export default class EstimateCreateModal2 extends NavigationMixin(
       return "商談に取引先がないため、請求アカウントを選べません。";
     }
     if (this.relatedBillingAccounts.length === 0) {
-      return "対象がありません。他の取引先から選ぶ場合は下のチェックをオンにしてください。";
+      return "対象がありません。";
     }
     return "";
   }
