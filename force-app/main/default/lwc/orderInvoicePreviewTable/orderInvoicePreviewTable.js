@@ -685,8 +685,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       quantityUnitPriceRoundingMode: value?.quantityUnitPriceRoundingMode,
       amountRoundingMode: value?.amountRoundingMode
     });
-    // サーバ反映後は draft を捨てて正本表示に戻す
+    // 仕様: Core 第7.7.0節。保存成功・版不一致の読み直しで未保存ドラフトは戻さない。
     this.amountDrafts = {};
+    this.memoDrafts = {};
     this.invoiceSplitState = null;
     this.invoiceMoveState = null;
     this.invoiceDestinationChoiceState = null;
@@ -697,6 +698,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.journalExtraDrafts = {};
     this.invoiceSendState = null;
     this.invoiceIssueState = null;
+    this.invoiceCancelState = null;
     this.handleCloseUnitPriceFormula();
     this.applyDefaultVersionFilter();
     this.initializeInvoiceUiState();
@@ -728,7 +730,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         error: previous?.error || "",
         // 仕様: Core 第7.7.0節。保存成功・版不一致の読み直しで未保存の入金下書きは戻さない。
         paymentDraft: this.newPaymentDraft(invoice.invoiceId),
-        cancelDraft: previous?.cancelDraft || null
+        cancelDraft: null
       };
     }
     Object.keys(next).forEach((invoiceId) => {

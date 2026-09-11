@@ -21,7 +21,11 @@ public without sharing class AccountingCauseLockService {
     return String.isBlank(provided) ? issueOperationKey() : provided.trim();
   }
 
-  /** 仕様: Core 第4.3.12節。見積編集・受注・差し戻し・手動Archiveは契約履歴を行ロックする。 */
+  /**
+   * 仕様: Core 第4.3.12節・第12.4節。
+   * 見積編集・受注・差し戻し・手動Archiveは契約履歴を行ロックする。
+   * 版比較用に配下見積商品の更新日時も同じ照会で載せる（MAX を取り直さない）。
+   */
   public static ContractHistory__c lockHistory(Id historyId) {
     if (historyId == null) {
       throw new LockException('契約履歴が指定されていません。');
@@ -39,7 +43,8 @@ public without sharing class AccountingCauseLockService {
         LastModifiedDate,
         CreateRenewOpportunity__c,
         RenewOpportunityRequestCount__c,
-        RenewalOpportunity__c
+        RenewalOpportunity__c,
+        (SELECT Id, LastModifiedDate FROM ContractHistoryContractProducts__r)
       FROM ContractHistory__c
       WHERE Id = :historyId
       WITH SYSTEM_MODE

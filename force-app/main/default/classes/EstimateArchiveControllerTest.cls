@@ -185,16 +185,42 @@ private class EstimateArchiveControllerTest {
 
       System.assertEquals(history.Id, result.contractHistoryId);
       System.assertEquals('Archive', result.historyStatus);
+      System.assertEquals(
+        'archive-key-1',
+        result.businessOperationKey,
+        'Core 第4.3.12節: 手動Archiveの操作キーを返す'
+      );
       ContractHistory__c archived = [
-        SELECT historystatus__c, PreviousHistory__c
+        SELECT historystatus__c, PreviousHistory__c, BusinessOperationKey__c
         FROM ContractHistory__c
         WHERE Id = :history.Id
       ];
       System.assertEquals('Archive', archived.historystatus__c);
       System.assertEquals(
+        'archive-key-1',
+        archived.BusinessOperationKey__c,
+        'Core 第4.3.12節: 手動Archiveの操作キーを契約履歴へ残す'
+      );
+      System.assertEquals(
         null,
         archived.PreviousHistory__c,
-        '手動 Archive でも前回契約履歴は Null'
+        'Core 第5.5節: 手動・受注時自動のどちらでも Archive 遷移時に PreviousHistory を null にする'
+      );
+      String id18 = String.valueOf(history.Id);
+      String id15 = id18.substring(0, 15);
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM ContractOperationLog__c
+          WHERE
+            OperationType__c = 'EstimateArchive'
+            AND (
+              TargetRecordId__c = :id18
+              OR TargetRecordId__c = :id15
+            )
+        ],
+        '共通基盤第12章: 手動ArchiveはEstimateArchive 1行'
       );
     }
   }
@@ -313,12 +339,13 @@ private class EstimateArchiveControllerTest {
       ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
         locked.Id,
         token,
-        locked.LastModifiedDate
+        locked.LastModifiedDate,
+        locked.ContractHistoryContractProducts__r
       );
       System.assertEquals(
-        1,
+        0,
         Limits.getQueries() - queriesBefore,
-        'Core 第12.4節: ロック済み契約履歴の更新日時は取り直さない'
+        'Core 第12.4節: ロック照会の配下見積商品 MAX は取り直さない'
       );
       EstimateArchiveController.ArchiveResult result = EstimateArchiveController.archiveEstimate(
         history.Id,
@@ -327,6 +354,21 @@ private class EstimateArchiveControllerTest {
       );
       Test.stopTest();
       System.assertEquals('Archive', result.historyStatus);
+      System.assertEquals(
+        'archive-lock-lmd-key',
+        result.businessOperationKey,
+        'Core 第4.3.12節: 手動Archiveの操作キーを返す'
+      );
+      System.assertEquals(
+        null,
+        [
+          SELECT PreviousHistory__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .PreviousHistory__c,
+        'Core 第5.5節: Archive 遷移時に PreviousHistory を null にする'
+      );
     }
   }
 
@@ -511,6 +553,16 @@ private class EstimateArchiveControllerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        'Estimate',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .historystatus__c,
+        'Core 第4.3.12節: 比較値未指定の拒否後も Estimate のまま'
+      );
     }
   }
 
@@ -558,6 +610,22 @@ private class EstimateArchiveControllerTest {
         'archive-retry-key',
         retry.businessOperationKey,
         'Core 第4.3.12節: 同じキーの再試行は1件のままにする'
+      );
+      ContractHistory__c archived = [
+        SELECT historystatus__c, PreviousHistory__c, BusinessOperationKey__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      System.assertEquals('Archive', archived.historystatus__c);
+      System.assertEquals(
+        null,
+        archived.PreviousHistory__c,
+        'Core 第5.5節: Archive 遷移時に PreviousHistory を null にする'
+      );
+      System.assertEquals(
+        'archive-retry-key',
+        archived.BusinessOperationKey__c,
+        'Core 第4.3.12節: 同じキーの再試行でも操作キーは1件のまま'
       );
       System.assertEquals(
         1,
@@ -688,6 +756,66 @@ private class EstimateArchiveControllerTest {
         'Core 第5.5節: 手動Archiveは見積を消さない。商談参照を外すのは差し戻しの更新商談削除だけ'
       );
       System.assertEquals(null, archived.PreviousHistory__c);
+    }
+  }
+
+  @IsTest
+  static void archiveEstimate_staleToken_throwsConflict() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Archive Stale Token Account'
+      );
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Archive Stale Token Service'
+      );
+      ContractHistory__c history = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Archive Stale Token History',
+        'New',
+        1,
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2027, 5, 31),
+        Date.newInstance(2026, 6, 1),
+        null
+      );
+      EstimateArchiveController.ArchiveContext context = EstimateArchiveController.getArchiveContext(
+        history.Id
+      );
+      String staleToken = context.lastModifiedToken;
+      insertLine(history.Id, account.Id, 'New');
+
+      Boolean thrown = false;
+      try {
+        EstimateArchiveController.archiveEstimate(
+          history.Id,
+          staleToken,
+          'archive-stale-key'
+        );
+        System.assert(
+          false,
+          'Core 第4.3.12節: 版が変わった比較値では手動Archiveを拒否する'
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage(),
+          'Core 第4.3.12節: 古い比較値は CONFLICT_MESSAGE'
+        );
+      }
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        'Estimate',
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .historystatus__c,
+        'Core 第4.3.12節: 古い比較値の拒否後も Estimate のまま'
+      );
     }
   }
 

@@ -114,6 +114,16 @@ public without sharing class InvoiceProductGenerationService {
   }
 
   /**
+   * 仕様: Core 第12.4節。同一処理で載せた請求アカウントを取り直さない。
+   */
+  public static BillingAccount__c billingAccountCached(Id billingAccountId) {
+    if (billingAccountId == null) {
+      return null;
+    }
+    return cachedBillingAccountsById.get(billingAccountId);
+  }
+
+  /**
    * 仕様: Core 第5.2節、第12.4節。
    * 受注検証で読んだ見積商品・履歴・請求アカウントを生成へ渡す。
    */

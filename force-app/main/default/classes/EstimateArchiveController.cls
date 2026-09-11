@@ -95,10 +95,12 @@ public without sharing class EstimateArchiveController {
         '見積状態の契約履歴のみ不採用にできます。'
       );
     }
+    // 仕様: Core 第4.3.12節・第12.4節。ロック照会の配下見積商品 MAX は取り直さない。
     ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
       history.Id,
       expectedLastModifiedToken,
-      history.LastModifiedDate
+      history.LastModifiedDate,
+      history.ContractHistoryContractProducts__r
     );
 
     history.historystatus__c = HISTORY_STATUS_ARCHIVE;

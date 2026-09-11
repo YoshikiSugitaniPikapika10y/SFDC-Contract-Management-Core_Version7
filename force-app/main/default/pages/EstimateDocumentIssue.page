@@ -88,12 +88,32 @@
     </apex:outputPanel>
   </apex:form>
   <script>
+    // 仕様: Core 第4.8節・第7.10節。ハブ iframe 内では親へ渡し、標準オーバーレイ／送付 Quick Action を開く。
+    var ISSUE_MSG_SOURCE = "EstimateDocumentIssue";
+    function postToEstimateHub(payload) {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(payload, window.location.origin);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
     function openIssuedPreviewIfAny() {
       var el = document.getElementById("issuedPreviewDocumentId");
       var documentId = el
         ? String(el.textContent || "").replace(/^\s+|\s+$/g, "")
         : "";
       if (!documentId) {
+        return;
+      }
+      if (
+        postToEstimateHub({
+          source: ISSUE_MSG_SOURCE,
+          action: "filePreview",
+          documentId: documentId
+        })
+      ) {
         return;
       }
       var path =
@@ -118,6 +138,16 @@
           documentId
         );
       } catch (e) {}
+      if (
+        postToEstimateHub({
+          source: ISSUE_MSG_SOURCE,
+          action: "sendThisFile",
+          documentId: documentId,
+          historyId: historyId
+        })
+      ) {
+        return;
+      }
       window.location =
         "/lightning/action/quick/ContractHistory__c.Estimate_Send?recordId=" +
         encodeURIComponent(historyId);

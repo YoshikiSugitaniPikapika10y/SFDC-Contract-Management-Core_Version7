@@ -9,6 +9,8 @@ public without sharing class ContractOrderValidationService {
 
   private static Map<Id, Id> rememberedBillingAccountIdByServiceId = new Map<Id, Id>();
   private static Map<Id, List<ContractProduct__c>> rememberedProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
+  // 仕様: Core 第12.4節。同一処理で読んだ請求アカウント項目 Map を取り直さない。
+  private static Map<Id, Map<String, Object>> rememberedBillingFieldsByAccountId = new Map<Id, Map<String, Object>>();
 
   public static final String BILLING_ACCOUNT_MISSING_MESSAGE = '請求アカウントが未設定のため受注できません。';
   public static final String PRODUCTS_MISSING_MESSAGE = '見積商品がないため受注できません。';
@@ -156,9 +158,6 @@ public without sharing class ContractOrderValidationService {
         billingAccountIds.add(billingAccountId);
       }
     }
-    Map<Id, Map<String, Object>> billingFieldsByAccountId = loadBillingCustomFieldsById(
-      billingAccountIds
-    );
 
     Map<Id, List<ContractProduct__c>> productsByHistoryId = new Map<Id, List<ContractProduct__c>>();
     if (!historyIdsForProducts.isEmpty()) {
@@ -174,6 +173,7 @@ public without sharing class ContractOrderValidationService {
         }
       }
       if (!missingProductHistoryIds.isEmpty()) {
+        // 仕様: Core 第12.4節。見積商品と請求アカウントを先に載せ、請求日ルール照会を重ねない。
         InvoiceProductGenerationService.primeCachesForHistories(
           missingProductHistoryIds
         );
@@ -186,6 +186,10 @@ public without sharing class ContractOrderValidationService {
         }
       }
     }
+
+    Map<Id, Map<String, Object>> billingFieldsByAccountId = loadBillingCustomFieldsById(
+      billingAccountIds
+    );
 
     for (ContractHistory__c history : histories) {
       if (history == null) {
@@ -414,11 +418,38 @@ public without sharing class ContractOrderValidationService {
     return keys;
   }
 
+  /**
+   * 仕様: Core 第12.4節・第5.2節・第7.2節。
+   * 同一処理で読んだ請求アカウント（請求日ルール含む）を取り直さない。
+   */
   private static Map<Id, Map<String, Object>> loadBillingCustomFieldsById(
     Set<Id> billingAccountIds
   ) {
     Map<Id, Map<String, Object>> fieldsById = new Map<Id, Map<String, Object>>();
     if (billingAccountIds == null || billingAccountIds.isEmpty()) {
+      return fieldsById;
+    }
+    Set<Id> missingIds = new Set<Id>();
+    for (Id accountId : billingAccountIds) {
+      if (rememberedBillingFieldsByAccountId.containsKey(accountId)) {
+        fieldsById.put(
+          accountId,
+          rememberedBillingFieldsByAccountId.get(accountId)
+        );
+      } else {
+        BillingAccount__c cached = InvoiceProductGenerationService.billingAccountCached(
+          accountId
+        );
+        if (cached != null) {
+          Map<String, Object> fromCache = billingFieldsFromAccount(cached);
+          fieldsById.put(accountId, fromCache);
+          rememberedBillingFieldsByAccountId.put(accountId, fromCache);
+        } else {
+          missingIds.add(accountId);
+        }
+      }
+    }
+    if (missingIds.isEmpty()) {
       return fieldsById;
     }
     for (BillingAccount__c loaded : [
@@ -441,19 +472,30 @@ public without sharing class ContractOrderValidationService {
         PaymentTermDayOffset__c,
         PaymentTermAdjust__c
       FROM BillingAccount__c
-      WHERE Id IN :billingAccountIds
+      WHERE Id IN :missingIds
       WITH SYSTEM_MODE
     ]) {
-      Map<String, Object> values = new Map<String, Object>();
-      values.put('BillingAddressee__c', loaded.BillingAddressee__c);
-      values.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
-      values.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
-      values.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
-      for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
-        values.put(fieldApiName, loaded.get(fieldApiName));
-      }
+      Map<String, Object> values = billingFieldsFromAccount(loaded);
       fieldsById.put(loaded.Id, values);
+      rememberedBillingFieldsByAccountId.put(loaded.Id, values);
     }
     return fieldsById;
+  }
+
+  private static Map<String, Object> billingFieldsFromAccount(
+    BillingAccount__c loaded
+  ) {
+    Map<String, Object> values = new Map<String, Object>();
+    if (loaded == null) {
+      return values;
+    }
+    values.put('BillingAddressee__c', loaded.BillingAddressee__c);
+    values.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
+    values.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
+    values.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
+    for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
+      values.put(fieldApiName, loaded.get(fieldApiName));
+    }
+    return values;
   }
 }

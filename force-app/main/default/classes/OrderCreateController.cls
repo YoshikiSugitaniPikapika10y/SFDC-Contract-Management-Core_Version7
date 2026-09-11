@@ -3758,6 +3758,10 @@ public without sharing class OrderCreateController {
     return ', ' + String.join(validatedFields, ', ');
   }
 
+  /**
+   * 仕様: Core 第12.4節・第4.3.11節・第5.2節・第7.2節。
+   * 受注を開く取得で載せた請求アカウントの請求日ルール・宛先を取り直さない。
+   */
   private static Map<String, Object> buildBillingCustomFields(
     BillingAccount__c billingAccount
   ) {
@@ -3766,44 +3770,14 @@ public without sharing class OrderCreateController {
       return values;
     }
 
-    List<BillingAccount__c> billingAccounts = [
-      SELECT
-        BillingAddressee__c,
-        BillingEmailTo__c,
-        BillingEmailCc__c,
-        BillingEmailBcc__c,
-        InvoiceDeliveryMethod__c,
-        BillingAccountKey__c,
-        InvoiceDateMethod__c,
-        InvoiceDateDayKind__c,
-        InvoiceDateDayOfMonth__c,
-        InvoiceDateMonthOffset__c,
-        InvoiceDateDayOffset__c,
-        InvoiceDateAdjust__c,
-        PaymentTermMethod__c,
-        PaymentTermDayKind__c,
-        PaymentTermDayOfMonth__c,
-        PaymentTermMonthOffset__c,
-        PaymentTermDayOffset__c,
-        PaymentTermAdjust__c
-      FROM BillingAccount__c
-      WHERE Id = :billingAccount.Id
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    if (billingAccounts.isEmpty()) {
-      return values;
-    }
-
-    BillingAccount__c loaded = billingAccounts[0];
-    values.put('BillingAddressee__c', loaded.BillingAddressee__c);
-    values.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
-    values.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
-    values.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
-    values.put('InvoiceDeliveryMethod__c', loaded.InvoiceDeliveryMethod__c);
-    values.put('BillingAccountKey__c', loaded.BillingAccountKey__c);
+    values.put('BillingAddressee__c', billingAccount.BillingAddressee__c);
+    values.put('BillingEmailTo__c', billingAccount.BillingEmailTo__c);
+    values.put('BillingEmailCc__c', billingAccount.BillingEmailCc__c);
+    values.put('BillingEmailBcc__c', billingAccount.BillingEmailBcc__c);
+    values.put('InvoiceDeliveryMethod__c', billingAccount.InvoiceDeliveryMethod__c);
+    values.put('BillingAccountKey__c', billingAccount.BillingAccountKey__c);
     for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
-      values.put(fieldApiName, loaded.get(fieldApiName));
+      values.put(fieldApiName, billingAccount.get(fieldApiName));
     }
     return values;
   }

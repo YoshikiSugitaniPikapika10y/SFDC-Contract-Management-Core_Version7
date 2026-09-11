@@ -739,6 +739,43 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     expect(blocked.editBlockedMessage).toBe("この操作の権限がありません。");
   });
 
+  it("読み直しでメモ・入金取消・請求取消の未保存下書きを戻さない (Core 7.7.0)", () => {
+    const ctx = bind({
+      memoDrafts: { [CONFIRMED]: "下書きメモ" },
+      invoiceCancelState: {
+        invoiceId: CONFIRMED,
+        cancellationReason: "Duplicate"
+      },
+      invoiceUiState: {
+        [CONFIRMED]: {
+          activeTab: "payments",
+          bundle: null,
+          loading: false,
+          error: "",
+          paymentDraft: null,
+          cancelDraft: {
+            paymentId: "a02PAY000000001",
+            cancellationReason: "Duplicate"
+          }
+        }
+      },
+      invoiceSendState: { invoiceId: CONFIRMED },
+      invoiceIssueState: { invoiceId: CONFIRMED },
+      amountDrafts: { a01: 1 },
+      loadOpsBundle: jest.fn()
+    });
+    Object.getOwnPropertyDescriptor(proto, "preview").set.call(ctx, preview());
+    expect(ctx.memoDrafts).toEqual({});
+    expect(ctx.invoiceCancelState).toBeNull();
+    expect(ctx.invoiceSendState).toBeNull();
+    expect(ctx.invoiceIssueState).toBeNull();
+    expect(ctx.amountDrafts).toEqual({});
+    expect(ctx.invoiceUiState[CONFIRMED].cancelDraft).toBeNull();
+    expect(ctx.invoiceUiState[CONFIRMED].paymentDraft).toEqual(
+      expect.objectContaining({ purpose: "Invoice" })
+    );
+  });
+
   it("メモ保存・タブ・フィルタ・入金割当の未踏経路 (Core 7.7.3 / 8.3)", async () => {
     const ctx = bind({
       preview: preview(),
