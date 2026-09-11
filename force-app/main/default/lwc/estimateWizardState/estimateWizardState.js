@@ -339,6 +339,7 @@ function reduceSetType(state, action) {
     data.baseHistoryVersion = state.data.baseHistoryVersion;
     data.nextHistoryVersion = state.data.nextHistoryVersion;
     data.billingAccountId = state.data.billingAccountId;
+    data.taxPercent = state.data.taxPercent;
     data.renewEligible = state.data.renewEligible;
     data.estimateSendContactId = previousSendContactId;
     data.contractHistoryName = buildCreateHistoryName(

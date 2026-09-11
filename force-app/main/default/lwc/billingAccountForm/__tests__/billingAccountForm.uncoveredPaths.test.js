@@ -112,6 +112,11 @@ jest.mock(
   () => ({ default: { fieldApiName: "PaymentTermAdjust__c" } }),
   { virtual: true }
 );
+jest.mock(
+  "@salesforce/schema/BillingAccount__c.Account__c",
+  () => ({ default: { fieldApiName: "Account__c" } }),
+  { virtual: true }
+);
 
 const proto = BillingAccountForm.prototype;
 const Navigate = Symbol.for("NavigationMixin.Navigate");
@@ -240,6 +245,23 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
     ctx[Navigate].mockClear();
     ctx.handleCancel();
     expect(ctx[Navigate]).not.toHaveBeenCalled();
+  });
+
+  it("wiredRecord keeps Account__c for Edit display (Core 3.3.2)", () => {
+    const ctx = bind({ draft: {} });
+    getFieldValue.mockImplementation((_data, field) => {
+      const api = field?.fieldApiName || field?.default?.fieldApiName;
+      if (api === "Account__c") {
+        return "001ACC000000001";
+      }
+      if (api === "InvoiceDateMethod__c" || api === "PaymentTermMethod__c") {
+        return METHOD_SAME_DAY;
+      }
+      return null;
+    });
+    ctx.wiredRecord({ data: { fields: {} } });
+    expect(ctx.draft.Account__c).toBe("001ACC000000001");
+    expect(ctx.accountIdValue).toBe("001ACC000000001");
   });
 
   it("open edit requires updateable (共通基盤 10.4)", () => {

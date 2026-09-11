@@ -348,6 +348,7 @@ describe("estimateCreateModal2 uncovered paths (Core 0.1 / 3.2 / 4.3 / 4.3.3)", 
         }
       ]
     });
+    expect(ctx.activeContractServices[0].taxPercent).toBe(8);
     const select = ctx.dispatchEvent.mock.calls.find(
       (call) => call[0].type === "serviceselect"
     );
@@ -356,6 +357,13 @@ describe("estimateCreateModal2 uncovered paths (Core 0.1 / 3.2 / 4.3 / 4.3.3)", 
       contractServiceName: "唯一サービス",
       serviceLifecycle: "Term"
     });
+    const billing = ctx.dispatchEvent.mock.calls.find(
+      (call) =>
+        call[0].type === "changefield" &&
+        Object.prototype.hasOwnProperty.call(call[0].detail || {}, "taxPercent")
+    );
+    expect(billing[0].detail.taxPercent).toBe(8);
+    expect(billing[0].detail.billingAccountId).toBe("a00BA");
   });
 
   it("clears other-account billing when opportunity account is missing", () => {

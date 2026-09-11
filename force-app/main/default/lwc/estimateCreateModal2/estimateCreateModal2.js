@@ -670,6 +670,10 @@ export default class EstimateCreateModal2 extends NavigationMixin(
       version: item.version,
       billingAccountId: item.billingAccountId || "",
       billingAccountName: item.billingAccountName || "",
+      taxPercent:
+        item.taxPercent == null || item.taxPercent === ""
+          ? null
+          : Number(item.taxPercent),
       currentProductNames: item.currentProductNames || ""
     }));
     this.maybeAutoSelectContractService();

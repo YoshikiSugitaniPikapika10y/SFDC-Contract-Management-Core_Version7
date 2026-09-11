@@ -202,7 +202,7 @@ describe("SET_TYPE", () => {
     expect(state.data.selectedProducts).toEqual([]);
   });
 
-  it("サービス選択後の操作選択では契約サービスを維持する", () => {
+  it("サービス選択後の操作選択では契約サービスと税率を維持する", () => {
     let state = createInitialWizardState();
     state = dispatch(state, {
       type: WIZARD_ACTIONS.SET_ENTRY_MODE,
@@ -215,6 +215,14 @@ describe("SET_TYPE", () => {
       contractServiceName: "継続サービス",
       serviceLifecycle: "Term"
     });
+    state = {
+      ...state,
+      data: {
+        ...state.data,
+        billingAccountId: "a00BA",
+        taxPercent: 8
+      }
+    };
     state = dispatch(state, {
       type: WIZARD_ACTIONS.SET_TYPE,
       selectedType: "Change"
@@ -222,6 +230,8 @@ describe("SET_TYPE", () => {
     expect(state.data.selectedType).toBe("Change");
     expect(state.data.contractServiceId).toBe("svc1");
     expect(state.data.serviceLifecycle).toBe("Term");
+    expect(state.data.billingAccountId).toBe("a00BA");
+    expect(state.data.taxPercent).toBe(8);
     state = dispatch(state, {
       type: WIZARD_ACTIONS.SET_TYPE,
       selectedType: "Renew"
@@ -229,6 +239,7 @@ describe("SET_TYPE", () => {
     expect(state.data.selectedType).toBe("Renew");
     expect(state.data.contractServiceId).toBe("");
     expect(state.data.serviceLifecycle).toBe("");
+    expect(state.data.taxPercent).toBeNull();
   });
 
   it("作成の履歴名初期値は種別によらず商談名の契約履歴", () => {

@@ -16,6 +16,7 @@ import PAYMENT_TERM_DAY_OF_MONTH_FIELD from "@salesforce/schema/BillingAccount__
 import PAYMENT_TERM_MONTH_OFFSET_FIELD from "@salesforce/schema/BillingAccount__c.PaymentTermMonthOffset__c";
 import PAYMENT_TERM_DAY_OFFSET_FIELD from "@salesforce/schema/BillingAccount__c.PaymentTermDayOffset__c";
 import PAYMENT_TERM_ADJUST_FIELD from "@salesforce/schema/BillingAccount__c.PaymentTermAdjust__c";
+import ACCOUNT_FIELD from "@salesforce/schema/BillingAccount__c.Account__c";
 import {
   RETURN_CALLER_TARGETS,
   readReturnCallerFromPageRef
@@ -62,6 +63,7 @@ export const DELIVERY_FIELD_APIS = [
 ];
 
 const RECORD_FIELDS = [
+  ACCOUNT_FIELD,
   INVOICE_DATE_METHOD_FIELD,
   INVOICE_DATE_DAY_KIND_FIELD,
   INVOICE_DATE_DAY_OF_MONTH_FIELD,
@@ -319,6 +321,7 @@ export default class BillingAccountForm extends NavigationMixin(
       return;
     }
     this.draft = applyClearedScheduleFields({
+      Account__c: getFieldValue(data, ACCOUNT_FIELD),
       InvoiceDateMethod__c: getFieldValue(data, INVOICE_DATE_METHOD_FIELD),
       InvoiceDateDayKind__c: getFieldValue(data, INVOICE_DATE_DAY_KIND_FIELD),
       InvoiceDateDayOfMonth__c: getFieldValue(
