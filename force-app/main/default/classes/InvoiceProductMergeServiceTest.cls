@@ -444,6 +444,57 @@ private class InvoiceProductMergeServiceTest {
     }
   }
 
+  @IsTest
+  static void resolveKeysAndContiguousPeriod_assertSpecMessages() {
+    System.assertEquals(
+      null,
+      InvoiceProductMergeService.resolveInvoiceMergeKey(null)
+    );
+    System.assertEquals(
+      null,
+      InvoiceProductMergeService.resolveLineMergeKey(null)
+    );
+    Boolean missingLine = false;
+    try {
+      InvoiceProductMergeService.resolveLineMergeKey(
+        new InvoiceProduct__c(Amount__c = 1)
+      );
+    } catch (InvoiceProductMergeService.MergeKeyException ex) {
+      missingLine = true;
+      System.assertEquals(
+        '請求明細マージキー（LineBucketKey）がありません。請求生成をやり直してください。',
+        ex.getMessage(),
+        'Core 第1.1.10節: 明細キー欠落は Fail closed'
+      );
+    }
+    System.assertEquals(true, missingLine);
+    System.assertEquals(
+      '',
+      InvoiceProductMergeService.formatPeriod(null, null)
+    );
+    System.assertEquals(
+      0,
+      InvoiceProductMergeService.splitIntoContiguousGroups(null).size()
+    );
+    Id id1 = fakeId(InvoiceProduct__c.SObjectType, 3);
+    Id id2 = fakeId(InvoiceProduct__c.SObjectType, 4);
+    InvoiceProductMergeService.assertPeriodIdsContiguous(
+      String.valueOf(id1) + ',' + String.valueOf(id2),
+      new Map<Id, InvoiceProduct__c>{
+        id1 => new InvoiceProduct__c(
+          Id = id1,
+          StartDate__c = Date.newInstance(2026, 7, 1),
+          Enddate__c = Date.newInstance(2026, 7, 31)
+        ),
+        id2 => new InvoiceProduct__c(
+          Id = id2,
+          StartDate__c = Date.newInstance(2026, 8, 1),
+          Enddate__c = Date.newInstance(2026, 8, 31)
+        )
+      }
+    );
+  }
+
   private static InvoiceProduct__c withServiceTax(
     InvoiceProduct__c product,
     Decimal taxPercent

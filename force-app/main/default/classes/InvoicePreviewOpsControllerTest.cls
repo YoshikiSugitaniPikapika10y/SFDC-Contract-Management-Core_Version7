@@ -2813,4 +2813,51 @@ private class InvoicePreviewOpsControllerTest {
       InvoiceOpsFieldService.resetCache();
     }
   }
+
+  @IsTest
+  static void getOpsBundle_wrongHistory_andJournalSameDayOrder() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Boolean rejected = false;
+      try {
+        InvoicePreviewOpsController.getOpsBundle(
+          fixture.invoice.Id,
+          UserInfo.getUserId()
+        );
+      } catch (AuraHandledException ex) {
+        rejected = true;
+        System.assertEquals(
+          '指定された請求が、対象の契約サービスに属していません。画面を開き直してください。',
+          ex.getMessage(),
+          'Core 第7.7.3節: 契約履歴が違う請求操作は拒否'
+        );
+      }
+      System.assertEquals(true, rejected);
+
+      InvoicePreviewOpsController.JournalRowDto earlier = new InvoicePreviewOpsController.JournalRowDto();
+      earlier.postingDate = Date.newInstance(2026, 6, 1);
+      earlier.sameDayOrder = 2;
+      earlier.journalId = fakeJournalId(1);
+      InvoicePreviewOpsController.JournalRowDto later = new InvoicePreviewOpsController.JournalRowDto();
+      later.postingDate = Date.newInstance(2026, 6, 2);
+      later.sameDayOrder = 1;
+      later.journalId = fakeJournalId(2);
+      List<InvoicePreviewOpsController.JournalRowDto> rows = new List<InvoicePreviewOpsController.JournalRowDto>{
+        later,
+        earlier
+      };
+      rows.sort();
+      System.assertEquals(
+        Date.newInstance(2026, 6, 1),
+        rows[0].postingDate,
+        'Accounting 第8.7節: 計上日が先'
+      );
+    }
+  }
+
+  private static Id fakeJournalId(Integer n) {
+    return (Id) (GlJournal__c.SObjectType.getDescribe().getKeyPrefix() +
+      String.valueOf(n).leftPad(12, '0'));
+  }
 }
