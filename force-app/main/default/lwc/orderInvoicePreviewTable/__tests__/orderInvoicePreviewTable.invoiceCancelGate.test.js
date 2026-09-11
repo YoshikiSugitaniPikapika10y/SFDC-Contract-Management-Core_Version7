@@ -80,7 +80,12 @@ describe("orderInvoicePreviewTable invoice cancel gate (Core 7.9.3 / 7.7.3 / 1.1
       invoiceUiState: { a00INV000000001: { bundle: {} } },
       invoiceCancelBlockedReason: () => "",
       isBlankReasonText: proto.isBlankReasonText,
-      dispatchEvent
+      dispatchEvent,
+      setSurfaceError(title, message) {
+        dispatchEvent(
+          new CustomEvent("error", { detail: { message: message || title } })
+        );
+      }
     });
     expect(dispatchEvent).toHaveBeenCalled();
     const event = dispatchEvent.mock.calls[0][0];

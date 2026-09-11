@@ -676,6 +676,8 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
       invoiceSendState: { invoiceId: "a00INV000000001" },
       invoiceIssueState: { invoiceId: "a00INV000000001" },
       dispatchEvent: jest.fn(),
+      noteCompletion: jest.fn(),
+      setSurfaceError: jest.fn(),
       reduceInvoiceOpsError: () => ""
     };
     const running = proto.runInvoiceOperation.call(

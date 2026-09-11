@@ -396,7 +396,12 @@ describe("orderInvoicePreviewTable confirm gate (Core 7.9.1 / 7.6 / 11.9)", () =
         invoiceUiState: {
           a00INV000000001: { bundle: { accountingEnabled: true } }
         },
-        dispatchEvent
+        dispatchEvent,
+        setSurfaceError(title, message) {
+          dispatchEvent(
+            new CustomEvent("error", { detail: { message: message || title } })
+          );
+        }
       },
       {
         currentTarget: { dataset: { lineId: "a01LINE00000001" } },
