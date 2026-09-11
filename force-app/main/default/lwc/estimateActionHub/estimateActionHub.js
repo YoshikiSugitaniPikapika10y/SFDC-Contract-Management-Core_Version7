@@ -1,4 +1,5 @@
 import { LightningElement, api, wire } from "lwc";
+import { NavigationMixin } from "lightning/navigation";
 import { CloseActionScreenEvent } from "lightning/actions";
 import { getRecord } from "lightning/uiRecordApi";
 import getDocumentDefaults from "@salesforce/apex/EstimateCreateController.getDocumentDefaults";
@@ -6,10 +7,12 @@ import hasEstimate from "@salesforce/customPermission/Loop_03_Can_Estimate";
 import hasIssueEstimate from "@salesforce/customPermission/Loop_04_Can_IssueEstimate";
 import hasSendEstimates from "@salesforce/customPermission/Loop_05_Can_SendEstimate";
 import HISTORY_STATUS_FIELD from "@salesforce/schema/ContractHistory__c.historystatus__c";
+import { resizeQuickActionPanel } from "c/quickActionPanelResize";
 
 const STATUS_ESTIMATE = "Estimate";
 const MODE_UNUSED = "Unused";
 const MODE_PDF_AND_EMAIL = "PdfAndEmail";
+const OBJECT_API_NAME = "ContractHistory__c";
 
 const QUICK_ACTIONS = {
   edit: "ContractHistory__c.EstimateEdit",
@@ -18,12 +21,13 @@ const QUICK_ACTIONS = {
   send: "ContractHistory__c.Estimate_Send"
 };
 
-/** 仕様: Core 第4.3.1節、第4.3.11節 */
-export default class EstimateActionHub extends LightningElement {
+/** 仕様: Core 第4.3.1節、第4.3.11節。シェルは画面見た目第2節（受注と同じ Quick Action オーバーレイ）。 */
+export default class EstimateActionHub extends NavigationMixin(LightningElement) {
   @api recordId;
 
   historyStatus = "";
   estimateSendMode = "";
+  showIssueFrame = false;
 
   @wire(getRecord, { recordId: "$recordId", fields: [HISTORY_STATUS_FIELD] })
   wiredHistory({ data, error }) {
@@ -37,6 +41,10 @@ export default class EstimateActionHub extends LightningElement {
   // 仕様: Core 第4.3.11節。マスタは画面を開いた時に最新。設定wireだけcacheable。
   connectedCallback() {
     this.loadDocumentDefaults();
+  }
+
+  renderedCallback() {
+    resizeQuickActionPanel(this, this.showIssueFrame ? "large" : "confirm");
   }
 
   loadDocumentDefaults() {
@@ -106,42 +114,62 @@ export default class EstimateActionHub extends LightningElement {
     return this.visibleActions.length > 0;
   }
 
-  handleCancel() {
-    this.dispatchEvent(new CloseActionScreenEvent());
+  get issueFrameUrl() {
+    if (!this.recordId) {
+      return "";
+    }
+    return `/apex/EstimateDocumentIssue?id=${encodeURIComponent(this.recordId)}`;
   }
 
-  // 仕様: Core 第4.3.1節
-  handleSelect(event) {
-    const key = event.currentTarget?.dataset?.key;
-    const url = this.urlForSelectedAction(key);
-    if (!url) {
+  get showActionList() {
+    return !this.showIssueFrame;
+  }
+
+  handleCancel() {
+    if (this.showIssueFrame) {
+      this.showIssueFrame = false;
       return;
     }
     this.dispatchEvent(new CloseActionScreenEvent());
-    this.scheduleOpenSelectedAction(url);
   }
 
-  urlForSelectedAction(key) {
+  get cancelLabel() {
+    return this.showIssueFrame ? "戻る" : "閉じる";
+  }
+
+  // 仕様: Core 第4.3.1節。シェルは受注と同じレコード上オーバーレイ（画面見た目第2節）。
+  handleSelect(event) {
+    const key = event.currentTarget?.dataset?.key;
     if (!key || !this.recordId) {
-      return "";
+      return;
     }
     if (key === "issue") {
-      return `/apex/EstimateDocumentIssue?id=${encodeURIComponent(this.recordId)}`;
+      this.showIssueFrame = true;
+      return;
     }
     const apiName = QUICK_ACTIONS[key];
     if (!apiName) {
-      return "";
-    }
-    return `/lightning/action/quick/${apiName}?recordId=${encodeURIComponent(this.recordId)}`;
-  }
-
-  scheduleOpenSelectedAction(url) {
-    if (!url || typeof window === "undefined") {
       return;
     }
-    // eslint-disable-next-line @lwc/lwc/no-async-operation
-    window.setTimeout(() => {
-      window.location.href = url;
-    }, 0);
+    this.openRecordQuickAction(apiName);
+  }
+
+  openRecordQuickAction(apiName) {
+    const backgroundContext = `/lightning/r/${OBJECT_API_NAME}/${this.recordId}/view`;
+    this[NavigationMixin.Navigate](
+      {
+        type: "standard__quickAction",
+        attributes: {
+          apiName
+        },
+        state: {
+          objectApiName: OBJECT_API_NAME,
+          context: "RECORD_DETAIL",
+          recordId: this.recordId,
+          backgroundContext
+        }
+      },
+      true
+    );
   }
 }

@@ -1,4 +1,5 @@
 import EstimateActionHub from "c/estimateActionHub";
+import { NavigationMixin } from "lightning/navigation";
 
 jest.mock(
   "@salesforce/customPermission/Loop_03_Can_Estimate",
@@ -36,115 +37,112 @@ jest.mock(
   }),
   { virtual: true }
 );
+jest.mock(
+  "c/quickActionPanelResize",
+  () => ({ resizeQuickActionPanel: jest.fn() }),
+  { virtual: true }
+);
+
+const Navigate = NavigationMixin.Navigate;
 
 function hubContext(recordId) {
   const dispatched = [];
+  const navigate = jest.fn();
   const proto = EstimateActionHub.prototype;
   const ctx = {
     recordId,
+    showIssueFrame: false,
     dispatchEvent(event) {
       dispatched.push(event.type);
     },
-    urlForSelectedAction: proto.urlForSelectedAction,
-    scheduleOpenSelectedAction: proto.scheduleOpenSelectedAction
+    [Navigate]: navigate,
+    openRecordQuickAction: proto.openRecordQuickAction
   };
-  return { ctx, dispatched };
+  return { ctx, dispatched, navigate };
 }
 
-describe("estimateActionHub select (Core 4.3.1)", () => {
-  let hrefSetter;
-
-  beforeEach(() => {
-    jest.useFakeTimers();
-    hrefSetter = jest.fn();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        get href() {
-          return "https://example.my.salesforce.com/lightning/r/ContractHistory__c/a0HSRC/view";
-        },
-        set href(value) {
-          hrefSetter(value);
-        }
-      }
-    });
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  it("closes the hub before opening the selected existing screen", () => {
-    const { ctx, dispatched } = hubContext("a0H000000000001AAA");
+describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () => {
+  it("opens edit as record Quick Action overlay with backgroundContext (same as 受注)", () => {
+    const { ctx, dispatched, navigate } = hubContext("a0H000000000001AAA");
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
       currentTarget: { dataset: { key: "edit" } }
     });
 
-    expect(dispatched).toEqual(["closeActionScreen"]);
-    expect(hrefSetter).not.toHaveBeenCalled();
-
-    jest.runAllTimers();
-
-    expect(hrefSetter).toHaveBeenCalledWith(
-      "/lightning/action/quick/ContractHistory__c.EstimateEdit?recordId=a0H000000000001AAA"
+    expect(dispatched).toEqual([]);
+    expect(navigate).toHaveBeenCalledWith(
+      {
+        type: "standard__quickAction",
+        attributes: {
+          apiName: "ContractHistory__c.EstimateEdit"
+        },
+        state: {
+          objectApiName: "ContractHistory__c",
+          context: "RECORD_DETAIL",
+          recordId: "a0H000000000001AAA",
+          backgroundContext:
+            "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
+        }
+      },
+      true
     );
   });
 
-  it("opens copy, archive, and send as existing screens after close", () => {
-    const { ctx } = hubContext("a0H000000000001AAA");
+  it("opens copy, archive, and send as record Quick Action overlays", () => {
+    const { ctx, navigate } = hubContext("a0H000000000001AAA");
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
       currentTarget: { dataset: { key: "copy" } }
     });
-    jest.runAllTimers();
-    expect(hrefSetter).toHaveBeenLastCalledWith(
-      "/lightning/action/quick/ContractHistory__c.EstimateCopy?recordId=a0H000000000001AAA"
+    expect(navigate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: { apiName: "ContractHistory__c.EstimateCopy" }
+      }),
+      true
     );
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
       currentTarget: { dataset: { key: "archive" } }
     });
-    jest.runAllTimers();
-    expect(hrefSetter).toHaveBeenLastCalledWith(
-      "/lightning/action/quick/ContractHistory__c.Estimate_Archive?recordId=a0H000000000001AAA"
+    expect(navigate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: { apiName: "ContractHistory__c.Estimate_Archive" }
+      }),
+      true
     );
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
       currentTarget: { dataset: { key: "send" } }
     });
-    jest.runAllTimers();
-    expect(hrefSetter).toHaveBeenLastCalledWith(
-      "/lightning/action/quick/ContractHistory__c.Estimate_Send?recordId=a0H000000000001AAA"
+    expect(navigate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attributes: { apiName: "ContractHistory__c.Estimate_Send" }
+      }),
+      true
     );
   });
 
-  it("opens issue as the existing VF screen after close", () => {
-    const { ctx, dispatched } = hubContext("a0H000000000001AAA");
+  it("keeps the hub overlay and shows issue VF inside for 見積書発行", () => {
+    const { ctx, dispatched, navigate } = hubContext("a0H000000000001AAA");
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
       currentTarget: { dataset: { key: "issue" } }
     });
 
-    expect(dispatched).toEqual(["closeActionScreen"]);
-    expect(hrefSetter).not.toHaveBeenCalled();
-
-    jest.runAllTimers();
-
-    expect(hrefSetter).toHaveBeenCalledWith(
-      "/apex/EstimateDocumentIssue?id=a0H000000000001AAA"
-    );
+    expect(dispatched).toEqual([]);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(ctx.showIssueFrame).toBe(true);
   });
 
-  it("does not close or open when the row has no action", () => {
-    const { ctx, dispatched } = hubContext("a0H000000000001AAA");
+  it("does not navigate when the row has no action", () => {
+    const { ctx, dispatched, navigate } = hubContext("a0H000000000001AAA");
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
       currentTarget: { dataset: { key: "" } }
     });
 
     expect(dispatched).toEqual([]);
-    jest.runAllTimers();
-    expect(hrefSetter).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(ctx.showIssueFrame).toBe(false);
   });
 });
