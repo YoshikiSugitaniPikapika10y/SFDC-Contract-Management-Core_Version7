@@ -45,20 +45,29 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 0.5rem 0.75rem;
-  align-items: end;
+  align-items: start;
+}
+
+.ops-form-grid_register {
+  grid-template-columns: repeat(2, minmax(12rem, 1fr));
 }
 
 .ops-form-grid lightning-combobox,
 .ops-form-grid lightning-input {
-  min-width: 12rem;
+  min-width: 0;
+  max-width: 100%;
   white-space: nowrap;
+  align-self: start;
+  --slds-c-input-sizing-min-height: 1.875rem;
 }
 
 .setting-description {
-  margin: 0.25rem 0 0;
+  grid-column: 1 / -1;
+  margin: 0;
   font-size: 0.75rem;
   line-height: 1.4;
   color: #475569;
+  white-space: normal;
 }
 
 .ops-table-wrap {

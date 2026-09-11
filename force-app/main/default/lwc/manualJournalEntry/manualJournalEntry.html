@@ -14,21 +14,28 @@
       </button>
     </template>
     <h3 class="ops-form-title">手動仕訳を登録</h3>
-    <div class="ops-form-grid">
-      <div>
-        <lightning-combobox
-          label="設定"
-          value={settingId}
-          options={settingOptions}
-          data-field="settingId"
-          onchange={handleFieldChange}
-          disabled={inputsDisabled}
-          required
-        ></lightning-combobox>
-        <template if:true={selectedSettingDescription}>
-          <p class="setting-description">{selectedSettingDescription}</p>
-        </template>
-      </div>
+    <div class="ops-form-grid ops-form-grid_register">
+      <lightning-combobox
+        label="設定"
+        value={settingId}
+        options={settingOptions}
+        data-field="settingId"
+        onchange={handleFieldChange}
+        disabled={inputsDisabled}
+        required
+      ></lightning-combobox>
+      <lightning-input
+        type="date"
+        label="計上日"
+        value={postingDate}
+        data-field="postingDate"
+        onchange={handleFieldChange}
+        disabled={inputsDisabled}
+        required
+      ></lightning-input>
+      <template if:true={selectedSettingDescription}>
+        <p class="setting-description">{selectedSettingDescription}</p>
+      </template>
       <template if:true={showSelectedAccounts}>
         <lightning-input
           label="借方"
@@ -43,15 +50,6 @@
           disabled
         ></lightning-input>
       </template>
-      <lightning-input
-        type="date"
-        label="計上日"
-        value={postingDate}
-        data-field="postingDate"
-        onchange={handleFieldChange}
-        disabled={inputsDisabled}
-        required
-      ></lightning-input>
       <lightning-input
         type="number"
         label="金額"
