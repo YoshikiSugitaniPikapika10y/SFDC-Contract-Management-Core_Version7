@@ -219,22 +219,22 @@
 }
 
 .ord-btn_primary {
-  background: #059669;
+  background: #334155;
   color: #ffffff;
-  border-color: #059669;
+  border-color: #334155;
 }
 
 .ord-btn_primary:hover:not(:disabled) {
-  background: #047857;
+  background: #1e293b;
 }
 
 .ord-btn_confirm {
-  background: #059669;
-  border-color: #059669;
+  background: #334155;
+  border-color: #334155;
 }
 
 .ord-btn_confirm:hover:not(:disabled) {
-  background: #047857;
+  background: #1e293b;
 }
 
 .ord-btn_secondary {
@@ -578,6 +578,24 @@
   flex-shrink: 0;
 }
 
+.surface-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  margin-right: auto;
+  font-size: 0.875rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.surface-wait-spin {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
+}
+
 .btn {
   padding: 0.4375rem 0.9375rem;
   border-radius: 0.375rem;
@@ -603,14 +621,14 @@
 }
 
 .btn_primary {
-  background: #059669;
-  border-color: #059669;
+  background: #334155;
+  border-color: #334155;
   color: #ffffff;
 }
 
 .btn_primary:hover:not(:disabled) {
-  background: #047857;
-  border-color: #047857;
+  background: #1e293b;
+  border-color: #1e293b;
 }
 
 .alert {

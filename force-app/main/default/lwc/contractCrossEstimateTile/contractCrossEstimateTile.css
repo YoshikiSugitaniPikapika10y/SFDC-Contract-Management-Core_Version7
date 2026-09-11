@@ -105,13 +105,15 @@
 }
 
 .btn_primary {
-  background: #0b5cab;
+  background: #334155;
   color: #ffffff;
+  border-color: #334155;
 }
 
 .btn_solid {
-  background: #059669;
+  background: #334155;
   color: #ffffff;
+  border-color: #334155;
 }
 
 .btn_secondary {

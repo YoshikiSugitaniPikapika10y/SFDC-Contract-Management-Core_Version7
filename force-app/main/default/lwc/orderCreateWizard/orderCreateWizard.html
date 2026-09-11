@@ -76,18 +76,21 @@
             </section>
           </template>
 
-          <template if:true={isSaving}>
-            <div class="loading">
-              <lightning-spinner
-                alternative-text="処理中"
-                size="small"
-              ></lightning-spinner>
-            </div>
-          </template>
         </template>
       </main>
 
       <footer class="confirm-footer">
+        <template if:true={isSaving}>
+          <p class="surface-wait" role="status">
+            <span class="surface-wait-spin">
+              <lightning-spinner
+                alternative-text="処理中"
+                size="small"
+              ></lightning-spinner>
+            </span>
+            処理中
+          </p>
+        </template>
         <button
           type="button"
           class="btn btn_secondary"
@@ -124,6 +127,17 @@
               <p class="ord-subtitle">請求設定の確認と受注</p>
             </div>
             <div class="ord-header-actions">
+              <template if:true={isSaving}>
+                <p class="surface-wait" role="status">
+                  <span class="surface-wait-spin">
+                    <lightning-spinner
+                      alternative-text="処理中"
+                      size="small"
+                    ></lightning-spinner>
+                  </span>
+                  処理中
+                </p>
+              </template>
               <button
                 type="button"
                 class="ord-btn ord-btn_secondary"
@@ -172,14 +186,6 @@
           </template>
 
           <template if:false={showBootstrapLoading}>
-            <template if:true={isSaving}>
-              <div class="ord-loading">
-                <lightning-spinner
-                  alternative-text="処理中"
-                  size="small"
-                ></lightning-spinner>
-              </div>
-            </template>
             <template if:true={showHistoryFields}>
               <section class="ord-history-fields">
                 <h2 class="ord-section-title">追加項目</h2>

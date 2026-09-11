@@ -30,9 +30,9 @@
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 0.5rem;
-  background: #eef4ff;
-  color: #0b5cab;
-  --slds-c-icon-color-foreground-default: #0b5cab;
+  background: #f1f5f9;
+  color: #334155;
+  --slds-c-icon-color-foreground-default: #334155;
 }
 
 .confirm-heading-text {

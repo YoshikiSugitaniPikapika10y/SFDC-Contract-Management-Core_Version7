@@ -50,17 +50,20 @@
         </section>
       </template>
 
-      <template if:true={isWorking}>
-        <div class="loading">
-          <lightning-spinner
-            alternative-text="処理中"
-            size="small"
-          ></lightning-spinner>
-        </div>
-      </template>
     </main>
 
     <footer class="confirm-footer">
+      <template if:true={isWorking}>
+        <p class="surface-wait" role="status">
+          <span class="surface-wait-spin">
+            <lightning-spinner
+              alternative-text="処理中"
+              size="small"
+            ></lightning-spinner>
+          </span>
+          処理中
+        </p>
+      </template>
       <button
         type="button"
         class="btn btn_secondary"

@@ -1118,6 +1118,11 @@
   font-family: inherit;
 }
 
+.header-actions .ghost-btn,
+.header-actions .solid-btn {
+  font-size: 0.875rem;
+}
+
 .ghost-btn {
   border: 1px solid var(--preview-border);
   background: var(--preview-surface);

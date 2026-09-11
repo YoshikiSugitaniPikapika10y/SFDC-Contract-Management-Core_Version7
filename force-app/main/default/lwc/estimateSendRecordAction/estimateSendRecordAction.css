@@ -98,9 +98,27 @@
 }
 
 .btn_primary {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #334155;
+  border-color: #334155;
   color: #ffffff;
+}
+
+.surface-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  margin-right: auto;
+  font-size: 0.875rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.surface-wait-spin {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
 }
 
 .alert {
