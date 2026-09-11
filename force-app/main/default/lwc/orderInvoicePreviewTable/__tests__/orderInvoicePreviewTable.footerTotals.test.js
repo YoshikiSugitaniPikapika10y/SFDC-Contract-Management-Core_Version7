@@ -1364,6 +1364,8 @@ describe("orderInvoicePreviewTable journal footer (Core 8.10)", () => {
     expect(footer.textContent).toContain("AR");
     expect(footer.textContent).toContain("CASH");
     expect(footer.textContent).toContain("DEF");
+    expect(footer.textContent).toContain("1,000");
+    expect(footer.textContent).not.toContain("¥");
     expect(
       footer.querySelector(".money-item_slot-zero .journal-slot-abbr").textContent
     ).toBe("CASH");

@@ -1543,7 +1543,7 @@
                             <span class="journal-multi-filter">
                               <button
                                 type="button"
-                                class="journal-multi-filter-trigger"
+                                class={invoice.journalPostingMonthTriggerClass}
                                 data-invoice-id={invoice.invoiceId}
                                 data-filter="postingMonth"
                                 aria-expanded={invoice.postingMonthMenuOpen}
@@ -1601,7 +1601,7 @@
                             <span class="journal-multi-filter">
                               <button
                                 type="button"
-                                class="journal-multi-filter-trigger"
+                                class={invoice.journalEventTriggerClass}
                                 data-invoice-id={invoice.invoiceId}
                                 data-filter="eventName"
                                 aria-expanded={invoice.eventNameMenuOpen}
@@ -1661,7 +1661,7 @@
                             <span class="journal-multi-filter">
                               <button
                                 type="button"
-                                class="journal-multi-filter-trigger"
+                                class={invoice.journalLineTriggerClass}
                                 data-invoice-id={invoice.invoiceId}
                                 data-filter="lineKey"
                                 aria-expanded={invoice.lineKeyMenuOpen}
@@ -2788,15 +2788,7 @@
               <template for:each={invoice.slotNets} for:item="slotNet">
                 <div key={slotNet.key} class={slotNet.itemClass}>
                   <span class="money-label journal-slot-abbr">{slotNet.abbreviation}</span>
-                  <span class="money-value">
-                    <lightning-formatted-number
-                      value={slotNet.amount}
-                      format-style="currency"
-                      currency-code="JPY"
-                      maximum-fraction-digits="0"
-                    >
-                    </lightning-formatted-number>
-                  </span>
+                  <span class="money-value">{slotNet.amountDisplay}</span>
                 </div>
               </template>
             </div>

@@ -131,6 +131,32 @@ function journalFilterSummary(selected, options, emptyLabel) {
   return `${values.length}件`;
 }
 
+function journalFilterTriggerClass(selected, menuOpen) {
+  const classes = ["journal-multi-filter-trigger"];
+  if (menuOpen === true) {
+    classes.push("journal-multi-filter-trigger_open");
+  }
+  if (selectedFilterValues(selected).length > 0) {
+    classes.push("journal-multi-filter-trigger_active");
+  }
+  return classes.join(" ");
+}
+
+/** 仕様: 画面見た目 第4節。金額列と同じ桁区切り。円マークなし。 */
+function formatJournalAmountValue(amount) {
+  if (amount == null || amount === "") {
+    return "";
+  }
+  const n = Number(amount);
+  if (!Number.isFinite(n)) {
+    return "";
+  }
+  const rounded = Math.round(n);
+  const sign = rounded < 0 ? "-" : "";
+  const digits = String(Math.abs(rounded));
+  return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 function withFilterChecked(options, selected) {
   const set = new Set(selectedFilterValues(selected));
   return (options || []).map((row) => ({
@@ -320,6 +346,7 @@ function slotNetsFromDisplayedJournals(journals) {
 function decorateSlotNets(slotNets) {
   return (slotNets || []).map((slotNet) => ({
     ...slotNet,
+    amountDisplay: formatJournalAmountValue(slotNet.amount),
     itemClass:
       Number(slotNet.amount) === 0
         ? "money-item money-item_slot-zero"
@@ -2669,6 +2696,18 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           postingMonthMenuOpen: filterMenu.postingMonth === true,
           eventNameMenuOpen: filterMenu.eventName === true,
           lineKeyMenuOpen: filterMenu.lineKey === true,
+          journalPostingMonthTriggerClass: journalFilterTriggerClass(
+            postingMonthFilter,
+            filterMenu.postingMonth === true
+          ),
+          journalEventTriggerClass: journalFilterTriggerClass(
+            eventNameFilter,
+            filterMenu.eventName === true
+          ),
+          journalLineTriggerClass: journalFilterTriggerClass(
+            lineKeyFilter,
+            filterMenu.lineKey === true
+          ),
           memoDraft:
             this.memoDrafts[invoiceId] != null
               ? this.memoDrafts[invoiceId]
@@ -4995,17 +5034,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   formatJournalAmount(amount) {
-    if (amount == null || amount === "") {
-      return "";
-    }
-    const n = Number(amount);
-    if (!Number.isFinite(n)) {
-      return "";
-    }
-    const rounded = Math.round(n);
-    const sign = rounded < 0 ? "-" : "";
-    const digits = String(Math.abs(rounded));
-    return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return formatJournalAmountValue(amount);
   }
 
   handleInvoiceSplitDateChange(event) {
