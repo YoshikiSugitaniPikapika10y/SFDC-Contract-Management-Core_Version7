@@ -1812,4 +1812,46 @@ describe("orderInvoicePreviewTable payment form", () => {
     );
     expect(String(amountInput.value)).toBe("110000");
   });
+
+  it("rebuilds allocation remaining inclusive from current payment lines after preview reload", async () => {
+    getOpsBundle.mockResolvedValue(
+      mockBundle({
+        taxInclusiveAmount: 100000,
+        invoicePaymentNet: 0,
+        paymentLines: [
+          {
+            lineId: "a01LINE00000001",
+            productName: "Product",
+            remainingInclusive: 100000
+          }
+        ]
+      })
+    );
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    getOpsBundle.mockResolvedValue(
+      mockBundle({
+        taxInclusiveAmount: 110000,
+        invoicePaymentNet: 0,
+        paymentLines: [
+          {
+            lineId: "a01LINE00000001",
+            productName: "Product",
+            remainingInclusive: 110000
+          }
+        ]
+      })
+    );
+    element.preview = buildPreview();
+    await flush();
+    await openPaymentsTab(element);
+    const remaining = element.shadowRoot.querySelector(
+      ".ops-table_payments tbody td.num-col lightning-formatted-number"
+    );
+    expect(Number(remaining.value)).toBe(110000);
+  });
 });

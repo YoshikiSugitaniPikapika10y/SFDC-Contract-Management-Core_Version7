@@ -797,10 +797,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           paymentDate: this.todayLocalIso()
         };
       }
-      // 仕様: Core 第8.6節・第8.9節。請求金額目的は明細別割当が必須。金額だけ入った初期下書きは空割当のまま残さない。
+      // 仕様: Core 第8.6節・第8.9節。請求金額目的は明細別割当が必須。残額は今の明細税込。空割当のまま残さない。
       if ((nextDraft.purpose || "Invoice") === "Invoice") {
         const lines = bundle?.paymentLines || [];
-        if (lines.length > 0 && (nextDraft.allocations || []).length === 0) {
+        if (lines.length > 0) {
           nextDraft = {
             ...nextDraft,
             allocations: this.proposePaymentAllocations(
