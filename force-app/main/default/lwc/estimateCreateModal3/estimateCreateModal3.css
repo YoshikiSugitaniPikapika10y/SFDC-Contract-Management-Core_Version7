@@ -577,10 +577,15 @@
   width: 6%;
 }
 .est-col-amount {
-  width: 9%;
+  width: 12%;
+  min-width: 8rem;
 }
 .est-col-invoice {
   width: 10%;
+}
+.est-col-revenue {
+  width: 8%;
+  min-width: 5.75rem;
 }
 .est-col-actions {
   width: 5%;
@@ -757,6 +762,38 @@
 .est-td-qty,
 .est-td-amount,
 .est-td-actions {
+  white-space: nowrap;
+}
+
+.est-td-amount .est-cell-stack {
+  grid-template-rows: var(--est-cell-main-h) minmax(var(--est-cell-sub-h), auto);
+}
+
+.est-td-amount .est-cell-stack__sub {
+  overflow: visible;
+  align-items: flex-start;
+}
+
+.est-td-amount .est-price-meta {
+  overflow: visible;
+  flex-direction: column;
+  flex-wrap: wrap;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.est-td-amount .est-price-meta-static {
+  white-space: normal;
+}
+
+.est-td-revenue .est-cell-stack__main {
+  overflow: visible;
+}
+
+.est-td-revenue .est-cell-select,
+.est-td-revenue .est-cell-static {
+  overflow: visible;
+  text-overflow: unset;
   white-space: nowrap;
 }
 
