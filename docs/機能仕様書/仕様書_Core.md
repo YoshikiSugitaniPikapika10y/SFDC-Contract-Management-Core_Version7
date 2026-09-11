@@ -505,10 +505,10 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> LWC <code>billingAccountForm</code>
-／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> Aura <code>billingAccountFormOverride</code>（New／Edit。<code>lightning:actionOverride</code>）
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> LWC <code>billingAccountForm</code>
+／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> Aura <code>billingAccountFormOverride</code>（New／Edit。<code>lightning:actionOverride</code>）
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> View は <code>BillingAccount_RecordPage</code>。<code>orderCreateStepBilling</code>
-／ 計算 Apex は新設しない。削除は標準。
+／ 見積・受注からの戻りは <code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>。呼び出し元の開き直し。埋め込みはしない。計算 Apex は新設しない。削除は標準。
 </div>
 
 #### 3.3.3 編集
@@ -521,6 +521,8 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 | 変えてよい | 名前、宛名、To、Cc、Bcc、届け方、支払条件、請求日ルール、取引先 |
 
 キー以外はいつでも直せる。保存を止める確認ゲートは置かない。関連リストや API からは Confirm を出せないため、運用で見て判断する。編集と詳細の正規画面も第3.3.2節と同じ専用 LWC・同じ4束ねである。方式に入らない項目は出さない。方式を切り替えたら、入らない項目は空にする。
+
+見積ウィザードまたは受注から本 LWC の Edit へ遷移した場合、保存およびキャンセルは呼び出し元（見積ウィザードまたは受注）を開き直す。開き直すため、遷移前の未保存入力は戻さない。見積・受注・請求ボードへの埋め込みはしない。それ以外の経路（オブジェクトタブ、リスト、レコード詳細の編集、Lookup など）からの Edit は、保存およびキャンセル後に当該請求アカウントの詳細へ戻る。New の保存およびキャンセルは一覧へ戻る。
 
 見てわかるように、表示用のチェック`HasReference__c`（表示名「参照あり」）を持つ。契約サービスまたは請求書（取消済み含む）から1件でも参照していれば ON、0件なら OFF とする。件数は出さない。内訳も出さない。積み上げ集計は使わず、参照の増減のときに更新する。アイコンは付けない。
 
@@ -774,7 +776,7 @@ Lifecycle=TermではChange・Renew・Cancel、Lifecycle=SpotではChangeだけ�
 - 見積送付先は契約履歴の Lookup 1本（`EstimateSendContact__c`）である。契約サービスにも請求アカウントにも置かない。商談の役割は辿らない。候補は契約サービスの取引先（Newで未作成なら商談の取引先）に属する有効な取引先責任者。他取引先は検索しない。User／Leadは選べない。メールが空でも選べる。保存は必須にしない。送付時の初期 To とエラーは第4.8節・第7.10節。
 - Lifecycle=Termで前回終了日まで届く継続課金がなければChange・Renew・Cancelを作成できない。Termカード自体は表示し、選択直後と「次へ」でエラーにする。Lifecycle=SpotのChangeにはこの継続課金要件を適用しない。
 - 前回がCancelなら後続操作不可。請求アカウントは契約サービス値の参照専用で、未設定なら見積保存も受注もできない。続き操作で空欄を補ったり、別の請求アカウントへ置き換えたりしない。
-- 請求アカウントの宛名・メールはウィザード内で編集せず、第3.3.2節の専用 LWC の Edit へ遷移する。19 が無ければ遷移は出さない。
+- 請求アカウントの宛名・メールはウィザード内で編集せず、第3.3.2節の専用 LWC の Edit へ遷移する。19 が無ければ遷移は出さない。保存およびキャンセルのあとは第3.3.3節どおり見積ウィザードを開き直す。
 - Step 1に継続課金期間、切替日、商品、追加項目、備考を置かない。
 
 **実装仕様（開発者向け）:** Newの保存は画面の税率、名前、請求アカウント、契約サービスの備考および表示中の契約サービス追加項目を`ContractService__c`へ書く。見積送付先は契約履歴へ保存する。New・Change・Renew・Cancelの保存対象である。必須にしない。Change・Renew・Cancelの保存は`Name`、`BiilingAcccount__c`、`TaxPercent__c`および備考を更新ペイロードに載せない。表示中の契約サービス追加項目は載せる。画面またはAPIが現行値と異なる名前・請求アカウント・税率・備考を送った場合はエラーにし、黙って現行値へ戻さない。参照表示は選択サービスの保存済み値を使う。
@@ -782,7 +784,8 @@ Lifecycle=TermではChange・Renew・Cancel、Lifecycle=SpotではChangeだけ�
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractHistory__c.EstimateSendContact__c</code>
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateSaveService.saveNewEstimate</code> / <code>saveChangeEstimate</code> / <code>saveCancelEstimate</code>、<code>estimateCreateModal2.maybeApplyDefaultNames</code>、<code>EstimateQueryService.buildEstimatePreset</code> / <code>buildCopyHistoryName</code>、<code>estimateCreateModal3</code>
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateSaveService.saveNewEstimate</code> / <code>saveChangeEstimate</code> / <code>saveCancelEstimate</code>、<code>estimateCreateModal2.maybeApplyDefaultNames</code> / <code>handleOpenbillingAccountFormalEdit</code>、<code>EstimateQueryService.buildEstimatePreset</code> / <code>buildCopyHistoryName</code>、<code>estimateCreateModal3</code>、<code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>
+／ 請求アカウント正規Editからの保存・キャンセル後は見積ウィザードを開き直す。第3.3.3節。
 </div>
 
 #### 4.3.4 Step 2 詳細情報
@@ -1317,12 +1320,12 @@ EstimateをOrderedにできるのは、次をすべて満たす場合だけで�
 
 有効な契約期間明細・請求書・請求明細はOrderedの契約履歴にだけ存在する。取消済み請求とその請求明細は監査情報として例外的にEstimateまたはArchiveの契約履歴にも残り、請求ボードを開いただけでは新たに生成しない。
 
-受注画面では請求アカウントを参照確認するだけで、マスタを更新しない。専用 LWC は埋め込まない。必須値が不足する場合は第3.3.2節の専用 LWC の Edit へ遷移する。19 が無ければ遷移は出さない。
+受注画面では請求アカウントを参照確認するだけで、マスタを更新しない。専用 LWC は埋め込まない。必須値が不足する場合は第3.3.2節の専用 LWC の Edit へ遷移する。19 が無ければ遷移は出さない。保存およびキャンセルのあとは第3.3.3節どおり受注画面を開き直す。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderCreateStepBilling.openBillingAccountFormalEdit</code> / <code>validateBillingFields</code>、<code>orderCreateWizard.guideToBillingAccountFormalEdit</code>
-／ 未設定そのものは見積へ戻す案内のまま。正規編集は第3.3.2節の<code>billingAccountForm</code>。参照確認は<code>orderCreateStepBilling</code>が同じ4束ね。届け方は送付。方式に不要な項目は出さない。埋め込み編集はしない。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderCreateStepBilling.openBillingAccountFormalEdit</code> / <code>validateBillingFields</code>、<code>orderCreateWizard.guideToBillingAccountFormalEdit</code>、<code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>
+／ 未設定そのものは見積へ戻す案内のまま。正規編集は第3.3.2節の<code>billingAccountForm</code>。参照確認は<code>orderCreateStepBilling</code>が同じ4束ね。届け方は送付。方式に不要な項目は出さない。埋め込み編集はしない。保存・キャンセル後は受注を開き直す。
 </div>
 
 受注画面を開くたびに、請求アカウントの最新情報をサーバから読み込み、第3.3.2節と同じ4束ねで参照表示する。送付は宛名・To・Cc・Bcc・届け方である。請求日ルールと支払条件は第7.2節・第7.5節の方式に必要な項目だけ出す。空にする項目は出さない。計算は変えない。契約履歴の追加項目セクションを出す。定義は第11.4.3節。履歴備考の編集Stepは設けない。通常の受注画面を閉じる時は、確認を出さず入力内容を破棄する。
@@ -1432,7 +1435,7 @@ Lifecycle=Termでは、`ServiceStartDate__c`（サービス開始日）はFirst 
 
 ### 5.7 契約履歴の進捗表示（StatusPath）
 
-契約履歴ページ上部の進捗表示（StatusPath）は、見積から入金完了までの現在位置を示す。業務状態と請求の回収状態から自動計算し、利用者が直接変更することはできない。状態が混在するときは、完了していない前の段階に留める。不採用（Archive）は進捗表示の対象外とする。商談レコードページの契約履歴関連リストは、同じ進捗を列に出す。業務状態（historystatus）は同リストの列に出さない。契約サービスなど他オブジェクトの関連リストは本項の対象ではない。
+契約履歴ページ上部の進捗表示（StatusPath）は、見積から入金完了までの現在位置を示す。業務状態と請求の回収状態から自動計算し、利用者が直接変更することはできない。状態が混在するときは、完了していない前の段階に留める。不採用（Archive）は進捗表示の対象外とする。商談レコードページの契約履歴関連リストは、同じ進捗を列に出す。業務状態（historystatus）は同リストの列に出さない。契約サービスの契約履歴関連リストは本項の進捗ではなく業務状態を列に出し、不採用も行に含める。
 
 | 利用者向け表示   | 内部値（API） | 条件                                                                                       |
 | ---------------- | ------------- | ------------------------------------------------------------------------------------------ |
@@ -1453,9 +1456,10 @@ Cancelの「02_受注」は、解約の注文を受け付けて受注済みに�
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractHistoryStatusPathService.resolvePath</code> / <code>applyOnBeforeWrite</code> / <code>syncForInvoiceParents</code>。件数は取消済み除外。Cancelは02で止める。
 ／ 商談の契約履歴関連リストは<code>FlexiPage3</code>の<code>OpportunityHistories__r</code>。列は<code>StatusPath__c</code>。業務状態<code>historystatus__c</code>は同リストに出さない。
+／ 契約サービスの契約履歴関連リストは<code>FlexiPage124</code>の<code>ContractServiceContractHistories__r</code>。列に<code>historystatus__c</code>。不採用を<code>adminFilters</code>で除外しない。
 </div>
 
-**実装仕様（開発者向け）:** 契約履歴`FlexiPage122`へ標準Pathを配置し、対象項目`StatusPath__c`、設定`ContractHistory_StatusPath`、Record Type `Default`、`Hide path update button = true`とする。Archive選択肢`99_アーカイブ`はPath本線とDefault RTから外し、Archive時はグレー案内だけを表示する。商談`FlexiPage3`の`OpportunityHistories__r`は列に`StatusPath__c`を含み、`historystatus__c`を含めない。
+**実装仕様（開発者向け）:** 契約履歴`FlexiPage122`へ標準Pathを配置し、対象項目`StatusPath__c`、設定`ContractHistory_StatusPath`、Record Type `Default`、`Hide path update button = true`とする。Archive選択肢`99_アーカイブ`はPath本線とDefault RTから外し、Archive時はグレー案内だけを表示する。商談`FlexiPage3`の`OpportunityHistories__r`は列に`StatusPath__c`を含み、`historystatus__c`を含めない。契約サービス`FlexiPage124`の`ContractServiceContractHistories__r`は列に`historystatus__c`を含み、不採用を`adminFilters`で除外しない。
 
 各段階の案内文は「請求対応中」「入金待ち」等の利用者向け用語を使う。「確定」「消込」「請求済」「送付中」を契約履歴の進捗段階として追加しない。「入金待ち」の案内には「社外への請求書送付は別作業」と明記する。
 
