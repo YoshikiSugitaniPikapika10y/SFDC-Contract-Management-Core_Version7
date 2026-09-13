@@ -67,6 +67,109 @@ private class ContractServiceTriggerHandlerTest {
   }
 
   @IsTest
+  static void collectBillingAccountIds_returnsDistinctCurrentAndPriorReferences() {
+    System.assertEquals(
+      new Set<Id>(),
+      ContractServiceTriggerHandler.collectBillingAccountIds(null, null),
+      'Core 第3.3.3節: 入力が無いときは参照更新対象も無い'
+    );
+
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'CS Collect Billing Account'
+      );
+      ContractService__c service = insertService(
+        account.Id,
+        'CS Collect Service'
+      );
+      ContractService__c prior = [
+        SELECT Id, BiilingAcccount__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      BillingAccount__c replacement = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractService__c current = prior.clone(true, false, false, false);
+      current.BiilingAcccount__c = replacement.Id;
+
+      Set<Id> actual = ContractServiceTriggerHandler.collectBillingAccountIds(
+        new List<ContractService__c>{ null, current, current },
+        new Map<Id, ContractService__c>{ prior.Id => prior }
+      );
+
+      System.assertEquals(
+        new Set<Id>{ prior.BiilingAcccount__c, replacement.Id },
+        actual,
+        'Core 第3.3.3節: 付け替えでは旧参照と新参照を重複なく再判定する'
+      );
+    }
+  }
+
+  @IsTest
+  static void afterUpdate_refreshesOldAndNewBillingAccountReferenceFlags() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'CS Refresh Billing Account'
+      );
+      ContractService__c service = insertService(
+        account.Id,
+        'CS Refresh Service'
+      );
+      Id priorBillingAccountId = service.BiilingAcccount__c;
+      BillingAccount__c replacement = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      Set<Id> billingAccountIds = new Set<Id>{
+        priorBillingAccountId,
+        replacement.Id
+      };
+      Map<Id, BillingAccount__c> beforeById = new Map<Id, BillingAccount__c>([
+        SELECT Id, HasReference__c
+        FROM BillingAccount__c
+        WHERE Id IN :billingAccountIds
+      ]);
+      System.assertEquals(
+        true,
+        beforeById.get(priorBillingAccountId).HasReference__c
+      );
+      System.assertEquals(
+        false,
+        beforeById.get(replacement.Id).HasReference__c
+      );
+
+      Boolean previous = ContractServiceWriteGuard.isPackageWriteAllowed();
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      try {
+        Test.startTest();
+        update new ContractService__c(
+          Id = service.Id,
+          BiilingAcccount__c = replacement.Id
+        );
+        Test.stopTest();
+      } finally {
+        ContractServiceWriteGuard.allowPackageWrite(previous);
+      }
+
+      Map<Id, BillingAccount__c> afterById = new Map<Id, BillingAccount__c>([
+        SELECT Id, HasReference__c
+        FROM BillingAccount__c
+        WHERE Id IN :billingAccountIds
+      ]);
+      System.assertEquals(
+        false,
+        afterById.get(priorBillingAccountId).HasReference__c,
+        'Core 第3.3.3節: 最後の契約サービス参照を外した請求アカウントは参照なし'
+      );
+      System.assertEquals(
+        true,
+        afterById.get(replacement.Id).HasReference__c,
+        'Core 第3.3.3節: 付け替え先は参照あり'
+      );
+    }
+  }
+
+  @IsTest
   static void beforeDelete_blocksPhysicalDeleteWhenNotOrderedAndNoLockedInvoices() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
@@ -93,6 +196,19 @@ private class ContractServiceTriggerHandlerTest {
         'CS Delete Allow Product',
         termStart,
         termEnd
+      );
+      ContractService__c handlerCandidate = [
+        SELECT Id
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      ContractServiceTriggerHandler.handleBeforeDelete(
+        new List<ContractService__c>{ handlerCandidate }
+      );
+      System.assertEquals(
+        false,
+        handlerCandidate.hasErrors(),
+        'Core 第3.4節: Orderedもロック済み請求も無い場合、個別条件は足さず一律削除拒否に委ねる'
       );
       ContractServiceWriteGuard.enforceInTest = true;
       Boolean thrown = false;
@@ -148,6 +264,16 @@ private class ContractServiceTriggerHandlerTest {
         WHERE Id = :service.Id
       ];
       System.assertNotEquals(null, synced.LatestOrderedHistory__c);
+      ContractServiceTriggerHandler.handleBeforeDelete(
+        new List<ContractService__c>{ synced }
+      );
+      System.assertEquals(true, synced.hasErrors());
+      System.assertEquals(1, synced.getErrors().size());
+      System.assertEquals(
+        ContractServiceTriggerHandler.ORDERED_DELETE_BLOCK_MESSAGE,
+        synced.getErrors()[0].getMessage(),
+        'Core 第3.4節: Ordered履歴がある契約サービスの削除理由を明示する'
+      );
 
       ContractServiceWriteGuard.enforceInTest = true;
       Boolean thrown = false;
@@ -206,6 +332,22 @@ private class ContractServiceTriggerHandlerTest {
       } finally {
         ContractServiceWriteGuard.allowPackageWrite(previous);
       }
+
+      ContractService__c handlerCandidate = [
+        SELECT Id
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      ContractServiceTriggerHandler.handleBeforeDelete(
+        new List<ContractService__c>{ handlerCandidate }
+      );
+      System.assertEquals(true, handlerCandidate.hasErrors());
+      System.assertEquals(1, handlerCandidate.getErrors().size());
+      System.assertEquals(
+        ContractServiceTriggerHandler.ORDERED_DELETE_BLOCK_MESSAGE,
+        handlerCandidate.getErrors()[0].getMessage(),
+        'Core 第3.4節: Latestポインタが空でも実Ordered履歴を根拠に拒否する'
+      );
 
       ContractServiceWriteGuard.enforceInTest = true;
       Boolean thrown = false;
@@ -269,6 +411,22 @@ private class ContractServiceTriggerHandlerTest {
       ContractTestDataFactory.applyRequiredFields(invoice);
       invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
+
+      ContractService__c handlerCandidate = [
+        SELECT Id
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      ContractServiceTriggerHandler.handleBeforeDelete(
+        new List<ContractService__c>{ handlerCandidate }
+      );
+      System.assertEquals(true, handlerCandidate.hasErrors());
+      System.assertEquals(1, handlerCandidate.getErrors().size());
+      System.assertEquals(
+        ContractServiceTriggerHandler.LOCKED_INVOICE_DELETE_BLOCK_MESSAGE,
+        handlerCandidate.getErrors()[0].getMessage(),
+        'Core 第3.4節: ロック済み請求を持つ契約サービスの削除理由を明示する'
+      );
 
       ContractServiceWriteGuard.enforceInTest = true;
       Boolean thrown = false;

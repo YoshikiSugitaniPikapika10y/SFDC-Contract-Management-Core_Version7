@@ -590,6 +590,96 @@ private class ConditionEvaluationServiceTest {
         new Set<Decimal>{ 1 }
       )
     );
+    System.assert(
+      ConditionEvaluationService.validateConditionLogic(
+          '1 2',
+          new Set<Decimal>{ 1, 2 }
+        )
+        .contains('構文'),
+      'Accounting 第4.7節: 番号の並置は構文不正'
+    );
+    System.assert(
+      ConditionEvaluationService.validateConditionLogic(
+          'AND 1',
+          new Set<Decimal>{ 1 }
+        )
+        .contains('構文'),
+      'Accounting 第4.7節: 先頭のANDは構文不正'
+    );
+  }
+
+  @IsTest
+  static void evaluateTenant_orTrueLeftConsumesRightHandSide() {
+    GlConditionSet__c orSet = new GlConditionSet__c(
+      Name = 'Eval Or True Left Set',
+      EvaluationContext__c = 'Invoice',
+      Description__c = 'OR短絡'
+    );
+    insert orSet;
+    insert new List<GlConditionRule__c>{
+      new GlConditionRule__c(
+        ConditionSet__c = orSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'Invoice__c',
+        TargetField__c = 'Memo__c',
+        Operator__c = 'IsNotNull'
+      ),
+      new GlConditionRule__c(
+        ConditionSet__c = orSet.Id,
+        Sequence__c = 2,
+        TargetObject__c = 'Invoice__c',
+        TargetField__c = 'Amount__c',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '1'
+      )
+    };
+    orSet.ConditionLogic__c = '1 OR 2';
+    update orSet;
+    ConditionEvaluationService.Context orContext = new ConditionEvaluationService.Context();
+    orContext.invoice = new Invoice__c(Memo__c = 'あり', Amount__c = 0);
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(orSet.Id, orContext),
+      'Accounting 第4.7節: 左辺trueのORでも右辺を消費して成立する'
+    );
+  }
+
+  @IsTest
+  static void evaluateTenant_andFalseLeftConsumesRightHandSide() {
+    GlConditionSet__c andSet = new GlConditionSet__c(
+      Name = 'Eval And False Left Set',
+      EvaluationContext__c = 'Invoice',
+      Description__c = 'AND短絡'
+    );
+    insert andSet;
+    insert new List<GlConditionRule__c>{
+      new GlConditionRule__c(
+        ConditionSet__c = andSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'Invoice__c',
+        TargetField__c = 'Memo__c',
+        Operator__c = 'IsNotNull'
+      ),
+      new GlConditionRule__c(
+        ConditionSet__c = andSet.Id,
+        Sequence__c = 2,
+        TargetObject__c = 'Invoice__c',
+        TargetField__c = 'Amount__c',
+        Operator__c = 'Equals',
+        CompareType__c = 'FixedValue',
+        CompareValue__c = '1000'
+      )
+    };
+    andSet.ConditionLogic__c = '1 AND 2';
+    update andSet;
+    ConditionEvaluationService.Context andContext = new ConditionEvaluationService.Context();
+    andContext.invoice = new Invoice__c(Amount__c = 1000);
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(andSet.Id, andContext),
+      'Accounting 第4.7節: 左辺falseのANDでも右辺を消費して不成立とする'
+    );
   }
 
   @IsTest

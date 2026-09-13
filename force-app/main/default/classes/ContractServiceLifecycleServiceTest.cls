@@ -6,7 +6,7 @@ private class ContractServiceLifecycleServiceTest {
   }
 
   private static ContractService__c insertService(Id accountId, String name) {
-    return ContractTestDataFactory.insertContractService(accountId, name);
+    return ContractTestDataFactory.insertContractService(accountId, name, null);
   }
 
   private static ContractHistory__c insertEstimateHistory(
@@ -109,6 +109,20 @@ private class ContractServiceLifecycleServiceTest {
         ContractDomainConstants.LIFECYCLE_TERM
       )
     );
+    System.assertEquals(
+      false,
+      ContractServiceLifecycleService.isTermLifecycle(
+        ContractDomainConstants.LIFECYCLE_SPOT
+      )
+    );
+    System.assertEquals(
+      false,
+      ContractServiceLifecycleService.isSpotLifecycle(null)
+    );
+    System.assertEquals(
+      false,
+      ContractServiceLifecycleService.isTermLifecycle('')
+    );
   }
 
   @IsTest
@@ -149,13 +163,27 @@ private class ContractServiceLifecycleServiceTest {
       Test.stopTest();
 
       service = [
-        SELECT Lifecycle__c
+        SELECT
+          Lifecycle__c,
+          FirstOrderedHistory__c,
+          LatestOrderedHistory__c
         FROM ContractService__c
         WHERE Id = :service.Id
       ];
       System.assertEquals(
         ContractDomainConstants.LIFECYCLE_TERM,
-        service.Lifecycle__c
+        service.Lifecycle__c,
+        'Core 第3.4.2節: Version 1のFirst Orderedに継続課金があればTerm'
+      );
+      System.assertEquals(
+        history.Id,
+        service.FirstOrderedHistory__c,
+        'Lifecycle確定でFirst Orderedを変更しない'
+      );
+      System.assertEquals(
+        history.Id,
+        service.LatestOrderedHistory__c,
+        'Lifecycle確定でLatest Orderedを変更しない'
       );
     }
   }
@@ -207,6 +235,22 @@ private class ContractServiceLifecycleServiceTest {
         ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
       );
       setOrderedPointers(service.Id, v2.Id);
+
+      ContractService__c invalidService = [
+        SELECT Lifecycle__c, FirstOrderedHistory__r.Version__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      System.assertEquals(
+        null,
+        invalidService.Lifecycle__c,
+        '不正データ検証の前提はLifecycle未設定'
+      );
+      System.assertEquals(
+        2,
+        invalidService.FirstOrderedHistory__r.Version__c,
+        '不正データ検証の境界はFirst OrderedがVersion 1以外'
+      );
 
       Boolean thrown = false;
       String message = null;
@@ -262,6 +306,28 @@ private class ContractServiceLifecycleServiceTest {
       );
       setOrderedPointers(service.Id, history.Id);
 
+      ContractService__c blankService = [
+        SELECT Lifecycle__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      ContractProduct__c oneTimeLine = [
+        SELECT BillingType__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :history.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        null,
+        blankService.Lifecycle__c,
+        'Version 1判定前のLifecycleは未設定'
+      );
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        oneTimeLine.BillingType__c,
+        'Spot判定の前提は一回課金だけ'
+      );
+
       Test.startTest();
       ContractServiceLifecycleService.ensureLifecycleForServices(
         new Set<Id>{ service.Id }
@@ -269,13 +335,27 @@ private class ContractServiceLifecycleServiceTest {
       Test.stopTest();
 
       service = [
-        SELECT Lifecycle__c
+        SELECT
+          Lifecycle__c,
+          FirstOrderedHistory__c,
+          LatestOrderedHistory__c
         FROM ContractService__c
         WHERE Id = :service.Id
       ];
       System.assertEquals(
         ContractDomainConstants.LIFECYCLE_SPOT,
-        service.Lifecycle__c
+        service.Lifecycle__c,
+        'Core 第3.4.2節: Version 1のFirst Orderedが一回課金だけならSpot'
+      );
+      System.assertEquals(
+        history.Id,
+        service.FirstOrderedHistory__c,
+        'Lifecycle確定でFirst Orderedを変更しない'
+      );
+      System.assertEquals(
+        history.Id,
+        service.LatestOrderedHistory__c,
+        'Lifecycle確定でLatest Orderedを変更しない'
       );
     }
   }
@@ -336,11 +416,28 @@ private class ContractServiceLifecycleServiceTest {
       Test.stopTest();
 
       service = [
-        SELECT Lifecycle__c
+        SELECT
+          Lifecycle__c,
+          FirstOrderedHistory__c,
+          LatestOrderedHistory__c
         FROM ContractService__c
         WHERE Id = :service.Id
       ];
-      System.assertEquals(null, service.Lifecycle__c);
+      System.assertEquals(
+        null,
+        service.Lifecycle__c,
+        'Core 第3.4.2節: Orderedが0件ならLifecycleを空に戻す'
+      );
+      System.assertEquals(
+        null,
+        service.FirstOrderedHistory__c,
+        'Orderedが0件の境界ではFirst Orderedも空'
+      );
+      System.assertEquals(
+        null,
+        service.LatestOrderedHistory__c,
+        'Orderedが0件の境界ではLatest Orderedも空'
+      );
     }
   }
 
@@ -411,9 +508,10 @@ private class ContractServiceLifecycleServiceTest {
       ContractServiceLifecycleService.backfillAllBlankLifecycles();
       System.assert(false, '一括補完は拒否する');
     } catch (ContractServiceLifecycleService.LifecycleException ex) {
-      System.assert(
-        ex.getMessage().contains('Lifecycleの一括補完は持たない。導入作業で直してください。'),
-        ex.getMessage()
+      System.assertEquals(
+        'Lifecycleの一括補完は持たない。導入作業で直してください。',
+        ex.getMessage(),
+        'Core 第3.4.2節: 一括補完は持たない'
       );
     }
   }

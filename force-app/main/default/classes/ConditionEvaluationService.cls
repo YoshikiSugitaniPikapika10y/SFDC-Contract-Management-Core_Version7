@@ -558,6 +558,16 @@ public without sharing class ConditionEvaluationService {
         return 'ANDとORの混在時は括弧が必要です。';
       }
     }
+    Map<Decimal, Boolean> parseProbe = new Map<Decimal, Boolean>();
+    for (Decimal sequence : used) {
+      parseProbe.put(sequence, true);
+    }
+    try {
+      // 仕様: Accounting 第4.7節。番号の並置や先頭のAND／ORなど構文不正は保存時に拒否する。
+      evaluateConditionLogic(logic, parseProbe);
+    } catch (EvaluationException ex) {
+      return ex.getMessage();
+    }
     return null;
   }
 
@@ -638,20 +648,24 @@ public without sharing class ConditionEvaluationService {
     Map<Decimal, Boolean> bySequence;
   }
 
+  /** 仕様: Accounting 第4.7節。左辺trueのORでも右辺を構文解析する。 */
   private static Boolean parseLogicOr(LogicCursor cursor) {
     Boolean value = parseLogicAnd(cursor);
     while (logicPeek(cursor) == 'OR') {
       cursor.index++;
-      value = value || parseLogicAnd(cursor);
+      Boolean right = parseLogicAnd(cursor);
+      value = value || right;
     }
     return value;
   }
 
+  /** 仕様: Accounting 第4.7節。左辺falseのANDでも右辺を構文解析する。 */
   private static Boolean parseLogicAnd(LogicCursor cursor) {
     Boolean value = parseLogicNot(cursor);
     while (logicPeek(cursor) == 'AND') {
       cursor.index++;
-      value = value && parseLogicNot(cursor);
+      Boolean right = parseLogicNot(cursor);
+      value = value && right;
     }
     return value;
   }
