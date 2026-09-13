@@ -2622,7 +2622,7 @@ To×コンテキストの可否、To×Fromの可否、仕訳コンテキスト�
 レコードページ 見出しはTo、コンテキスト、From、項目。プレビューボタンは持たない。保存は標準。検証ボタンは置かない。
 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>FieldCopyDefinition__c.TargetObject__c</code>、<code>Context__c</code>（<code>AutoRenew</code>／<code>NotAutoRenew</code>／<code>LineJournal</code>／<code>NonLineJournal</code>）、<code>SourceObject__c</code>、<code>SourceFieldApiName__c</code>、<code>TargetFieldApiName__c</code>
 ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>GlJournal__c.ProductCodeSnapShot__c</code>（表示名「商品コード SnapShot」。拒否リストに入れない）
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>FieldCopyDefinitionService.apply</code> / <code>validateDefinition</code>、<code>GlAccountInstallService.seedFieldCopySamples</code>（初回インストールだけ。アップグレードでは消した見本を戻さない）
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>FieldCopyDefinitionService.apply</code> / <code>validateDefinition</code>。コピー見本3件は自動では入れない。人が消したあとも戻さない。`GlAccountInstallService`は持たない。
 ／ 旧<code>InvoiceProductFieldCopyService</code>から移す。Triggerは<code>InvoiceFieldCopyTriggerHandler</code>が新サービスを呼ぶ。請求取消の訂正用は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceCancelService.cancelConfirmed</code>。元の顧客追加項目をコピーしたあと空欄だけスタンプ。分割の新請求はボードで直した値を引き継がない。
 </div>
 
@@ -2692,7 +2692,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 
 コピー元の数式は、計算結果を読んでよい。
 
-標準サンプルは`Sample_Inv_AccountName`、`Sample_Line_ProductCode`、`Sample_Journal_ProductCode`の3件で、顧客が削除・置換できる。初回インストールだけで入れる。削除後のアップグレードでは戻さない。期間明細への取引先名見本（旧`Sample_Period_AccountName`）は置かない。請求先の寄せは請求ヘッダーが正本である（第6.1節）。`Sample_Journal_ProductCode`はFrom=`Product2.ProductCode`、To=`GlJournal.ProductCodeSnapShot__c`（表示名「商品コード SnapShot」）、コンテキストは明細仕訳とする。Memoへは寄せない。`ProductCodeSnapShot__c`は拒否リストに入れない。正規処理・Goal・キーには使わない。
+標準サンプルの識別は`Sample_Inv_AccountName`、`Sample_Line_ProductCode`、`Sample_Journal_ProductCode`の3件である。自動では入れない。顧客が標準画面で置ける。人が消したあとも戻さない。期間明細への取引先名見本（旧`Sample_Period_AccountName`）は置かない。請求先の寄せは請求ヘッダーが正本である（第6.1節）。`Sample_Journal_ProductCode`はFrom=`Product2.ProductCode`、To=`GlJournal.ProductCodeSnapShot__c`（表示名「商品コード SnapShot」）、コンテキストは明細仕訳とする。Memoへは寄せない。`ProductCodeSnapShot__c`は拒否リストに入れない。正規処理・Goal・キーには使わない。
 
 #### 11.4.3 受注ウィザードの追加項目
 
@@ -2937,21 +2937,21 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 
 パッケージ同梱の`Ordered_Requires_ApplicationDate`は見本として残す。顧客がSetupで足した規則は、式に`$Setup.ContractValidationEnforce__c.Enforce__c`を書いたものだけが旗の対象。書いていない規則は常に有効。画面必須はウィザード追加項目の設定に従う。申込日だけの専用画面ロジックは書かない。第11.4.3節・第11.7節。Core整合性ガードと 101〜103 とは別物で、旗では外さない。パッケージ同梱テストはEnforce OFF前提とし、実行時点でONなら落ちてよい。
 
-`InvoiceLockExemptFields__c.FieldApiNames__c`はカンマ区切りText(255)である。人が確定後に直せるカスタム項目の一覧である。製品が確定後に書く状態項目は載せない。製品の確定後更新はこの一覧を見ない。有効な会計タグルールが参照する請求書チェックボックスもAccountingの内部更新に限り動的な除外とし、この一覧には載せない。標準メモ`Memo__c`は製品固定で確定後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。初回インストールではこの組織既定を作らない。人が消したあとのアップグレードでも戻さない。
+`InvoiceLockExemptFields__c.FieldApiNames__c`はカンマ区切りText(255)である。人が確定後に直せるカスタム項目の一覧である。製品が確定後に書く状態項目は載せない。製品の確定後更新はこの一覧を見ない。有効な会計タグルールが参照する請求書チェックボックスもAccountingの内部更新に限り動的な除外とし、この一覧には載せない。標準メモ`Memo__c`は製品固定で確定後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。インストールでも組織設定の保存でもこの組織既定を作らない。人が消したあとも戻さない。
 
 部分更新では`isSet`され値が変わった項目がすべて除外一覧内の場合だけ許す。契約期間明細にはロック除外設定を持たない。請求取引状態は第7.9節の確定・取消専用操作だけが更新し、項目の直接編集による状態変更を拒否する。確定後の請求日・入金予定日・税率・請求アカウントは、除外一覧に書いても画面非活性としApexも拒否する。追加項目の確定後編集は、人が除外一覧へAPI名を足したときだけ。定義CMDTから自動では書かない。第11.4.4節。取消は`Loop_15_Can_CancelInvoice`（`共通基盤.md`第3章）。他の請求操作権限と101〜103では代替できない。101 の項目更新は`共通基盤.md`第3.6節。
 
-`InvoicePaymentLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。人が登録後に直せるカスタム項目の一覧である。標準メモ`Memo__c`は製品固定で登録後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。初回インストールではこの組織既定を作らない。人が消したあとのアップグレードでも戻さない。登録後の直接更新は、値が変わった項目がすべて除外一覧内の場合だけ許す。金額・日付・目的は一覧に書いても不可。仕訳のLockは見ない。定義CMDTから自動では書かない。第8.4節・第11.4.4節。
+`InvoicePaymentLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。人が登録後に直せるカスタム項目の一覧である。標準メモ`Memo__c`は製品固定で登録後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。インストールでも組織設定の保存でもこの組織既定を作らない。人が消したあとも戻さない。登録後の直接更新は、値が変わった項目がすべて除外一覧内の場合だけ許す。金額・日付・目的は一覧に書いても不可。仕訳のLockは見ない。定義CMDTから自動では書かない。第8.4節・第11.4.4節。
 
-`GlJournalLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。人がLock後に直せるカスタム項目の一覧である。標準メモ`Memo__c`は製品固定でLock後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。初回インストールではこの組織既定を作らない。人が消したあとのアップグレードでも戻さない。未Lockは画面定義にある追加項目を直せる。Lock後の追加項目は除外一覧にある項目だけ。金額・科目・日付は一覧に書いても不可。定義CMDTから自動では書かない。Accounting第9.5節・第11.4.4節。
+`GlJournalLockExemptFields__c.FieldApiNames__c`は請求と同型のカンマ区切りText(255)である。人がLock後に直せるカスタム項目の一覧である。標準メモ`Memo__c`は製品固定でLock後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。インストールでも組織設定の保存でもこの組織既定を作らない。人が消したあとも戻さない。未Lockは画面定義にある追加項目を直せる。Lock後の追加項目は除外一覧にある項目だけ。金額・科目・日付は一覧に書いても不可。定義CMDTから自動では書かない。Accounting第9.5節・第11.4.4節。
 
-`ContractDocumentSetting__c`の組織既定は、無ければ初回インストールだけで入れる。人が消したあとのアップグレードでは戻さない。実行時は無い／空を既定へ落とさずエラーにする。ロック除外3件の組織既定は初回インストールでも作らない。無いも空も、人が直せる追加なしである。保持体は現行のままとする。科目・手動仕訳のシードはAccounting第4.1節・第10.2節であり、本節の対象外である。
+`ContractDocumentSetting__c`の組織既定と会計方針1件は、組織設定の初回保存で既定を書く。画面はレコードが無いときシード値を出す。見積・発行・確定などの業務操作では書かない。無い／空を既定へ落とさずエラーにする。人が消したあとも戻さない。インストール時にレコードを自動作成しない。`postInstallClass`と`InstallHandler`は持たない。ロック除外3件の組織既定はインストールでも組織設定の保存でも作らない。無いも空も、人が直せる追加なしである。保持体は現行のままとする。コピー見本3件・科目7・手動仕訳5は自動では入れない。科目・手動仕訳はAccounting第4.1節・第10.2節。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLockExemptFields__c.FieldApiNames__c</code>
-／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePaymentLockExemptFields__c.FieldApiNames__c</code>（表示名「入出金ロック除外項目」）、<code>GlJournalLockExemptFields__c.FieldApiNames__c</code>（表示名「仕訳ロック除外項目」）。Hierarchy。初回インストールでは組織既定を作らない。
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLockUtil.isLocked</code> / <code>resolveLockExemptFieldNames</code>、<code>contractDocumentSettings</code>、<code>ContractDocumentSettingsController.getSettings</code> / <code>saveSettings</code>、<code>GlAccountInstallService.seedContractDocumentSetting</code>（初回インストールだけ。ロック除外3件は入れない。アップグレードでは消した組織既定を戻さない）
+／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePaymentLockExemptFields__c.FieldApiNames__c</code>（表示名「入出金ロック除外項目」）、<code>GlJournalLockExemptFields__c.FieldApiNames__c</code>（表示名「仕訳ロック除外項目」）。Hierarchy。インストールでも組織設定の保存でも組織既定を作らない。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceLockUtil.isLocked</code> / <code>resolveLockExemptFieldNames</code>、<code>contractDocumentSettings</code>、<code>ContractDocumentSettingsController.getSettings</code> / <code>saveSettings</code>（初回保存で組織既定と会計方針1件を既定値で書く。無いとき画面にシード値。業務操作では書かない。ロック除外3件は入れない。人が消したあとも戻さない）。`GlAccountInstallService`は持たない。
 ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePaymentLockUtil.assertExemptUpdate</code>
 ／ 仕訳Lock後の除外は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>JournalLockService</code>へ <code>assertExemptUpdate</code>
 </div>

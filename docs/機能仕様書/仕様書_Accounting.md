@@ -369,7 +369,7 @@ Accounting OFFでは新しい仕訳を生成・ロックしない。過去にON�
 
 ### 3.1 Accounting会計方針
 
-Accounting会計方針はCustom Object `GlAccountingPolicy__c`の組織内1件を正本とする。顧客が導入時に組織単位で選び、プロファイル、利用者、取引先、商品、契約、請求書または請求明細による上書きを持たない。導入順と固定前後の変更可否は`ユーザ設定.md`。入口はCore第11.6節の組織設定。会計マスタの編集器は組織設定に持たない。リンクはCore第11.6節の表（21が無ければ会計マスタの行は出さない）。0件警告は出さない。保持体は現行の`GlAccountingPolicy__c`組織内1件のままとする。寄せと差し替えはしない。
+Accounting会計方針はCustom Object `GlAccountingPolicy__c`の組織内1件を正本とする。顧客が導入時に組織単位で選び、プロファイル、利用者、取引先、商品、契約、請求書または請求明細による上書きを持たない。導入順と固定前後の変更可否は`ユーザ設定.md`。入口はCore第11.6節の組織設定。会計マスタの編集器は組織設定に持たない。リンクはCore第11.6節の表（21が無ければ会計マスタの行は出さない）。0件警告は出さない。保持体は現行の`GlAccountingPolicy__c`組織内1件のままとする。寄せと差し替えはしない。方針1件は組織設定の初回保存で本表の既定値を書く。画面はレコードが無いときその既定値を出す。請求確定などの業務操作では書かない。0件ならエラーにする。インストール時には作らない。`postInstallClass`と`InstallHandler`は持たない。人が消したあとも戻さない。
 
 | 項目                 | API名                               | 型                                         | 既定値         | 意味                                                |
 | -------------------- | ----------------------------------- | ------------------------------------------ | -------------- | --------------------------------------------------- |
@@ -392,7 +392,7 @@ MVPは方針世代、適用開始日、既存請求への方針スナップシ�
 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountingPolicy__c.AccountingEnabled__c</code>、<code>RevenueRecognitionBasis__c</code>（<code>BillingBasis</code>／<code>CashBasis</code>）、<code>TaxRecognitionTiming__c</code>（<code>AtInvoice</code>／<code>AtRecognition</code>）、<code>MonthlyBucketMethod__c</code>（<code>Auto</code>／<code>ContractAnchor</code>／<code>CalendarMonth</code>）、<code>MonthlyRecognitionDatePosition__c</code>（<code>BucketStart</code>／<code>BucketEnd</code>／<code>MonthEnd</code>）、<code>RoundingTargetBucket__c</code>（<code>Last</code>／<code>First</code>）、<code>FrozenAt__c</code>、<code>FrozenBy__c</code>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountingPolicyService.requireOrgPolicy</code> / <code>freezeOnFirstConfirm</code> / <code>deriveAllowedPatternKeys</code>、<code>GlAccountingPolicyTriggerHandler</code>
 ／ 最初の確定と同じTXで<code>freezeOnFirstConfirm</code>を呼ぶ。
-／ 入口は既存 <code>contractDocumentSettings</code>。固定後は参照専用。
+／ 入口は既存 <code>contractDocumentSettings</code>。組織設定の初回保存で方針1件を既定値で書く。無いとき画面にシード値。業務操作では書かない。0件はエラー。固定後は参照専用。`GlAccountInstallService`は持たない。
 </div>
 
 丸め・按分の方式はCore仕様第11.9節の`GlAccountingSetting__mdt.OrgDefault`を正本とする。税額丸めは請求確定時に`AppliedTaxRoundingMode__c`へ保存する。これらの項目は本節の固定対象へ含めない。後から変えても保存済み金額は再計算せず、リカバリーは保証しない。月次の端数寄せ先`RoundingTargetBucket__c`だけは本節の会計方針に残し、最初の請求確定後は固定する。
@@ -504,20 +504,18 @@ stickyが効くのは人が開始日を動かすUIだけである。終了日の
 | 勘定区分       | `AccountType__c` | 資産／負債／収益／費用 | ○             |
 | 有効           | `IsActive__c`    | チェックボックス       | ○（既定True） |
 
-`AccountCode__c`は空欄を許すが、値がある場合は一意とする。手動仕訳の初期シード用に、売掛金、仮受金、為替差益、為替差損、支払手数料、雑収入および貸倒損失を配り、コードは空欄とする。これらは固定レコードではなく、テナントが改名・差替えできる。
+`AccountCode__c`は空欄を許すが、値がある場合は一意とする。手動仕訳で使う科目の識別は、売掛金、仮受金、為替差益、為替差損、支払手数料、雑収入および貸倒損失の7件である。自動では入れない。人が標準画面で置ける。コードは空欄とする。これらは固定レコードではなく、テナントが改名・差替えできる。人が消したあとも戻さない。
 
 勘定区分は資産・負債・収益・費用の4つだけとする。純資産（`Equity`）は選択肢に含めない。純資産用の勘定スロットも置かない（第4.3節）。月次の貸借まとめ・残高振替・資本勘定の振替は本パッケージの対象外であり、別システムで行う。既存データに`Equity`が残っていても、新規作成と区分の付け替えで`Equity`を選ばせない。パッケージは既存`Equity`を自動で他区分へ書き換えない。利用者は無効化するか、資産／負債／収益／費用へ直す。直す／無効化するまで、勘定科目割当と手動仕訳設定への新規指定は拒否する（第6.2節・第10.2節）。過去仕訳が参照する科目はそのまま維持する。
 
-勘定科目と第10.2節の手動仕訳設定シードは初回インストールの同一post-install処理で1回だけ作成し、手動仕訳設定へ作成した科目IDを設定する。アップグレードでは改名・無効化・差替え・削除された顧客状態を尊重し、再作成、上書きまたは科目名による再対応付けを行わない。
+勘定科目7件と第10.2節の手動仕訳設定5件は自動では入れない。人が標準画面で置く。インストール時にレコードを自動作成しない。`postInstallClass`と`InstallHandler`は持たない。人が消したあとも戻さない。改名・無効化・差替えされた顧客状態を自動では直さない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccount__c.AccountCode__c</code>、<code>AccountType__c</code>（<code>Asset</code>／<code>Liability</code>／<code>Revenue</code>／<code>Expense</code>。`Equity`は選択肢から外す）、<code>IsActive__c</code>
 一覧 表示ラベル、有効、区分。DeveloperName列は置かない。LWC編集器は持たない。
 レコードページは標準。プレビューボタンは持たない。保存は標準。
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountInstallService.seedOnInstall</code>
-／ 削除ガードは <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountTriggerHandler</code>。画面は標準レイアウト。
-／ post-installは<code>GlAccountInstallService.onInstall</code>から<code>seedOnInstall</code>を呼ぶ。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountTriggerHandler</code>。画面は標準レイアウト。科目7件と手動仕訳5件は自動では入れない。`GlAccountInstallService`は持たない。
 ／ 初回生成の無効科目拒否は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountMapResolveService.resolve</code>、<code>AccountingGoalService.build</code>。充当・再生成の元スタンプ維持は同<code>build</code>。
 ／ `AccountCategory` enumから<code>Equity</code>を外すのは <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新</span> <code>CHANGE-209</code>。
 </div>
@@ -532,7 +530,7 @@ stickyが効くのは人が開始日を動かすUIだけである。終了日の
 | 雑収入     | 収益 | 過入金の収益化                       |
 | 貸倒損失   | 費用 | 貸倒の計上                           |
 
-科目名が自社体系と異なる場合は、シードを改名するか、自社科目を登録して手動仕訳設定を差し替える。パッケージは科目名を解釈しないため動作は同じである。削除する場合は、参照する手動仕訳設定を先に付け替える。
+科目名が自社体系と異なる場合は、置いた科目を改名するか、自社科目を登録して手動仕訳設定を差し替える。パッケージは科目名を解釈しないため動作は同じである。削除する場合は、参照する手動仕訳設定を先に付け替える。
 
 仕訳から参照済みの科目は削除できず、使用終了時は無効化する。無効化しても過去仕訳と既存割当は変更しない。新規割当は禁止する。現在の割当から新しい残高を初回生成する場合だけ、無効科目をエラーとする。既存残高への充当と同一生成単位の再生成は、元仕訳の勘定科目割当および実勘定科目を維持し、元割当または元科目が無効でも使用できる。第6.2節・第8.8節。
 
@@ -1850,9 +1848,9 @@ Unlock後も金額、科目、日付、借貸は直せない。以降の原因�
 
 `Description__c`は、パターン説明と読み手が異なる。パターン説明は導入担当者が2つの会計方針から生成結果を理解するため、手動設定説明は現場担当者が現在の事象にこのメニューを選んでよいか判断するために、「どういうときに選ぶか」を書く。
 
-初期シードは次の5件とし、固定レコードではない。
+次の5件は自動では入れない。人が標準画面で置く。固定レコードではない。人が消したあとも戻さない。
 
-パッケージシード行は`SettingKey__c`を必須・組織内一意・作成後変更不可とし、テナント追加行だけ空欄とする。テナントは名称、借貸スロット、借貸科目、説明、表示順および有効状態を変更できる。未参照なら削除でき、削除後のアップグレードで自動再作成しない。参照済みなら削除せず無効化する。
+パッケージ行は`SettingKey__c`を必須・組織内一意・作成後変更不可とし、テナント追加行だけ空欄とする。テナントは名称、借貸スロット、借貸科目、説明、表示順および有効状態を変更できる。未参照なら削除でき、人が消したあとも戻さない。参照済みなら削除せず無効化する。
 
 | キー                 | 名称                 | 借方            | 貸方          | 用途                           |
 | -------------------- | -------------------- | --------------- | ------------- | ------------------------------ |
