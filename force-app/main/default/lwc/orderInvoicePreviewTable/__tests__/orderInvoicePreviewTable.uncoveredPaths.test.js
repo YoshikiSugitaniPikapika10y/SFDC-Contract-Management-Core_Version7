@@ -682,7 +682,15 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     expect(ctx.sentDateDisplay("", "Unsent")).toBe("未送付");
     expect(ctx.paymentPurposeLabel("Invoice")).toBe("請求金額");
     expect(ctx.paymentPurposeLabel("NonInvoice")).toBe("請求金額以外");
-    expect(ctx.journalTransactionStatusLabel("Active")).toBeTruthy();
+    expect(ctx.journalTransactionStatusLabel("Active")).toBe("有効");
+    expect(ctx.journalTransactionStatusLabel("Cancelled")).toBe("取消元");
+    expect(ctx.journalTransactionStatusLabel("Reversal")).toBe("逆仕訳");
+    expect(
+      ctx.paymentStatusLabel({ paymentTransactionStatus: "Cancelled" })
+    ).toBe("取消元");
+    expect(
+      ctx.paymentStatusLabel({ paymentTransactionStatus: "Reversal" })
+    ).toBe("取消");
     expect(ctx.manualJournalStatusLabel("Active")).toBe("有効");
     expect(ctx.manualJournalStatusLabel("Cancelled")).toBe("取消済");
     expect(ctx.invoiceIssueUnavailableReason(true, false)).toBe("");

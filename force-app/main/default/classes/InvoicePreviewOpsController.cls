@@ -837,7 +837,7 @@ public without sharing class InvoicePreviewOpsController {
       throw handled('取消済み請求の入出金は編集できません。');
     }
     if (payment.PaymentTransactionStatus__c != InvoicePaymentService.STATUS_ACTIVE) {
-      throw handled('取消済／取消の入出金は編集できません。');
+      throw handled('取消元／取消の入出金は編集できません。');
     }
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey

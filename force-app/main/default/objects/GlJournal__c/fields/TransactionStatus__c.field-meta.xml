@@ -22,12 +22,12 @@
             <value>
                 <fullName>Cancelled</fullName>
                 <default>false</default>
-                <label>取消済</label>
+                <label>取消元</label>
             </value>
             <value>
                 <fullName>Reversal</fullName>
                 <default>false</default>
-                <label>取消</label>
+                <label>逆仕訳</label>
             </value>
         </valueSetDefinition>
     </valueSet>

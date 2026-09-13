@@ -1491,11 +1491,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return "Active";
   }
 
-  // 仕様: Core 第2.3.1節。有効／取消済み／取消。
+  // 仕様: Core 第2.3.1節・第8.1節。有効／取消元／取消。請求の取消済みとは別。
   paymentStatusLabel(payment) {
     const status = this.paymentTransactionStatus(payment);
     if (status === "Cancelled") {
-      return "取消済み";
+      return "取消元";
     }
     if (status === "Reversal") {
       return "取消";
@@ -1580,7 +1580,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return status || "";
   }
 
-  // 仕様: Accounting 第9.3節。仕訳の4状態。保存値は変えない。
+  // 仕様: Accounting 第2.3節・第9.3節。有効／論理削除／取消元／逆仕訳。保存値は変えない。
   journalTransactionStatusLabel(status) {
     if (status === "Active") {
       return "有効";
@@ -1589,10 +1589,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return "論理削除";
     }
     if (status === "Cancelled") {
-      return "取消済";
+      return "取消元";
     }
     if (status === "Reversal") {
-      return "取消";
+      return "逆仕訳";
     }
     return status || "";
   }

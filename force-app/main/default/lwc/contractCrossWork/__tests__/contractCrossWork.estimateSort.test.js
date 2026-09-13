@@ -542,7 +542,7 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     expect(cells.find((cell) => cell.key === "invoiceGroup").text).toBe("INV-1");
   });
 
-  it("取消済と取消の表示名はAccounting第2.3節", () => {
+  it("取消元と逆仕訳の表示名はAccounting第2.3節", () => {
     const cancelled = proto.journalCells.call(
       { journalGroups: [], canEditJournalMemoOp: true, operationDay: "2026-09-13" },
       { transactionStatus: "Cancelled", postingDate: "2026-09-13" },
@@ -553,11 +553,11 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
       { transactionStatus: "Reversal", postingDate: "2026-09-13" },
       ""
     );
-    expect(cancelled.find((cell) => cell.key === "status").text).toBe("取消済");
+    expect(cancelled.find((cell) => cell.key === "status").text).toBe("取消元");
     expect(cancelled.find((cell) => cell.key === "postingDate").text).toBe(
       "2026-09-13 到来済み"
     );
-    expect(reversal.find((cell) => cell.key === "status").text).toBe("取消");
+    expect(reversal.find((cell) => cell.key === "status").text).toBe("逆仕訳");
   });
 
   it("請求一覧左にカスタム列は足さない", () => {

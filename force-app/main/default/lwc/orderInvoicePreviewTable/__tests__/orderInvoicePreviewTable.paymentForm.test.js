@@ -593,7 +593,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
   });
 
-  it("hides cancelled payments by default and shows 有効／取消済み／取消 when included", async () => {
+  it("hides cancelled payments by default and shows 有効／取消元／取消 when included", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({
         payments: [
@@ -665,7 +665,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     const statusLabels = Array.from(rows).map((row) =>
       row.querySelectorAll("td")[4].textContent.trim()
     );
-    expect(statusLabels).toEqual(["有効", "取消済み", "取消"]);
+    expect(statusLabels).toEqual(["有効", "取消元", "取消"]);
   });
 
   it("shows journal event names and Japanese transaction statuses", async () => {
@@ -742,7 +742,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     const statuses = Array.from(journalRows()).map((row) =>
       row.querySelectorAll("td")[2].textContent.trim()
     );
-    expect(statuses).toEqual(["有効", "取消", "取消済"]);
+    expect(statuses).toEqual(["有効", "逆仕訳", "取消元"]);
     const periods = Array.from(journalRows()).map((row) =>
       row.querySelectorAll("td")[3].textContent.trim()
     );

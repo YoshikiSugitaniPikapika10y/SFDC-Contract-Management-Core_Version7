@@ -2754,6 +2754,67 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
+  static void updatePaymentFromPreview_rejectsCancelledAndReversal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      Invoice__c invoice = [
+        SELECT LastModifiedDate, ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      Test.startTest();
+      Id paymentId = InvoicePreviewOpsController.savePaymentFromPreview(
+        null,
+        fixture.invoice.Id,
+        100,
+        InvoicePaymentService.PURPOSE_NON_INVOICE,
+        Date.today(),
+        '初回',
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+        null,
+        null
+      );
+      Boolean previous = InvoicePaymentService.allowLifecycleWrite;
+      InvoicePaymentService.allowLifecycleWrite = true;
+      try {
+        update new InvoicePayment__c(
+          Id = paymentId,
+          PaymentTransactionStatus__c = InvoicePaymentService.STATUS_CANCELLED
+        );
+      } finally {
+        InvoicePaymentService.allowLifecycleWrite = previous;
+      }
+      invoice = [
+        SELECT LastModifiedDate, ContractHistory__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      Boolean thrown = false;
+      try {
+        InvoicePreviewOpsController.updatePaymentFromPreview(
+          paymentId,
+          fixture.invoice.Id,
+          '取消後',
+          null,
+          ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+          'op-pay-cancelled',
+          invoice.ContractHistory__c
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '取消元／取消の入出金は編集できません。',
+          ex.getMessage(),
+          'Core 第8.4節: 取消元／取消は編集できない'
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
   static void updateJournalMemo_unlockedExtraWritesLockedExemptOnly() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

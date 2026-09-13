@@ -110,7 +110,7 @@ function splitSlotAccountDisplay(combinedName) {
   };
 }
 
-/** 仕様: Accounting 第2.3節。仕訳の取引状態の表示名。 */
+/** 仕様: Accounting 第2.3節。仕訳の取引状態の表示名。保存値は変えない。 */
 function journalTransactionStatusLabel(status) {
   if (status === "Active") {
     return "有効";
@@ -119,10 +119,10 @@ function journalTransactionStatusLabel(status) {
     return "論理削除";
   }
   if (status === "Cancelled") {
-    return "取消済";
+    return "取消元";
   }
   if (status === "Reversal") {
-    return "取消";
+    return "逆仕訳";
   }
   return status || "";
 }
