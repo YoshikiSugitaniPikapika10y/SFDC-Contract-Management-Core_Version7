@@ -1214,10 +1214,9 @@
 }
 
 .invoice-send-panel {
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(20rem, 2fr) auto;
-  gap: 0.75rem 1rem;
-  align-items: end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .invoice-send-recipient {
@@ -1230,8 +1229,34 @@
 
 .invoice-send-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.625rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+.invoice-send-fields > * {
+  min-width: 0;
+}
+
+.invoice-send-fields lightning-textarea,
+.invoice-send-fields .edit-note {
+  grid-column: 1 / -1;
+}
+
+.invoice-send-subject {
+  grid-column: span 2;
+}
+
+.invoice-send-preview {
+  display: flex;
+  align-items: flex-end;
+  min-height: 2.5rem;
+}
+
+.invoice-send-panel > .edit-actions {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
 }
 
 .edit-actions {
@@ -2304,9 +2329,7 @@ tr.journal-row_highlight td {
 @media (max-width: 48rem) {
   .billing-edit-grid,
   .billing-edit-row_dates,
-  .split-field-row,
-  .invoice-send-panel,
-  .invoice-send-fields {
+  .split-field-row {
     grid-template-columns: 1fr;
   }
 

@@ -449,6 +449,7 @@
                   read-only
                 ></lightning-input>
                 <lightning-input
+                  class="invoice-send-subject"
                   name="subject"
                   label="件名"
                   value={invoice.invoiceDraftSubject}
@@ -468,7 +469,7 @@
                   onchange={handleInvoiceAttachmentChange}
                 ></lightning-combobox>
                 <template if:true={invoice.showExistingFilePreview}>
-                  <p>
+                  <p class="invoice-send-preview">
                     <button
                       type="button"
                       class="ghost-btn"
