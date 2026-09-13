@@ -1,6 +1,4 @@
 import { createElement } from "lwc";
-import { NavigationMixin } from "lightning/navigation";
-import OrderCreateStepBilling from "c/orderCreateStepBilling";
 
 jest.mock(
   "@salesforce/apex/OrderWizardFieldService.getOrderBillingFieldDefinitions",
@@ -68,6 +66,9 @@ jest.mock(
   },
   { virtual: true }
 );
+
+const { NavigationMixin } = require("lightning/navigation");
+const OrderCreateStepBilling = require("c/orderCreateStepBilling").default;
 
 describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
   it("navigates to BillingAccount__c edit and names the formal edit screen in validation", () => {

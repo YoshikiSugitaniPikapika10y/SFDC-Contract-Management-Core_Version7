@@ -1,5 +1,6 @@
 import ManualJournalEntry from "c/manualJournalEntry";
 import previewCancelManualJournal from "@salesforce/apex/ManualJournalController.previewCancel";
+import cancelManualJournal from "@salesforce/apex/ManualJournalController.cancel";
 
 jest.mock(
   "@salesforce/apex/ManualJournalController.previewCancel",
@@ -44,20 +45,23 @@ describe("manualJournalEntry cancel gate (Accounting 2.4 / 10.4 / Core 1.1.10)",
   });
 
   it("その他の理由テキスト空白のみは取消を進めない", async () => {
-    const dispatchEvent = jest.fn();
-    await proto.handleCancel.call({
+    const context = {
       cancelHeaderId: "a05MJH000000001",
       cancelReason: "Other",
       cancelReasonText: "   ",
       busy: false,
       isBlankReasonText: proto.isBlankReasonText,
-      dispatchEvent
-    });
-    expect(previewCancelManualJournal).not.toHaveBeenCalled();
-    expect(dispatchEvent).toHaveBeenCalled();
-    expect(dispatchEvent.mock.calls[0][0].detail.message).toBe(
+      setSurfaceError: proto.setSurfaceError,
+      surfaceError: ""
+    };
+
+    await proto.handleCancel.call(context);
+
+    expect(context.surfaceError).toBe(
       "取消理由がその他のときは内容を入力してください。"
     );
+    expect(previewCancelManualJournal).not.toHaveBeenCalled();
+    expect(cancelManualJournal).not.toHaveBeenCalled();
   });
 
   it("その他の理由テキスト空白のみは取消ボタンを非活性にする", () => {

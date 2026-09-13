@@ -8,7 +8,9 @@ private class ContractServiceWriteGuardTest {
   @IsTest
   static void rejectDirectCreateUpdateAndDelete() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Write Guard Acct');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Write Guard Acct'
+      );
       ContractServiceWriteGuard.enforceInTest = true;
       Boolean createRejected = false;
       try {
@@ -17,53 +19,116 @@ private class ContractServiceWriteGuardTest {
           Account__c = account.Id
         );
       } catch (DmlException ex) {
-        createRejected = ex.getMessage()
-          .contains(ContractServiceWriteGuard.CREATE_BLOCK_MESSAGE);
+        createRejected = true;
+        System.assertEquals(
+          ContractServiceWriteGuard.CREATE_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
+          'Core 第3.4節・第3.4.2節: 単体作成は所定の理由で拒否する'
+        );
       }
-      System.assertEquals(true, createRejected);
+      System.assertEquals(
+        true,
+        createRejected,
+        'Core 第3.4節: Newの見積保存以外の単体作成を拒否する'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractService__c
+          WHERE Name = 'Direct Create'
+        ],
+        'Core 第3.4節: 拒否した単体作成を保存しない'
+      );
 
-      ContractServiceWriteGuard.allowPackageWrite(true);
       ContractService__c service = new ContractService__c(
         Name = 'Package Create',
         Account__c = account.Id
       );
-      insert service;
-      ContractServiceWriteGuard.allowPackageWrite(false);
+      ContractServiceWriteGuard.allowPackageWrite(true);
+      try {
+        insert service;
+      } finally {
+        ContractServiceWriteGuard.allowPackageWrite(false);
+      }
+      System.assertEquals(
+        'Package Create',
+        [
+          SELECT Name
+          FROM ContractService__c
+          WHERE Id = :service.Id
+        ]
+        .Name,
+        'Core 第3.4.2節: 正規手続きのパッケージ書込は保存する'
+      );
 
       Boolean updateRejected = false;
       try {
         service.Name = 'Direct Update';
         update service;
       } catch (DmlException ex) {
-        updateRejected = ex.getMessage()
-          .contains(ContractServiceWriteGuard.UPDATE_BLOCK_MESSAGE);
+        updateRejected = true;
+        System.assertEquals(
+          ContractServiceWriteGuard.UPDATE_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
+          'Core 第3.4.2節: 直書き更新は所定の理由で拒否する'
+        );
       }
-      System.assertEquals(true, updateRejected);
+      System.assertEquals(
+        true,
+        updateRejected,
+        'Core 第3.4.2節: 正規手続き以外の更新を拒否する'
+      );
+      System.assertEquals(
+        'Package Create',
+        [
+          SELECT Name
+          FROM ContractService__c
+          WHERE Id = :service.Id
+        ]
+        .Name,
+        'Core 第3.4.2節: 拒否した更新で保存済み値を変えない'
+      );
 
       Boolean deleteRejected = false;
       try {
         delete service;
       } catch (DmlException ex) {
-        deleteRejected = ex.getMessage()
-          .contains(ContractServiceWriteGuard.DELETE_BLOCK_MESSAGE);
+        deleteRejected = true;
+        System.assertEquals(
+          ContractServiceWriteGuard.DELETE_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
+          'Core 第3.4節: 通常削除は所定の理由で拒否する'
+        );
       }
-      System.assertEquals(true, deleteRejected);
+      System.assertEquals(
+        true,
+        deleteRejected,
+        'Core 第3.4節・共通基盤 第3.6節: 101／103以外の削除を拒否する'
+      );
+      System.assertEquals(
+        1,
+        [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id],
+        'Core 第3.4節: 拒否した削除後も契約サービスを保持する'
+      );
     }
   }
 
   @IsTest
-  static void delete_allows104AloneEvenWithOrdered() {
+  static void migrateAll101_allowsPhysicalDeleteAfterChildDelete() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Delete 104 Acct');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Delete 101 Acct'
+      );
       ContractServiceWriteGuard.allowPackageWrite(true);
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
-        'Delete 104 Ordered'
+        'Delete 101 Ordered'
       );
       service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
       update service;
       ContractHistory__c history = new ContractHistory__c(
-        Name = 'Delete 104 Ordered History',
+        Name = 'Delete 101 Ordered History',
         ContractService__c = service.Id,
         Type__c = 'New',
         historystatus__c = 'Ordered',
@@ -88,7 +153,7 @@ private class ContractServiceWriteGuardTest {
       System.assertEquals(
         0,
         [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id],
-        '共通基盤 第3.6節: 101 単独で契約サービス（Ordered 含む）の物理削除を通す'
+        '共通基盤 第3.6節: 101 単独で契約サービスの物理削除を通す'
       );
     }
   }
@@ -96,7 +161,9 @@ private class ContractServiceWriteGuardTest {
   @IsTest
   static void fixContract_allowsNameAndRejectsAccount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account first = ContractTestDataFactory.insertAccount('Fix Contract First');
+      Account first = ContractTestDataFactory.insertAccount(
+        'Fix Contract First'
+      );
       Account second = ContractTestDataFactory.insertAccount(
         'Fix Contract Second'
       );
@@ -112,6 +179,35 @@ private class ContractServiceWriteGuardTest {
         ContractPermissionUtil.FIX_CONTRACT => true
       };
       try {
+        Boolean createRejected = false;
+        try {
+          insert new ContractService__c(
+            Name = 'Fix Contract Direct Create',
+            Account__c = first.Id
+          );
+        } catch (DmlException ex) {
+          createRejected = true;
+          System.assertEquals(
+            ContractServiceWriteGuard.CREATE_BLOCK_MESSAGE,
+            ex.getDmlMessage(0),
+            '共通基盤 第3.6節: 102は契約サービスの作成を通さない'
+          );
+        }
+        System.assertEquals(
+          true,
+          createRejected,
+          '共通基盤 第3.6節: 102は項目更新だけを通す'
+        );
+        System.assertEquals(
+          0,
+          [
+            SELECT COUNT()
+            FROM ContractService__c
+            WHERE Name = 'Fix Contract Direct Create'
+          ],
+          '共通基盤 第3.6節: 102で拒否した作成を保存しない'
+        );
+
         service.Name = 'Fix Contract Renamed';
         update service;
         System.assertEquals(
@@ -129,13 +225,54 @@ private class ContractServiceWriteGuardTest {
           service.Account__c = second.Id;
           update service;
         } catch (DmlException ex) {
-          accountRejected = ex.getMessage()
-            .contains(ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE);
+          accountRejected = true;
+          System.assertEquals(
+            ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE,
+            ex.getDmlMessage(0),
+            'Core 第3.4節: 102でも取引先の直書きを所定の理由で拒否する'
+          );
         }
         System.assertEquals(
           true,
           accountRejected,
           'Core 第3.4節: 102 でも取引先は利用者が変更できない'
+        );
+        ContractService__c persisted = [
+          SELECT Name, Account__c
+          FROM ContractService__c
+          WHERE Id = :service.Id
+        ];
+        System.assertEquals(
+          first.Id,
+          persisted.Account__c,
+          'Core 第3.4節: 拒否した取引先変更で保存済み値を変えない'
+        );
+        System.assertEquals(
+          'Fix Contract Renamed',
+          persisted.Name,
+          '共通基盤 第3.6節: 先に許可した通常項目更新は保持する'
+        );
+
+        Boolean deleteRejected = false;
+        try {
+          delete service;
+        } catch (DmlException ex) {
+          deleteRejected = true;
+          System.assertEquals(
+            ContractServiceWriteGuard.DELETE_BLOCK_MESSAGE,
+            ex.getDmlMessage(0),
+            '共通基盤 第3.6節: 102は物理削除を所定の理由で拒否する'
+          );
+        }
+        System.assertEquals(
+          true,
+          deleteRejected,
+          '共通基盤 第3.6節: 102は物理削除を通さない'
+        );
+        System.assertEquals(
+          1,
+          [SELECT COUNT() FROM ContractService__c WHERE Id = :service.Id],
+          '共通基盤 第3.6節: 102で拒否した削除後もレコードを保持する'
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;
@@ -144,30 +281,33 @@ private class ContractServiceWriteGuardTest {
   }
 
   @IsTest
-  static void assertAllowedWrite_nullAndPackageAnd101_doNotBlock() {
+  static void migrateAll101_allowsDirectCreateAndUpdate() {
     ContractServiceWriteGuard.enforceInTest = true;
     ContractServiceWriteGuard.allowPackageWrite(false);
-    ContractServiceWriteGuard.assertAllowedWrite(null, null);
-    System.assertEquals(
-      false,
-      ContractServiceWriteGuard.isPackageWriteAllowed(),
-      'Core 第3.4.2節: パッケージ書込フラグが無い直書きは通さない'
-    );
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Write Guard 101 Acct'
       );
-      ContractServiceWriteGuard.allowPackageWrite(true);
-      ContractService__c service = new ContractService__c(
-        Name = 'Write Guard 101',
-        Account__c = account.Id
-      );
-      insert service;
-      ContractServiceWriteGuard.allowPackageWrite(false);
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MIGRATE_ALL => true
       };
       try {
+        ContractService__c service = new ContractService__c(
+          Name = 'Write Guard 101',
+          Account__c = account.Id
+        );
+        insert service;
+        System.assertEquals(
+          'Write Guard 101',
+          [
+            SELECT Name
+            FROM ContractService__c
+            WHERE Id = :service.Id
+          ]
+          .Name,
+          '共通基盤 第3.6節: 101は契約サービスの直接作成を通す'
+        );
+
         service.Name = 'Write Guard 101 Renamed';
         update service;
         System.assertEquals(
@@ -223,8 +363,12 @@ private class ContractServiceWriteGuardTest {
           service.Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM;
           update service;
         } catch (DmlException ex) {
-          lifecycleRejected = ex.getMessage()
-            .contains(ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE);
+          lifecycleRejected = true;
+          System.assertEquals(
+            ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE,
+            ex.getDmlMessage(0),
+            'Core 第3.4節・第3.4.2節: Lifecycle直書きを所定の理由で拒否する'
+          );
         }
         System.assertEquals(
           true,
@@ -232,17 +376,30 @@ private class ContractServiceWriteGuardTest {
           'Core 第3.4節: Lifecycleは利用者が変更できない'
         );
         service = [
-          SELECT Id, FirstOrderedHistory__c, LatestOrderedHistory__c
+          SELECT
+            Id,
+            Lifecycle__c,
+            FirstOrderedHistory__c,
+            LatestOrderedHistory__c
           FROM ContractService__c
           WHERE Id = :service.Id
         ];
+        System.assertEquals(
+          null,
+          service.Lifecycle__c,
+          'Core 第3.4.2節: 拒否したLifecycle変更で保存済み値を変えない'
+        );
         Boolean firstRejected = false;
         try {
           service.FirstOrderedHistory__c = history.Id;
           update service;
         } catch (DmlException ex) {
-          firstRejected = ex.getMessage()
-            .contains(ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE);
+          firstRejected = true;
+          System.assertEquals(
+            ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE,
+            ex.getDmlMessage(0),
+            'Core 第3.4節: First Ordered直書きを所定の理由で拒否する'
+          );
         }
         System.assertEquals(
           true,
@@ -250,22 +407,41 @@ private class ContractServiceWriteGuardTest {
           'Core 第3.4節: First Orderedは利用者が変更できない'
         );
         service = [
-          SELECT Id, LatestOrderedHistory__c
+          SELECT Id, FirstOrderedHistory__c, LatestOrderedHistory__c
           FROM ContractService__c
           WHERE Id = :service.Id
         ];
+        System.assertEquals(
+          null,
+          service.FirstOrderedHistory__c,
+          'Core 第3.4節: 拒否したFirst Ordered変更で保存済み値を変えない'
+        );
         Boolean latestRejected = false;
         try {
           service.LatestOrderedHistory__c = history.Id;
           update service;
         } catch (DmlException ex) {
-          latestRejected = ex.getMessage()
-            .contains(ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE);
+          latestRejected = true;
+          System.assertEquals(
+            ContractServiceWriteGuard.SYSTEM_FIELD_BLOCK_MESSAGE,
+            ex.getDmlMessage(0),
+            'Core 第3.4節: Latest Ordered直書きを所定の理由で拒否する'
+          );
         }
         System.assertEquals(
           true,
           latestRejected,
           'Core 第3.4節: Latest Orderedは利用者が変更できない'
+        );
+        System.assertEquals(
+          null,
+          [
+            SELECT LatestOrderedHistory__c
+            FROM ContractService__c
+            WHERE Id = :service.Id
+          ]
+          .LatestOrderedHistory__c,
+          'Core 第3.4節: 拒否したLatest Ordered変更で保存済み値を変えない'
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;
@@ -278,17 +454,19 @@ private class ContractServiceWriteGuardTest {
   static void delete_allows103_andCreateWithEmptyOldMapIsCreate() {
     ContractServiceWriteGuard.enforceInTest = true;
     ContractServiceWriteGuard.allowPackageWrite(false);
-    ContractServiceWriteGuard.assertNoDelete(null);
     ContractService__c missingPrior = new ContractService__c(Name = 'No Prior');
     ContractServiceWriteGuard.assertAllowedWrite(
       new List<ContractService__c>{ null, missingPrior },
       new Map<Id, ContractService__c>()
     );
     System.assertEquals(
-      true,
-      missingPrior.getErrors()[0]
-        .getMessage()
-        .contains(ContractServiceWriteGuard.CREATE_BLOCK_MESSAGE),
+      1,
+      missingPrior.getErrors().size(),
+      'Core 第3.4.2節: oldMapに既存行が無ければ作成拒否を1件だけ付ける'
+    );
+    System.assertEquals(
+      ContractServiceWriteGuard.CREATE_BLOCK_MESSAGE,
+      missingPrior.getErrors()[0].getMessage(),
       'Core 第3.4節: 新規見積以外の作成は拒否する'
     );
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -306,6 +484,34 @@ private class ContractServiceWriteGuardTest {
         ContractPermissionUtil.DELETE_RECORDS => true
       };
       try {
+        Boolean updateRejected = false;
+        try {
+          service.Name = 'Write Guard 103 Updated';
+          update service;
+        } catch (DmlException ex) {
+          updateRejected = true;
+          System.assertEquals(
+            ContractServiceWriteGuard.UPDATE_BLOCK_MESSAGE,
+            ex.getDmlMessage(0),
+            '共通基盤 第3.6節: 103は項目更新を所定の理由で拒否する'
+          );
+        }
+        System.assertEquals(
+          true,
+          updateRejected,
+          '共通基盤 第3.6節: 103は削除だけを通す'
+        );
+        System.assertEquals(
+          'Write Guard 103',
+          [
+            SELECT Name
+            FROM ContractService__c
+            WHERE Id = :service.Id
+          ]
+          .Name,
+          '共通基盤 第3.6節: 103で拒否した更新で保存済み値を変えない'
+        );
+
         delete service;
         System.assertEquals(
           0,

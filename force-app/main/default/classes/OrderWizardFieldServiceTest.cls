@@ -6,25 +6,55 @@ private class OrderWizardFieldServiceTest {
   }
 
   @IsTest
-  static void getDefinitions_returnsApplicationDateAndOrderDate() {
+  static void getDefinitions_standardDefinitionsMatchSpec() {
     OrderWizardFieldService.resetCache();
     List<ContractWizardFieldService.WizardFieldDefinition> definitions = OrderWizardFieldService.getDefinitions(
       'New'
     );
 
-    Map<String, ContractWizardFieldService.WizardFieldDefinition> byApi = new Map<String, ContractWizardFieldService.WizardFieldDefinition>();
+    Map<String, ContractWizardFieldService.WizardFieldDefinition> byApiName = new Map<String, ContractWizardFieldService.WizardFieldDefinition>();
     for (
       ContractWizardFieldService.WizardFieldDefinition definition : definitions
     ) {
-      byApi.put(definition.apiName, definition);
+      byApiName.put(definition.apiName, definition);
     }
-    System.assertEquals(true, byApi.containsKey('ApplicationDate__c'));
-    System.assertEquals(true, byApi.containsKey('OrderDate__c'));
-    System.assertEquals(true, byApi.get('ApplicationDate__c').required);
-    System.assertEquals(false, byApi.get('OrderDate__c').required);
-    System.assertEquals('Today', byApi.get('OrderDate__c').defaultSource);
-    System.assertEquals(true, byApi.get('ApplicationDate__c').showOnCancel);
-    System.assert(!byApi.containsKey('Note__c'));
+    System.assert(
+      byApiName.containsKey('ApplicationDate__c'),
+      'Core 第11.4.3節: 標準定義に申込日を同梱する'
+    );
+    System.assert(
+      byApiName.containsKey('OrderDate__c'),
+      'Core 第11.4.3節: 標準定義に受注日を同梱する'
+    );
+    ContractWizardFieldService.WizardFieldDefinition applicationDate = byApiName.get(
+      'ApplicationDate__c'
+    );
+    System.assertEquals('ApplicationDate__c', applicationDate.apiName);
+    System.assertEquals('申込日', applicationDate.label);
+    System.assertEquals('DATE', applicationDate.fieldType);
+    System.assertEquals(true, applicationDate.required);
+    System.assertEquals(10, applicationDate.sortOrder);
+    System.assertEquals(null, applicationDate.defaultSource);
+    System.assertEquals(null, applicationDate.defaultValue);
+    System.assertEquals(true, applicationDate.showOnNew);
+    System.assertEquals(true, applicationDate.showOnChange);
+    System.assertEquals(true, applicationDate.showOnRenew);
+    System.assertEquals(true, applicationDate.showOnCancel);
+
+    ContractWizardFieldService.WizardFieldDefinition orderDate = byApiName.get(
+      'OrderDate__c'
+    );
+    System.assertEquals('OrderDate__c', orderDate.apiName);
+    System.assertEquals('受注日', orderDate.label);
+    System.assertEquals('DATE', orderDate.fieldType);
+    System.assertEquals(false, orderDate.required);
+    System.assertEquals(20, orderDate.sortOrder);
+    System.assertEquals('Today', orderDate.defaultSource);
+    System.assertEquals(null, orderDate.defaultValue);
+    System.assertEquals(true, orderDate.showOnNew);
+    System.assertEquals(true, orderDate.showOnChange);
+    System.assertEquals(true, orderDate.showOnRenew);
+    System.assertEquals(true, orderDate.showOnCancel);
   }
 
   @IsTest
@@ -39,22 +69,6 @@ private class OrderWizardFieldServiceTest {
       values.get('OrderDate__c'),
       'Core 第5.3節、日付仕様 第8章: 受注日初期値は組織TZの操作日'
     );
-  }
-
-  @IsTest
-  static void getOrderHistoryFieldDefinitions_doesNotIncludeNote() {
-    List<ContractWizardFieldService.WizardFieldDefinition> definitions = OrderWizardFieldService.getDefinitions(
-      'New'
-    );
-
-    Set<String> apiNames = new Set<String>();
-    for (
-      ContractWizardFieldService.WizardFieldDefinition definition : definitions
-    ) {
-      apiNames.add(definition.apiName);
-    }
-    System.assert(!apiNames.contains('Note__c'));
-    System.assert(apiNames.contains('ApplicationDate__c'));
   }
 
   @IsTest
@@ -117,14 +131,84 @@ private class OrderWizardFieldServiceTest {
   }
 
   @IsTest
-  static void validateRequiredHistoryFields_requiresApplicationDate() {
+  static void validateRequiredHistoryFields_onlyRequiresShownApplicationDate() {
     OrderWizardFieldService.resetCache();
-    String error = OrderWizardFieldService.validateRequiredHistoryFields(
-      new Map<String, Object>(),
+    System.assertEquals(
+      '必須のカスタム項目を入力してください: 申込日',
+      OrderWizardFieldService.validateRequiredHistoryFields(null, 'New'),
+      'Core 第11.4.3節: 表示中の申込日だけ必須'
+    );
+    System.assertEquals(
+      '必須のカスタム項目を入力してください: 申込日',
+      OrderWizardFieldService.validateRequiredHistoryFields(
+        new Map<String, Object>{ 'ApplicationDate__c' => '   ' },
+        'New'
+      ),
+      '空白だけの申込日は未入力'
+    );
+    System.assertEquals(
+      null,
+      OrderWizardFieldService.validateRequiredHistoryFields(
+        new Map<String, Object>{ 'ApplicationDate__c' => '2026-06-15' },
+        'New'
+      ),
+      'Core 第11.4.3節: 任意の受注日が空でも受注追加項目の必須を満たす'
+    );
+  }
+
+  @IsTest
+  static void getDefinitions_respectsDisplayFlagsOrderingAndStaticDefault() {
+    OrderWizardFieldService.setCachedDefinitionsForTest(
+      new List<OrderWizardField__mdt>{
+        new OrderWizardField__mdt(
+          DeveloperName = 'Later_Field',
+          MasterLabel = '後',
+          FieldApiName__c = 'EstimateTitleName__c',
+          LabelOverride__c = '契約件名',
+          HelpText__c = ' 入力補助 ',
+          DefaultValue__c = '固定件名',
+          Required__c = true,
+          SortOrder__c = 20,
+          Active__c = true,
+          ShowOnNew__c = true
+        ),
+        new OrderWizardField__mdt(
+          DeveloperName = 'Earlier_Field',
+          MasterLabel = '先',
+          FieldApiName__c = 'ApplicationDate__c',
+          SortOrder__c = 10,
+          Active__c = true,
+          ShowOnChange__c = true
+        )
+      }
+    );
+
+    List<ContractWizardFieldService.WizardFieldDefinition> newDefinitions = OrderWizardFieldService.getDefinitions(
       'New'
     );
-    System.assertNotEquals(null, error);
-    System.assert(error.contains('申込日'), error);
+    System.assertEquals(1, newDefinitions.size());
+    ContractWizardFieldService.WizardFieldDefinition definition = newDefinitions[0];
+    System.assertEquals('EstimateTitleName__c', definition.apiName);
+    System.assertEquals('契約件名', definition.label);
+    System.assertEquals('STRING', definition.fieldType);
+    System.assertEquals(true, definition.required);
+    System.assertEquals(20, definition.sortOrder);
+    System.assertEquals('入力補助', definition.helpText);
+    System.assertEquals(null, definition.defaultSource);
+    System.assertEquals('固定件名', definition.defaultValue);
+
+    List<ContractWizardFieldService.WizardFieldDefinition> changeDefinitions = OrderWizardFieldService.getDefinitions(
+      'Change'
+    );
+    System.assertEquals(1, changeDefinitions.size());
+    System.assertEquals('ApplicationDate__c', changeDefinitions[0].apiName);
+    System.assertEquals(10, changeDefinitions[0].sortOrder);
+    System.assertEquals(
+      0,
+      OrderWizardFieldService.getDefinitions('Renew').size(),
+      'Core 第11.4.3節: 表示指定のない見積種別には出さない'
+    );
+    OrderWizardFieldService.resetCache();
   }
 
   @IsTest
@@ -168,7 +252,9 @@ private class OrderWizardFieldServiceTest {
   @IsTest
   static void validateBillingCustomFields_requiresAddresseeToPaymentTermAndBillingDay() {
     String error = OrderWizardFieldService.validateBillingCustomFields(
-      new Map<String, Object>{ 'InvoiceDateAdjust__c' => BillingScheduleService.ADJUST_NONE }
+      new Map<String, Object>{
+        'InvoiceDateAdjust__c' => BillingScheduleService.ADJUST_NONE
+      }
     );
     System.assertEquals(
       '請求アカウントの必須項目が未設定です。請求アカウントの正規編集画面で設定してください: 請求先宛名、請求書送付先（To）、請求日の計算方式、支払条件の計算方式、支払条件の補正',
@@ -366,34 +452,32 @@ private class OrderWizardFieldServiceTest {
   }
 
   @IsTest
-  static void getDefinitions_changeAndCancel_includeApplicationDate() {
+  static void getDefinitions_allStandardTypesUseSameOrderedFields() {
     OrderWizardFieldService.resetCache();
-    Set<String> changeApis = new Set<String>();
+    List<String> expected = new List<String>{
+      'ApplicationDate__c',
+      'OrderDate__c'
+    };
     for (
-      ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
-        'Change'
-      )
+      String wizardType : new List<String>{ 'New', 'Change', 'Renew', 'Cancel' }
     ) {
-      changeApis.add(definition.apiName);
+      List<String> actual = new List<String>();
+      for (
+        ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
+          wizardType
+        )
+      ) {
+        if (expected.contains(definition.apiName)) {
+          actual.add(definition.apiName);
+        }
+      }
+      System.assertEquals(
+        expected,
+        actual,
+        'Core 第11.4.3節: 標準2項目は全種別に並び順どおり表示する: ' +
+        wizardType
+      );
     }
-    Set<String> cancelApis = new Set<String>();
-    for (
-      ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
-        'Cancel'
-      )
-    ) {
-      cancelApis.add(definition.apiName);
-    }
-    System.assertEquals(
-      true,
-      changeApis.contains('ApplicationDate__c'),
-      'Core 第11.4.3節: 標準定義は全種別'
-    );
-    System.assertEquals(
-      true,
-      cancelApis.contains('ApplicationDate__c'),
-      'Core 第11.4.3節: Cancelでも表示対象の項目を出す'
-    );
   }
 
   @IsTest
@@ -459,7 +543,11 @@ private class OrderWizardFieldServiceTest {
         account.Id,
         '商談件名の初期値'
       );
-      opportunity = [SELECT Id, Name FROM Opportunity WHERE Id = :opportunity.Id];
+      opportunity = [
+        SELECT Id, Name
+        FROM Opportunity
+        WHERE Id = :opportunity.Id
+      ];
       ContractService__c service = new ContractService__c(
         Name = 'Order Wizard Opportunity Default Service',
         Account__c = account.Id
@@ -526,17 +614,6 @@ private class OrderWizardFieldServiceTest {
   }
 
   @IsTest
-  static void validateRequiredHistoryFields_nullMap_requiresApplicationDate() {
-    OrderWizardFieldService.resetCache();
-    String error = OrderWizardFieldService.validateRequiredHistoryFields(
-      null,
-      'New'
-    );
-    System.assertNotEquals(null, error);
-    System.assert(error.contains('申込日'), error);
-  }
-
-  @IsTest
   static void applyHistoryFields_nullHistory_doesNotThrow() {
     OrderWizardFieldService.applyHistoryFields(null, new Map<String, Object>());
     OrderWizardFieldService.applyBillingFields(
@@ -550,24 +627,6 @@ private class OrderWizardFieldServiceTest {
       '請求アカウントの必須項目が未設定です。請求アカウントの正規編集画面で設定してください: 請求先宛名、請求書送付先（To）、請求日の計算方式、請求日の補正、支払条件の計算方式、支払条件の補正',
       billingError,
       'Core 第5.2節: 未入力は正規編集へ誘導する'
-    );
-  }
-
-  @IsTest
-  static void getDefinitions_renew_includesApplicationDate() {
-    OrderWizardFieldService.resetCache();
-    Set<String> renewApis = new Set<String>();
-    for (
-      ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
-        'Renew'
-      )
-    ) {
-      renewApis.add(definition.apiName);
-    }
-    System.assertEquals(
-      true,
-      renewApis.contains('ApplicationDate__c'),
-      'Core 第11.4.3節: Renewでも表示対象の項目を出す'
     );
   }
 
@@ -678,6 +737,62 @@ private class OrderWizardFieldServiceTest {
         '受注ウィザード追加項目「Blank_Api」の FieldApiName が未設定です。',
         ex.getMessage(),
         'Core 第11.4.3節: FieldApiName 空は DeveloperName を含める'
+      );
+    }
+    System.assertEquals(true, failed);
+    OrderWizardFieldService.resetCache();
+  }
+
+  @IsTest
+  static void validateActiveDefinitions_nonHistoryFieldFailsFast() {
+    OrderWizardFieldService.setCachedDefinitionsForTest(
+      new List<OrderWizardField__mdt>{
+        new OrderWizardField__mdt(
+          DeveloperName = 'Foreign_Field',
+          MasterLabel = '他オブジェクト項目',
+          FieldApiName__c = 'Account.Name',
+          Active__c = true,
+          ShowOnNew__c = true
+        )
+      }
+    );
+    Boolean failed = false;
+    try {
+      OrderWizardFieldService.getDefinitions('New');
+    } catch (AuraHandledException ex) {
+      failed = true;
+      System.assertEquals(
+        '受注ウィザード追加項目「Foreign_Field」の項目「Account.Name」が契約履歴に存在しません。',
+        ex.getMessage(),
+        'Core 第11.4.3節: 対象は契約履歴だけ。不正定義はDeveloperName付きでfail-fast'
+      );
+    }
+    System.assertEquals(true, failed);
+    OrderWizardFieldService.resetCache();
+  }
+
+  @IsTest
+  static void validateActiveDefinitions_unsupportedTypeFailsFast() {
+    OrderWizardFieldService.setCachedDefinitionsForTest(
+      new List<OrderWizardField__mdt>{
+        new OrderWizardField__mdt(
+          DeveloperName = 'Unsupported_Datetime',
+          MasterLabel = '非対応日時',
+          FieldApiName__c = 'EstimateSentAt__c',
+          Active__c = true,
+          ShowOnNew__c = true
+        )
+      }
+    );
+    Boolean failed = false;
+    try {
+      OrderWizardFieldService.getDefinitions('New');
+    } catch (AuraHandledException ex) {
+      failed = true;
+      System.assertEquals(
+        '受注ウィザード追加項目「Unsupported_Datetime」の項目「EstimateSentAt__c」はウィザード非対応の型です。',
+        ex.getMessage(),
+        'Core 第11.4.3節: 型不一致を黙って無効化せずfail-fast'
       );
     }
     System.assertEquals(true, failed);

@@ -1817,13 +1817,17 @@ private class AccountingEngineTest {
         '他明細の仕訳があること'
       );
       Test.startTest();
+      AccountingCurrentService.invalidate(fixture.invoice.Id);
+      String acceptanceToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        fixture.invoice.Id
+      );
       InvoiceCanonicalService.updateLineAcceptanceEndDates(
         new Map<Id, Date>{
           fixture.line.Id => Date.newInstance(2026, 8, 31)
         },
         null,
         null,
-        AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id)
+        acceptanceToken
       );
       Test.stopTest();
       List<GlJournal__c> otherAfter = [
@@ -2374,7 +2378,7 @@ private class AccountingEngineTest {
   }
 
   @IsTest
-  static void getOpsBundle_showsTrueTagLabelsOnly() {
+  static void getOpsBundle_showsEnabledTagLabelsWithTruthValues() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('tag');
       fixture.invoice.IsManuallyAdjusted__c = true;
@@ -2411,9 +2415,30 @@ private class AccountingEngineTest {
       InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
         fixture.invoice.Id
       );
-      System.assertEquals(1, bundle.tagResults.size());
-      System.assertEquals('AR残あり', bundle.tagResults[0].name);
-      System.assertEquals(true, bundle.tagResults[0].value);
+      System.assertEquals(
+        2,
+        bundle.tagResults.size(),
+        'Accounting 第7.6節: 有効ルールはTrueもFalseもタグ行を返す'
+      );
+      Map<String, Boolean> valueByLabel = new Map<String, Boolean>();
+      for (InvoicePreviewOpsController.TagResultRowDto row : bundle.tagResults) {
+        valueByLabel.put(row.name, row.value);
+      }
+      System.assertEquals(
+        true,
+        valueByLabel.get('AR残あり'),
+        'Accounting 第7.6節: Trueは活性表示用の値を返す'
+      );
+      System.assertEquals(
+        false,
+        valueByLabel.get('端数調整済'),
+        'Accounting 第7.6節: Falseも非活性表示用の値を返す'
+      );
+      System.assertEquals(
+        false,
+        valueByLabel.containsKey('無効タグ'),
+        'Accounting 第7.6節: 無効ルールのタグラベルは返さない'
+      );
     }
   }
 

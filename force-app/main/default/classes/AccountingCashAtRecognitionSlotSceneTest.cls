@@ -414,6 +414,8 @@ private class AccountingCashAtRecognitionSlotSceneTest {
         Date.newInstance(2024, 6, 15)
       );
       confirm(scene);
+      // 請求確定と手動仕訳登録は別業務トランザクション。テスト内だけ残る原因キャッシュを境界で破棄する。
+      AccountingGoalService.invalidateCauseCache(scene.invoice.Id);
       GlAccount__c debit = new GlAccount__c(
         Name = 'Scene FX Loss',
         AccountType__c = 'Expense',
@@ -444,24 +446,53 @@ private class AccountingCashAtRecognitionSlotSceneTest {
       request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
         scene.invoice.Id
       );
-      ManualJournalService.register(request);
+      Id headerId = ManualJournalService.register(request);
       Test.stopTest();
       assertFiveLines(scene);
-      Boolean found = false;
-      for (GlJournal__c row : activeJournals(scene.invoice.Id)) {
-        if (
-          row.DebitSlotKey__c == 'FxLoss' &&
-          row.CreditSlotKey__c == 'AccountsReceivable' &&
-          row.Amount__c == 100
-        ) {
-          found = true;
-        }
-      }
+      List<GlJournal__c> manualRows = [
+        SELECT
+          AccountingEventKey__c,
+          JournalPatternKey__c,
+          GlManualJournalSetting__c,
+          DebitSlotKey__c,
+          DebitAccountAssignment__c,
+          DebitAccount__c,
+          CreditSlotKey__c,
+          CreditAccountAssignment__c,
+          CreditAccount__c,
+          Amount__c,
+          PostingDate__c
+        FROM GlJournal__c
+        WHERE
+          Invoice__c = :scene.invoice.Id
+          AND GlManualJournalHeader__c = :headerId
+          AND TransactionStatus__c = 'Active'
+      ];
       System.assertEquals(
-        true,
-        found,
-        'Accounting 第10章: 手動仕訳は設定の借貸スロットを載せる'
+        1,
+        manualRows.size(),
+        'Accounting 第10.3節: 登録した手動仕訳ヘッダーから同額の有効仕訳を1件生成する'
       );
+      GlJournal__c manualRow = manualRows[0];
+      System.assertEquals('MANUAL_JOURNAL', manualRow.AccountingEventKey__c);
+      System.assertEquals(null, manualRow.JournalPatternKey__c);
+      System.assertEquals(setting.Id, manualRow.GlManualJournalSetting__c);
+      System.assertEquals(
+        'FxLoss',
+        manualRow.DebitSlotKey__c,
+        'Accounting 第10.2節: 為替差損は借方FXL'
+      );
+      System.assertEquals(null, manualRow.DebitAccountAssignment__c);
+      System.assertEquals(debit.Id, manualRow.DebitAccount__c);
+      System.assertEquals(
+        'AccountsReceivable',
+        manualRow.CreditSlotKey__c,
+        'Accounting 第10.2節: 為替差損は貸方AR'
+      );
+      System.assertEquals(null, manualRow.CreditAccountAssignment__c);
+      System.assertEquals(credit.Id, manualRow.CreditAccount__c);
+      System.assertEquals(100, manualRow.Amount__c);
+      System.assertEquals(Date.newInstance(2024, 7, 1), manualRow.PostingDate__c);
     }
   }
 

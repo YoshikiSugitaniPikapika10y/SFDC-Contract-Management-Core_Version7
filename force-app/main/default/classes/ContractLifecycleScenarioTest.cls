@@ -1234,7 +1234,8 @@ private class ContractLifecycleScenarioTest {
       Name = name + ' Service',
       Account__c = account.Id,
       BiilingAcccount__c = billingAccount.Id,
-      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
     );
     insert service;
 

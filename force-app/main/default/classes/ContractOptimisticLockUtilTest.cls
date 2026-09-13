@@ -193,11 +193,41 @@ private class ContractOptimisticLockUtilTest {
       contractProduct.Amount__c = 1000;
       insert contractProduct;
 
+      history = [
+        SELECT LastModifiedDate
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      contractProduct = [
+        SELECT LastModifiedDate
+        FROM ContractProduct__c
+        WHERE Id = :contractProduct.Id
+      ];
+      Datetime currentVersion = ContractOptimisticLockUtil.resolveHistoryProductDatetime(
+        history.Id
+      );
+      Datetime expectedVersion = contractProduct.LastModifiedDate >
+        history.LastModifiedDate
+        ? contractProduct.LastModifiedDate
+        : history.LastModifiedDate;
+      System.assertEquals(
+        expectedVersion,
+        currentVersion,
+        'Core 第4.3.12節: 版は契約履歴と配下の見積商品の最大更新日時'
+      );
+      String currentToken = ContractOptimisticLockUtil.toToken(currentVersion);
+      ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+        history.Id,
+        currentToken
+      );
+
       Boolean rejected = false;
       try {
         ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
           history.Id,
-          token
+          ContractOptimisticLockUtil.toToken(
+            Datetime.newInstance(currentVersion.getTime() - 1)
+          )
         );
       } catch (AuraHandledException ex) {
         rejected = true;
@@ -207,7 +237,28 @@ private class ContractOptimisticLockUtilTest {
           'Core 第4.3.12節: 版は契約履歴と配下の見積商品'
         );
       }
-      System.assertEquals(true, rejected);
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第4.3.12節: 現行版と異なる更新情報は拒否する'
+      );
+      if (token != currentToken) {
+        try {
+          ContractOptimisticLockUtil.assertRequiredHistoryProductsUnchanged(
+            history.Id,
+            token
+          );
+          System.assert(
+            false,
+            'Core 第4.3.12節: 商品追加で版が進んだ場合は追加前トークンを拒否する'
+          );
+        } catch (AuraHandledException ex) {
+          System.assertEquals(
+            ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+            ex.getMessage()
+          );
+        }
+      }
     }
   }
 

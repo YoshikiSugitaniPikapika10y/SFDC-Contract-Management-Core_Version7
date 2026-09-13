@@ -52,8 +52,7 @@ jest.mock(
     initializeOrderWizardFromUrl: jest.fn(),
     isOrderWizardTabView: jest.fn(() => false),
     readOrderWizardRecordId: jest.fn(() => "")
-  }),
-  { virtual: true }
+  })
 );
 jest.mock(
   "c/orderWizardClose",
@@ -65,8 +64,7 @@ jest.mock(
     ),
     resetRecordActionLoadState: jest.fn(),
     closeOrderWizardTab: jest.fn()
-  }),
-  { virtual: true }
+  })
 );
 jest.mock(
   "c/estimateValidationAlertUtils",
@@ -216,6 +214,19 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
     updateInvoiceHeaderAndDates.mockReset().mockResolvedValue({ invoices: [] });
     applyBillingAccountContent.mockReset().mockResolvedValue({ invoices: [] });
     cancelConfirmedFromPreview.mockReset().mockResolvedValue({ invoices: [] });
+    requestOrderWizardClose.mockClear();
+    closeOrderWizardTab.mockClear();
+    readOrderWizardRecordId
+      .mockReset()
+      .mockImplementation((pageRef) => pageRef?.state?.c__recordId || "");
+    isOrderWizardTabView
+      .mockReset()
+      .mockImplementation(
+        (pageRef, componentToken) =>
+          componentToken === "preview" &&
+          pageRef?.type === "standard__navItemPage" &&
+          pageRef?.attributes?.apiName === "Order_Invoice_Preview"
+      );
   });
 
   it("empty recordId does not load", async () => {
@@ -391,10 +402,20 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
   it("closes modal vs tab", () => {
     const ctx = bind();
     ctx.handleClose();
-    expect(requestOrderWizardClose).toHaveBeenCalled();
+    expect(requestOrderWizardClose).toHaveBeenCalledWith(ctx, {
+      recordId: "a0H000000000001AAA",
+      refresh: false
+    });
+    expect(closeOrderWizardTab).not.toHaveBeenCalled();
+
+    requestOrderWizardClose.mockClear();
     const tab = bind({ isTabView: true });
     tab.closeAction({ refresh: true });
-    expect(closeOrderWizardTab).toHaveBeenCalled();
+    expect(closeOrderWizardTab).toHaveBeenCalledWith(tab, {
+      recordId: "a0H000000000001AAA",
+      refresh: true
+    });
+    expect(requestOrderWizardClose).not.toHaveBeenCalled();
   });
 
   it("empty edits / ids are no-ops", async () => {
@@ -471,12 +492,18 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
   });
 
   it("pageRef sets record id and tab view", () => {
-    readOrderWizardRecordId.mockReturnValue("a0HZZZ");
-    isOrderWizardTabView.mockReturnValue(true);
+    const pageRef = {
+      type: "standard__navItemPage",
+      attributes: { apiName: "Order_Invoice_Preview" },
+      state: { c__recordId: "a0HZZZ" }
+    };
     const ctx = bind({ recordId: "" });
-    ctx.setCurrentPageReference({ type: "standard__navItemPage" });
+    ctx.setCurrentPageReference(pageRef);
+    expect(readOrderWizardRecordId).toHaveBeenCalledWith(pageRef);
+    expect(isOrderWizardTabView).toHaveBeenCalledWith(pageRef, "preview");
     expect(ctx.recordId).toBe("a0HZZZ");
     expect(ctx.isTabView).toBe(true);
+    expect(ctx.pageClass).toBe("preview-page preview-page_tab");
   });
 
   it("applyScrollSizing writes height 100% (Core 7.7.0)", () => {

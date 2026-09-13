@@ -6,17 +6,17 @@ private class ContractIrregularOperationLogTest {
   }
 
   @IsTest
-  static void logCreate_isNotWrittenWithout104() {
+  static void logCreate_isNotWrittenWithout101() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.MIGRATE_ALL => false
     };
     try {
-      BillingAccount__c row = insertLoggedBillingAccount('Irreg No104');
+      BillingAccount__c row = insertLoggedBillingAccount('Irreg No101');
       ContractIrregularOperationLog.logCreate(new List<SObject>{ row });
       System.assertEquals(
         0,
         countLogs('IrregularCreate', row.Id),
-        '共通基盤第12章: 104が無い正規経路はIrregularCreateを書かない'
+        '共通基盤第12章: 101が無い経路はIrregularCreateを書かない'
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;
@@ -24,10 +24,10 @@ private class ContractIrregularOperationLogTest {
   }
 
   @IsTest
-  static void logCreate_writesOneRowPerRecordWith104() {
+  static void logCreate_writesExactRowsWith101() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      BillingAccount__c first = insertLoggedBillingAccount('Irreg 104 A');
-      BillingAccount__c second = insertLoggedBillingAccount('Irreg 104 B');
+      BillingAccount__c first = insertLoggedBillingAccount('Irreg 101 A');
+      BillingAccount__c second = insertLoggedBillingAccount('Irreg 101 B');
       resetLogWriteFlags();
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MIGRATE_ALL => true
@@ -36,21 +36,27 @@ private class ContractIrregularOperationLogTest {
         System.assertEquals(
           false,
           ContractIrregularOperationLog.skipRegularPath(),
-          '共通基盤第12章: 104の例外書き込みは正規フラグを立てない'
+          '共通基盤第12章: 101の例外書き込みは正規フラグを立てない'
         );
         System.assertEquals(true, ContractPermissionUtil.hasMigrateAll());
+        Datetime startedAt = System.now();
         ContractIrregularOperationLog.logCreate(
           new List<SObject>{ first, second }
         );
-        System.assertEquals(
-          1,
-          countLogs('IrregularCreate', first.Id),
-          '共通基盤第12章・第3.6節: 101〜104は1件1行'
+        Datetime finishedAt = System.now();
+        assertIrregularLog(
+          'IrregularCreate',
+          first.Id,
+          UserInfo.getUserId(),
+          startedAt,
+          finishedAt
         );
-        System.assertEquals(
-          1,
-          countLogs('IrregularCreate', second.Id),
-          '共通基盤第12章・第3.6節: 101〜104は1件1行'
+        assertIrregularLog(
+          'IrregularCreate',
+          second.Id,
+          UserInfo.getUserId(),
+          startedAt,
+          finishedAt
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;
@@ -61,6 +67,9 @@ private class ContractIrregularOperationLogTest {
   @IsTest
   static void logCreate_skipsWhenPackageWriteAllowed() {
     ContractServiceWriteGuard.allowPackageWrite(true);
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.MIGRATE_ALL => true
+    };
     try {
       BillingAccount__c row = insertLoggedBillingAccount('Irreg Package');
       ContractIrregularOperationLog.logCreate(new List<SObject>{ row });
@@ -70,6 +79,7 @@ private class ContractIrregularOperationLogTest {
         '共通基盤第12章: 正規手続きの静的フラグではIrregularCreateを書かない'
       );
     } finally {
+      ContractPermissionUtil.testOverrides = null;
       ContractServiceWriteGuard.allowPackageWrite(false);
     }
   }
@@ -135,7 +145,7 @@ private class ContractIrregularOperationLogTest {
   }
 
   @IsTest
-  static void logUpdate_isNotWrittenWithout101102104() {
+  static void logUpdate_isNotWrittenWithout101Or102() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.FIX_CONTRACT => false,
       ContractPermissionUtil.MIGRATE_ALL => false
@@ -146,7 +156,7 @@ private class ContractIrregularOperationLogTest {
       System.assertEquals(
         0,
         countLogs('IrregularUpdate', row.Id),
-        '共通基盤第12章: 101／102／104が無い更新はIrregularUpdateを書かない'
+        '共通基盤第12章: 101／102が無い更新はIrregularUpdateを書かない'
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;
@@ -154,23 +164,131 @@ private class ContractIrregularOperationLogTest {
   }
 
   @IsTest
-  static void logDelete_writesWith104() {
+  static void logUpdate_writesExactRowsWith101And102() {
+    BillingAccount__c with102 = insertLoggedBillingAccount('Irreg Upd 102');
+    BillingAccount__c with101 = insertLoggedBillingAccount('Irreg Upd 101');
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.FIX_CONTRACT => true,
+      ContractPermissionUtil.MIGRATE_ALL => false
+    };
+    try {
+      Datetime startedAt = System.now();
+      ContractIrregularOperationLog.logUpdate(new List<SObject>{ with102 });
+      assertIrregularLog(
+        'IrregularUpdate',
+        with102.Id,
+        UserInfo.getUserId(),
+        startedAt,
+        System.now()
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.FIX_CONTRACT => false,
+      ContractPermissionUtil.MIGRATE_ALL => true
+    };
+    try {
+      Datetime startedAt = System.now();
+      ContractIrregularOperationLog.logUpdate(new List<SObject>{ with101 });
+      assertIrregularLog(
+        'IrregularUpdate',
+        with101.Id,
+        UserInfo.getUserId(),
+        startedAt,
+        System.now()
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+  }
+
+  @IsTest
+  static void logDelete_isNotWrittenWithout101Or103() {
+    BillingAccount__c row = insertLoggedBillingAccount('Irreg Del No');
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.FIX_CONTRACT => true,
+      ContractPermissionUtil.DELETE_RECORDS => false,
+      ContractPermissionUtil.MIGRATE_ALL => false
+    };
+    try {
+      ContractIrregularOperationLog.logDelete(new List<SObject>{ row });
+      System.assertEquals(
+        0,
+        countLogs('IrregularDelete', row.Id),
+        '共通基盤第3.6節・第12章: 102だけではIrregularDeleteを書かない'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+  }
+
+  @IsTest
+  static void logDelete_writesExactRowsWith101And103() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      BillingAccount__c row = insertLoggedBillingAccount('Irreg Del 104');
+      BillingAccount__c with101 = insertLoggedBillingAccount('Irreg Del 101');
+      BillingAccount__c with103 = insertLoggedBillingAccount('Irreg Del 103');
       resetLogWriteFlags();
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.MIGRATE_ALL => true
       };
       try {
-        ContractIrregularOperationLog.logDelete(new List<SObject>{ row });
-        System.assertEquals(
-          1,
-          countLogs('IrregularDelete', row.Id),
-          '共通基盤第12章・第3.6節: 104の削除は1件1行'
+        Datetime startedAt = System.now();
+        ContractIrregularOperationLog.logDelete(new List<SObject>{ with101 });
+        assertIrregularLog(
+          'IrregularDelete',
+          with101.Id,
+          UserInfo.getUserId(),
+          startedAt,
+          System.now()
         );
       } finally {
         ContractPermissionUtil.testOverrides = null;
       }
+
+      ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+        ContractPermissionUtil.DELETE_RECORDS => true,
+        ContractPermissionUtil.MIGRATE_ALL => false
+      };
+      try {
+        Datetime startedAt = System.now();
+        ContractIrregularOperationLog.logDelete(new List<SObject>{ with103 });
+        assertIrregularLog(
+          'IrregularDelete',
+          with103.Id,
+          UserInfo.getUserId(),
+          startedAt,
+          System.now()
+        );
+      } finally {
+        ContractPermissionUtil.testOverrides = null;
+      }
+    }
+  }
+
+  @IsTest
+  static void logCreate_rollsBackWithCauseTransaction() {
+    BillingAccount__c row = insertLoggedBillingAccount('Irreg Rollback');
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.MIGRATE_ALL => true
+    };
+    Savepoint causeTransaction = Database.setSavepoint();
+    try {
+      ContractIrregularOperationLog.logCreate(new List<SObject>{ row });
+      System.assertEquals(
+        1,
+        countLogs('IrregularCreate', row.Id),
+        '共通基盤第12章: 原因操作と同じトランザクション中はログが存在する'
+      );
+      Database.rollback(causeTransaction);
+      System.assertEquals(
+        0,
+        countLogs('IrregularCreate', row.Id),
+        '共通基盤第12章: 原因操作が失敗してロールバックされればログも消える'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
     }
   }
 
@@ -208,5 +326,66 @@ private class ContractIrregularOperationLogTest {
           OR TargetRecordId__c = :id15
         )
     ];
+  }
+
+  private static void assertIrregularLog(
+    String expectedOperationType,
+    Id expectedTargetId,
+    Id expectedActorId,
+    Datetime startedAt,
+    Datetime finishedAt
+  ) {
+    String targetId = String.valueOf(expectedTargetId);
+    List<ContractOperationLog__c> stored = [
+      SELECT
+        OperationType__c,
+        BusinessOperationKey__c,
+        TargetObject__c,
+        TargetRecordId__c,
+        CancellationReason__c,
+        CancellationReasonText__c,
+        UnlockReason__c,
+        CreatedById,
+        CreatedDate
+      FROM ContractOperationLog__c
+      WHERE
+        OperationType__c = :expectedOperationType
+        AND TargetRecordId__c = :targetId
+    ];
+    System.assertEquals(
+      1,
+      stored.size(),
+      '共通基盤第12章: Irregular*は対象レコード1件につき1行'
+    );
+    ContractOperationLog__c actual = stored[0];
+    System.assertEquals(expectedOperationType, actual.OperationType__c);
+    System.assertEquals(
+      null,
+      actual.BusinessOperationKey__c,
+      '共通基盤第12章: Irregular*は業務操作キーなし'
+    );
+    System.assertEquals(
+      'BillingAccount__c',
+      actual.TargetObject__c,
+      '共通基盤第12章: 主対象は操作したレコードのオブジェクトAPI名'
+    );
+    System.assertEquals(
+      targetId,
+      actual.TargetRecordId__c,
+      '共通基盤第12章: 主対象レコードは操作したレコードのId'
+    );
+    System.assertEquals(null, actual.CancellationReason__c);
+    System.assertEquals(null, actual.CancellationReasonText__c);
+    System.assertEquals(null, actual.UnlockReason__c);
+    System.assertEquals(
+      expectedActorId,
+      actual.CreatedById,
+      '共通基盤第12章: CreatedByが実行者'
+    );
+    System.assert(
+      actual.CreatedDate >= startedAt.addSeconds(-1) &&
+        actual.CreatedDate <= finishedAt.addSeconds(1),
+      '共通基盤第12章: CreatedDateが実行日時'
+    );
   }
 }

@@ -57,18 +57,18 @@ private class InvoiceMergeKeyConfigServiceTest {
       'LINE|CP=' + String.valueOf(contractProductId) + '|UP=500|Q=3',
       key
     );
-    Boolean thrown = false;
-    try {
-      InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(null);
-    } catch (InvoiceMergeKeyConfigService.MergeKeyConfigException ex) {
-      thrown = true;
-      System.assertEquals(
-        '単価または数量が空です。0としてキーを作りません。',
-        ex.getMessage(),
-        'Core 第1.1.10節: 空欄を0で代替しない'
-      );
-    }
-    System.assertEquals(true, thrown, 'Core 第1.1.10節: 空欄はキーを作らない');
+    assertMissingNumberRejected(
+      new InvoiceProduct__c(Quantity__c = 3),
+      'Core 第1.1.10節: 単価の空欄は0で代替しない'
+    );
+    assertMissingNumberRejected(
+      new InvoiceProduct__c(UnitPrice__c = 500),
+      'Core 第1.1.10節: 数量の空欄は0で代替しない'
+    );
+    assertMissingNumberRejected(
+      null,
+      'Core 第1.1.10節: 空の請求商品から0でキーを作らない'
+    );
   }
 
   @IsTest
@@ -112,21 +112,15 @@ private class InvoiceMergeKeyConfigServiceTest {
     Id contractProductId = fakeId(ContractProduct__c.SObjectType, 3);
     Id productId = fakeId(Product2.SObjectType, 4);
     System.assertEquals(
-      InvoiceMergeKeyConfigService.buildLineBucketKey(
-        contractProductId,
-        1000,
-        2,
-        'ID',
-        productId
-      ),
+      'LINE|CP=' + String.valueOf(contractProductId) + '|UP=1000|Q=2',
       InvoiceMergeKeyConfigService.buildLineBucketKey(
         contractProductId,
         1000.00,
-        2,
+        2.000,
         '式',
-        null
+        productId
       ),
-      'Core 第7.3節: 同じ見積商品・単価・数量。コピー定義の顧客項目では分けない'
+      'Core 第6.7節・第7.3節: 単価・数量の末尾0を除き、単位とProduct2では分けない'
     );
     InvoiceMergeKeyConfigService.LineKeyInput zeros = new InvoiceMergeKeyConfigService.LineKeyInput();
     zeros.unitPrice = 0;
@@ -161,6 +155,24 @@ private class InvoiceMergeKeyConfigServiceTest {
       );
     }
     System.assertEquals(true, thrown, 'Core 第1.1.10節: 空欄はキーを作らない');
+  }
+
+  private static void assertMissingNumberRejected(
+    InvoiceProduct__c product,
+    String assertionMessage
+  ) {
+    Boolean thrown = false;
+    try {
+      InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(product);
+    } catch (InvoiceMergeKeyConfigService.MergeKeyConfigException ex) {
+      thrown = true;
+      System.assertEquals(
+        '単価または数量が空です。0としてキーを作りません。',
+        ex.getMessage(),
+        assertionMessage
+      );
+    }
+    System.assertEquals(true, thrown, assertionMessage);
   }
 
   private static Id fakeId(Schema.SObjectType typeName, Integer n) {

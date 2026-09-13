@@ -1,9 +1,3 @@
-import OrderCreateStepBilling from "c/orderCreateStepBilling";
-import { refreshApex } from "@salesforce/apex";
-import { getRecordNotifyChange } from "lightning/uiRecordApi";
-import { buildCustomFieldInputs } from "c/estimateWizardCustomFields";
-import { invoiceDateMethodHelp, METHOD_SAME_DAY, METHOD_MONTH_OFFSET } from "c/billingAccountForm";
-
 jest.mock(
   "@salesforce/apex/OrderWizardFieldService.getOrderBillingFieldDefinitions",
   () => ({ default: jest.fn() }),
@@ -43,11 +37,6 @@ jest.mock("@salesforce/apex", () => ({ refreshApex: jest.fn() }), {
   virtual: true
 });
 jest.mock(
-  "c/estimateWizardCustomFields",
-  () => ({ buildCustomFieldInputs: jest.fn(() => []) }),
-  { virtual: true }
-);
-jest.mock(
   "lightning/navigation",
   () => {
     const Navigate = Symbol.for("NavigationMixin.Navigate");
@@ -74,6 +63,15 @@ jest.mock(
   () => ({ default: { objectApiName: "BillingAccount__c" } }),
   { virtual: true }
 );
+
+const OrderCreateStepBilling = require("c/orderCreateStepBilling").default;
+const { refreshApex } = require("@salesforce/apex");
+const { getRecordNotifyChange } = require("lightning/uiRecordApi");
+const {
+  invoiceDateMethodHelp,
+  METHOD_SAME_DAY,
+  METHOD_MONTH_OFFSET
+} = require("c/billingAccountForm");
 
 const proto = OrderCreateStepBilling.prototype;
 
@@ -118,7 +116,6 @@ describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
   beforeEach(() => {
     refreshApex.mockReset().mockResolvedValue();
     getRecordNotifyChange.mockClear();
-    buildCustomFieldInputs.mockReset().mockReturnValue([]);
   });
 
   it("empty billing names show — (Core 5.2)", () => {
@@ -131,11 +128,33 @@ describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
     expect(ctx.formatDisplayValue("宛名")).toBe("宛名");
   });
 
-  it("refreshReferenceWires notifies LDS (Core 5.2)", async () => {
-    const ctx = bind();
+  it("refreshReferenceWires reloads the latest billing values and notifies LDS (Core 5.2)", async () => {
+    const ctx = bind({
+      _wiredFieldDefinitions: null,
+      fieldDefinitions: [
+        {
+          apiName: "BillingAddressee__c",
+          label: "宛名",
+          fieldType: "STRING",
+          required: true
+        }
+      ],
+      _billingCustomFields: { BillingAddressee__c: "変更前の宛名" }
+    });
+    refreshApex.mockImplementationOnce(() => {
+      ctx.wiredBillingAccountInvoiceSettings({
+        data: {
+          billingCustomFields: { BillingAddressee__c: "最新の宛名" }
+        }
+      });
+      return Promise.resolve();
+    });
+
     await ctx.refreshReferenceWires();
-    expect(refreshApex).toHaveBeenCalled();
-    expect(getRecordNotifyChange).toHaveBeenCalled();
+    expect(ctx.getBillingCustomFields().BillingAddressee__c).toBe("最新の宛名");
+    expect(getRecordNotifyChange).toHaveBeenCalledWith([
+      { recordId: "a00BA" }
+    ]);
   });
 
   it("getBillingCustomFields fills missing STRING as empty", () => {
@@ -200,33 +219,60 @@ describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
   });
 
   it("invoice/payment help and field groups (Core 7.2 / 7.5)", () => {
-    buildCustomFieldInputs.mockReturnValue([
-      {
-        apiName: "BillingAddressee__c",
-        displayValue: "",
-        required: true
-      },
-      {
-        apiName: "InvoiceDateMethod__c",
-        displayValue: METHOD_SAME_DAY,
-        required: true
-      },
-      {
-        apiName: "PaymentTermMethod__c",
-        displayValue: METHOD_MONTH_OFFSET,
-        required: true
-      }
-    ]);
     const ctx = bind({
+      fieldDefinitions: [
+        {
+          apiName: "BillingAddressee__c",
+          label: "宛名",
+          fieldType: "STRING",
+          required: true
+        },
+        {
+          apiName: "InvoiceDateMethod__c",
+          label: "請求日の計算方式",
+          fieldType: "PICKLIST",
+          required: true,
+          picklistOptions: [
+            { label: "基準日と同日", value: METHOD_SAME_DAY }
+          ]
+        },
+        {
+          apiName: "InvoiceDateDayOffset__c",
+          label: "請求日の指定日数",
+          fieldType: "DOUBLE",
+          required: true
+        },
+        {
+          apiName: "PaymentTermMethod__c",
+          label: "支払条件の計算方式",
+          fieldType: "PICKLIST",
+          required: true,
+          picklistOptions: [
+            { label: "請求月から指定月数後", value: METHOD_MONTH_OFFSET }
+          ]
+        }
+      ],
       _billingCustomFields: {
+        BillingAddressee__c: "",
         InvoiceDateMethod__c: METHOD_SAME_DAY,
         PaymentTermMethod__c: METHOD_MONTH_OFFSET
       }
     });
     expect(ctx.invoiceDateHelp).toBe(invoiceDateMethodHelp(METHOD_SAME_DAY));
-    expect(ctx.deliveryFieldInputs.length).toBe(1);
-    expect(ctx.invoiceDateFieldInputs.length).toBe(1);
-    expect(ctx.paymentTermFieldInputs.length).toBe(1);
+    expect(ctx.deliveryFieldInputs.map((field) => field.displayValue)).toEqual([
+      "—"
+    ]);
+    expect(
+      ctx.invoiceDateFieldInputs.map((field) => field.displayValue)
+    ).toEqual(["基準日と同日"]);
+    expect(
+      ctx.paymentTermFieldInputs.map((field) => field.displayValue)
+    ).toEqual(["請求月から指定月数後"]);
+    expect(
+      ctx.invoiceDateFieldInputs.some(
+        (field) => field.apiName === "InvoiceDateDayOffset__c"
+      )
+    ).toBe(false);
   });
 
   it("wired invoice settings no-ops without definitions", () => {
