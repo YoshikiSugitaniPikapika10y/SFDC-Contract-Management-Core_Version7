@@ -8,14 +8,11 @@ import hasIssueEstimate from "@salesforce/customPermission/Loop_04_Can_IssueEsti
 import hasSendEstimates from "@salesforce/customPermission/Loop_05_Can_SendEstimate";
 import HISTORY_STATUS_FIELD from "@salesforce/schema/ContractHistory__c.historystatus__c";
 import { resizeQuickActionPanel } from "c/quickActionPanelResize";
-import { openContentDocumentFilePreview } from "c/orderWizardNavigation";
 
 const STATUS_ESTIMATE = "Estimate";
 const MODE_UNUSED = "Unused";
 const MODE_PDF_AND_EMAIL = "PdfAndEmail";
 const OBJECT_API_NAME = "ContractHistory__c";
-const ISSUE_MSG_SOURCE = "EstimateDocumentIssue";
-const INITIAL_ATTACHMENT_KEY = "cmc.estimateSend.initialContentDocumentId";
 
 const QUICK_ACTIONS = {
   edit: "ContractHistory__c.EstimateEdit",
@@ -30,8 +27,6 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
 
   historyStatus = "";
   estimateSendMode = "";
-  showIssueFrame = false;
-  _onIssueMessage;
 
   @wire(getRecord, { recordId: "$recordId", fields: [HISTORY_STATUS_FIELD] })
   wiredHistory({ data, error }) {
@@ -45,18 +40,10 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
   // 仕様: Core 第4.3.11節。マスタは画面を開いた時に最新。設定wireだけcacheable。
   connectedCallback() {
     this.loadDocumentDefaults();
-    this._onIssueMessage = (event) => this.handleIssueFrameMessage(event);
-    window.addEventListener("message", this._onIssueMessage);
-  }
-
-  disconnectedCallback() {
-    if (this._onIssueMessage) {
-      window.removeEventListener("message", this._onIssueMessage);
-    }
   }
 
   renderedCallback() {
-    resizeQuickActionPanel(this, this.showIssueFrame ? "large" : "confirm");
+    resizeQuickActionPanel(this, "confirm");
   }
 
   loadDocumentDefaults() {
@@ -126,37 +113,18 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
     return this.visibleActions.length > 0;
   }
 
-  get issueFrameUrl() {
-    if (!this.recordId) {
-      return "";
-    }
-    return `/apex/EstimateDocumentIssue?id=${encodeURIComponent(this.recordId)}`;
-  }
-
-  get showActionList() {
-    return !this.showIssueFrame;
-  }
-
   handleCancel() {
-    if (this.showIssueFrame) {
-      this.showIssueFrame = false;
-      return;
-    }
     this.dispatchEvent(new CloseActionScreenEvent());
   }
 
-  get cancelLabel() {
-    return this.showIssueFrame ? "戻る" : "閉じる";
-  }
-
-  // 仕様: Core 第4.3.1節。シェルは受注と同じレコード上オーバーレイ（画面見た目第2節）。
+  // 仕様: Core 第4.3.1節。選んだらハブを閉じ、既存の各画面を開く。ハブ内で発行しない。
   handleSelect(event) {
     const key = event.currentTarget?.dataset?.key;
     if (!key || !this.recordId) {
       return;
     }
     if (key === "issue") {
-      this.showIssueFrame = true;
+      this.openEstimateDocumentIssue();
       return;
     }
     const apiName = QUICK_ACTIONS[key];
@@ -166,30 +134,16 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
     this.openRecordQuickAction(apiName);
   }
 
-  // 仕様: Core 第4.8節・第7.10節。発行 iframe からの filePreview／このファイルを送る。
-  handleIssueFrameMessage(event) {
-    if (event.origin !== window.location.origin) {
-      return;
-    }
-    const data = event.data;
-    if (!data || data.source !== ISSUE_MSG_SOURCE) {
-      return;
-    }
-    if (data.action === "filePreview") {
-      openContentDocumentFilePreview(this, data.documentId);
-      return;
-    }
-    if (data.action === "sendThisFile") {
-      if (data.documentId) {
-        try {
-          sessionStorage.setItem(INITIAL_ATTACHMENT_KEY, data.documentId);
-        } catch (e) {
-          // sessionStorage が使えない環境でも送付画面は開く
+  openEstimateDocumentIssue() {
+    this[NavigationMixin.Navigate](
+      {
+        type: "standard__webPage",
+        attributes: {
+          url: `/apex/EstimateDocumentIssue?id=${encodeURIComponent(this.recordId)}`
         }
-      }
-      this.showIssueFrame = false;
-      this.openRecordQuickAction(QUICK_ACTIONS.send);
-    }
+      },
+      true
+    );
   }
 
   openRecordQuickAction(apiName) {

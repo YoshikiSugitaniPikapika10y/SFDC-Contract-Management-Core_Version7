@@ -42,13 +42,6 @@ jest.mock(
   () => ({ resizeQuickActionPanel: jest.fn() }),
   { virtual: true }
 );
-jest.mock(
-  "c/orderWizardNavigation",
-  () => ({ openContentDocumentFilePreview: jest.fn() }),
-  { virtual: true }
-);
-
-import { openContentDocumentFilePreview } from "c/orderWizardNavigation";
 
 const Navigate = NavigationMixin.Navigate;
 
@@ -58,12 +51,12 @@ function hubContext(recordId) {
   const proto = EstimateActionHub.prototype;
   const ctx = {
     recordId,
-    showIssueFrame: false,
     dispatchEvent(event) {
       dispatched.push(event.type);
     },
     [Navigate]: navigate,
-    openRecordQuickAction: proto.openRecordQuickAction
+    openRecordQuickAction: proto.openRecordQuickAction,
+    openEstimateDocumentIssue: proto.openEstimateDocumentIssue
   };
   return { ctx, dispatched, navigate };
 }
@@ -129,7 +122,7 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
     );
   });
 
-  it("keeps the hub overlay and shows issue VF inside for 見積書発行", () => {
+  it("closes the hub and opens existing 見積書発行画面 (Core 4.3.1)", () => {
     const { ctx, dispatched, navigate } = hubContext("a0H000000000001AAA");
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
@@ -137,60 +130,15 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
     });
 
     expect(dispatched).toEqual([]);
-    expect(navigate).not.toHaveBeenCalled();
-    expect(ctx.showIssueFrame).toBe(true);
-  });
-
-  it("opens filePreview overlay from issue iframe message (Core 4.8 / 7.10)", () => {
-    openContentDocumentFilePreview.mockClear();
-    const { ctx, navigate } = hubContext("a0H000000000001AAA");
-    ctx.showIssueFrame = true;
-
-    EstimateActionHub.prototype.handleIssueFrameMessage.call(ctx, {
-      origin: window.location.origin,
-      data: {
-        source: "EstimateDocumentIssue",
-        action: "filePreview",
-        documentId: "069AAA000000001"
-      }
-    });
-
-    expect(openContentDocumentFilePreview).toHaveBeenCalledWith(
-      ctx,
-      "069AAA000000001"
-    );
-    expect(navigate).not.toHaveBeenCalled();
-    expect(ctx.showIssueFrame).toBe(true);
-  });
-
-  it("opens send Quick Action from issue iframe sendThisFile (Core 4.8)", () => {
-    const setItem = jest.spyOn(Storage.prototype, "setItem");
-    const { ctx, navigate } = hubContext("a0H000000000001AAA");
-    ctx.showIssueFrame = true;
-    ctx.openRecordQuickAction = EstimateActionHub.prototype.openRecordQuickAction;
-
-    EstimateActionHub.prototype.handleIssueFrameMessage.call(ctx, {
-      origin: window.location.origin,
-      data: {
-        source: "EstimateDocumentIssue",
-        action: "sendThisFile",
-        documentId: "069AAA000000001",
-        historyId: "a0H000000000001AAA"
-      }
-    });
-
-    expect(setItem).toHaveBeenCalledWith(
-      "cmc.estimateSend.initialContentDocumentId",
-      "069AAA000000001"
-    );
-    expect(ctx.showIssueFrame).toBe(false);
     expect(navigate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attributes: { apiName: "ContractHistory__c.Estimate_Send" }
-      }),
+      {
+        type: "standard__webPage",
+        attributes: {
+          url: "/apex/EstimateDocumentIssue?id=a0H000000000001AAA"
+        }
+      },
       true
     );
-    setItem.mockRestore();
   });
 
   it("does not navigate when the row has no action", () => {
@@ -202,6 +150,5 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
 
     expect(dispatched).toEqual([]);
     expect(navigate).not.toHaveBeenCalled();
-    expect(ctx.showIssueFrame).toBe(false);
   });
 });
