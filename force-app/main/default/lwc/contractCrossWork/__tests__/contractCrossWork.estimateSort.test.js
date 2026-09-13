@@ -413,6 +413,7 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     ContractCrossWork.prototype,
     "columnHeaders"
   ).get;
+  const proto = ContractCrossWork.prototype;
   const offGroups = [
     { id: "postingDate", label: "計上日", on: false, total: false },
     { id: "billingAccount", label: "請求アカウント", on: false, total: false },
@@ -420,14 +421,44 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     { id: "event", label: "パターン", on: false, total: false }
   ];
 
-  it("請求グループOFFでも請求書名は1列", () => {
+  function headerLabels(ctx) {
+    return getHeaders.call(ctx).map((item) => item.label);
+  }
+
+  it("固定列は状態・計上日・イベント・借貸1列。鍵列は置かない", () => {
+    const labels = headerLabels({
+      menu: "journal",
+      journalGroups: offGroups
+    });
+    expect(labels).toEqual([
+      "請求アカウント",
+      "請求",
+      "状態",
+      "計上日",
+      "イベント",
+      "借貸",
+      "金額",
+      "確認用",
+      "メモ",
+      "取引先",
+      "請求書名"
+    ]);
+    expect(labels.filter((label) => label === "計上日")).toHaveLength(1);
+    expect(labels).not.toContain("パターン");
+    expect(labels).not.toContain("借方");
+    expect(labels).not.toContain("貸方");
+    expect(labels).not.toContain("Lock");
+    expect(labels).not.toContain("鍵");
+  });
+
+  it("請求グループOFFなら請求と請求書名を両方出す", () => {
     const headers = getHeaders.call({
       menu: "journal",
       journalGroups: offGroups
     });
-    expect(headers.filter((item) => item.key === "invoice")).toHaveLength(1);
+    expect(headers.filter((item) => item.label === "請求")).toHaveLength(1);
     expect(headers.filter((item) => item.label === "請求書名")).toHaveLength(1);
-    expect(headers.filter((item) => item.label === "請求")).toHaveLength(0);
+    expect(headers.filter((item) => item.key === "invoice")).toHaveLength(1);
   });
 
   it("確認用とメモは幅クラスを持ち、商談名・契約履歴名は出さない", () => {
@@ -471,6 +502,62 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     expect(keys.indexOf("invoice")).toBeLessThan(
       keys.indexOf("extra-UnlockReason__c")
     );
+  });
+
+  it("計上日セルは到来済み／将来を同じセルに出し、借貸は略称を分ける", () => {
+    const cells = proto.journalCells.call(
+      {
+        journalGroups: offGroups,
+        canEditJournalMemoOp: true,
+        operationDay: "2026-09-13"
+      },
+      {
+        transactionStatus: "Active",
+        postingDate: "2026-09-14",
+        eventName: "売上本体",
+        debitName: "AR 売掛金",
+        creditName: "REV 売上",
+        amount: 1000,
+        confirmationText: "確認",
+        invoiceCancelled: false,
+        invoiceName: "INV-1",
+        invoiceId: "a02INV",
+        billingAccountName: "BA",
+        billingAccountId: "a04BA",
+        accountName: "取引先A"
+      },
+      "メモ"
+    );
+    expect(cells.find((cell) => cell.key === "status").text).toBe("有効");
+    expect(cells.find((cell) => cell.key === "postingDate").text).toBe(
+      "2026-09-14 将来"
+    );
+    expect(cells.find((cell) => cell.key === "event").text).toBe("売上本体");
+    const slot = cells.find((cell) => cell.isSlot === true);
+    expect(slot.debitAbbreviation).toBe("AR");
+    expect(slot.debitAccountLabel).toBe("売掛金");
+    expect(slot.creditAbbreviation).toBe("REV");
+    expect(slot.creditAccountLabel).toBe("売上");
+    expect(cells.some((cell) => cell.key === "debit")).toBe(false);
+    expect(cells.find((cell) => cell.key === "invoiceGroup").text).toBe("INV-1");
+  });
+
+  it("取消済と取消の表示名はAccounting第2.3節", () => {
+    const cancelled = proto.journalCells.call(
+      { journalGroups: [], canEditJournalMemoOp: true, operationDay: "2026-09-13" },
+      { transactionStatus: "Cancelled", postingDate: "2026-09-13" },
+      ""
+    );
+    const reversal = proto.journalCells.call(
+      { journalGroups: [], canEditJournalMemoOp: true, operationDay: "2026-09-13" },
+      { transactionStatus: "Reversal", postingDate: "2026-09-13" },
+      ""
+    );
+    expect(cancelled.find((cell) => cell.key === "status").text).toBe("取消済");
+    expect(cancelled.find((cell) => cell.key === "postingDate").text).toBe(
+      "2026-09-13 到来済み"
+    );
+    expect(reversal.find((cell) => cell.key === "status").text).toBe("取消");
   });
 
   it("請求一覧左にカスタム列は足さない", () => {

@@ -89,6 +89,56 @@ function formatDate(value) {
   return value ? String(value).slice(0, 10) : "";
 }
 
+/** 仕様: Accounting 第2.3節、日付仕様 第8章。計上時期は組織当日と比較する。 */
+function postingPeriodLabel(postingDate, asOfDate) {
+  if (!postingDate || !asOfDate) {
+    return "";
+  }
+  const posting = String(postingDate).slice(0, 10);
+  return posting > asOfDate ? "将来" : "到来済み";
+}
+
+/** 仕様: Accounting 第4.3節。略称は abbreviation。和名は出さない。 */
+function splitSlotAccountDisplay(combinedName) {
+  const text = combinedName == null ? "" : String(combinedName).trim();
+  const match = text.match(/^([A-Z]{2,4})(?:\s+(.*))?$/);
+  if (!match) {
+    return { abbreviation: "", accountName: text };
+  }
+  return {
+    abbreviation: match[1],
+    accountName: match[2] || ""
+  };
+}
+
+/** 仕様: Accounting 第2.3節。仕訳の取引状態の表示名。 */
+function journalTransactionStatusLabel(status) {
+  if (status === "Active") {
+    return "有効";
+  }
+  if (status === "LogicallyDeleted") {
+    return "論理削除";
+  }
+  if (status === "Cancelled") {
+    return "取消済";
+  }
+  if (status === "Reversal") {
+    return "取消";
+  }
+  return status || "";
+}
+
+/** 仕様: 共通基盤契約横断部第5節。計上日・パターンは固定列と重ねない。 */
+function journalOffGroups(groups) {
+  return (groups || []).filter(
+    (item) => !item.on && item.id !== "postingDate" && item.id !== "event"
+  );
+}
+
+function journalGroupColumnKey(groupId) {
+  return groupId === "invoice" ? "invoiceGroup" : groupId;
+}
+
 function recordUrl(objectApiName, id) {
   return id ? `/lightning/r/${objectApiName}/${id}/view` : "";
 }
@@ -301,6 +351,7 @@ export default class ContractCrossWork extends NavigationMixin(
 
   jouFrom = "";
   jouTo = "";
+  operationDay = "";
   jouLock = "Unlocked";
   jouEvent = "";
   jouBillingAccountId = null;
@@ -766,11 +817,17 @@ export default class ContractCrossWork extends NavigationMixin(
       if (this.showCheckColumn === true) {
         headers.push({ key: "check", label: "" });
       }
-      this.journalGroups
-        .filter((item) => !item.on && item.id !== "invoice")
-        .forEach((item) => headers.push({ key: item.id, label: item.label }));
-      headers.push({ key: "debit", label: "借方" });
-      headers.push({ key: "credit", label: "貸方" });
+      // 仕様: 共通基盤契約横断部第5節。鍵列は置かない。グループOFFの請求アカウントと請求は固定列の左。
+      journalOffGroups(this.journalGroups).forEach((item) =>
+        headers.push({
+          key: journalGroupColumnKey(item.id),
+          label: item.label
+        })
+      );
+      headers.push({ key: "status", label: "状態" });
+      headers.push({ key: "postingDate", label: "計上日" });
+      headers.push({ key: "event", label: "イベント" });
+      headers.push({ key: "slot", label: "借貸" });
       headers.push({ key: "amount", label: "金額" });
       // 仕様: 横断画面.md 第5節
       headers.push({ key: "confirm", label: "確認用", className: "confirm-cell" });
@@ -1047,6 +1104,7 @@ export default class ContractCrossWork extends NavigationMixin(
       this.estCloseTo = formatDate(dto?.estimateCloseTo);
       this.jouFrom = formatDate(dto?.journalPostingFrom);
       this.jouTo = formatDate(dto?.journalPostingTo);
+      this.operationDay = formatDate(dto?.operationDay);
       this.tagRules = dto?.tagRules || [];
       this.eventOptions = (dto?.eventOptions || []).map((item) => ({
         label: item.label,
@@ -2419,23 +2477,55 @@ export default class ContractCrossWork extends NavigationMixin(
 
   journalCells(row, memoValue) {
     const cells = [];
-    this.journalGroups
-      .filter((item) => !item.on && item.id !== "invoice")
-      .forEach((item) => {
-        if (item.id === "billingAccount") {
-          cells.push(
-            linkCell(
-              "ba",
-              row.billingAccountName,
-              recordUrl("BillingAccount__c", row.billingAccountId)
-            )
-          );
-        } else {
-          cells.push(textCell(item.id, this.groupLabel(item, row)));
-        }
-      });
-    cells.push(textCell("debit", row.debitName || ""));
-    cells.push(textCell("credit", row.creditName || ""));
+    // 仕様: 共通基盤契約横断部第5節。鍵列は置かない。計上日・パターンは固定列と重ねない。
+    journalOffGroups(this.journalGroups).forEach((item) => {
+      if (item.id === "billingAccount") {
+        cells.push(
+          linkCell(
+            journalGroupColumnKey(item.id),
+            row.billingAccountName,
+            recordUrl("BillingAccount__c", row.billingAccountId)
+          )
+        );
+      } else if (item.id === "invoice") {
+        cells.push(
+          linkCell(
+            journalGroupColumnKey(item.id),
+            row.invoiceName,
+            recordUrl("Invoice__c", row.invoiceId)
+          )
+        );
+      } else {
+        cells.push(
+          textCell(journalGroupColumnKey(item.id), this.groupLabel(item, row))
+        );
+      }
+    });
+    cells.push(
+      textCell("status", journalTransactionStatusLabel(row.transactionStatus))
+    );
+    const postingDateText = formatDate(row.postingDate);
+    const postingPeriod = postingPeriodLabel(row.postingDate, this.operationDay);
+    cells.push(
+      textCell(
+        "postingDate",
+        [postingDateText, postingPeriod].filter(Boolean).join(" ")
+      )
+    );
+    cells.push(textCell("event", row.eventName || ""));
+    const debitParts = splitSlotAccountDisplay(row.debitName);
+    const creditParts = splitSlotAccountDisplay(row.creditName);
+    cells.push({
+      key: "slot",
+      isSlot: true,
+      debitAbbreviation: debitParts.abbreviation,
+      debitAccountLabel: debitParts.accountName,
+      creditAbbreviation: creditParts.abbreviation,
+      creditAccountLabel: creditParts.accountName,
+      debitFallback: row.debitName || "",
+      creditFallback: row.creditName || "",
+      className: "slot-cell"
+    });
     cells.push(textCell("amount", formatAmount(row.amount), "num"));
     // 仕様: 横断画面.md 第5節
     cells.push(textCell("confirm", row.confirmationText || "", "confirm-cell"));

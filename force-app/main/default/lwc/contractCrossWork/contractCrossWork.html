@@ -567,6 +567,31 @@
                     <template for:each={row.cells} for:item="cell">
                       <td key={cell.key} class={cell.className}>
                         <template if:true={cell.isText}>{cell.text}</template>
+                        <template if:true={cell.isSlot}>
+                          <template if:true={cell.debitAbbreviation}>
+                            <span class="journal-slot-abbr"
+                              >{cell.debitAbbreviation}</span
+                            >
+                            <template if:true={cell.debitAccountLabel}>
+                              <span> {cell.debitAccountLabel}</span>
+                            </template>
+                          </template>
+                          <template if:false={cell.debitAbbreviation}
+                            >{cell.debitFallback}</template
+                          >
+                          <span class="journal-slot-sep"> / </span>
+                          <template if:true={cell.creditAbbreviation}>
+                            <span class="journal-slot-abbr"
+                              >{cell.creditAbbreviation}</span
+                            >
+                            <template if:true={cell.creditAccountLabel}>
+                              <span> {cell.creditAccountLabel}</span>
+                            </template>
+                          </template>
+                          <template if:false={cell.creditAbbreviation}
+                            >{cell.creditFallback}</template
+                          >
+                        </template>
                         <template if:true={cell.isLink}>
                           <a href={cell.href} target="_blank" rel="noreferrer"
                             >{cell.text}</a

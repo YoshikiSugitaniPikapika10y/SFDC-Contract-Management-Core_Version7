@@ -367,6 +367,18 @@
   width: 100%;
 }
 
+.slot-cell {
+  white-space: normal;
+}
+
+.journal-slot-abbr {
+  color: #dc2626;
+}
+
+.journal-slot-sep {
+  padding: 0 0.35em;
+}
+
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;

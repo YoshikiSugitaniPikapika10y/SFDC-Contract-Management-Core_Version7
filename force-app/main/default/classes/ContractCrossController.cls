@@ -17,6 +17,9 @@ public without sharing class ContractCrossController {
     public Date journalPostingFrom;
     @AuraEnabled
     public Date journalPostingTo;
+    /** 仕様: 日付仕様 第8章、Accounting 第2.3節。計上時期の組織当日。 */
+    @AuraEnabled
+    public Date operationDay;
     @AuraEnabled
     public Boolean canIssueEstimate;
     @AuraEnabled
@@ -436,6 +439,7 @@ public without sharing class ContractCrossController {
       BootstrapDto dto = new BootstrapDto();
       dto.accountingEnabled = ContractCrossQueryService.isAccountingEnabled();
       Date today = ContractCrossQueryService.organizationToday();
+      dto.operationDay = today;
       ContractCrossQueryService.DateRange estimateDates = ContractCrossQueryService.defaultEstimateCloseDates(
         today
       );

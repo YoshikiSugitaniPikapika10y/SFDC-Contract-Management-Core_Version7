@@ -88,6 +88,11 @@ private class ContractCrossControllerTest {
         dto.journalPostingTo,
         '共通基盤契約横断取得: 仕訳の既定 TO は先月月末'
       );
+      System.assertEquals(
+        today,
+        dto.operationDay,
+        'Accounting 第2.3節: 横断左の計上時期は組織タイムゾーンの当日'
+      );
     }
   }
 

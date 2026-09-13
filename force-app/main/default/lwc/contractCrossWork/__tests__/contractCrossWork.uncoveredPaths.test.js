@@ -303,6 +303,7 @@ function bootstrapDto() {
     estimateCloseTo: "2026-09-30",
     journalPostingFrom: "2026-04-01",
     journalPostingTo: "2026-09-30",
+    operationDay: "2026-09-13",
     tagRules: [{ fieldApiName: "Tag__c", label: "タグ" }],
     eventOptions: [{ label: "売上", value: "Rev" }],
     journalLockExemptFieldApiNames: []
