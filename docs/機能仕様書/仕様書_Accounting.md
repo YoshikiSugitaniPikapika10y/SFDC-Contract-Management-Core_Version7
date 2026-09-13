@@ -68,7 +68,7 @@ Current ─────────────────── Diff
 
 **AccountingがOFFの場合、通常の仕訳新規生成、再生成および自動起動を行わない。**Coreの請求確定や請求入出金はAccountingから独立して利用できる。最初の請求確定後は第3.1節に従いOFFを含めて固定するため、標準操作でONへ戻す経路はない。OFFの標準画面と標準操作は、本製品が仕訳機能を持たないものとして動かす。請求ボードの仕訳タブ、停止中の注記、Lock／Unlock、手動仕訳、会計タグ、入金登録の取消基準日および仕訳件数プレビューを出さない。契約横断では仕訳一覧、会計タグ、検収の残り探しを出さない。`docs/横断画面.md`。Coreの請求確定・請求入出金は仕訳の入力も結果表示も伴わない。ただし固定前のON期間またはデータ移行により関連仕訳が残る請求取消、請求入出金取消または手動仕訳取消では、未ロック仕訳を論理削除し、ロック済み仕訳を逆仕訳する。取消基準日は第8.5節。この操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ取る。残仕訳の一覧は標準画面に出さない。この取消時処理は、OFF中に新しい業務原因から通常仕訳を生成することとは区別する。入金登録は新しい業務原因であり、残仕訳があっても仕訳を触らない。
 
-「過去の関連仕訳が残る」とは、対象請求書のCurrentが1件以上あることである。数え方は第1.8.1節に従う。論理削除は残っていない。取消仕訳は元から差し引き、Current 0なら残っていない。データベース上の論理削除行・取消済元・取消仕訳の有無だけでは判定しない。検収終了日変更の拒否と、OFF時取消の仕訳処理の要否は、同じ数え方を使う。
+「過去の関連仕訳が残る」とは、対象請求書のCurrentが1件以上あることである。数え方は第1.8.1節に従う。論理削除は残っていない。取消仕訳は元から差し引き、Current 0なら残っていない。データベース上の論理削除行・取消元・逆仕訳の有無だけでは判定しない。検収終了日変更の拒否と、OFF時取消の仕訳処理の要否は、同じ数え方を使う。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
@@ -269,10 +269,10 @@ Core仕様第1.1.10節と同じである。**空欄や不正な値を、フォ�
 | 状態値 | 達成条件                           | Accounting ON/OFF |
 | ------ | ---------------------------------- | ----------------- |
 | 有効   | 現預金移動として現在有効           | 共通              |
-| 取消済 | 取り消された元取引                 | 共通              |
+| 取消元 | 取り消された元取引                 | 共通              |
 | 取消   | 元取引を反対符号で打ち消す取消取引 | 共通              |
 
-Accounting OFFでも取消済・取消を使用し、誤登録を物理削除しない。取消レコードは元取引と同じPurpose、反対符号の金額および元の明細別割当を反転した値を保持する。
+Accounting OFFでも取消元・取消を使用し、誤登録を物理削除しない。取消レコードは元取引と同じPurpose、反対符号の金額および元の明細別割当を反転した値を保持する。
 
 #### 請求入出金のロック状態
 
@@ -291,8 +291,10 @@ Accounting OFFでは新しい仕訳を生成しないが、原因レコードの
 | -------- | ---------------------------------------------------------------- | ----------------- |
 | 有効     | 残高集計へ現在有効な仕訳として含める                             | ONだけで使用する  |
 | 論理削除 | 未ロックの旧仕訳で、残高集計から除外する                         | ONだけで使用する  |
-| 取消済   | 取消仕訳によって打ち消された元仕訳。元行と取消行を監査上保持する | ONだけで使用する  |
-| 取消     | ロック済み元仕訳を借貸反転して打ち消す仕訳                       | ONだけで使用する  |
+| 取消元   | 逆仕訳によって打ち消された元仕訳。元行と逆仕訳を監査上保持する | ONだけで使用する  |
+| 逆仕訳   | ロック済み元仕訳を借貸反転して打ち消す仕訳                       | ONだけで使用する  |
+
+画面表示は有効／論理削除／取消元／逆仕訳。保存値は`Active`／`LogicallyDeleted`／`Cancelled`／`Reversal`。取消元と逆仕訳は常時Lock。手動Lock／Unlockの対象は有効だけ。既存の未Lock逆仕訳は手動では触れない。
 
 Accounting OFFでは新しい仕訳を生成しない。過去にONで生成した仕訳が残る場合は、その取引状態を監査・取消処理に使用する。
 
@@ -323,7 +325,7 @@ Accounting OFFでは新しい仕訳を生成・ロックしない。過去にON�
 | 請求確定       | 3状態を再評価                       | 登録可能になる                                          | Accounting ONなら同一トランザクションで生成し会計タグを評価                                                                                                                                                                                                                                                                                      |
 | 請求取消       | 取引状態を取消済みにする            | 有効レコード0件が前提                                   | Accounting ONなら未ロックを論理削除し、ロック済みを逆仕訳して同一操作で会計タグを評価。OFFで過去仕訳が残る場合は仕訳取消だけを行い、タグは変更しない                                                                                                                                                                                             |
 | 請求入出金登録 | 回収・返金状態を再評価              | 有効で追加                                              | Accounting ONなら同一トランザクションで生成し会計タグを評価。OFFでは仕訳を触らず取消基準日も取らない                                                                                                                                                                                                                                             |
-| 請求入出金取消 | 各状態を再評価                      | 元を取消済とし取消を追加                                | Accounting ONならその入出金を有効な原因から外してGoalを再計算し、Currentとの差分をLock規則で反映して会計タグを評価する。入出金仕訳の逆仕訳・論理削除だけで終わらせない。OFFで過去仕訳が残る場合は新しい通常仕訳を作らず、未ロックを論理削除しロック済みを逆仕訳する。取消基準日は第8.5節。この操作の逆仕訳対象にActive Lockがあるときだけ取り、未入力はエラー。OFFのタグは変更しない |
+| 請求入出金取消 | 各状態を再評価                      | 元を取消元とし取消を追加                                | Accounting ONならその入出金を有効な原因から外してGoalを再計算し、Currentとの差分をLock規則で反映して会計タグを評価する。入出金仕訳の逆仕訳・論理削除だけで終わらせない。OFFで過去仕訳が残る場合は新しい通常仕訳を作らず、未ロックを論理削除しロック済みを逆仕訳する。取消基準日は第8.5節。この操作の逆仕訳対象にActive Lockがあるときだけ取り、未入力はエラー。OFFのタグは変更しない |
 | 仕訳のロック   | 請求書の3状態・会計タグを変更しない | 入出金へ書かない。関連仕訳の`IsLocked__c`をその場で見る | ロック済みにする                                                                                                                                                                                                                                                                                                                                 |
 
 会計タグの評価契機は上表の例示だけで限定せず、第7.5節の一覧を正とする。
@@ -348,7 +350,7 @@ Accounting OFFでは新しい仕訳を生成・ロックしない。過去にON�
 
 - 請求書と請求入出金はCoreの取引レコードであると同時にAccountingの仕訳原因なので、本節にも掲載する。状態・取消方法の正本はCore、取消に伴う仕訳処理の正本はAccountingとする。
 - 確定済み請求は物理削除・論理削除せず、取消済みへ変更する。取消時は請求をGoalから除外し、関連仕訳をロック状態に応じて論理削除または逆仕訳する。
-- 請求入出金は物理削除・論理削除せず、元取引を取消済みとして反対符号の取消取引を追加する。その入出金をGoalの原因から外し、同じ請求書を第1.8.1節で再計算する。入出金仕訳だけを打ち消して終わらせない。
+- 請求入出金は物理削除・論理削除せず、元取引を取消元として反対符号の取消取引を追加する。その入出金をGoalの原因から外し、同じ請求書を第1.8.1節で再計算する。入出金仕訳だけを打ち消して終わらせない。
 - 手動仕訳ヘッダーは、利用者が登録した成立済み取引なので物理削除・論理削除せず、`Cancelled`へ変更して取消履歴を残す。
 - 仕訳は原因取引から作られた会計結果なので物理削除しない。未ロックなら論理削除し、ロック済みなら元仕訳を残して逆仕訳する。例外はCore第5.3節。差し戻しで消す未確定請求を参照する仕訳だけは、請求の物理削除の前に同じ処理で物理削除する。正規操作の未確定（受注生成と確定取消の訂正用）には仕訳を切らないため、その物理削除の対象は理論上0件である。
 - 原因業務レコードの`Cancelled`、マスタの`IsActive__c=False`および取消仕訳の追加は論理削除ではない。
@@ -359,11 +361,11 @@ Accounting OFFでは新しい仕訳を生成・ロックしない。過去にON�
 | 請求書 `Invoice__c`・未確定                 | Coreの正規処理で条件付き可 | 不可             | まだ成立前なので、Version再生成・差し戻し等では削除できる。取消は使用しない                                            | 有効な仕訳原因ではなく、仕訳を生成しない                                                                                                  |
 | 請求書 `Invoice__c`・確定済み               | 不可                       | 不可             | 削除や未確定への復帰はせず、`Cancelled`へ取消する                                                                      | 確定時は有効な仕訳原因となる。取消時はGoalから除外し、未ロック仕訳を論理削除、ロック済み仕訳を逆仕訳する                                  |
 | 請求書 `Invoice__c`・取消済み               | 不可                       | 不可             | 編集・復帰せず、取消理由等とともに監査用に保持する                                                                     | 有効な仕訳原因とGoalに含めない。取消処理の結果だけを監査用に保持する                                                                      |
-| 請求入出金 `InvoicePayment__c`              | 不可                       | 不可             | 元取引を`取消済み`にし、反対符号の取消取引を追加する                                                                   | 元取引をGoalから除外し、同じ請求書を第1.8.1節で再計算する。入出金仕訳だけを打ち消して終わらせない。取消取引から現預金仕訳を二重生成しない |
+| 請求入出金 `InvoicePayment__c`              | 不可                       | 不可             | 元取引を`取消元`にし、反対符号の取消取引を追加する                                                                   | 元取引をGoalから除外し、同じ請求書を第1.8.1節で再計算する。入出金仕訳だけを打ち消して終わらせない。取消取引から現預金仕訳を二重生成しない |
 | 手動仕訳ヘッダー `GlManualJournalHeader__c` | 不可                       | 不可             | `Active`から`Cancelled`へ変更して監査用に保持する                                                                      | ヘッダーをGoalから除外し、配下仕訳をロック状態に応じて論理削除または逆仕訳する                                                            |
-| 仕訳 `GlJournal__c`                         | 差し戻しで消す未確定請求を参照するときだけ可 | 未ロック時だけ可 | 不要になった元仕訳が未ロックならシステムが論理削除する。ロック済みなら元仕訳を`取消済`とし、反対仕訳を`取消`で追加する。差し戻しで消す未確定を参照する仕訳はCore第5.3節どおり物理削除する | 有効仕訳だけを通常の残高へ含め、論理削除・取消済み・取消仕訳は監査情報として保持する。差し戻しで消した未確定参照の仕訳は残らない |
+| 仕訳 `GlJournal__c`                         | 差し戻しで消す未確定請求を参照するときだけ可 | 未ロック時だけ可 | 不要になった元仕訳が未ロックならシステムが論理削除する。ロック済みなら元仕訳を`取消元`とし、反対仕訳を`逆仕訳`で追加する。差し戻しで消す未確定を参照する仕訳はCore第5.3節どおり物理削除する | 有効仕訳だけを通常の残高へ含め、論理削除・取消元・逆仕訳は監査情報として保持する。差し戻しで消した未確定参照の仕訳は残らない |
 
-請求書と請求入出金の画面表示はCore仕様第2.3.1節に従う。手動仕訳ヘッダーは利用者が登録・取消する手動仕訳の業務単位であるため、権限を持つAccounting利用者には表示する。自動仕訳のための共通ヘッダーは設けず、請求書または請求入出金を原因レコードとして仕訳から参照する。仕訳照会では有効仕訳を通常表示し、論理削除・取消済み・取消仕訳は監査表示を指定した場合だけ表示する。
+請求書と請求入出金の画面表示はCore仕様第2.3.1節に従う。手動仕訳ヘッダーは利用者が登録・取消する手動仕訳の業務単位であるため、権限を持つAccounting利用者には表示する。自動仕訳のための共通ヘッダーは設けず、請求書または請求入出金を原因レコードとして仕訳から参照する。仕訳照会では有効仕訳を通常表示し、論理削除・取消元・逆仕訳は監査表示を指定した場合だけ表示する。
 
 ## 3. Accounting利用設定
 
@@ -1549,7 +1551,7 @@ Accounting ONでは、すべての請求入出金は現預金が動いた事実�
 
 Goal・Current・Diffは、自動仕訳と手動仕訳に共通の生成単位キーと仕訳行キーを次の固定構成で使用する。キーは対象請求書内で比較する。
 
-パターンと相手スロットを決める前の一時識別には「原因候補キー」を使う。構成は請求書ID、請求明細ID、売上計上回番号、請求入出金ID、明細別割当ID、候補役割、手動仕訳設定IDおよび手動仕訳ヘッダーIDであり、パターンキー、金額項目キーおよび相手スロットを含めない。自動候補では手動2項目、手動候補では自動用IDと候補役割を空にする。同じ原因候補キーの既存元仕訳が1件以上あれば、論理削除済み・取消済みを含めてそれらが保持するパターンキーはすべて同一でなければならず、そのキーを候補へ再利用する。複数パターンが混在すれば推測せず整合性エラーとする。既存元仕訳がなければ固定会計方針の許可集合からパターンを選ぶ。原因候補キーは処理中の対応付けだけに使い、仕訳へ保存する比較キーでも同日内の並べ順の正本でもない。
+パターンと相手スロットを決める前の一時識別には「原因候補キー」を使う。構成は請求書ID、請求明細ID、売上計上回番号、請求入出金ID、明細別割当ID、候補役割、手動仕訳設定IDおよび手動仕訳ヘッダーIDであり、パターンキー、金額項目キーおよび相手スロットを含めない。自動候補では手動2項目、手動候補では自動用IDと候補役割を空にする。同じ原因候補キーの既存元仕訳が1件以上あれば、論理削除済み・取消元を含めてそれらが保持するパターンキーはすべて同一でなければならず、そのキーを候補へ再利用する。複数パターンが混在すれば推測せず整合性エラーとする。既存元仕訳がなければ固定会計方針の許可集合からパターンを選ぶ。原因候補キーは処理中の対応付けだけに使い、仕訳へ保存する比較キーでも同日内の並べ順の正本でもない。
 
 同日内の並べ順は次の4段とする。操作の発生順では変えない。テナント設定にも設けない。専用の業務操作イベントオブジェクトは持たない。
 
@@ -1609,7 +1611,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 ### 8.8 逆仕訳と再生成
 
-**逆仕訳は、ロック済みの元仕訳を帳簿上で打ち消すため、元仕訳と同額で借方・貸方を逆にした取消仕訳を追加する処理である。**元仕訳は残し、取消仕訳は元仕訳のスロット、勘定科目割当および実勘定科目を借貸逆に引き継ぐ。取消仕訳の`IsLocked__c`はFalseとする。元のLockは引き継がない。請求明細、仕訳パターンキー、売上計上回番号は元のまま保持する。取消時点の仕訳パターンや科目割当を再評価しない。未ロックの元仕訳は逆仕訳を作らず論理削除する。逆仕訳と論理削除は、第1.8.1節のDiffがロック済み／未ロックのCurrentへ適用する手段である。手続の本体は原因の増減後にGoalを再計算し、Currentとの差分をLock規則で反映することであり、対象パターン番号の打ち消しだけを独立した手続にしない。
+**逆仕訳は、ロック済みの元仕訳を帳簿上で打ち消すため、元仕訳と同額で借方・貸方を逆にした取消仕訳を追加する処理である。**元仕訳は残し、取消仕訳は元仕訳のスロット、勘定科目割当および実勘定科目を借貸逆に引き継ぐ。取消仕訳の`IsLocked__c`はTrueとする。取消元は元のLockのままTrue。逆仕訳は監査用であり、手動Lock／Unlockの対象にしない。逆仕訳の取消（取消の取消）は持たない。請求は新しい未確定でやり直す。請求明細、仕訳パターンキー、売上計上回番号は元のまま保持する。取消時点の仕訳パターンや科目割当を再評価しない。未ロックの元仕訳は逆仕訳を作らず論理削除する。逆仕訳と論理削除は、第1.8.1節のDiffがロック済み／未ロックのCurrentへ適用する手段である。手続の本体は原因の増減後にGoalを再計算し、Currentとの差分をLock規則で反映することであり、対象パターン番号の打ち消しだけを独立した手続にしない。
 
 逆仕訳を行うシーンは次のとおりである。
 
@@ -1637,7 +1639,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 ／ 入口は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePaymentService.register</code> / <code>cancel</code>、<code>InvoiceCancelService.cancelConfirmed</code>、<code>InvoiceCanonicalService.updateLineAcceptanceEndDates</code>、<code>ManualJournalService.register</code> / <code>cancel</code>
 ／ 画面 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable.handleAcceptanceEndDateChange</code> / <code>handleAcceptanceCancelSave</code>、<code>OrderCreateController.previewInvoiceLineAcceptanceEndDate</code>
 ／ 検収日変更は変えた請求明細に紐づく仕訳だけを再計算する。入出金仕訳またはNo.6～9の日付書換だけで終わらせない。確認は業務確認と必要な取消基準日。件数・日付内訳は出さない。入出金取消の取消基準日は第8.5節（この操作の逆仕訳対象のLock。請求書全体でも入出金Lookupだけでもない）。
-／ 取消仕訳は`IsLocked__c=False`で作る。元のLockは引き継がない。
+／ 逆仕訳は`IsLocked__c=True`で作る。取消元は元のLockのままTrue。手動Lock／Unlockの対象は有効だけ。逆仕訳の取消は持たない。
 </div>
 
 ### 8.9 生成エラー
@@ -1652,7 +1654,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlJournal__c.Invoice__c</code>、<code>BillingAccount__c</code>、<code>BillingAccountKeySnapShot__c</code>、<code>InvoiceLine__c</code>、<code>InvoicePayment__c</code>、<code>InvoicePaymentAllocation__c</code>、<code>GlManualJournalHeader__c</code>、<code>GlManualJournalSetting__c</code>、<code>AccountingEventKey__c</code>、<code>JournalPatternKey__c</code>、<code>DebitSlotKey__c</code>、<code>DebitAccountAssignment__c</code>、<code>DebitAccount__c</code>、<code>CreditSlotKey__c</code>、<code>CreditAccountAssignment__c</code>、<code>CreditAccount__c</code>、<code>Amount__c</code>、<code>PostingDate__c</code>、<code>TransactionStatus__c</code>（<code>Active</code>／<code>LogicallyDeleted</code>／<code>Cancelled</code>／<code>Reversal</code>）、<code>IsLocked__c</code>、<code>RecognitionSequence__c</code>、<code>GenerationUnitKey__c</code>、<code>JournalLineKey__c</code>、<code>BusinessOperationKey__c</code>、<code>CancellationReason__c</code>、<code>CancellationReasonText__c</code>、<code>IdempotencyKey__c</code>、<code>OriginalJournal__c</code>、<code>Memo__c</code>
+項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlJournal__c.Invoice__c</code>、<code>BillingAccount__c</code>、<code>BillingAccountKeySnapShot__c</code>、<code>InvoiceLine__c</code>、<code>InvoicePayment__c</code>、<code>InvoicePaymentAllocation__c</code>、<code>GlManualJournalHeader__c</code>、<code>GlManualJournalSetting__c</code>、<code>AccountingEventKey__c</code>、<code>JournalPatternKey__c</code>、<code>DebitSlotKey__c</code>、<code>DebitAccountAssignment__c</code>、<code>DebitAccount__c</code>、<code>CreditSlotKey__c</code>、<code>CreditAccountAssignment__c</code>、<code>CreditAccount__c</code>、<code>Amount__c</code>、<code>PostingDate__c</code>、<code>TransactionStatus__c</code>（<code>Active</code>／<code>LogicallyDeleted</code>／<code>Cancelled</code>／<code>Reversal</code>。画面表示は有効／論理削除／取消元／逆仕訳）、<code>IsLocked__c</code>、<code>RecognitionSequence__c</code>、<code>GenerationUnitKey__c</code>、<code>JournalLineKey__c</code>、<code>BusinessOperationKey__c</code>、<code>CancellationReason__c</code>、<code>CancellationReasonText__c</code>、<code>IdempotencyKey__c</code>、<code>OriginalJournal__c</code>、<code>Memo__c</code>
 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>GlJournal__c.UnlockReason__c</code>、<code>GlJournal__c.ConfirmationText__c</code>、<code>GlJournal__c.ProductCodeSnapShot__c</code>
 ／ エンジンは項目を読むだけで、生成手続きは第8.2節。確認用は数式であり生成時に書かない。第9.1.1節。`ProductCodeSnapShot__c`は正規処理・Goal・キーに使わず、エンジンは書かない。コピー見本はCore第11.4.2節。
 入力規則 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlJournal__c.SlotKeys_Required</code>（借方・貸方スロットキーが空なら「借方・貸方スロットは必須です。」。テキストなので <code>ISBLANK</code> だけ）
@@ -1695,7 +1697,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 自動仕訳は、実勘定科目だけでなく、その科目を選択した勘定科目割当も借貸別に保持する。取消仕訳は元仕訳の借貸を入れ替えて割当参照を引き継ぎ、請求明細、仕訳パターンキー、売上計上回番号は元のまま保持する。同一生成単位の再生成は元仕訳の割当参照を維持する。手動仕訳は勘定科目割当を使用しない。
 
-仕訳の取引状態の値と遷移は第2.3節・第9.3節を正とする。元仕訳は`有効`または`取消済`、取消仕訳は`取消`、未ロック差替え後の旧仕訳は`論理削除`とする。手動仕訳ヘッダー自身の`Active`／`Cancelled`は第10.3節の原因状態であり、仕訳の4状態とは別である。原因参照は上表の条件を満たし、請求確定・売上は請求明細、Invoice目的は明細別割当とその親入出金、NonInvoice目的は親入出金、手動は手動仕訳ヘッダーを保持する。
+仕訳の取引状態の値と遷移は第2.3節・第9.3節を正とする。元仕訳は`有効`または`取消元`、取消仕訳は`逆仕訳`、未ロック差替え後の旧仕訳は`論理削除`とする。手動仕訳ヘッダー自身の`Active`／`Cancelled`は第10.3節の原因状態であり、仕訳の4状態とは別である。原因参照は上表の条件を満たし、請求確定・売上は請求明細、Invoice目的は明細別割当とその親入出金、NonInvoice目的は親入出金、手動は手動仕訳ヘッダーを保持する。
 
 `GenerationUnitKey__c`、`JournalLineKey__c`および`IdempotencyKey__c`は、第8.7節の構成値を`V1`、各値、空欄を表す`-`の順で連結し、SHA-256で算出した小文字16進64文字を保存する。Salesforce IDは18文字形式、FixedCatalogキーはCatalogの`key`そのもの、日付は`YYYY-MM-DD`、数値は符号なし10進表記へ正規化する。キーだけを監査情報の代わりにせず、構成に使用した請求書、請求明細、請求入出金、明細別割当、手動仕訳設定、手動仕訳ヘッダー、科目割当、実勘定科目および取消元仕訳の参照を通常項目として保持し、パターン、イベントおよびスロットは安定キーを保持する。
 
@@ -1776,7 +1778,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 ### 9.3 仕訳状態
 
-取引状態は有効、論理削除、取消済、取消の4つとする。取引状態とロック状態を混ぜない。物理削除は行わない。
+取引状態は有効、論理削除、取消元、逆仕訳の4つとする。取引状態とロック状態を混ぜない。物理削除は行わない。画面表示は第2.3節。保存値は変えない。
 
 ### 9.4 計上時期
 
@@ -1792,21 +1794,21 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 
 ロック状態は`IsLocked__c`で保持し、Falseを未ロック、Trueをロック済みとする。`IsLocked__c = True`の仕訳は通常の変更・削除を禁止し、打消しには取消仕訳を生成する。`IsLocked__c = False`の仕訳は取消仕訳を作らず論理削除する。Lockの意味は第1.8節。目検確認OKであり、時期が来たら外部へ出してよい。送信は第12.3節どおり顧客実装であり、パッケージは送らない。
 
-手動Lockと手動Unlockは標準操作とし、請求ボードの仕訳タブおよび契約横断の仕訳一覧から行う。横断の置き方は`docs/横断画面.md`。業務結果は本節。Accounting OFFでは仕訳タブと横断の仕訳一覧を出さず、Lock／Unlockの入口も持たない。第1.1節。人が目で選んだ仕訳行だけを対象にする。未選択では実行できない。対象は有効と取消。取消済と論理削除は選べない。請求が取消済みでも同じ。請求書の取引状態は変えない。請求ボードの仕訳タブは、フッタのLock／Unlockボタンと常時のUnlock理由欄を置かない。有効または取消が1行でも左チェック。チェックでは実行しない。1件以上選んだとき表の直上に「N件をLock」／全部Lock済みなら「N件をUnlock」。Unlock理由はバーから必須。Lock列はLock済みだけ鍵アイコン。未Lockは空。空セル・鍵は実行しない（鍵は表示）。Shift＋クリックで間の選べる行を同じON／OFF。選べない行は塗らない。実行前確認は出さない（Core第0.2節）。混在は拒否する。未来日付の行も選べる。過ぎた分だけ、という制限はパッケージに持たない。請求ボードではこの請求以外の仕訳は選べない。この請求の未Lock全部／Lock済み全部を一括するボタンは持たない。自動Lockは提供しない。顧客が導入時にバッチを足してよい。パッケージは外部送信の成功をLockの条件にしない。それぞれ専用のカスタム権限を必要とし、片方で他方を代替しない。閲覧権限、請求ボード編集権限、請求確定権限および101〜103では実行しない。Unlockは理由を必須とし、対象仕訳の`UnlockReason__c`と`BusinessOperationKey__c`へ書く。実行者・日時はSalesforceの監査項目。操作ログは Core 第2.5節。再Unlockは理由を上書きする。Lockでは`UnlockReason__c`を消さない。取消理由スナップショットとメモとは別項目である。Lockは`IsLocked__c`と操作キーを変える。Unlockはそれに`UnlockReason__c`を足す。金額、科目、日付、借貸は変えない。仕訳行の金額、科目、日付、借貸の**更新**は101〜103を問わず禁止する。101の新規作成と削除は`共通基盤.md`第3.6節。権限と緊急操作を問わず、画面から仕訳金額を直す経路は持たない。メモ`Memo__c`はLock済みでも直せる。画面定義の追加項目はメモ扱いである。GoalキーにもDiff比較にも入れない。未Lockは出している追加項目を直せる。Lock後の追加項目は仕訳ロック除外`GlJournalLockExemptFields__c`にある項目だけ。金額・科目・日付はリストに書いても不可。定義から除外一覧へ自動では書かない。Core第11.4.4節・第11.6節。イレギュラーの書き込みであり、仕訳キーにもGoalにも含めない。手動仕訳ヘッダーにメモは持たない。登録時にヘッダーから転記しない。利用者が仕訳レコードへ付ける。請求ボードのメモ・追加項目の行保存に操作キー、行ロック、版比較は使わない。同時に書いたときは後から保存した文が残る。請求書のメモと同じ。横断の仕訳一覧でLock／Unlockを含む保存はCore第7.9.7節。同じ文を全行へ一括する操作は持たない。取消・取消済の追加項目は参照だけとする。置き方は`docs/横断画面.md`。Lock/Unlockの操作キーと版比較はCore第7.9.7節。
+手動Lockと手動Unlockは標準操作とし、請求ボードの仕訳タブおよび契約横断の仕訳一覧から行う。横断の置き方は`docs/横断画面.md`。業務結果は本節。Accounting OFFでは仕訳タブと横断の仕訳一覧を出さず、Lock／Unlockの入口も持たない。第1.1節。人が目で選んだ仕訳行だけを対象にする。未選択では実行できない。対象は有効だけ。取消元・逆仕訳・論理削除は選べない。請求が取消済みでも同じ。取消元と逆仕訳は常時Lock。生成時から`IsLocked__c=true`。既存の未Lock逆仕訳は手動では触れない。対にLock／Unlockという操作は無い。請求書の取引状態は変えない。請求ボードの仕訳タブは、フッタのLock／Unlockボタンと常時のUnlock理由欄を置かない。有効が1行でも左チェック。チェックでは実行しない。1件以上選んだとき表の直上に「N件をLock」／全部Lock済みなら「N件をUnlock」。Unlock理由はバーから必須。Lock列はLock済みだけ鍵アイコン。未Lockは空。空セル・鍵は実行しない（鍵は表示）。Shift＋クリックで間の選べる行を同じON／OFF。選べない行は塗らない。実行前確認は出さない（Core第0.2節）。混在は拒否する。未来日付の行も選べる。過ぎた分だけ、という制限はパッケージに持たない。請求ボードではこの請求以外の仕訳は選べない。この請求の未Lock全部／Lock済み全部を一括するボタンは持たない。自動Lockは提供しない。顧客が導入時にバッチを足してよい。パッケージは外部送信の成功をLockの条件にしない。それぞれ専用のカスタム権限を必要とし、片方で他方を代替しない。閲覧権限、請求ボード編集権限、請求確定権限および101〜103では実行しない。Unlockは理由を必須とし、対象仕訳の`UnlockReason__c`と`BusinessOperationKey__c`へ書く。実行者・日時はSalesforceの監査項目。操作ログは Core 第2.5節。再Unlockは理由を上書きする。Lockでは`UnlockReason__c`を消さない。取消理由スナップショットとメモとは別項目である。Lockは`IsLocked__c`と操作キーを変える。Unlockはそれに`UnlockReason__c`を足す。金額、科目、日付、借貸は変えない。仕訳行の金額、科目、日付、借貸の**更新**は101〜103を問わず禁止する。101の新規作成と削除は`共通基盤.md`第3.6節。権限と緊急操作を問わず、画面から仕訳金額を直す経路は持たない。メモ`Memo__c`はLock済みでも直せる。画面定義の追加項目はメモ扱いである。GoalキーにもDiff比較にも入れない。未Lockは出している追加項目を直せる。Lock後の追加項目は仕訳ロック除外`GlJournalLockExemptFields__c`にある項目だけ。金額・科目・日付はリストに書いても不可。定義から除外一覧へ自動では書かない。Core第11.4.4節・第11.6節。イレギュラーの書き込みであり、仕訳キーにもGoalにも含めない。手動仕訳ヘッダーにメモは持たない。登録時にヘッダーから転記しない。利用者が仕訳レコードへ付ける。請求ボードのメモ・追加項目の行保存に操作キー、行ロック、版比較は使わない。同時に書いたときは後から保存した文が残る。請求書のメモと同じ。横断の仕訳一覧でLock／Unlockを含む保存はCore第7.9.7節。同じ文を全行へ一括する操作は持たない。取消元・逆仕訳の追加項目は参照だけとする。置き方は`docs/横断画面.md`。Lock/Unlockの操作キーと版比較はCore第7.9.7節。
 
 Unlock後も金額、科目、日付、借貸は直せない。以降の原因操作は未Lockとして扱い、差があれば論理削除して作り直せる。正式な権限API名は`Loop_16_Can_LockJournal` / `Loop_17_Can_UnlockJournal`（`共通基盤.md`第3章）。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>JournalLockService.lockForInvoice</code> / <code>unlockForInvoice</code>
-／ ボード入口は<code>InvoicePreviewOpsController.lockJournalsForInvoice</code> / <code>unlockJournalsForInvoice</code> / <code>updateJournalMemo</code>。画面のLock／Unlock表示は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>の<code>@salesforce/customPermission</code> <code>Loop_16_Can_LockJournal</code> / <code>Loop_17_Can_UnlockJournal</code>。選択した仕訳IDだけを対象にする。未選択はエラー。対象は有効と取消。請求が取消済みでも可。取消済と論理削除は拒否。仕訳確認にLock入口は置かない。行内容は変えない。Unlock理由は<code>GlJournal__c.UnlockReason__c</code>。Lock後の除外は <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>JournalLockService.assertExemptUpdate</code>、<code>GlJournalLockExemptFields__c</code>。横断入口は<code>ContractCrossController.saveJournals</code>。
+／ ボード入口は<code>InvoicePreviewOpsController.lockJournalsForInvoice</code> / <code>unlockJournalsForInvoice</code> / <code>updateJournalMemo</code>。画面のLock／Unlock表示は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable</code>の<code>@salesforce/customPermission</code> <code>Loop_16_Can_LockJournal</code> / <code>Loop_17_Can_UnlockJournal</code>。選択した仕訳IDだけを対象にする。未選択はエラー。対象は有効だけ。請求が取消済みでも可。取消元・逆仕訳・論理削除は拒否。取消元と逆仕訳は常時Lock。既存の未Lock逆仕訳は手動では触れない。仕訳確認にLock入口は置かない。行内容は変えない。Unlock理由は<code>GlJournal__c.UnlockReason__c</code>。Lock後の除外は <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>JournalLockService.assertExemptUpdate</code>、<code>GlJournalLockExemptFields__c</code>。横断入口は<code>ContractCrossController.saveJournals</code>。
 </div>
 
 ### 9.6 削除・取消・逆仕訳
 
 未ロック仕訳は取消仕訳を作らず論理削除する。ロック済み仕訳は元を残し、借貸を逆にした取消仕訳を追加する。関連仕訳が混在する原因レコードの取消では、ロック済み分に逆仕訳を追加し、未ロック分を論理削除する。
 
-請求取消、請求入出金取消および手動仕訳取消の取消基準日は第8.5節。この操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ、ON/OFFを問わず操作日を初期値として1つ入力する。未入力はエラーにする。請求入出金の登録および検収終了日変更では、Accounting ONのときだけ同じ規則で取る。OFFの入金登録は取消基準日を出さず、仕訳を触らない。検収終了日変更はOFFでは標準画面から出さない。各逆仕訳の計上日は`max(取消基準日, 元仕訳日)`とし、取消基準日を元取引日またはすべての元仕訳日以降へ入力制限しない。入力した取消基準日を、元より前だからといってエラーにはしない。同じ原因レコードと同じ元仕訳を二重に取り消さない。取消基準日は利用者が与える業務基準、実際の逆仕訳日は元仕訳より前へ置かないためのシステム決定値として区別する。
+請求取消、請求入出金取消および手動仕訳取消の取消基準日は第8.5節。この操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ、ON/OFFを問わず操作日を初期値として1つ入力する。未入力はエラーにする。請求入出金の登録および検収終了日変更では、Accounting ONのときだけ同じ規則で取る。OFFの入金登録は取消基準日を出さず、仕訳を触らない。検収終了日変更はOFFでは標準画面から出さない。各逆仕訳の計上日は`max(取消基準日, 元仕訳日)`とし、取消基準日を元取引日またはすべての元仕訳日以降へ入力制限しない。入力した取消基準日を、元より前だからといってエラーにはしない。同じ原因レコードと同じ元仕訳を二重に取り消さない。逆仕訳の取消（取消の取消）は持たない。請求は新しい未確定でやり直す。取消基準日は利用者が与える業務基準、実際の逆仕訳日は元仕訳より前へ置かないためのシステム決定値として区別する。
 
 ### 9.7 原因レコードとの関係
 
