@@ -367,7 +367,7 @@ private class AccountingDiffServiceTest {
         Date.newInstance(2026, 6, 15)
       );
       leftover = [
-        SELECT TransactionStatus__c
+        SELECT TransactionStatus__c, IsLocked__c
         FROM GlJournal__c
         WHERE Id = :leftover.Id
       ];
@@ -375,6 +375,11 @@ private class AccountingDiffServiceTest {
         'Cancelled',
         leftover.TransactionStatus__c,
         'Accounting 第8.2節: ロック済みCurrentは逆仕訳し元をCancelledにする'
+      );
+      System.assertEquals(
+        true,
+        leftover.IsLocked__c,
+        'Accounting 第8.8節: 取消元は元のLockのままTrue'
       );
       GlJournal__c reversal = [
         SELECT IsLocked__c, TransactionStatus__c
@@ -384,9 +389,9 @@ private class AccountingDiffServiceTest {
           AND TransactionStatus__c = 'Reversal'
       ];
       System.assertEquals(
-        false,
+        true,
         reversal.IsLocked__c,
-        'Accounting 第8.8節: 取消仕訳のIsLocked__cはFalse。元のLockは引き継がない'
+        'Accounting 第8.8節: 取消仕訳のIsLocked__cはTrue'
       );
     }
   }
