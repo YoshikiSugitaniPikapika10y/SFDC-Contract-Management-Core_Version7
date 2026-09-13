@@ -25,25 +25,76 @@ private class InvoiceCancelServiceTest {
           IsAmountAdjusted__c,
           IsSplitMoved__c,
           IsManuallyAdjusted__c,
-          InvoiceTransactionStatus__c
+          InvoiceTransactionStatus__c,
+          CollectionRefundStatus__c,
+          CancellationReason__c,
+          CancellationReasonText__c,
+          SystemIntegrationDate__c
         FROM Invoice__c
         WHERE Id = :result.correctionInvoiceId
       ];
+      Invoice__c original = [
+        SELECT
+          InvoiceTransactionStatus__c,
+          CancellationReason__c,
+          CancellationReasonText__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CANCELLED,
+        original.InvoiceTransactionStatus__c,
+        'Core 第7.9.3節手順1: 元請求の取引状態を取消済みにする'
+      );
+      System.assertEquals(
+        'Duplicate',
+        original.CancellationReason__c,
+        'Core 第7.9.5節: 取消理由は元請求へ保持する'
+      );
       System.assertEquals(
         InvoiceTransactionStatusService.TX_DRAFT,
-        correction.InvoiceTransactionStatus__c
+        correction.InvoiceTransactionStatus__c,
+        'Core 第7.9.3節手順3: 訂正用の請求取引状態は Draft'
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.COLLECTION_NOT_STARTED,
+        correction.CollectionRefundStatus__c,
+        'Core 第7.9.3節手順3: 訂正用の回収・返金状態は NotStarted'
+      );
+      System.assertEquals(
+        null,
+        correction.CancellationReason__c,
+        'Core 第7.9.3節手順3: 取消情報は訂正用へ引き継がない'
+      );
+      System.assertEquals(
+        null,
+        correction.CancellationReasonText__c,
+        'Core 第7.9.3節手順3: 取消理由テキストは訂正用へ引き継がない'
+      );
+      System.assertEquals(
+        null,
+        correction.SystemIntegrationDate__c,
+        'Core 第7.9.3節手順3: 確定日は訂正用へ引き継がない'
       );
       System.assertEquals(
         true,
         correction.IsAmountAdjusted__c,
         'Core 第7.9.3節: 訂正用へヘッダーの手動調整フラグをコピーする'
       );
-      System.assertEquals(true, correction.IsSplitMoved__c);
-      System.assertEquals(true, correction.IsManuallyAdjusted__c);
+      System.assertEquals(
+        true,
+        correction.IsSplitMoved__c,
+        'Core 第7.9.3節: 訂正用へ分割・移動フラグをコピーする'
+      );
+      System.assertEquals(
+        true,
+        correction.IsManuallyAdjusted__c,
+        'Core 第7.9.3節: 訂正用へ手動調整フラグをコピーする'
+      );
       System.assertEquals(
         false,
         result.requiresCustomerNotice,
-        'Core 第7.10節: 未送付の取消では取消連絡案内を出さない'
+        'Core 第7.9.3節・第7.10節: 送付済みでなければ取消連絡案内を出さない'
       );
     }
   }
@@ -506,7 +557,7 @@ private class InvoiceCancelServiceTest {
             OperationType__c = 'CancelInvoice'
             AND BusinessOperationKey__c = :operationKey
         ],
-        '共通基盤第12章: CancelInvoiceは成功1回に1行。再試行は2行目を作らない'
+        '共通基盤第12章（Core 第2.5節）: CancelInvoiceは成功1回に1行。再試行は2行目を作らない'
       );
     }
   }
@@ -531,7 +582,7 @@ private class InvoiceCancelServiceTest {
         System.assertEquals(
           'ロック済み仕訳がある取消では取消基準日が必要です。',
           ex.getMessage(),
-          'Core 第7.9.6節、日付仕様 第7.3節: ロック済み仕訳がある取消は未入力をエラーにする'
+          'Core 第7.9.6節、共通基盤 第7.3節: ロック済み仕訳がある取消は未入力をエラーにする'
         );
       }
       System.assertEquals(true, thrown);
@@ -571,6 +622,26 @@ private class InvoiceCancelServiceTest {
         result.requiresCustomerNotice,
         'Core 第7.9.3節・第7.10節: 送付済み請求の取消は顧客への取消連絡が必要と返す'
       );
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CANCELLED,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+        .InvoiceTransactionStatus__c,
+        'Core 第7.9.3節手順1: 送付済みでも元請求は取消済みになる'
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_DRAFT,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :result.correctionInvoiceId
+        ]
+        .InvoiceTransactionStatus__c,
+        'Core 第7.9.3節手順3: 送付済み取消でも訂正用は未確定'
+      );
     }
   }
 
@@ -596,12 +667,12 @@ private class InvoiceCancelServiceTest {
       System.assertEquals(
         1,
         preview.logicalDeleteCount,
-        'Core 第7.9.6節: 未ロックは論理削除件数に数える'
+        'Core 第7.9.6節・Accounting 第8.5節: プレビューは未ロックを論理削除件数に数える（確認画面には出さない）'
       );
       System.assertEquals(
         2,
         preview.reverseCount,
-        'Core 第7.9.6節: ロック済みは逆仕訳件数に数える'
+        'Core 第7.9.6節・Accounting 第8.5節: プレビューはロック済みを逆仕訳件数に数える（確認画面には出さない）'
       );
       System.assertEquals(2, preview.reverseDateCounts.size());
       System.assertEquals(Date.today(), preview.reverseDateCounts[0].reverseDate);
@@ -613,14 +684,17 @@ private class InvoiceCancelServiceTest {
       System.assertEquals(
         true,
         preview.hasFutureReverseDate,
-        'Core 第7.9.6節、日付仕様 第7.3節: 将来日付の有無を出す'
+        'Core 第7.9.6節、共通基盤 第7.3節: プレビューは将来日付の有無を返す（確認画面には出さない）'
       );
-      System.assert(
-        preview.displayText.contains('論理削除件数: 1'),
-        'Core 第7.9.6節: 論理削除件数を表示する'
+      System.assertEquals(
+        '論理削除件数: 1\n逆仕訳件数: 2\n実際の逆仕訳日:\n' +
+          String.valueOf(Date.today()) +
+          ': 1件\n' +
+          String.valueOf(Date.today().addMonths(2)) +
+          ': 1件\n将来日付: あり',
+        preview.displayText,
+        'AccountingDiffService.toDisplayTextの返却文言。Core 第7.9.6節・Accounting 第8.8節の確認UIには出さない'
       );
-      System.assert(preview.displayText.contains('逆仕訳件数: 2'));
-      System.assert(preview.displayText.contains('将来日付: あり'));
 
       InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
       request.invoiceId = invoice.Id;
@@ -635,12 +709,12 @@ private class InvoiceCancelServiceTest {
       System.assertEquals(
         0,
         result.journalPreview.reverseCount,
-        'Accounting 第8.8節: 実行後の成功表示に件数を出さない'
+        'Core 第7.9.6節・Accounting 第8.8節: 実行後の成功表示に逆仕訳件数を出さない'
       );
       System.assertEquals(
         0,
         result.journalPreview.logicalDeleteCount,
-        'Accounting 第8.8節: 実行後の成功表示に件数を出さない'
+        'Core 第7.9.6節・Accounting 第8.8節: 実行後の成功表示に論理削除件数を出さない'
       );
     }
   }
@@ -664,6 +738,19 @@ private class InvoiceCancelServiceTest {
       }
       System.assertEquals(true, invoiceThrown);
 
+      Boolean previewThrown = false;
+      try {
+        InvoiceCancelService.previewConfirmed(null, Date.today());
+      } catch (InvoiceCancelService.CancelException ex) {
+        previewThrown = true;
+        System.assertEquals(
+          '取消する請求が指定されていません。',
+          ex.getMessage(),
+          'Core 第7.9.6節: プレビューも取消する請求が無ければ始めない'
+        );
+      }
+      System.assertEquals(true, previewThrown);
+
       Invoice__c invoice = insertConfirmedInvoice('CancelReason');
       InvoiceCancelService.CancelRequest blankReason = new InvoiceCancelService.CancelRequest();
       blankReason.invoiceId = invoice.Id;
@@ -678,7 +765,7 @@ private class InvoiceCancelServiceTest {
         System.assertEquals(
           '取消理由を入力してください。',
           ex.getMessage(),
-          'Core 第7.9.3節: 取消理由は必須'
+          'Core 第7.9.5節: 取消理由を指定する'
         );
       }
       System.assertEquals(true, reasonThrown);
@@ -699,13 +786,167 @@ private class InvoiceCancelServiceTest {
         InvoiceCancelService.cancelConfirmed(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains(ContractOptimisticLockUtil.CONFLICT_MESSAGE) ||
-            ex.getMessage().contains('他のユーザーが先に更新しました'),
-          'Core 第7.9.7節: 比較値未指定は拒否する。実際: ' + ex.getMessage()
+        System.assertEquals(
+          ContractOptimisticLockUtil.CONFLICT_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.9.7節: 比較値未指定は拒否する'
         );
       }
       System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void cancelConfirmed_rejectsDraft() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+
+      Invoice__c draftInvoice = insertConfirmedInvoice('CancelDraft');
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        draftInvoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
+        update draftInvoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = false;
+        InvoiceLockUtil.allowLockedStatusWrite = false;
+      }
+      InvoiceCancelService.CancelRequest draftRequest = new InvoiceCancelService.CancelRequest();
+      draftRequest.invoiceId = draftInvoice.Id;
+      draftRequest.cancellationReason = 'Duplicate';
+      draftRequest.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        draftInvoice.Id
+      );
+      Boolean draftThrown = false;
+      try {
+        InvoiceCancelService.cancelConfirmed(draftRequest);
+      } catch (InvoiceCancelService.CancelException ex) {
+        draftThrown = true;
+        System.assertEquals(
+          '確定済みの請求だけ取消できます。',
+          ex.getMessage(),
+          'Core 第7.9.3節: 取消できるのは確定済み請求だけ'
+        );
+      }
+      System.assertEquals(true, draftThrown);
+    }
+  }
+
+  @IsTest
+  static void cancelConfirmed_rejectsActivePayment() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c paymentInvoice = insertConfirmedInvoice('CancelPay');
+      InvoicePaymentService.allowLifecycleWrite = true;
+      try {
+        insert new InvoicePayment__c(
+          Invoice__c = paymentInvoice.Id,
+          Amount__c = 1100,
+          PaymentPurpose__c = InvoicePaymentService.PURPOSE_INVOICE,
+          PaymentDate__c = Date.newInstance(2026, 6, 1),
+          PaymentTransactionStatus__c = InvoicePaymentService.STATUS_ACTIVE
+        );
+      } finally {
+        InvoicePaymentService.allowLifecycleWrite = false;
+      }
+      InvoiceCancelService.CancelRequest paymentRequest = new InvoiceCancelService.CancelRequest();
+      paymentRequest.invoiceId = paymentInvoice.Id;
+      paymentRequest.cancellationReason = 'Duplicate';
+      paymentRequest.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        paymentInvoice.Id
+      );
+      Boolean paymentThrown = false;
+      try {
+        InvoiceCancelService.cancelConfirmed(paymentRequest);
+      } catch (InvoiceCancelService.CancelException ex) {
+        paymentThrown = true;
+        System.assertEquals(
+          '有効な請求入出金がある請求は取消できません。',
+          ex.getMessage(),
+          'Core 第7.9.3節: Purposeを問わず有効な請求入出金が0件であること'
+        );
+      }
+      System.assertEquals(true, paymentThrown);
+    }
+  }
+
+  @IsTest
+  static void cancelConfirmed_rejectsActiveManualJournal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c manualInvoice = insertConfirmedInvoice('CancelMan');
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'CancelMan Debit',
+        AccountType__c = 'Expense',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'CancelMan Credit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlManualJournalSetting__c setting = new GlManualJournalSetting__c(
+        Name = 'CancelMan Setting',
+        DebitSlotKey__c = 'FxLoss',
+        DebitAccount__c = debit.Id,
+        CreditSlotKey__c = 'AccountsReceivable',
+        CreditAccount__c = credit.Id,
+        Description__c = '請求取消ゲート用',
+        IsActive__c = true
+      );
+      insert setting;
+      insert new GlManualJournalHeader__c(
+        Invoice__c = manualInvoice.Id,
+        GlManualJournalSetting__c = setting.Id,
+        PostingDate__c = Date.today(),
+        Amount__c = 100,
+        TransactionStatus__c = 'Active'
+      );
+      InvoiceCancelService.CancelRequest manualRequest = new InvoiceCancelService.CancelRequest();
+      manualRequest.invoiceId = manualInvoice.Id;
+      manualRequest.cancellationReason = 'Duplicate';
+      manualRequest.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        manualInvoice.Id
+      );
+      Boolean manualThrown = false;
+      try {
+        InvoiceCancelService.cancelConfirmed(manualRequest);
+      } catch (InvoiceCancelService.CancelException ex) {
+        manualThrown = true;
+        System.assertEquals(
+          '有効な手動仕訳がある請求は取消できません。',
+          ex.getMessage(),
+          'Core 第7.9.3節: 有効な手動仕訳ヘッダーが0件であること'
+        );
+      }
+      System.assertEquals(true, manualThrown);
+    }
+  }
+
+  @IsTest
+  static void cancelConfirmed_rejectsOtherWithoutText() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      Invoice__c otherInvoice = insertConfirmedInvoice('CancelOther');
+      InvoiceCancelService.CancelRequest otherRequest = new InvoiceCancelService.CancelRequest();
+      otherRequest.invoiceId = otherInvoice.Id;
+      otherRequest.cancellationReason = 'Other';
+      otherRequest.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        otherInvoice.Id
+      );
+      Boolean otherThrown = false;
+      try {
+        InvoiceCancelService.cancelConfirmed(otherRequest);
+      } catch (InvoiceCancelService.CancelException ex) {
+        otherThrown = true;
+        System.assertEquals(
+          '取消理由がその他のときは内容を入力してください。',
+          ex.getMessage(),
+          'Core 第7.9.5節: その他の場合だけ理由テキストを必須とする'
+        );
+      }
+      System.assertEquals(true, otherThrown);
     }
   }
 

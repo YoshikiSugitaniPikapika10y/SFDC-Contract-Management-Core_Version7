@@ -37,37 +37,37 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       System.assertEquals(
         fixture.billingAccount.Id,
         loaded.BillingAccountSnapShot__c,
-        '仕様: Core 第11.4.2節・第5.2節 空欄の請求アカウント参照をコピーする'
+        '仕様: Core 第11.4.2節・第5.2節 空欄だけコピーする。請求アカウント参照をスナップショットする'
       );
       System.assertEquals(
         'トリガ宛名 御中',
         loaded.BillingAddresseeSnapShot__c,
-        '仕様: Core 第11.4.2節 空欄だけコピーする'
+        '仕様: Core 第11.4.2節・第5.2節 空欄だけコピーする。宛名をスナップショットする'
       );
       System.assertEquals(
         'trig@example.com',
         loaded.BillingEmailToSnapShot__c,
-        '仕様: Core 第11.4.2節 空欄だけコピーする'
+        '仕様: Core 第11.4.2節・第5.2節 空欄だけコピーする。送付先メール To をスナップショットする'
       );
       System.assertEquals(
         'trig-cc@example.com',
         loaded.BillingEmailCcSnapShot__c,
-        '仕様: Core 第11.4.2節 空欄だけコピーする'
+        '仕様: Core 第11.4.2節・第5.2節 空欄だけコピーする。送付先メール Cc をスナップショットする'
       );
       System.assertEquals(
         'trig-bcc@example.com',
         loaded.BillingEmailBccSnapShot__c,
-        '仕様: Core 第11.4.2節 空欄だけコピーする'
+        '仕様: Core 第11.4.2節・第5.2節 空欄だけコピーする。送付先メール Bcc をスナップショットする'
       );
       System.assertEquals(
         InvoiceDeliveryMethodService.EMAIL,
         loaded.InvoiceDeliveryMethodSnapShot__c,
-        '仕様: Core 第11.4.2節 空欄だけコピーする'
+        '仕様: Core 第11.4.2節・第5.2節・第3.3.7節 空欄だけコピーする。届け方をスナップショットする'
       );
       System.assertEquals(
         BillingScheduleService.METHOD_MONTH_OFFSET,
         loaded.PaymentTermMethodSnapShot__c,
-        '仕様: Core 第11.4.2節 空欄だけコピーする'
+        '仕様: Core 第11.4.2節・第5.2節・第7.5節 空欄だけコピーする。支払条件をスナップショットする'
       );
     }
   }
@@ -90,15 +90,27 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       Test.stopTest();
 
       Invoice__c loaded = [
-        SELECT BillingAddresseeSnapShot__c, BillingEmailToSnapShot__c
+        SELECT
+          BillingAddresseeSnapShot__c,
+          BillingEmailToSnapShot__c,
+          BillingAccountSnapShot__c
         FROM Invoice__c
         WHERE Id = :invoice.Id
       ];
-      System.assertEquals('手入力宛名', loaded.BillingAddresseeSnapShot__c);
+      System.assertEquals(
+        '手入力宛名',
+        loaded.BillingAddresseeSnapShot__c,
+        '仕様: Core 第11.4.2節 既にあれば上書きしない'
+      );
       System.assertEquals(
         'trig@example.com',
         loaded.BillingEmailToSnapShot__c,
-        '空欄だったメールだけ埋める'
+        '仕様: Core 第11.4.2節・第5.2節 空欄だけコピーする。送付先メール To をスナップショットする'
+      );
+      System.assertEquals(
+        fixture.billingAccount.Id,
+        loaded.BillingAccountSnapShot__c,
+        '仕様: Core 第11.4.2節・第5.2節 空欄だけコピーする。請求アカウント参照をスナップショットする'
       );
     }
   }
@@ -132,7 +144,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       System.assertEquals(
         'FieldCopy CopyMemo Acc',
         loaded.Memo__c,
-        '仕様: Core 第11.4.2節 請求はinsert時だけ空欄へコピーする'
+        '仕様: Core 第11.4.2節 請求系はinsert時だけ空欄へスタンプする。From＝取引先'
       );
     }
   }
@@ -169,7 +181,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       System.assertEquals(
         ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
         loaded.Memo__c,
-        '仕様: Core 第11.4.2節 請求書の From に見積商品がある。空欄へコピーする'
+        '仕様: Core 第11.4.2節 請求系はinsert時だけ空欄へスタンプする。請求書の From に見積商品がある'
       );
     }
   }
@@ -203,7 +215,7 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       System.assertEquals(
         fixture.history.Name,
         loaded.Memo__c,
-        '仕様: Core 第11.4.2節 insertコピーは契約履歴のコピー元項目を読んで空欄へ書く'
+        '仕様: Core 第11.4.2節 請求系はinsert時だけ空欄へスタンプする。請求書の From に契約履歴がある'
       );
     }
   }
@@ -245,12 +257,12 @@ private class InvoiceFieldCopyTriggerHandlerTest {
       System.assertEquals(
         fixture.product.Id,
         loaded.Product__c,
-        '仕様: Core 第11.4.2節 空欄の商品参照をコピーする'
+        '仕様: Core 第11.4.2節 空欄だけコピーする。請求明細の From に見積商品がある'
       );
       System.assertEquals(
         ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
         loaded.Unit__c,
-        '仕様: Core 第11.4.2節 空欄の単位をコピーする'
+        '仕様: Core 第11.4.2節 空欄だけコピーする。請求明細の From に見積商品がある'
       );
     }
   }
@@ -298,28 +310,28 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         InvoiceProductFieldCopyService.OBJECT_CONTRACT_HISTORY,
         'Name',
         history.Name,
-        '仕様: Core 第11.4.2節 請求明細の From に契約履歴がある。空欄へコピーする'
+        '仕様: Core 第11.4.2節 空欄だけコピーする。請求明細の From に契約履歴がある'
       );
       assertInvoiceLineBlankCopyFromSoql(
         line.Id,
         InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT,
         'BillingAddressee__c',
         fixture.billingAccount.BillingAddressee__c,
-        '仕様: Core 第11.4.2節 請求明細の From に請求アカウントがある。空欄へコピーする'
+        '仕様: Core 第11.4.2節 空欄だけコピーする。請求明細の From に請求アカウントがある'
       );
       assertInvoiceLineBlankCopyFromSoql(
         line.Id,
         InvoiceProductFieldCopyService.OBJECT_OPPORTUNITY,
         'Name',
         history.Opportunity__r.Name,
-        '仕様: Core 第11.4.2節 請求明細の From に商談がある。空欄へコピーする'
+        '仕様: Core 第11.4.2節 空欄だけコピーする。請求明細の From に商談がある'
       );
       assertInvoiceLineBlankCopyFromSoql(
         line.Id,
         InvoiceProductFieldCopyService.OBJECT_ACCOUNT,
         'Name',
         account.Name,
-        '仕様: Core 第11.4.2節 請求明細の From に取引先がある。空欄へコピーする'
+        '仕様: Core 第11.4.2節 空欄だけコピーする。請求明細の From に取引先がある'
       );
     }
   }
@@ -352,8 +364,16 @@ private class InvoiceFieldCopyTriggerHandlerTest {
         loaded.Amount__c,
         '仕様: Core 第11.4.2節 既にあれば上書きしない'
       );
-      System.assertEquals(1, loaded.Quantity__c);
-      System.assertEquals(1000, loaded.UnitPrice__c);
+      System.assertEquals(
+        1,
+        loaded.Quantity__c,
+        '仕様: Core 第11.4.2節 既にあれば上書きしない'
+      );
+      System.assertEquals(
+        1000,
+        loaded.UnitPrice__c,
+        '仕様: Core 第11.4.2節 既にあれば上書きしない'
+      );
     }
   }
 

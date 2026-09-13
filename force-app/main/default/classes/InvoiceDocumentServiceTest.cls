@@ -15,25 +15,56 @@ private class InvoiceDocumentServiceTest {
         fixture.invoice.Id
       );
 
-      System.assertEquals('帳票取引先 請求担当', context.addressee);
-      System.assertEquals('2026年06月30日', context.invoiceDateLabel);
-      System.assertEquals('2026年07月31日', context.paymentDueDateLabel);
-      System.assertEquals(10000, context.amountExcludingTax);
-      System.assertEquals(1000, context.taxAmount);
-      System.assertEquals(11000, context.amountIncludingTax);
+      System.assertEquals(
+        '帳票取引先 請求担当',
+        context.addressee,
+        'Core 第7.10節: 宛名は請求書スナップショット。マスタ宛名では埋めない'
+      );
+      System.assertEquals(
+        '2026年06月30日',
+        context.invoiceDateLabel,
+        'Core 第7.10節・日付仕様 第8章: 請求日は保存値だけを印字する'
+      );
+      System.assertEquals(
+        '2026年07月31日',
+        context.paymentDueDateLabel,
+        'Core 第7.10節・日付仕様 第8章: 入金予定日は保存値だけを印字する'
+      );
+      System.assertEquals(
+        10000,
+        context.amountExcludingTax,
+        'Core 第7.10節: 請求PDFの税抜は請求書の税抜'
+      );
+      System.assertEquals(
+        1000,
+        context.taxAmount,
+        'Core 第7.10節: 請求PDFの税額は請求書の税額'
+      );
+      System.assertEquals(
+        11000,
+        context.amountIncludingTax,
+        'Core 第7.10節: 請求PDFの税込は請求書の税込'
+      );
       System.assertEquals(1, context.lines.size());
       System.assertEquals(
         'スナップショット商品',
-        context.lines[0].ProductName__c
+        context.lines[0].ProductName__c,
+        'Core 第7.10節: 明細の商品名は請求明細のスナップショット'
       );
-      System.assertEquals('2026年6月分', context.lines[0].PeriodLabel__c);
+      System.assertEquals(
+        '2026年6月分',
+        context.lines[0].PeriodLabel__c,
+        'Core 第7.10節: 明細の期間ラベルは請求明細の値'
+      );
       System.assertEquals(
         '帳票発行株式会社',
-        context.documentSetting.CompanyName__c
+        context.documentSetting.CompanyName__c,
+        'Core 第11.3.1節: 会社名は組織設定の帳票'
       );
       System.assertEquals(
         'T1234567890123',
-        context.documentSetting.InvoiceRegistrationNumber__c
+        context.documentSetting.InvoiceRegistrationNumber__c,
+        'Core 第11.3.1節: 適格請求書発行事業者登録番号は組織設定'
       );
       System.assertEquals(
         '振込手数料は貴社にてご負担ください。',
@@ -126,9 +157,26 @@ private class InvoiceDocumentServiceTest {
       );
       Test.stopTest();
 
-      System.assertNotEquals(null, result.contentVersionId);
-      System.assertEquals('StandardInvoice', result.templateKey);
-      System.assertEquals('InvoiceDocumentPdf', result.visualforcePage);
+      System.assertNotEquals(
+        null,
+        result.contentVersionId,
+        'Core 第7.10節: 発行は標準Filesへ保存する'
+      );
+      System.assertNotEquals(
+        null,
+        result.contentDocumentId,
+        'Core 第7.10節: 発行結果は ContentDocument を返す'
+      );
+      System.assertEquals(
+        'StandardInvoice',
+        result.templateKey,
+        'Core 第7.10節・第11.3.2節: 人が選んだ帳票キーを返す'
+      );
+      System.assertEquals(
+        'InvoiceDocumentPdf',
+        result.visualforcePage,
+        'Core 第11.3.2節: 帳票カタログの Visualforce を使う'
+      );
       System.assertEquals(
         'StandardInvoice_帳票取引先_請求担当_20260630.pdf',
         result.fileName,
@@ -142,7 +190,7 @@ private class InvoiceDocumentServiceTest {
       System.assertEquals(
         true,
         saved.ContractDocumentIssued__c,
-        'Core 第4.8節: 発行 insert に印を付ける'
+        'Core 第4.8節・第7.10節: 発行 insert に印を付ける'
       );
       System.assertEquals(
         'StandardInvoice_帳票取引先_請求担当_20260630.pdf',
@@ -160,7 +208,115 @@ private class InvoiceDocumentServiceTest {
           SELECT COUNT()
           FROM ContentDocumentLink
           WHERE LinkedEntityId = :fixture.invoice.Id
-        ]
+        ],
+        'Core 第7.10節: 請求の発行PDFの保存先は請求書の標準Files'
+      );
+    }
+  }
+
+  @IsTest
+  static void issueInvoiceDocument_unusedMode_throwsExactMessage() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      Fixture fixture = createFixture('Confirmed');
+      Boolean thrown = false;
+
+      try {
+        InvoiceDocumentService.issueInvoiceDocument(
+          fixture.invoice.Id,
+          'StandardInvoice'
+        );
+      } catch (InvoiceDocumentService.InvoiceDocumentException ex) {
+        thrown = true;
+        System.assertEquals(
+          '請求書設定が使わないのため、発行も送付もできません。',
+          ex.getMessage(),
+          'Core 第7.10節: 使わないなら発行も送付もしない'
+        );
+      }
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.10節: 使わないなら発行を止める'
+      );
+    }
+  }
+
+  @IsTest
+  static void issueInvoiceDocument_usesAttachmentFileName() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('Confirmed');
+
+      Test.startTest();
+      InvoiceDocumentService.IssueResult result = InvoiceDocumentService.issueInvoiceDocument(
+        fixture.invoice.Id,
+        'StandardInvoice',
+        '送付添付_請求書.pdf'
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        '送付添付_請求書.pdf',
+        result.fileName,
+        'Core 第7.10節: 新しく発行するの送付添付名はその送付だけ直せる'
+      );
+      ContentVersion saved = [
+        SELECT Title, PathOnClient, ContractDocumentIssued__c
+        FROM ContentVersion
+        WHERE Id = :result.contentVersionId
+      ];
+      System.assertEquals(
+        true,
+        saved.ContractDocumentIssued__c,
+        'Core 第7.10節: 新しく発行するでも印を付ける'
+      );
+      System.assertEquals(
+        '送付添付_請求書.pdf',
+        saved.PathOnClient,
+        'Core 第7.10節: 新しく発行するの Files Title は送った添付名'
+      );
+      System.assertEquals(
+        '送付添付_請求書',
+        saved.Title,
+        'Core 第7.10節: 新しく発行するの Title は添付名から .pdf を除いた値'
+      );
+    }
+  }
+
+  @IsTest
+  static void loadContext_cancelledInvoiceIsRejected() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('Confirmed');
+      Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+      Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      InvoiceLockUtil.allowLockedStatusWrite = true;
+      try {
+        fixture.invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED;
+        update fixture.invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+        InvoiceLockUtil.allowLockedStatusWrite = previousLock;
+      }
+      Boolean thrown = false;
+
+      try {
+        InvoiceDocumentService.loadContext(fixture.invoice.Id);
+      } catch (InvoiceDocumentService.InvoiceDocumentException ex) {
+        thrown = true;
+        System.assertEquals(
+          InvoiceDocumentService.STATUS_REQUIRED_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.10節: 取消済み請求は通常発行の対象にしない'
+        );
+      }
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.10節: 取消済みの表示・発行は拒否する'
       );
     }
   }
@@ -175,9 +331,26 @@ private class InvoiceDocumentServiceTest {
 
       InvoiceDocumentPdfController controller = new InvoiceDocumentPdfController();
 
-      System.assertEquals(true, controller.hasContext);
-      System.assertEquals(fixture.invoice.Id, controller.context.invoice.Id);
-      System.assertEquals(1, controller.context.lines.size());
+      System.assertEquals(
+        true,
+        controller.hasContext,
+        'Core 第7.10節: 確定済み請求のPDF表示はコンテキストを載せる'
+      );
+      System.assertEquals(
+        fixture.invoice.Id,
+        controller.context.invoice.Id,
+        'Core 第7.10節: PDF表示は当該請求書のスナップショット'
+      );
+      System.assertEquals(
+        1,
+        controller.context.lines.size(),
+        'Core 第7.10節: 請求PDFの明細は請求明細'
+      );
+      System.assertEquals(
+        '帳票取引先 請求担当',
+        controller.context.addressee,
+        'Core 第7.10節: PDF宛名は請求書スナップショット'
+      );
     }
   }
 
@@ -186,11 +359,19 @@ private class InvoiceDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Test.setCurrentPage(Page.InvoiceDocumentPdf);
       InvoiceDocumentPdfController missingController = new InvoiceDocumentPdfController();
-      System.assertEquals(false, missingController.hasContext);
+      System.assertEquals(
+        false,
+        missingController.hasContext,
+        'Core 第7.10節: 請求IDが無い直接PDF表示はコンテキストを出さない'
+      );
 
       ApexPages.currentPage().getParameters().put('id', 'invalid');
       InvoiceDocumentPdfController invalidController = new InvoiceDocumentPdfController();
-      System.assertEquals(false, invalidController.hasContext);
+      System.assertEquals(
+        false,
+        invalidController.hasContext,
+        'Core 第7.10節: 無い請求の直接PDF表示はコンテキストを出さない'
+      );
 
       Fixture draftFixture = createFixture('Draft');
       ApexPages.currentPage()
@@ -316,10 +497,19 @@ private class InvoiceDocumentServiceTest {
             ContractDocumentSettingService.MISSING_DEFAULT_DOCUMENT_MESSAGE
           ),
           ex.getMessage(),
-          'Core 第7.10節・第11.3.2節: キー空は発行できない'
+          'Core 第7.10節・第11.3.2節: キー空は発行できない。既定印でもカタログ先頭でも埋めない'
+        );
+        System.assertEquals(
+          '帳票・送付：PDFのみ／PDFとメール送付のとき、既定帳票を選んでください。',
+          ex.getMessage(),
+          'Core 第7.10節・第11.3.1節: 不足エラーは業務日本語に見出しを付ける'
         );
       }
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.10節: 帳票キーが空なら発行できない'
+      );
     }
   }
 
