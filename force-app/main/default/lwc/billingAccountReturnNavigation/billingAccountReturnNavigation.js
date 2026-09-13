@@ -124,7 +124,8 @@ export function readReturnCallerFromPageRef(pageRef) {
 
 /**
  * 仕様: Core 第3.3.3節。
- * @api → pageRef/URL → sessionStorage の順。pageRef で取れたら控えは捨てる。
+ * @api → pageRef/URL。state欠落は URL の c__returnTo。
+ * オブジェクトタブ等の標準経路は同じ請求アカウント宛ての sessionStorage 控えを採用しない。
  */
 export function resolveReturnCaller({
   returnTo = "",
@@ -139,16 +140,6 @@ export function resolveReturnCaller({
     clearRememberedReturnCaller();
     return { returnTo: resolvedTo, returnRecordId: resolvedId };
   }
-  const remembered = consumeRememberedReturnCaller();
-  // 仕様: Core 第3.3.3節。別の請求アカウントを標準経路でEditしたときは古い戻り控えを使わない。
-  if (
-    billingAccountId &&
-    remembered.billingAccountId !== billingAccountId
-  ) {
-    return { returnTo: "", returnRecordId: "" };
-  }
-  return {
-    returnTo: remembered.returnTo,
-    returnRecordId: remembered.returnRecordId
-  };
+  consumeRememberedReturnCaller();
+  return { returnTo: "", returnRecordId: "" };
 }

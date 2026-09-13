@@ -56,57 +56,57 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.getInvoicePreview",
+  "@salesforce/apex/ContractCrossController.getInvoicePreview",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.getBillingAccountOptionsForPreview",
+  "@salesforce/apex/ContractCrossController.getBillingAccountOptionsForPreview",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.updateInvoiceLineAmounts",
+  "@salesforce/apex/ContractCrossController.updateInvoiceLineAmounts",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.updateInvoiceLineAcceptanceEndDate",
+  "@salesforce/apex/ContractCrossController.updateInvoiceLineAcceptanceEndDate",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.splitInvoiceByDate",
+  "@salesforce/apex/ContractCrossController.splitInvoiceByDate",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.splitInvoiceByBillingAccount",
+  "@salesforce/apex/ContractCrossController.splitInvoiceByBillingAccount",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.moveLinesToExistingInvoice",
+  "@salesforce/apex/ContractCrossController.moveLinesToExistingInvoice",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.splitLinesInPlace",
+  "@salesforce/apex/ContractCrossController.splitLinesInPlace",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.updateInvoiceHeaderAndDates",
+  "@salesforce/apex/ContractCrossController.updateInvoiceHeaderAndDates",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.applyBillingAccountContent",
+  "@salesforce/apex/ContractCrossController.applyBillingAccountContent",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.cancelConfirmedFromPreview",
+  "@salesforce/apex/ContractCrossController.cancelConfirmedFromPreview",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );

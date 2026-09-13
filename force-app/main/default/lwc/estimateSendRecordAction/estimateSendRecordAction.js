@@ -11,6 +11,10 @@ import getBoardContext from "@salesforce/apex/EstimateSendBoardController.getBoa
 import getRecordActionEstimate from "@salesforce/apex/EstimateSendBoardController.getRecordActionEstimate";
 import previewEstimate from "@salesforce/apex/EstimateSendBoardController.previewEstimateFromRecordPage";
 import sendEstimate from "@salesforce/apex/EstimateSendBoardController.sendEstimateFromRecordPage";
+import getBoardContextCross from "@salesforce/apex/ContractCrossController.getEstimateSendBoardContext";
+import getRecordActionEstimateCross from "@salesforce/apex/ContractCrossController.getEstimateSendRecord";
+import previewEstimateCross from "@salesforce/apex/ContractCrossController.previewEstimateFromRecordPage";
+import sendEstimateCross from "@salesforce/apex/ContractCrossController.sendEstimateFromRecordPage";
 import hasSendEstimates from "@salesforce/customPermission/Loop_05_Can_SendEstimate";
 
 const INITIAL_ATTACHMENT_KEY = "cmc.estimateSend.initialContentDocumentId";
@@ -23,6 +27,8 @@ export default class EstimateSendRecordAction extends NavigationMixin(
   LightningElement
 ) {
   _recordId;
+  /** 仕様: 共通基盤 第10.4節。横断から開くとき 18。ハブ／レコードページは 05 のまま。 */
+  @api fromCrossWork = false;
   estimate;
   documentTemplateKey = "";
   emailTemplateApiName = "";
@@ -80,6 +86,25 @@ export default class EstimateSendRecordAction extends NavigationMixin(
 
   get sendFailureRetryNote() {
     return SEND_FAILURE_RETRY_NOTE;
+  }
+
+  /** 仕様: 共通基盤 第10.4節。横断オーバーレイは 18 のラッパ。それ以外は送付ボード入口。 */
+  boardContextApex() {
+    return this.fromCrossWork === true ? getBoardContextCross : getBoardContext;
+  }
+
+  recordActionEstimateApex() {
+    return this.fromCrossWork === true
+      ? getRecordActionEstimateCross
+      : getRecordActionEstimate;
+  }
+
+  previewEstimateApex() {
+    return this.fromCrossWork === true ? previewEstimateCross : previewEstimate;
+  }
+
+  sendEstimateApex() {
+    return this.fromCrossWork === true ? sendEstimateCross : sendEstimate;
   }
 
   /** 仕様: Core 第7.10節。空の区切りは無視。不正があれば送れない。 */
@@ -191,8 +216,8 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     this.preferredAttachmentId = this.consumePreferredAttachmentId();
     try {
       const [context, estimate] = await Promise.all([
-        getBoardContext(),
-        getRecordActionEstimate({ historyId: this._recordId })
+        this.boardContextApex()(),
+        this.recordActionEstimateApex()({ historyId: this._recordId })
       ]);
       this.estimate = estimate;
       this.documentTemplateOptions = (
@@ -222,7 +247,7 @@ export default class EstimateSendRecordAction extends NavigationMixin(
   async reloadPreview() {
     const previousAttachmentId = this.attachmentId;
     const previousFileName = this.fileName;
-    const preview = await previewEstimate({
+    const preview = await this.previewEstimateApex()({
       historyId: this._recordId,
       documentTemplateKey: this.documentTemplateKey,
       emailTemplateApiName: this.emailTemplateApiName,
@@ -298,7 +323,7 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     }
     this.orgFromResolved = false;
     try {
-      const preview = await previewEstimate({
+      const preview = await this.previewEstimateApex()({
         historyId: this._recordId,
         documentTemplateKey: this.documentTemplateKey,
         emailTemplateApiName: this.emailTemplateApiName,
@@ -391,7 +416,7 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     this.notifyOverlayBusy(true);
     this.errorMessage = "";
     try {
-      await sendEstimate({
+      await this.sendEstimateApex()({
         historyId: this._recordId,
         documentTemplateKey: this.documentTemplateKey,
         emailTemplateApiName: this.emailTemplateApiName || null,

@@ -133,8 +133,11 @@ public without sharing class InvoiceMergeKeyConfigService {
   }
 
   private static String formatDecimal(Decimal value) {
+    // 仕様: Core 第1.1.10節・第6.7節。空欄の単価・数量を 0 で代替してキーを作らない。
     if (value == null) {
-      return '0';
+      throw new MergeKeyConfigException(
+        '単価または数量が空です。0としてキーを作りません。'
+      );
     }
     return value.stripTrailingZeros().toPlainString();
   }

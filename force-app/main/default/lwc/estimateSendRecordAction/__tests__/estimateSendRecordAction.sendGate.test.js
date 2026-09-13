@@ -51,6 +51,26 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
+  "@salesforce/apex/ContractCrossController.getEstimateSendBoardContext",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.getEstimateSendRecord",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.previewEstimateFromRecordPage",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.sendEstimateFromRecordPage",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
   "@salesforce/customPermission/Loop_05_Can_SendEstimate",
   () => ({ default: true }),
   { virtual: true }
@@ -256,6 +276,8 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
       isSending: false,
       errorMessage: "",
       isResend: false,
+      fromCrossWork: false,
+      sendEstimateApex: proto.sendEstimateApex,
       _recordId: "a0H",
       documentTemplateKey: "tpl",
       emailTemplateApiName: "email",

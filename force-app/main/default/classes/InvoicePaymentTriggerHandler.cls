@@ -46,11 +46,14 @@ public without sharing class InvoicePaymentTriggerHandler {
       }
       InvoicePayment__c prior = oldMap == null ? null : oldMap.get(payment.Id);
       try {
-        // 仕様: Core 第8.4節、第11.6節。除外項目だけの更新は許す。金額・日付・目的は不可。
+        // 仕様: Core 第8.4節、第11.6節。金額・日付・目的は不可。
         InvoicePaymentLockUtil.assertExemptUpdate(prior, payment);
       } catch (InvoicePaymentLockUtil.LockExemptException ex) {
         payment.addError(ex.getMessage());
+        continue;
       }
+      // 仕様: Core 第8.4節、共通基盤 第1.4節。メモも請求ボードの編集からだけ。直接DMLは拒否。
+      payment.addError(DIRECT_UPDATE_BLOCK_MESSAGE);
     }
   }
 

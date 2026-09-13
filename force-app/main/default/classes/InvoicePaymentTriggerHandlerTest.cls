@@ -327,12 +327,16 @@ private class InvoicePaymentTriggerHandlerTest {
         WHERE Id = :payment.Id
       ];
       payment.Memo__c = 'メモ更新';
-      update payment;
-      System.assertEquals(
-        'メモ更新',
-        [SELECT Memo__c FROM InvoicePayment__c WHERE Id = :payment.Id].Memo__c,
-        'Core 第8.4節: 登録後はメモを更新できる'
-      );
+      try {
+        update payment;
+        System.assert(false, '請求ボード外の直接DMLはメモも拒否');
+      } catch (DmlException ex) {
+        System.assertEquals(
+          InvoicePaymentTriggerHandler.DIRECT_UPDATE_BLOCK_MESSAGE,
+          ex.getDmlMessage(0),
+          'Core 第8.4節: メモは請求ボードの編集から。実際: ' + ex.getMessage()
+        );
+      }
 
       try {
         delete payment;
@@ -345,6 +349,34 @@ private class InvoicePaymentTriggerHandlerTest {
         );
       }
       Test.stopTest();
+    }
+  }
+
+  @IsTest
+  static void memo_update_via_lifecycle_flag_succeeds() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = createInvoice('Confirmed');
+      InvoicePayment__c payment = new InvoicePayment__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1100,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_INVOICE,
+        PaymentDate__c = Date.today(),
+        Memo__c = '初期'
+      );
+      insertInvoicePurpose(payment);
+      Boolean previous = InvoicePaymentService.allowLifecycleWrite;
+      InvoicePaymentService.allowLifecycleWrite = true;
+      try {
+        payment.Memo__c = 'ボード更新';
+        update payment;
+      } finally {
+        InvoicePaymentService.allowLifecycleWrite = previous;
+      }
+      System.assertEquals(
+        'ボード更新',
+        [SELECT Memo__c FROM InvoicePayment__c WHERE Id = :payment.Id].Memo__c,
+        'Core 第8.4節: 請求ボードの編集からメモを更新できる'
+      );
     }
   }
 

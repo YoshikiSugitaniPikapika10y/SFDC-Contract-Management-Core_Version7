@@ -296,6 +296,32 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
     });
   });
 
+  it("handleSuccess New ignores leftover return caller (Core 3.3.3)", () => {
+    sessionStorage.setItem(
+      "c.billingAccountFormalEdit.returnCaller",
+      JSON.stringify({
+        returnTo: "order",
+        returnRecordId: "a0H000000000001AAA",
+        billingAccountId: "a00BA0000000001"
+      })
+    );
+    const ctx = bind({
+      recordId: "",
+      formMode: "new",
+      returnTo: "",
+      returnRecordId: "",
+      _pageRef: { attributes: { actionName: "new" } }
+    });
+    ctx.handleSuccess({ detail: { id: "a00NEW" } });
+    expect(ctx[Navigate]).toHaveBeenCalledWith({
+      type: "standard__objectPage",
+      attributes: {
+        objectApiName: "BillingAccount__c",
+        actionName: "home"
+      }
+    });
+  });
+
   it("handleSuccess returns ordinary Edit to the billing account detail", () => {
     const ctx = bind();
     ctx.handleSuccess({ detail: { id: "a00BA0000000001" } });
@@ -333,19 +359,17 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
     );
   });
 
-  it("handleCancel reopens from session when page state is missing (Core 3.3.3)", () => {
-    sessionStorage.setItem(
-      "c.billingAccountFormalEdit.returnCaller",
-      JSON.stringify({
-        returnTo: "estimateCreate",
-        returnRecordId: "006000000000001AAA",
-        billingAccountId: "a00BA0000000001"
-      })
-    );
+  it("handleCancel reopens from page state when return caller is set (Core 3.3.3)", () => {
     const ctx = bind({
       returnTo: "",
       returnRecordId: "",
-      _pageRef: { attributes: { actionName: "edit" } }
+      _pageRef: {
+        attributes: { actionName: "edit" },
+        state: {
+          c__returnTo: "estimateCreate",
+          c__returnRecordId: "006000000000001AAA"
+        }
+      }
     });
     ctx.handleCancel();
     expect(ctx[Navigate]).toHaveBeenCalledWith(
@@ -386,6 +410,31 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
       },
       true
     );
+  });
+
+  it("object tab Edit ignores leftover same-account stash (Core 3.3.3)", () => {
+    sessionStorage.setItem(
+      "c.billingAccountFormalEdit.returnCaller",
+      JSON.stringify({
+        returnTo: "order",
+        returnRecordId: "a0H000000000001AAA",
+        billingAccountId: "a00BA0000000001"
+      })
+    );
+    const ctx = bind({
+      returnTo: "",
+      returnRecordId: "",
+      _pageRef: { attributes: { actionName: "edit" } }
+    });
+    ctx.handleCancel();
+    expect(ctx[Navigate]).toHaveBeenCalledWith({
+      type: "standard__recordPage",
+      attributes: {
+        recordId: ctx.recordId,
+        objectApiName: "BillingAccount__c",
+        actionName: "view"
+      }
+    });
   });
 
   it("ordinary Edit does not consume a return stash created after initialization", () => {

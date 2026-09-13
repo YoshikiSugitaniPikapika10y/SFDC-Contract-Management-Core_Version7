@@ -203,6 +203,175 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.getInvoicePreview(UserInfo.getUserId());
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤 第10.4節: 横断の請求タイル読込は 18'
+    );
+  }
+
+  @IsTest
+  static void getBillingAccountOptionsForPreview_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.getBillingAccountOptionsForPreview(
+        UserInfo.getUserId()
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤 第10.4節: 横断の請求アカウント候補読込は 18'
+    );
+  }
+
+  @IsTest
+  static void updateInvoiceLineAmounts_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.updateInvoiceLineAmounts(
+        UserInfo.getUserId(),
+        new List<InvoiceCanonicalService.LineAmountEdit>(),
+        new Map<String, String>(),
+        null
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤 第10.4節: 横断右の端数は 18'
+    );
+  }
+
+  @IsTest
+  static void splitInvoiceByDate_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.splitInvoiceByDate(
+        UserInfo.getUserId(),
+        UserInfo.getUserId(),
+        Date.today(),
+        Date.today(),
+        new List<InvoiceCanonicalService.SplitLineInput>(),
+        'token',
+        null
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤 第10.4節: 横断右の分けるは 18'
+    );
+  }
+
+  @IsTest
+  static void cancelConfirmedFromPreview_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.cancelConfirmedFromPreview(
+        UserInfo.getUserId(),
+        UserInfo.getUserId(),
+        'Other',
+        'reason',
+        Date.today(),
+        'token',
+        null
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤 第10.4節: 横断右の確定取消は 18'
+    );
+  }
+
+  @IsTest
+  static void getEstimateSendBoardContext_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.getEstimateSendBoardContext();
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤 第10.4節: 横断の見積送付オーバーレイは 18'
+    );
+  }
+
+  @IsTest
+  static void sendEstimateFromRecordPage_rejectsWithout18() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.sendEstimateFromRecordPage(
+        UserInfo.getUserId(),
+        'StandardEstimate',
+        'StandardEstimateEmail',
+        'token',
+        new EstimateSendBoardController.SendDraftDto()
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      '共通基盤 第10.4節: 横断の見積送付は 18'
+    );
+  }
+
+  @IsTest
   static void getEstimateIssueContext_returnsLatestIssuedDocument() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.ensureOrgDocumentSetting();

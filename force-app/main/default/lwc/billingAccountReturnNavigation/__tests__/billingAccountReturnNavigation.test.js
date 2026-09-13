@@ -31,7 +31,7 @@ describe("billingAccountReturnNavigation (Core 3.3.3)", () => {
     });
   });
 
-  it("resolveReturnCaller falls back to session when page state is empty", () => {
+  it("resolveReturnCaller does not adopt same-account session stash (Core 3.3.3)", () => {
     rememberReturnCaller("estimateCreate", "006OPP", "a00BA");
     expect(
       resolveReturnCaller({
@@ -41,9 +41,44 @@ describe("billingAccountReturnNavigation (Core 3.3.3)", () => {
         billingAccountId: "a00BA"
       })
     ).toEqual({
-      returnTo: "estimateCreate",
-      returnRecordId: "006OPP"
+      returnTo: "",
+      returnRecordId: ""
     });
+    expect(consumeReturnCaller()).toEqual({
+      returnTo: "",
+      returnRecordId: ""
+    });
+  });
+
+  it("resolveReturnCaller recovers URL when page state is dropped (Core 3.3.3)", () => {
+    rememberReturnCaller("estimateCreate", "006OPP", "a00BA");
+    const previousSearch = window.location.search;
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}?c__returnTo=estimateCreate&c__returnRecordId=006OPP`
+    );
+    try {
+      expect(
+        resolveReturnCaller({
+          returnTo: "",
+          returnRecordId: "",
+          pageRef: { attributes: { actionName: "edit" } },
+          billingAccountId: "a00BA"
+        })
+      ).toEqual({
+        returnTo: "estimateCreate",
+        returnRecordId: "006OPP"
+      });
+    } finally {
+      window.history.replaceState(
+        {},
+        "",
+        previousSearch
+          ? `${window.location.pathname}${previousSearch}`
+          : window.location.pathname
+      );
+    }
   });
 
   it("resolveReturnCaller discards a stash for another billing account", () => {

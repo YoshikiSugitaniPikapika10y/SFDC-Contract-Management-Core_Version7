@@ -561,11 +561,7 @@ export default class BillingAccountForm extends NavigationMixin(
     this.isSaving = false;
     this.errorMessage = "";
     this.dispatchEvent(new CloseActionScreenEvent());
-    // 仕様: Core 第3.3.3節。見積／受注からの導線は呼び出し元を開き直す。
-    if (this.navigateToReturnCaller()) {
-      return;
-    }
-    // 仕様: Core 第3.3.3節。Newは保存後も一覧へ戻る。
+    // 仕様: Core 第3.3.3節。Newの保存は一覧へ戻る。古い戻り先より先。
     if (this.isNew) {
       this[NavigationMixin.Navigate]({
         type: "standard__objectPage",
@@ -574,6 +570,10 @@ export default class BillingAccountForm extends NavigationMixin(
           actionName: "home"
         }
       });
+      return;
+    }
+    // 仕様: Core 第3.3.3節。見積／受注からの導線は呼び出し元を開き直す。
+    if (this.navigateToReturnCaller()) {
       return;
     }
     const recordId = event.detail.id;
@@ -602,6 +602,17 @@ export default class BillingAccountForm extends NavigationMixin(
       return;
     }
     this.dispatchEvent(new CloseActionScreenEvent());
+    // 仕様: Core 第3.3.3節。Newのキャンセルは一覧へ戻る。古い戻り先より先。
+    if (this.isNew) {
+      this[NavigationMixin.Navigate]({
+        type: "standard__objectPage",
+        attributes: {
+          objectApiName: "BillingAccount__c",
+          actionName: "home"
+        }
+      });
+      return;
+    }
     // 仕様: Core 第3.3.3節。見積／受注からの導線は呼び出し元を開き直す。
     if (this.navigateToReturnCaller()) {
       return;

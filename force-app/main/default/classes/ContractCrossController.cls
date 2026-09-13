@@ -817,6 +817,341 @@ public without sharing class ContractCrossController {
     }
   }
 
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断の請求タイル読込は開くとき 18。返す請求データは委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto getInvoicePreview(
+    Id contractHistoryId
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.getInvoicePreview(contractHistoryId);
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断から請求アカウント候補を読むとき 18。候補の中身は委譲先のまま。 */
+  @AuraEnabled
+  public static List<OrderCreateController.BillingAccountOptionDto> getBillingAccountOptionsForPreview(
+    Id contractHistoryId
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.getBillingAccountOptionsForPreview(
+        contractHistoryId
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節・第3章。横断右の端数は開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto updateInvoiceLineAmounts(
+    Id contractHistoryId,
+    List<InvoiceCanonicalService.LineAmountEdit> edits,
+    Map<String, String> expectedTokenByInvoiceId,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.updateInvoiceLineAmounts(
+        contractHistoryId,
+        edits,
+        expectedTokenByInvoiceId,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の検収終了日は開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto updateInvoiceLineAcceptanceEndDate(
+    Id contractHistoryId,
+    Id lineId,
+    Date acceptanceEndDate,
+    String expectedContentVersion,
+    Date cancellationDate,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.updateInvoiceLineAcceptanceEndDate(
+        contractHistoryId,
+        lineId,
+        acceptanceEndDate,
+        expectedContentVersion,
+        cancellationDate,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の請求情報編集は開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto updateInvoiceHeaderAndDates(
+    Id contractHistoryId,
+    Id invoiceId,
+    Date invoiceDate,
+    Date paymentScheduledDate,
+    String billingAddressee,
+    String billingEmailTo,
+    String billingEmailCc,
+    String billingEmailBcc,
+    Decimal taxPercent,
+    String expectedContentVersion,
+    String businessOperationKey,
+    Map<String, Object> extraFieldValues
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.updateInvoiceHeaderAndDates(
+        contractHistoryId,
+        invoiceId,
+        invoiceDate,
+        paymentScheduledDate,
+        billingAddressee,
+        billingEmailTo,
+        billingEmailCc,
+        billingEmailBcc,
+        taxPercent,
+        expectedContentVersion,
+        businessOperationKey,
+        extraFieldValues
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の請求アカウント反映は開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto applyBillingAccountContent(
+    Id contractHistoryId,
+    Id invoiceId,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.applyBillingAccountContent(
+        contractHistoryId,
+        invoiceId,
+        expectedContentVersion,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の日付で分けるは開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto splitInvoiceByDate(
+    Id contractHistoryId,
+    Id sourceInvoiceId,
+    Date newInvoiceDate,
+    Date newPaymentScheduledDate,
+    List<InvoiceCanonicalService.SplitLineInput> splitLines,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.splitInvoiceByDate(
+        contractHistoryId,
+        sourceInvoiceId,
+        newInvoiceDate,
+        newPaymentScheduledDate,
+        splitLines,
+        expectedContentVersion,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の請求アカウントで分けるは開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto splitInvoiceByBillingAccount(
+    Id contractHistoryId,
+    Id sourceInvoiceId,
+    Id newBillingAccountId,
+    Date newInvoiceDate,
+    Date newPaymentScheduledDate,
+    List<InvoiceCanonicalService.SplitLineInput> splitLines,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.splitInvoiceByBillingAccount(
+        contractHistoryId,
+        sourceInvoiceId,
+        newBillingAccountId,
+        newInvoiceDate,
+        newPaymentScheduledDate,
+        splitLines,
+        expectedContentVersion,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の既存へ移すは開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto moveLinesToExistingInvoice(
+    Id contractHistoryId,
+    Id sourceInvoiceId,
+    Id targetInvoiceId,
+    List<Id> lineIds,
+    String expectedContentVersion,
+    String expectedTargetContentVersion,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.moveLinesToExistingInvoice(
+        contractHistoryId,
+        sourceInvoiceId,
+        targetInvoiceId,
+        lineIds,
+        expectedContentVersion,
+        expectedTargetContentVersion,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の同一請求内分割は開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto splitLinesInPlace(
+    Id contractHistoryId,
+    Id invoiceId,
+    List<InvoiceCanonicalService.SplitLineInput> splitLines,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.splitLinesInPlace(
+        contractHistoryId,
+        invoiceId,
+        splitLines,
+        expectedContentVersion,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断右の確定取消は開くとき 18。結果は委譲先のまま。 */
+  @AuraEnabled
+  public static OrderCreateController.InvoicePreviewDto cancelConfirmedFromPreview(
+    Id contractHistoryId,
+    Id invoiceId,
+    String cancellationReason,
+    String cancellationReasonText,
+    Date cancellationDate,
+    String expectedContentVersion,
+    String businessOperationKey
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return OrderCreateController.cancelConfirmedFromPreview(
+        contractHistoryId,
+        invoiceId,
+        cancellationReason,
+        cancellationReasonText,
+        cancellationDate,
+        expectedContentVersion,
+        businessOperationKey
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断の見積送付オーバーレイは開くとき 18。送付は 05。 */
+  @AuraEnabled
+  public static EstimateSendBoardController.BoardContextDto getEstimateSendBoardContext() {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return EstimateSendBoardController.getBoardContext();
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断の見積送付オーバーレイは開くとき 18。送付は 05。 */
+  @AuraEnabled
+  public static EstimateSendBoardController.EstimateRowDto getEstimateSendRecord(
+    Id historyId
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return EstimateSendBoardController.getRecordActionEstimate(historyId);
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断の見積送付プレビューは開くとき 18。送付結果は委譲先のまま。 */
+  @AuraEnabled
+  public static EstimateSendBoardController.SendPreviewDto previewEstimateFromRecordPage(
+    Id historyId,
+    String documentTemplateKey,
+    String emailTemplateApiName,
+    String fromChoice,
+    String preferredAttachmentId
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return EstimateSendBoardController.previewEstimateFromRecordPage(
+        historyId,
+        documentTemplateKey,
+        emailTemplateApiName,
+        fromChoice,
+        preferredAttachmentId
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
+  /** 仕様: 共通基盤 第1.4節・第10.4節。横断の見積送付は開くとき 18。送付結果は委譲先のまま。 */
+  @AuraEnabled
+  public static EstimateSendBoardController.ActionResultDto sendEstimateFromRecordPage(
+    Id historyId,
+    String documentTemplateKey,
+    String emailTemplateApiName,
+    String expectedToken,
+    EstimateSendBoardController.SendDraftDto draft
+  ) {
+    try {
+      ContractPermissionUtil.assertCrossWork();
+      return EstimateSendBoardController.sendEstimateFromRecordPage(
+        historyId,
+        documentTemplateKey,
+        emailTemplateApiName,
+        expectedToken,
+        draft
+      );
+    } catch (Exception ex) {
+      throw handled(ex);
+    }
+  }
+
   private static AuraHandledException handled(Exception ex) {
     String message = ex.getMessage();
     AuraHandledException wrapped = new AuraHandledException(message);

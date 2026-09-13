@@ -3,6 +3,9 @@ import getBoardContext from "@salesforce/apex/EstimateSendBoardController.getBoa
 import getRecordActionEstimate from "@salesforce/apex/EstimateSendBoardController.getRecordActionEstimate";
 import previewEstimate from "@salesforce/apex/EstimateSendBoardController.previewEstimateFromRecordPage";
 import sendEstimate from "@salesforce/apex/EstimateSendBoardController.sendEstimateFromRecordPage";
+import getBoardContextCross from "@salesforce/apex/ContractCrossController.getEstimateSendBoardContext";
+import getRecordActionEstimateCross from "@salesforce/apex/ContractCrossController.getEstimateSendRecord";
+import previewEstimateCross from "@salesforce/apex/ContractCrossController.previewEstimateFromRecordPage";
 import LightningConfirm from "lightning/confirm";
 import { openContentDocumentFilePreview } from "c/orderWizardNavigation";
 
@@ -58,6 +61,26 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/EstimateSendBoardController.sendEstimateFromRecordPage",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.getEstimateSendBoardContext",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.getEstimateSendRecord",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.previewEstimateFromRecordPage",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.sendEstimateFromRecordPage",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -167,6 +190,21 @@ describe("estimateSendRecordAction uncovered (Core 7.10 / 4.8)", () => {
     });
     previewEstimate.mockReset().mockResolvedValue(previewPayload());
     sendEstimate.mockReset().mockResolvedValue({});
+    getBoardContextCross.mockReset().mockResolvedValue({
+      documentTemplateOptions: [{ label: "標準", value: "std" }],
+      emailTemplateOptions: [{ label: "メール", value: "mail" }],
+      defaultDocumentTemplateKey: "std",
+      defaultEmailTemplateApiName: "mail",
+      defaultFromChoice: "Self",
+      operatorEmail: "me@example.com",
+      orgFromLabel: "org@example.com"
+    });
+    getRecordActionEstimateCross.mockReset().mockResolvedValue({
+      sendable: true,
+      lastModifiedToken: "tok",
+      historyName: "見積A"
+    });
+    previewEstimateCross.mockReset().mockResolvedValue(previewPayload());
     LightningConfirm.open.mockReset().mockResolvedValue(true);
     openContentDocumentFilePreview.mockClear();
     sessionStorage.clear();
@@ -184,6 +222,20 @@ describe("estimateSendRecordAction uncovered (Core 7.10 / 4.8)", () => {
     const ctx = bind({ _recordId: "" });
     await ctx.load();
     expect(getBoardContext).not.toHaveBeenCalled();
+  });
+
+  it("cross overlay load uses ContractCrossController (共通基盤 10.4)", async () => {
+    const ctx = bind({
+      estimate: undefined,
+      fromCrossWork: true,
+      attachmentId: "069AAA",
+      fileName: "keep.pdf"
+    });
+    await ctx.load();
+    expect(getBoardContextCross).toHaveBeenCalled();
+    expect(getRecordActionEstimateCross).toHaveBeenCalled();
+    expect(getBoardContext).not.toHaveBeenCalled();
+    expect(getRecordActionEstimate).not.toHaveBeenCalled();
   });
 
   it("load error shows Apex message", async () => {

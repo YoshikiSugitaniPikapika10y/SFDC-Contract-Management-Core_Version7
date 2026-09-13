@@ -50,6 +50,26 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
+  "@salesforce/apex/ContractCrossController.getEstimateSendBoardContext",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.getEstimateSendRecord",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.previewEstimateFromRecordPage",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/ContractCrossController.sendEstimateFromRecordPage",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
   "@salesforce/customPermission/Loop_05_Can_SendEstimate",
   () => ({ __esModule: true, default: false }),
   { virtual: true }

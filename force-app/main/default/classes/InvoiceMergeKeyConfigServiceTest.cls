@@ -57,10 +57,18 @@ private class InvoiceMergeKeyConfigServiceTest {
       'LINE|CP=' + String.valueOf(contractProductId) + '|UP=500|Q=3',
       key
     );
-    System.assertEquals(
-      'LINE|CP=|UP=0|Q=0',
-      InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(null)
-    );
+    Boolean thrown = false;
+    try {
+      InvoiceMergeKeyConfigService.buildLineBucketKeyFromProduct(null);
+    } catch (InvoiceMergeKeyConfigService.MergeKeyConfigException ex) {
+      thrown = true;
+      System.assertEquals(
+        '単価または数量が空です。0としてキーを作りません。',
+        ex.getMessage(),
+        'Core 第1.1.10節: 空欄を0で代替しない'
+      );
+    }
+    System.assertEquals(true, thrown, 'Core 第1.1.10節: 空欄はキーを作らない');
   }
 
   @IsTest
@@ -120,6 +128,14 @@ private class InvoiceMergeKeyConfigServiceTest {
       ),
       'Core 第7.3節: 同じ見積商品・単価・数量。コピー定義の顧客項目では分けない'
     );
+    InvoiceMergeKeyConfigService.LineKeyInput zeros = new InvoiceMergeKeyConfigService.LineKeyInput();
+    zeros.unitPrice = 0;
+    zeros.quantity = 0;
+    System.assertEquals(
+      'LINE|CP=|UP=0|Q=0',
+      InvoiceMergeKeyConfigService.buildLineBucketKey(zeros),
+      'Core 第7.3節: 数値0は空欄ではない'
+    );
   }
 
   @IsTest
@@ -131,13 +147,20 @@ private class InvoiceMergeKeyConfigServiceTest {
       ),
       'Core 第7.3節: 入力が空でもキー構成は BA・CH・DT・PD の順'
     );
-    System.assertEquals(
-      'LINE|CP=|UP=0|Q=0',
+    Boolean thrown = false;
+    try {
       InvoiceMergeKeyConfigService.buildLineBucketKey(
         (InvoiceMergeKeyConfigService.LineKeyInput) null
-      ),
-      'Core 第7.3節: 入力が空でもキー構成は CP・単価・数量'
-    );
+      );
+    } catch (InvoiceMergeKeyConfigService.MergeKeyConfigException ex) {
+      thrown = true;
+      System.assertEquals(
+        '単価または数量が空です。0としてキーを作りません。',
+        ex.getMessage(),
+        'Core 第1.1.10節: 空欄の単価・数量を0で代替しない'
+      );
+    }
+    System.assertEquals(true, thrown, 'Core 第1.1.10節: 空欄はキーを作らない');
   }
 
   private static Id fakeId(Schema.SObjectType typeName, Integer n) {

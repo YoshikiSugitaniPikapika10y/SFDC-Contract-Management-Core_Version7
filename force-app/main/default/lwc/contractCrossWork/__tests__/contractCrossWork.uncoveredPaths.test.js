@@ -6,17 +6,17 @@ import queryInvoices from "@salesforce/apex/ContractCrossController.queryInvoice
 import queryJournals from "@salesforce/apex/ContractCrossController.queryJournals";
 import getEstimateTile from "@salesforce/apex/ContractCrossController.getEstimateTile";
 import getInvoiceOpsFieldDefinitions from "@salesforce/apex/InvoiceOpsFieldService.getDefinitions";
-import getInvoicePreview from "@salesforce/apex/OrderCreateController.getInvoicePreview";
-import getBillingAccountOptionsForPreview from "@salesforce/apex/OrderCreateController.getBillingAccountOptionsForPreview";
-import updateInvoiceLineAmounts from "@salesforce/apex/OrderCreateController.updateInvoiceLineAmounts";
-import updateInvoiceLineAcceptanceEndDate from "@salesforce/apex/OrderCreateController.updateInvoiceLineAcceptanceEndDate";
-import updateInvoiceHeaderAndDates from "@salesforce/apex/OrderCreateController.updateInvoiceHeaderAndDates";
-import splitInvoiceByDate from "@salesforce/apex/OrderCreateController.splitInvoiceByDate";
-import splitInvoiceByBillingAccount from "@salesforce/apex/OrderCreateController.splitInvoiceByBillingAccount";
-import moveLinesToExistingInvoice from "@salesforce/apex/OrderCreateController.moveLinesToExistingInvoice";
-import splitLinesInPlace from "@salesforce/apex/OrderCreateController.splitLinesInPlace";
-import applyBillingAccountContent from "@salesforce/apex/OrderCreateController.applyBillingAccountContent";
-import cancelConfirmedFromPreview from "@salesforce/apex/OrderCreateController.cancelConfirmedFromPreview";
+import getInvoicePreview from "@salesforce/apex/ContractCrossController.getInvoicePreview";
+import getBillingAccountOptionsForPreview from "@salesforce/apex/ContractCrossController.getBillingAccountOptionsForPreview";
+import updateInvoiceLineAmounts from "@salesforce/apex/ContractCrossController.updateInvoiceLineAmounts";
+import updateInvoiceLineAcceptanceEndDate from "@salesforce/apex/ContractCrossController.updateInvoiceLineAcceptanceEndDate";
+import updateInvoiceHeaderAndDates from "@salesforce/apex/ContractCrossController.updateInvoiceHeaderAndDates";
+import splitInvoiceByDate from "@salesforce/apex/ContractCrossController.splitInvoiceByDate";
+import splitInvoiceByBillingAccount from "@salesforce/apex/ContractCrossController.splitInvoiceByBillingAccount";
+import moveLinesToExistingInvoice from "@salesforce/apex/ContractCrossController.moveLinesToExistingInvoice";
+import splitLinesInPlace from "@salesforce/apex/ContractCrossController.splitLinesInPlace";
+import applyBillingAccountContent from "@salesforce/apex/ContractCrossController.applyBillingAccountContent";
+import cancelConfirmedFromPreview from "@salesforce/apex/ContractCrossController.cancelConfirmedFromPreview";
 import saveJournals from "@salesforce/apex/ContractCrossController.saveJournals";
 import { resolveSaveErrorAlert } from "c/estimateValidationAlertUtils";
 import { openContentDocumentFilePreview } from "c/orderWizardNavigation";
@@ -77,57 +77,57 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.getInvoicePreview",
+  "@salesforce/apex/ContractCrossController.getInvoicePreview",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.getBillingAccountOptionsForPreview",
+  "@salesforce/apex/ContractCrossController.getBillingAccountOptionsForPreview",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.updateInvoiceLineAmounts",
+  "@salesforce/apex/ContractCrossController.updateInvoiceLineAmounts",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.updateInvoiceLineAcceptanceEndDate",
+  "@salesforce/apex/ContractCrossController.updateInvoiceLineAcceptanceEndDate",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.splitInvoiceByDate",
+  "@salesforce/apex/ContractCrossController.splitInvoiceByDate",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.splitInvoiceByBillingAccount",
+  "@salesforce/apex/ContractCrossController.splitInvoiceByBillingAccount",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.moveLinesToExistingInvoice",
+  "@salesforce/apex/ContractCrossController.moveLinesToExistingInvoice",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.splitLinesInPlace",
+  "@salesforce/apex/ContractCrossController.splitLinesInPlace",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.updateInvoiceHeaderAndDates",
+  "@salesforce/apex/ContractCrossController.updateInvoiceHeaderAndDates",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.applyBillingAccountContent",
+  "@salesforce/apex/ContractCrossController.applyBillingAccountContent",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.cancelConfirmedFromPreview",
+  "@salesforce/apex/ContractCrossController.cancelConfirmedFromPreview",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
