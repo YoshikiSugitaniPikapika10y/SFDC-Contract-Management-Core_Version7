@@ -82,7 +82,14 @@ public without sharing class ContractDocumentSettingsController {
     PageDataDto result = new PageDataDto();
     ContractDocumentSetting__c setting = loadOrganizationSetting();
     GlAccountingPolicy__c policy = loadPolicy();
-    result.settings = toDto(setting, policy);
+    // 仕様: Core 第11.6節、Accounting 第3.1節。無いとき画面にシード値。書かない。
+    result.settings = toDto(
+      setting,
+      policy == null ? GlAccountingPolicyService.newOrgDefault() : policy
+    );
+    if (setting.Id == null) {
+      applyMissingDocumentSettingSeeds(result.settings);
+    }
     try {
       applyAmountCalculationToDto(
         result.settings,
@@ -106,7 +113,7 @@ public without sharing class ContractDocumentSettingsController {
     return AccountingCauseLockService.issueOperationKey();
   }
 
-  /** 仕様: Core 第11.3節・第11.5節・第11.6節・第11.9節、日付仕様 第2.5節・第2.6節、Accounting 第3.1節 */
+  /** 仕様: Core 第11.3節・第11.5節・第11.6節・第11.9節、日付仕様 第2.5節・第2.6節、Accounting 第3.1節。初回保存で組織既定と会計方針1件を既定値で書く。業務操作では書かない。 */
   @AuraEnabled
   public static SettingsDto saveSettings(SettingsDto input) {
     assertCanManage();
@@ -176,11 +183,13 @@ public without sharing class ContractDocumentSettingsController {
     setting.EstimateValidMonths__c = estimateValidMonths;
     setting.DefaultMonthlyCycles__c = defaultMonthlyCycles;
     setting.RenewOpportunityEnabled__c = input.renewOpportunityEnabled == true;
+    Boolean firstDocumentSave =
+      locked.documentSetting == null || locked.documentSetting.Id == null;
     Boolean previousOrgLog = ContractOperationLogService.orgSettingsWriteInProgress;
     ContractOperationLogService.orgSettingsWriteInProgress = true;
     try {
       upsert setting;
-      saveAccountingPolicy(input, locked.policy);
+      saveAccountingPolicy(input, locked.policy, firstDocumentSave);
       SettingsDto savedInner = toDto(setting, loadPolicy());
       overlayAndSaveAmountCalculation(savedInner, input);
       saveValidationEnforce(input, locked.validationEnforce);
@@ -258,6 +267,15 @@ public without sharing class ContractDocumentSettingsController {
     result.renewOpportunityEnabled = setting.RenewOpportunityEnabled__c == true;
     applyPolicyToDto(result, policy);
     return result;
+  }
+
+  /** 仕様: Core 第11.6節。レコードが無いとき画面にシード値。書かない。 */
+  private static void applyMissingDocumentSettingSeeds(SettingsDto result) {
+    result.estimateSendMode = ContractDocumentSettingService.MODE_PDF_ONLY;
+    result.invoiceSendMode = ContractDocumentSettingService.MODE_PDF_ONLY;
+    result.defaultMonthlyCycles = 12;
+    result.estimateValidMonths = 1;
+    result.renewOpportunityEnabled = false;
   }
 
   /** 仕様: Core 第11.9節 */
@@ -913,7 +931,7 @@ public without sharing class ContractDocumentSettingsController {
     }
   }
 
-  /** 仕様: Core 第11.6節、第1.1.10節。空でもシードへ落とさない。 */
+  /** 仕様: Core 第11.6節、第1.1.10節。空でもシードへ落とさない。空の組織既定は保存でも作らない。 */
   private static void saveLockExemptFields(
     SettingsDto input,
     InvoiceLockExemptFields__c locked
@@ -921,16 +939,20 @@ public without sharing class ContractDocumentSettingsController {
     if (input.lockExemptFieldApiNames == null) {
       return;
     }
-    InvoiceLockExemptFields__c row = locked;
-    if (row == null || row.Id == null) {
-      row = new InvoiceLockExemptFields__c();
+    String names = input.lockExemptFieldApiNames.trim();
+    Boolean exists = locked != null && locked.Id != null;
+    if (!exists && String.isBlank(names)) {
+      return;
     }
+    InvoiceLockExemptFields__c row = exists
+      ? locked
+      : new InvoiceLockExemptFields__c();
     row.SetupOwnerId = UserInfo.getOrganizationId();
-    row.FieldApiNames__c = input.lockExemptFieldApiNames.trim();
+    row.FieldApiNames__c = names;
     upsert row;
   }
 
-  /** 仕様: Core 第11.6節、第1.1.10節。空でもシードへ落とさない。定義から自動では書かない。 */
+  /** 仕様: Core 第11.6節、第1.1.10節。空でもシードへ落とさない。定義から自動では書かない。空の組織既定は保存でも作らない。 */
   private static void savePaymentLockExemptFields(
     SettingsDto input,
     InvoicePaymentLockExemptFields__c locked
@@ -938,16 +960,20 @@ public without sharing class ContractDocumentSettingsController {
     if (input.paymentLockExemptFieldApiNames == null) {
       return;
     }
-    InvoicePaymentLockExemptFields__c row = locked;
-    if (row == null || row.Id == null) {
-      row = new InvoicePaymentLockExemptFields__c();
+    String names = input.paymentLockExemptFieldApiNames.trim();
+    Boolean exists = locked != null && locked.Id != null;
+    if (!exists && String.isBlank(names)) {
+      return;
     }
+    InvoicePaymentLockExemptFields__c row = exists
+      ? locked
+      : new InvoicePaymentLockExemptFields__c();
     row.SetupOwnerId = UserInfo.getOrganizationId();
-    row.FieldApiNames__c = input.paymentLockExemptFieldApiNames.trim();
+    row.FieldApiNames__c = names;
     upsert row;
   }
 
-  /** 仕様: Core 第11.6節、第1.1.10節。空でもシードへ落とさない。定義から自動では書かない。 */
+  /** 仕様: Core 第11.6節、第1.1.10節。空でもシードへ落とさない。定義から自動では書かない。空の組織既定は保存でも作らない。 */
   private static void saveJournalLockExemptFields(
     SettingsDto input,
     GlJournalLockExemptFields__c locked
@@ -955,12 +981,16 @@ public without sharing class ContractDocumentSettingsController {
     if (input.journalLockExemptFieldApiNames == null) {
       return;
     }
-    GlJournalLockExemptFields__c row = locked;
-    if (row == null || row.Id == null) {
-      row = new GlJournalLockExemptFields__c();
+    String names = input.journalLockExemptFieldApiNames.trim();
+    Boolean exists = locked != null && locked.Id != null;
+    if (!exists && String.isBlank(names)) {
+      return;
     }
+    GlJournalLockExemptFields__c row = exists
+      ? locked
+      : new GlJournalLockExemptFields__c();
     row.SetupOwnerId = UserInfo.getOrganizationId();
-    row.FieldApiNames__c = input.journalLockExemptFieldApiNames.trim();
+    row.FieldApiNames__c = names;
     upsert row;
   }
 
@@ -1012,23 +1042,17 @@ public without sharing class ContractDocumentSettingsController {
     return rows.isEmpty() ? null : rows[0];
   }
 
-  /** 仕様: Accounting 第3.1節。固定後および確定／取消済み請求があるときは画面から書き換えない。Core 第11.6節・第11.8節。 */
+  /** 仕様: Accounting 第3.1節。固定後および確定／取消済み請求があるときは画面から書き換えない。Core 第11.6節・第11.8節。初回保存で方針1件を既定値で書く。人が消した方針は戻さない。 */
   private static void saveAccountingPolicy(
     SettingsDto input,
-    GlAccountingPolicy__c locked
+    GlAccountingPolicy__c locked,
+    Boolean isFirstDocumentSave
   ) {
     GlAccountingPolicy__c current = locked;
     if (GlAccountingPolicyService.isPolicyLocked(current)) {
       return;
     }
-    if (
-      current == null &&
-      String.isBlank(input.revenueRecognitionBasis) &&
-      String.isBlank(input.taxRecognitionTiming) &&
-      String.isBlank(input.monthlyBucketMethod) &&
-      String.isBlank(input.monthlyRecognitionDatePosition) &&
-      String.isBlank(input.roundingTargetBucket)
-    ) {
+    if (current == null && isFirstDocumentSave != true) {
       return;
     }
     String previousMonthlyMethod = current == null

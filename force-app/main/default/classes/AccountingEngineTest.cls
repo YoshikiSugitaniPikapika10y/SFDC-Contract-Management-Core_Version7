@@ -54,40 +54,6 @@ private class AccountingEngineTest {
   }
 
   @IsTest
-  static void seedOnInstall_runsFromPostInstall() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Test.testInstall(new GlAccountInstallService(), null);
-      System.assertEquals(5, [SELECT COUNT() FROM GlManualJournalSetting__c]);
-    }
-  }
-
-  @IsTest
-  static void seedOnInstall_isIdempotent() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      GlAccountInstallService.seedOnInstall();
-      GlAccountInstallService.seedOnInstall();
-      System.assertEquals(
-        7,
-        [
-          SELECT COUNT()
-          FROM GlAccount__c
-          WHERE
-            Name IN (
-              '売掛金',
-              '仮受金',
-              '為替差益',
-              '為替差損',
-              '支払手数料',
-              '雑収入',
-              '貸倒損失'
-            )
-        ]
-      );
-      System.assertEquals(5, [SELECT COUNT() FROM GlManualJournalSetting__c]);
-    }
-  }
-
-  @IsTest
   static void conditionEvaluation_payInvoiceCurrent() {
     ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
     context.invoice = new Invoice__c(InvoiceDate__c = Date.newInstance(2026, 6, 1));

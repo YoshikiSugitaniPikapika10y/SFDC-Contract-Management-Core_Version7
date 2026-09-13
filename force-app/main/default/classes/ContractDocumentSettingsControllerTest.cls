@@ -68,16 +68,20 @@ private class ContractDocumentSettingsControllerTest {
     System.assertEquals(false, result.settings.validationEnforce);
     System.assertEquals(null, result.settings.lockExemptFieldApiNames);
     System.assertEquals(
-      null,
+      false,
       result.settings.policyFrozen,
-      'Core 第1.1.10節: 会計方針0件はOFFと埋めない'
+      '仕様: Accounting 第3.1節。無いとき画面にシード値。固定ではない'
     );
     System.assertEquals(
-      null,
+      false,
       result.settings.accountingEnabled,
-      'Core 第1.1.10節: 会計方針0件はOFFと埋めない'
+      '仕様: Accounting 第3.1節。無いとき画面にシード値'
     );
-    System.assertEquals(null, result.settings.revenueRecognitionBasis);
+    System.assertEquals(
+      'BillingBasis',
+      result.settings.revenueRecognitionBasis,
+      '仕様: Accounting 第3.1節。無いとき画面にシード値'
+    );
     System.assertNotEquals(null, result.orgWideEmailAddresses);
     System.assertNotEquals(null, result.settingLinks);
     System.assertEquals(false, result.hasAccountingMaster);
@@ -95,6 +99,56 @@ private class ContractDocumentSettingsControllerTest {
       findLink(result.settingLinks, 'permissionSets').url
     );
     ContractDocumentSettingsController.testHasAccountingMaster = null;
+  }
+
+  @IsTest
+  static void getSettings_whenNoRecords_returnsSeedsWithoutInsert() {
+    Test.startTest();
+    ContractDocumentSettingsController.PageDataDto result = ContractDocumentSettingsController.getSettings();
+    Test.stopTest();
+
+    System.assertEquals(
+      'PdfOnly',
+      result.settings.estimateSendMode,
+      '仕様: Core 第11.6節。無いとき画面にシード値'
+    );
+    System.assertEquals('PdfOnly', result.settings.invoiceSendMode);
+    System.assertEquals(12, result.settings.defaultMonthlyCycles);
+    System.assertEquals(1, result.settings.estimateValidMonths);
+    System.assertEquals(false, result.settings.renewOpportunityEnabled);
+    System.assertEquals(false, result.settings.accountingEnabled);
+    System.assertEquals('BillingBasis', result.settings.revenueRecognitionBasis);
+    System.assertEquals('AtInvoice', result.settings.taxRecognitionTiming);
+    System.assertEquals('Auto', result.settings.monthlyBucketMethod);
+    System.assertEquals('BucketEnd', result.settings.monthlyRecognitionDatePosition);
+    System.assertEquals('Last', result.settings.roundingTargetBucket);
+    System.assertEquals(0, [SELECT COUNT() FROM ContractDocumentSetting__c]);
+    System.assertEquals(0, [SELECT COUNT() FROM GlAccountingPolicy__c]);
+  }
+
+  @IsTest
+  static void saveSettings_doesNotRestoreDeletedPolicy() {
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
+    input.estimateSendMode = 'PdfOnly';
+    input.invoiceSendMode = 'PdfOnly';
+    input.companyName = '初回';
+    input.address = '東京都';
+    input.invoiceRegistrationNumber = 'T1234567890123';
+    input.bankTransferInfo = '銀行';
+    input.estimateValidMonths = 1;
+    input.defaultMonthlyCycles = 12;
+    saveWithFreshTokens(input);
+    delete [SELECT Id FROM GlAccountingPolicy__c];
+    GlAccountingPolicyService.clearCachedOrgPolicy();
+
+    input.companyName = '二回目';
+    saveWithFreshTokens(input);
+
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM GlAccountingPolicy__c],
+      '仕様: Accounting 第3.1節。人が消した方針は戻さない'
+    );
   }
 
   @IsTest
@@ -186,6 +240,60 @@ private class ContractDocumentSettingsControllerTest {
     System.assertEquals('更新後株式会社', stored.CompanyName__c);
     System.assertEquals('PdfOnly', stored.EstimateSendMode__c);
     System.assertEquals('PdfOnly', stored.InvoiceSendMode__c);
+    System.assertEquals(
+      1,
+      [SELECT COUNT() FROM GlAccountingPolicy__c],
+      '仕様: Accounting 第3.1節。初回保存で方針1件を既定値で書く'
+    );
+    GlAccountingPolicy__c firstPolicy = [
+      SELECT
+        AccountingEnabled__c,
+        RevenueRecognitionBasis__c,
+        TaxRecognitionTiming__c,
+        MonthlyBucketMethod__c,
+        MonthlyRecognitionDatePosition__c,
+        RoundingTargetBucket__c
+      FROM GlAccountingPolicy__c
+    ];
+    System.assertEquals(false, firstPolicy.AccountingEnabled__c);
+    System.assertEquals('BillingBasis', firstPolicy.RevenueRecognitionBasis__c);
+    System.assertEquals('AtInvoice', firstPolicy.TaxRecognitionTiming__c);
+    System.assertEquals('Auto', firstPolicy.MonthlyBucketMethod__c);
+    System.assertEquals(
+      'BucketEnd',
+      firstPolicy.MonthlyRecognitionDatePosition__c
+    );
+    System.assertEquals('Last', firstPolicy.RoundingTargetBucket__c);
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM FieldCopyDefinition__c],
+      '仕様: Core 第11.4.2節。コピー見本は自動では入れない'
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM GlAccount__c],
+      '仕様: Accounting 第4.1節。科目は自動では入れない'
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM GlManualJournalSetting__c],
+      '仕様: Accounting 第10.2節。手動仕訳は自動では入れない'
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM InvoiceLockExemptFields__c],
+      '仕様: Core 第11.6節。ロック除外は保存でも作らない'
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM InvoicePaymentLockExemptFields__c],
+      '仕様: Core 第11.6節。ロック除外は保存でも作らない'
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM GlJournalLockExemptFields__c],
+      '仕様: Core 第11.6節。ロック除外は保存でも作らない'
+    );
   }
 
   @IsTest

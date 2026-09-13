@@ -217,7 +217,7 @@ public without sharing class GlAccountingPolicyService {
     }
   }
 
-  /** 仕様: Accounting 第13.5節 */
+  /** 仕様: Accounting 第3.1節、Core 第11.6節 */
   public static GlAccountingPolicy__c newOrgDefault() {
     return new GlAccountingPolicy__c(
       Name = ORG_DEFAULT_NAME,

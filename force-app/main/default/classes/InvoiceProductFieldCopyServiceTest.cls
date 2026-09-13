@@ -3,13 +3,34 @@ private class InvoiceProductFieldCopyServiceTest {
   @TestSetup
   static void setupAccess() {
     ContractTestDataFactory.initTestContext();
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      GlAccountInstallService.seedOnInstall();
-    }
   }
 
   @IsTest
   static void getActiveDefinitions_includesOneSamplePerTargetObject() {
+    insert new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Sample_Inv_AccountName',
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c',
+        TargetObject__c = 'Invoice__c'
+      ),
+      new FieldCopyDefinition__c(
+        Name = 'Sample_Line_ProductCode',
+        SourceObject__c = 'Product2',
+        SourceFieldApiName__c = 'ProductCode',
+        TargetFieldApiName__c = 'ProductCodeSnapShot__c',
+        TargetObject__c = 'InvoiceLine__c'
+      ),
+      new FieldCopyDefinition__c(
+        Name = 'Sample_Journal_ProductCode',
+        SourceObject__c = 'Product2',
+        SourceFieldApiName__c = 'ProductCode',
+        TargetFieldApiName__c = 'ProductCodeSnapShot__c',
+        TargetObject__c = 'GlJournal__c',
+        Context__c = FieldCopyDefinitionService.CONTEXT_LINE_JOURNAL
+      )
+    };
     InvoiceProductFieldCopyService.resetCache();
     Map<String, FieldCopyDefinition__c> invoiceDefinitionsByName = new Map<String, FieldCopyDefinition__c>();
     for (
@@ -34,7 +55,7 @@ private class InvoiceProductFieldCopyServiceTest {
     System.assertNotEquals(
       null,
       invoiceSample,
-      '仕様: Core 第11.4.2節 標準見本 Sample_Inv_AccountName を初回に置く'
+      '仕様: Core 第11.4.2節 標準見本 Sample_Inv_AccountName を人が置ける'
     );
     System.assertEquals(
       'Account',
@@ -58,7 +79,7 @@ private class InvoiceProductFieldCopyServiceTest {
     System.assertNotEquals(
       null,
       lineSample,
-      '仕様: Core 第11.4.2節 標準見本 Sample_Line_ProductCode を初回に置く'
+      '仕様: Core 第11.4.2節 標準見本 Sample_Line_ProductCode を人が置ける'
     );
     System.assertEquals(
       'Product2',

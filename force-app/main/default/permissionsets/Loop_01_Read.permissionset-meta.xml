@@ -236,10 +236,6 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
-        <apexClass>GlAccountInstallService</apexClass>
-        <enabled>true</enabled>
-    </classAccesses>
-    <classAccesses>
         <apexClass>GlAccountMapResolveService</apexClass>
         <enabled>true</enabled>
     </classAccesses>

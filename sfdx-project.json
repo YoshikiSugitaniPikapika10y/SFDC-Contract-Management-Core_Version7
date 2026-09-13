@@ -2,8 +2,7 @@
   "packageDirectories": [
     {
       "path": "force-app",
-      "default": true,
-      "postInstallClass": "GlAccountInstallService"
+      "default": true
     }
   ],
   "name": "契約管理",
