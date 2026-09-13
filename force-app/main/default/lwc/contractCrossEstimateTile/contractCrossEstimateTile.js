@@ -210,7 +210,12 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
       unit: line.unit || "",
       quantity: line.quantity == null ? "" : String(line.quantity),
       periodLabel: periodLabel(line.startDate, line.endDate),
-      cycleCount: line.cycleCount == null ? "" : String(line.cycleCount),
+      cycleCount:
+        line.cycleCountLabel != null && String(line.cycleCountLabel) !== ""
+          ? line.cycleCountLabel
+          : line.cycleCount == null
+            ? ""
+            : String(line.cycleCount),
       invoiceSetting: line.invoiceSetting || "",
       revenueBasis: line.revenueBasis || "",
       amount: formatAmount(line.amount)

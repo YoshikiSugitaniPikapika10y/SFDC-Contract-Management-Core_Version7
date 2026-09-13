@@ -138,6 +138,19 @@ describe("contractCrossEstimateTile uncovered (横断画面.md 第5節 / Core 4.
     expect(blank.validDateLabel).toBe("");
   });
 
+  it("サイクル数は cycleCountLabel を出し、一回は - (横断画面.md 第5節)", () => {
+    const ctx = bind();
+    expect(ctx.lines[0].cycleCount).toBe("12");
+    const oneTime = bind({
+      tile: {
+        id: "a",
+        isEstimate: true,
+        lines: [{ id: "1", cycleCountLabel: "-" }]
+      }
+    });
+    expect(oneTime.lines[0].cycleCount).toBe("-");
+  });
+
   it("sentAt empty is 未送付; Date values format (横断画面.md 第5節)", () => {
     const ctx = bind();
     expect(ctx.sentLabel).toBe("未送付");

@@ -364,6 +364,9 @@ public without sharing class ContractCrossController {
     public Date endDate;
     @AuraEnabled
     public Decimal cycleCount;
+    /** 仕様: 横断画面.md 第5節 見積書タイル。継続は期間のサイクル数。一回は `-`。 */
+    @AuraEnabled
+    public String cycleCountLabel;
     @AuraEnabled
     public String invoiceSetting;
     @AuraEnabled

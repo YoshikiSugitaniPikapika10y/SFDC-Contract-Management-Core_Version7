@@ -229,6 +229,92 @@ private class ContractCrossQueryServiceTest {
     }
   }
 
+  @IsTest
+  static void getEstimateTile_taxInclusiveAndCycleCount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      HistoryFixture estimate = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'QTile Tax'
+      );
+      Product2 recurring = ContractTestDataFactory.buildProduct(
+        'Tile Recurring'
+      );
+      recurring.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(recurring);
+      Product2 oneTime = ContractTestDataFactory.buildProduct('Tile OneTime');
+      oneTime.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(oneTime);
+
+      Date startDate = ContractTestDataFactory.stableTermStart();
+      Date endDate = ContractTestDataFactory.stableTermEnd(12);
+      ContractProduct__c recurringLine = new ContractProduct__c(
+        ContractHistory__c = estimate.history.Id,
+        Product__c = recurring.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 12000,
+        StartDate__c = startDate,
+        Enddate__c = endDate,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New',
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      );
+      ContractTestDataFactory.applyRequiredFields(recurringLine);
+      recurringLine.Account__c = null;
+      ContractProduct__c oneTimeLine = new ContractProduct__c(
+        ContractHistory__c = estimate.history.Id,
+        Product__c = oneTime.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 1000,
+        StartDate__c = startDate,
+        Enddate__c = startDate,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        Type__c = 'New',
+        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME
+      );
+      ContractTestDataFactory.applyRequiredFields(oneTimeLine);
+      oneTimeLine.Account__c = null;
+      insert new List<ContractProduct__c>{ recurringLine, oneTimeLine };
+
+      ContractCrossController.EstimateTileDto tile = ContractCrossQueryService.getEstimateTile(
+        estimate.history.Id
+      );
+      Decimal excl = [
+          SELECT DeltaAmountSum__c
+          FROM ContractHistory__c
+          WHERE Id = :estimate.history.Id
+        ]
+        .DeltaAmountSum__c;
+      System.assertEquals(
+        TaxCalculationUtil.calculateAmountInclTax(excl, 10),
+        tile.taxInclusiveAmount,
+        '横断画面.md 第5節 見積書タイル: 税込は税抜へ税率を1回。Core 第4.6節'
+      );
+      Map<String, ContractCrossController.EstimateProductDto> byName = new Map<String, ContractCrossController.EstimateProductDto>();
+      for (ContractCrossController.EstimateProductDto line : tile.lines) {
+        byName.put(line.productName, line);
+      }
+      System.assertEquals(
+        12,
+        byName.get('Tile Recurring').cycleCount,
+        '横断画面.md 第5節: 継続のサイクル数は期間から。Core 第4.6節'
+      );
+      System.assertEquals(
+        '12',
+        byName.get('Tile Recurring').cycleCountLabel
+      );
+      System.assertEquals(
+        '-',
+        byName.get('Tile OneTime').cycleCountLabel,
+        '横断画面.md 第5節: 一回課金のサイクル数は `-`'
+      );
+    }
+  }
+
   private static void enableAccounting() {
     List<GlAccountingPolicy__c> rows = [SELECT Id FROM GlAccountingPolicy__c];
     if (rows.isEmpty()) {

@@ -659,7 +659,7 @@ public with sharing class ContractCrossQueryService {
     }
   }
 
-  /** 仕様: 横断画面.md 第5節 見積書タイル。Estimateだけ出す。Ordered・Archiveは出さない。 */
+  /** 仕様: 横断画面.md 第5節 見積書タイル。Core 第4.6節。Estimateだけ出す。Ordered・Archiveは出さない。 */
   public static ContractCrossController.EstimateTileDto getEstimateTile(Id historyId) {
     if (historyId == null) {
       throw new QueryException('契約履歴が指定されていません。');
@@ -671,7 +671,6 @@ public with sharing class ContractCrossQueryService {
         Type__c,
         RenewEstimateAutoCreated__c,
         DeltaAmountSum__c,
-        DeltaTaxInclusiveSum__c,
         EstimateDate__c,
         EstimateValidDate__c,
         EstimateSentAt__c,
@@ -680,7 +679,8 @@ public with sharing class ContractCrossQueryService {
         CreatedDate,
         CreatedBy.Name,
         LastModifiedBy.Name,
-        historystatus__c
+        historystatus__c,
+        ContractService__r.TaxPercent__c
       FROM ContractHistory__c
       WHERE Id = :historyId
       WITH USER_MODE
@@ -704,7 +704,13 @@ public with sharing class ContractCrossQueryService {
     }
     tile.autoRenew = history.RenewEstimateAutoCreated__c == true;
     tile.amount = history.DeltaAmountSum__c;
-    tile.taxInclusiveAmount = history.DeltaTaxInclusiveSum__c;
+    // 仕様: 横断画面.md 第5節 見積書タイル。税込はフッタ。Core 第4.6節は税抜合計へ税率を1回。
+    tile.taxInclusiveAmount = taxInclusiveForEstimate(
+      history.DeltaAmountSum__c,
+      history.ContractService__r == null
+        ? null
+        : history.ContractService__r.TaxPercent__c
+    );
     tile.estimateDate = history.EstimateDate__c;
     tile.validDate = history.EstimateValidDate__c;
     tile.sendContactId = history.EstimateSendContact__c;
@@ -733,7 +739,7 @@ public with sharing class ContractCrossQueryService {
         Quantity__c,
         StartDate__c,
         Enddate__c,
-        InvoiceBillingCycleCount__c,
+        BillingType__c,
         InvoiceSetting__c,
         RevenueRecognitionBasis__c,
         Amount__c
@@ -752,13 +758,72 @@ public with sharing class ContractCrossQueryService {
       line.quantity = product.Quantity__c;
       line.startDate = product.StartDate__c;
       line.endDate = product.Enddate__c;
-      line.cycleCount = product.InvoiceBillingCycleCount__c;
+      line.cycleCount = recurringCycleCount(
+        product.BillingType__c,
+        product.StartDate__c,
+        product.Enddate__c
+      );
+      line.cycleCountLabel = cycleCountLabel(
+        product.BillingType__c,
+        line.cycleCount
+      );
       line.invoiceSetting = product.InvoiceSetting__c;
       line.revenueBasis = accountingOn ? product.RevenueRecognitionBasis__c : null;
       line.amount = product.Amount__c;
       tile.lines.add(line);
     }
     return tile;
+  }
+
+  /** 仕様: Core 第4.6節。見積税込は税抜合計に税率を1回。空の税率は埋めない。 */
+  private static Decimal taxInclusiveForEstimate(
+    Decimal amountExcl,
+    Decimal storedTaxPercent
+  ) {
+    Decimal displayPercent = TaxCalculationUtil.fromPercentFieldStorage(
+      storedTaxPercent
+    );
+    if (displayPercent == null) {
+      return null;
+    }
+    try {
+      return TaxCalculationUtil.calculateAmountInclTax(
+        amountExcl,
+        displayPercent
+      );
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      return null;
+    }
+  }
+
+  /** 仕様: Core 第4.6節。検算はサービス期間からサイクル数を取る。 */
+  private static Decimal recurringCycleCount(
+    String billingType,
+    Date startDate,
+    Date endDate
+  ) {
+    if (!ContractMetadataService.isRecurringBillingType(billingType)) {
+      return null;
+    }
+    Integer cycles = MonthlyBillingPeriodUtil.countMonthlyCycles(
+      startDate,
+      endDate
+    );
+    if (cycles == null || cycles < 1) {
+      return null;
+    }
+    return cycles;
+  }
+
+  /** 仕様: 横断画面.md 第5節 見積書タイル。継続は期間のサイクル数。一回は `-`。 */
+  private static String cycleCountLabel(String billingType, Decimal cycleCount) {
+    if (String.isBlank(billingType)) {
+      return '';
+    }
+    if (cycleCount != null && cycleCount >= 1) {
+      return String.valueOf(cycleCount.intValue());
+    }
+    return '-';
   }
 
   private static void applyTypeLabels(
