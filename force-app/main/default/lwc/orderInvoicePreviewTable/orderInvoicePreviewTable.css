@@ -379,7 +379,7 @@
 }
 
 .ops-table_journals col.col-journal-status {
-  width: 3rem;
+  width: 3.75rem;
 }
 
 .ops-table_journals col.col-journal-posting {
@@ -419,11 +419,13 @@
 }
 
 .journal-status-col {
-  width: 3rem;
-  max-width: 3rem;
+  width: 3.75rem;
+  max-width: 3.75rem;
   padding-left: 0.2rem;
   padding-right: 0.2rem;
   white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .journal-filter-col {
