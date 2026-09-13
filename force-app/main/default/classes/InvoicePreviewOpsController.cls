@@ -797,8 +797,8 @@ public without sharing class InvoicePreviewOpsController {
   }
 
   /**
-   * 仕様: Core 第8.4節、第8.9節、第7.9.7節、第11.4.4節。
-   * 登録後はメモと入出金ロック除外へ人が足した追加項目だけ。
+   * 仕様: Core 第8.4節、第8.9節、第7.9.7節、第11.4.4節、共通基盤 第1.4節。
+   * 登録後はメモと入出金ロック除外へ人が足した追加項目だけ。正規入口だけ書く。
    */
   @AuraEnabled
   public static void updatePaymentFromPreview(
@@ -858,27 +858,33 @@ public without sharing class InvoicePreviewOpsController {
       invoiceId,
       expectedToken
     );
-    payment.Memo__c = memo;
+    InvoicePayment__c toWrite = new InvoicePayment__c(
+      Id = paymentId,
+      Memo__c = memo
+    );
     InvoiceOpsFieldService.applyDisplayedValues(
-      payment,
+      toWrite,
       'InvoicePayment__c',
       extraFieldValues,
       InvoicePaymentLockUtil.resolveLockExemptFieldNames()
     );
     try {
-      update payment;
-      Boolean previousLifecycle = InvoicePaymentService.allowLifecycleWrite;
-      InvoicePaymentService.allowLifecycleWrite = true;
-      try {
-        update new InvoicePayment__c(
-          Id = paymentId,
-          BusinessOperationKey__c = operationKey
-        );
-      } finally {
-        InvoicePaymentService.allowLifecycleWrite = previousLifecycle;
-      }
+      InvoicePaymentLockUtil.assertExemptUpdate(
+        new InvoicePayment__c(Id = paymentId, Memo__c = payment.Memo__c),
+        toWrite
+      );
+    } catch (InvoicePaymentLockUtil.LockExemptException ex) {
+      throw handled(ex.getMessage());
+    }
+    toWrite.BusinessOperationKey__c = operationKey;
+    Boolean previousLifecycle = InvoicePaymentService.allowLifecycleWrite;
+    InvoicePaymentService.allowLifecycleWrite = true;
+    try {
+      update toWrite;
     } catch (Exception ex) {
       throw handledFrom(ex);
+    } finally {
+      InvoicePaymentService.allowLifecycleWrite = previousLifecycle;
     }
     ContractOperationLogService.write(
       'EditPayment',

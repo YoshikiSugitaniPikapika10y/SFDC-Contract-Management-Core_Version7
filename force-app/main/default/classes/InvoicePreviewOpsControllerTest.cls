@@ -2622,7 +2622,7 @@ private class InvoicePreviewOpsControllerTest {
       System.assertEquals(
         '登録後メモ',
         [SELECT Memo__c FROM InvoicePayment__c WHERE Id = :paymentId].Memo__c,
-        'Core 第8.4節・第11.4.4節: 登録後はメモを直せる'
+        'Core 第8.4節・共通基盤 第1.4節: 請求ボード正規入口はメモを保存できる'
       );
       invoice = [
         SELECT LastModifiedDate, ContractHistory__c

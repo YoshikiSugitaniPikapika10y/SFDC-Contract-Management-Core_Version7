@@ -409,6 +409,68 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     document.body.removeChild(el);
   });
 
+  it("bootstrapの組織当日で計上時期を表示し、借貸略称だけ赤字クラスにする", async () => {
+    queryJournals.mockResolvedValue({
+      journals: [
+        {
+          id: "a03JOU",
+          postingDate: "2026-09-14",
+          eventName: "売上本体",
+          debitName: "AR 売掛金",
+          creditName: "REV 売上",
+          invoiceName: "INV-1",
+          invoiceId: "a02INV",
+          billingAccountName: "BA",
+          billingAccountId: "a04BA",
+          accountName: "取引先A",
+          amount: 1000,
+          transactionStatus: "Active",
+          lockState: "Unlocked",
+          memo: ""
+        }
+      ],
+      truncated: false
+    });
+    const el = createElement("c-contract-cross-work", {
+      is: ContractCrossWork
+    });
+    document.body.appendChild(el);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const journalButton = [
+      ...el.shadowRoot.querySelectorAll(".menu button")
+    ].find((button) => button.textContent.trim() === "仕訳");
+    journalButton.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const postingTimeCell = el.shadowRoot.querySelector(
+      'td[title="2026-09-14 将来"]'
+    );
+    expect(postingTimeCell).not.toBeNull();
+    expect(postingTimeCell.textContent.trim()).toBe("2026-09-14 将来");
+
+    const slotCell = el.shadowRoot.querySelector("td.slot-cell");
+    expect(slotCell.textContent.replace(/\s+/g, " ").trim()).toBe(
+      "AR 売掛金 / REV 売上"
+    );
+    const abbreviations = [...slotCell.querySelectorAll(".journal-slot-abbr")];
+    expect(abbreviations.map((node) => node.textContent.trim())).toEqual([
+      "AR",
+      "REV"
+    ]);
+    expect(
+      [...slotCell.querySelectorAll("span:not(.journal-slot-abbr)")].map(
+        (node) => node.textContent.trim()
+      )
+    ).toEqual(["売掛金", "/", "売上"]);
+  });
+
   it("Accounting OFF hides 仕訳 menu (横断 第5節)", () => {
     const ctx = bind({ accountingEnabled: false, canShowInvoiceMenu: true });
     expect(ctx.showJournalMenu).toBe(false);
@@ -792,6 +854,11 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     expect(ctx.showOrderOverlay).toBe(true);
     ctx.handleIssueStateChange();
     expect(getEstimateTile).toHaveBeenCalled();
+  });
+
+  it("見積送付オーバーレイは fromCrossWork=true を渡す (画面見た目 第4節)", () => {
+    const ctx = bind({});
+    expect(ctx.fromCrossWorkTrue).toBe(true);
   });
 
   it("invoice line amount / header / acceptance save notes 請求情報を保存しました", async () => {

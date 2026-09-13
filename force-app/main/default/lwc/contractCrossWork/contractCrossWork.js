@@ -435,6 +435,11 @@ export default class ContractCrossWork extends NavigationMixin(
   overlayHistoryId = null;
   overlayBusy = false;
 
+  // 仕様: 画面見た目 第4節。LWC1060 を避ける。値 true は変えない。
+  get fromCrossWorkTrue() {
+    return true;
+  }
+
   _keydown = (event) => this.handleWindowKeydown(event);
 
   connectedCallback() {
