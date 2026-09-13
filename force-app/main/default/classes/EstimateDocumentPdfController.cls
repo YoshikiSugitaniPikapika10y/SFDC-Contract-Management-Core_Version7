@@ -128,6 +128,7 @@ public with sharing class EstimateDocumentPdfController {
       );
       issuedContentDocumentId = issueResult.contentDocumentId;
       issueSucceeded = true;
+      // 仕様: Core 第4.8節・第7.10節。発行成功後の確認は標準 Files オーバーレイ（filePreview）。
       filesPreviewUrl =
         '/lightning/page/filePreview?recordIds=' +
         String.valueOf(issuedContentDocumentId) +
