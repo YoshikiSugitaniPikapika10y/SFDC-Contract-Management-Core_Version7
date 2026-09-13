@@ -43,6 +43,26 @@ private class ContractPermissionUtilTest {
   }
 
   @IsTest
+  static void hasBillingAccountSet_isPermissionSet19_not101() {
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.MIGRATE_ALL => true
+    };
+    ContractPermissionUtil.testHasBillingAccountSet = false;
+    System.assertEquals(
+      false,
+      ContractPermissionUtil.hasBillingAccountSet(),
+      '共通基盤 第10.4節: 101 は 19 を代替しない'
+    );
+    ContractPermissionUtil.testHasBillingAccountSet = true;
+    System.assertEquals(
+      true,
+      ContractPermissionUtil.hasBillingAccountSet()
+    );
+    ContractPermissionUtil.testHasBillingAccountSet = null;
+    ContractPermissionUtil.testOverrides = null;
+  }
+
+  @IsTest
   static void assertEstimateSave_uses03ForCreateEditCopy() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.ESTIMATE => false

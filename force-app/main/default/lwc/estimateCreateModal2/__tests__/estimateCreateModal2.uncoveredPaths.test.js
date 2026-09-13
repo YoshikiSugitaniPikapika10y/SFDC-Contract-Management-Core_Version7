@@ -19,6 +19,11 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
+  "@salesforce/apex/ContractPermissionUtil.hasBillingAccountSet",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
   "lightning/uiRecordApi",
   () => ({
     getRecord: jest.fn(),
@@ -80,7 +85,7 @@ function bind(overrides = {}) {
       estimateSendContactId: ""
     },
     _billingAccountResolved: false,
-    _billingAccountObjectInfo: null,
+    _hasBillingAccountSet: true,
     _wiredActiveContractServices: { data: [] },
     _wiredRelatedBillingAccounts: { data: [] },
     _isConnected: true,
@@ -117,9 +122,7 @@ describe("estimateCreateModal2 uncovered paths (Core 0.1 / 3.2 / 4.3 / 4.3.3)", 
       relatedBillingAccounts: [],
       opportunityAccountId: "001000000000001AAA"
     });
-    expect(ctx.relatedBillingEmptyMessage).toBe(
-      "対象がありません。他の取引先から選ぶ場合は下のチェックをオンにしてください。"
-    );
+    expect(ctx.relatedBillingEmptyMessage).toBe("対象がありません。");
     expect(ctx.showRelatedBillingEmptyMessage).toBe(true);
   });
 
@@ -425,7 +428,7 @@ describe("estimateCreateModal2 uncovered paths (Core 0.1 / 3.2 / 4.3 / 4.3.3)", 
 
   it("hides formal edit without 19 and billing id (Core 4.3.3)", () => {
     const ctx = bind({
-      _billingAccountObjectInfo: { updateable: false },
+      _hasBillingAccountSet: false,
       _wizardData: { billingAccountId: "a00BA" }
     });
     expect(ctx.showBillingAccountFormalEdit).toBe(false);

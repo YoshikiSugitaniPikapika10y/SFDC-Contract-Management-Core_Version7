@@ -50,6 +50,10 @@ public without sharing class ContractPermissionUtil {
   @TestVisible
   private static Map<String, Boolean> testOverrides;
 
+  /** テスト用。19 はカスタム権限なし。権限セット割当。 */
+  @TestVisible
+  static Boolean testHasBillingAccountSet;
+
   public static Boolean has(String permissionName) {
     if (String.isBlank(permissionName)) {
       return false;
@@ -77,6 +81,23 @@ public without sharing class ContractPermissionUtil {
 
   public static Boolean hasMigrateAll() {
     return has(MIGRATE_ALL);
+  }
+
+  /**
+   * 仕様: Core 第3.3.2節、共通基盤第3.2節・第10.4節。
+   * 19 はカスタム権限なし。権限セット Loop_19_BillingAccount。101〜103 は代替しない。
+   */
+  @AuraEnabled(cacheable=true)
+  public static Boolean hasBillingAccountSet() {
+    if (testHasBillingAccountSet != null) {
+      return testHasBillingAccountSet;
+    }
+    return [
+        SELECT COUNT()
+        FROM PermissionSetAssignment
+        WHERE AssigneeId = :UserInfo.getUserId()
+          AND PermissionSet.Name = 'Loop_19_BillingAccount'
+      ] > 0;
   }
 
   /** 仕様: 共通基盤 第3.1節。請求ボード閲覧は 09、または作業系 10〜17。 */

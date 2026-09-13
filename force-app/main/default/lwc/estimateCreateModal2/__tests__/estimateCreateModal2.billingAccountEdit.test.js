@@ -1,4 +1,21 @@
 import { NavigationMixin } from "lightning/navigation";
+
+jest.mock(
+  "@salesforce/apex/ContractPermissionUtil.hasBillingAccountSet",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/EstimateCreateController.getBillingAccountsByAccount",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/EstimateCreateController.getActiveContractServicesByAccount",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+
 import EstimateCreateModal2 from "c/estimateCreateModal2";
 
 const Navigate = Symbol.for("NavigationMixin.Navigate");
@@ -65,6 +82,16 @@ describe("estimateCreateModal2 billing account formal edit (Core 4.3.3)", () => 
       c__returnTo: "estimateEdit",
       c__returnRecordId: "a01EDIT000000001"
     });
+  });
+
+  it("treats permission set 19 as the Edit gate, not object updateable (共通基盤 10.4)", () => {
+    const canUpdate = Object.getOwnPropertyDescriptor(
+      proto,
+      "canUpdateBillingAccount"
+    ).get;
+    expect(canUpdate.call({ _hasBillingAccountSet: true })).toBe(true);
+    expect(canUpdate.call({ _hasBillingAccountSet: false })).toBe(false);
+    expect(canUpdate.call({ _hasBillingAccountSet: undefined })).toBe(false);
   });
 
   it("hides the Edit navigation without 19", () => {

@@ -15,6 +15,11 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
+  "@salesforce/apex/ContractPermissionUtil.hasBillingAccountSet",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
   "lightning/uiRecordApi",
   () => {
     class GetRecordAdapter {}
@@ -86,7 +91,7 @@ function bind(overrides = {}) {
     _wiredFieldDefinitions: { data: [] },
     _wiredBillingAccountInvoiceSettings: { data: {} },
     fieldDefinitions: [],
-    _objectInfo: { updateable: true },
+    _hasBillingAccountSet: true,
     ...overrides
   };
   Object.getOwnPropertyNames(proto).forEach((name) => {
@@ -183,12 +188,15 @@ describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
     ctx.wiredFieldDefinitions({ data: undefined });
   });
 
-  it("object info missing still allows formal edit (共通基盤 10.4)", () => {
-    const ctx = bind({ _objectInfo: undefined });
-    expect(ctx.canUpdateBillingAccount).toBe(true);
-    expect(ctx.showFormalEditButton).toBe(true);
-    ctx.wiredBillingAccountObjectInfo({ data: { updateable: false } });
-    expect(ctx.canUpdateBillingAccount).toBe(false);
+  it("permission set 19 gates formal edit; 101 object update does not (共通基盤 10.4)", () => {
+    const without19 = bind({ _hasBillingAccountSet: false });
+    expect(without19.canUpdateBillingAccount).toBe(false);
+    expect(without19.showFormalEditButton).toBe(false);
+    const with19 = bind({ _hasBillingAccountSet: true });
+    expect(with19.canUpdateBillingAccount).toBe(true);
+    expect(with19.showFormalEditButton).toBe(true);
+    with19.wiredBillingAccountSet({ data: false });
+    expect(with19.canUpdateBillingAccount).toBe(false);
   });
 
   it("invoice/payment help and field groups (Core 7.2 / 7.5)", () => {

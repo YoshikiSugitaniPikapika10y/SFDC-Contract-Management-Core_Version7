@@ -1,5 +1,3 @@
-import EstimateCreateModal2 from "c/estimateCreateModal2";
-
 jest.mock(
   "@salesforce/apex/EstimateCreateController.getBillingAccountsByAccount",
   () => ({ default: jest.fn() }),
@@ -10,6 +8,13 @@ jest.mock(
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
+jest.mock(
+  "@salesforce/apex/ContractPermissionUtil.hasBillingAccountSet",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+
+import EstimateCreateModal2 from "c/estimateCreateModal2";
 
 describe("estimateCreateModal2 service picker (Core 第0.1節)", () => {
   it("shows Version not V prefix for Version", () => {

@@ -5,14 +5,13 @@ import {
   getFieldValue,
   getRecordNotifyChange
 } from "lightning/uiRecordApi";
-import { getObjectInfo } from "lightning/uiObjectInfoApi";
 import { refreshApex } from "@salesforce/apex";
 import OPP_NAME_FIELD from "@salesforce/schema/Opportunity.Name";
 import OPP_ACCOUNT_ID_FIELD from "@salesforce/schema/Opportunity.AccountId";
 import CS_BILLING_ACCOUNT_FIELD from "@salesforce/schema/ContractService__c.BiilingAcccount__c";
 import BA_NAME_FIELD from "@salesforce/schema/BillingAccount__c.Name";
-import BILLING_ACCOUNT_OBJECT from "@salesforce/schema/BillingAccount__c";
 import getBillingAccountsByAccount from "@salesforce/apex/EstimateCreateController.getBillingAccountsByAccount";
+import hasBillingAccountSet from "@salesforce/apex/ContractPermissionUtil.hasBillingAccountSet";
 import getActiveContractServicesByAccount from "@salesforce/apex/EstimateCreateController.getActiveContractServicesByAccount";
 import {
   formatHistoryVersion,
@@ -84,7 +83,7 @@ export default class EstimateCreateModal2 extends NavigationMixin(
   @track servicePickerOpen = false;
   /** LDS で取得した商談名（デフォルト名用）。 */
   @track opportunityName = "";
-  _billingAccountObjectInfo;
+  _hasBillingAccountSet;
 
   @api
   get wizardData() {
@@ -186,18 +185,16 @@ export default class EstimateCreateModal2 extends NavigationMixin(
     return this._wizardData?.billingAccountId || "";
   }
 
-  @wire(getObjectInfo, { objectApiName: BILLING_ACCOUNT_OBJECT })
-  wiredBillingAccountObjectInfo({ data }) {
-    if (data) {
-      this._billingAccountObjectInfo = data;
+  @wire(hasBillingAccountSet)
+  wiredBillingAccountSet({ data }) {
+    if (data === true || data === false) {
+      this._hasBillingAccountSet = data;
     }
   }
 
+  /** 仕様: Core 第3.3.2節・第4.3.3節、共通基盤第10.4節。19。101〜103は代替しない。 */
   get canUpdateBillingAccount() {
-    if (!this._billingAccountObjectInfo) {
-      return true;
-    }
-    return Boolean(this._billingAccountObjectInfo.updateable);
+    return this._hasBillingAccountSet === true;
   }
 
   /** 仕様: Core 第4.3.3節。宛名・メールはウィザード内で編集せず、19があれば正規 Edit へ。 */

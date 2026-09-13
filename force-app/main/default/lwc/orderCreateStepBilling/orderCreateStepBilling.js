@@ -2,9 +2,8 @@ import { LightningElement, api, wire } from "lwc";
 import { NavigationMixin } from "lightning/navigation";
 import { refreshApex } from "@salesforce/apex";
 import { getRecordNotifyChange } from "lightning/uiRecordApi";
-import { getObjectInfo } from "lightning/uiObjectInfoApi";
-import BILLING_ACCOUNT_OBJECT from "@salesforce/schema/BillingAccount__c";
 import getOrderBillingFieldDefinitions from "@salesforce/apex/OrderWizardFieldService.getOrderBillingFieldDefinitions";
+import hasBillingAccountSet from "@salesforce/apex/ContractPermissionUtil.hasBillingAccountSet";
 import getBillingAccountInvoiceSettings from "@salesforce/apex/EstimateCreateController.getBillingAccountInvoiceSettings";
 import { buildCustomFieldInputs } from "c/estimateWizardCustomFields";
 import {
@@ -38,7 +37,7 @@ export default class OrderCreateStepBilling extends NavigationMixin(
   _wiredBillingAccountInvoiceSettings;
 
   fieldDefinitions = [];
-  _objectInfo;
+  _hasBillingAccountSet;
 
   connectedCallback() {
     // eslint-disable-next-line @lwc/lwc/no-async-operation
@@ -195,10 +194,10 @@ export default class OrderCreateStepBilling extends NavigationMixin(
     return this.context?.billingAccountId || null;
   }
 
-  @wire(getObjectInfo, { objectApiName: BILLING_ACCOUNT_OBJECT })
-  wiredBillingAccountObjectInfo({ data }) {
-    if (data) {
-      this._objectInfo = data;
+  @wire(hasBillingAccountSet)
+  wiredBillingAccountSet({ data }) {
+    if (data === true || data === false) {
+      this._hasBillingAccountSet = data;
     }
   }
 
@@ -256,11 +255,9 @@ export default class OrderCreateStepBilling extends NavigationMixin(
     return this.context?.billingAccountKey || EMPTY_LABEL;
   }
 
+  /** 仕様: Core 第3.3.2節・第5.2節、共通基盤第10.4節。19。101〜103は代替しない。 */
   get canUpdateBillingAccount() {
-    if (!this._objectInfo) {
-      return true;
-    }
-    return Boolean(this._objectInfo.updateable);
+    return this._hasBillingAccountSet === true;
   }
 
   get showFormalEditButton() {

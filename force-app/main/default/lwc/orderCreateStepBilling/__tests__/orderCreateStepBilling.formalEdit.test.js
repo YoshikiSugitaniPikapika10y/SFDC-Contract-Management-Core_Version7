@@ -13,6 +13,11 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
+  "@salesforce/apex/ContractPermissionUtil.hasBillingAccountSet",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
   "lightning/uiRecordApi",
   () => {
     class GetRecordAdapter {}
