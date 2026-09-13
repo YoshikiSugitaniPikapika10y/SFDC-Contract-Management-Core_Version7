@@ -638,12 +638,26 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     await flush();
     expect(rowText()).toContain("請求本体");
     expect(rowText()).toContain("為替差損の計上");
+    Array.from(
+      element.shadowRoot.querySelectorAll(
+        "lightning-input[data-filter='eventName']"
+      )
+    ).forEach((box) => {
+      expect(box.checked).toBe(true);
+    });
     element.shadowRoot
       .querySelector("button[data-filter='eventName'][data-bulk='clear']")
       .click();
     await flush();
     expect(rowText()).toContain("請求本体");
     expect(rowText()).toContain("為替差損の計上");
+    Array.from(
+      element.shadowRoot.querySelectorAll(
+        "lightning-input[data-filter='eventName']"
+      )
+    ).forEach((box) => {
+      expect(box.checked).toBe(false);
+    });
     expect(eventTrigger.textContent.trim()).toBe("すべて");
   });
 

@@ -2088,13 +2088,13 @@
 
 /*
  * ヘッダ・行とも同じ4列: [余白][金額][メタ][±/分割]
- * 列幅固定なので「金」と「￥」の左端が一致し、分割は列右端に付く
+ * 余白が余りを取り、メタは「端数あり +¥」が±へ重ならない幅にする
  */
 .amount-with-adjust {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 6.5rem 5.5rem 9.1rem;
+  grid-template-columns: minmax(0, 1fr) 6.5rem 8.75rem 9.1rem;
   align-items: center;
-  column-gap: 0.22rem;
+  column-gap: 0.35rem;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -2126,15 +2126,17 @@
 
 .amount-meta-slot {
   display: inline-flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: center;
   justify-content: flex-start;
   gap: 0.12rem;
   grid-column: 3;
   box-sizing: border-box;
-  width: 5.5rem;
-  min-width: 5.5rem;
-  max-width: 5.5rem;
+  width: 8.75rem;
+  min-width: 8.75rem;
+  max-width: 8.75rem;
+  white-space: normal;
   overflow: visible;
 }
 
@@ -2145,12 +2147,15 @@
 }
 
 .line-drift {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  max-width: 100%;
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .line-drift_ok {
@@ -2169,9 +2174,12 @@
   gap: 0.2rem;
   grid-column: 4;
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
   width: 9.1rem;
   min-width: 9.1rem;
   max-width: 9.1rem;
+  white-space: nowrap;
   opacity: 0.7;
 }
 

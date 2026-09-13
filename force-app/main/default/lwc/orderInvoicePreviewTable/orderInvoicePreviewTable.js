@@ -154,10 +154,29 @@ function formatJournalAmountValue(amount) {
 
 function withFilterChecked(options, selected) {
   const set = new Set(selectedFilterValues(selected));
-  return (options || []).map((row) => ({
-    ...row,
-    checked: set.has(row.value)
-  }));
+  return (options || []).map((row) => {
+    const checked = set.has(row.value);
+    return {
+      ...row,
+      checked,
+      optionKey: `${row.value}:${checked ? "1" : "0"}`
+    };
+  });
+}
+
+function eventDataset(event) {
+  const current = event.currentTarget?.dataset;
+  if (current && Object.keys(current).length > 0) {
+    return current;
+  }
+  return event.target?.dataset || {};
+}
+
+function checkboxCheckedFromEvent(event) {
+  if (event.detail && typeof event.detail.checked === "boolean") {
+    return event.detail.checked === true;
+  }
+  return event.target?.checked === true;
 }
 
 /** 仕様: Core 第7.7.3節。明細なしは候補「明細なし」。確認用の文面では絞らない。 */
@@ -2604,39 +2623,33 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           // 仕様: Core 第12.2節・第7.7.3節。仕訳メモも取消済みでは参照だけ。
           canEditJournalMemo: this.canEdit && !isCancelled,
           // 仕様: Accounting 第9.5節、共通基盤 第10.4節、Core 第7.7.3節・第12.2節。
-          // LockとUnlockはそれぞれ専用権限。無い操作は出さない。閲覧・編集・確定では代替しない。
+          // LockとUnlockはそれぞれ専用権限。取消済み請求でも可。無い操作は出さない。閲覧・編集・確定では代替しない。
           showJournalLockActions:
             accountingEnabled &&
-            !isCancelled &&
             (this.canLockJournal || this.canUnlockJournal),
-          // 仕様: Core 第7.7.3節、Accounting 第9.5節。有効または取消が1行でも左チェック。未選択はボタンなし。
+          // 仕様: Core 第7.7.3節、Accounting 第9.5節。取消済み請求でも可。有効または取消が1行でも左チェック。未選択はボタンなし。
           showJournalSelectCheckbox:
             accountingEnabled &&
-            !isCancelled &&
             (this.canLockJournal || this.canUnlockJournal) &&
             lockSelectableCount >= 1,
           showJournalBarLock:
             accountingEnabled &&
-            !isCancelled &&
             this.canLockJournal &&
             selectedLockableJournals.length >= 1 &&
             !allSelectedLocked,
           showJournalBarUnlock:
             accountingEnabled &&
-            !isCancelled &&
             this.canUnlockJournal &&
             selectedLockableJournals.length >= 1 &&
             allSelectedLocked,
           showJournalLockBar:
             accountingEnabled &&
-            !isCancelled &&
             selectedLockableJournals.length >= 1 &&
             ((this.canLockJournal && !allSelectedLocked) ||
               (this.canUnlockJournal && allSelectedLocked)),
           journalScrollClass: [
             "journal-scroll",
             accountingEnabled &&
-            !isCancelled &&
             selectedLockableJournals.length >= 1 &&
             ((this.canLockJournal && !allSelectedLocked) ||
               (this.canUnlockJournal && allSelectedLocked))
@@ -5114,11 +5127,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   handleInvoiceSplitToggle(event) {
-    const lineId = event.target.dataset.lineId;
+    const lineId = eventDataset(event).lineId;
     if (!lineId) {
       return;
     }
-    const checked = event.target.checked === true;
+    const checked = checkboxCheckedFromEvent(event);
     if (this.invoiceSplitState) {
       this.invoiceSplitState = {
         ...this.invoiceSplitState,
@@ -6269,12 +6282,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   handleJournalLockToggle(event) {
-    const invoiceId = event.target.dataset.invoiceId;
-    const journalId = event.target.dataset.journalId;
+    const dataset = eventDataset(event);
+    const invoiceId = dataset.invoiceId;
+    const journalId = dataset.journalId;
     if (!invoiceId || !journalId) {
-      return;
-    }
-    if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
       return;
     }
     const journals =
@@ -6294,7 +6305,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!selectableIds.includes(journalId)) {
       return;
     }
-    const checked = event.target.checked === true;
+    const checked = checkboxCheckedFromEvent(event);
     const shift = this._journalLockShift === true;
     this._journalLockShift = false;
     let idsToSet = [journalId];
@@ -6440,9 +6451,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   handleJournalViewFilterToggle(event) {
-    const invoiceId = event.target.dataset.invoiceId;
-    const field = event.target.dataset.filter;
-    const value = event.target.dataset.value;
+    const dataset = eventDataset(event);
+    const invoiceId = dataset.invoiceId;
+    const field = dataset.filter;
+    const value = dataset.value;
     if (
       !invoiceId ||
       (field !== "postingMonth" &&
@@ -6453,7 +6465,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     ) {
       return;
     }
-    const checked = event.target.checked === true;
+    const checked = checkboxCheckedFromEvent(event);
     const current = this.journalViewFilterByInvoice[invoiceId] || {};
     const selected = selectedFilterValues(current[field]);
     const next = checked
@@ -6490,10 +6502,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   async lockSelectedOrRefuse(invoiceId, journalIds) {
-    if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
-      this.setSurfaceError("請求操作エラー", "取消済み請求の仕訳はLock/Unlockできません。");
-      return;
-    }
     if (!journalIds.length) {
       this.setSurfaceError("Lockする仕訳を選んでください。", undefined);
       return;
@@ -6535,10 +6543,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   async unlockSelectedFromBar(invoiceId, journalIds) {
-    if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
-      this.setSurfaceError("請求操作エラー", "取消済み請求の仕訳はLock/Unlockできません。");
-      return;
-    }
     if (!journalIds.length) {
       this.setSurfaceError("Unlockする仕訳を選んでください。", undefined);
       return;

@@ -1168,6 +1168,53 @@ describe("orderInvoicePreviewTable footer totals", () => {
     expect(compareValues[3]).toBe(3);
   });
 
+  it("keeps 端数あり yen in the meta slot next to ± chips (画面見た目 第4節)", async () => {
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = {
+      canEdit: true,
+      taxRoundingMode: "DOWN",
+      sourceHistoryVersion: "1",
+      invoices: [
+        {
+          invoiceId: "a00INV000000001",
+          invoiceName: "INV-1",
+          historyVersion: 1,
+          status: "Draft",
+          amountTotal: 10003,
+          taxTotal: 1000,
+          taxPercent: 10,
+          taxInclusiveAmount: 11003,
+          locked: false,
+          lines: [
+            {
+              lineId: "a01LINE00000001",
+              productName: "A",
+              amount: 10003,
+              sourceAmountTotal: 10000,
+              historyVersionLabel: "Version1",
+              isRecurring: true,
+              unitPrice: 10003,
+              quantity: 1
+            }
+          ]
+        }
+      ]
+    };
+    document.body.appendChild(element);
+    await Promise.resolve();
+    const cell = element.shadowRoot.querySelector("td.amount-col");
+    const drift = cell.querySelector(".line-drift");
+    const chips = cell.querySelector(".amount-shortcuts");
+    expect(drift.textContent).toContain("端数あり");
+    expect(drift.textContent).toContain("+¥3");
+    expect(chips.querySelector("button[data-delta='1']").textContent.trim()).toBe(
+      "+1"
+    );
+    expect(drift.closest(".amount-meta-slot")).not.toBe(chips);
+  });
+
   it("uses VersionN when version option label is missing (Core 0.1)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
