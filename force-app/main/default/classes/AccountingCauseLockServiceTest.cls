@@ -35,7 +35,36 @@ private class AccountingCauseLockServiceTest {
       System.assertEquals(
         Date.newInstance(2026, 6, 1),
         invoiceDate,
-        'Accounting 第4.5節: 確定仕訳の計上日は請求日。ロック行から請求日を読む'
+        'Accounting 第8.2節: 後続処理は行ロック後の対象請求から請求日を読む'
+      );
+      System.assertEquals(
+        invoice.ContractHistory__c,
+        locked.ContractHistory__c,
+        'Accounting 第8.2節: 行ロック後の対象請求を後続の原因収集へ渡す'
+      );
+    }
+  }
+
+  @IsTest
+  static void lockInvoices_returnsOnlyRequestedInvoices() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c first = insertDraftInvoice();
+      Invoice__c second = insertDraftInvoice();
+      Invoice__c outsideScope = insertDraftInvoice();
+
+      Map<Id, Invoice__c> locked = AccountingCauseLockService.lockInvoices(
+        new Set<Id>{ second.Id, null, first.Id }
+      );
+
+      System.assertEquals(
+        new Set<Id>{ first.Id, second.Id },
+        locked.keySet(),
+        'Core 第7.9.7節: ロック範囲は書き換える請求だけで、契約サービス配下全体へ広げない'
+      );
+      System.assertEquals(
+        false,
+        locked.containsKey(outsideScope.Id),
+        'Core 第7.9.7節: 対象外請求をロック結果へ混ぜない'
       );
     }
   }
@@ -214,9 +243,12 @@ private class AccountingCauseLockServiceTest {
   static void resolveInvoiceOperationDatetime_includesJournal() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = insertDraftInvoice();
-      Datetime before = AccountingCauseLockService.resolveInvoiceOperationDatetime(
-        invoice.Id
-      );
+      Invoice__c outsideScope = insertDraftInvoice();
+      Datetime invoiceModified = [
+        SELECT LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ].LastModifiedDate;
       GlAccount__c debit = new GlAccount__c(
         Name = 'Lock Debit',
         AccountType__c = 'Asset',
@@ -228,28 +260,64 @@ private class AccountingCauseLockServiceTest {
         IsActive__c = true
       );
       insert new List<GlAccount__c>{ debit, credit };
-      insert new GlJournal__c(
-        Invoice__c = invoice.Id,
-        Amount__c = 1,
-        IdempotencyKey__c = AccountingDiffService.hashKey(
-          new List<String>{ 'LockJournal', String.valueOf(invoice.Id) }
-        ),
-        DebitSlotKey__c = 'Cash',
-        CreditSlotKey__c = 'UnappliedCash',
-        DebitAccount__c = debit.Id,
-        CreditAccount__c = credit.Id,
-        PostingDate__c = Date.newInstance(2026, 6, 1),
-        TransactionStatus__c = 'Active'
-      );
-      Datetime afterJournal = AccountingCauseLockService.resolveInvoiceOperationDatetime(
-        invoice.Id
+      List<GlJournal__c> journals = new List<GlJournal__c>{
+        buildJournal(invoice.Id, debit.Id, credit.Id, 'LockJournal'),
+        buildJournal(outsideScope.Id, debit.Id, credit.Id, 'OutsideJournal')
+      };
+      insert journals;
+      Set<Id> journalIds = new Map<Id, GlJournal__c>(journals).keySet();
+      Map<Id, GlJournal__c> savedJournals = new Map<Id, GlJournal__c>([
+        SELECT Id, Invoice__c, LastModifiedDate
+        FROM GlJournal__c
+        WHERE Id IN :journalIds
+      ]);
+      Datetime journalModified = savedJournals.get(journals[0].Id).LastModifiedDate;
+      Datetime expected = journalModified.getTime() > invoiceModified.getTime()
+        ? journalModified
+        : invoiceModified;
+      Map<Id, Datetime> resolved = AccountingCauseLockService.resolveInvoiceOperationDatetimes(
+        new Set<Id>{ invoice.Id }
       );
       System.assertEquals(
-        true,
-        afterJournal.getTime() >= before.getTime(),
-        'Core 第7.9.7節: 版は対象請求と配下の仕訳を含む'
+        expected,
+        resolved.get(invoice.Id),
+        'Core 第7.9.7節: 版は対象請求とその配下仕訳の更新日時の最大である'
+      );
+      System.assertEquals(
+        new Set<Id>{ invoice.Id },
+        resolved.keySet(),
+        'Core 第7.9.7節: 版比較は対象請求の集合だけを返し、対象外請求を混ぜない'
+      );
+      System.assertEquals(
+        ContractOptimisticLockUtil.toToken(expected),
+        AccountingCauseLockService.resolveInvoiceOperationToken(
+          invoice.Id,
+          invoiceModified
+        ),
+        'Core 第7.9.7節: 保存直前の版比較トークンは同じ対象集合の最大更新日時を表す'
       );
     }
+  }
+
+  private static GlJournal__c buildJournal(
+    Id invoiceId,
+    Id debitAccountId,
+    Id creditAccountId,
+    String keySeed
+  ) {
+    return new GlJournal__c(
+      Invoice__c = invoiceId,
+      Amount__c = 1,
+      IdempotencyKey__c = AccountingDiffService.hashKey(
+        new List<String>{ keySeed, String.valueOf(invoiceId) }
+      ),
+      DebitSlotKey__c = 'Cash',
+      CreditSlotKey__c = 'UnappliedCash',
+      DebitAccount__c = debitAccountId,
+      CreditAccount__c = creditAccountId,
+      PostingDate__c = Date.newInstance(2026, 6, 1),
+      TransactionStatus__c = 'Active'
+    );
   }
 
   private static Id fakeId(Schema.SObjectType objectType) {

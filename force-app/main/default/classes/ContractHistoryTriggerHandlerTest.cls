@@ -256,11 +256,52 @@ private class ContractHistoryTriggerHandlerTest {
       update history;
 
       ContractHistory__c updated = [
-        SELECT historystatus__c
+        SELECT historystatus__c, StatusPath__c
         FROM ContractHistory__c
         WHERE Id = :history.Id
       ];
-      System.assertEquals('Estimate', updated.historystatus__c);
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        updated.historystatus__c,
+        'Core 第5.3節: 差し戻した契約履歴はEstimateに戻る'
+      );
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        updated.StatusPath__c,
+        'Core 第5.7節: Estimateの進捗は01_見積に同期する'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE ContractHistory__c = :history.Id
+        ],
+        'Core 第5.3節・第6.1節: 差し戻しは契約期間明細を削除する'
+      );
+      ContractService__c revertedService = [
+        SELECT
+          FirstOrderedHistory__c,
+          LatestOrderedHistory__c,
+          Lifecycle__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      System.assertEquals(
+        null,
+        revertedService.FirstOrderedHistory__c,
+        'Core 第5.3節・第5.4節: Orderedが0件ならFirst Orderedを空にする'
+      );
+      System.assertEquals(
+        null,
+        revertedService.LatestOrderedHistory__c,
+        'Core 第5.3節・第5.4節: Orderedが0件ならLatest Orderedを空にする'
+      );
+      System.assertEquals(
+        null,
+        revertedService.Lifecycle__c,
+        'Core 第5.4節: Orderedが0件ならLifecycleを空にする'
+      );
     }
   }
 
@@ -289,20 +330,18 @@ private class ContractHistoryTriggerHandlerTest {
       insertWithOpportunity(priorHistory, account.Id);
 
       // Type ? New ????E?Ehange ? after insert ???????E?E????????E?E
-      insertWithOpportunity(
-        new ContractHistory__c(
-          Name = 'Revert NonLatest History v2',
-          ContractService__c = service.Id,
-          Type__c = 'New',
-          historystatus__c = 'Ordered',
-          Version__c = 2,
-          CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-          CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-          EffectiveDate__c = Date.newInstance(2026, 6, 1),
-          PreviousHistory__c = priorHistory.Id
-        ),
-        account.Id
+      ContractHistory__c newerOrdered = new ContractHistory__c(
+        Name = 'Revert NonLatest History v2',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 2,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+        EffectiveDate__c = Date.newInstance(2026, 6, 1),
+        PreviousHistory__c = priorHistory.Id
       );
+      insertWithOpportunity(newerOrdered, account.Id);
 
       Test.startTest();
       Boolean thrown = false;
@@ -318,6 +357,31 @@ private class ContractHistoryTriggerHandlerTest {
       }
       Test.stopTest();
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ORDERED,
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :priorHistory.Id
+        ]
+        .historystatus__c,
+        'Core 第5.3節: Latest Orderedでない履歴はOrderedのまま残す'
+      );
+      ContractService__c synchronizedService = [
+        SELECT FirstOrderedHistory__c, LatestOrderedHistory__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      System.assertEquals(
+        priorHistory.Id,
+        synchronizedService.FirstOrderedHistory__c,
+        'Core 第5.2節・第5.4節: 最小VersionをFirst Orderedへ同期する'
+      );
+      System.assertEquals(
+        newerOrdered.Id,
+        synchronizedService.LatestOrderedHistory__c,
+        'Core 第5.2節・第5.4節: 最大VersionをLatest Orderedへ同期する'
+      );
     }
   }
 
@@ -813,15 +877,24 @@ private class ContractHistoryTriggerHandlerTest {
       Test.stopTest();
 
       ContractHistory__c archived = [
-        SELECT historystatus__c, PreviousHistory__c
+        SELECT historystatus__c, PreviousHistory__c, StatusPath__c
         FROM ContractHistory__c
         WHERE Id = :estimateHistory.Id
       ];
-      System.assertEquals('Archive', archived.historystatus__c);
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ARCHIVE,
+        archived.historystatus__c,
+        'Core 第5.5節: EstimateをArchiveにする'
+      );
       System.assertEquals(
         null,
         archived.PreviousHistory__c,
-        'Archive ??E????E?????E?E'
+        'Core 第5.5節: Archive遷移時に前回契約履歴との参照を外す'
+      );
+      System.assertEquals(
+        null,
+        archived.StatusPath__c,
+        'Core 第5.7節: Archiveは進捗表示の対象外にする'
       );
     }
   }
@@ -859,6 +932,16 @@ private class ContractHistoryTriggerHandlerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ORDERED,
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .historystatus__c,
+        'Core 第5.5節: 拒否後もOrderedのまま残す'
+      );
     }
   }
 
@@ -900,6 +983,16 @@ private class ContractHistoryTriggerHandlerTest {
         ContractPermissionUtil.testOverrides = null;
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ORDERED,
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .historystatus__c,
+        'Core 第5.5節: 例外権限があってもOrderedのまま残す'
+      );
     }
   }
 
@@ -942,6 +1035,16 @@ private class ContractHistoryTriggerHandlerTest {
         ContractPermissionUtil.testOverrides = null;
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ARCHIVE,
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .historystatus__c,
+        'Core 第5.5節: Archiveから復活させない'
+      );
     }
   }
 
@@ -1112,6 +1215,15 @@ private class ContractHistoryTriggerHandlerTest {
         ContractPermissionUtil.testOverrides = null;
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Name = 'Order Insert Perm Block History'
+        ],
+        'Core 第5.1節: 受注権限がないOrdered insertは保存しない'
+      );
     }
   }
 
@@ -1281,14 +1393,15 @@ private class ContractHistoryTriggerHandlerTest {
       );
       Database.SaveResult insertResult = Database.insert(laterEstimate, false);
       System.assertEquals(false, insertResult.isSuccess());
-      System.assert(
-        insertResult
-          .getErrors()[0]
-          .getMessage()
-          .contains(
-            ContractHistoryTerminalService.VERSION_AFTER_CANCEL_BLOCK_MESSAGE
-          ),
-        insertResult.getErrors()[0].getMessage()
+      System.assertEquals(
+        1,
+        insertResult.getErrors().size(),
+        'Core 第5.2節・第6.4節: Cancel後Version insertは1件の検証エラー'
+      );
+      System.assertEquals(
+        ContractHistoryTerminalService.VERSION_AFTER_CANCEL_BLOCK_MESSAGE,
+        insertResult.getErrors()[0].getMessage(),
+        'Core 第5.2節・第6.4節: Cancel後Version insertを正確な理由で拒否する'
       );
 
       existingFutureEstimate.historystatus__c = 'Ordered';
@@ -1297,16 +1410,36 @@ private class ContractHistoryTriggerHandlerTest {
         false
       );
       System.assertEquals(false, orderResult.isSuccess());
-      System.assert(
-        orderResult
-          .getErrors()[0]
-          .getMessage()
-          .contains(
-            ContractHistoryTerminalService.VERSION_AFTER_CANCEL_BLOCK_MESSAGE
-          ),
-        orderResult.getErrors()[0].getMessage()
+      System.assertEquals(
+        1,
+        orderResult.getErrors().size(),
+        'Core 第5.2節・第6.4節: Cancel後Version受注は1件の検証エラー'
+      );
+      System.assertEquals(
+        ContractHistoryTerminalService.VERSION_AFTER_CANCEL_BLOCK_MESSAGE,
+        orderResult.getErrors()[0].getMessage(),
+        'Core 第5.2節・第6.4節: Cancel後Version受注を正確な理由で拒否する'
       );
       Test.stopTest();
+      System.assertEquals(
+        ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        [
+          SELECT historystatus__c
+          FROM ContractHistory__c
+          WHERE Id = :existingFutureEstimate.Id
+        ]
+        .historystatus__c,
+        'Core 第5.2節・第6.4節: 拒否した後続VersionはEstimateのまま残す'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Name = 'Later Estimate'
+        ],
+        'Core 第5.2節・第6.4節: Cancel後の新しいVersionを保存しない'
+      );
     }
   }
 
@@ -1370,6 +1503,15 @@ private class ContractHistoryTriggerHandlerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Name = 'Manual Auto Flag'
+        ],
+        'Core 第4.9節: 手動の自動Renew印付き履歴を保存しない'
+      );
     }
   }
 
@@ -1402,6 +1544,16 @@ private class ContractHistoryTriggerHandlerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        false,
+        [
+          SELECT RenewEstimateAutoCreated__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .RenewEstimateAutoCreated__c,
+        'Core 第4.9節: 拒否後も自動Renew印をFalseのまま残す'
+      );
     }
   }
 
@@ -1447,6 +1599,15 @@ private class ContractHistoryTriggerHandlerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Name = 'Renew Req Off'
+        ],
+        'Core 第5.2節・第11.5節: 機能OFFの更新商談要求を保存しない'
+      );
     }
   }
 
@@ -1491,6 +1652,16 @@ private class ContractHistoryTriggerHandlerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        false,
+        [
+          SELECT CreateRenewOpportunity__c
+          FROM ContractHistory__c
+          WHERE Id = :history.Id
+        ]
+        .CreateRenewOpportunity__c,
+        'Core 第5.2節・第11.5節: 拒否後も更新商談要求をFalseのまま残す'
+      );
     }
   }
 
@@ -1531,6 +1702,15 @@ private class ContractHistoryTriggerHandlerTest {
         );
       }
       System.assertEquals(true, thrown);
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM ContractHistory__c
+          WHERE Name = 'Renew Req Cancel'
+        ],
+        'Core 第5.2節・第11.5節: Cancelの更新商談要求を保存しない'
+      );
     }
   }
 

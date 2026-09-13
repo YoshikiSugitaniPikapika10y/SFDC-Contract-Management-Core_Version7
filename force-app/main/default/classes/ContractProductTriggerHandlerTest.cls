@@ -120,6 +120,7 @@ private class ContractProductTriggerHandlerTest {
       contractProduct = [
         SELECT
           Account__c,
+          Amount__c,
           ContractHistory__c,
           InvoiceAnchorDate__c,
           InvoiceBillingCycleCount__c,
@@ -131,7 +132,16 @@ private class ContractProductTriggerHandlerTest {
         FROM ContractProduct__c
         WHERE Id = :contractProduct.Id
       ];
-      System.assertEquals(account.Id, contractProduct.Account__c);
+      System.assertEquals(
+        account.Id,
+        contractProduct.Account__c,
+        'Core 第4.5節: 見積商品の取引先は契約サービスの取引先'
+      );
+      System.assertEquals(
+        12000,
+        contractProduct.Amount__c,
+        'Core 第4.6節: Triggerは保存済みの見積商品金額を上書きしない'
+      );
       System.assertEquals(
         Date.newInstance(2026, 6, 1),
         contractProduct.InvoiceAnchorDate__c,
@@ -150,7 +160,7 @@ private class ContractProductTriggerHandlerTest {
       System.assertEquals(
         account.Id,
         accountProbe.Account__c,
-        'Core 第4.6節: 空の取引先は契約サービスから埋める'
+        'Core 第4.5節: 空の取引先は契約サービスから埋める'
       );
       ContractProductTriggerHandler.populateInvoiceAnchorFields(
         new List<ContractProduct__c>{ contractProduct }
@@ -173,7 +183,7 @@ private class ContractProductTriggerHandlerTest {
       System.assertEquals(
         otherAccount.Id,
         keepAccount.Account__c,
-        'Core 第4.6節: 空の取引先だけ契約サービスから埋める。既にあれば上書きしない'
+        'Core 第4.5節: 空の取引先だけ契約サービスから埋める。既にあれば上書きしない'
       );
     }
   }
@@ -236,6 +246,11 @@ private class ContractProductTriggerHandlerTest {
       );
       System.assertEquals(account.Id, built.Account__c);
       System.assertEquals(termStart, built.InvoiceAnchorDate__c);
+      System.assertEquals(
+        12000,
+        built.Amount__c,
+        'Core 第4.6節: 履歴照会を省いても画面で確認した金額を維持する'
+      );
     }
   }
 
@@ -377,8 +392,8 @@ private class ContractProductTriggerHandlerTest {
         account.Id,
         'Anchor Monthly Service'
       );
-      Date startDate = Date.newInstance(2025, 8, 1);
-      Date endDate = Date.newInstance(2026, 7, 31);
+      Date startDate = Date.newInstance(2025, 1, 31);
+      Date endDate = Date.newInstance(2026, 1, 27);
       ContractHistory__c history = insertEstimateHistory(
         service.Id,
         account.Id,
@@ -414,8 +429,16 @@ private class ContractProductTriggerHandlerTest {
         FROM ContractProduct__c
         WHERE Id = :contractProduct.Id
       ];
-      System.assertEquals(startDate, contractProduct.InvoiceAnchorDate__c);
-      System.assertEquals(12, contractProduct.InvoiceBillingCycleCount__c);
+      System.assertEquals(
+        startDate,
+        contractProduct.InvoiceAnchorDate__c,
+        'Core 第7.2節: 月次分割の最初の請求基準日は見積商品の開始日'
+      );
+      System.assertEquals(
+        12,
+        contractProduct.InvoiceBillingCycleCount__c,
+        '共通基盤 日付第1.1節: 1月31日開始はサイクルを積み上げ、翌年1月27日までを12回とする'
+      );
     }
   }
 
@@ -440,9 +463,7 @@ private class ContractProductTriggerHandlerTest {
     ContractProductTriggerHandler.handleAfterDelete(
       new List<ContractProduct__c>()
     );
-    ContractProduct__c untouched = new ContractProduct__c(
-      Amount__c = 12345
-    );
+    ContractProduct__c untouched = new ContractProduct__c(Amount__c = 12345);
     ContractProductTriggerHandler.handleBeforeInsertOrUpdate(
       new List<ContractProduct__c>{ untouched }
     );
@@ -509,13 +530,39 @@ private class ContractProductTriggerHandlerTest {
         contractProduct.Amount__c,
         'update 後も Amount は上書きされない'
       );
-
-      delete contractProduct;
       history = [
-        SELECT DeltaAmountSum__c
+        SELECT ARR__c, AveARR__c, DeltaAmountSum__c
         FROM ContractHistory__c
         WHERE Id = :history.Id
       ];
+      System.assertEquals(
+        screenConfirmedAmount,
+        history.ARR__c,
+        'Core 第10.1節: ARRは保存済み見積商品金額を使って再計算する'
+      );
+      System.assertEquals(
+        screenConfirmedAmount,
+        history.AveARR__c,
+        'Core 第10.2節: 12サイクル全期間のAveARRは保存済み見積商品金額と一致する'
+      );
+      System.assertEquals(
+        screenConfirmedAmount,
+        history.DeltaAmountSum__c,
+        'Core 第4.6節: 数量変更後も見積税抜合計は保存済みAmountの合計'
+      );
+
+      delete contractProduct;
+      history = [
+        SELECT ARR__c, AveARR__c, DeltaAmountSum__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      System.assertEquals(0, history.ARR__c, 'delete 後はARRが0へ再集計される');
+      System.assertEquals(
+        0,
+        history.AveARR__c,
+        'delete 後はAveARRが0へ再集計される'
+      );
       System.assertEquals(
         0,
         history.DeltaAmountSum__c == null ? 0 : history.DeltaAmountSum__c,
@@ -551,19 +598,38 @@ private class ContractProductTriggerHandlerTest {
       );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(product);
-      ContractProduct__c line = new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Account__c = account.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 1000,
-        Amount__c = 12000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'New',
-        RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME
+      ContractProduct__c line = insertLine(
+        history.Id,
+        account.Id,
+        product,
+        1,
+        1000,
+        12000,
+        termStart,
+        termEnd,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        'New'
+      );
+      service = [
+        SELECT Lifecycle__c, FirstOrderedHistory__c, LatestOrderedHistory__c
+        FROM ContractService__c
+        WHERE Id = :service.Id
+      ];
+      System.assertEquals(
+        ContractDomainConstants.LIFECYCLE_TERM,
+        service.Lifecycle__c,
+        'Core 第5.4節: Estimate商品を追加しても既存Lifecycleを変えない'
+      );
+      System.assertEquals(
+        null,
+        service.FirstOrderedHistory__c,
+        'Core 第5.4節: EstimateはFirst Orderedにならない'
+      );
+      System.assertEquals(
+        null,
+        service.LatestOrderedHistory__c,
+        'Core 第5.4節: EstimateはLatest Orderedにならない'
       );
       Integer queriesBeforeArr = Limits.getQueries();
       ContractArrCalculationService.recalculateForHistories(

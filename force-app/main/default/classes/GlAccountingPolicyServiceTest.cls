@@ -50,6 +50,16 @@ private class GlAccountingPolicyServiceTest {
         frozen.FrozenAt__c,
         'Accounting 第3.1節: 最初の確定で固定日時を入れる'
       );
+      System.assertEquals(
+        UserInfo.getUserId(),
+        frozen.FrozenBy__c,
+        'Accounting 第3.1節: 固定者は最初の確定を実行した利用者'
+      );
+      System.assertEquals(
+        false,
+        frozen.AccountingEnabled__c,
+        'Accounting 第3.1節 / ユーザ設定 No.11: OFFの確定もOFFのまま固定する'
+      );
     }
   }
 
@@ -71,20 +81,22 @@ private class GlAccountingPolicyServiceTest {
   }
 
   @IsTest
-  static void deriveAllowedPatternKeys_cashAtInvoice_allowsTaxAtInvoice() {
+  static void newOrgDefault_matchesCurrentPolicyDefaults() {
     GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
-    policy.RevenueRecognitionBasis__c = 'CashBasis';
-    policy.TaxRecognitionTiming__c = 'AtInvoice';
-    Set<String> keys = GlAccountingPolicyService.deriveAllowedPatternKeys(policy);
     System.assertEquals(
-      true,
-      keys.contains('BILLING_TAX_AT_INVOICE'),
-      'Accounting 第5.7節: 入金連動前受かつ請求時税は請求時税パターンを許可する'
+      GlAccountingPolicyService.ORG_DEFAULT_NAME,
+      policy.Name,
+      'Accounting 第3.1節: 組織内1件を識別する固定名'
     );
+    System.assertEquals(false, policy.AccountingEnabled__c);
+    System.assertEquals('BillingBasis', policy.RevenueRecognitionBasis__c);
+    System.assertEquals('AtInvoice', policy.TaxRecognitionTiming__c);
+    System.assertEquals('Auto', policy.MonthlyBucketMethod__c);
+    System.assertEquals('BucketEnd', policy.MonthlyRecognitionDatePosition__c);
     System.assertEquals(
-      true,
-      keys.contains('CASH_BASIS_INVOICE_BODY_CTA_TRANSFER'),
-      'Accounting 第5.7節: 入金連動前受の本体は前受振替'
+      'Last',
+      policy.RoundingTargetBucket__c,
+      'Accounting 第3.1節: 会計方針の既定値を本文どおり返す'
     );
   }
 
@@ -270,36 +282,80 @@ private class GlAccountingPolicyServiceTest {
   }
 
   @IsTest
-  static void deriveAllowedPatternKeys_billingAndCashAtRecognition() {
-    GlAccountingPolicy__c billing = GlAccountingPolicyService.newOrgDefault();
-    billing.RevenueRecognitionBasis__c = 'BillingBasis';
-    billing.TaxRecognitionTiming__c = 'AtRecognition';
-    Set<String> billingKeys = GlAccountingPolicyService.deriveAllowedPatternKeys(
-      billing
-    );
-    System.assertEquals(
-      true,
-      billingKeys.contains('BILLING_BASIS_INVOICE_TAX_DEFERRED'),
-      'Accounting 第5.7節: 請求基準かつ売上計上時税は繰延税を許可する'
-    );
-    System.assertEquals(
-      false,
-      billingKeys.contains('BILLING_TAX_AT_INVOICE'),
-      'Accounting 第5.7節: 売上計上時税に請求時税パターンを混ぜない'
+  static void deriveAllowedPatternKeys_returnsAllFourPolicySets() {
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+    assertPatternKeys(
+      new Set<String>{
+        'BILLING_BASIS_INVOICE_BODY',
+        'BILLING_TAX_AT_INVOICE',
+        'BILLING_BASIS_REVENUE_BODY',
+        'PAYMENT_INVOICE_CURRENT',
+        'PAYMENT_NON_INVOICE_POSITIVE',
+        'PAYMENT_NON_INVOICE_NEGATIVE',
+        'PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER',
+        'PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER'
+      },
+      GlAccountingPolicyService.deriveAllowedPatternKeys(policy),
+      'Accounting 第5.6・5.7節: 請求基準・請求時税はNo.1・3・6、No.10～16'
     );
 
-    GlAccountingPolicy__c cash = GlAccountingPolicyService.newOrgDefault();
-    cash.RevenueRecognitionBasis__c = 'CashBasis';
-    cash.TaxRecognitionTiming__c = 'AtRecognition';
-    Set<String> cashKeys = GlAccountingPolicyService.deriveAllowedPatternKeys(cash);
-    System.assertEquals(
-      true,
-      cashKeys.contains('CASH_BASIS_INVOICE_TAX_CTA_TRANSFER'),
-      'Accounting 第5.7節: 入金連動前受かつ売上計上時税は税の前受振替を許可する'
+    policy.TaxRecognitionTiming__c = 'AtRecognition';
+    assertPatternKeys(
+      new Set<String>{
+        'BILLING_BASIS_INVOICE_BODY',
+        'BILLING_BASIS_INVOICE_TAX_DEFERRED',
+        'BILLING_BASIS_REVENUE_BODY',
+        'BILLING_BASIS_REVENUE_TAX',
+        'PAYMENT_INVOICE_CURRENT',
+        'PAYMENT_NON_INVOICE_POSITIVE',
+        'PAYMENT_NON_INVOICE_NEGATIVE',
+        'PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER',
+        'PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER'
+      },
+      GlAccountingPolicyService.deriveAllowedPatternKeys(policy),
+      'Accounting 第5.6・5.7節: 請求基準・売上計上時税はNo.1・4・6・8、No.10～16'
     );
-    System.assertEquals(
-      true,
-      cashKeys.contains('CASH_BASIS_REVENUE_TAX')
+
+    policy.RevenueRecognitionBasis__c = 'CashBasis';
+    policy.TaxRecognitionTiming__c = 'AtInvoice';
+    assertPatternKeys(
+      new Set<String>{
+        'CASH_BASIS_INVOICE_BODY_CTA_TRANSFER',
+        'BILLING_TAX_AT_INVOICE',
+        'CASH_BASIS_REVENUE_BODY',
+        'PAYMENT_INVOICE_CURRENT',
+        'PAYMENT_NON_INVOICE_POSITIVE',
+        'PAYMENT_NON_INVOICE_NEGATIVE',
+        'PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER',
+        'PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER'
+      },
+      GlAccountingPolicyService.deriveAllowedPatternKeys(policy),
+      'Accounting 第5.6・5.7節: 入金連動前受・請求時税はNo.2・3・7、No.10～16'
+    );
+
+    policy.TaxRecognitionTiming__c = 'AtRecognition';
+    assertPatternKeys(
+      new Set<String>{
+        'CASH_BASIS_INVOICE_BODY_CTA_TRANSFER',
+        'CASH_BASIS_INVOICE_TAX_CTA_TRANSFER',
+        'CASH_BASIS_REVENUE_BODY',
+        'CASH_BASIS_REVENUE_TAX',
+        'PAYMENT_INVOICE_CURRENT',
+        'PAYMENT_NON_INVOICE_POSITIVE',
+        'PAYMENT_NON_INVOICE_NEGATIVE',
+        'PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH',
+        'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER',
+        'PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER'
+      },
+      GlAccountingPolicyService.deriveAllowedPatternKeys(policy),
+      'Accounting 第5.6・5.7節: 入金連動前受・売上計上時税はNo.2・5・7・9、No.10～16'
     );
   }
 
@@ -323,6 +379,14 @@ private class GlAccountingPolicyServiceTest {
       GlAccountingPolicy__c afterClear = GlAccountingPolicyService.requireOrgPolicy();
       System.assertEquals(first.Id, afterClear.Id);
     }
+  }
+
+  private static void assertPatternKeys(
+    Set<String> expected,
+    Set<String> actual,
+    String message
+  ) {
+    System.assertEquals(expected, actual, message);
   }
 
   private static Invoice__c insertDraftInvoiceOnOrdered(
