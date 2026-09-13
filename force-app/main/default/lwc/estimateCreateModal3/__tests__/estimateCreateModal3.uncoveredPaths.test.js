@@ -485,6 +485,45 @@ describe("estimateCreateModal3 uncovered paths (Core 0.1 / 4.3.4 / 4.3.5 / 4.5.2
     expect(rows[1].revenueRecognitionBasisLabel).toBe("");
   });
 
+  it("Change invoice anchors use the effective date derived from current rows", () => {
+    const ctx = bind({
+      _wizardData: {
+        selectedType: "Change",
+        contractStartDate: "2026-04-01",
+        contractEffectiveDate: "2026-04-01"
+      }
+    });
+    const common = {
+      sourceContractProductId: "a0pSOURCE",
+      productId: "01tA",
+      quantity: 1,
+      billingType: BILLING_TYPE_RECURRING,
+      invoiceType: INVOICE_SETTING_PREPAID_START,
+      startDate: "2026-04-01",
+      endDate: "2027-03-31"
+    };
+    const rows = ctx.decorateAllRows([
+      {
+        ...common,
+        id: "original",
+        recordType: "Original",
+        typeLabel: "Original",
+        unitPrice: 1000,
+        amount: -12000
+      },
+      {
+        ...common,
+        id: "remake",
+        recordType: "Remake",
+        typeLabel: "Remake",
+        startDate: "2026-05-01",
+        unitPrice: 2000,
+        amount: 22000
+      }
+    ]);
+    expect(rows[1].displayInvoiceAnchor).toBe("2026-05-01");
+  });
+
   it("reduceErrorMessage prefers body.message then 不明なエラー", () => {
     const ctx = bind();
     expect(ctx.reduceErrorMessage({ body: { message: "拒否" } })).toBe("拒否");

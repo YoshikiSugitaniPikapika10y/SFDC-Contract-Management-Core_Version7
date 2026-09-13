@@ -26,7 +26,11 @@ export const RETURN_CALLER_TARGETS = {
 /** Lightning の record Edit は custom state を落とすことがあるため、開き直し用に控える。 */
 const RETURN_STORAGE_KEY = "c.billingAccountFormalEdit.returnCaller";
 
-export function rememberReturnCaller(returnTo, returnRecordId) {
+export function rememberReturnCaller(
+  returnTo,
+  returnRecordId,
+  billingAccountId = ""
+) {
   if (typeof sessionStorage === "undefined") {
     return;
   }
@@ -36,29 +40,38 @@ export function rememberReturnCaller(returnTo, returnRecordId) {
   }
   sessionStorage.setItem(
     RETURN_STORAGE_KEY,
-    JSON.stringify({ returnTo, returnRecordId })
+    JSON.stringify({ returnTo, returnRecordId, billingAccountId })
   );
 }
 
-export function consumeReturnCaller() {
+function consumeRememberedReturnCaller() {
   if (typeof sessionStorage === "undefined") {
-    return { returnTo: "", returnRecordId: "" };
+    return { returnTo: "", returnRecordId: "", billingAccountId: "" };
   }
   try {
     const raw = sessionStorage.getItem(RETURN_STORAGE_KEY);
     sessionStorage.removeItem(RETURN_STORAGE_KEY);
     if (!raw) {
-      return { returnTo: "", returnRecordId: "" };
+      return { returnTo: "", returnRecordId: "", billingAccountId: "" };
     }
     const parsed = JSON.parse(raw);
     return {
       returnTo: parsed.returnTo || "",
-      returnRecordId: parsed.returnRecordId || ""
+      returnRecordId: parsed.returnRecordId || "",
+      billingAccountId: parsed.billingAccountId || ""
     };
   } catch (e) {
     sessionStorage.removeItem(RETURN_STORAGE_KEY);
-    return { returnTo: "", returnRecordId: "" };
+    return { returnTo: "", returnRecordId: "", billingAccountId: "" };
   }
+}
+
+export function consumeReturnCaller() {
+  const remembered = consumeRememberedReturnCaller();
+  return {
+    returnTo: remembered.returnTo,
+    returnRecordId: remembered.returnRecordId
+  };
 }
 
 function clearRememberedReturnCaller() {
@@ -88,7 +101,7 @@ export function buildBillingAccountFormalEditPageRef(
       c__returnRecordId: returnRecordId
     };
     // 仕様: Core 第3.3.3節。record Edit の state 欠落に備えて控えを残す。
-    rememberReturnCaller(returnTo, returnRecordId);
+    rememberReturnCaller(returnTo, returnRecordId, recordId);
   }
   return pageRef;
 }
@@ -116,7 +129,8 @@ export function readReturnCallerFromPageRef(pageRef) {
 export function resolveReturnCaller({
   returnTo = "",
   returnRecordId = "",
-  pageRef = null
+  pageRef = null,
+  billingAccountId = ""
 } = {}) {
   const fromPage = readReturnCallerFromPageRef(pageRef);
   const resolvedTo = returnTo || fromPage.returnTo;
@@ -125,5 +139,16 @@ export function resolveReturnCaller({
     clearRememberedReturnCaller();
     return { returnTo: resolvedTo, returnRecordId: resolvedId };
   }
-  return consumeReturnCaller();
+  const remembered = consumeRememberedReturnCaller();
+  // 仕様: Core 第3.3.3節。別の請求アカウントを標準経路でEditしたときは古い戻り控えを使わない。
+  if (
+    billingAccountId &&
+    remembered.billingAccountId !== billingAccountId
+  ) {
+    return { returnTo: "", returnRecordId: "" };
+  }
+  return {
+    returnTo: remembered.returnTo,
+    returnRecordId: remembered.returnRecordId
+  };
 }

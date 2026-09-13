@@ -960,6 +960,13 @@ public without sharing class OrderCreateController {
     return AccountingCauseLockService.issueOperationKey();
   }
 
+  /** 仕様: Core 第4.3.12節・第5.3節、共通基盤 第10.4節。差し戻しのキー発行は 07。 */
+  @AuraEnabled
+  public static String issueRevertOperationKey() {
+    assertRevertPermission();
+    return AccountingCauseLockService.issueOperationKey();
+  }
+
   /** 仕様: Core 第5.2節、第4.3.12節、第11.5節 */
   private static OrderSaveResult confirmOrderInternal(
     Id contractHistoryId,

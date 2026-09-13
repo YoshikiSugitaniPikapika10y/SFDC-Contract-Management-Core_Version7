@@ -3422,6 +3422,27 @@ private class OrderCreateControllerTest {
       } finally {
         OrderCreateController.testHasOrderPermission = true;
       }
+
+      OrderCreateController.testHasOrderPermission = false;
+      System.assert(
+        String.isNotBlank(OrderCreateController.issueRevertOperationKey()),
+        '共通基盤 第10.4節: 差し戻しキーは 06 なし・07 ありで発行できる'
+      );
+      OrderCreateController.testHasOrderPermission = true;
+
+      OrderCreateController.testHasRevertPermission = false;
+      try {
+        OrderCreateController.issueRevertOperationKey();
+        System.assert(false, '07 なしの差し戻しキー発行は落ちること');
+      } catch (AuraHandledException ex) {
+        System.assertEquals(
+          '差し戻しを実行する権限がありません。',
+          ex.getMessage(),
+          '共通基盤 第10.4節: 差し戻しキー発行は 07'
+        );
+      } finally {
+        OrderCreateController.testHasRevertPermission = true;
+      }
     }
   }
 

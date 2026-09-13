@@ -32,16 +32,36 @@ describe("billingAccountReturnNavigation (Core 3.3.3)", () => {
   });
 
   it("resolveReturnCaller falls back to session when page state is empty", () => {
-    rememberReturnCaller("estimateCreate", "006OPP");
+    rememberReturnCaller("estimateCreate", "006OPP", "a00BA");
     expect(
       resolveReturnCaller({
         returnTo: "",
         returnRecordId: "",
-        pageRef: { attributes: { actionName: "edit" } }
+        pageRef: { attributes: { actionName: "edit" } },
+        billingAccountId: "a00BA"
       })
     ).toEqual({
       returnTo: "estimateCreate",
       returnRecordId: "006OPP"
+    });
+  });
+
+  it("resolveReturnCaller discards a stash for another billing account", () => {
+    rememberReturnCaller("estimateCreate", "006OPP", "a00OLD");
+    expect(
+      resolveReturnCaller({
+        pageRef: {
+          attributes: { actionName: "edit", recordId: "a00DIRECT" }
+        },
+        billingAccountId: "a00DIRECT"
+      })
+    ).toEqual({
+      returnTo: "",
+      returnRecordId: ""
+    });
+    expect(consumeReturnCaller()).toEqual({
+      returnTo: "",
+      returnRecordId: ""
     });
   });
 

@@ -19,7 +19,7 @@ import {
 import hasRevert from "@salesforce/customPermission/Loop_07_Can_Revert";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import revertOrder from "@salesforce/apex/OrderCreateController.revertOrder";
-import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
+import issueRevertOperationKey from "@salesforce/apex/OrderCreateController.issueRevertOperationKey";
 import { buildCustomFieldInputs } from "c/estimateWizardCustomFields";
 
 const VERSION_CONFLICT_MESSAGE =
@@ -214,7 +214,7 @@ export default class OrderRevertWizard extends NavigationMixin(
       const shouldDeleteRenew =
         this.hasRenewOpportunity && this.deleteRenewOpportunity;
       if (!this._pendingOperationKey) {
-        this._pendingOperationKey = await issueOrderOperationKey();
+        this._pendingOperationKey = await issueRevertOperationKey();
       }
       const result = await revertOrder({
         contractHistoryId: this.recordId,

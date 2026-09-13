@@ -742,6 +742,7 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
   it("読み直しでメモ・入金取消・請求取消の未保存下書きを戻さない (Core 7.7.0)", () => {
     const ctx = bind({
       memoDrafts: { [CONFIRMED]: "下書きメモ" },
+      journalMemoDrafts: { a03JOURNAL: "未保存の仕訳メモ" },
       invoiceCancelState: {
         invoiceId: CONFIRMED,
         cancellationReason: "Duplicate"
@@ -764,8 +765,11 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
       amountDrafts: { a01: 1 },
       loadOpsBundle: jest.fn()
     });
-    Object.getOwnPropertyDescriptor(proto, "preview").set.call(ctx, preview());
+    ctx._preview = preview();
+    ctx.resetPreviewDraftState();
+    ctx.initializeInvoiceUiState();
     expect(ctx.memoDrafts).toEqual({});
+    expect(ctx.journalMemoDrafts).toEqual({});
     expect(ctx.invoiceCancelState).toBeNull();
     expect(ctx.invoiceSendState).toBeNull();
     expect(ctx.invoiceIssueState).toBeNull();

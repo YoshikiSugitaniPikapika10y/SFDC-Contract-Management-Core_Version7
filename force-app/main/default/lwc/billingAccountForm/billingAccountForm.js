@@ -268,6 +268,9 @@ export default class BillingAccountForm extends NavigationMixin(
   _defaultFieldValues = "";
 
   _pageRef;
+  _returnCallerResolved = false;
+  _resolvedReturnTo = "";
+  _resolvedReturnRecordId = "";
   _objectInfo;
   @track draft = {};
   @track errorMessage = "";
@@ -286,6 +289,9 @@ export default class BillingAccountForm extends NavigationMixin(
   @wire(CurrentPageReference)
   wiredPageRef(pageRef) {
     this._pageRef = pageRef;
+    if (pageRef) {
+      this.resolveReturnCallerOnce();
+    }
     if (!pageRef || this.recordId) {
       return;
     }
@@ -559,6 +565,17 @@ export default class BillingAccountForm extends NavigationMixin(
     if (this.navigateToReturnCaller()) {
       return;
     }
+    // 仕様: Core 第3.3.3節。Newは保存後も一覧へ戻る。
+    if (this.isNew) {
+      this[NavigationMixin.Navigate]({
+        type: "standard__objectPage",
+        attributes: {
+          objectApiName: "BillingAccount__c",
+          actionName: "home"
+        }
+      });
+      return;
+    }
     const recordId = event.detail.id;
     this[NavigationMixin.Navigate]({
       type: "standard__recordPage",
@@ -610,12 +627,27 @@ export default class BillingAccountForm extends NavigationMixin(
   }
 
   /** 仕様: Core 第3.3.3節。未保存の呼び出し元入力は戻さない（開き直し）。 */
-  navigateToReturnCaller() {
-    const { returnTo, returnRecordId } = resolveReturnCaller({
+  resolveReturnCallerOnce() {
+    if (this._returnCallerResolved) {
+      return;
+    }
+    const resolved = resolveReturnCaller({
       returnTo: this.returnTo,
       returnRecordId: this.returnRecordId,
-      pageRef: this._pageRef
+      pageRef: this._pageRef,
+      billingAccountId: this.recordId
     });
+    this._resolvedReturnTo = resolved.returnTo;
+    this._resolvedReturnRecordId = resolved.returnRecordId;
+    this._returnCallerResolved = true;
+  }
+
+  /** 仕様: Core 第3.3.3節。未保存の呼び出し元入力は戻さない（開き直し）。 */
+  navigateToReturnCaller() {
+    this.resolveReturnCallerOnce();
+    const returnTo = this.returnTo || this._resolvedReturnTo;
+    const returnRecordId =
+      this.returnRecordId || this._resolvedReturnRecordId;
     const target = RETURN_CALLER_TARGETS[returnTo];
     if (!target || !returnRecordId) {
       return false;

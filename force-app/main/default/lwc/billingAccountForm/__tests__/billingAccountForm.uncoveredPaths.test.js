@@ -279,14 +279,30 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
     expect(denied[Navigate]).not.toHaveBeenCalled();
   });
 
-  it("handleSuccess navigates to view", () => {
-    const ctx = bind();
+  it("handleSuccess returns New to the billing account list (Core 3.3.3)", () => {
+    const ctx = bind({
+      recordId: "",
+      formMode: "new",
+      _pageRef: { attributes: { actionName: "new" } }
+    });
     ctx.handleSuccess({ detail: { id: "a00NEW" } });
     expect(ctx.isSaving).toBe(false);
     expect(ctx[Navigate]).toHaveBeenCalledWith({
+      type: "standard__objectPage",
+      attributes: {
+        objectApiName: "BillingAccount__c",
+        actionName: "home"
+      }
+    });
+  });
+
+  it("handleSuccess returns ordinary Edit to the billing account detail", () => {
+    const ctx = bind();
+    ctx.handleSuccess({ detail: { id: "a00BA0000000001" } });
+    expect(ctx[Navigate]).toHaveBeenCalledWith({
       type: "standard__recordPage",
       attributes: {
-        recordId: "a00NEW",
+        recordId: "a00BA0000000001",
         objectApiName: "BillingAccount__c",
         actionName: "view"
       }
@@ -322,7 +338,8 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
       "c.billingAccountFormalEdit.returnCaller",
       JSON.stringify({
         returnTo: "estimateCreate",
-        returnRecordId: "006000000000001AAA"
+        returnRecordId: "006000000000001AAA",
+        billingAccountId: "a00BA0000000001"
       })
     );
     const ctx = bind({
@@ -369,6 +386,28 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
       },
       true
     );
+  });
+
+  it("ordinary Edit does not consume a return stash created after initialization", () => {
+    const ctx = bind();
+    ctx.resolveReturnCallerOnce();
+    sessionStorage.setItem(
+      "c.billingAccountFormalEdit.returnCaller",
+      JSON.stringify({
+        returnTo: "order",
+        returnRecordId: "a0HSTALE",
+        billingAccountId: ctx.recordId
+      })
+    );
+    ctx.handleCancel();
+    expect(ctx[Navigate]).toHaveBeenCalledWith({
+      type: "standard__recordPage",
+      attributes: {
+        recordId: ctx.recordId,
+        objectApiName: "BillingAccount__c",
+        actionName: "view"
+      }
+    });
   });
 
   it("show invoice/payment offsets follow method (Core 7.2 / 7.5)", () => {

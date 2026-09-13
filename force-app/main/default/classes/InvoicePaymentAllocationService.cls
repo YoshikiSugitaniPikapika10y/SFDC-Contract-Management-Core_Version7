@@ -343,13 +343,15 @@ public without sharing class InvoicePaymentAllocationService {
     snapshot.taxInclusiveAmount = nvl(invoice.TaxInclusiveAmount__c);
     snapshot.invoicePaymentNet = nvl(invoice.InvoicePaymentNet__c);
     snapshot.remainings = new List<LineRemaining>();
-    for (InvoiceLine__c line : [
-      SELECT Id, TaxInclusiveAmount__c
-      FROM InvoiceLine__c
-      WHERE Invoice__c = :invoiceId
-      WITH SYSTEM_MODE
-      ORDER BY Id
-    ]) {
+    // 仕様: Accounting 第8.2節、Core 第12.4節。
+    // 割当検証でGoalに必要な全項目を一度だけ収集し、後続buildでも同じ行を使う。
+    Map<Id, InvoiceLine__c> invoiceLines = AccountingGoalService.collectLines(
+      invoiceId
+    );
+    List<Id> invoiceLineIds = new List<Id>(invoiceLines.keySet());
+    invoiceLineIds.sort();
+    for (Id invoiceLineId : invoiceLineIds) {
+      InvoiceLine__c line = invoiceLines.get(invoiceLineId);
       LineRemaining row = new LineRemaining();
       row.lineId = line.Id;
       // 仕様: Core 第8.6節。明細の決済対象額は明細税込。

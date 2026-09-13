@@ -1,7 +1,7 @@
 import OrderRevertWizard from "c/orderRevertWizard";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import revertOrder from "@salesforce/apex/OrderCreateController.revertOrder";
-import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
+import issueRevertOperationKey from "@salesforce/apex/OrderCreateController.issueRevertOperationKey";
 import {
   closeOrderWizardTab,
   isOrderWizardTabView,
@@ -30,7 +30,7 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.issueOrderOperationKey",
+  "@salesforce/apex/OrderCreateController.issueRevertOperationKey",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -139,7 +139,7 @@ describe("orderRevertWizard uncovered (Core 5.3 / 4.3.12 / 11.4.3)", () => {
   beforeEach(() => {
     getOrderContext.mockReset().mockResolvedValue(ORDERED);
     revertOrder.mockReset().mockResolvedValue({});
-    issueOrderOperationKey.mockReset().mockResolvedValue("op-key-1");
+    issueRevertOperationKey.mockReset().mockResolvedValue("op-key-1");
     resolveSaveErrorAlert.mockReset().mockReturnValue({
       messages: [{ text: "失敗" }]
     });
@@ -322,7 +322,7 @@ describe("orderRevertWizard uncovered (Core 5.3 / 4.3.12 / 11.4.3)", () => {
     });
     const closeSpy = jest.spyOn(ctx, "closeAction").mockImplementation(() => {});
     await ctx.handleRevert();
-    expect(issueOrderOperationKey).toHaveBeenCalled();
+    expect(issueRevertOperationKey).toHaveBeenCalled();
     expect(revertOrder).toHaveBeenCalledWith({
       contractHistoryId: "a0H000000000001AAA",
       deleteRenewOpportunity: true,
@@ -346,7 +346,7 @@ describe("orderRevertWizard uncovered (Core 5.3 / 4.3.12 / 11.4.3)", () => {
     });
     jest.spyOn(ctx, "closeAction").mockImplementation(() => {});
     await ctx.handleRevert();
-    expect(issueOrderOperationKey).not.toHaveBeenCalled();
+    expect(issueRevertOperationKey).not.toHaveBeenCalled();
     expect(revertOrder).toHaveBeenCalledWith(
       expect.objectContaining({
         businessOperationKey: "keep",

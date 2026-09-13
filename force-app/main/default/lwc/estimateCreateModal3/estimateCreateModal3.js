@@ -2548,7 +2548,13 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.decorateAllRows(items);
   }
 
-  decorateRow(row, rowIndex = -1, remakeCountByPairId = null, products = null) {
+  decorateRow(
+    row,
+    rowIndex = -1,
+    remakeCountByPairId = null,
+    products = null,
+    effectiveDateIso = this.contractEffectiveDate
+  ) {
     const rowClass = row.rowClass || "";
     const billingType = row.billingType || "";
     const invoiceType = this.resolveRowInvoiceType(
@@ -2595,7 +2601,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     const invoiceAnchor = resolveInvoiceAnchorFields(
       row,
       this.effectiveSelectedType,
-      this.contractEffectiveDate,
+      effectiveDateIso,
       { products }
     );
     return {
@@ -2732,8 +2738,19 @@ export default class EstimateCreateModal3 extends LightningElement {
         }
       }
     }
+    // 仕様: Core 第4.6節・第7.2節、共通基盤 第4.1節。
+    // Changeの表示は親へ反映前でも、現在の明細から求めた切替日を使う。
+    const effectiveDateIso = this.isChangeType
+      ? this.computeChangeEffectiveDate(list, this.contractStartDate)
+      : this.contractEffectiveDate;
     const decorated = list.map((item, index) =>
-      this.decorateRow(item, index, remakeCountByPairId, list)
+      this.decorateRow(
+        item,
+        index,
+        remakeCountByPairId,
+        list,
+        effectiveDateIso
+      )
     );
     return this.applyLineNumbers(decorated);
   }

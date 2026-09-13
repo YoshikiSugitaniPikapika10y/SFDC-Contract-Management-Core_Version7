@@ -2840,6 +2840,7 @@ public without sharing class AccountingGoalService {
       'CreatedDate',
       'Invoice__c',
       'Amount__c',
+      'TaxInclusiveAmount__c',
       'AllocatedTaxAmount__c',
       'AcceptanceEndDate__c',
       'ServicePeriodStartDate__c',

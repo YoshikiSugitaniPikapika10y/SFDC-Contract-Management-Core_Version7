@@ -2,7 +2,7 @@ import { createElement } from "lwc";
 import OrderRevertWizard from "c/orderRevertWizard";
 import getOrderContext from "@salesforce/apex/OrderCreateController.getOrderContext";
 import revertOrder from "@salesforce/apex/OrderCreateController.revertOrder";
-import issueOrderOperationKey from "@salesforce/apex/OrderCreateController.issueOrderOperationKey";
+import issueRevertOperationKey from "@salesforce/apex/OrderCreateController.issueRevertOperationKey";
 
 jest.mock(
   "@salesforce/customPermission/Loop_07_Can_Revert",
@@ -20,7 +20,7 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
-  "@salesforce/apex/OrderCreateController.issueOrderOperationKey",
+  "@salesforce/apex/OrderCreateController.issueRevertOperationKey",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -129,7 +129,7 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
     }
     getOrderContext.mockReset();
     revertOrder.mockReset();
-    issueOrderOperationKey.mockReset();
+    issueRevertOperationKey.mockReset();
   });
 
   it("shows revert confirmation copy and keeps the submit enabled", async () => {
@@ -166,7 +166,7 @@ describe("orderRevertWizard (Core 5.3 / 4.3.1)", () => {
 
   it("差し戻し実行中は追加項目を止める (Core 5.3 / 4.3.12)", async () => {
     getOrderContext.mockResolvedValue(ORDERED);
-    issueOrderOperationKey.mockResolvedValue("op-key");
+    issueRevertOperationKey.mockResolvedValue("op-key");
     revertOrder.mockImplementation(() => new Promise(() => {}));
     const element = await mount();
     const grid = element.shadowRoot.querySelector(
