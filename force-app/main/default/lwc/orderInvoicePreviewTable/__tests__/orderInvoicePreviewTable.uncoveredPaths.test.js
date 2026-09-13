@@ -1,5 +1,7 @@
+import { createElement } from "lwc";
 import OrderInvoicePreviewTable from "c/orderInvoicePreviewTable";
 import LightningConfirm from "lightning/confirm";
+import { openContentDocumentFilePreview } from "c/orderWizardNavigation";
 import getOpsBundle from "@salesforce/apex/InvoicePreviewOpsController.getOpsBundle";
 import issueInvoiceOperationKey from "@salesforce/apex/InvoicePreviewOpsController.issueInvoiceOperationKey";
 import confirmInvoice from "@salesforce/apex/InvoiceSendBoardController.confirmInvoiceFromPreview";
@@ -505,6 +507,54 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
       jest.spyOn(LightningConfirm, "open");
     }
     LightningConfirm.open.mockReset().mockResolvedValue(true);
+    openContentDocumentFilePreview.mockReset();
+  });
+
+  afterEach(() => {
+    while (document.body.firstChild) {
+      document.body.removeChild(document.body.firstChild);
+    }
+  });
+
+  it("印付き最新PDFがない請求には「最新のPDFを見る」を表示しない (Core 7.7.3 / 7.10)", () => {
+    const data = preview();
+    data.invoices.forEach((invoice) => {
+      invoice.latestIssuedContentDocumentId = "";
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = data;
+    document.body.appendChild(element);
+
+    const buttons = Array.from(
+      element.shadowRoot.querySelectorAll("button")
+    ).filter((button) => button.textContent.trim() === "最新のPDFを見る");
+    expect(buttons).toHaveLength(0);
+  });
+
+  it("印付き最新PDFがある請求だけに正しいラベルを表示し、そのContentDocumentを標準Filesオーバーレイへ渡す (Core 7.7.3 / 7.10)", () => {
+    const expectedDocumentId = "069000000000119AAA";
+    const data = preview();
+    data.invoices[0].latestIssuedContentDocumentId = expectedDocumentId;
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = data;
+    document.body.appendChild(element);
+
+    const buttons = Array.from(
+      element.shadowRoot.querySelectorAll("button")
+    ).filter((button) => button.textContent.trim() === "最新のPDFを見る");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].dataset.invoiceId).toBe(CONFIRMED);
+
+    buttons[0].click();
+
+    expect(openContentDocumentFilePreview).toHaveBeenCalledTimes(1);
+    expect(openContentDocumentFilePreview.mock.calls[0][1]).toBe(
+      expectedDocumentId
+    );
   });
 
   it("preview.invoiceOpsContext があるとき帳票設定を取り直さない (Core 第12.4節)", async () => {
@@ -945,10 +995,11 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
       }
     });
     ctx.handleJournalViewFilterToggle({
-      target: {
-        dataset: { invoiceId: CONFIRMED, filter: "eventName", value: "売上" },
-        checked: true
-      }
+      currentTarget: {
+        dataset: { invoiceId: CONFIRMED, filter: "eventName", value: "売上" }
+      },
+      target: { dataset: {}, checked: false },
+      detail: { checked: true }
     });
     ctx.handleJournalBarUnlockReasonChange({
       target: { dataset: { invoiceId: CONFIRMED } },
@@ -1031,10 +1082,11 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     });
     ctx.handleJournalLockPointer({ shiftKey: false });
     ctx.handleJournalLockToggle({
-      target: {
-        dataset: { invoiceId: CONFIRMED, journalId: "j1" },
-        checked: true
-      }
+      currentTarget: {
+        dataset: { invoiceId: CONFIRMED, journalId: "j1" }
+      },
+      target: { dataset: {}, checked: false },
+      detail: { checked: true }
     });
     await ctx.handleSaveJournalMemo({
       currentTarget: { dataset: { journalId: "j1", invoiceId: CONFIRMED } }
