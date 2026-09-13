@@ -2500,9 +2500,41 @@ private class ContractCrossControllerTest {
     } catch (AuraHandledException ex) {
       thrown = true;
       System.assertEquals(
-        '見積書発行を実行する権限がありません。',
+        '見積書を発行する権限がありません。',
         ex.getMessage(),
         '共通基盤.md 第3章・第10.4節: 横断の見積書発行は 04'
+      );
+    } finally {
+      ContractPermissionUtil.testOverrides = null;
+    }
+    System.assertEquals(true, thrown);
+  }
+
+  @IsTest
+  static void issueEstimate_without18_throws() {
+    HistoryFixture history;
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Cross Issue 18'
+      );
+    }
+    ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
+      ContractPermissionUtil.CROSS_WORK => false
+    };
+    Boolean thrown = false;
+    try {
+      ContractCrossController.issueEstimate(
+        history.history.Id,
+        'StandardEstimate'
+      );
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assertEquals(
+        '契約横断を開く権限がありません。',
+        ex.getMessage(),
+        '共通基盤.md 第1.4節・第10.4節: 横断の見積書発行実行は 18 と 04'
       );
     } finally {
       ContractPermissionUtil.testOverrides = null;

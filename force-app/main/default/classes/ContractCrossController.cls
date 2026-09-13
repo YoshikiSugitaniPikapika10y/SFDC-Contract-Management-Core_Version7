@@ -652,14 +652,12 @@ public without sharing class ContractCrossController {
     }
   }
 
-  /** 仕様: Core 第4.8節、横断画面.md 操作4 */
+  /** 仕様: Core 第4.8節、横断画面.md 操作4、共通基盤 第1.4節・第10.4節。開くとき 18。発行は 04。 */
   @AuraEnabled
   public static IssueResultDto issueEstimate(Id historyId, String templateKey) {
     try {
-      ContractPermissionUtil.assertHas(
-        ContractPermissionUtil.ISSUE_ESTIMATE,
-        '見積書発行を実行する権限がありません。'
-      );
+      ContractPermissionUtil.assertCrossWork();
+      ContractPermissionUtil.assertIssueEstimate();
       EstimateDocumentService.IssueResult issued = EstimateDocumentService.issueEstimateDocument(
         historyId,
         templateKey
