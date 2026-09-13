@@ -32,16 +32,20 @@ private class AccountingTagEvaluationServiceTest {
       Set<String> first = AccountingTagEvaluationService.collectedEnabledTargetFieldApiNames();
       Integer afterFirst = Limits.getQueries();
       Set<String> second = AccountingTagEvaluationService.collectedEnabledTargetFieldApiNames();
-      System.assertEquals(true, first.contains('IsSplitMoved__c'));
+      System.assertEquals(
+        new Set<String>{ 'IsSplitMoved__c' },
+        first,
+        'Accounting 第8.2節: 収集した有効ルールの保存先だけを後続へ渡す'
+      );
       System.assertEquals(
         first,
         second,
-        'Core 第12.4節: 有効タグルールの保存先は収集結果を変えない'
+        'Accounting 第8.2節: 同一処理では収集済み有効タグルールを使う'
       );
       System.assertEquals(
         afterFirst,
         Limits.getQueries(),
-        'Core 第12.4節: 同一処理で有効タグルールを取り直さない'
+        'Accounting 第8.2節: 同一処理で有効タグルールを取り直さない'
       );
     }
   }
@@ -262,27 +266,51 @@ private class AccountingTagEvaluationServiceTest {
   }
 
   @IsTest
-  static void save_acceptsParenthesizedNormalExample() {
+  static void evaluateForInvoice_parenthesesControlSubtractionGrouping() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      insert new GlAccountingTagRule__c(
-        Name = '括弧正常',
-        TagKey__c = 'paren-ok',
-        TagLabel__c = '純額',
-        Expression__c = '( AR + CTA ) - ( DEF + UAC )',
-        ComparisonOperator__c = 'NE',
-        ComparisonValue__c = 0,
-        TargetFieldApiName__c = 'IsSplitMoved__c',
-        IsEnabled__c = true
-      );
-      GlAccountingTagRule__c stored = [
-        SELECT Expression__c
-        FROM GlAccountingTagRule__c
-        WHERE TagKey__c = 'paren-ok'
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      insert new List<GlAccountingTagRule__c>{
+        new GlAccountingTagRule__c(
+          Name = '右側を括る',
+          TagKey__c = 'paren-right',
+          TagLabel__c = '税込-（税抜-税）',
+          Expression__c = 'INCL - ( AMT - INVTAX )',
+          ComparisonOperator__c = 'EQ',
+          ComparisonValue__c = 200,
+          TargetFieldApiName__c = 'IsSplitMoved__c',
+          IsEnabled__c = true
+        ),
+        new GlAccountingTagRule__c(
+          Name = '左側を括る',
+          TagKey__c = 'paren-left',
+          TagLabel__c = '（税込-税抜）-税',
+          Expression__c = '( INCL - AMT ) - INVTAX',
+          ComparisonOperator__c = 'EQ',
+          ComparisonValue__c = 0,
+          TargetFieldApiName__c = 'IsManuallyAdjusted__c',
+          IsEnabled__c = true
+        )
+      };
+
+      AccountingTagEvaluationService.evaluateForInvoice(invoice.Id);
+
+      Invoice__c stored = [
+        SELECT IsSplitMoved__c, IsManuallyAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
       ];
       System.assertEquals(
-        '( AR + CTA ) - ( DEF + UAC )',
-        stored.Expression__c,
-        'Accounting 第7.3節: 正常例の括弧つき加減算は保存できる'
+        true,
+        stored.IsSplitMoved__c,
+        'Accounting 第7.3節: INCL-(AMT-INVTAX)=200 として括弧内を先に評価する'
+      );
+      System.assertEquals(
+        true,
+        stored.IsManuallyAdjusted__c,
+        'Accounting 第7.3節: (INCL-AMT)-INVTAX=0 として括弧内を先に評価する'
       );
     }
   }
@@ -430,8 +458,9 @@ private class AccountingTagEvaluationServiceTest {
       } catch (DmlException ex) {
         thrown = true;
         System.assert(
-          ex.getMessage().contains('未知のトークン') ||
-          ex.getMessage().contains('式が不正'),
+          ex.getMessage().contains(
+            '会計タグルール「後から有効」の式に未知のトークンがあります: AR-DEF'
+          ),
           'Accounting 第7.4節: 検出可能な不備があればルールを有効にしない。実際: ' +
           ex.getMessage()
         );
@@ -467,18 +496,51 @@ private class AccountingTagEvaluationServiceTest {
   }
 
   @IsTest
-  static void save_allowsTwoEnabledRulesWithDifferentTargets() {
+  static void evaluateForInvoice_evaluatesDistinctTargetsIndependently() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      insertEnabledRule('two-a', 'IsSplitMoved__c');
-      insertEnabledRule('two-b', 'IsManuallyAdjusted__c');
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      insert new List<GlAccountingTagRule__c>{
+        new GlAccountingTagRule__c(
+          Name = '一致',
+          TagKey__c = 'match',
+          TagLabel__c = 'ARゼロ',
+          Expression__c = 'AR',
+          ComparisonOperator__c = 'EQ',
+          ComparisonValue__c = 0,
+          TargetFieldApiName__c = 'IsSplitMoved__c',
+          IsEnabled__c = true
+        ),
+        new GlAccountingTagRule__c(
+          Name = '不一致',
+          TagKey__c = 'nonmatch',
+          TagLabel__c = 'AR正',
+          Expression__c = 'AR',
+          ComparisonOperator__c = 'GT',
+          ComparisonValue__c = 0,
+          TargetFieldApiName__c = 'IsManuallyAdjusted__c',
+          IsEnabled__c = true
+        )
+      };
+
+      AccountingTagEvaluationService.evaluateForInvoice(invoice.Id);
+
+      Invoice__c stored = [
+        SELECT IsSplitMoved__c, IsManuallyAdjusted__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
       System.assertEquals(
-        2,
-        [
-          SELECT COUNT()
-          FROM GlAccountingTagRule__c
-          WHERE TagKey__c IN ('two-a', 'two-b') AND IsEnabled__c = TRUE
-        ],
-        'Accounting 第7.4節: 保存先が異なれば複数の有効ルールを保存できる'
+        true,
+        stored.IsSplitMoved__c,
+        'Accounting 第7.2節・第7.3節: 成立したルールの保存先をTrueにする'
+      );
+      System.assertEquals(
+        false,
+        stored.IsManuallyAdjusted__c,
+        'Accounting 第7.2節・第7.3節: 不成立のルールも飛ばさず保存先をFalseにする'
       );
     }
   }
@@ -531,6 +593,41 @@ private class AccountingTagEvaluationServiceTest {
         stored.IsSplitMoved__c,
         'Accounting 第7.2節・第7.3節: 有効ルールは次の評価時に計算結果で上書きする（AR!=0は残高0でFalse）'
       );
+    }
+  }
+
+  @IsTest
+  static void evaluateForInvoice_appliesComparisonOperatorBoundaries() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      insert new GlAccountingTagRule__c(
+        Name = '比較境界',
+        TagKey__c = 'comparison-boundary',
+        TagLabel__c = '税込比較',
+        Expression__c = 'INCL',
+        ComparisonOperator__c = 'EQ',
+        ComparisonValue__c = 1100,
+        TargetFieldApiName__c = 'IsSplitMoved__c',
+        IsEnabled__c = true
+      );
+      Id ruleId = [
+        SELECT Id
+        FROM GlAccountingTagRule__c
+        WHERE TagKey__c = 'comparison-boundary'
+      ]
+      .Id;
+
+      assertComparisonResult(invoice.Id, ruleId, 'EQ', 1100, true);
+      assertComparisonResult(invoice.Id, ruleId, 'NE', 1100, false);
+      assertComparisonResult(invoice.Id, ruleId, 'GT', 1100, false);
+      assertComparisonResult(invoice.Id, ruleId, 'GT', 1099, true);
+      assertComparisonResult(invoice.Id, ruleId, 'GTE', 1100, true);
+      assertComparisonResult(invoice.Id, ruleId, 'LT', 1100, false);
+      assertComparisonResult(invoice.Id, ruleId, 'LT', 1101, true);
+      assertComparisonResult(invoice.Id, ruleId, 'LTE', 1100, true);
     }
   }
 
@@ -1104,6 +1201,35 @@ private class AccountingTagEvaluationServiceTest {
       );
     }
     System.assertEquals(true, thrown, specNote);
+  }
+
+  private static void assertComparisonResult(
+    Id invoiceId,
+    Id ruleId,
+    String operatorName,
+    Decimal comparisonValue,
+    Boolean expected
+  ) {
+    update new GlAccountingTagRule__c(
+      Id = ruleId,
+      ComparisonOperator__c = operatorName,
+      ComparisonValue__c = comparisonValue
+    );
+    AccountingTagEvaluationService.clearCachedEnabledRules();
+    AccountingTagEvaluationService.evaluateForInvoice(invoiceId);
+    Invoice__c stored = [
+      SELECT IsSplitMoved__c
+      FROM Invoice__c
+      WHERE Id = :invoiceId
+    ];
+    System.assertEquals(
+      expected,
+      stored.IsSplitMoved__c,
+      'Accounting 第7.3節: INCL=1100 の比較境界。演算子=' +
+      operatorName +
+      '、比較値=' +
+      comparisonValue
+    );
   }
 
   private static void insertArDebitJournal(

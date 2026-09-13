@@ -6,7 +6,7 @@ private class ContractArrCalculationServiceTest {
   }
 
   @IsTest
-  static void calculateProductArr_respectsIncludeInArrFlag() {
+  static void calculateProductArr_usesSavedAmountCyclesAndEligibility() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'ARR Unit Account'
@@ -35,7 +35,6 @@ private class ContractArrCalculationServiceTest {
       );
       insert history;
 
-      // 12ヶ月・Amount=60000 → ARR=60000（ウィザード金額ベース）
       ContractProduct__c line = new ContractProduct__c(
         ContractHistory__c = history.Id,
         Quantity__c = 1,
@@ -53,37 +52,121 @@ private class ContractArrCalculationServiceTest {
       System.assertEquals(
         60000,
         ContractArrCalculationService.calculateProductArr(line, termEnd),
-        'ARR計算対象ONなら契約商品Amountを年換算する'
+        'Core 第10.1節: 保存Amount 60000÷12サイクル×12=60000'
       );
 
-      // 端数月でも Currency scale=2 に収める
-      line.Amount__c = 10001;
+      line.Amount__c = 7000;
       line.StartDate__c = ContractTestDataFactory.stableTermStart();
-      line.Enddate__c = ContractTestDataFactory.stableTermEnd(3);
+      line.Enddate__c = ContractTestDataFactory.stableTermEnd(7);
       System.assertEquals(
-        40004,
+        12000,
         ContractArrCalculationService.calculateProductArr(
           line,
-          ContractTestDataFactory.stableTermEnd(3)
+          ContractTestDataFactory.stableTermEnd(7)
         ),
-        'Amount÷月数×12 を scale=2 HALF_UP'
+        'Core 第10.1節: 保存Amount 7000÷7サイクル×12=12000'
       );
+
+      line.Amount__c = -7000;
+      System.assertEquals(
+        -12000,
+        ContractArrCalculationService.calculateProductArr(
+          line,
+          ContractTestDataFactory.stableTermEnd(7)
+        ),
+        'Core 第10.1節: 負の保存Amountも符号付きで年換算する'
+      );
+
+      line.StartDate__c = Date.newInstance(2025, 1, 31);
+      line.Enddate__c = Date.newInstance(2026, 1, 27);
+      line.Amount__c = 60000;
+      System.assertEquals(
+        60000,
+        ContractArrCalculationService.calculateProductArr(
+          line,
+          Date.newInstance(2026, 1, 27)
+        ),
+        'Core 第10.1節・共通基盤日付第1.1節: 1月31日起点の12積上げサイクルで年換算する'
+      );
+
+      System.assertEquals(
+        0,
+        ContractArrCalculationService.calculateProductArr(
+          line,
+          Date.newInstance(2026, 1, 28)
+        ),
+        'Core 第10.1節: 明細終了日が履歴終了日に届かない行は対象外'
+      );
+      System.assertEquals(
+        0,
+        ContractArrCalculationService.calculateProductArr(line, null),
+        'Core 第10.1節: 履歴終了日が空なら期末到達を判定できず対象外'
+      );
+
+      line.Enddate__c = Date.newInstance(2026, 1, 27);
+      line.Amount__c = 0;
+      System.assertEquals(
+        0,
+        ContractArrCalculationService.calculateProductArr(
+          line,
+          Date.newInstance(2026, 1, 27)
+        ),
+        'Core 第10.1節: 金額0は対象外'
+      );
+
+      line.Amount__c = 60000;
+      for (Decimal excludedQuantity : new List<Decimal>{ null, 0, -1 }) {
+        line.Quantity__c = excludedQuantity;
+        System.assertEquals(
+          0,
+          ContractArrCalculationService.calculateProductArr(
+            line,
+            Date.newInstance(2026, 1, 27)
+          ),
+          'Core 第10.1節: 数量は0・空・負を除き正数だけが対象'
+        );
+      }
+      line.Quantity__c = 1;
+
+      line.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      System.assertEquals(
+        0,
+        ContractArrCalculationService.calculateProductArr(
+          line,
+          Date.newInstance(2026, 1, 27)
+        ),
+        'Core 第10.1節: Spotで用いる一回課金はARR対象外'
+      );
+      line.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+
+      line.Type__c = 'Original';
+      System.assertEquals(
+        0,
+        ContractArrCalculationService.calculateProductArr(
+          line,
+          Date.newInstance(2026, 1, 27)
+        ),
+        'Core 第10.1節: OriginalはARR対象外'
+      );
+      line.Type__c = 'New';
 
       line.Product__r = new Product2(
         IncludeInARR__c = false,
         BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
       );
-      line.Enddate__c = termEnd;
       System.assertEquals(
         0,
-        ContractArrCalculationService.calculateProductArr(line, termEnd),
-        'ARR計算対象OFFなら0'
+        ContractArrCalculationService.calculateProductArr(
+          line,
+          Date.newInstance(2026, 1, 27)
+        ),
+        'Core 第10.1節: ARR対象OFFの商品は対象外'
       );
     }
   }
 
   @IsTest
-  static void recalculateForHistories_excludesOriginalAndShortTermProducts() {
+  static void recalculateForHistories_persistsTotalsAndExcludesOriginal() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'ARR Filter Account'
@@ -153,15 +236,29 @@ private class ContractArrCalculationServiceTest {
       insert new List<ContractProduct__c>{ included, original };
 
       history = [
-        SELECT ARR__c, AveARR__c
+        SELECT ARR__c, AveARR__c, DeltaARR__c, DeltaAveARR__c
         FROM ContractHistory__c
         WHERE Id = :history.Id
       ];
-      System.assertEquals(60000, history.ARR__c);
+      System.assertEquals(
+        60000,
+        history.ARR__c,
+        'Core 第10.1節: 対象明細の年換算額を履歴ARRへ保存する'
+      );
       System.assertEquals(
         60000,
         history.AveARR__c,
-        'フラット満了なら AveARR は ARR と同値'
+        'Core 第10.2節: 60000÷履歴12サイクル×12=60000を保存する'
+      );
+      System.assertEquals(
+        60000,
+        history.DeltaARR__c,
+        'Core 第10.1節: Version 1のDeltaARRは当該ARR'
+      );
+      System.assertEquals(
+        60000,
+        history.DeltaAveARR__c,
+        'Core 第10.2節: Version 1のDeltaAveARRは当該AveARR'
       );
     }
   }
@@ -250,16 +347,20 @@ private class ContractArrCalculationServiceTest {
         FROM ContractHistory__c
         WHERE Id = :history.Id
       ];
-      System.assertEquals(120000, history.ARR__c, '期末到達明細のみ ARR');
+      System.assertEquals(
+        120000,
+        history.ARR__c,
+        'Core 第10.1節: 期末到達明細60000÷6サイクル×12=120000だけをARRへ合計する'
+      );
       System.assertEquals(
         90000,
         history.AveARR__c,
-        '期中明細も分子に含めた期間平均'
+        'Core 第10.2節: (期中停止30000+期末到達60000)÷履歴12サイクル×12=90000'
       );
       System.assertEquals(
         90000,
         history.DeltaAveARR__c,
-        'Version1 の △AveARR は AveARR と同値'
+        'Core 第10.2節: Version 1のDeltaAveARRは当該AveARR'
       );
     }
   }
@@ -327,18 +428,18 @@ private class ContractArrCalculationServiceTest {
       System.assertEquals(
         0,
         history.ARR__c,
-        'ARR計算対象OFFの商品はARRに含めない'
+        'Core 第10.1節: ARR対象OFFの商品はARRに含めず0を保存する'
       );
       System.assertEquals(
         0,
         history.AveARR__c,
-        'ARR計算対象OFFの商品はAveARRにも含めない'
+        'Core 第10.2節: ARR対象OFFの商品はAveARRにも含めず0を保存する'
       );
     }
   }
 
   @IsTest
-  static void calculateProductArr_blankAmount_throws() {
+  static void calculateProductMetrics_blankAmount_throwsWithoutFallback() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'ARR Blank Amount Account'
@@ -378,18 +479,52 @@ private class ContractArrCalculationServiceTest {
         IncludeInARR__c = true,
         BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING
       );
-      Boolean thrown = false;
+      Boolean arrThrown = false;
       try {
         ContractArrCalculationService.calculateProductArr(line, termEnd);
       } catch (ContractArrCalculationService.ArrException ex) {
-        thrown = true;
+        arrThrown = true;
         System.assert(
           ex.getMessage().contains('ARR対象明細の金額が空です。'),
           'Core 第10.1節: 金額が空の明細は数量×単価で埋めずエラー。実際: ' +
             ex.getMessage()
         );
       }
-      System.assertEquals(true, thrown, 'Core 第10.1節: 金額空は数量×単価で埋めずエラー');
+      System.assertEquals(
+        true,
+        arrThrown,
+        'Core 第10.1節: 金額空は数量×単価で埋めずARRエラー'
+      );
+
+      Boolean aveArrThrown = false;
+      try {
+        ContractArrCalculationService.calculateProductAveArrPeriodAmount(line);
+      } catch (ContractArrCalculationService.ArrException ex) {
+        aveArrThrown = true;
+        System.assert(
+          ex.getMessage().contains('AveARR対象明細の金額が空です。'),
+          'Core 第10.2節: 金額が空の明細は数量×単価で埋めずエラー。実際: ' +
+            ex.getMessage()
+        );
+      }
+      System.assertEquals(
+        true,
+        aveArrThrown,
+        'Core 第10.2節: 金額空は数量×単価で埋めずAveARRエラー'
+      );
+
+      line.Amount__c = 0;
+      System.assertEquals(
+        0,
+        ContractArrCalculationService.calculateProductAveArrPeriodAmount(line),
+        'Core 第10.2節: 金額0はAveARR対象外'
+      );
+      line.Amount__c = -12345;
+      System.assertEquals(
+        -12345,
+        ContractArrCalculationService.calculateProductAveArrPeriodAmount(line),
+        'Core 第10.2節: 期中停止を含む対象明細の負の保存Amountも符号付きで分子へ含める'
+      );
     }
   }
 
@@ -456,7 +591,11 @@ private class ContractArrCalculationServiceTest {
         FROM ContractHistory__c
         WHERE Id = :history.Id
       ];
-      System.assertNotEquals(null, stored.ARR__c, 'Core 第10.1節: 保留解除後に ARR を書く');
+      System.assertEquals(
+        60000,
+        stored.ARR__c,
+        'Core 第10.1節: 保留解除後に60000÷12サイクル×12=60000を保存する'
+      );
     }
   }
 
@@ -539,14 +678,19 @@ private class ContractArrCalculationServiceTest {
       ContractArrCalculationService.endRecalcDefer();
       Test.stopTest();
       ContractHistory__c stored = [
-        SELECT ARR__c
+        SELECT ARR__c, AveARR__c
         FROM ContractHistory__c
         WHERE Id = :history.Id
       ];
-      System.assertNotEquals(
-        null,
+      System.assertEquals(
+        60000,
         stored.ARR__c,
-        'Core 第10.1節: Estimate段階でも試算として保持する'
+        'Core 第10.1節: Estimate段階でもARR 60000を保持する'
+      );
+      System.assertEquals(
+        60000,
+        stored.AveARR__c,
+        'Core 第10.2節: Estimate段階でもAveARR 60000を保持する'
       );
     }
   }

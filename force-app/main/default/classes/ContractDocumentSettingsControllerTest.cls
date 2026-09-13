@@ -22,8 +22,8 @@ private class ContractDocumentSettingsControllerTest {
   private static ContractDocumentSettingsController.SettingsDto saveWithFreshTokens(
     ContractDocumentSettingsController.SettingsDto input
   ) {
-    ContractDocumentSettingsController.SettingsDto current =
-      ContractDocumentSettingsController.getSettings().settings;
+    ContractDocumentSettingsController.SettingsDto current = ContractDocumentSettingsController.getSettings()
+      .settings;
     input.documentSettingToken = current.documentSettingToken;
     input.accountingPolicyToken = current.accountingPolicyToken;
     input.validationEnforceToken = current.validationEnforceToken;
@@ -49,12 +49,21 @@ private class ContractDocumentSettingsControllerTest {
 
     Test.startTest();
     ContractDocumentSettingsController.testHasAccountingMaster = false;
-    ContractDocumentSettingsController.PageDataDto result =
-      ContractDocumentSettingsController.getSettings();
+    ContractDocumentSettingsController.PageDataDto result = ContractDocumentSettingsController.getSettings();
     Test.stopTest();
 
     System.assertEquals('テスト株式会社', result.settings.companyName);
+    System.assertEquals('東京都', result.settings.address);
+    System.assertEquals(
+      'T1234567890123',
+      result.settings.invoiceRegistrationNumber
+    );
+    System.assertEquals('テスト銀行', result.settings.bankTransferInfo);
     System.assertEquals('PdfOnly', result.settings.estimateSendMode);
+    System.assertEquals('PdfOnly', result.settings.invoiceSendMode);
+    System.assertEquals(null, result.settings.documentFooter);
+    System.assertEquals(null, result.settings.privacyPolicyUrl);
+    System.assertEquals(false, result.settings.renewOpportunityEnabled);
     System.assertEquals('DOWN', result.settings.taxRoundingMode);
     System.assertEquals(
       'Scale2HalfUp',
@@ -64,6 +73,31 @@ private class ContractDocumentSettingsControllerTest {
     System.assertEquals(
       'SignedLargestRemainder',
       result.settings.taxLineAllocationMethod
+    );
+    System.assertEquals(
+      'InvoiceLineStableOrder',
+      result.settings.allocationTieBreak
+    );
+    System.assertEquals(
+      'EqualSplit',
+      result.settings.monthlyBucketAmountMethod
+    );
+    System.assertEquals(
+      'SignedRevenueRatio',
+      result.settings.taxScheduleAllocationMethod
+    );
+    System.assertEquals(
+      'OpenInclusiveRatio',
+      result.settings.paymentLineAllocationMethod
+    );
+    System.assertEquals(
+      'SameRate',
+      result.settings.accountBalanceAllocationMethod
+    );
+    System.assertEquals(
+      'ExclusiveRatioLastAbsorbs',
+      result.settings.documentGroupTaxAllocationMethod,
+      'Core 第11.9節: 金額計算はOrgDefaultの10項目を読み取る'
     );
     System.assertEquals(false, result.settings.validationEnforce);
     System.assertEquals(null, result.settings.lockExemptFieldApiNames);
@@ -127,7 +161,7 @@ private class ContractDocumentSettingsControllerTest {
   }
 
   @IsTest
-  static void saveSettings_doesNotRestoreDeletedPolicy() {
+  static void saveSettings_doesNotDuplicatePolicy() {
     ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
@@ -138,16 +172,25 @@ private class ContractDocumentSettingsControllerTest {
     input.estimateValidMonths = 1;
     input.defaultMonthlyCycles = 12;
     saveWithFreshTokens(input);
-    delete [SELECT Id FROM GlAccountingPolicy__c];
-    GlAccountingPolicyService.clearCachedOrgPolicy();
+    Id firstPolicyId = [SELECT Id FROM GlAccountingPolicy__c].Id;
 
     input.companyName = '二回目';
     saveWithFreshTokens(input);
 
     System.assertEquals(
-      0,
+      1,
       [SELECT COUNT() FROM GlAccountingPolicy__c],
-      '仕様: Accounting 第3.1節。人が消した方針は戻さない'
+      'Accounting 第3.1節: 会計方針は組織内1件だけを維持する'
+    );
+    System.assertEquals(
+      firstPolicyId,
+      [SELECT Id FROM GlAccountingPolicy__c].Id,
+      'Accounting 第3.1節: 組織設定の再保存で会計方針を作り直さない'
+    );
+    System.assertEquals(
+      '二回目',
+      [SELECT CompanyName__c FROM ContractDocumentSetting__c].CompanyName__c,
+      'Core 第11.6節: 会計方針を増やさず帳票設定の再保存結果は反映する'
     );
   }
 
@@ -155,8 +198,7 @@ private class ContractDocumentSettingsControllerTest {
   static void getSettings_cmdtLinksGoToSetupManageRecords() {
     Test.startTest();
     ContractDocumentSettingsController.testHasAccountingMaster = false;
-    ContractDocumentSettingsController.PageDataDto result =
-      ContractDocumentSettingsController.getSettings();
+    ContractDocumentSettingsController.PageDataDto result = ContractDocumentSettingsController.getSettings();
     Test.stopTest();
 
     System.assertEquals(
@@ -197,7 +239,8 @@ private class ContractDocumentSettingsControllerTest {
       'Core 第11.3.2節: 種類の目次は使わない'
     );
     System.assert(
-      !findLink(result.settingLinks, 'documentCatalog').url.contains('/lightning/o/'),
+      !findLink(result.settingLinks, 'documentCatalog')
+        .url.contains('/lightning/o/'),
       'Core 第11.6節: CMDT を LEX 一覧へ出さない'
     );
     ContractDocumentSettingsController.testHasAccountingMaster = null;
@@ -210,8 +253,7 @@ private class ContractDocumentSettingsControllerTest {
 
   @IsTest
   static void saveSettingsCreatesAndUpdatesOrganizationDefault() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
     input.companyName = ' 株式会社サンプル ';
@@ -225,21 +267,44 @@ private class ContractDocumentSettingsControllerTest {
     input.renewOpportunityEnabled = false;
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     input.companyName = '更新後株式会社';
     saveWithFreshTokens(input);
     Test.stopTest();
 
     System.assertEquals('株式会社サンプル', saved.companyName);
     ContractDocumentSetting__c stored = [
-      SELECT CompanyName__c, EstimateSendMode__c, InvoiceSendMode__c
+      SELECT
+        CompanyName__c,
+        Address__c,
+        InvoiceRegistrationNumber__c,
+        BankTransferInfo__c,
+        DocumentFooter__c,
+        PrivacyPolicyUrl__c,
+        EstimateSendMode__c,
+        InvoiceSendMode__c,
+        EstimateValidMonths__c,
+        DefaultMonthlyCycles__c,
+        RenewOpportunityEnabled__c
       FROM ContractDocumentSetting__c
       WHERE SetupOwnerId = :UserInfo.getOrganizationId()
     ];
     System.assertEquals('更新後株式会社', stored.CompanyName__c);
+    System.assertEquals('東京都', stored.Address__c);
+    System.assertEquals('T1234567890123', stored.InvoiceRegistrationNumber__c);
+    System.assertEquals('サンプル銀行 本店', stored.BankTransferInfo__c);
+    System.assertEquals('ありがとうございました。', stored.DocumentFooter__c);
+    System.assertEquals(
+      'https://example.com/privacy',
+      stored.PrivacyPolicyUrl__c
+    );
     System.assertEquals('PdfOnly', stored.EstimateSendMode__c);
     System.assertEquals('PdfOnly', stored.InvoiceSendMode__c);
+    System.assertEquals(1, stored.EstimateValidMonths__c);
+    System.assertEquals(12, stored.DefaultMonthlyCycles__c);
+    System.assertEquals(false, stored.RenewOpportunityEnabled__c);
     System.assertEquals(
       1,
       [SELECT COUNT() FROM GlAccountingPolicy__c],
@@ -259,10 +324,7 @@ private class ContractDocumentSettingsControllerTest {
     System.assertEquals('BillingBasis', firstPolicy.RevenueRecognitionBasis__c);
     System.assertEquals('AtInvoice', firstPolicy.TaxRecognitionTiming__c);
     System.assertEquals('Auto', firstPolicy.MonthlyBucketMethod__c);
-    System.assertEquals(
-      'BucketEnd',
-      firstPolicy.MonthlyRecognitionDatePosition__c
-    );
+    System.assertEquals('BucketEnd', firstPolicy.MonthlyRecognitionDatePosition__c);
     System.assertEquals('Last', firstPolicy.RoundingTargetBucket__c);
     System.assertEquals(
       0,
@@ -294,12 +356,20 @@ private class ContractDocumentSettingsControllerTest {
       [SELECT COUNT() FROM GlJournalLockExemptFields__c],
       '仕様: Core 第11.6節。ロック除外は保存でも作らない'
     );
+
+    ContractDocumentSettingsController.SettingsDto readback = ContractDocumentSettingsController.getSettings()
+      .settings;
+    System.assertEquals('更新後株式会社', readback.companyName);
+    System.assertEquals('ありがとうございました。', readback.documentFooter);
+    System.assertEquals(
+      'https://example.com/privacy',
+      readback.privacyPolicyUrl
+    );
   }
 
   @IsTest
   static void saveSettings_secondSaveUsesReturnedTokens() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
     input.companyName = '連続保存1';
@@ -362,8 +432,7 @@ private class ContractDocumentSettingsControllerTest {
       FieldApiNames__c = 'Memo__c'
     );
 
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
     input.companyName = '組織既定';
@@ -439,8 +508,7 @@ private class ContractDocumentSettingsControllerTest {
 
   @IsTest
   static void saveSettings_sameKeyRetry_appliesOnce() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
     input.companyName = '初回会社';
@@ -451,12 +519,14 @@ private class ContractDocumentSettingsControllerTest {
     input.defaultMonthlyCycles = 12;
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto current =
-      ContractDocumentSettingsController.getSettings().settings;
+    ContractDocumentSettingsController.SettingsDto current = ContractDocumentSettingsController.getSettings()
+      .settings;
     input.documentSettingToken = current.documentSettingToken;
     input.accountingPolicyToken = current.accountingPolicyToken;
     input.validationEnforceToken = current.validationEnforceToken;
     input.lockExemptToken = current.lockExemptToken;
+    input.paymentLockExemptToken = current.paymentLockExemptToken;
+    input.journalLockExemptToken = current.journalLockExemptToken;
     input.amountCalculationToken = current.amountCalculationToken;
     input.businessOperationKey = 'org-settings-retry-key';
     ContractDocumentSettingsController.saveSettings(input);
@@ -467,10 +537,13 @@ private class ContractDocumentSettingsControllerTest {
     input.accountingPolicyToken = current.accountingPolicyToken;
     input.validationEnforceToken = current.validationEnforceToken;
     input.lockExemptToken = current.lockExemptToken;
+    input.paymentLockExemptToken = current.paymentLockExemptToken;
+    input.journalLockExemptToken = current.journalLockExemptToken;
     input.amountCalculationToken = current.amountCalculationToken;
     input.businessOperationKey = 'org-settings-retry-key';
-    ContractDocumentSettingsController.SettingsDto retry =
-      ContractDocumentSettingsController.saveSettings(input);
+    ContractDocumentSettingsController.SettingsDto retry = ContractDocumentSettingsController.saveSettings(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals('初回会社', retry.companyName);
@@ -480,7 +553,19 @@ private class ContractDocumentSettingsControllerTest {
       WHERE SetupOwnerId = :UserInfo.getOrganizationId()
     ];
     System.assertEquals('初回会社', stored.CompanyName__c);
-    System.assertEquals('org-settings-retry-key', stored.BusinessOperationKey__c);
+    System.assertEquals(
+      'org-settings-retry-key',
+      stored.BusinessOperationKey__c
+    );
+    System.assertEquals(
+      1,
+      [
+        SELECT COUNT()
+        FROM ContractOperationLog__c
+        WHERE BusinessOperationKey__c = 'org-settings-retry-key'
+      ],
+      'Core 第11.6節・第4.3.12節: 同じ業務操作キーの再試行は1件の保存のまま'
+    );
   }
 
   @IsTest
@@ -496,8 +581,8 @@ private class ContractDocumentSettingsControllerTest {
       EstimateValidMonths__c = 1,
       DefaultMonthlyCycles__c = 12
     );
-    ContractDocumentSettingsController.SettingsDto input =
-      ContractDocumentSettingsController.getSettings().settings;
+    ContractDocumentSettingsController.SettingsDto input = ContractDocumentSettingsController.getSettings()
+      .settings;
     input.companyName = '競合';
     input.documentSettingToken = '1';
     input.businessOperationKey = AccountingCauseLockService.issueOperationKey();
@@ -515,12 +600,21 @@ private class ContractDocumentSettingsControllerTest {
     }
     Test.stopTest();
     System.assertEquals(true, thrown);
+    ContractDocumentSetting__c storedAfterConflict = [
+      SELECT CompanyName__c
+      FROM ContractDocumentSetting__c
+      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+    ];
+    System.assertEquals(
+      '既存',
+      storedAfterConflict.CompanyName__c,
+      'Core 第4.3.12節: 版不一致は先に保存された内容を上書きしない'
+    );
   }
 
   @IsTest
   static void saveSettingsWritesContractHeadingFields() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
     input.companyName = 'テスト発行会社';
@@ -532,8 +626,9 @@ private class ContractDocumentSettingsControllerTest {
     input.renewOpportunityEnabled = true;
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals(3, saved.estimateValidMonths);
@@ -562,12 +657,16 @@ private class ContractDocumentSettingsControllerTest {
       stored.RenewOpportunityEnabled__c,
       'Core 第11.5節: 更新商談スイッチを組織設定へ保存する'
     );
+    ContractDocumentSettingsController.SettingsDto readback = ContractDocumentSettingsController.getSettings()
+      .settings;
+    System.assertEquals(3, readback.estimateValidMonths);
+    System.assertEquals(24, readback.defaultMonthlyCycles);
+    System.assertEquals(true, readback.renewOpportunityEnabled);
   }
 
   @IsTest
   static void saveSettingsRejectsOutOfRangeContractValues() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     input.estimateSendMode = 'PdfOnly';
     input.invoiceSendMode = 'PdfOnly';
     input.estimateValidMonths = 0;
@@ -584,7 +683,7 @@ private class ContractDocumentSettingsControllerTest {
             ContractDocumentSettingService.INVALID_ESTIMATE_VALID_MONTHS_MESSAGE
           ),
         'Core 第4.10節: 範囲外の見積有効期間は1へ落とさず拒否する。実際: ' +
-          ex.getMessage()
+        ex.getMessage()
       );
     }
     System.assertEquals(true, monthsThrown);
@@ -602,43 +701,60 @@ private class ContractDocumentSettingsControllerTest {
             ContractDocumentSettingService.INVALID_DEFAULT_CYCLES_MESSAGE
           ),
         '日付仕様 第2.5節: 範囲外の既定サイクル数は12へ落とさず拒否する。実際: ' +
-          ex.getMessage()
+        ex.getMessage()
       );
     }
     System.assertEquals(true, cyclesThrown);
-  }
 
-  @IsTest
-  static void saveSettings_pdfOnlySucceedsWithoutDefaultDocumentKeys() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
-    applyPdfOnlyRequired(input);
-
-    Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
+    input.estimateValidMonths = 1.5;
+    input.defaultMonthlyCycles = 12;
+    Boolean fractionalMonthsThrown = false;
+    try {
       saveWithFreshTokens(input);
-    Test.stopTest();
+    } catch (AuraHandledException ex) {
+      fractionalMonthsThrown = true;
+      System.assert(
+        ex.getMessage()
+          .contains(
+            ContractDocumentSettingService.INVALID_ESTIMATE_VALID_MONTHS_MESSAGE
+          ),
+        '日付仕様 第2.6節: 小数の見積有効期間は拒否する。実際: ' +
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, fractionalMonthsThrown);
 
-    System.assertEquals(
-      'PdfOnly',
-      saved.estimateSendMode,
-      'Core 第11.6節: 既定キー必須では保存を止めない'
-    );
+    input.estimateValidMonths = 1;
+    input.defaultMonthlyCycles = 12.5;
+    Boolean fractionalCyclesThrown = false;
+    try {
+      saveWithFreshTokens(input);
+    } catch (AuraHandledException ex) {
+      fractionalCyclesThrown = true;
+      System.assert(
+        ex.getMessage()
+          .contains(
+            ContractDocumentSettingService.INVALID_DEFAULT_CYCLES_MESSAGE
+          ),
+        '日付仕様 第2.5節: 小数の既定サイクル数は拒否する。実際: ' +
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(true, fractionalCyclesThrown);
   }
 
   @IsTest
   static void saveAllowsPdfAndEmailWithoutCatalog() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.estimateOrgWideEmailAddress = null;
-    ContractEmailTemplateService.testRecords =
-      new List<ContractEmailTemplate__mdt>();
+    ContractEmailTemplateService.testRecords = new List<ContractEmailTemplate__mdt>();
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals(
@@ -646,12 +762,17 @@ private class ContractDocumentSettingsControllerTest {
       saved.estimateSendMode,
       'Core 第11.3.2節・第11.6節: 3択はカタログの状態に関係なく保存できる'
     );
+    System.assertEquals(
+      'PdfAndEmail',
+      ContractDocumentSettingsController.getSettings()
+        .settings.estimateSendMode,
+      'Core 第11.3.2節: カタログ0件でも選んだ3択を読み戻せる'
+    );
   }
 
   @IsTest
   static void saveRejectsMissingVerifiedOrgSender() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.estimateOrgWideEmailAddress = 'nosuch-sender@example.com';
@@ -664,9 +785,11 @@ private class ContractDocumentSettingsControllerTest {
       thrown = true;
       System.assert(
         ex.getMessage()
-          .contains(ContractDocumentSettingService.ORG_SENDER_NOT_FOUND_MESSAGE),
+          .contains(
+            ContractDocumentSettingService.ORG_SENDER_NOT_FOUND_MESSAGE
+          ),
         'Core 第11.3.2節: 検証済み組織ワイドメール0件は保存エラー。実際: ' +
-          ex.getMessage()
+        ex.getMessage()
       );
     }
     Test.stopTest();
@@ -675,15 +798,15 @@ private class ContractDocumentSettingsControllerTest {
 
   @IsTest
   static void saveAllowsEstimatePdfAndEmailWithoutOrgSender() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.estimateOrgWideEmailAddress = null;
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals(
@@ -691,33 +814,52 @@ private class ContractDocumentSettingsControllerTest {
       saved.estimateSendMode,
       'Core 第11.3.2節: PDFとメール送付でも見積用組織送信元は空でよい'
     );
-    System.assertEquals(
-      null,
-      saved.estimateOrgWideEmailAddress
-    );
+    System.assertEquals(null, saved.estimateOrgWideEmailAddress);
   }
 
   @IsTest
-  static void saveRejectsPdfOnlyWithoutCompanyName() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+  static void saveRejectsMissingRequiredCompanyInformation() {
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.companyName = null;
 
-    Boolean thrown = false;
     Test.startTest();
-    try {
-      saveWithFreshTokens(input);
-    } catch (AuraHandledException ex) {
-      thrown = true;
-      System.assert(
-        ex.getMessage()
-          .contains(ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE),
-        'Core 第11.3.1節: 必須の空欄は保存でも止める。実際: ' + ex.getMessage()
-      );
-    }
+    assertSaveRejected(
+      input,
+      ContractDocumentSettingService.MISSING_COMPANY_NAME_MESSAGE,
+      'Core 第11.3.1節: 帳票を使うときは会社名が必須'
+    );
+    input.companyName = 'テスト発行会社';
+    input.address = null;
+    assertSaveRejected(
+      input,
+      ContractDocumentSettingService.MISSING_ADDRESS_MESSAGE,
+      'Core 第11.3.1節: 帳票を使うときは住所が必須'
+    );
+    input.address = 'テスト住所';
+    input.invoiceRegistrationNumber = null;
+    assertSaveRejected(
+      input,
+      ContractDocumentSettingService.MISSING_REGISTRATION_NUMBER_MESSAGE,
+      'Core 第11.3.1節: 請求書を使うときは登録番号が必須'
+    );
+    input.invoiceRegistrationNumber = 'T0000000000000';
+    input.bankTransferInfo = null;
+    assertSaveRejected(
+      input,
+      ContractDocumentSettingService.MISSING_BANK_TRANSFER_MESSAGE,
+      'Core 第11.3.1節: 請求書を使うときは振込先が必須'
+    );
     Test.stopTest();
-    System.assertEquals(true, thrown);
+    System.assertEquals(
+      0,
+      [
+        SELECT COUNT()
+        FROM ContractDocumentSetting__c
+        WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+      ],
+      'Core 第11.3.1節: 必須不足では組織設定を保存しない'
+    );
   }
 
   private static void applyPdfOnlyRequired(
@@ -733,10 +875,27 @@ private class ContractDocumentSettingsControllerTest {
     input.defaultMonthlyCycles = 12;
   }
 
+  private static void assertSaveRejected(
+    ContractDocumentSettingsController.SettingsDto input,
+    String expectedMessage,
+    String assertionMessage
+  ) {
+    Boolean thrown = false;
+    try {
+      saveWithFreshTokens(input);
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains(expectedMessage),
+        assertionMessage + '。実際: ' + ex.getMessage()
+      );
+    }
+    System.assertEquals(true, thrown, assertionMessage);
+  }
+
   @IsTest
   static void saveSettingsUpdatesAccountingPolicyWhenUnfrozen() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.accountingEnabled = true;
     input.revenueRecognitionBasis = 'CashBasis';
@@ -748,8 +907,9 @@ private class ContractDocumentSettingsControllerTest {
     input.defaultMonthlyCycles = 12;
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals(true, saved.accountingEnabled);
@@ -776,21 +936,27 @@ private class ContractDocumentSettingsControllerTest {
   }
 
   @IsTest
-  static void saveSettingsLeavesPolicyUnchangedAfterFreeze() {
+  static void saveSettingsPreservesFrozenPolicyWhileSavingDocumentSettings() {
     insert GlAccountingPolicyService.newOrgDefault();
     GlAccountingPolicyService.freezeOnFirstConfirm();
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto frozen = ContractDocumentSettingsController.getSettings()
+      .settings;
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.companyName = '固定後も帳票は保存';
     input.estimateValidMonths = 1;
     input.defaultMonthlyCycles = 12;
-    input.accountingEnabled = true;
-    input.revenueRecognitionBasis = 'CashBasis';
+    input.accountingEnabled = frozen.accountingEnabled;
+    input.revenueRecognitionBasis = frozen.revenueRecognitionBasis;
+    input.taxRecognitionTiming = frozen.taxRecognitionTiming;
+    input.monthlyBucketMethod = frozen.monthlyBucketMethod;
+    input.monthlyRecognitionDatePosition = frozen.monthlyRecognitionDatePosition;
+    input.roundingTargetBucket = frozen.roundingTargetBucket;
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals('固定後も帳票は保存', saved.companyName);
@@ -799,29 +965,53 @@ private class ContractDocumentSettingsControllerTest {
     System.assertEquals('BillingBasis', saved.revenueRecognitionBasis);
     System.assertNotEquals(null, saved.frozenAtLabel);
     System.assertNotEquals(null, saved.frozenByName);
+    ContractDocumentSetting__c storedDocument = [
+      SELECT CompanyName__c
+      FROM ContractDocumentSetting__c
+      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+    ];
+    System.assertEquals(
+      '固定後も帳票は保存',
+      storedDocument.CompanyName__c,
+      'Core 第11.6節: 固定後も帳票設定は保存する'
+    );
+    GlAccountingPolicy__c storedPolicy = [
+      SELECT AccountingEnabled__c, RevenueRecognitionBasis__c, FrozenAt__c
+      FROM GlAccountingPolicy__c
+    ];
+    System.assertEquals(false, storedPolicy.AccountingEnabled__c);
+    System.assertEquals(
+      'BillingBasis',
+      storedPolicy.RevenueRecognitionBasis__c
+    );
+    System.assertNotEquals(
+      null,
+      storedPolicy.FrozenAt__c,
+      'Accounting 第3.1節: 固定後の会計方針を上書きしない'
+    );
   }
 
   @IsTest
-  static void saveSettingsAcceptsTaxRoundingModeAndRejectsUnknown() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+  static void saveSettingsResolvesAllowedAmountCalculationAndRejectsUnknown() {
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.taxRoundingMode = 'UP';
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals(
       'UP',
       saved.taxRoundingMode,
-      'Core 第11.9節: 税額丸めの変更を組織設定へ保存する'
+      'Core 第11.9節: 許可された税額丸めを保存結果へ返す'
     );
     System.assertEquals(
       'Scale2HalfUp',
       saved.quantityUnitPriceRoundingMode,
-      'Core 第11.9節: 未指定の金額計算項目は OrgDefault のままにする'
+      'Core 第11.9節: 未指定の金額計算項目は現行のOrgDefaultを返す'
     );
 
     input.taxRoundingMode = 'CEILING';
@@ -833,16 +1023,36 @@ private class ContractDocumentSettingsControllerTest {
       System.assert(
         ex.getMessage().contains('税額丸め'),
         'Core 第1.1.10節: 未知の税額丸めは四捨五入へ落とさず拒否する。実際: ' +
-          ex.getMessage()
+        ex.getMessage()
       );
     }
     System.assertEquals(true, thrown);
   }
 
   @IsTest
+  static void saveSettingsRejectsMissingOrUnknownSendMode() {
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
+    applyPdfOnlyRequired(input);
+    input.estimateSendMode = null;
+
+    Test.startTest();
+    assertSaveRejected(
+      input,
+      '見積書の3択が無い、空、または不正です。',
+      'Core 第11.3節: 見積書の3択は必須'
+    );
+    input.estimateSendMode = 'Unknown';
+    assertSaveRejected(
+      input,
+      '見積書の3択が無い、空、または不正です。',
+      'Core 第11.3節: 本文にない見積書の3択は拒否する'
+    );
+    Test.stopTest();
+  }
+
+  @IsTest
   static void saveSettingsWritesInputAndSystemHeadings() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.validationEnforce = true;
     input.lockExemptFieldApiNames = 'Memo__c,SentDate__c';
@@ -850,8 +1060,9 @@ private class ContractDocumentSettingsControllerTest {
     input.journalLockExemptFieldApiNames = 'Memo__c';
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals(
@@ -864,11 +1075,9 @@ private class ContractDocumentSettingsControllerTest {
       saved.lockExemptFieldApiNames,
       'Core 第11.6節: 請求ロック除外をシードへ落とさず入力値のまま保存する'
     );
-    ContractValidationEnforce__c enforce =
-      ContractValidationEnforce__c.getOrgDefaults();
+    ContractValidationEnforce__c enforce = ContractValidationEnforce__c.getOrgDefaults();
     System.assertEquals(true, enforce.Enforce__c);
-    InvoiceLockExemptFields__c lockExempt =
-      InvoiceLockExemptFields__c.getOrgDefaults();
+    InvoiceLockExemptFields__c lockExempt = InvoiceLockExemptFields__c.getOrgDefaults();
     System.assertEquals('Memo__c,SentDate__c', lockExempt.FieldApiNames__c);
     System.assertEquals(
       false,
@@ -885,18 +1094,24 @@ private class ContractDocumentSettingsControllerTest {
       saved.journalLockExemptFieldApiNames,
       'Core 第11.6節: 仕訳ロック除外をシードへ落とさず入力値のまま保存する'
     );
-    InvoicePaymentLockExemptFields__c paymentLockExempt =
-      InvoicePaymentLockExemptFields__c.getOrgDefaults();
+    InvoicePaymentLockExemptFields__c paymentLockExempt = InvoicePaymentLockExemptFields__c.getOrgDefaults();
     System.assertEquals('Memo__c', paymentLockExempt.FieldApiNames__c);
-    GlJournalLockExemptFields__c journalLockExempt =
-      GlJournalLockExemptFields__c.getOrgDefaults();
+    GlJournalLockExemptFields__c journalLockExempt = GlJournalLockExemptFields__c.getOrgDefaults();
     System.assertEquals('Memo__c', journalLockExempt.FieldApiNames__c);
+    ContractDocumentSettingsController.SettingsDto readback = ContractDocumentSettingsController.getSettings()
+      .settings;
+    System.assertEquals(true, readback.validationEnforce);
+    System.assertEquals(
+      'Memo__c,SentDate__c',
+      readback.lockExemptFieldApiNames
+    );
+    System.assertEquals('Memo__c', readback.paymentLockExemptFieldApiNames);
+    System.assertEquals('Memo__c', readback.journalLockExemptFieldApiNames);
   }
 
   @IsTest
   static void saveStoresEstimateAndInvoiceOrgSendersSeparately() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.invoiceSendMode = 'PdfAndEmail';
@@ -905,8 +1120,9 @@ private class ContractDocumentSettingsControllerTest {
     input.invoiceOrgWideEmailAddress = orgSender;
 
     Test.startTest();
-    ContractDocumentSettingsController.SettingsDto saved =
-      saveWithFreshTokens(input);
+    ContractDocumentSettingsController.SettingsDto saved = saveWithFreshTokens(
+      input
+    );
     Test.stopTest();
 
     System.assertEquals(
@@ -919,15 +1135,26 @@ private class ContractDocumentSettingsControllerTest {
       saved.invoiceOrgWideEmailAddress,
       'Core 第11.3.2節: 請求用組織送信元は請求の項目へ保存する'
     );
+    ContractDocumentSetting__c stored = [
+      SELECT EstimateOrgWideEmailAddress__c, InvoiceOrgWideEmailAddress__c
+      FROM ContractDocumentSetting__c
+      WHERE SetupOwnerId = :UserInfo.getOrganizationId()
+    ];
+    System.assertEquals(orgSender, stored.EstimateOrgWideEmailAddress__c);
+    System.assertEquals(orgSender, stored.InvoiceOrgWideEmailAddress__c);
+    ContractDocumentSettingsController.SettingsDto readback = ContractDocumentSettingsController.getSettings()
+      .settings;
+    System.assertEquals(orgSender, readback.estimateOrgWideEmailAddress);
+    System.assertEquals(orgSender, readback.invoiceOrgWideEmailAddress);
   }
 
   @IsTest
   static void saveRejectsInvoicePdfAndEmailWhenOnlyEstimateSenderSet() {
-    ContractDocumentSettingsController.SettingsDto input =
-      new ContractDocumentSettingsController.SettingsDto();
+    ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.invoiceSendMode = 'PdfAndEmail';
-    input.estimateOrgWideEmailAddress = null;
+    input.estimateOrgWideEmailAddress = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+    input.invoiceOrgWideEmailAddress = null;
 
     Boolean thrown = false;
     Test.startTest();
@@ -939,7 +1166,7 @@ private class ContractDocumentSettingsControllerTest {
         ex.getMessage()
           .contains(ContractDocumentSettingService.MISSING_ORG_SENDER_MESSAGE),
         'Core 第11.3.2節: 請求がPDFとメール送付なら請求用送信元は必須。実際: ' +
-          ex.getMessage()
+        ex.getMessage()
       );
     }
     Test.stopTest();
@@ -947,19 +1174,49 @@ private class ContractDocumentSettingsControllerTest {
   }
 
   @IsTest
-  static void permissionIsRequired() {
+  static void permissionIsRequiredForEveryControllerEntryPoint() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.ORG_SETTINGS => false
     };
 
+    Integer deniedCount = 0;
     Test.startTest();
     try {
       ContractDocumentSettingsController.getSettings();
       System.assert(false, '権限なしでは取得できないこと');
     } catch (AuraHandledException ex) {
       System.assert(ex.getMessage().contains('権限がありません'));
+      deniedCount++;
+    }
+    try {
+      ContractDocumentSettingsController.issueOrgSettingsOperationKey();
+      System.assert(false, '権限なしでは業務操作キーを発行できないこと');
+    } catch (AuraHandledException ex) {
+      System.assert(ex.getMessage().contains('権限がありません'));
+      deniedCount++;
+    }
+    try {
+      ContractDocumentSettingsController.saveSettings(
+        new ContractDocumentSettingsController.SettingsDto()
+      );
+      System.assert(false, '権限なしでは保存できないこと');
+    } catch (AuraHandledException ex) {
+      System.assert(ex.getMessage().contains('権限がありません'));
+      deniedCount++;
+    }
+    try {
+      ContractDocumentSettingsController.validateFieldCopyDefinitions();
+      System.assert(false, '権限なしではコピー設定を検証できないこと');
+    } catch (AuraHandledException ex) {
+      System.assert(ex.getMessage().contains('権限がありません'));
+      deniedCount++;
     }
     Test.stopTest();
+    System.assertEquals(
+      4,
+      deniedCount,
+      '共通基盤 第3章: 組織設定画面の全入口に20を要求する'
+    );
   }
 
   @IsTest
@@ -967,8 +1224,7 @@ private class ContractDocumentSettingsControllerTest {
     ContractDocumentSettingsController.testHasAccountingMaster = true;
     try {
       Test.startTest();
-      ContractDocumentSettingsController.PageDataDto result =
-        ContractDocumentSettingsController.getSettings();
+      ContractDocumentSettingsController.PageDataDto result = ContractDocumentSettingsController.getSettings();
       Test.stopTest();
       System.assertEquals(true, result.hasAccountingMaster);
       System.assertEquals(
@@ -1024,7 +1280,7 @@ private class ContractDocumentSettingsControllerTest {
       System.assert(
         ex.getMessage().contains('Memo__c'),
         'Accounting 第3.1節: 必須項目へ届かないコピー設定を設定画面の検証で出す。実際: ' +
-          ex.getMessage()
+        ex.getMessage()
       );
     } finally {
       FieldCopyDefinitionService.additionalRequiredJournalFieldApiNames = null;

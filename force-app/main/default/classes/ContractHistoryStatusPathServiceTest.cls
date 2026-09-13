@@ -61,30 +61,69 @@ private class ContractHistoryStatusPathServiceTest {
   }
 
   @IsTest
-  static void resolvePath_coversEstimateOrderedInvoicingInvoicedPaidArchive() {
+  static void statusPathValues_matchTransferredSpecification() {
+    Schema.DescribeFieldResult pathDescribe = ContractHistory__c.StatusPath__c.getDescribe();
+    Map<String, String> actualValuesAndLabels = new Map<String, String>();
+    for (Schema.PicklistEntry entry : pathDescribe.getPicklistValues()) {
+      if (entry.isActive()) {
+        actualValuesAndLabels.put(entry.getValue(), entry.getLabel());
+      }
+    }
+
+    System.assertEquals(
+      true,
+      pathDescribe.isRestrictedPicklist(),
+      'Core 第5.7節: StatusPathは本文の5段階だけを許す'
+    );
+    System.assertEquals(
+      new Map<String, String>{
+        'Estimate' => '01_見積',
+        'Ordered' => '02_受注',
+        'Invoicing' => '03_請求対応中',
+        'Invoiced' => '04_入金待ち',
+        'Paid' => '05_入金完了'
+      },
+      actualValuesAndLabels,
+      'Core 第5.7節: StatusPathの内部値と利用者向け表示を完全一致させる'
+    );
+    System.assertEquals(
+      false,
+      actualValuesAndLabels.containsKey('Archive'),
+      'Core 第5.7節: Archiveは進捗表示の選択肢に含めない'
+    );
+  }
+
+  @IsTest
+  static void resolvePath_returnsEachSpecifiedProgressResult() {
     System.assertEquals(
       'Estimate',
-      ContractHistoryStatusPathService.resolvePath('Estimate', 0, 0, 0)
+      ContractHistoryStatusPathService.resolvePath('Estimate', 5, 5, 5),
+      'Core 第5.7節: Estimateは請求件数にかかわらず見積'
     );
     System.assertEquals(
       'Ordered',
-      ContractHistoryStatusPathService.resolvePath('Ordered', 0, 0, 0)
+      ContractHistoryStatusPathService.resolvePath('Ordered', null, null, null),
+      'Core 第5.7節: 受注済みで請求がなければ受注'
     );
     System.assertEquals(
       'Invoicing',
-      ContractHistoryStatusPathService.resolvePath('Ordered', 2, 1, 0)
+      ContractHistoryStatusPathService.resolvePath('Ordered', 2, 1, 1),
+      'Core 第5.7節: 未確定の請求が残れば請求対応中'
     );
     System.assertEquals(
       'Invoiced',
-      ContractHistoryStatusPathService.resolvePath('Ordered', 2, 2, 1)
+      ContractHistoryStatusPathService.resolvePath('Ordered', 2, 2, 1),
+      'Core 第5.7節: 全請求確定後も回収未完了があれば入金待ち'
     );
     System.assertEquals(
       'Paid',
-      ContractHistoryStatusPathService.resolvePath('Ordered', 2, 2, 2)
+      ContractHistoryStatusPathService.resolvePath('Ordered', 2, 2, 2),
+      'Core 第5.7節: 全請求の回収・返金完了後は入金完了'
     );
     System.assertEquals(
       null,
-      ContractHistoryStatusPathService.resolvePath('Archive', 5, 5, 5)
+      ContractHistoryStatusPathService.resolvePath('Archive', 5, 5, 5),
+      'Core 第5.7節: Archiveは進捗を表示しない'
     );
     System.assertEquals(
       'Ordered',
@@ -94,7 +133,8 @@ private class ContractHistoryStatusPathServiceTest {
         3,
         3,
         3
-      )
+      ),
+      'Core 第5.7節: 請求を作らないCancel受注は受注で完了する'
     );
   }
 
@@ -346,49 +386,67 @@ private class ContractHistoryStatusPathServiceTest {
   }
 
   @IsTest
-  static void manualStatusPathChange_isBlocked() {
+  static void manualStatusPathChange_allowsNoChangeAndBlocksOtherResults() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Account account = ContractTestDataFactory.insertAccount(
         'Path Block Account'
       );
       ContractService__c service = insertServiceWithBillingAccount(account);
 
-      ContractHistory__c history = new ContractHistory__c(
-        Name = 'Path Block',
-        ContractService__c = service.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
-        EffectiveDate__c = Date.newInstance(2026, 6, 1)
-      );
-      insertHistory(history, account.Id);
-
-      Boolean thrown = false;
-      String message = null;
-      try {
-        history.StatusPath__c = 'Paid';
-        update history;
-      } catch (DmlException e) {
-        thrown = true;
-        message = e.getNumDml() > 0 ? e.getDmlMessage(0) : e.getMessage();
+      List<String> attemptedValues = new List<String>{
+        'Estimate',
+        'Ordered',
+        'Invoicing',
+        'Invoiced',
+        'Paid',
+        null
+      };
+      List<ContractHistory__c> histories = new List<ContractHistory__c>();
+      for (Integer i = 0; i < attemptedValues.size(); i++) {
+        ContractHistory__c history = new ContractHistory__c(
+          Name = 'Path Block ' + i,
+          ContractService__c = service.Id,
+          Type__c = 'New',
+          historystatus__c = 'Estimate',
+          Version__c = 1,
+          CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+          CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+          EffectiveDate__c = Date.newInstance(2026, 6, 1)
+        );
+        insertHistory(history, account.Id);
+        history.StatusPath__c = attemptedValues[i];
+        histories.add(history);
       }
-      System.assertEquals(true, thrown);
+
+      Database.SaveResult[] results = Database.update(histories, false);
       System.assertEquals(
-        ContractHistoryStatusPathService.MANUAL_CHANGE_BLOCK_MESSAGE,
-        message
+        true,
+        results[0].isSuccess(),
+        'Core 第5.7節: 自動計算値と同じ値なら直接変更には当たらない'
       );
-      ContractHistory__c still = [
+      for (Integer i = 1; i < results.size(); i++) {
+        System.assertEquals(
+          false,
+          results[i].isSuccess(),
+          'Core 第5.7節: 利用者はStatusPathを別結果へ直接変更できない: ' +
+          String.valueOf(attemptedValues[i])
+        );
+      }
+
+      Set<Id> historyIds = new Map<Id, ContractHistory__c>(histories).keySet();
+      List<ContractHistory__c> persisted = [
         SELECT StatusPath__c
         FROM ContractHistory__c
-        WHERE Id = :history.Id
+        WHERE Id IN :historyIds
       ];
-      System.assertNotEquals(
-        'Paid',
-        still.StatusPath__c,
-        'Core 第5.7節: 利用者は Path を直接変更できない'
-      );
+      System.assertEquals(histories.size(), persisted.size());
+      for (ContractHistory__c history : persisted) {
+        System.assertEquals(
+          'Estimate',
+          history.StatusPath__c,
+          'Core 第5.7節・第12.4節: 拒否された直接変更を一部も残さない'
+        );
+      }
     }
   }
 }
