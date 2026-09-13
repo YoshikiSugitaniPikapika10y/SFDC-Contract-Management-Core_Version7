@@ -1581,7 +1581,7 @@ private class InvoicePreviewOpsControllerTest {
   }
 
   @IsTest
-  static void lockJournalsForInvoice_cancelled_rejectsUsingLockedInvoice() {
+  static void lockJournalsForInvoice_cancelled_allowsUsingLockedInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
       policy.AccountingEnabled__c = true;
@@ -1611,29 +1611,43 @@ private class InvoicePreviewOpsControllerTest {
         LIMIT 1
       ];
       AccountingCauseLockService.invoiceLockSelectCount = 0;
-      Boolean thrown = false;
       Test.startTest();
-      try {
-        InvoicePreviewOpsController.lockJournalsForInvoice(
-          invoice.Id,
-          new List<Id>{ journal.Id },
-          AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
-          InvoicePreviewOpsController.issueInvoiceOperationKey()
-        );
-      } catch (AuraHandledException ex) {
-        thrown = true;
-        System.assertEquals(
-          '取消済み請求の仕訳はLock/Unlockできません。',
-          ex.getMessage(),
-          'Core 第12.2節・第7.7.3節: 取消済み請求の仕訳はLockできない'
-        );
-      }
+      Integer lockedCount = InvoicePreviewOpsController.lockJournalsForInvoice(
+        invoice.Id,
+        new List<Id>{ journal.Id },
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        InvoicePreviewOpsController.issueInvoiceOperationKey()
+      );
       Test.stopTest();
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        1,
+        lockedCount,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも有効仕訳をLockできる'
+      );
       System.assertEquals(
         1,
         AccountingCauseLockService.invoiceLockSelectCount,
         'Core 第12.4節・第7.9.7節: 取消確認は行ロックした請求で行い取り直さない'
+      );
+      System.assertEquals(
+        true,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効と取消'
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CANCELLED,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+          .InvoiceTransactionStatus__c,
+        'Accounting 第9.5節: 請求書の取引状態は変えない'
       );
     }
   }

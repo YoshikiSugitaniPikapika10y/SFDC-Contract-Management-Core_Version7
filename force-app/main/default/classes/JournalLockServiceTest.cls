@@ -101,12 +101,37 @@ private class JournalLockServiceTest {
   }
 
   @IsTest
-  static void lockForInvoice_rejectsCancelledInvoice() {
+  static void lockForInvoice_allowsCancelledInvoice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
       policy.AccountingEnabled__c = true;
       insert policy;
       Invoice__c invoice = insertInvoice();
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'JLock CancelledInv Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'JLock CancelledInv Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlJournal__c journal = new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'JL-CANCELLED-INV' }
+        ),
+        DebitSlotKey__c = 'Cash',
+        CreditSlotKey__c = 'UnappliedCash',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'Active'
+      );
+      insert journal;
       Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
       InvoiceTransactionStatusService.allowStatusWrite = true;
       try {
@@ -115,21 +140,112 @@ private class JournalLockServiceTest {
       } finally {
         InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
       }
-      Boolean thrown = false;
+      Test.startTest();
+      Integer lockedCount = JournalLockService.lockForInvoice(
+        invoice.Id,
+        new List<Id>{ journal.Id },
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        null
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        lockedCount,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも有効仕訳をLockできる'
+      );
+      System.assertEquals(
+        true,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効と取消'
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CANCELLED,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+          .InvoiceTransactionStatus__c,
+        'Accounting 第9.5節: 請求書の取引状態は変えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void unlockForInvoice_allowsCancelledInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice();
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'JLock CancelledInv Unlock Debit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'JLock CancelledInv Unlock Credit',
+        AccountType__c = 'Liability',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlJournal__c journal = new GlJournal__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{ 'JL-CANCELLED-INV-UNLOCK' }
+        ),
+        DebitSlotKey__c = 'Cash',
+        CreditSlotKey__c = 'UnappliedCash',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = Date.newInstance(2026, 6, 1),
+        TransactionStatus__c = 'Reversal',
+        IsLocked__c = true
+      );
+      insert journal;
+      Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
       try {
-        JournalLockService.lockForInvoice(
-          invoice.Id,
-          new List<Id>{ invoice.Id }
-        );
-      } catch (JournalLockService.LockException ex) {
-        thrown = true;
-        System.assertEquals(
-          '取消済み請求の仕訳はLock/Unlockできません。',
-          ex.getMessage(),
-          'Core 第7.7.3節: 取消済み請求の仕訳は参照'
-        );
+        invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED;
+        update invoice;
+      } finally {
+        InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
       }
-      System.assertEquals(true, thrown);
+      Test.startTest();
+      Integer unlockedCount = JournalLockService.unlockForInvoice(
+        invoice.Id,
+        new List<Id>{ journal.Id },
+        '確認',
+        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+        null
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        unlockedCount,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも取消仕訳をUnlockできる'
+      );
+      GlJournal__c loaded = [
+        SELECT IsLocked__c, UnlockReason__c
+        FROM GlJournal__c
+        WHERE Id = :journal.Id
+      ];
+      System.assertEquals(
+        false,
+        loaded.IsLocked__c,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効と取消'
+      );
+      System.assertEquals(
+        '確認',
+        loaded.UnlockReason__c,
+        'Accounting 第9.5節: Unlock理由は残す'
+      );
     }
   }
 

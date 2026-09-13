@@ -345,7 +345,7 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     expect(unlockButton(element)).toBeFalsy();
   });
 
-  it("hides Lock and Unlock on cancelled invoices even with both permissions", async () => {
+  it("shows Lock on cancelled invoices and keeps memo view-only (Core 7.7.3)", async () => {
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -357,11 +357,23 @@ describe("orderInvoicePreviewTable journal lock permissions (Accounting 第9.5�
     document.body.appendChild(element);
     await flush();
     await openJournalsTab(element);
+    expect(lockCheckbox(element)).toBeTruthy();
     expect(lockButton(element)).toBeFalsy();
     expect(unlockButton(element)).toBeFalsy();
-    expect(lockCheckbox(element)).toBeFalsy();
-    expect(lockEmptyButton(element)).toBeFalsy();
-    expect(lockKeyButton(element)).toBeFalsy();
+    const box = lockCheckbox(element);
+    box.checked = true;
+    box.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    expect(lockButton(element)?.textContent.trim()).toBe("1件をLock");
+    const extrasToggle = element.shadowRoot.querySelector("button.journal-toggle");
+    extrasToggle.click();
+    await flush();
+    expect(
+      element.shadowRoot.querySelector(".journal-toggle-memo lightning-input")
+    ).toBeFalsy();
+    expect(
+      element.shadowRoot.querySelector(".journal-toggle-memo .muted")
+    ).toBeTruthy();
   });
 
   it("filters journal rows by posting month and event in the header (Core 7.7.3)", async () => {

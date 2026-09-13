@@ -1750,6 +1750,61 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void saveJournals_locksActiveOnCancelledInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      InvoiceFixture fixture = insertInvoice('Cancelled');
+      Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
+        .dateFrom;
+      GlJournal__c journal = insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        postingDate,
+        'CANCELLEDLOCK'
+      );
+      ContractCrossController.JournalSaveRequestDto request = new ContractCrossController.JournalSaveRequestDto();
+      request.checkedJournalIds = new List<Id>{ journal.Id };
+      request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+      request.invoiceTokens = new Map<String, String>{
+        String.valueOf(fixture.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+          fixture.invoice.Id
+        )
+      };
+      Test.startTest();
+      ContractCrossController.JournalSaveResultDto result = ContractCrossController.saveJournals(
+        request
+      );
+      Test.stopTest();
+      System.assertEquals(
+        1,
+        result.lockCount,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも有効仕訳をLockできる'
+      );
+      System.assertEquals(
+        true,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :journal.Id
+        ]
+          .IsLocked__c,
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効と取消'
+      );
+      System.assertEquals(
+        InvoiceTransactionStatusService.TX_CANCELLED,
+        [
+          SELECT InvoiceTransactionStatus__c
+          FROM Invoice__c
+          WHERE Id = :fixture.invoice.Id
+        ]
+          .InvoiceTransactionStatus__c,
+        'Accounting 第9.5節: 請求書の取引状態は変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void saveJournals_reusesGroupedJournalsForUnlock() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       enableAccounting();

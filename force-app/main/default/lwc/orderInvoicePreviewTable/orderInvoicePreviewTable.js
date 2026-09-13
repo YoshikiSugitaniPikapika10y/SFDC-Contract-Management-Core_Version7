@@ -2620,7 +2620,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           cancelledLabel: isCancelled ? "取消済み" : "",
           // 仕様: Core 第12.2節・第7.7.3節。取消済みは参照だけ。メモ編集は未確定・確定済み。
           canEditInvoiceMemo: this.canEdit && !isCancelled,
-          // 仕様: Core 第12.2節・第7.7.3節。仕訳メモも取消済みでは参照だけ。
+          // 仕様: Core 第12.2節・第11.4.4節。仕訳メモも取消済みでは参照だけ。Lock／Unlockは第7.7.3節。
           canEditJournalMemo: this.canEdit && !isCancelled,
           // 仕様: Accounting 第9.5節、共通基盤 第10.4節、Core 第7.7.3節・第12.2節。
           // LockとUnlockはそれぞれ専用権限。取消済み請求でも可。無い操作は出さない。閲覧・編集・確定では代替しない。
