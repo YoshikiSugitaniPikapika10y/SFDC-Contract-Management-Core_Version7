@@ -578,12 +578,17 @@
   flex-shrink: 0;
 }
 
+.confirm-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .surface-wait {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   margin: 0;
-  margin-right: auto;
   font-size: 0.875rem;
   color: #64748b;
   white-space: nowrap;

@@ -53,17 +53,6 @@
     </main>
 
     <footer class="confirm-footer">
-      <template if:true={isWorking}>
-        <p class="surface-wait" role="status">
-          <span class="surface-wait-spin">
-            <lightning-spinner
-              alternative-text="処理中"
-              size="small"
-            ></lightning-spinner>
-          </span>
-          処理中
-        </p>
-      </template>
       <button
         type="button"
         class="btn btn_secondary"
@@ -72,14 +61,27 @@
       >
         キャンセル
       </button>
-      <button
-        type="button"
-        class="btn btn_danger"
-        onclick={handleArchive}
-        disabled={isArchiveDisabled}
-      >
-        アーカイブする
-      </button>
+      <div class="confirm-run">
+        <template if:true={isWorking}>
+          <p class="surface-wait" role="status">
+            <span class="surface-wait-spin">
+              <lightning-spinner
+                alternative-text="処理中"
+                size="small"
+              ></lightning-spinner>
+            </span>
+            処理中
+          </p>
+        </template>
+        <button
+          type="button"
+          class="btn btn_danger"
+          onclick={handleArchive}
+          disabled={isArchiveDisabled}
+        >
+          アーカイブする
+        </button>
+      </div>
     </footer>
   </div>
 </template>

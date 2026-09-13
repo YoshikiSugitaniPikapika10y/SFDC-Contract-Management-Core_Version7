@@ -2,9 +2,6 @@
   <div class="cross-page">
     <header class="cross-header">
       <h1 class="cross-title">契約横断</h1>
-      <template if:true={completionNote}>
-        <p class="surface-complete" role="status">{completionNote}</p>
-      </template>
       <nav class="menu" aria-label="一覧">
         <template if:true={showEstimateMenu}>
           <button
@@ -469,6 +466,9 @@
 
         <template if:true={showJournalSave}>
           <div class={journalActionClass}>
+            <template if:true={journalSurfaceComplete}>
+              <p class="surface-complete" role="status">{journalSurfaceComplete}</p>
+            </template>
             <template if:true={saving}>
               <p class="surface-wait" role="status">
                 <span class="surface-wait-spin">
@@ -533,9 +533,9 @@
                   onclick={handleRowClick}
                 >
                   <template if:true={row.isHeader}>
-                    <td colspan={colCount}>
+                    <td colspan={colCount} title={row.label}>
                       <template if:true={row.isLink}>
-                        <a href={row.href} target="_blank" rel="noreferrer"
+                        <a href={row.href} target="_blank" rel="noreferrer" title={row.label}
                           >{row.label}</a
                         >
                       </template>
@@ -544,7 +544,7 @@
                   </template>
                   <template if:true={row.isTotal}>
                     <template for:each={row.cells} for:item="cell">
-                      <td key={cell.key} class={cell.className}>{cell.text}</td>
+                      <td key={cell.key} class={cell.className} title={cell.text}>{cell.text}</td>
                     </template>
                   </template>
                   <template if:true={row.isData}>
@@ -565,7 +565,7 @@
                       </td>
                     </template>
                     <template for:each={row.cells} for:item="cell">
-                      <td key={cell.key} class={cell.className}>
+                      <td key={cell.key} class={cell.className} title={cell.text}>
                         <template if:true={cell.isText}>{cell.text}</template>
                         <template if:true={cell.isSlot}>
                           <template if:true={cell.debitAbbreviation}>
@@ -593,7 +593,7 @@
                           >
                         </template>
                         <template if:true={cell.isLink}>
-                          <a href={cell.href} target="_blank" rel="noreferrer"
+                          <a href={cell.href} target="_blank" rel="noreferrer" title={cell.text}
                             >{cell.text}</a
                           >
                           <template if:true={cell.sub}>
@@ -754,6 +754,9 @@
       </template>
       <template if:true={showRightPane}>
       <section class="pane pane-right">
+        <template if:true={invoiceSurfaceComplete}>
+          <p class="surface-complete" role="status">{invoiceSurfaceComplete}</p>
+        </template>
         <template if:true={isSaving}>
           <p class="surface-wait" role="status">
             <span class="surface-wait-spin">

@@ -149,17 +149,6 @@
     </main>
 
     <footer class="confirm-footer">
-      <template if:true={isSending}>
-        <p class="surface-wait" role="status">
-          <span class="surface-wait-spin">
-            <lightning-spinner
-              alternative-text="処理中"
-              size="small"
-            ></lightning-spinner>
-          </span>
-          処理中
-        </p>
-      </template>
       <button
         type="button"
         class="btn btn_secondary"
@@ -168,14 +157,27 @@
       >
         キャンセル
       </button>
-      <button
-        type="button"
-        class="btn btn_primary"
-        disabled={sendDisabled}
-        onclick={handleSend}
-      >
-        {sendButtonLabel}
-      </button>
+      <div class="confirm-run">
+        <template if:true={isSending}>
+          <p class="surface-wait" role="status">
+            <span class="surface-wait-spin">
+              <lightning-spinner
+                alternative-text="処理中"
+                size="small"
+              ></lightning-spinner>
+            </span>
+            処理中
+          </p>
+        </template>
+        <button
+          type="button"
+          class="btn btn_primary"
+          disabled={sendDisabled}
+          onclick={handleSend}
+        >
+          {sendButtonLabel}
+        </button>
+      </div>
     </footer>
   </div>
 </template>

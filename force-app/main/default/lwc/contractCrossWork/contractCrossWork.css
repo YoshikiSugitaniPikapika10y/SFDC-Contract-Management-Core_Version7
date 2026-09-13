@@ -33,9 +33,17 @@
 }
 
 .surface-complete {
-  margin: 0.25rem 0 0;
+  margin: 0;
   font-size: 0.875rem;
   color: #1b4332;
+}
+
+.journal-bar .surface-complete {
+  flex: 1 0 100%;
+}
+
+.pane-right .surface-complete {
+  margin: 0 0 0.5rem;
 }
 
 .surface-wait {
@@ -333,6 +341,11 @@
   font-size: 0.875rem;
 }
 
+.table-wrap.lock-unlocked .cross-table,
+.table-wrap.lock-locked .cross-table {
+  font-size: 0.75rem;
+}
+
 .cross-table th,
 .cross-table td {
   padding: 0.35rem 0.45rem;
@@ -340,6 +353,24 @@
   text-align: left;
   vertical-align: top;
   white-space: nowrap;
+}
+
+.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td:not(.num):not(.icon-cell):not(.check-col) {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td:not(.num):not(.icon-cell):not(.check-col) a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td.num,
+.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td.icon-cell {
+  overflow: visible;
 }
 
 .cross-table th {

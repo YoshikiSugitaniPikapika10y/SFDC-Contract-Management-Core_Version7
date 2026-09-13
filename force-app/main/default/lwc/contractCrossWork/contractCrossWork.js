@@ -596,6 +596,18 @@ export default class ContractCrossWork extends NavigationMixin(
     return this.saving ? base + " journal-bar_busy" : base;
   }
 
+  get journalSurfaceComplete() {
+    return this.completionNote === "仕訳を保存しました。"
+      ? this.completionNote
+      : "";
+  }
+
+  get invoiceSurfaceComplete() {
+    return this.completionNote === "請求情報を保存しました。"
+      ? this.completionNote
+      : "";
+  }
+
   get saveDisabled() {
     return (
       this.saving ||

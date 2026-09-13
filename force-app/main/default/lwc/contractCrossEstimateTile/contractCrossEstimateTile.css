@@ -79,7 +79,7 @@
 .amount {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #0b5cab;
+  color: #0f172a;
 }
 
 .meta-small {
@@ -159,6 +159,7 @@
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .table-footer {
@@ -168,6 +169,7 @@
   font-size: 0.875rem;
   font-weight: 700;
   border-top: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
 .alert {
