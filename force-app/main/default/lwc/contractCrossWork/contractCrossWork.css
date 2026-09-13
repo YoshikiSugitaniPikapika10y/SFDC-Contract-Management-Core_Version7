@@ -182,6 +182,7 @@
 }
 
 .pane-right {
+  position: relative;
   padding: 0.75rem 1rem 1rem;
   overflow: auto;
 }
@@ -289,6 +290,10 @@
   color: #ffffff;
 }
 
+.tag-true-label {
+  color: #c05621;
+}
+
 .tag-chip.is-false {
   background: #e2e8f0;
   color: #94a3b8;
@@ -307,6 +312,16 @@
 .journal-bar_busy,
 .table-wrap_busy {
   pointer-events: none;
+}
+
+.journal-save-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.journal-bar .surface-wait {
+  margin: 0;
 }
 
 .icon-btn {
@@ -383,8 +398,16 @@
 
 .confirm-cell {
   white-space: normal;
+  overflow: visible;
   min-width: 12rem;
   max-width: 22rem;
+}
+
+.cross-table td.confirm-cell {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: anywhere;
 }
 
 .memo-cell {
@@ -400,6 +423,13 @@
 
 .slot-cell {
   white-space: normal;
+}
+
+.cross-table td.slot-cell {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: anywhere;
 }
 
 .journal-slot-abbr {
@@ -430,6 +460,17 @@
 .group-header td {
   background: #f1f5f9;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table tr.group-header td {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .group-total td {

@@ -259,6 +259,7 @@ function bind(overrides = {}) {
     invoiceTileNonce: 0,
     estimateTile: null,
     estimateTileLoading: false,
+    estimateTileError: "",
     invoiceLoading: false,
     previewHistoryId: null,
     tableInitialInvoiceId: null,
@@ -335,7 +336,8 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     getInvoicePreview.mockReset().mockResolvedValue({
       sourceHistoryVersion: 1,
       invoices: [{ historyVersion: 1, invoiceName: "INV-1" }],
-      versionOptions: [{ value: 1, label: "1" }]
+      versionOptions: [{ value: 1, label: "1" }],
+      billingAccountOptions: [{ id: "ba1", name: "BA1" }]
     });
     getBillingAccountOptionsForPreview.mockReset().mockResolvedValue([]);
     updateInvoiceLineAmounts.mockReset().mockResolvedValue({
@@ -706,6 +708,42 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
       journalId: null
     });
     expect(getInvoicePreview).toHaveBeenCalled();
+  });
+
+  it("loadInvoiceTile uses billing accounts from the same preview (Core 第12.4節)", async () => {
+    getBillingAccountOptionsForPreview.mockClear();
+    const inv = bind({
+      menu: "invoice",
+      invoiceTileNonce: 0,
+      previewHistoryId: null,
+      billingAccountOptions: []
+    });
+    await inv.loadInvoiceTile("a01HIS", "a02INV", null);
+    expect(getInvoicePreview).toHaveBeenCalledWith({
+      contractHistoryId: "a01HIS"
+    });
+    expect(getBillingAccountOptionsForPreview).not.toHaveBeenCalled();
+    expect(inv.billingAccountOptions).toEqual([{ id: "ba1", name: "BA1" }]);
+    expect(inv.invoiceTileNonce).toBe(1);
+  });
+
+  it("reloadInvoiceTile reuses preview billing accounts and keeps the tile (Core 第12.4節・第7.7.0節)", async () => {
+    getBillingAccountOptionsForPreview.mockClear();
+    getInvoicePreview.mockResolvedValue({
+      sourceHistoryVersion: 1,
+      invoices: [{ historyVersion: 1, invoiceName: "INV-2" }],
+      billingAccountOptions: [{ id: "ba2", name: "BA2" }]
+    });
+    const inv = bind({
+      menu: "invoice",
+      previewHistoryId: "a01HIS",
+      invoiceTileNonce: 3,
+      billingAccountOptions: [{ id: "ba1", name: "BA1" }]
+    });
+    await inv.reloadInvoiceTile();
+    expect(getBillingAccountOptionsForPreview).not.toHaveBeenCalled();
+    expect(inv.billingAccountOptions).toEqual([{ id: "ba2", name: "BA2" }]);
+    expect(inv.invoiceTileNonce).toBe(3);
   });
 
   it("filters lookup/tag/group/sort and paging (横断 第5節)", async () => {

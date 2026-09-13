@@ -507,6 +507,31 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     LightningConfirm.open.mockReset().mockResolvedValue(true);
   });
 
+  it("preview.invoiceOpsContext があるとき帳票設定を取り直さない (Core 第12.4節)", async () => {
+    getInvoiceOpsContext.mockClear();
+    const ctx = bind({
+      preview: {
+        invoiceOpsContext: {
+          featureEnabled: true,
+          accountingEnabled: true,
+          documentTemplateOptions: [{ label: "標準", value: "STD" }],
+          emailTemplateOptions: [{ label: "請求メール", value: "EM1" }],
+          defaultDocumentTemplateKey: "STD",
+          defaultEmailTemplateApiName: "EM1",
+          companyBlockedReason: "",
+          orgFromResolved: true
+        }
+      },
+      invoiceSendFeatureEnabled: false,
+      accountingEnabledOnBoard: false
+    });
+    await ctx.loadInvoiceOpsContext();
+    expect(getInvoiceOpsContext).not.toHaveBeenCalled();
+    expect(ctx.invoiceSendFeatureEnabled).toBe(true);
+    expect(ctx.accountingEnabledOnBoard).toBe(true);
+    expect(ctx.defaultInvoiceDocumentTemplateKey).toBe("STD");
+  });
+
   it("版フィルタは全Versionと請求書がある VersionN。明細 Version 列は番号だけ (Core 0.1 / 7.7.0)", () => {
     const ctx = bind({ preview: preview() });
     const options = ctx.versionOptions;

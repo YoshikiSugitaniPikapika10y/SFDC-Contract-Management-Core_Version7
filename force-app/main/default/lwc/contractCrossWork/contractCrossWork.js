@@ -11,7 +11,6 @@ import queryJournals from "@salesforce/apex/ContractCrossController.queryJournal
 import getEstimateTile from "@salesforce/apex/ContractCrossController.getEstimateTile";
 import saveJournals from "@salesforce/apex/ContractCrossController.saveJournals";
 import getInvoicePreview from "@salesforce/apex/OrderCreateController.getInvoicePreview";
-import getBillingAccountOptionsForPreview from "@salesforce/apex/OrderCreateController.getBillingAccountOptionsForPreview";
 import updateInvoiceLineAmounts from "@salesforce/apex/OrderCreateController.updateInvoiceLineAmounts";
 import updateInvoiceLineAcceptanceEndDate from "@salesforce/apex/OrderCreateController.updateInvoiceLineAcceptanceEndDate";
 import splitInvoiceByDate from "@salesforce/apex/OrderCreateController.splitInvoiceByDate";
@@ -420,6 +419,7 @@ export default class ContractCrossWork extends NavigationMixin(
 
   estimateTile = null;
   estimateTileLoading = false;
+  estimateTileError = "";
   invoicePreview = null;
   billingAccountOptions = [];
   previewHistoryId = null;
@@ -1060,7 +1060,14 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   get showRightEmpty() {
-    return !this.showEstimateTile && !this.showInvoiceTile && !this.estimateTileLoading && !this.invoiceLoading;
+    return (
+      !this.showEstimateTile &&
+      !this.showInvoiceTile &&
+      !this.estimateTileLoading &&
+      !this.invoiceLoading &&
+      !this.estimateTileError &&
+      !this.invoiceError
+    );
   }
 
   get hideResetPostOrder() {
@@ -1819,19 +1826,22 @@ export default class ContractCrossWork extends NavigationMixin(
 
   async loadEstimateTile(historyId) {
     this.estimateTile = null;
+    this.estimateTileError = "";
     this.estimateTileLoading = true;
     this.invoicePreview = null;
     try {
       this.estimateTile = await getEstimateTile({ historyId });
     } catch (error) {
-      this.errorMessage = this.reduceError(error);
+      this.estimateTileError = this.reduceError(error);
     } finally {
       this.estimateTileLoading = false;
     }
   }
 
+  // 仕様: Core 第12.4節・第4.3.11節。開く1回で読んだ契約履歴から請求アカウント候補を載せる。
   async loadInvoiceTile(historyId, invoiceId, journalId) {
     this.estimateTile = null;
+    this.estimateTileError = "";
     this.invoicePreview = null;
     this.invoiceError = "";
     this.invoiceLoading = true;
@@ -1844,9 +1854,7 @@ export default class ContractCrossWork extends NavigationMixin(
       this.invoicePreview = await getInvoicePreview({
         contractHistoryId: historyId
       });
-      this.billingAccountOptions = await getBillingAccountOptionsForPreview({
-        contractHistoryId: historyId
-      });
+      this.billingAccountOptions = this.invoicePreview?.billingAccountOptions || [];
     } catch (error) {
       this.invoiceError = this.reduceError(error);
     } finally {
@@ -1855,6 +1863,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   // 仕様: Core 第7.7.0節。開いたままの取り直しでは右タイルを作り直さない。
+  // 仕様: Core 第12.4節。取り直しでも同じ契約履歴を重ねて照会しない。
   async reloadInvoiceTile() {
     if (!this.previewHistoryId) {
       return;
@@ -1865,9 +1874,7 @@ export default class ContractCrossWork extends NavigationMixin(
       this.invoicePreview = await getInvoicePreview({
         contractHistoryId: this.previewHistoryId
       });
-      this.billingAccountOptions = await getBillingAccountOptionsForPreview({
-        contractHistoryId: this.previewHistoryId
-      });
+      this.billingAccountOptions = this.invoicePreview?.billingAccountOptions || [];
     } catch (error) {
       this.invoiceError = this.reduceError(error);
     } finally {
@@ -2467,7 +2474,7 @@ export default class ContractCrossWork extends NavigationMixin(
     cells.push(iconCell("overdue", row.overdue === true, "utility:warning", "遅延"));
     if (this.accountingEnabled) {
       cells.push(textCell("next", formatDate(row.nextAcceptance)));
-      cells.push(textCell("tags", (row.trueTagLabels || []).join(" ")));
+      cells.push(textCell("tags", (row.trueTagLabels || []).join(" "), "tag-true-label"));
     }
     if (!this.historyGroupOn) {
       cells.push(textCell("estAmt", formatAmount(row.estimateAmount), "num"));

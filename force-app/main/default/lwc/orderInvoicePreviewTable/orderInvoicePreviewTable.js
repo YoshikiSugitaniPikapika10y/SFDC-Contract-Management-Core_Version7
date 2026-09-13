@@ -683,6 +683,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.resetPreviewDraftState();
     this.applyDefaultVersionFilter();
     this.initializeInvoiceUiState();
+    // 仕様: Core 第12.4節。開く取得で読んだ帳票設定は取り直さない。
+    if (value?.invoiceOpsContext) {
+      this.applyInvoiceOpsContextPayload(value.invoiceOpsContext);
+      this._invoiceOpsContextLoaded = true;
+      this.applyMissingJournalTabFallback();
+    }
   }
 
   resetPreviewDraftState() {
@@ -1001,21 +1007,33 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
   }
 
+  applyInvoiceOpsContextPayload(context) {
+    this.invoiceSendFeatureEnabled = context?.featureEnabled === true;
+    this.accountingEnabledOnBoard = context?.accountingEnabled === true;
+    this.invoiceDocumentTemplateOptions =
+      context?.documentTemplateOptions || [];
+    this.invoiceEmailTemplateOptions = context?.emailTemplateOptions || [];
+    this.defaultInvoiceDocumentTemplateKey =
+      context?.defaultDocumentTemplateKey || "";
+    this.defaultInvoiceEmailTemplateApiName =
+      context?.defaultEmailTemplateApiName || "";
+    this.companyBlockedReason = context?.companyBlockedReason || "";
+    this.orgFromResolved = context?.orgFromResolved === true;
+  }
+
   async loadInvoiceOpsContext() {
     this.invoiceOpsContextError = "";
+    const fromPreview =
+      this._preview?.invoiceOpsContext || this.preview?.invoiceOpsContext;
+    if (fromPreview) {
+      this.applyInvoiceOpsContextPayload(fromPreview);
+      this._invoiceOpsContextLoaded = true;
+      this.applyMissingJournalTabFallback();
+      return;
+    }
     try {
       const context = await getInvoiceOpsContext();
-      this.invoiceSendFeatureEnabled = context?.featureEnabled === true;
-      this.accountingEnabledOnBoard = context?.accountingEnabled === true;
-      this.invoiceDocumentTemplateOptions =
-        context?.documentTemplateOptions || [];
-      this.invoiceEmailTemplateOptions = context?.emailTemplateOptions || [];
-      this.defaultInvoiceDocumentTemplateKey =
-        context?.defaultDocumentTemplateKey || "";
-      this.defaultInvoiceEmailTemplateApiName =
-        context?.defaultEmailTemplateApiName || "";
-      this.companyBlockedReason = context?.companyBlockedReason || "";
-      this.orgFromResolved = context?.orgFromResolved === true;
+      this.applyInvoiceOpsContextPayload(context);
     } catch (error) {
       this.invoiceSendFeatureEnabled = false;
       this.accountingEnabledOnBoard = false;

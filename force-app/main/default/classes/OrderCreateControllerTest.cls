@@ -388,6 +388,73 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_loadsBillingAccountsWithoutSecondHistorySelect() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      BillingAccount__c second = ContractTestDataFactory.insertBillingAccount(
+        context.account.Id
+      );
+
+      ContractHistory__c loadedHistory = [
+        SELECT Id, ContractService__r.Account__c
+        FROM ContractHistory__c
+        WHERE Id = :context.history.Id
+      ];
+      Map<Id, BillingAccount__c> expectedById = new Map<Id, BillingAccount__c>(
+        [
+          SELECT Id, Name
+          FROM BillingAccount__c
+          WHERE Account__c = :loadedHistory.ContractService__r.Account__c
+        ]
+      );
+
+      OrderCreateController.previewHistorySelectCount = 0;
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        loadedHistory.Id
+      );
+      Integer afterPreview = OrderCreateController.previewHistorySelectCount;
+      List<OrderCreateController.BillingAccountOptionDto> reused = OrderCreateController.getBillingAccountOptionsForPreview(
+        loadedHistory.Id
+      );
+      Integer afterOptions = OrderCreateController.previewHistorySelectCount;
+      Test.stopTest();
+
+      System.assertEquals(
+        afterPreview,
+        afterOptions,
+        'Core 第12.4節・第4.3.11節: 同一処理で契約履歴を取り直さない'
+      );
+      System.assertEquals(
+        expectedById.size(),
+        preview.billingAccountOptions.size(),
+        'Core 第12.4節: 返す請求アカウント候補は変えない'
+      );
+      Set<Id> previewIds = new Set<Id>();
+      for (
+        OrderCreateController.BillingAccountOptionDto option : preview.billingAccountOptions
+      ) {
+        previewIds.add(option.id);
+        System.assertEquals(
+          expectedById.get(option.id).Name,
+          option.name,
+          'Core 第12.4節: 返す請求アカウント名は変えない'
+        );
+      }
+      System.assertEquals(
+        true,
+        previewIds.contains(context.billingAccount.Id)
+      );
+      System.assertEquals(true, previewIds.contains(second.Id));
+      System.assertEquals(
+        preview.billingAccountOptions.size(),
+        reused.size(),
+        'Core 第12.4節: 載せ済み候補と第二入口の結果は同じ'
+      );
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_doesNotRereadHistoryForOrderedSummary() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();

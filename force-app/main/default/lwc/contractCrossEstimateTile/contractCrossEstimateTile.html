@@ -153,14 +153,22 @@
               </p>
             </template>
             <div class="issue-actions">
-              <button
-                type="button"
-                class="btn btn_primary"
-                onclick={handleIssuePdf}
-                disabled={issuePdfDisabled}
-              >
-                発行する
-              </button>
+              <div class="issue-run">
+                <template if:true={issueBusy}>
+                  <p class="busy" role="status">
+                    <lightning-spinner alternative-text="処理中" size="small"></lightning-spinner>
+                    処理中
+                  </p>
+                </template>
+                <button
+                  type="button"
+                  class="btn btn_primary"
+                  onclick={handleIssuePdf}
+                  disabled={issuePdfDisabled}
+                >
+                  発行する
+                </button>
+              </div>
               <button
                 type="button"
                 class="btn btn_secondary"
@@ -170,12 +178,6 @@
                 閉じる
               </button>
             </div>
-            <template if:true={issueBusy}>
-              <p class="busy" role="status">
-                <lightning-spinner alternative-text="処理中" size="small"></lightning-spinner>
-                処理中
-              </p>
-            </template>
           </template>
           <template if:true={issueSucceeded}>
             <p class="surface-complete" role="status">{completionNote}</p>

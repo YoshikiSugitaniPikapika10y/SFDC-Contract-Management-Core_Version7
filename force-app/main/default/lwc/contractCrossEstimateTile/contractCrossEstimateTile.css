@@ -208,8 +208,7 @@
   font-size: 1rem;
 }
 
-.file-name,
-.busy {
+.file-name {
   margin: 0.5rem 0 0;
   font-size: 0.875rem;
   color: #64748b;
@@ -217,8 +216,21 @@
 
 .issue-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.issue-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.busy {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
 .surface-complete {

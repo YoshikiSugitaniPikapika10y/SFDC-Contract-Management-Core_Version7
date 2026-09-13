@@ -302,6 +302,14 @@ public without sharing class OrderCreateController {
     @AuraEnabled
     public String invoiceSendMode;
 
+    /** 仕様: Core 第12.4節・第4.3.11節。開く取得で読んだ契約履歴から請求アカウント候補を載せる。 */
+    @AuraEnabled
+    public List<BillingAccountOptionDto> billingAccountOptions;
+
+    /** 仕様: Core 第12.4節。同一取得で読んだ帳票設定をボード入口へ渡す。 */
+    @AuraEnabled
+    public InvoiceSendBoardController.BoardContextDto invoiceOpsContext;
+
     /** 仕様: 日付仕様 第8章。組織タイムゾーンの操作日（YYYY-MM-DD）。 */
     @AuraEnabled
     public Date operationDay;
@@ -1251,6 +1259,16 @@ public without sharing class OrderCreateController {
       );
     } catch (ContractDocumentSettingService.SettingException ex) {
       throw toAuraHandled(ex.getMessage());
+    }
+    preview.billingAccountOptions = billingAccountOptionsForAccount(
+      sourceHistory.ContractService__r == null
+        ? null
+        : sourceHistory.ContractService__r.Account__c
+    );
+    try {
+      preview.invoiceOpsContext = InvoiceSendBoardController.getBoardContext();
+    } catch (Exception ex) {
+      preview.invoiceOpsContext = null;
     }
     previewInvoiceModifiedOverride = new Map<Id, Datetime>();
     return preview;
@@ -2208,18 +2226,17 @@ public without sharing class OrderCreateController {
     Id contractHistoryId
   ) {
     ContractPermissionUtil.assertViewInvoicePreview();
-    Id accountId = null;
-    for (ContractHistory__c history : [
-      SELECT ContractService__r.Account__c
-      FROM ContractHistory__c
-      WHERE Id = :contractHistoryId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ]) {
-      accountId = history.ContractService__r == null
-        ? null
-        : history.ContractService__r.Account__c;
-    }
+    ContractHistory__c history = resolveHistoryForPreview(contractHistoryId);
+    Id accountId = history == null || history.ContractService__r == null
+      ? null
+      : history.ContractService__r.Account__c;
+    return billingAccountOptionsForAccount(accountId);
+  }
+
+  /** 仕様: Core 第12.4節・第4.3.11節。載せ済み契約履歴の取引先から候補を取る。履歴は取り直さない。 */
+  private static List<BillingAccountOptionDto> billingAccountOptionsForAccount(
+    Id accountId
+  ) {
     List<BillingAccountOptionDto> options = new List<BillingAccountOptionDto>();
     if (accountId == null) {
       return options;
@@ -2946,6 +2963,9 @@ public without sharing class OrderCreateController {
    * 仕様: Core 第12.4節、第4.3.11節、第7.7.0節。
    * 開く取得で読んだ契約履歴は Ordered 集計で取り直さない。
    */
+  @TestVisible
+  public static Integer previewHistorySelectCount = 0;
+
   private static ContractHistory__c resolveHistoryForPreview(
     Id contractHistoryId
   ) {
@@ -2955,13 +2975,15 @@ public without sharing class OrderCreateController {
     if (previewHistoryById != null && previewHistoryById.containsKey(contractHistoryId)) {
       return previewHistoryById.get(contractHistoryId);
     }
+    previewHistorySelectCount++;
     List<ContractHistory__c> histories = [
       SELECT
         ContractService__c,
         Version__c,
         historystatus__c,
         DeltaAmountSum__c,
-        ContractService__r.TaxPercent__c
+        ContractService__r.TaxPercent__c,
+        ContractService__r.Account__c
       FROM ContractHistory__c
       WHERE Id = :contractHistoryId
       WITH SYSTEM_MODE
@@ -5455,6 +5477,7 @@ public without sharing class OrderCreateController {
     preview.manualAdjustmentAmount = 0;
     preview.hasManualAdjustment = false;
     preview.operationDay = InvoiceTransactionStatusService.organizationToday();
+    preview.billingAccountOptions = new List<BillingAccountOptionDto>();
     return preview;
   }
 
