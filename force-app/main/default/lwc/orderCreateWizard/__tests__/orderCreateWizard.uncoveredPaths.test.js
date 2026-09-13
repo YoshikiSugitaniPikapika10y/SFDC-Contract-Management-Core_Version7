@@ -125,6 +125,7 @@ function bind(overrides = {}) {
     recordId: "a0H000000000001AAA",
     _recordId: "a0H000000000001AAA",
     isTabView: false,
+    fromCrossWork: false,
     isLoading: false,
     isSaving: false,
     errorMessage: "",
@@ -373,6 +374,16 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
     });
     expect(tab.pageClass).toBe("ord-page ord-page_tab");
     expect(tab.cancelPageClass).toContain("cancel-page_tab");
+  });
+
+  it("横断の見積書タイルでは契約履歴へ遷移しない (横断画面.md 第2.1節)", () => {
+    requestOrderWizardClose.mockClear();
+    closeOrderWizardTab.mockClear();
+    const ctx = bind({ fromCrossWork: true, isTabView: true });
+    ctx.closeAction({ refresh: true });
+    expect(closeOrderWizardTab).not.toHaveBeenCalled();
+    expect(requestOrderWizardClose).not.toHaveBeenCalled();
+    expect(ctx.dispatchEvent).toHaveBeenCalled();
   });
 
   it("validateBillingStep and guide use billing child (Core 5.2)", () => {

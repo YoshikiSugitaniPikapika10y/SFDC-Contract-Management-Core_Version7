@@ -772,8 +772,6 @@
             can-issue={canIssueEstimate}
             can-send={canSendEstimate}
             can-order={canOrder}
-            onsendestimate={handleSendEstimate}
-            onorderestimate={handleOrderEstimate}
             onissuestatechange={handleIssueStateChange}
           ></c-contract-cross-estimate-tile>
         </template>
@@ -813,35 +811,5 @@
       </section>
       </template>
     </div>
-
-    <template if:true={showSendOverlay}>
-      <div class="overlay">
-        <div class="overlay-bar">
-          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose} disabled={overlayBusy}>
-            閉じる
-          </button>
-        </div>
-        <c-estimate-send-record-action
-          record-id={overlayHistoryId}
-          from-cross-work={fromCrossWorkTrue}
-          onpanelclose={handleOverlayClose}
-          onbusychange={handleOverlayBusy}
-        ></c-estimate-send-record-action>
-      </div>
-    </template>
-    <template if:true={showOrderOverlay}>
-      <div class="overlay">
-        <div class="overlay-bar">
-          <button type="button" class="btn btn_secondary" onclick={handleOverlayClose} disabled={overlayBusy}>
-            閉じる
-          </button>
-        </div>
-        <c-order-create-wizard
-          record-id={overlayHistoryId}
-          onpanelclose={handleOverlayClose}
-          onbusychange={handleOverlayBusy}
-        ></c-order-create-wizard>
-      </div>
-    </template>
   </div>
 </template>

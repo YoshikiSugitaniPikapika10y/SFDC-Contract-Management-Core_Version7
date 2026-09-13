@@ -388,9 +388,17 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     if (this.isSending) {
       return;
     }
+    this.closePanel();
+  }
+
+  /** 仕様: 共通基盤 第2.1節。横断の見積書タイルでは送付画面を閉じ、契約履歴へ遷移しない。 */
+  closePanel() {
     this.dispatchEvent(
       new CustomEvent("panelclose", { bubbles: true, composed: true })
     );
+    if (this.fromCrossWork === true) {
+      return;
+    }
     this.dispatchEvent(new CloseActionScreenEvent());
   }
 
@@ -434,10 +442,7 @@ export default class EstimateSendRecordAction extends NavigationMixin(
       });
       this.dispatchEvent(new RefreshEvent());
       this.notifyOverlayBusy(false);
-      this.dispatchEvent(
-        new CustomEvent("panelclose", { bubbles: true, composed: true })
-      );
-      this.dispatchEvent(new CloseActionScreenEvent());
+      this.closePanel();
     } catch (error) {
       const message = this.toMessage(error);
       await this.load();

@@ -430,15 +430,6 @@ export default class ContractCrossWork extends NavigationMixin(
   invoiceLoading = false;
   invoiceError = "";
   isSaving = false;
-  showSendOverlay = false;
-  showOrderOverlay = false;
-  overlayHistoryId = null;
-  overlayBusy = false;
-
-  // 仕様: 画面見た目 第4節。LWC1060 を避ける。値 true は変えない。
-  get fromCrossWorkTrue() {
-    return true;
-  }
 
   _keydown = (event) => this.handleWindowKeydown(event);
 
@@ -1884,35 +1875,6 @@ export default class ContractCrossWork extends NavigationMixin(
       this.invoiceError = this.reduceError(error);
     } finally {
       this.invoiceLoading = false;
-    }
-  }
-
-  handleSendEstimate(event) {
-    this.overlayHistoryId = event.detail.historyId;
-    this.overlayBusy = false;
-    this.showSendOverlay = true;
-  }
-
-  handleOrderEstimate(event) {
-    this.overlayHistoryId = event.detail.historyId;
-    this.overlayBusy = false;
-    this.showOrderOverlay = true;
-  }
-
-  handleOverlayBusy(event) {
-    this.overlayBusy = event.detail?.busy === true;
-  }
-
-  // 仕様: Core 第7.10節。個別送付は終わるまで待たせる。裏では回さない。処理中は閉じない。終わったあとは閉じる。
-  handleOverlayClose() {
-    if (this.overlayBusy) {
-      return;
-    }
-    this.showSendOverlay = false;
-    this.showOrderOverlay = false;
-    this.overlayBusy = false;
-    if (this.selectedId && this.menu === MENU_ESTIMATE) {
-      this.loadEstimateTile(this.selectedId);
     }
   }
 

@@ -334,6 +334,16 @@ describe("estimateSendRecordAction uncovered (Core 7.10 / 4.8)", () => {
     expect(ctx.dispatchEvent).toHaveBeenCalled();
   });
 
+  it("横断の見積書タイルでは CloseActionScreen しない (横断画面.md 第2.1節)", () => {
+    const ctx = bind({ fromCrossWork: true });
+    ctx.closePanel();
+    const names = ctx.dispatchEvent.mock.calls.map(
+      (call) => call[0].type || call[0].constructor.name
+    );
+    expect(names).toContain("panelclose");
+    expect(names).not.toContain("CloseActionScreenEvent");
+  });
+
   it("send failure reloads then keeps failure message (Core 7.10)", async () => {
     sendEstimate.mockRejectedValue({
       body: { message: "見積を送付できませんでした。" }

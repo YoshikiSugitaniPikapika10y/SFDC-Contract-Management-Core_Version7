@@ -532,23 +532,6 @@
   cursor: pointer;
 }
 
-.overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  background: #ffffff;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.overlay-bar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-
 @media (max-width: 64rem) {
   .split,
   .split.has-handle,

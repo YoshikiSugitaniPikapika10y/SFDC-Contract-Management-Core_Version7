@@ -71,6 +71,9 @@ function bind(overrides = {}) {
     canSend: true,
     canOrder: true,
     showIssue: false,
+    showSend: false,
+    showOrder: false,
+    workBusy: false,
     issueBusy: false,
     issueError: "",
     issueSucceeded: false,
@@ -252,26 +255,57 @@ describe("contractCrossEstimateTile uncovered (横断画面.md 第5節 / Core 4.
     ctx.handleSendThisFile();
     expect(sessionStorage.getItem(INITIAL_ATTACHMENT_KEY)).toBe("069AAA");
     expect(ctx.showIssue).toBe(false);
+    expect(ctx.showSend).toBe(true);
+    expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+  });
+
+  it("send and order stay on the tile (横断画面.md 第2.1節)", () => {
+    const ctx = bind();
+    ctx.handleSendClick();
+    expect(ctx.showSend).toBe(true);
+    expect(ctx.showOrder).toBe(false);
+    expect(ctx.isCardWorkOpen).toBe(true);
+    expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+    ctx.handleOrderClick();
+    expect(ctx.showOrder).toBe(true);
+    expect(ctx.showSend).toBe(false);
+    ctx.handleCloseIssue();
+    expect(ctx.showIssue).toBe(false);
+  });
+
+  it("処理中は送付・受注の作業面を閉じない (Core 7.10)", () => {
+    const ctx = bind({ showSend: true, workBusy: true });
+    ctx.handleCloseWork();
+    expect(ctx.showSend).toBe(true);
+    expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+    ctx.workBusy = false;
+    ctx.handleCloseWork();
+    expect(ctx.showSend).toBe(false);
+    expect(ctx.showOrder).toBe(false);
     expect(ctx.dispatchEvent).toHaveBeenCalled();
   });
 
-  it("send and order events carry historyId (横断画面.md 第5節)", () => {
+  it("見積送付は fromCrossWork=true を渡す (画面見た目 第4節)", () => {
     const ctx = bind();
-    ctx.handleSendClick();
-    ctx.handleOrderClick();
-    expect(ctx.dispatchEvent.mock.calls[0][0].detail.historyId).toBe(
-      "a01000000000001AAA"
-    );
-    expect(ctx.dispatchEvent.mock.calls[1][0].detail.historyId).toBe(
-      "a01000000000001AAA"
-    );
-    ctx.handleCloseIssue();
-    expect(ctx.showIssue).toBe(false);
+    expect(ctx.fromCrossWorkTrue).toBe(true);
   });
 
   it("historyRecordUrl empty without id (横断画面.md 第1節)", () => {
     const ctx = bind({ tile: {} });
     expect(ctx.historyRecordUrl).toBe("");
+    expect(ctx.historyId).toBe("");
     expect(ctx.hasLines).toBe(false);
+    ctx.handleSendClick();
+    ctx.handleOrderClick();
+    expect(ctx.showSend).toBe(false);
+    expect(ctx.showOrder).toBe(false);
+  });
+
+  it("work busy follows busychange (Core 7.10)", () => {
+    const ctx = bind();
+    ctx.handleWorkBusy({ detail: { busy: true } });
+    expect(ctx.workBusy).toBe(true);
+    ctx.handleWorkBusy({ detail: {} });
+    expect(ctx.workBusy).toBe(false);
   });
 });

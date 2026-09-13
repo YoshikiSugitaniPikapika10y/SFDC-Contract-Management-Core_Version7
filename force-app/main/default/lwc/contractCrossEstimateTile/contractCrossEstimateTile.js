@@ -62,6 +62,9 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
   @api canOrder = false;
 
   showIssue = false;
+  showSend = false;
+  showOrder = false;
+  workBusy = false;
   issueBusy = false;
   issueError = "";
   issueSucceeded = false;
@@ -74,8 +77,26 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
   latestIssuedContentDocumentId = "";
   companyBlockedReason = "";
 
+  /** 仕様: 画面見た目 第4節。LWC1060 を避ける。値 true は変えない。 */
+  get fromCrossWorkTrue() {
+    return true;
+  }
+
+  /** 仕様: 共通基盤 第2.1節。発行・送付・受注は右の見積書タイルを作業面にする。明細表は出さない。 */
+  get isCardWorkOpen() {
+    return (
+      this.showIssue === true ||
+      this.showSend === true ||
+      this.showOrder === true
+    );
+  }
+
   get historyName() {
     return this.tile?.historyName || "";
+  }
+
+  get historyId() {
+    return this.tile?.id || "";
   }
 
   /** 仕様: 横断画面.md 第1節・第5節。数量・単価・期間を直すときは契約履歴名のレコードリンク。 */
@@ -234,26 +255,49 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
     this.openIssue();
   }
 
+  /** 仕様: 共通基盤 操作5。見積書タイルから同じ送付画面。別タブへは開かない。 */
   handleSendClick() {
-    this.dispatchEvent(
-      new CustomEvent("sendestimate", {
-        detail: { historyId: this.tile?.id }
-      })
-    );
+    if (!this.tile?.id) {
+      return;
+    }
+    this.showIssue = false;
+    this.showOrder = false;
+    this.showSend = true;
+    this.workBusy = false;
   }
 
+  /** 仕様: 共通基盤 操作6。見積書タイルから同じ受注画面。別タブへは開かない。 */
   handleOrderClick() {
-    this.dispatchEvent(
-      new CustomEvent("orderestimate", {
-        detail: { historyId: this.tile?.id }
-      })
-    );
+    if (!this.tile?.id) {
+      return;
+    }
+    this.showIssue = false;
+    this.showSend = false;
+    this.showOrder = true;
+    this.workBusy = false;
+  }
+
+  handleWorkBusy(event) {
+    this.workBusy = event.detail?.busy === true;
+  }
+
+  // 仕様: Core 第7.10節。個別送付は終わるまで待たせる。裏では回さない。処理中は閉じない。終わったあとは閉じる。
+  handleCloseWork() {
+    if (this.workBusy === true) {
+      return;
+    }
+    this.showSend = false;
+    this.showOrder = false;
+    this.workBusy = false;
+    this.dispatchEvent(new CustomEvent("issuestatechange"));
   }
 
   async openIssue() {
     if (!this.tile?.id) {
       return;
     }
+    this.showSend = false;
+    this.showOrder = false;
     this.showIssue = true;
     this.issueBusy = true;
     this.issueError = "";
@@ -338,11 +382,7 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
       }
     }
     this.showIssue = false;
-    this.dispatchEvent(
-      new CustomEvent("sendestimate", {
-        detail: { historyId: this.tile?.id }
-      })
-    );
+    this.handleSendClick();
   }
 
   reduceError(error) {

@@ -278,6 +278,7 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
       isResend: false,
       fromCrossWork: false,
       sendEstimateApex: proto.sendEstimateApex,
+      closePanel: proto.closePanel,
       _recordId: "a0H",
       documentTemplateKey: "tpl",
       emailTemplateApiName: "email",

@@ -184,23 +184,12 @@
   color: #ba0517;
 }
 
-.issue-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-  background: rgba(15, 23, 42, 0.28);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 1.5rem 1rem;
-}
-
 .issue-panel {
-  width: min(32rem, 100%);
+  width: 100%;
   background: #ffffff;
+  border: 1px solid #ecebea;
   border-radius: 0.5rem;
-  padding: 1rem 1.125rem 1.125rem;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  padding: 0.75rem 0.875rem 1rem;
 }
 
 .issue-title {

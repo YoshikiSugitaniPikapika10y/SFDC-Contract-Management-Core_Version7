@@ -44,6 +44,7 @@
         </p>
       </header>
 
+      <template if:false={isCardWorkOpen}>
       <div class="actions">
         <template if:true={showIssueButton}>
           <button type="button" class="btn btn_secondary" onclick={handleIssueClick}>
@@ -61,7 +62,138 @@
           </button>
         </template>
       </div>
+      </template>
 
+      <template if:true={showIssue}>
+      <div class="issue-panel" role="dialog" aria-label="見積書発行">
+        <h3 class="issue-title">見積書発行</h3>
+        <template if:true={issueError}>
+          <p class="alert alert_error">{issueError}</p>
+          <button type="button" class="btn btn_secondary" onclick={handleIssueClick}>
+            再読み込み
+          </button>
+        </template>
+        <template if:false={issueSucceeded}>
+          <lightning-combobox
+            label="帳票"
+            value={templateKey}
+            options={templateOptions}
+            required
+            disabled={issueBusy}
+            onchange={handleTemplateChange}
+          ></lightning-combobox>
+          <p class="file-name">ファイル名 {issueFileName}</p>
+          <template if:true={showIssuePdfPreview}>
+            <p class="file-name">
+              <button
+                type="button"
+                class="btn btn_secondary"
+                onclick={handleIssuePdfPreview}
+              >
+                プレビュー
+              </button>
+            </p>
+          </template>
+          <template if:true={showLatestPdfDownload}>
+            <p class="file-name">
+              <a
+                href={latestPdfDownloadUrl}
+                target="_blank"
+                rel="noreferrer"
+                >最新PDFをダウンロード</a
+              >
+            </p>
+          </template>
+          <div class="issue-actions">
+            <div class="issue-run">
+              <template if:true={issueBusy}>
+                <p class="busy" role="status">
+                  <lightning-spinner alternative-text="処理中" size="small"></lightning-spinner>
+                  処理中
+                </p>
+              </template>
+              <button
+                type="button"
+                class="btn btn_primary"
+                onclick={handleIssuePdf}
+                disabled={issuePdfDisabled}
+              >
+                発行する
+              </button>
+            </div>
+            <button
+              type="button"
+              class="btn btn_secondary"
+              onclick={handleCloseIssue}
+              disabled={issueBusy}
+            >
+              閉じる
+            </button>
+          </div>
+        </template>
+        <template if:true={issueSucceeded}>
+          <p class="surface-complete" role="status">{completionNote}</p>
+          <template if:true={showIssuePdfPreview}>
+            <p>
+              <button
+                type="button"
+                class="btn btn_secondary"
+                onclick={handleIssuePdfPreview}
+              >
+                発行したファイルをプレビュー
+              </button>
+            </p>
+          </template>
+          <template if:true={showLatestPdfDownload}>
+            <p>
+              <a
+                href={latestPdfDownloadUrl}
+                target="_blank"
+                rel="noreferrer"
+                >最新PDFをダウンロード</a
+              >
+            </p>
+          </template>
+          <div class="issue-actions">
+            <template if:true={showSendThisFile}>
+              <button
+                type="button"
+                class="btn btn_primary"
+                onclick={handleSendThisFile}
+              >
+                このファイルを送る
+              </button>
+            </template>
+            <button
+              type="button"
+              class="btn btn_secondary"
+              onclick={handleCloseIssue}
+            >
+              閉じる
+            </button>
+          </div>
+        </template>
+      </div>
+      </template>
+
+      <template if:true={showSend}>
+        <c-estimate-send-record-action
+          record-id={historyId}
+          from-cross-work={fromCrossWorkTrue}
+          onpanelclose={handleCloseWork}
+          onbusychange={handleWorkBusy}
+        ></c-estimate-send-record-action>
+      </template>
+      <template if:true={showOrder}>
+        <c-order-create-wizard
+          record-id={historyId}
+          from-cross-work={fromCrossWorkTrue}
+          onpanelclose={handleCloseWork}
+          onbusychange={handleWorkBusy}
+        ></c-order-create-wizard>
+      </template>
+
+      <template if:false={isCardWorkOpen}>
       <div class="table-wrap">
         <table class="product-table">
           <thead>
@@ -105,124 +237,11 @@
           明細数 {lineCount}　税抜 {amountLabel}　税込 {taxInclusiveLabel}
         </p>
       </div>
+      </template>
     </template>
 
     <template if:true={notEstimateMessage}>
       <p class="alert" role="status">{notEstimateMessage}</p>
-    </template>
-
-    <template if:true={showIssue}>
-      <div class="issue-overlay" role="dialog" aria-label="見積書発行">
-        <div class="issue-panel">
-          <h3 class="issue-title">見積書発行</h3>
-          <template if:true={issueError}>
-            <p class="alert alert_error">{issueError}</p>
-            <button type="button" class="btn btn_secondary" onclick={handleIssueClick}>
-              再読み込み
-            </button>
-          </template>
-          <template if:false={issueSucceeded}>
-            <lightning-combobox
-              label="帳票"
-              value={templateKey}
-              options={templateOptions}
-              required
-              disabled={issueBusy}
-              onchange={handleTemplateChange}
-            ></lightning-combobox>
-            <p class="file-name">ファイル名 {issueFileName}</p>
-            <template if:true={showIssuePdfPreview}>
-              <p class="file-name">
-                <button
-                  type="button"
-                  class="btn btn_secondary"
-                  onclick={handleIssuePdfPreview}
-                >
-                  プレビュー
-                </button>
-              </p>
-            </template>
-            <template if:true={showLatestPdfDownload}>
-              <p class="file-name">
-                <a
-                  href={latestPdfDownloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  >最新PDFをダウンロード</a
-                >
-              </p>
-            </template>
-            <div class="issue-actions">
-              <div class="issue-run">
-                <template if:true={issueBusy}>
-                  <p class="busy" role="status">
-                    <lightning-spinner alternative-text="処理中" size="small"></lightning-spinner>
-                    処理中
-                  </p>
-                </template>
-                <button
-                  type="button"
-                  class="btn btn_primary"
-                  onclick={handleIssuePdf}
-                  disabled={issuePdfDisabled}
-                >
-                  発行する
-                </button>
-              </div>
-              <button
-                type="button"
-                class="btn btn_secondary"
-                onclick={handleCloseIssue}
-                disabled={issueBusy}
-              >
-                閉じる
-              </button>
-            </div>
-          </template>
-          <template if:true={issueSucceeded}>
-            <p class="surface-complete" role="status">{completionNote}</p>
-            <template if:true={showIssuePdfPreview}>
-              <p>
-                <button
-                  type="button"
-                  class="btn btn_secondary"
-                  onclick={handleIssuePdfPreview}
-                >
-                  発行したファイルをプレビュー
-                </button>
-              </p>
-            </template>
-            <template if:true={showLatestPdfDownload}>
-              <p>
-                <a
-                  href={latestPdfDownloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  >最新PDFをダウンロード</a
-                >
-              </p>
-            </template>
-            <div class="issue-actions">
-              <template if:true={showSendThisFile}>
-                <button
-                  type="button"
-                  class="btn btn_primary"
-                  onclick={handleSendThisFile}
-                >
-                  このファイルを送る
-                </button>
-              </template>
-              <button
-                type="button"
-                class="btn btn_secondary"
-                onclick={handleCloseIssue}
-              >
-                閉じる
-              </button>
-            </div>
-          </template>
-        </div>
-      </div>
     </template>
   </article>
 </template>

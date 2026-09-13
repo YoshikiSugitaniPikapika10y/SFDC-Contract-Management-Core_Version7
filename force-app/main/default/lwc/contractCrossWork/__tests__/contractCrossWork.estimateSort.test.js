@@ -829,35 +829,6 @@ describe("contractCrossWork issued icon (横断画面.md 操作23)", () => {
 describe("contractCrossWork overlay and journal busy (Core 7.10 / 7.9.7)", () => {
   const proto = ContractCrossWork.prototype;
 
-  it("処理中はオーバーレイを閉じない", () => {
-    const ctx = {
-      overlayBusy: true,
-      showSendOverlay: true,
-      showOrderOverlay: false,
-      selectedId: "a0H",
-      menu: "estimate",
-      loadEstimateTile: jest.fn()
-    };
-    proto.handleOverlayClose.call(ctx);
-    expect(ctx.showSendOverlay).toBe(true);
-    expect(ctx.loadEstimateTile).not.toHaveBeenCalled();
-  });
-
-  it("終わったあとはオーバーレイを閉じる", () => {
-    const ctx = {
-      overlayBusy: false,
-      showSendOverlay: true,
-      showOrderOverlay: true,
-      selectedId: "a0H",
-      menu: "estimate",
-      loadEstimateTile: jest.fn()
-    };
-    proto.handleOverlayClose.call(ctx);
-    expect(ctx.showSendOverlay).toBe(false);
-    expect(ctx.showOrderOverlay).toBe(false);
-    expect(ctx.loadEstimateTile).toHaveBeenCalled();
-  });
-
   it("保存中は一括選択しない", () => {
     const ctx = {
       saving: true,

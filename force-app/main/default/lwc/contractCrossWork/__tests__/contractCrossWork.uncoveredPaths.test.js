@@ -266,9 +266,6 @@ function bind(overrides = {}) {
     highlightJournalId: null,
     overlayHistoryId: null,
     invoiceError: "",
-    overlayBusy: false,
-    showSendOverlay: false,
-    showOrderOverlay: false,
     dispatchEvent: jest.fn(),
     template: {
       querySelector: jest.fn(() => null),
@@ -845,20 +842,8 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
 
   it("send/order overlays and issue refresh (横断 第4節)", async () => {
     const ctx = bind({ selectedId: "a01EST", menu: "estimate" });
-    ctx.handleSendEstimate({ detail: { historyId: "a01EST" } });
-    expect(ctx.showSendOverlay).toBe(true);
-    ctx.overlayBusy = false;
-    ctx.handleOverlayClose();
-    expect(ctx.showSendOverlay).toBe(false);
-    ctx.handleOrderEstimate({ detail: { historyId: "a01EST" } });
-    expect(ctx.showOrderOverlay).toBe(true);
     ctx.handleIssueStateChange();
     expect(getEstimateTile).toHaveBeenCalled();
-  });
-
-  it("見積送付オーバーレイは fromCrossWork=true を渡す (画面見た目 第4節)", () => {
-    const ctx = bind({});
-    expect(ctx.fromCrossWorkTrue).toBe(true);
   });
 
   it("invoice line amount / header / acceptance save notes 請求情報を保存しました", async () => {

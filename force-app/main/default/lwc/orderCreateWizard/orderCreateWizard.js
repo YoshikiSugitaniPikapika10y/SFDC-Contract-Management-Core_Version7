@@ -54,6 +54,8 @@ export default class OrderCreateWizard extends NavigationMixin(
   }
 
   @track isTabView = false;
+  /** 仕様: 共通基盤 第2.1節。横断の見積書タイルから開いたときは契約履歴タブへ遷移しない。 */
+  @api fromCrossWork = false;
   @track isLoading = true;
   @track isSaving = false;
   @track errorMessage = "";
@@ -393,6 +395,9 @@ export default class OrderCreateWizard extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("panelclose", { bubbles: true, composed: true })
     );
+    if (this.fromCrossWork === true) {
+      return;
+    }
     if (this.isTabView) {
       closeOrderWizardTab(this, {
         recordId: this.recordId,
