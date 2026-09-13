@@ -85,14 +85,30 @@ private class InvoiceTaxAllocationServiceTest {
         WHERE Invoice__c = :invoice.Id
         ORDER BY Amount__c DESC
       ];
-      System.assertEquals(2, lines.size());
+      System.assertEquals(
+        2,
+        lines.size(),
+        'Core 第7.4節: 確定した請求の全明細へヘッダ税を配分する'
+      );
       Decimal taxSum = 0;
       for (InvoiceLine__c line : lines) {
         taxSum += line.AllocatedTaxAmount__c;
       }
-      System.assertEquals(100, taxSum);
-      System.assertEquals(60, lines[0].AllocatedTaxAmount__c);
-      System.assertEquals(40, lines[1].AllocatedTaxAmount__c);
+      System.assertEquals(
+        100,
+        taxSum,
+        'Core 第7.4節: 明細配分合計をヘッダ税額と完全一致させる'
+      );
+      System.assertEquals(
+        60,
+        lines[0].AllocatedTaxAmount__c,
+        'Core 第11.9節: 税抜600へヘッダ税100の60%を配分する'
+      );
+      System.assertEquals(
+        40,
+        lines[1].AllocatedTaxAmount__c,
+        'Core 第11.9節: 税抜400へヘッダ税100の40%を配分する'
+      );
     }
   }
 
@@ -113,19 +129,28 @@ private class InvoiceTaxAllocationServiceTest {
         ORDER BY Id
       ];
       System.assertEquals(3, lines.size());
-      Decimal taxSum = 0;
-      Integer extraCount = 0;
-      for (InvoiceLine__c line : lines) {
-        taxSum += line.AllocatedTaxAmount__c;
-        if (line.AllocatedTaxAmount__c == 4) {
-          extraCount++;
-        } else {
-          System.assertEquals(3, line.AllocatedTaxAmount__c);
-        }
-      }
-      System.assertEquals(10, taxSum);
-      System.assertEquals(1, extraCount);
-      System.assertEquals(4, lines[0].AllocatedTaxAmount__c);
+      System.assertEquals(
+        4,
+        lines[0].AllocatedTaxAmount__c,
+        'Core 第11.9節: 同率の1円端数は請求明細の安定順の先頭へ配る'
+      );
+      System.assertEquals(
+        3,
+        lines[1].AllocatedTaxAmount__c,
+        'Core 第11.9節: 2行目は0方向整数化した3円を維持する'
+      );
+      System.assertEquals(
+        3,
+        lines[2].AllocatedTaxAmount__c,
+        'Core 第11.9節: 3行目は0方向整数化した3円を維持する'
+      );
+      System.assertEquals(
+        10,
+        lines[0].AllocatedTaxAmount__c +
+          lines[1].AllocatedTaxAmount__c +
+          lines[2].AllocatedTaxAmount__c,
+        'Accounting 第3.2節: 明細配分合計をヘッダ税額と完全一致させる'
+      );
     }
   }
 
@@ -157,6 +182,48 @@ private class InvoiceTaxAllocationServiceTest {
         'Core 第11.9節: 符号付き剰余の大きい行（-7）へ-1を配る'
       );
       System.assertEquals(0, lines[1].AllocatedTaxAmount__c);
+    }
+  }
+
+  @IsTest
+  static void allocateOnConfirm_mixedSignsUsesSignedLargestRemainder() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertAllocationInvoice('Mixed Sign Rem', 2);
+      insertAllocationLines(invoice.Id, new List<Decimal>{ 4, 4, -3 });
+
+      Test.startTest();
+      InvoiceTaxAllocationService.allocateOnConfirm(invoice);
+      Test.stopTest();
+
+      List<InvoiceLine__c> lines = [
+        SELECT Amount__c, AllocatedTaxAmount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        ORDER BY Id
+      ];
+      System.assertEquals(3, lines.size());
+      System.assertEquals(
+        2,
+        lines[0].AllocatedTaxAmount__c,
+        'Core 第11.9節: 同率最大剰余の1円は安定順の先頭へ配る'
+      );
+      System.assertEquals(
+        1,
+        lines[1].AllocatedTaxAmount__c,
+        'Core 第11.9節: 2行目は理論額1.6を0方向へ整数化する'
+      );
+      System.assertEquals(
+        -1,
+        lines[2].AllocatedTaxAmount__c,
+        'Accounting 第3.2節: 負額明細の配分税も符号付きで保存する'
+      );
+      System.assertEquals(
+        2,
+        lines[0].AllocatedTaxAmount__c +
+          lines[1].AllocatedTaxAmount__c +
+          lines[2].AllocatedTaxAmount__c,
+        'Accounting 第3.2節: 正負混在でも配分合計をヘッダ税額と一致させる'
+      );
     }
   }
 

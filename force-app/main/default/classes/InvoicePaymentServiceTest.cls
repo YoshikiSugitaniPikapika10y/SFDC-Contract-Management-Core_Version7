@@ -780,7 +780,7 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
-  static void register_invoiceBillingBasis_keepsLineJournalsAndInvoiceCopySource() {
+  static void register_invoiceBillingBasis_persistsExactPaymentAndAllocation() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
       policy.AccountingEnabled__c = true;
@@ -800,7 +800,7 @@ private class InvoicePaymentServiceTest {
       InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
       AccountingDiffService.invoiceCopySourceSelectCount = 0;
       Test.startTest();
-      InvoicePaymentService.register(request);
+      Id paymentId = InvoicePaymentService.register(request);
       Test.stopTest();
       System.assertEquals(
         0,
@@ -822,6 +822,70 @@ private class InvoicePaymentServiceTest {
         lineJournal.TransactionStatus__c,
         'Accounting 第1.8.1節: Goalに無いCurrentは論理削除する'
       );
+      InvoicePayment__c payment = [
+        SELECT
+          Invoice__c,
+          Amount__c,
+          PaymentPurpose__c,
+          PaymentDate__c,
+          PaymentTransactionStatus__c
+        FROM InvoicePayment__c
+        WHERE Id = :paymentId
+      ];
+      System.assertEquals(
+        fixture.invoice.Id,
+        payment.Invoice__c,
+        'Core 第8.1節: 請求入出金は対象請求書1枚に紐づく'
+      );
+      System.assertEquals(
+        1100,
+        payment.Amount__c,
+        'Core 第8.1節・第8.2節: Invoice入金は入力した正の符号付き金額を保持する'
+      );
+      System.assertEquals(
+        InvoicePaymentService.PURPOSE_INVOICE,
+        payment.PaymentPurpose__c,
+        'Core 第8.1節・第8.2節: 請求金額の入金はPurpose=Invoice'
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 6, 1),
+        payment.PaymentDate__c,
+        'Core 第8.1節・第8.4節: 登録した入出金日を保持する'
+      );
+      System.assertEquals(
+        InvoicePaymentService.STATUS_ACTIVE,
+        payment.PaymentTransactionStatus__c,
+        'Core 第8.1節: 登録した請求入出金の取引状態はActive'
+      );
+      InvoicePaymentAllocation__c allocation = [
+        SELECT
+          InvoiceLine__c,
+          Amount__c,
+          HistoricalUacAmount__c,
+          HistoricalSpAmount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoicePayment__c = :paymentId
+      ];
+      System.assertEquals(
+        fixture.line.Id,
+        allocation.InvoiceLine__c,
+        'Core 第8.1節・第8.6節: Invoice入金は同じ請求書の明細へ割り当てる'
+      );
+      System.assertEquals(
+        1100,
+        allocation.Amount__c,
+        'Core 第8.1節・第8.6節: 割当額合計は親の符号付き金額と完全一致する'
+      );
+      System.assertEquals(
+        0,
+        allocation.HistoricalUacAmount__c,
+        'Core 第8.6節: 通常日のInvoice割当は過去日UAC振替額0'
+      );
+      System.assertEquals(
+        0,
+        allocation.HistoricalSpAmount__c,
+        'Core 第8.6節: 通常日のInvoice割当は過去日SP振替額0'
+      );
       Invoice__c afterRegister = [
         SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
         FROM Invoice__c
@@ -841,7 +905,7 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
-  static void register_nonInvoice_keepsLineJournalsAndInvoiceCopySource() {
+  static void register_nonInvoice_persistsExactPaymentWithoutAllocation() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
       policy.AccountingEnabled__c = true;
@@ -876,7 +940,7 @@ private class InvoicePaymentServiceTest {
       InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
       AccountingDiffService.invoiceCopySourceSelectCount = 0;
       Test.startTest();
-      InvoicePaymentService.register(request);
+      Id paymentId = InvoicePaymentService.register(request);
       Test.stopTest();
       System.assertEquals(
         0,
@@ -897,6 +961,65 @@ private class InvoicePaymentServiceTest {
         'LogicallyDeleted',
         lineJournal.TransactionStatus__c,
         'Accounting 第1.8.1節: Goalに無いCurrentは論理削除する'
+      );
+      InvoicePayment__c payment = [
+        SELECT
+          Invoice__c,
+          Amount__c,
+          PaymentPurpose__c,
+          PaymentDate__c,
+          PaymentTransactionStatus__c
+        FROM InvoicePayment__c
+        WHERE Id = :paymentId
+      ];
+      System.assertEquals(
+        fixture.invoice.Id,
+        payment.Invoice__c,
+        'Core 第8.1節: 請求入出金は対象請求書1枚に紐づく'
+      );
+      System.assertEquals(
+        100,
+        payment.Amount__c,
+        'Core 第8.1節・第8.2節: NonInvoice入金は入力した正の符号付き金額を保持する'
+      );
+      System.assertEquals(
+        InvoicePaymentService.PURPOSE_NON_INVOICE,
+        payment.PaymentPurpose__c,
+        'Core 第8.1節・第8.2節: 請求金額以外の入金はPurpose=NonInvoice'
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 6, 1),
+        payment.PaymentDate__c,
+        'Core 第8.1節・第8.4節: 登録した入出金日を保持する'
+      );
+      System.assertEquals(
+        InvoicePaymentService.STATUS_ACTIVE,
+        payment.PaymentTransactionStatus__c,
+        'Core 第8.1節: 登録した請求入出金の取引状態はActive'
+      );
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoicePaymentAllocation__c
+          WHERE InvoicePayment__c = :paymentId
+        ],
+        'Core 第8.6節: Purpose=NonInvoiceは明細別割当を持たない'
+      );
+      Invoice__c afterRegister = [
+        SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      System.assertEquals(
+        1100,
+        afterRegister.InvoicePaymentNet__c,
+        'Core 第8.1節: NonInvoice登録は請求金額Netへ含めない'
+      );
+      System.assertEquals(
+        1200,
+        afterRegister.PaymentInclusiveTotal__c,
+        'Core 第8.1節: 全入出金NetはInvoice 1100とNonInvoice 100の合計'
       );
       InvoicePaymentAllocation__c afterAllocation = [
         SELECT HistoricalUacAmount__c, HistoricalSpAmount__c
@@ -967,6 +1090,7 @@ private class InvoicePaymentServiceTest {
       InvoiceProductFieldCopyService.invoiceSourceSelectCount = 0;
       AccountingDiffService.invoiceCopySourceSelectCount = 0;
       AccountingCurrentService.currentLoadSelectCount = 0;
+      AccountingGoalService.lineLoadSelectCount = 0;
       Test.startTest();
       InvoicePaymentService.register(request);
       Test.stopTest();
@@ -999,6 +1123,25 @@ private class InvoicePaymentServiceTest {
         1,
         AccountingCurrentService.currentLoadSelectCount,
         'Accounting 第8.2節: 登録はロック後に集めたCurrentをapplyで取り直さない'
+      );
+      System.assertEquals(
+        1,
+        AccountingGoalService.lineLoadSelectCount,
+        'Accounting 第8.2節・Core 第12.4節: 割当検証で集めた請求明細をGoalが取り直さない'
+      );
+      InvoiceLine__c collectedLine = AccountingGoalService.collectedLines(
+          fixture.invoice.Id
+        )
+        .get(fixture.line.Id);
+      System.assertNotEquals(
+        null,
+        collectedLine,
+        'Accounting 第8.2節: 割当検証で集めた全請求明細をGoalへ渡す'
+      );
+      System.assertEquals(
+        fixture.line.TaxInclusiveAmount__c,
+        collectedLine.TaxInclusiveAmount__c,
+        'Core 第8.6節・第12.4節: 再照会せず割当残額に必要な税込額も保持する'
       );
       Invoice__c afterRegister = [
         SELECT InvoicePaymentNet__c, PaymentInclusiveTotal__c

@@ -18,6 +18,8 @@ private class ChangeBillingEventUtilTest {
     );
 
     System.assertEquals(2, filtered.size());
+    System.assertEquals(products[0].Id, filtered[0].Id);
+    System.assertEquals(products[1].Id, filtered[1].Id);
   }
 
   @IsTest
@@ -98,8 +100,10 @@ private class ChangeBillingEventUtilTest {
     System.assertEquals(
       2,
       filtered.size(),
-      '終了日延長のみでも見積書明細に残す'
+      'Core 第4.4.1節: 期間終了日の延長は課金イベントとして見積書明細に残す'
     );
+    System.assertEquals(original.Id, filtered[0].Id);
+    System.assertEquals(remake.Id, filtered[1].Id);
   }
 
   @IsTest
@@ -162,10 +166,12 @@ private class ChangeBillingEventUtilTest {
     );
 
     System.assertEquals(2, filtered.size());
+    System.assertEquals(original.Id, filtered[0].Id);
+    System.assertEquals(remake.Id, filtered[1].Id);
   }
 
   @IsTest
-  static void lineageHasBillingEvent_midTermStart_returnsTrue() {
+  static void lineageHasBillingEvent_detectsExactStartDateBoundary() {
     Id productId = fakeId(Product2.SObjectType, 1);
     ContractProduct__c original = new ContractProduct__c(
       Product__c = productId,
@@ -174,7 +180,14 @@ private class ChangeBillingEventUtilTest {
       InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
       StartDate__c = Date.newInstance(2026, 4, 1)
     );
-    ContractProduct__c remake = new ContractProduct__c(
+    ContractProduct__c sameStart = new ContractProduct__c(
+      Product__c = productId,
+      Quantity__c = 1,
+      UnitPrice__c = 1000,
+      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+      StartDate__c = Date.newInstance(2026, 4, 1)
+    );
+    ContractProduct__c midTermStart = new ContractProduct__c(
       Product__c = productId,
       Quantity__c = 1,
       UnitPrice__c = 1000,
@@ -183,11 +196,20 @@ private class ChangeBillingEventUtilTest {
     );
 
     System.assertEquals(
+      false,
+      ChangeBillingEventUtil.lineageHasBillingEvent(
+        original,
+        new List<ContractProduct__c>{ sameStart }
+      ),
+      'Core 第4.4.1節: 元明細と同じ2026/4/1開始は途中開始ではない'
+    );
+    System.assertEquals(
       true,
       ChangeBillingEventUtil.lineageHasBillingEvent(
         original,
-        new List<ContractProduct__c>{ remake }
-      )
+        new List<ContractProduct__c>{ midTermStart }
+      ),
+      'Core 第4.4.1節: 2026/10/1のRemake途中開始は課金イベント'
     );
   }
 
@@ -210,31 +232,6 @@ private class ChangeBillingEventUtilTest {
     System.assertEquals(
       true,
       ChangeBillingEventUtil.doesBillingContentDiffer(remake, original)
-    );
-  }
-
-  @IsTest
-  static void doesBillingContentDiffer_billingTypeOnly_returnsTrue() {
-    Id productId = fakeId(Product2.SObjectType, 1);
-    ContractProduct__c original = new ContractProduct__c(
-      Product__c = productId,
-      Quantity__c = 1,
-      UnitPrice__c = 1000,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-    );
-    ContractProduct__c remake = new ContractProduct__c(
-      Product__c = productId,
-      Quantity__c = 1,
-      UnitPrice__c = 1000,
-      BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
-      InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-    );
-
-    System.assertEquals(
-      true,
-      ChangeBillingEventUtil.doesBillingContentDiffer(remake, original),
-      'BillingType のみの差も課金イベント'
     );
   }
 
@@ -386,10 +383,9 @@ private class ChangeBillingEventUtilTest {
   }
 
   @IsTest
-  static void doesBillingContentDiffer_detectsProductQuantity_notInvoiceSetting() {
-    // Core 第4.4.1節: 請求設定の差は継続課金イベントではない（BUG-095）
+  static void doesBillingContentDiffer_detectsQuantityAndUnitPrice_notInvoiceSetting() {
+    // Core 第4.4.1節: 数量・単価はイベント。請求設定の差はイベントではない。
     Id productA = fakeId(Product2.SObjectType, 1);
-    Id productB = fakeId(Product2.SObjectType, 2);
     ContractProduct__c original = new ContractProduct__c(
       Product__c = productA,
       Quantity__c = 1,
@@ -400,13 +396,6 @@ private class ChangeBillingEventUtilTest {
     System.assertEquals(
       true,
       ChangeBillingEventUtil.doesBillingContentDiffer(
-        new ContractProduct__c(Product__c = productB),
-        original
-      )
-    );
-    System.assertEquals(
-      true,
-      ChangeBillingEventUtil.doesBillingContentDiffer(
         new ContractProduct__c(
           Product__c = productA,
           Quantity__c = 2,
@@ -414,7 +403,21 @@ private class ChangeBillingEventUtilTest {
           InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
         ),
         original
-      )
+      ),
+      'Core 第4.4.1節: 数量1から2への変更は課金イベント'
+    );
+    System.assertEquals(
+      true,
+      ChangeBillingEventUtil.doesBillingContentDiffer(
+        new ContractProduct__c(
+          Product__c = productA,
+          Quantity__c = 1,
+          UnitPrice__c = 1200,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        ),
+        original
+      ),
+      'Core 第4.4.1節: 単価1000から1200への変更は課金イベント'
     );
     System.assertEquals(
       false,

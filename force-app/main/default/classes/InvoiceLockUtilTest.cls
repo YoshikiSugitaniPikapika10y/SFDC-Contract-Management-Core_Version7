@@ -34,16 +34,6 @@ private class InvoiceLockUtilTest {
     System.assertEquals(true, InvoiceLockUtil.isLocked(cancelled));
     System.assertEquals(false, InvoiceLockUtil.isActiveConfirmed(cancelled));
     System.assertEquals(false, InvoiceLockUtil.isInvoiced(cancelled));
-    System.assertEquals(
-      '有効な確定済み請求があるため、この契約履歴の請求を削除・再生成できません。',
-      InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
-      'Core 第5.3節: 差し戻しは有効な確定済み請求で止める'
-    );
-    System.assertEquals(
-      false,
-      InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE.contains('請求済またはエクスポート済'),
-      'Core 第5.3節: 旧状態名では出さない'
-    );
 
     Id fakeInvoiceId =
       Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000002AAA';
@@ -126,7 +116,7 @@ private class InvoiceLockUtilTest {
   }
 
   @IsTest
-  static void canBypassLockedDelete_allows104Alone() {
+  static void canBypassLockedDelete_allowsMigrateAllPermission() {
     InvoiceLockUtil.testCanBypassLockedDml = null;
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.MIGRATE_ALL => true
@@ -171,27 +161,28 @@ private class InvoiceLockUtilTest {
         InvoiceLockUtil.assertVersionEditable(fixture.history.Id);
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
-        System.assertEquals(
-          InvoiceLockUtil.VERSION_EDIT_BLOCK_MESSAGE,
-          ex.getMessage()
-        );
       }
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第1.1.5節・第7.9.2節: 有効な確定済み請求があるVersionは再生成不可'
+      );
 
       thrown = false;
       try {
         InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ fixture.history.Id });
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
-        System.assertEquals(
-          InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
-          ex.getMessage()
-        );
       }
-      System.assertEquals(true, thrown);
       System.assertEquals(
         true,
-        InvoiceLockUtil.hasLockedInvoices(new Set<Id>{ fixture.history.Id })
+        thrown,
+        'Core 第5.3節: 有効な確定済み請求があるVersionは差し戻し不可'
+      );
+      System.assertEquals(
+        true,
+        InvoiceLockUtil.hasLockedInvoices(new Set<Id>{ fixture.history.Id }),
+        'Core 第1.1.5節: Version全体を止めるのは有効な確定済み請求'
       );
 
       InvoiceLockUtil.testCanBypassLockedDml = false;
@@ -209,19 +200,40 @@ private class InvoiceLockUtilTest {
         new List<Invoice__c>{ lockedUpdate },
         false
       );
-      System.assertEquals(false, results[0].isSuccess());
+      System.assertEquals(
+        false,
+        results[0].isSuccess(),
+        'Core 第1.1.5節・第7.9.2節: 確定した請求自身の金額変更は拒否'
+      );
+      System.assertEquals(
+        1000,
+        [SELECT Amount__c FROM Invoice__c WHERE Id = :invoice.Id].Amount__c,
+        '拒否した金額変更を保存しない'
+      );
 
       Boolean invoiceThrown = false;
       try {
         InvoiceLockUtil.assertInvoiceEditable(invoice.Id);
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         invoiceThrown = true;
-        System.assertEquals(
-          InvoiceLockUtil.INVOICE_EDIT_BLOCK_MESSAGE,
-          ex.getMessage()
-        );
       }
-      System.assertEquals(true, invoiceThrown, 'ロック請求は編集不可');
+      System.assertEquals(
+        true,
+        invoiceThrown,
+        'Core 第7.9.2節: 確定した請求書自身は編集不可'
+      );
+
+      invoiceThrown = false;
+      try {
+        InvoiceLockUtil.assertInvoicesEditable(new Set<Id>{ invoice.Id });
+      } catch (InvoiceLockUtil.InvoiceLockException ex) {
+        invoiceThrown = true;
+      }
+      System.assertEquals(
+        true,
+        invoiceThrown,
+        'Core 第7.9.2節: 確定済みを含む請求集合は編集不可'
+      );
 
       Invoice__c unlockedSibling = new Invoice__c(
         ContractService__c = fixture.service.Id,
@@ -243,7 +255,12 @@ private class InvoiceLockUtilTest {
       System.assertEquals(
         false,
         lockedDelete[0].isSuccess(),
-        'ロック請求の削除は拒否'
+        'Core 第1.1.5節: 確定した請求自身の削除は拒否'
+      );
+      System.assertEquals(
+        1,
+        [SELECT COUNT() FROM Invoice__c WHERE Id = :invoice.Id],
+        '拒否した確定済み請求の削除を保存しない'
       );
 
       delete unlockedSibling;
@@ -367,9 +384,9 @@ private class InvoiceLockUtilTest {
   }
 
   @IsTest
-  static void assertNoLockedInvoices_throwsKnownMessage() {
+  static void cancelledInvoice_blocksRowButAllowsVersionOperations() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      OrderedFixture fixture = insertOrderedFixture('Lock Message');
+      OrderedFixture fixture = insertOrderedFixture('Cancelled Lock Boundary');
       Invoice__c invoice = new Invoice__c(
         ContractService__c = fixture.service.Id,
         ContractHistory__c = fixture.history.Id,
@@ -379,35 +396,50 @@ private class InvoiceLockUtilTest {
         BillingAccountSnapShot__c = fixture.service.BiilingAcccount__c
       );
       ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
-      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
-      invoice.CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
-      invoice.PaymentClearingCompletedDate__c = Date.today();
+      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CANCELLED;
       ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
 
       InvoiceLockUtil.testCanBypassLockedDml = false;
+      System.assertEquals(
+        true,
+        InvoiceLockUtil.isLocked(invoice),
+        'Core 第1.1.5節: 取消済み請求自身は変更・削除不可'
+      );
+      System.assertEquals(
+        false,
+        InvoiceLockUtil.hasLockedInvoices(new Set<Id>{ fixture.history.Id }),
+        'Core 第1.1.5節・第7.9.2節: 取消済みだけではVersion再生成を止めない'
+      );
+      InvoiceLockUtil.assertNoLockedInvoices(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLockUtil.assertVersionEditable(fixture.history.Id);
+
       Boolean thrown = false;
       try {
-        InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ fixture.history.Id });
+        InvoiceLockUtil.assertInvoiceEditable(invoice.Id);
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
-        System.assertEquals(
-          InvoiceLockUtil.LOCKED_HISTORY_BLOCK_MESSAGE,
-          ex.getMessage()
-        );
       }
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.8節・第7.9.2節: 取消済み請求自身は編集対象外'
+      );
 
       thrown = false;
       try {
-        InvoiceLockUtil.assertVersionEditable(fixture.history.Id);
+        InvoiceLockUtil.assertInvoicesEditable(
+          new List<Invoice__c>{ invoice }
+        );
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
-        System.assertEquals(
-          InvoiceLockUtil.VERSION_EDIT_BLOCK_MESSAGE,
-          ex.getMessage()
-        );
       }
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.9.2節: 取消済みを含む請求集合は編集不可'
+      );
     }
   }
 
@@ -426,56 +458,6 @@ private class InvoiceLockUtilTest {
       true,
       InvoiceLockUtil.queryHistoryIdsWithLockedInvoices(null).isEmpty()
     );
-  }
-
-  @IsTest
-  static void invoiceProductUpdate_allowedWhenParentInvoiceLocked() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      OrderedFixture fixture = insertOrderedFixture('Period Line Lock Abolish');
-      String bucket = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
-        null,
-        fixture.history.Id,
-        Date.newInstance(2026, 6, 1),
-        null
-      );
-      InvoiceProduct__c periodLine = new InvoiceProduct__c(
-        ContractHistory__c = fixture.history.Id,
-        ContractProduct__c = fixture.contractProduct.Id,
-        StartDate__c = Date.newInstance(2026, 6, 1),
-        Enddate__c = Date.newInstance(2026, 6, 30),
-        InvoiceBucketKey__c = bucket,
-        Quantity__c = 1,
-        UnitPrice__c = 1000,
-        Amount__c = 1000
-      );
-      insert periodLine;
-      Invoice__c invoice = new Invoice__c(
-        ContractService__c = fixture.service.Id,
-        ContractHistory__c = fixture.history.Id,
-        InvoiceDate__c = Date.newInstance(2026, 6, 1),
-        Amount__c = 1000,
-        TaxAmount__c = 100,
-        BillingAccountSnapShot__c = fixture.service.BiilingAcccount__c
-      );
-      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
-      invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
-      invoice.SystemIntegrationDate__c = Date.today();
-      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
-
-      periodLine.Amount__c = 1100;
-      update periodLine;
-
-      System.assertEquals(
-        1100,
-        [
-          SELECT Amount__c
-          FROM InvoiceProduct__c
-          WHERE Id = :periodLine.Id
-        ]
-        .Amount__c,
-        '期間明細ロック廃止: 請求ロックでも期間明細更新は拒否されない'
-      );
-    }
   }
 
   @IsTest

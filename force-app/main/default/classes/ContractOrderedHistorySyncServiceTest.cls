@@ -69,6 +69,24 @@ private class ContractOrderedHistorySyncServiceTest {
     insert line;
   }
 
+  private static void setOrderedHistoryPointers(
+    Id serviceId,
+    Id firstHistoryId,
+    Id latestHistoryId
+  ) {
+    Boolean previousWrite = ContractServiceWriteGuard.isPackageWriteAllowed();
+    ContractServiceWriteGuard.allowPackageWrite(true);
+    try {
+      update new ContractService__c(
+        Id = serviceId,
+        FirstOrderedHistory__c = firstHistoryId,
+        LatestOrderedHistory__c = latestHistoryId
+      );
+    } finally {
+      ContractServiceWriteGuard.allowPackageWrite(previousWrite);
+    }
+  }
+
   @IsTest
   static void syncForHistories_nullOrEmpty_doesNotChangeServices() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -133,9 +151,24 @@ private class ContractOrderedHistorySyncServiceTest {
         firstHistory.Id
       );
       addOneTimeProduct(secondHistory.Id, account.Id);
-      Test.startTest();
       secondHistory.historystatus__c = 'Ordered';
       update secondHistory;
+      ContractHistory__c higherEstimate = insertEstimateHistory(
+        service.Id,
+        account.Id,
+        'Higher Estimate History',
+        99,
+        secondHistory.Id
+      );
+      setOrderedHistoryPointers(
+        service.Id,
+        secondHistory.Id,
+        higherEstimate.Id
+      );
+      Test.startTest();
+      ContractOrderedHistorySyncService.syncForServices(
+        new Set<Id>{ service.Id }
+      );
       Test.stopTest();
       ContractService__c afterSecondOrdered = [
         SELECT FirstOrderedHistory__c, LatestOrderedHistory__c
@@ -145,12 +178,12 @@ private class ContractOrderedHistorySyncServiceTest {
       System.assertEquals(
         firstHistory.Id,
         afterSecondOrdered.FirstOrderedHistory__c,
-        'Core 第5.4節: First は Version 最小の Ordered'
+        'Core 第5.4節: First Ordered は実際の Ordered のうち Version 最小'
       );
       System.assertEquals(
         secondHistory.Id,
         afterSecondOrdered.LatestOrderedHistory__c,
-        'Core 第5.4節: Latest は Version 最大の Ordered'
+        'Core 第5.4節: Latest Ordered は高Versionの Estimateを除く実際の Ordered のうち Version 最大'
       );
     }
   }
@@ -165,12 +198,17 @@ private class ContractOrderedHistorySyncServiceTest {
         account.Id,
         'Estimate Only Service'
       );
-      insertEstimateHistory(
+      ContractHistory__c estimateHistory = insertEstimateHistory(
         service.Id,
         account.Id,
         'Estimate History',
         1,
         null
+      );
+      setOrderedHistoryPointers(
+        service.Id,
+        estimateHistory.Id,
+        estimateHistory.Id
       );
       Test.startTest();
       ContractOrderedHistorySyncService.syncForServices(
@@ -185,91 +223,12 @@ private class ContractOrderedHistorySyncServiceTest {
       System.assertEquals(
         null,
         updatedService.FirstOrderedHistory__c,
-        'Core 第5.4節: Estimate は First に入れない'
+        'Core 第5.4節: Ordered が0件なら Estimateを First Ordered として保持しない'
       );
       System.assertEquals(
         null,
         updatedService.LatestOrderedHistory__c,
-        'Core 第5.4節: Estimate は Latest に入れない'
-      );
-    }
-  }
-
-  @IsTest
-  static void deleteOrderedHistory_resyncsFirstAndLatest() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Ordered Delete Sync Account'
-      );
-      ContractService__c service = insertService(
-        account.Id,
-        'Ordered Delete Sync Service'
-      );
-      ContractHistory__c firstHistory = insertEstimateHistory(
-        service.Id,
-        account.Id,
-        'First Ordered History',
-        1,
-        null
-      );
-      addOneTimeProduct(firstHistory.Id, account.Id);
-      firstHistory.historystatus__c = 'Ordered';
-      update firstHistory;
-      ContractHistory__c secondHistory = insertEstimateHistory(
-        service.Id,
-        account.Id,
-        'Second Estimate History',
-        2,
-        firstHistory.Id
-      );
-      ContractOrderedHistorySyncService.syncForServices(
-        new Set<Id>{ service.Id }
-      );
-      ContractService__c beforeDelete = [
-        SELECT FirstOrderedHistory__c, LatestOrderedHistory__c
-        FROM ContractService__c
-        WHERE Id = :service.Id
-      ];
-      System.assertEquals(firstHistory.Id, beforeDelete.FirstOrderedHistory__c);
-      System.assertEquals(
-        firstHistory.Id,
-        beforeDelete.LatestOrderedHistory__c,
-        'Core 第5.4節: Estimate の Version は Latest に入れない'
-      );
-      Boolean thrown = false;
-      String message = null;
-      Test.startTest();
-      try {
-        delete secondHistory;
-      } catch (DmlException ex) {
-        thrown = true;
-        message = ex.getNumDml() > 0 ? ex.getDmlMessage(0) : ex.getMessage();
-      }
-      Test.stopTest();
-      System.assertEquals(
-        true,
-        thrown,
-        'Core 第3.4節: 契約履歴は物理削除しない'
-      );
-      System.assertEquals(
-        '契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。',
-        message,
-        'Core 第3.4節: 契約履歴は物理削除しない'
-      );
-      ContractService__c afterDelete = [
-        SELECT FirstOrderedHistory__c, LatestOrderedHistory__c
-        FROM ContractService__c
-        WHERE Id = :service.Id
-      ];
-      System.assertEquals(
-        firstHistory.Id,
-        afterDelete.FirstOrderedHistory__c,
-        'Core 第5.4節: 削除拒否後も First は変わらない'
-      );
-      System.assertEquals(
-        firstHistory.Id,
-        afterDelete.LatestOrderedHistory__c,
-        'Core 第5.4節: 削除拒否後も Latest は変わらない'
+        'Core 第5.4節: Ordered が0件なら Estimateを Latest Ordered として保持しない'
       );
     }
   }

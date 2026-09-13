@@ -11,45 +11,77 @@ private class InvoiceProductFieldCopyServiceTest {
   @IsTest
   static void getActiveDefinitions_includesOneSamplePerTargetObject() {
     InvoiceProductFieldCopyService.resetCache();
-    Set<String> invoiceTargets = new Set<String>();
+    Map<String, FieldCopyDefinition__c> invoiceDefinitionsByName = new Map<String, FieldCopyDefinition__c>();
     for (
       FieldCopyDefinition__c definition : InvoiceProductFieldCopyService.getActiveDefinitions(
         InvoiceProductFieldCopyService.TARGET_INVOICE
       )
     ) {
-      invoiceTargets.add(definition.TargetFieldApiName__c);
+      invoiceDefinitionsByName.put(definition.Name, definition);
     }
-    Set<String> lineTargets = new Set<String>();
+    Map<String, FieldCopyDefinition__c> lineDefinitionsByName = new Map<String, FieldCopyDefinition__c>();
     for (
       FieldCopyDefinition__c definition : InvoiceProductFieldCopyService.getActiveDefinitions(
         InvoiceProductFieldCopyService.TARGET_INVOICE_LINE
       )
     ) {
-      lineTargets.add(definition.TargetFieldApiName__c);
-    }
-    Set<String> periodTargets = new Set<String>();
-    for (
-      FieldCopyDefinition__c definition : InvoiceProductFieldCopyService.getActiveDefinitions(
-        InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT
-      )
-    ) {
-      periodTargets.add(definition.TargetFieldApiName__c);
+      lineDefinitionsByName.put(definition.Name, definition);
     }
 
-    System.assertEquals(
-      true,
-      invoiceTargets.contains('Memo__c'),
-      '仕様: Core 第11.4.2節 請求の見本は取引先名をメモへ'
+    FieldCopyDefinition__c invoiceSample = invoiceDefinitionsByName.get(
+      'Sample_Inv_AccountName'
+    );
+    System.assertNotEquals(
+      null,
+      invoiceSample,
+      '仕様: Core 第11.4.2節 標準見本 Sample_Inv_AccountName を初回に置く'
     );
     System.assertEquals(
-      true,
-      lineTargets.contains('ProductCodeSnapShot__c'),
-      '仕様: Core 第11.4.2節 請求明細の見本は商品コード SnapShot'
+      'Account',
+      invoiceSample.SourceObject__c,
+      '仕様: Core 第11.4.2節 請求書見本の From は取引先'
     );
     System.assertEquals(
-      true,
-      periodTargets.isEmpty(),
-      '期間明細向け寄せ項目サンプルは置かない'
+      'Name',
+      invoiceSample.SourceFieldApiName__c,
+      '仕様: Core 第11.4.2節 請求書見本は取引先名を読む'
+    );
+    System.assertEquals(
+      'Memo__c',
+      invoiceSample.TargetFieldApiName__c,
+      '仕様: Core 第11.4.2節 請求書見本の To はメモ'
+    );
+
+    FieldCopyDefinition__c lineSample = lineDefinitionsByName.get(
+      'Sample_Line_ProductCode'
+    );
+    System.assertNotEquals(
+      null,
+      lineSample,
+      '仕様: Core 第11.4.2節 標準見本 Sample_Line_ProductCode を初回に置く'
+    );
+    System.assertEquals(
+      'Product2',
+      lineSample.SourceObject__c,
+      '仕様: Core 第11.4.2節 請求明細見本の From は商品'
+    );
+    System.assertEquals(
+      'ProductCode',
+      lineSample.SourceFieldApiName__c,
+      '仕様: Core 第11.4.2節 請求明細見本は商品コードを読む'
+    );
+    System.assertEquals(
+      'ProductCodeSnapShot__c',
+      lineSample.TargetFieldApiName__c,
+      '仕様: Core 第11.4.2節 請求明細見本の To は商品コード SnapShot'
+    );
+    System.assertEquals(
+      0,
+      InvoiceProductFieldCopyService.getActiveDefinitions(
+          InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT
+        )
+        .size(),
+      '仕様: Core 第11.4.2節 期間明細への取引先名見本は置かない'
     );
   }
 
@@ -77,7 +109,11 @@ private class InvoiceProductFieldCopyServiceTest {
     );
     Test.stopTest();
 
-    System.assertEquals('サンプル取引先', invoice.Memo__c);
+    System.assertEquals(
+      'サンプル取引先',
+      invoice.Memo__c,
+      '仕様: Core 第11.4.2節 作成時の空欄へ定義値をコピーする'
+    );
   }
 
   @IsTest
@@ -103,7 +139,11 @@ private class InvoiceProductFieldCopyServiceTest {
         'Account' => new Account(Name = 'マスタ取引先')
       }
     );
-    System.assertEquals('DataLoader取引先', invoice.Memo__c);
+    System.assertEquals(
+      'DataLoader取引先',
+      invoice.Memo__c,
+      '仕様: Core 第11.4.2節 既存値はコピー定義で上書きしない'
+    );
   }
 
   @IsTest
@@ -130,7 +170,11 @@ private class InvoiceProductFieldCopyServiceTest {
     );
     Test.stopTest();
 
-    System.assertEquals('SKU-1', line.ProductCodeSnapShot__c);
+    System.assertEquals(
+      'SKU-1',
+      line.ProductCodeSnapShot__c,
+      '仕様: Core 第11.4.2節 請求明細見本は商品コードを商品コード SnapShot へコピーする'
+    );
   }
 
   @IsTest
@@ -162,7 +206,7 @@ private class InvoiceProductFieldCopyServiceTest {
     System.assertEquals(
       null,
       periodLine.Unit__c,
-      '仕様: Core 第11.4.2節 届かない相手へ空埋めしない。請求向け定義は期間明細に適用しない'
+      '仕様: Core 第11.4.2節 Toオブジェクトが異なる定義は適用しない'
     );
   }
 
@@ -249,11 +293,6 @@ private class InvoiceProductFieldCopyServiceTest {
       '仕様: Core 第11.4.2節 請求の見本は取引先名をメモへ'
     );
     System.assertEquals(
-      InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT,
-      InvoiceProductFieldCopyService.resolveTargetObject(null),
-      '仕様: Core 第11.4.2節 未設定の To は期間明細とみなす'
-    );
-    System.assertEquals(
       InvoiceProductFieldCopyService.PATH_BILLING_ACCOUNT,
       InvoiceProductFieldCopyService.relationPathLabel(
         InvoiceProductFieldCopyService.OBJECT_BILLING_ACCOUNT
@@ -307,33 +346,6 @@ private class InvoiceProductFieldCopyServiceTest {
       }
     );
     System.assertEquals(null, periodLine.Amount__c);
-  }
-
-  @IsTest
-  static void applyCopies_blankTargetDefaultsToInvoiceProduct() {
-    InvoiceProductFieldCopyService.resetCache();
-    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
-      new FieldCopyDefinition__c(
-        Name = 'Test_Blank_Target',
-        SourceObject__c = 'Account',
-        SourceFieldApiName__c = 'Name',
-        TargetFieldApiName__c = 'Memo__c',
-        TargetObject__c = InvoiceProductFieldCopyService.TARGET_INVOICE
-      )
-    };
-    Invoice__c invoice = new Invoice__c();
-    InvoiceProductFieldCopyService.applyCopies(
-      invoice,
-      InvoiceProductFieldCopyService.TARGET_INVOICE,
-      new Map<String, SObject>{
-        'Account' => new Account(Name = 'デフォルト先')
-      }
-    );
-    System.assertEquals('デフォルト先', invoice.Memo__c);
-    System.assertEquals(
-      InvoiceProductFieldCopyService.TARGET_INVOICE_PRODUCT,
-      InvoiceProductFieldCopyService.resolveTargetObject(null)
-    );
   }
 
   @IsTest
@@ -675,6 +687,27 @@ private class InvoiceProductFieldCopyServiceTest {
         lineDraft.Unit__c,
         '仕様: Core 第11.4.2節 空欄の単位をコピーする'
       );
+      InvoiceLine__c populatedLine = new InvoiceLine__c(
+        Product__c = product.Id,
+        Unit__c = '既存単位'
+      );
+      InvoiceProductFieldCopyService.applyHardcodedInvoiceLineProductFields(
+        populatedLine,
+        new ContractProduct__c(
+          Product__c = null,
+          Unit__c = contractProduct.Unit__c
+        )
+      );
+      System.assertEquals(
+        product.Id,
+        populatedLine.Product__c,
+        '仕様: Core 第11.4.2節 請求明細の商品参照に既存値があれば上書きしない'
+      );
+      System.assertEquals(
+        '既存単位',
+        populatedLine.Unit__c,
+        '仕様: Core 第11.4.2節 請求明細の単位に既存値があれば上書きしない'
+      );
       InvoiceProductFieldCopyService.applyOnBeforeInsert(
         new List<InvoiceProduct__c>{
           new InvoiceProduct__c(
@@ -705,6 +738,11 @@ private class InvoiceProductFieldCopyServiceTest {
         'コピー宛名',
         invoice.BillingAddresseeSnapShot__c,
         'Core 第11.4.2節: 空欄だけコピーする'
+      );
+      System.assertEquals(
+        'copy@example.com',
+        invoice.BillingEmailToSnapShot__c,
+        '仕様: Core 第3.3.5節・第3.3.7節 請求作成時の空欄へ送付先メールをスナップショットする'
       );
       invoice.BillingAddresseeSnapShot__c = '手入力';
       InvoiceProductFieldCopyService.applyHardcodedInvoiceBillingAccountSnapshot(

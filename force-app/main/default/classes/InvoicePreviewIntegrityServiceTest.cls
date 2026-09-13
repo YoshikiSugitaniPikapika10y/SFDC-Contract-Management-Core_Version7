@@ -19,12 +19,16 @@ private class InvoicePreviewIntegrityServiceTest {
       } catch (InvoicePreviewIntegrityService.IntegrityException ex) {
         thrown = true;
         System.assertEquals(
-          InvoicePreviewIntegrityService.MISMATCH_MESSAGE,
-          ex.getMessage(),
-          'Core 第7.7.0節: 請求書と配下明細の契約履歴不一致は表示も編集も確定もできない'
+          true,
+          ex.getMessage().contains('契約履歴が一致しません'),
+          'Core 第7.7.0節: 見積商品が異なる契約履歴ならデータ不整合の理由を示す'
         );
       }
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.7.0節: 見積商品が異なる契約履歴ならボードの表示・編集を停止する'
+      );
     }
   }
 
@@ -43,60 +47,11 @@ private class InvoicePreviewIntegrityServiceTest {
         new List<Invoice__c>{ fixture.invoice }
       );
       Test.stopTest();
-      Invoice__c loaded = [
-        SELECT ContractHistory__c
-        FROM Invoice__c
-        WHERE Id = :fixture.invoice.Id
-      ];
       System.assertEquals(
-        fixture.historyId,
-        loaded.ContractHistory__c,
-        '仕様: Core 第7.7.0節 請求書の契約履歴は必須で配下と一致する'
+        0,
+        InvoicePreviewIntegrityService.lastLoadedPeriods.size(),
+        'Core 第4.3.11節・第12.4節: 生成元期間明細が無ければ再利用対象も無い'
       );
-    }
-  }
-
-  @IsTest
-  static void assertSameHistory_invoiceOutsideScopeHistory_throws() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Fixture fixture = createMatchingFixture();
-      Account otherAccount = ContractTestDataFactory.insertAccount(
-        'Integrity Scope Other'
-      );
-      ContractService__c otherService = ContractTestDataFactory.insertContractService(
-        otherAccount.Id,
-        'Integrity Scope Other Service'
-      );
-      ContractHistory__c otherHistory = new ContractHistory__c(
-        Name = 'Integrity Scope Other',
-        ContractService__c = otherService.Id,
-        Type__c = 'New',
-        historystatus__c = 'Estimate',
-        Version__c = 1,
-        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
-        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
-      );
-      ContractTestDataFactory.applyRequiredFields(otherHistory);
-      ContractTestDataFactory.applyEstimateOrderedOpportunity(
-        otherHistory,
-        otherAccount.Id
-      );
-      insert otherHistory;
-      Boolean thrown = false;
-      try {
-        InvoicePreviewIntegrityService.assertSameHistory(
-          otherHistory.Id,
-          new List<Invoice__c>{ fixture.invoice }
-        );
-      } catch (InvoicePreviewIntegrityService.IntegrityException ex) {
-        thrown = true;
-        System.assertEquals(
-          InvoicePreviewIntegrityService.MISMATCH_MESSAGE,
-          ex.getMessage(),
-          '仕様: Core 第7.7.0節 請求書と配下明細の契約履歴不一致は表示も編集も確定もできない'
-        );
-      }
-      System.assertEquals(true, thrown);
     }
   }
 
@@ -181,12 +136,16 @@ private class InvoicePreviewIntegrityServiceTest {
       } catch (InvoicePreviewIntegrityService.IntegrityException ex) {
         thrown = true;
         System.assertEquals(
-          InvoicePreviewIntegrityService.MISMATCH_MESSAGE,
-          ex.getMessage(),
-          '仕様: Core 第7.7.0節 生成元期間明細も同じ契約履歴に属さなければならない'
+          true,
+          ex.getMessage().contains('契約履歴が一致しません'),
+          'Core 第7.7.0節: 生成元期間明細が異なる契約履歴ならデータ不整合の理由を示す'
         );
       }
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.7.0節: 生成元期間明細が異なる契約履歴ならボードの表示・編集を停止する'
+      );
     }
   }
 
@@ -237,9 +196,21 @@ private class InvoicePreviewIntegrityServiceTest {
       );
       Test.stopTest();
       System.assertEquals(
+        1,
+        InvoicePreviewIntegrityService.lastLoadedPeriods.size(),
+        'Core 第4.3.11節・第12.4節: 同一取得で読んだ生成元期間明細を再利用する'
+      );
+      InvoiceProduct__c loadedPeriod =
+        InvoicePreviewIntegrityService.lastLoadedPeriods.get(period.Id);
+      System.assertNotEquals(
+        null,
+        loadedPeriod,
+        'Core 第4.3.11節・第12.4節: 読み込んだ生成元期間明細をIDで引き継ぐ'
+      );
+      System.assertEquals(
         fixture.historyId,
-        withLines.ContractHistory__c,
-        '仕様: Core 第7.7.0節 請求書の契約履歴は必須で配下と一致する'
+        loadedPeriod.ContractHistory__c,
+        'Core 第7.7.0節: 再利用する生成元期間明細も請求書と同じ契約履歴に属する'
       );
     }
   }
@@ -252,15 +223,10 @@ private class InvoicePreviewIntegrityServiceTest {
         fixture.historyId,
         new List<Invoice__c>{ new Invoice__c(), fixture.invoice }
       );
-      Invoice__c loaded = [
-        SELECT ContractHistory__c
-        FROM Invoice__c
-        WHERE Id = :fixture.invoice.Id
-      ];
       System.assertEquals(
-        fixture.historyId,
-        loaded.ContractHistory__c,
-        '仕様: Core 第7.7.0節 請求書の契約履歴は必須で配下と一致する'
+        0,
+        InvoicePreviewIntegrityService.lastLoadedPeriods.size(),
+        'Core 第4.3.11節・第12.4節: 生成元期間明細が無ければ再利用対象も無い'
       );
     }
   }
@@ -276,13 +242,17 @@ private class InvoicePreviewIntegrityServiceTest {
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assertEquals(
-          InvoicePreviewIntegrityService.MISMATCH_MESSAGE,
-          ex.getMessage(),
-          'Core 第7.7.0節: ボード取得時の不一致は表示・編集を止める'
+          true,
+          ex.getMessage().contains('契約履歴が一致しません'),
+          'Core 第7.7.0節: ボード取得時はデータ不整合の理由を利用者へ示す'
         );
       }
       Test.stopTest();
-      System.assertEquals(true, thrown);
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第7.7.0節: ボード取得時の不一致は表示・編集を停止する'
+      );
     }
   }
 

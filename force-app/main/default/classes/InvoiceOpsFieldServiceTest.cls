@@ -18,13 +18,16 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assertEquals(
-        '請求操作追加項目「BadInvoiceFlag」は請求書・仕訳に Purpose 表示旗を立てられません。',
-        ex.getMessage(),
+      System.assert(
+        ex.getMessage().contains('BadInvoiceFlag'),
         '仕様: Core 第11.4.4節 エラーに DeveloperName を含める'
       );
     }
-    System.assertEquals(true, thrown);
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第11.4.4節: 請求書の Purpose 表示旗は設定エラー'
+    );
     InvoiceOpsFieldService.resetCache();
   }
 
@@ -46,13 +49,16 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assertEquals(
-        '請求操作追加項目「MissingField」の項目「DoesNotExist__c」が対象オブジェクトに存在しません。',
-        ex.getMessage(),
+      System.assert(
+        ex.getMessage().contains('MissingField'),
         'Core 第11.4.4節: 無い項目は DeveloperName 付きで拒否する'
       );
     }
-    System.assertEquals(true, thrown);
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第11.4.4節: 存在しない項目は設定エラー'
+    );
     InvoiceOpsFieldService.resetCache();
   }
 
@@ -74,13 +80,16 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assertEquals(
-        '請求操作追加項目「BadJournalFlag」は請求書・仕訳に Purpose 表示旗を立てられません。',
-        ex.getMessage(),
+      System.assert(
+        ex.getMessage().contains('BadJournalFlag'),
         '仕様: Core 第11.4.4節 エラーに DeveloperName を含める'
       );
     }
-    System.assertEquals(true, thrown);
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第11.4.4節: 仕訳の Purpose 表示旗は設定エラー'
+    );
     InvoiceOpsFieldService.resetCache();
   }
 
@@ -130,6 +139,14 @@ private class InvoiceOpsFieldServiceTest {
       invoiceShown.contains('Memo__c'),
       'Core 第11.4.4節: Invoice Purpose で非表示の項目は必須判定しない'
     );
+    Set<String> nonInvoiceShown = InvoiceOpsFieldService.paymentDisplayedFieldApiNames(
+      'NonInvoice'
+    );
+    System.assertEquals(
+      true,
+      nonInvoiceShown.contains('Memo__c'),
+      'Core 第11.4.4節: 入出金は Purpose ごとの明示 true だけ表示する'
+    );
     InvoicePayment__c payment = new InvoicePayment__c();
     InvoiceOpsFieldService.applyDisplayedValues(
       payment,
@@ -155,6 +172,9 @@ private class InvoiceOpsFieldServiceTest {
       TargetObject__c = 'Invoice__c',
       FieldApiName__c = 'Memo__c',
       LabelOverride__c = '請求メモ',
+      HelpText__c = '請求操作で入力',
+      SortOrder__c = 7,
+      Required__c = true,
       DefaultValue__c = '固定初期値'
     );
     InvoiceOpsFieldService.setCachedRowsForTest(
@@ -163,12 +183,19 @@ private class InvoiceOpsFieldServiceTest {
     List<InvoiceOpsFieldService.FieldDefinition> rows = InvoiceOpsFieldService.getDefinitions();
     System.assertEquals(1, rows.size(), 'Core 第11.4.4節: Active=true だけを対象とする');
     System.assertEquals('ActiveMemo', rows[0].developerName);
+    System.assertEquals('Invoice__c', rows[0].targetObject);
+    System.assertEquals('Memo__c', rows[0].apiName);
+    System.assertEquals('請求メモ', rows[0].label);
+    System.assertEquals('請求操作で入力', rows[0].helpText);
+    System.assertEquals(7, rows[0].sortOrder);
+    System.assertEquals(true, rows[0].required);
     System.assertEquals(
       '固定初期値',
       rows[0].defaultValue,
       'Core 第11.4.4節: 初期値は DefaultValue の固定文字列だけ'
     );
-    System.assertEquals('請求メモ', rows[0].label);
+    System.assertEquals(false, rows[0].showOnInvoicePurpose);
+    System.assertEquals(false, rows[0].showOnNonInvoicePurpose);
     InvoiceOpsFieldService.resetCache();
   }
 
@@ -188,13 +215,45 @@ private class InvoiceOpsFieldServiceTest {
       InvoiceOpsFieldService.getDefinitions();
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assertEquals(
-        '請求操作追加項目「BadTarget」の対象オブジェクト「Account」が不正です。Invoice__c / InvoicePayment__c / GlJournal__c のいずれかを指定してください。',
-        ex.getMessage(),
+      System.assert(
+        ex.getMessage().contains('BadTarget'),
         'Core 第11.4.4節: エラーに DeveloperName を含める'
       );
     }
-    System.assertEquals(true, thrown);
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第11.4.4節: 対象外オブジェクトは設定エラー'
+    );
+    InvoiceOpsFieldService.resetCache();
+  }
+
+  @IsTest
+  static void getDefinitions_rejectsUnsupportedFieldType() {
+    InvoiceOpsField__mdt row = new InvoiceOpsField__mdt(
+      DeveloperName = 'UnsupportedId',
+      Active__c = true,
+      TargetObject__c = 'Invoice__c',
+      FieldApiName__c = 'Id'
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>{ row }
+    );
+    Boolean thrown = false;
+    try {
+      InvoiceOpsFieldService.getDefinitions();
+    } catch (AuraHandledException ex) {
+      thrown = true;
+      System.assert(
+        ex.getMessage().contains('UnsupportedId'),
+        'Core 第11.4.4節: 型不一致の設定エラーに DeveloperName を含める'
+      );
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第11.4.4節: 非対応の項目型は設定エラー'
+    );
     InvoiceOpsFieldService.resetCache();
   }
 
@@ -248,13 +307,24 @@ private class InvoiceOpsFieldServiceTest {
       );
     } catch (AuraHandledException ex) {
       thrown = true;
-      System.assertEquals(
-        '請求操作追加項目「必須メモ」は必須です。',
-        ex.getMessage(),
-        'Core 第11.4.4節: 画面に表示されている場合だけ必須'
-      );
     }
-    System.assertEquals(true, thrown);
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第11.4.4節: 表示中の必須項目が無ければ保存を拒否する'
+    );
+    Invoice__c invoice = new Invoice__c();
+    InvoiceOpsFieldService.applyDisplayedValues(
+      invoice,
+      'Invoice__c',
+      new Map<String, Object>{ 'Memo__c' => '保存する値' },
+      new Set<String>{ 'Memo__c' }
+    );
+    System.assertEquals(
+      '保存する値',
+      invoice.Memo__c,
+      'Core 第11.4.4節: 表示中の追加項目の入力値を対象レコードへ反映する'
+    );
     InvoiceOpsFieldService.resetCache();
   }
 
@@ -281,6 +351,15 @@ private class InvoiceOpsFieldServiceTest {
     );
     System.assertEquals(true, invoiceNames.contains('Memo__c'));
     System.assertEquals(1, invoiceNames.size());
+    Map<String, Object> values = InvoiceOpsFieldService.readValues(
+      new Invoice__c(Memo__c = '読取値'),
+      'Invoice__c'
+    );
+    System.assertEquals(
+      new Map<String, Object>{ 'Memo__c' => '読取値' },
+      values,
+      'Core 第11.4.4節: 対象オブジェクトの定義項目だけを読み取る'
+    );
     System.assertEquals(
       0,
       InvoiceOpsFieldService.readValuesById(

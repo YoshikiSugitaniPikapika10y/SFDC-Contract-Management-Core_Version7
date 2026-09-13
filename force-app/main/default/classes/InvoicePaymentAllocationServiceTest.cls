@@ -135,6 +135,11 @@ private class InvoicePaymentAllocationServiceTest {
       TwoLineInvoice fixture = insertTwoLineInvoice(1000, 0, 1000, 100);
       List<InvoicePaymentAllocationService.AllocationLine> proposed =
         InvoicePaymentAllocationService.proposeLines(fixture.invoice.Id, 700);
+      System.assertEquals(
+        2,
+        proposed.size(),
+        'Core 第8.6節・第11.9節: 一部決済は未処理税込のある各明細へ配分する'
+      );
       Map<Id, Decimal> byLine = new Map<Id, Decimal>();
       for (InvoicePaymentAllocationService.AllocationLine row : proposed) {
         byLine.put(row.invoiceLineId, row.amount);
@@ -158,6 +163,11 @@ private class InvoicePaymentAllocationServiceTest {
       TwoLineInvoice fixture = insertTwoLineInvoice(1000, 0, 1000, 100);
       List<InvoicePaymentAllocationService.AllocationLine> proposed =
         InvoicePaymentAllocationService.proposeLines(fixture.invoice.Id, -700);
+      System.assertEquals(
+        2,
+        proposed.size(),
+        'Core 第8.6節・第11.9節: 一部返金も未処理税込のある各明細へ配分する'
+      );
       Map<Id, Decimal> byLine = new Map<Id, Decimal>();
       for (InvoicePaymentAllocationService.AllocationLine row : proposed) {
         byLine.put(row.invoiceLineId, row.amount);
@@ -181,6 +191,11 @@ private class InvoicePaymentAllocationServiceTest {
       TwoLineInvoice fixture = insertTwoLineInvoice(1000, 0, 1000, 100);
       List<InvoicePaymentAllocationService.AllocationLine> proposed =
         InvoicePaymentAllocationService.proposeLines(fixture.invoice.Id, 2100);
+      System.assertEquals(
+        2,
+        proposed.size(),
+        'Core 第8.6節: 最終決済は未処理税込残額のある全明細へ配分する'
+      );
       Map<Id, Decimal> byLine = new Map<Id, Decimal>();
       for (InvoicePaymentAllocationService.AllocationLine row : proposed) {
         byLine.put(row.invoiceLineId, row.amount);
@@ -190,7 +205,11 @@ private class InvoicePaymentAllocationServiceTest {
         byLine.get(fixture.firstLine.Id),
         'Core 第8.6節: 最終決済は各明細の未処理税込をそのまま載せる'
       );
-      System.assertEquals(1100, byLine.get(fixture.secondLine.Id));
+      System.assertEquals(
+        1100,
+        byLine.get(fixture.secondLine.Id),
+        'Core 第8.6節: 最終決済は税込の明細残額を0にする'
+      );
     }
   }
 
@@ -356,14 +375,25 @@ private class InvoicePaymentAllocationServiceTest {
         payment.Id,
         new List<InvoicePaymentAllocationService.AllocationLine>{ row }
       );
+      List<InvoicePaymentAllocation__c> writtenAllocations = [
+        SELECT InvoicePayment__c, InvoiceLine__c, Amount__c
+        FROM InvoicePaymentAllocation__c
+        WHERE InvoicePayment__c = :payment.Id
+      ];
       System.assertEquals(
         1,
-        [
-          SELECT COUNT()
-          FROM InvoicePaymentAllocation__c
-          WHERE InvoicePayment__c = :payment.Id AND Amount__c = 1000
-        ],
-        'Core 第8.6節: Invoice目的は明細別割当を保持する'
+        writtenAllocations.size(),
+        'Core 第8.6節: Invoice目的は指定した明細別割当だけを保持する'
+      );
+      System.assertEquals(
+        line.Id,
+        writtenAllocations[0].InvoiceLine__c,
+        'Core 第8.6節: 割当は指定した親と同じ請求書の明細を保持する'
+      );
+      System.assertEquals(
+        1000,
+        writtenAllocations[0].Amount__c,
+        'Core 第8.6節: 割当額合計は親Amountと完全一致する'
       );
 
       InvoicePayment__c reversal = new InvoicePayment__c(
@@ -381,10 +411,15 @@ private class InvoicePaymentAllocationServiceTest {
       }
       InvoicePaymentAllocationService.reverseAllocations(payment.Id, reversal.Id);
       InvoicePaymentAllocation__c reversed = [
-        SELECT Amount__c
+        SELECT InvoiceLine__c, Amount__c
         FROM InvoicePaymentAllocation__c
         WHERE InvoicePayment__c = :reversal.Id
       ];
+      System.assertEquals(
+        line.Id,
+        reversed.InvoiceLine__c,
+        'Core 第8.5節: 取消割当は元割当と同じ請求明細を保持する'
+      );
       System.assertEquals(
         -1000,
         reversed.Amount__c,

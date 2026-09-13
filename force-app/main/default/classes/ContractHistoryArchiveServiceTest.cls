@@ -60,14 +60,21 @@ private class ContractHistoryArchiveServiceTest {
           new ContractHistory__c(
             Id = histories[2].Id,
             ContractService__c = service.Id,
-            Version__c = 4
+            Version__c = 4,
+            BusinessOperationKey__c = 'parent-order-key'
           )
         }
       );
 
       Map<Id, ContractHistory__c> updatedById = new Map<Id, ContractHistory__c>(
         [
-          SELECT Id, Name, historystatus__c, Version__c, PreviousHistory__c
+          SELECT
+            Id,
+            Name,
+            historystatus__c,
+            Version__c,
+            PreviousHistory__c,
+            BusinessOperationKey__c
           FROM ContractHistory__c
           WHERE ContractService__c = :service.Id
           ORDER BY Version__c ASC, Name ASC
@@ -84,12 +91,22 @@ private class ContractHistoryArchiveServiceTest {
         '自動 Archive でも前回契約履歴は Null'
       );
       System.assertEquals(
+        'parent-order-key',
+        updatedById.get(histories[0].Id).BusinessOperationKey__c,
+        'Core 第4.3.12節・第5.5節: 自動Archiveは親操作のキーに含める'
+      );
+      System.assertEquals(
         'Archive',
         updatedById.get(histories[1].Id).historystatus__c
       );
       System.assertEquals(
         null,
         updatedById.get(histories[1].Id).PreviousHistory__c
+      );
+      System.assertEquals(
+        'parent-order-key',
+        updatedById.get(histories[1].Id).BusinessOperationKey__c,
+        'Core 第4.3.12節・第5.5節: 同じ処理の自動Archiveを別キーにしない'
       );
       System.assertEquals(
         'Estimate',
@@ -102,6 +119,11 @@ private class ContractHistoryArchiveServiceTest {
       System.assertEquals(
         null,
         updatedById.get(histories[3].Id).PreviousHistory__c
+      );
+      System.assertEquals(
+        'parent-order-key',
+        updatedById.get(histories[3].Id).BusinessOperationKey__c,
+        'Core 第4.3.12節・第5.5節: 同Versionの他Estimateも親操作のキーに含める'
       );
       System.assertEquals(
         'Estimate',
@@ -127,11 +149,41 @@ private class ContractHistoryArchiveServiceTest {
         1
       );
       insert estimate;
-      Integer invoicesBefore = [
-        SELECT COUNT()
-        FROM Invoice__c
-        WHERE ContractHistory__c = :estimate.Id
-      ];
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Archive No Purge Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(product);
+      ContractProduct__c contractProduct = new ContractProduct__c(
+        ContractHistory__c = estimate.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 1000,
+        Amount__c = 1000,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2026, 6, 30),
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'Renew'
+      );
+      insert contractProduct;
+      InvoiceProduct__c period = new InvoiceProduct__c(
+        ContractHistory__c = estimate.Id,
+        ContractProduct__c = contractProduct.Id,
+        StartDate__c = Date.newInstance(2026, 6, 1),
+        Enddate__c = Date.newInstance(2026, 6, 30),
+        Amount__c = 1000
+      );
+      insert period;
+      Invoice__c invoice = new Invoice__c(
+        ContractHistory__c = estimate.Id,
+        ContractService__c = service.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 1000,
+        TaxAmount__c = 100
+      );
+      insert invoice;
+
       Test.startTest();
       ContractHistoryArchiveService.archiveSupersededEstimates(
         new List<ContractHistory__c>{
@@ -154,13 +206,14 @@ private class ContractHistoryArchiveServiceTest {
         'Core 第5.5節: 受注Version以下の他EstimateはArchive'
       );
       System.assertEquals(
-        invoicesBefore,
-        [
-          SELECT COUNT()
-          FROM Invoice__c
-          WHERE ContractHistory__c = :estimate.Id
-        ],
-        'Core 第5.2節・第12.4節: Estimateの自動Archiveは請求を掃除照会しない'
+        1,
+        [SELECT COUNT() FROM InvoiceProduct__c WHERE Id = :period.Id],
+        'Core 第5.5節: 自動Archiveは有効な契約期間明細を物理削除しない'
+      );
+      System.assertEquals(
+        1,
+        [SELECT COUNT() FROM Invoice__c WHERE Id = :invoice.Id],
+        'Core 第5.5節: 自動Archiveは未確定請求を物理削除しない'
       );
     }
   }
@@ -309,107 +362,6 @@ private class ContractHistoryArchiveServiceTest {
         'Archive',
         [SELECT historystatus__c FROM ContractHistory__c WHERE Id = :estBLow.Id]
         .historystatus__c
-      );
-    }
-  }
-
-  @IsTest
-  static void archiveSupersededEstimates_copiesParentOperationKey() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Archive Key Account'
-      );
-      ContractService__c service = insertServiceWithBillingAccount(
-        account,
-        'Archive Key Service'
-      );
-      ContractHistory__c estimate = buildEstimateHistory(
-        service.Id,
-        account.Id,
-        'Estimate v1',
-        1
-      );
-      insert estimate;
-      ContractHistory__c ordered = buildEstimateHistory(
-        service.Id,
-        account.Id,
-        'Ordered v2',
-        2
-      );
-      ordered.historystatus__c = 'Ordered';
-      ordered.BusinessOperationKey__c = 'parent-order-key';
-      insert ordered;
-
-      Test.startTest();
-      ContractHistoryArchiveService.archiveSupersededEstimates(
-        new List<ContractHistory__c>{
-          new ContractHistory__c(
-            Id = ordered.Id,
-            ContractService__c = service.Id,
-            Version__c = 2,
-            BusinessOperationKey__c = 'parent-order-key'
-          )
-        }
-      );
-      Test.stopTest();
-
-      System.assertEquals(
-        'parent-order-key',
-        [
-          SELECT BusinessOperationKey__c
-          FROM ContractHistory__c
-          WHERE Id = :estimate.Id
-        ]
-        .BusinessOperationKey__c,
-        'Core 第4.3.12節: 自動Archiveは親操作のキーに含め、別キーにしない'
-      );
-    }
-  }
-
-  @IsTest
-  static void archiveSupersededEstimates_copiesParentOperationKeyOnSiblingInsert() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Archive Key Account'
-      );
-      ContractService__c service = insertServiceWithBillingAccount(
-        account,
-        'Archive Key Service'
-      );
-      ContractHistory__c older = buildEstimateHistory(
-        service.Id,
-        account.Id,
-        'Estimate older',
-        1
-      );
-      ContractHistory__c ordered = buildEstimateHistory(
-        service.Id,
-        account.Id,
-        'Ordered newer',
-        2
-      );
-      insert new List<ContractHistory__c>{ older, ordered };
-
-      ContractHistoryArchiveService.archiveSupersededEstimates(
-        new List<ContractHistory__c>{
-          new ContractHistory__c(
-            Id = ordered.Id,
-            ContractService__c = service.Id,
-            Version__c = 2,
-            BusinessOperationKey__c = 'parent-order-key'
-          )
-        }
-      );
-
-      System.assertEquals(
-        'parent-order-key',
-        [
-          SELECT BusinessOperationKey__c
-          FROM ContractHistory__c
-          WHERE Id = :older.Id
-        ]
-        .BusinessOperationKey__c,
-        'Core 第4.3.12節: 自動Archiveは親操作のキーに含め、別キーにしない'
       );
     }
   }

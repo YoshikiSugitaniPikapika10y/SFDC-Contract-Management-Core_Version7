@@ -303,12 +303,10 @@ private class ContractOrderValidationServiceTest {
         update history;
       } catch (DmlException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains(
-              ContractOrderValidationService.BILLING_ACCOUNT_MISSING_MESSAGE
-            ),
-          ex.getMessage()
+        System.assertEquals(
+          ContractOrderValidationService.BILLING_ACCOUNT_MISSING_MESSAGE,
+          ex.getDmlMessage(0),
+          'Core 第5.1節: ステータス直接変更も請求アカウント未設定なら拒否する'
         );
       }
       System.assertEquals(true, thrown);
@@ -424,11 +422,10 @@ private class ContractOrderValidationServiceTest {
         ContractOrderValidationService.assertReadyForOrder(changeHistory);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains(EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE),
-          'Core 第4.3節: 変更後の請求設定は前回の版と同じ。Actual=' +
-            ex.getMessage()
+        System.assertEquals(
+          '商品明細2行目: ' + EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE,
+          ex.getMessage(),
+          'Core 第5.1節: TermのChangeはRemakeの請求設定を前回と一致させる'
         );
       }
       System.assertEquals(true, thrown);
@@ -440,12 +437,10 @@ private class ContractOrderValidationServiceTest {
         update changeHistory;
       } catch (DmlException ex) {
         dmlBlocked = true;
-        System.assert(
-          ex.getDmlMessage(0)
-            .contains(
-            EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE
-            ),
-          ex.getDmlMessage(0)
+        System.assertEquals(
+          '商品明細2行目: ' + EstimateValidationService.REMAKE_INVOICE_LOCKED_MESSAGE,
+          ex.getDmlMessage(0),
+          'Core 第5.1節: ステータス直接変更でも同じChange条件を再検証する'
         );
       }
       System.assertEquals(true, dmlBlocked);
@@ -897,10 +892,10 @@ private class ContractOrderValidationServiceTest {
         ContractOrderValidationService.assertReadyForOrder(changeHistory);
       } catch (AuraHandledException ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage()
-            .contains('変更前の行は前回の版の見積商品と一致している必要があります'),
-          ex.getMessage()
+        System.assertEquals(
+          '商品明細1行目: 変更前の行は前回の版の見積商品と一致している必要があります。',
+          ex.getMessage(),
+          'Core 第5.1節・第1.1.8節: Original不一致を受注へ進めない'
         );
       }
       System.assertEquals(true, thrown);
