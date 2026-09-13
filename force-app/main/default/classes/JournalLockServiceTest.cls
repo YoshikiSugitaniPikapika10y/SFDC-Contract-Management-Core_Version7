@@ -161,7 +161,7 @@ private class JournalLockServiceTest {
           WHERE Id = :journal.Id
         ]
           .IsLocked__c,
-        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効と取消'
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効だけ'
       );
       System.assertEquals(
         InvoiceTransactionStatusService.TX_CANCELLED,
@@ -205,7 +205,7 @@ private class JournalLockServiceTest {
         DebitAccount__c = debit.Id,
         CreditAccount__c = credit.Id,
         PostingDate__c = Date.newInstance(2026, 6, 1),
-        TransactionStatus__c = 'Reversal',
+        TransactionStatus__c = 'Active',
         IsLocked__c = true
       );
       insert journal;
@@ -229,7 +229,7 @@ private class JournalLockServiceTest {
       System.assertEquals(
         1,
         unlockedCount,
-        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも取消仕訳をUnlockできる'
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも有効仕訳をUnlockできる'
       );
       GlJournal__c loaded = [
         SELECT IsLocked__c, UnlockReason__c
@@ -239,7 +239,7 @@ private class JournalLockServiceTest {
       System.assertEquals(
         false,
         loaded.IsLocked__c,
-        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効と取消'
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効だけ'
       );
       System.assertEquals(
         '確認',
@@ -549,7 +549,7 @@ private class JournalLockServiceTest {
       } catch (JournalLockService.LockException ex) {
         thrown = true;
         System.assertEquals(
-          '有効と取消の仕訳だけをLock/Unlockできます。',
+          '有効な仕訳だけをLock/Unlockできます。',
           ex.getMessage()
         );
       }
@@ -610,7 +610,7 @@ private class JournalLockServiceTest {
       } catch (JournalLockService.LockException ex) {
         thrown = true;
         System.assertEquals(
-          '有効と取消の仕訳だけをLock/Unlockできます。',
+          '有効な仕訳だけをLock/Unlockできます。',
           ex.getMessage(),
           'Accounting 第9.5節: 論理削除は請求以外扱いの拒否文にしない'
         );
@@ -629,7 +629,7 @@ private class JournalLockServiceTest {
   }
 
   @IsTest
-  static void lockForInvoice_locksReversalJournal() {
+  static void lockForInvoice_rejectsUnlockedReversalJournal() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
       policy.AccountingEnabled__c = true;
@@ -667,29 +667,38 @@ private class JournalLockServiceTest {
       );
       insert reversal;
 
-      Test.startTest();
-      Integer locked = JournalLockService.lockForInvoice(
-        invoice.Id,
-        new List<Id>{ reversal.Id },
-        AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
-        null
-      );
-      Test.stopTest();
-
-      System.assertEquals(
-        1,
-        locked,
-        'Accounting 第9.5節: 取消仕訳も手動Lockできる'
-      );
-      reversal = [
-        SELECT IsLocked__c
-        FROM GlJournal__c
-        WHERE Id = :reversal.Id
-      ];
+      Boolean thrown = false;
+      try {
+        Test.startTest();
+        JournalLockService.lockForInvoice(
+          invoice.Id,
+          new List<Id>{ reversal.Id },
+          AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+          null
+        );
+        Test.stopTest();
+      } catch (JournalLockService.LockException ex) {
+        thrown = true;
+        System.assertEquals(
+          '有効な仕訳だけをLock/Unlockできます。',
+          ex.getMessage(),
+          'Accounting 第9.5節: 既存の未Lock逆仕訳は手動では触れない'
+        );
+      }
       System.assertEquals(
         true,
-        reversal.IsLocked__c,
-        'Accounting 第9.5節: 取消行のIsLocked__cをTrueにする'
+        thrown,
+        'Accounting 第9.5節: 逆仕訳は手動Lockできない'
+      );
+      System.assertEquals(
+        false,
+        [
+          SELECT IsLocked__c
+          FROM GlJournal__c
+          WHERE Id = :reversal.Id
+        ]
+          .IsLocked__c,
+        'Accounting 第9.5節: 既存の未Lock逆仕訳はLockしない'
       );
     }
   }

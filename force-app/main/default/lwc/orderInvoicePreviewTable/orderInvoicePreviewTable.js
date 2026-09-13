@@ -86,12 +86,9 @@ function journalDisplayRows(journals) {
     .sort(compareJournalDisplayOrder);
 }
 
-/** 仕様: Accounting 第9.5節、Core 第7.7.3節。Lock／Unlockの対象は有効と取消。 */
+/** 仕様: Accounting 第9.5節、Core 第7.7.3節。Lock／Unlockの対象は有効だけ。 */
 function isJournalLockSelectable(journal) {
-  return (
-    journal?.transactionStatus === "Active" ||
-    journal?.transactionStatus === "Reversal"
-  );
+  return journal?.transactionStatus === "Active";
 }
 
 function postingMonthKey(postingDate) {
@@ -2627,7 +2624,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           showJournalLockActions:
             accountingEnabled &&
             (this.canLockJournal || this.canUnlockJournal),
-          // 仕様: Core 第7.7.3節、Accounting 第9.5節。取消済み請求でも可。有効または取消が1行でも左チェック。未選択はボタンなし。
+          // 仕様: Core 第7.7.3節、Accounting 第9.5節。取消済み請求でも可。有効が1行でも左チェック。未選択はボタンなし。
           showJournalSelectCheckbox:
             accountingEnabled &&
             (this.canLockJournal || this.canUnlockJournal) &&
@@ -3298,7 +3295,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             }),
             canSaveJournalExtras: this.canEdit && !isCancelled,
             // 仕様: Accounting 第9.5節、Core 第7.7.3節。
-            // 手動Lock／Unlockの選択は有効と取消。取消済と論理削除は選べない。
+            // 手動Lock／Unlockの選択は有効だけ。取消元・逆仕訳・論理削除は選べない。
             canSelectForJournalLock,
             journalSelected:
               canSelectForJournalLock &&

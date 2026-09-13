@@ -1637,7 +1637,7 @@ private class InvoicePreviewOpsControllerTest {
           WHERE Id = :journal.Id
         ]
           .IsLocked__c,
-        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効と取消'
+        'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効だけ'
       );
       System.assertEquals(
         InvoiceTransactionStatusService.TX_CANCELLED,

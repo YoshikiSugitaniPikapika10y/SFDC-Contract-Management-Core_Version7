@@ -2260,10 +2260,9 @@ export default class ContractCrossWork extends NavigationMixin(
         historyId: row.historyId,
         invoiceId: row.invoiceId,
         journalId: id,
-        // 仕様: Accounting 第9.5節、Core 第7.7.3節。対象は有効と取消。取消済と論理削除は選べない。
+        // 仕様: Accounting 第9.5節、Core 第7.7.3節。対象は有効だけ。取消元・逆仕訳・論理削除は選べない。
         canCheck:
-          (status === "Active" || status === "Reversal") &&
-          this.showJournalLockSelection === true,
+          status === "Active" && this.showJournalLockSelection === true,
         checked: this.checkedIds[id] === true,
         rowClass,
         cells: this.journalCells(row, memoValue)

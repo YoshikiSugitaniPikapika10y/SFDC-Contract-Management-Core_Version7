@@ -94,9 +94,9 @@ public without sharing class JournalLockService {
     );
   }
 
-  // 仕様: Accounting 第9.5節、Core 第7.7.3節。対象は有効と取消。
+  // 仕様: Accounting 第9.5節、Core 第7.7.3節。対象は有効だけ。
   private static Boolean isLockSelectableStatus(String status) {
-    return status == 'Active' || status == 'Reversal';
+    return status == 'Active';
   }
 
   private static Integer setLocked(
@@ -114,7 +114,7 @@ public without sharing class JournalLockService {
     // 仕様: Core 第12.4節・第7.9.7節。取消確認の請求を行ロックで取り直さない。
     // 仕様: Core 第12.4節・第11.4.2節。行ロックのコピー定義は FieldCopyDefinition__c 1本。
     Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
-    // 仕様: Core 第7.7.3節・第12.2節、Accounting 第9.5節。取消済み請求でも対象は有効と取消。請求書の取引状態は変えない。
+    // 仕様: Core 第7.7.3節・第12.2節、Accounting 第9.5節。取消済み請求でも対象は有効だけ。請求書の取引状態は変えない。
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
     );
@@ -141,10 +141,10 @@ public without sharing class JournalLockService {
     if (journals.size() != selected.size()) {
       throw new LockException('この請求以外の仕訳はLock/Unlockできません。');
     }
-    // 仕様: Accounting 第9.5節、Core 第7.7.3節。手動Lock／Unlockの対象は有効と取消。取消済と論理削除は拒否する。
+    // 仕様: Accounting 第9.5節、Core 第7.7.3節。手動Lock／Unlockの対象は有効だけ。取消元・逆仕訳・論理削除は拒否する。
     for (GlJournal__c journal : journals) {
       if (!isLockSelectableStatus(journal.TransactionStatus__c)) {
-        throw new LockException('有効と取消の仕訳だけをLock/Unlockできます。');
+        throw new LockException('有効な仕訳だけをLock/Unlockできます。');
       }
     }
     // 仕様: Accounting 第9.5節、Core 第7.7.3節。Lock済みと未Lockの混在は拒否する。

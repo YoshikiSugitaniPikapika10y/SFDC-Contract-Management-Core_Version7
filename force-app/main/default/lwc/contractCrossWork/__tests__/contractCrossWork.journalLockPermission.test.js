@@ -249,7 +249,7 @@ describe("contractCrossWork journal lock UI (Accounting 9.5 / 共通基盤 10.4)
     expect(showJournalLockSelection.call(withUnlock)).toBe(true);
   });
 
-  it("allows Lock selection on Active and Reversal and denies Cancelled and LogicallyDeleted", () => {
+  it("allows Lock selection on Active only and denies Reversal, Cancelled and LogicallyDeleted", () => {
     const proto = ContractCrossWork.prototype;
     const state = {
       menu: "journal",
@@ -272,7 +272,7 @@ describe("contractCrossWork journal lock UI (Accounting 9.5 / 共通基盤 10.4)
         id: "r1",
         transactionStatus: "Reversal"
       }).canCheck
-    ).toBe(true);
+    ).toBe(false);
     expect(
       proto.toDataRow.call(state, {
         id: "c1",
