@@ -344,6 +344,15 @@
   padding-bottom: 0.12rem;
 }
 
+.ops-table_payments td.cell-wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+
 .ops-table_payments tbody lightning-input {
   margin: 0;
   padding: 0;
@@ -406,10 +415,7 @@
 }
 
 .journal-confirmation-cell {
-  max-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: none;
 }
 
 .journal-status-col {
@@ -428,10 +434,15 @@
   overflow: visible;
 }
 
-.ops-table_journals tbody .journal-event-col {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ops-table_journals tbody .journal-event-col,
+.ops-table_journals tbody .journal-slot-col,
+.ops-table_journals tbody td.journal-confirmation-cell {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  line-height: 1.3;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .journal-slot-col {
@@ -950,9 +961,11 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .invoice-dates {
@@ -1555,9 +1568,12 @@
 .split-table td.muted {
   color: var(--preview-muted);
   font-size: 0.75rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 .split-readonly {
@@ -2031,8 +2047,8 @@
   max-width: 4.5rem;
   padding-left: 0.15rem;
   padding-right: 0.15rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: unset;
   white-space: nowrap;
   position: relative;
   z-index: 1;
@@ -2046,10 +2062,12 @@
   max-width: 100%;
   font-size: 0.75rem;
   font-weight: 500;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .version-pill {

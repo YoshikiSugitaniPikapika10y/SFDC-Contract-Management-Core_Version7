@@ -884,7 +884,7 @@
                       <template for:each={invoice.payments} for:item="payment">
                         <tr key={payment.key}>
                           <td>{payment.paymentDate}</td>
-                          <td>{payment.typeLabel}</td>
+                          <td class="cell-wrap">{payment.typeLabel}</td>
                           <td class="num-col">
                             <lightning-formatted-number
                               value={payment.displayAmount}
@@ -893,7 +893,7 @@
                               maximum-fraction-digits="0"
                             ></lightning-formatted-number>
                           </td>
-                          <td class="muted">{payment.memo}</td>
+                          <td class="muted cell-wrap">{payment.memo}</td>
                           <td>{payment.statusLabel}</td>
                           <td>
                             <div class="ops-row-actions">
@@ -1370,7 +1370,7 @@
                           for:item="allocation"
                         >
                           <tr key={allocation.lineId}>
-                            <td>{allocation.productName}</td>
+                            <td class="cell-wrap">{allocation.productName}</td>
                             <td class="num-col">
                               <lightning-formatted-number
                                 value={allocation.remainingInclusive}

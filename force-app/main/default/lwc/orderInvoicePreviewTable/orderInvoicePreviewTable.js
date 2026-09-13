@@ -70,11 +70,6 @@ const KIND_PERIOD = "period";
 const KIND_UNIT_PRICE = "unitPrice";
 const KIND_QUANTITY = "quantity";
 
-/** 商品名: 列幅に収まるまで縮小（rem）。下限未満は省略記号。 */
-const PRODUCT_NAME_FONT_MAX_REM = 0.6875;
-const PRODUCT_NAME_FONT_MIN_REM = 0.5625;
-const PRODUCT_NAME_FONT_STEP_REM = 0.03125;
-
 // 仕様: Accounting 第2.3節、日付仕様 第8章
 function postingPeriodLabel(postingDate, asOfDate) {
   if (!postingDate || !asOfDate) {
@@ -685,9 +680,16 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       quantityUnitPriceRoundingMode: value?.quantityUnitPriceRoundingMode,
       amountRoundingMode: value?.amountRoundingMode
     });
+    this.resetPreviewDraftState();
+    this.applyDefaultVersionFilter();
+    this.initializeInvoiceUiState();
+  }
+
+  resetPreviewDraftState() {
     // 仕様: Core 第7.7.0節。保存成功・版不一致の読み直しで未保存ドラフトは戻さない。
     this.amountDrafts = {};
     this.memoDrafts = {};
+    this.journalMemoDrafts = {};
     this.invoiceSplitState = null;
     this.invoiceMoveState = null;
     this.invoiceDestinationChoiceState = null;
@@ -700,8 +702,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.invoiceIssueState = null;
     this.invoiceCancelState = null;
     this.handleCloseUnitPriceFormula();
-    this.applyDefaultVersionFilter();
-    this.initializeInvoiceUiState();
   }
 
   initializeInvoiceUiState() {
@@ -1182,8 +1182,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   /**
-   * 商品名を列幅内の1行に収める。長い場合はフォントを下限まで縮小し、
-   * それでも溢れるときだけ ellipsis（title で全文）。
+   * 商品名は折り返す。1行に収める縮小はしない（画面見た目第4節）。
    */
   fitProductNameFonts() {
     const nodes = this.template.querySelectorAll(".product-name");
@@ -1191,24 +1190,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     nodes.forEach((el) => {
-      if (!el) {
-        return;
-      }
-      let rem = PRODUCT_NAME_FONT_MAX_REM;
-      el.style.fontSize = `${rem}rem`;
-      // レイアウト確定後に測る（幅0はスキップ）
-      if (el.clientWidth < 8) {
-        return;
-      }
-      while (
-        el.scrollWidth > el.clientWidth + 1 &&
-        rem > PRODUCT_NAME_FONT_MIN_REM + 0.0001
-      ) {
-        rem = Math.max(
-          PRODUCT_NAME_FONT_MIN_REM,
-          rem - PRODUCT_NAME_FONT_STEP_REM
-        );
-        el.style.fontSize = `${rem}rem`;
+      if (el) {
+        el.style.fontSize = "";
       }
     });
   }
