@@ -60,22 +60,22 @@
 }
 
 .est-alert-btn_secondary {
-  border: 1px solid #86efac;
+  border: 1px solid #cbd5e1;
   background: #ffffff;
-  color: #166534;
+  color: #334155;
 }
 
 .est-alert-btn_secondary:hover {
-  background: #dcfce7;
+  background: #f1f5f9;
 }
 
 .est-alert-btn_primary {
-  border: 1px solid #16a34a;
-  background: #16a34a;
+  border: 1px solid #334155;
+  background: #334155;
   color: #ffffff;
 }
 
 .est-alert-btn_primary:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: #1e293b;
+  border-color: #1e293b;
 }

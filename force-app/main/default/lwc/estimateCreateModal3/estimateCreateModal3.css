@@ -275,18 +275,17 @@
 }
 
 .est-change-group-card__header_new {
-  background: linear-gradient(180deg, #ecfdf5 0%, #e6f9ef 100%);
-  border: 1px solid #a7f3d0;
-  border-left: 3px solid #10b981;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #cbd5e1;
   box-shadow: none;
 }
 
 .est-change-group-card__header_new .est-change-group-card__title {
-  color: #047857;
+  color: #334155;
 }
 
 .est-change-group-card__header_new .est-change-group-card__subtitle {
-  color: #059669;
+  color: #64748b;
 }
 
 .est-change-group-boundary_start_new td,
@@ -295,7 +294,7 @@
   border-left: none !important;
   border-right: none !important;
   background: #ffffff;
-  border-top: 1px solid #d8eee3;
+  border-top: 1px solid #e2e8f0;
   box-shadow: none !important;
 }
 
@@ -305,7 +304,7 @@
 }
 
 .est-change-group-boundary_middle_new td {
-  border-top: 1px solid #d8eee3;
+  border-top: 1px solid #e2e8f0;
 }
 
 .est-change-group-header-row_new + .est-change-group-boundary_start_new td,
@@ -833,9 +832,9 @@
 }
 
 .est-type-badge_new {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 .est-type-badge_renew {
@@ -1356,7 +1355,7 @@
   color: var(--est-muted);
 }
 
-/* Row actions — vertical stack（商品行のみ縮小。カスタム行には無い） */
+/* Row actions — vertical stack */
 .est-row-actions {
   display: inline-flex;
   flex-direction: column;
@@ -1365,11 +1364,6 @@
   flex-shrink: 0;
   gap: 0.1rem;
   white-space: nowrap;
-}
-
-.est-table-row .est-row-actions lightning-button-icon {
-  transform: scale(0.85);
-  transform-origin: center center;
 }
 
 .est-td-actions {
