@@ -1,3 +1,5 @@
+const mockGetRecordNotifyChange = jest.fn();
+
 jest.mock(
   "@salesforce/apex/OrderWizardFieldService.getOrderBillingFieldDefinitions",
   () => ({ default: jest.fn() }),
@@ -20,7 +22,7 @@ jest.mock(
     return {
       getRecord: GetRecordAdapter,
       getFieldValue: jest.fn(),
-      getRecordNotifyChange: jest.fn()
+      getRecordNotifyChange: mockGetRecordNotifyChange
     };
   },
   { virtual: true }
@@ -66,7 +68,6 @@ jest.mock(
 
 const OrderCreateStepBilling = require("c/orderCreateStepBilling").default;
 const { refreshApex } = require("@salesforce/apex");
-const { getRecordNotifyChange } = require("lightning/uiRecordApi");
 const {
   invoiceDateMethodHelp,
   METHOD_SAME_DAY,
@@ -115,7 +116,7 @@ function bind(overrides = {}) {
 describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
   beforeEach(() => {
     refreshApex.mockReset().mockResolvedValue();
-    getRecordNotifyChange.mockClear();
+    mockGetRecordNotifyChange.mockClear();
   });
 
   it("empty billing names show — (Core 5.2)", () => {
@@ -129,8 +130,18 @@ describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
   });
 
   it("refreshReferenceWires reloads the latest billing values and notifies LDS (Core 5.2)", async () => {
+    const billingSettingsWire = {
+      data: {
+        billingCustomFields: { BillingAddressee__c: "変更前の宛名" }
+      }
+    };
+    const refreshedBillingSettings = {
+      billingCustomFields: { BillingAddressee__c: "最新の宛名" }
+    };
+    const refreshResult = { refreshed: "billing-account" };
     const ctx = bind({
       _wiredFieldDefinitions: null,
+      _wiredBillingAccountInvoiceSettings: billingSettingsWire,
       fieldDefinitions: [
         {
           apiName: "BillingAddressee__c",
@@ -141,18 +152,20 @@ describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
       ],
       _billingCustomFields: { BillingAddressee__c: "変更前の宛名" }
     });
-    refreshApex.mockImplementationOnce(() => {
+    refreshApex.mockImplementationOnce((wire) => {
+      expect(wire).toBe(billingSettingsWire);
       ctx.wiredBillingAccountInvoiceSettings({
-        data: {
-          billingCustomFields: { BillingAddressee__c: "最新の宛名" }
-        }
+        data: refreshedBillingSettings
       });
-      return Promise.resolve();
+      return Promise.resolve(refreshResult);
     });
 
-    await ctx.refreshReferenceWires();
+    await expect(ctx.refreshReferenceWires()).resolves.toEqual([refreshResult]);
+    expect(refreshApex).toHaveBeenCalledTimes(1);
+    expect(refreshApex).toHaveBeenCalledWith(billingSettingsWire);
     expect(ctx.getBillingCustomFields().BillingAddressee__c).toBe("最新の宛名");
-    expect(getRecordNotifyChange).toHaveBeenCalledWith([
+    expect(mockGetRecordNotifyChange).toHaveBeenCalledTimes(1);
+    expect(mockGetRecordNotifyChange).toHaveBeenCalledWith([
       { recordId: "a00BA" }
     ]);
   });

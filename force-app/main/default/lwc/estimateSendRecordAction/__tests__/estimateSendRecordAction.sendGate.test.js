@@ -269,8 +269,10 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
   });
 
   it("成功時は飛行中を外してから閉じる (Core 7.10)", async () => {
-    sendEstimate.mockResolvedValue({});
+    sendEstimate.mockReset().mockResolvedValue({});
     const order = [];
+    const toMessage = jest.fn();
+    const load = jest.fn();
     await proto.handleSend.call({
       sendDisabled: false,
       isSending: false,
@@ -279,6 +281,8 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
       fromCrossWork: false,
       sendEstimateApex: proto.sendEstimateApex,
       closePanel: proto.closePanel,
+      toMessage,
+      load,
       _recordId: "a0H",
       documentTemplateKey: "tpl",
       emailTemplateApiName: "email",
@@ -304,5 +308,7 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     expect(offAt).toBeGreaterThan(-1);
     expect(closeAt).toBeGreaterThan(-1);
     expect(offAt).toBeLessThan(closeAt);
+    expect(toMessage).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
   });
 });

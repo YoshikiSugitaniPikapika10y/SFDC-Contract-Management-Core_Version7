@@ -20,25 +20,19 @@ jest.mock(
   },
   { virtual: true }
 );
-jest.mock(
-  "lightning/uiRecordApi",
-  () => ({ getRecord: jest.fn() }),
-  { virtual: true }
-);
+jest.mock("lightning/uiRecordApi", () => ({ getRecord: jest.fn() }), {
+  virtual: true
+});
 jest.mock(
   "@salesforce/schema/ContractHistory__c.historystatus__c",
   () => ({ default: "ContractHistory__c.historystatus__c" }),
   { virtual: true }
 );
-jest.mock(
-  "c/estimateWizardClose",
-  () => ({
-    closeEstimateWizard: jest.fn(),
-    markEstimateRecordForRefresh: jest.fn(),
-    refreshOnEstimateRecordActionUnmount: jest.fn()
-  }),
-  { virtual: true }
-);
+jest.mock("c/estimateWizardClose", () => ({
+  closeEstimateWizard: jest.fn(),
+  markEstimateRecordForRefresh: jest.fn(),
+  refreshOnEstimateRecordActionUnmount: jest.fn()
+}));
 jest.mock(
   "c/quickActionPanelResize",
   () => ({ resizeQuickActionPanel: jest.fn() }),

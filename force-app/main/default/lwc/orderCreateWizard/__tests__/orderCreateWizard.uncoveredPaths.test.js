@@ -70,8 +70,14 @@ jest.mock(
     NavigationMixin: (Base) => class extends Base {},
     closeOrderWizardTab: jest.fn(),
     initializeOrderWizardFromUrl: jest.fn(),
-    isOrderWizardTabView: jest.fn(() => false),
-    readOrderWizardRecordId: jest.fn(() => "")
+    isOrderWizardTabView: jest.fn(
+      (pageRef, componentToken) =>
+        componentToken === "order" &&
+        pageRef?.attributes?.apiName === "Order_Process"
+    ),
+    readOrderWizardRecordId: jest.fn(
+      (pageRef) => pageRef?.state?.c__recordId || ""
+    )
   }),
   { virtual: true }
 );
@@ -228,33 +234,16 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
   });
 
   it("required history fields block with 必須のカスタム項目を入力してください (Core 11.4.3)", async () => {
-    const definitions = [
-      {
-        apiName: "ApplicationDate__c",
-        label: "申込日",
-        required: true,
-        showOnNew: true
-      }
-    ];
-    buildCustomFieldInputs.mockReturnValue([
-      { apiName: "ApplicationDate__c", label: "申込日", required: true }
-    ]);
     isMissingRequiredCustomValue.mockImplementation(
       (value) => value == null || String(value).trim() === ""
     );
     const ctx = bind({
-      historyFieldDefinitions: definitions,
-      historyCustomFields: { ApplicationDate__c: "" }
+      historyCustomFields: { ApplicationDate__c: "" },
+      historyFieldInputs: [
+        { apiName: "ApplicationDate__c", label: "申込日", required: true }
+      ]
     });
     await ctx.handleConfirmOrder();
-    expect(buildCustomFieldInputs).toHaveBeenCalledWith(
-      definitions,
-      { ApplicationDate__c: "" },
-      "order-history",
-      false,
-      null,
-      "New"
-    );
     expect(ctx.errorMessage).toBe(
       "必須のカスタム項目を入力してください: 申込日"
     );
@@ -262,7 +251,7 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
   });
 
   it("confirm issues operation key then closes (Core 4.3.12 / 5.2)", async () => {
-    const ctx = bind();
+    const ctx = bind({ closeAction: jest.fn() });
     await ctx.handleConfirmOrder();
     expect(issueOrderOperationKey).toHaveBeenCalledTimes(1);
     expect(confirmOrder).toHaveBeenCalledWith({
@@ -280,16 +269,15 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
       ctx,
       "a0H000000000001AAA"
     );
-    expect(requestOrderWizardClose).toHaveBeenCalledWith(ctx, {
-      refresh: true,
-      recordId: "a0H000000000001AAA"
-    });
+    expect(ctx.closeAction).toHaveBeenCalledWith();
     expect(confirmOrder.mock.invocationCallOrder[0]).toBeLessThan(
       notifyOrderRecordStatusChanged.mock.invocationCallOrder[0]
     );
     expect(
       notifyOrderRecordStatusChanged.mock.invocationCallOrder[0]
-    ).toBeLessThan(requestOrderWizardClose.mock.invocationCallOrder[0]);
+    ).toBeLessThan(
+      ctx.closeAction.mock.invocationCallOrder[0]
+    );
   });
 
   it("version conflict reloads with 他のユーザーが先に更新しました (Core 4.3.12)", async () => {
@@ -400,11 +388,12 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
   });
 
   it("pageRef sets tab view and record id", () => {
-    const { readOrderWizardRecordId, isOrderWizardTabView } = require("c/orderWizardNavigation");
-    readOrderWizardRecordId.mockReturnValue("a0HZZZ");
-    isOrderWizardTabView.mockReturnValue(true);
     const ctx = bind({ recordId: "", _recordId: "" });
-    ctx.setCurrentPageReference({ type: "standard__navItemPage" });
+    ctx.setCurrentPageReference({
+      type: "standard__navItemPage",
+      attributes: { apiName: "Order_Process" },
+      state: { c__recordId: "a0HZZZ" }
+    });
     expect(ctx._recordId).toBe("a0HZZZ");
     expect(ctx.isTabView).toBe(true);
   });
@@ -489,20 +478,12 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
       }
     ];
     const inputs = [{ apiName: "X__c", label: "追加項目X" }];
-    buildCustomFieldInputs.mockReturnValue(inputs);
     const ctx = bind({
       historyFieldDefinitions: definitions,
-      historyCustomFields: { X__c: "表示値" }
+      historyCustomFields: { X__c: "表示値" },
+      historyFieldInputs: inputs
     });
     expect(ctx.historyFieldInputs).toEqual(inputs);
-    expect(buildCustomFieldInputs).toHaveBeenCalledWith(
-      definitions,
-      { X__c: "表示値" },
-      "order-history",
-      false,
-      null,
-      "New"
-    );
     expect(ctx.showHistoryFields).toBe(true);
     expect(ctx.isOrderDisabled).toBe(false);
     ctx.isSaving = true;

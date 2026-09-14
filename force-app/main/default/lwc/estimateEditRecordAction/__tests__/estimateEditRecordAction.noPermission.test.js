@@ -6,20 +6,14 @@ jest.mock(
   () => ({ default: false }),
   { virtual: true }
 );
-jest.mock(
-  "lightning/uiRecordApi",
-  () => ({ getRecord: jest.fn() }),
-  { virtual: true }
-);
-jest.mock(
-  "c/estimateWizardClose",
-  () => ({
-    closeEstimateWizard: jest.fn(),
-    markEstimateRecordForRefresh: jest.fn(),
-    refreshOnEstimateRecordActionUnmount: jest.fn()
-  }),
-  { virtual: true }
-);
+jest.mock("lightning/uiRecordApi", () => ({ getRecord: jest.fn() }), {
+  virtual: true
+});
+jest.mock("c/estimateWizardClose", () => ({
+  closeEstimateWizard: jest.fn(),
+  markEstimateRecordForRefresh: jest.fn(),
+  refreshOnEstimateRecordActionUnmount: jest.fn()
+}));
 jest.mock(
   "c/quickActionPanelResize",
   () => ({ resizeQuickActionPanel: jest.fn() }),

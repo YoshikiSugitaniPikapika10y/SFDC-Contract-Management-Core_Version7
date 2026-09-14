@@ -67,8 +67,13 @@ jest.mock(
   { virtual: true }
 );
 
-const { NavigationMixin } = require("lightning/navigation");
 const OrderCreateStepBilling = require("c/orderCreateStepBilling").default;
+const navigationPrototype = Object.getPrototypeOf(
+  OrderCreateStepBilling.prototype
+);
+const navigateSymbol = Object.getOwnPropertySymbols(navigationPrototype).find(
+  (symbol) => symbol.description === "NavigationMixin.Navigate"
+);
 
 describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
   it("navigates to BillingAccount__c edit and names the formal edit screen in validation", () => {
@@ -89,7 +94,7 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
       isMissingBillingFieldValue:
         OrderCreateStepBilling.prototype.isMissingBillingFieldValue,
       _billingCustomFields: {},
-      [NavigationMixin.Navigate]: navigate
+      [navigateSymbol]: navigate
     };
 
     const opened =
@@ -123,7 +128,7 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
     const opened =
       OrderCreateStepBilling.prototype.openBillingAccountFormalEdit.call({
         billingAccountId: null,
-        [NavigationMixin.Navigate]: navigate
+        [navigateSymbol]: navigate
       });
     expect(opened).toBe(false);
     expect(navigate).not.toHaveBeenCalled();
@@ -135,7 +140,7 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
       OrderCreateStepBilling.prototype.openBillingAccountFormalEdit.call({
         billingAccountId: "a00BA0000000001",
         canUpdateBillingAccount: false,
-        [NavigationMixin.Navigate]: navigate
+        [navigateSymbol]: navigate
       });
     expect(opened).toBe(false);
     expect(navigate).not.toHaveBeenCalled();

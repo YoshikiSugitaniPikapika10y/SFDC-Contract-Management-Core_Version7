@@ -283,6 +283,15 @@ private class InvoiceProductFieldCopyServiceTest {
   @IsTest
   static void helpers_coverFieldNameAndQueryPaths() {
     InvoiceProductFieldCopyService.resetCache();
+    InvoiceProductFieldCopyService.cachedDefinitions = new List<FieldCopyDefinition__c>{
+      new FieldCopyDefinition__c(
+        Name = 'Test_Inv_AccountName_Helpers',
+        SourceObject__c = 'Account',
+        SourceFieldApiName__c = 'Name',
+        TargetFieldApiName__c = 'Memo__c',
+        TargetObject__c = 'Invoice__c'
+      )
+    };
     System.assertEquals(
       true,
       InvoiceProductFieldCopyService.getHardcodedTargetFieldApiNames(
@@ -577,8 +586,10 @@ private class InvoiceProductFieldCopyServiceTest {
     System.assertEquals(true, badTarget);
 
     InvoiceProductFieldCopyService.resetCache();
-    System.assert(
-      !InvoiceProductFieldCopyService.getActiveDefinitions().isEmpty()
+    System.assertEquals(
+      0,
+      InvoiceProductFieldCopyService.getActiveDefinitions().size(),
+      '仕様: Core 第11.4.2節 見本3件は自動では入れない'
     );
   }
 

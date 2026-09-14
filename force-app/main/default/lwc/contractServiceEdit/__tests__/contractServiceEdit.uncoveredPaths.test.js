@@ -52,6 +52,30 @@ const VERSION_CONFLICT_MESSAGE =
   "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。";
 
 const proto = ContractServiceEdit.prototype;
+const serviceCustomFieldInputs = [
+  {
+    apiName: "X__c",
+    checked: false,
+    displayValue: "1",
+    fieldType: undefined,
+    hasHelpText: false,
+    helpText: "",
+    isCheckbox: false,
+    isDate: false,
+    isNumber: false,
+    isPicklist: false,
+    isReadonly: false,
+    isReference: false,
+    isText: true,
+    isTextarea: false,
+    key: "service-X__c",
+    label: "追加",
+    picklistOptions: [],
+    referenceObjectApiName: "",
+    required: false,
+    value: "1"
+  }
+];
 
 function bind(overrides = {}) {
   const ctx = {
@@ -113,17 +137,19 @@ describe("contractServiceEdit uncovered (Core 3.4.1 / 4.3.12 / 4.6)", () => {
     ]);
     save.mockReset().mockResolvedValue({});
     issueContractServiceOperationKey.mockReset().mockResolvedValue("op-1");
-    buildCustomFieldInputs.mockReset().mockReturnValue([
-      { apiName: "X__c", key: "X__c" }
-    ]);
+    buildCustomFieldInputs
+      .mockReset()
+      .mockReturnValue(serviceCustomFieldInputs);
     validateCustomFieldMaps.mockReset().mockReturnValue(null);
   });
 
   it("canEditService / custom fields getters (Core 3.4.1)", () => {
-    const ctx = bind();
+    const fieldDefinitions = [{ apiName: "X__c", label: "追加" }];
+    const customFields = { X__c: "1" };
+    const ctx = bind({ fieldDefinitions, customFields });
     expect(ctx.canEditService).toBe(true);
+    expect(ctx.customFieldInputs).toEqual(serviceCustomFieldInputs);
     expect(ctx.hasCustomFields).toBe(true);
-    expect(buildCustomFieldInputs).toHaveBeenCalled();
   });
 
   it("billingAccountFilter restricts to own account when OFF (Core 3.4.1 / 4.3.3)", () => {

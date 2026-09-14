@@ -1139,7 +1139,7 @@ private class InvoicePaymentServiceTest {
         'Accounting 第8.2節: 割当検証で集めた全請求明細をGoalへ渡す'
       );
       System.assertEquals(
-        fixture.line.TaxInclusiveAmount__c,
+        1100,
         collectedLine.TaxInclusiveAmount__c,
         'Core 第8.6節・第12.4節: 再照会せず割当残額に必要な税込額も保持する'
       );
