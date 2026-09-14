@@ -177,25 +177,46 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
       : "";
   }
 
-  /** 仕様: 共通基盤.md 操作4。発行画面で最新PDFをダウンロードする。独立の「最新のPDFを見る」は置かない。 */
+  /** 仕様: 横断画面.md 第5節・Core 第7.10節。印付き最新。発行成功後は今回のファイル。 */
+  get viewPdfDocumentId() {
+    return (
+      this.issuedContentDocumentId ||
+      this.tile?.latestIssuedContentDocumentId ||
+      this.latestIssuedContentDocumentId ||
+      ""
+    );
+  }
+
+  /** 仕様: 横断画面.md 第5節。請求カードと同じ。0件は出さない。 */
+  get showViewPdfAction() {
+    return this.isEstimate && !this.isBlankText(this.viewPdfDocumentId);
+  }
+
+  get showActionRow() {
+    return this.showViewPdfAction === true || this.isCardWorkOpen !== true;
+  }
+
+  handleViewIssuedPdf() {
+    openContentDocumentFilePreview(this, this.viewPdfDocumentId);
+  }
+
+  /** 仕様: Core 第4.8節。発行成功のあと、いま作ったファイルを標準 Files で確認する。 */
   get latestPdfDownloadUrl() {
-    const documentId =
-      this.issuedContentDocumentId || this.latestIssuedContentDocumentId;
-    return documentId
-      ? `/sfc/servlet.shepherd/document/download/${documentId}`
+    return this.issuedContentDocumentId
+      ? `/sfc/servlet.shepherd/document/download/${this.issuedContentDocumentId}`
       : "";
   }
 
   get showLatestPdfDownload() {
-    return !this.isBlankText(this.latestPdfDownloadUrl);
+    return this.issueSucceeded === true && !this.isBlankText(this.latestPdfDownloadUrl);
   }
 
   get previewDocumentId() {
-    return this.issuedContentDocumentId || this.latestIssuedContentDocumentId;
+    return this.issuedContentDocumentId || "";
   }
 
   get showIssuePdfPreview() {
-    return !this.isBlankText(this.previewDocumentId);
+    return this.issueSucceeded === true && !this.isBlankText(this.previewDocumentId);
   }
 
   handleIssuePdfPreview() {

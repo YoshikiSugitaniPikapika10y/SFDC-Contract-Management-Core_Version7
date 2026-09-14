@@ -44,8 +44,14 @@
         </p>
       </header>
 
-      <template if:false={isCardWorkOpen}>
+      <template if:true={showActionRow}>
       <div class="actions">
+        <template if:true={showViewPdfAction}>
+          <button type="button" class="btn btn_secondary" onclick={handleViewIssuedPdf}>
+            最新のPDFを見る
+          </button>
+        </template>
+        <template if:false={isCardWorkOpen}>
         <template if:true={showIssueButton}>
           <button type="button" class="btn btn_secondary" onclick={handleIssueClick}>
             見積書発行
@@ -60,6 +66,7 @@
           <button type="button" class="btn btn_primary" onclick={handleOrderClick}>
             受注する
           </button>
+        </template>
         </template>
       </div>
       </template>
@@ -83,27 +90,6 @@
             onchange={handleTemplateChange}
           ></lightning-combobox>
           <p class="file-name">ファイル名 {issueFileName}</p>
-          <template if:true={showIssuePdfPreview}>
-            <p class="file-name">
-              <button
-                type="button"
-                class="btn btn_secondary"
-                onclick={handleIssuePdfPreview}
-              >
-                プレビュー
-              </button>
-            </p>
-          </template>
-          <template if:true={showLatestPdfDownload}>
-            <p class="file-name">
-              <a
-                href={latestPdfDownloadUrl}
-                target="_blank"
-                rel="noreferrer"
-                >最新PDFをダウンロード</a
-              >
-            </p>
-          </template>
           <div class="issue-actions">
             <div class="issue-run">
               <template if:true={issueBusy}>

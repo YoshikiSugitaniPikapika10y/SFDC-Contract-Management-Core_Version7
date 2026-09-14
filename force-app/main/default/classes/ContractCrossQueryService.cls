@@ -728,6 +728,10 @@ public with sharing class ContractCrossQueryService {
     if (tile.isEstimate != true) {
       return tile;
     }
+    // 仕様: 横断画面.md 第5節。印付き最新。0件は空。請求カードの「最新のPDFを見る」と同じ。
+    tile.latestIssuedContentDocumentId = EstimateDocumentService.latestIssuedContentDocumentId(
+      history.Id
+    );
     Boolean accountingOn = isAccountingEnabled();
     for (ContractProduct__c product : [
       SELECT

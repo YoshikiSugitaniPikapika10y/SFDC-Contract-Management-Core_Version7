@@ -341,6 +341,9 @@ public without sharing class ContractCrossController {
     public Boolean isEstimate;
     @AuraEnabled
     public List<EstimateProductDto> lines;
+    /** 仕様: 横断画面.md 第5節。印付き最新。0件は空。 */
+    @AuraEnabled
+    public Id latestIssuedContentDocumentId;
   }
 
   public class EstimateProductDto {

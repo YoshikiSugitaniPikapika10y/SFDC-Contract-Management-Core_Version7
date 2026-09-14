@@ -183,6 +183,28 @@ private class ContractCrossControllerTest {
   }
 
   @IsTest
+  static void getEstimateTile_returnsLatestIssuedDocument() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.ensureOrgDocumentSetting();
+      HistoryFixture history = insertHistory(
+        'Estimate',
+        ContractCrossQueryService.organizationToday(),
+        'Tile Latest Pdf'
+      );
+      Id documentId = insertIssuedFile(history.history.Id);
+
+      ContractCrossController.EstimateTileDto tile = ContractCrossController.getEstimateTile(
+        history.history.Id
+      );
+      System.assertEquals(
+        documentId,
+        tile.latestIssuedContentDocumentId,
+        '横断画面.md 第5節: 印付き最新があるとき「最新のPDFを見る」用のIdを返す'
+      );
+    }
+  }
+
+  @IsTest
   static void getEstimateTile_rejectsWithout18() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.CROSS_WORK => false
@@ -388,7 +410,7 @@ private class ContractCrossControllerTest {
       System.assertEquals(
         documentId,
         dto.latestIssuedContentDocumentId,
-        '横断画面.md 操作4: 発行画面は最新PDFをダウンロードできる'
+        '横断画面.md 操作4: 発行成功後の最新PDF確認用に印付き最新を返す'
       );
     }
   }
