@@ -353,7 +353,7 @@ private class InvoicePaymentTriggerHandlerTest {
   }
 
   @IsTest
-  static void memo_update_via_lifecycle_flag_succeeds() {
+  static void memo_update_via_preview_entry_succeeds() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = createInvoice('Confirmed');
       InvoicePayment__c payment = new InvoicePayment__c(
@@ -364,18 +364,44 @@ private class InvoicePaymentTriggerHandlerTest {
         Memo__c = '初期'
       );
       insertInvoicePurpose(payment);
-      Boolean previous = InvoicePaymentService.allowLifecycleWrite;
-      InvoicePaymentService.allowLifecycleWrite = true;
+      InvoiceOpsFieldService.setCachedRowsForTest(
+        new List<InvoiceOpsField__mdt>{
+          new InvoiceOpsField__mdt(
+            DeveloperName = 'PaymentMemoEdit',
+            Active__c = true,
+            TargetObject__c = 'InvoicePayment__c',
+            FieldApiName__c = 'Memo__c',
+            ShowOnInvoicePurpose__c = true,
+            ShowOnNonInvoicePurpose__c = true
+          )
+        }
+      );
+      InvoicePaymentLockUtil.testLockExemptFieldApiNames = 'Memo__c';
       try {
-        payment.Memo__c = 'ボード更新';
-        update payment;
+        invoice = [
+          SELECT ContractHistory__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ];
+        Test.startTest();
+        InvoicePreviewOpsController.updatePaymentFromPreview(
+          payment.Id,
+          invoice.Id,
+          'ボード更新',
+          new Map<String, Object>{ 'Memo__c' => 'ボード更新' },
+          AccountingCauseLockService.resolveInvoiceOperationToken(invoice.Id),
+          'test-payment-memo-edit',
+          invoice.ContractHistory__c
+        );
+        Test.stopTest();
       } finally {
-        InvoicePaymentService.allowLifecycleWrite = previous;
+        InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
+        InvoiceOpsFieldService.resetCache();
       }
       System.assertEquals(
         'ボード更新',
         [SELECT Memo__c FROM InvoicePayment__c WHERE Id = :payment.Id].Memo__c,
-        'Core 第8.4節: 請求ボードの編集からメモを更新できる'
+        'Core 第8.4節・共通基盤 第1.4節: 請求ボード正規入口はメモを保存できる'
       );
     }
   }
