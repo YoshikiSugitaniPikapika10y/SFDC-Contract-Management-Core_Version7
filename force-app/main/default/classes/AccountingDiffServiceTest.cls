@@ -107,10 +107,10 @@ private class AccountingDiffServiceTest {
         'Accounting 第8.2節: OFFなら通常の生成プレビューを行わない'
       );
       System.assertEquals(0, preview.reverseCount);
-      System.assert(
-        AccountingDiffService.toDisplayText(preview)
-          .contains('論理削除件数: 0'),
-        'Accounting 第8.5節: 空プレビューは件数0を文言にする'
+      System.assertEquals(
+        '',
+        AccountingDiffService.toDisplayText(preview),
+        '共通基盤 第7.3節・Core 第7.9.6節・Accounting 第8.8節: 内部件数0も画面へ表示しない'
       );
     }
   }
@@ -219,10 +219,10 @@ private class AccountingDiffServiceTest {
         'Accounting 第8.5節: 未ロックCurrentは論理削除件数に数える'
       );
       System.assertEquals(0, preview.reverseCount);
-      System.assert(
-        AccountingDiffService.toDisplayText(preview)
-          .contains('論理削除件数: 1'),
-        'Accounting 第8.5節: プレビュー文言に論理削除件数を出す'
+      System.assertEquals(
+        '',
+        AccountingDiffService.toDisplayText(preview),
+        '共通基盤 第7.3節・Core 第7.9.6節・Accounting 第8.8節: 内部の論理削除件数は画面へ表示しない'
       );
     }
   }
@@ -558,16 +558,16 @@ private class AccountingDiffServiceTest {
         Date.newInstance(2026, 6, 15),
         preview.reverseDateCounts[0].reverseDate
       );
-      System.assert(
-        AccountingDiffService.toDisplayText(preview)
-          .contains('2026-06-15: 1件'),
-        'Accounting 第8.5節: プレビュー文言に逆仕訳日と件数を出す'
+      System.assertEquals(
+        '',
+        AccountingDiffService.toDisplayText(preview),
+        '共通基盤 第7.3節・Core 第7.9.6節・Accounting 第8.8節: 内部の逆仕訳日と件数は画面へ表示しない'
       );
     }
   }
 
   @IsTest
-  static void toDisplayText_futureReverseDate() {
+  static void toDisplayText_futureReverseDate_returnsEmpty() {
     AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
     preview.logicalDeleteCount = 0;
     preview.reverseCount = 1;
@@ -579,9 +579,10 @@ private class AccountingDiffServiceTest {
       row
     };
     String text = AccountingDiffService.toDisplayText(preview);
-    System.assert(
-      text.contains('将来日付: あり'),
-      'Accounting 第8.5節: 将来の逆仕訳日はありと出す'
+    System.assertEquals(
+      '',
+      text,
+      '共通基盤 第7.3節・Core 第7.9.6節・Accounting 第8.8節: 内部の将来日付判定は画面へ表示しない'
     );
   }
 
@@ -1373,28 +1374,17 @@ private class AccountingDiffServiceTest {
   }
 
   @IsTest
-  static void toDisplayText_emptyReverseDates_saysNone() {
+  static void toDisplayText_emptyReverseDates_returnsEmpty() {
     AccountingDiffService.CancelPreview preview = new AccountingDiffService.CancelPreview();
     preview.logicalDeleteCount = 2;
     preview.reverseCount = 0;
     preview.hasFutureReverseDate = false;
     preview.reverseDateCounts = null;
     String text = AccountingDiffService.toDisplayText(preview);
-    System.assert(
-      text.contains('論理削除件数: 2'),
-      'Accounting 第8.5節: プレビュー文言に論理削除件数を出す'
-    );
-    System.assert(
-      text.contains('逆仕訳件数: 0'),
-      'Accounting 第8.5節: プレビュー文言に逆仕訳件数を出す'
-    );
-    System.assert(
-      text.contains('なし'),
-      'Accounting 第8.5節: 逆仕訳日が無ければなしと出す'
-    );
-    System.assert(
-      text.contains('将来日付: なし'),
-      'Accounting 第8.5節: 将来の逆仕訳日が無ければなしと出す'
+    System.assertEquals(
+      '',
+      text,
+      '共通基盤 第7.3節・Core 第7.9.6節・Accounting 第8.8節: 内部件数と空の日付内訳を画面へ表示しない'
     );
   }
 

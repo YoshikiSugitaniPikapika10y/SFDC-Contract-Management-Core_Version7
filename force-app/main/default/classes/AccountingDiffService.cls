@@ -680,30 +680,10 @@ public without sharing class AccountingDiffService {
     return preview;
   }
 
+  /** 仕様: 共通基盤 第7.3節、Core 第7.9.6節、Accounting 第8.8節 */
   public static String toDisplayText(CancelPreview preview) {
-    List<String> lines = new List<String>{
-      '論理削除件数: ' + String.valueOf(preview.logicalDeleteCount),
-      '逆仕訳件数: ' + String.valueOf(preview.reverseCount),
-      '実際の逆仕訳日:'
-    };
-    if (
-      preview.reverseDateCounts == null || preview.reverseDateCounts.isEmpty()
-    ) {
-      lines.add('なし');
-    } else {
-      for (ReverseDateCount row : preview.reverseDateCounts) {
-        lines.add(
-          String.valueOf(row.reverseDate) +
-            ': ' +
-            String.valueOf(row.journalCount) +
-            '件'
-        );
-      }
-    }
-    lines.add(
-      '将来日付: ' + (preview.hasFutureReverseDate == true ? 'あり' : 'なし')
-    );
-    return String.join(lines, '\n');
+    // 件数・日付内訳は取消基準日の要否と実行結果のためCancelPreviewに維持するが、画面には返さない。
+    return '';
   }
 
   /** 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。保存時だけ未入力を拒否する。プレビューは件数を返す。 */

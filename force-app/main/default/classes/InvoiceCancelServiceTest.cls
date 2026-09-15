@@ -687,13 +687,9 @@ private class InvoiceCancelServiceTest {
         'Core 第7.9.6節、共通基盤 第7.3節: プレビューは将来日付の有無を返す（確認画面には出さない）'
       );
       System.assertEquals(
-        '論理削除件数: 1\n逆仕訳件数: 2\n実際の逆仕訳日:\n' +
-          String.valueOf(Date.today()) +
-          ': 1件\n' +
-          String.valueOf(Date.today().addMonths(2)) +
-          ': 1件\n将来日付: あり',
+        '',
         preview.displayText,
-        'AccountingDiffService.toDisplayTextの返却文言。Core 第7.9.6節・Accounting 第8.8節の確認UIには出さない'
+        '共通基盤 第7.3節・Core 第7.9.6節・Accounting 第8.8節: 内部件数・日付内訳・将来日付は請求取消画面へ表示しない'
       );
 
       InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();

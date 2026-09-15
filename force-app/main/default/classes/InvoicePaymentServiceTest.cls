@@ -1185,9 +1185,9 @@ private class InvoicePaymentServiceTest {
       System.assertEquals(0, preview.reverseCount);
       System.assertEquals(false, preview.hasFutureReverseDate);
       System.assertEquals(
-        '論理削除件数: 0\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし',
+        '',
         preview.displayText,
-        'Core 第7.9.6節: プレビュー本文'
+        '共通基盤 第7.3節・Core 第7.9.6節: 内部件数は維持し、入金登録画面へ表示しない'
       );
       System.assertEquals(
         0,
@@ -1277,11 +1277,9 @@ private class InvoicePaymentServiceTest {
         '取消基準日は今日なので将来日付ではない'
       );
       System.assertEquals(
-        '論理削除件数: 0\n逆仕訳件数: 1\n実際の逆仕訳日:\n' +
-          String.valueOf(Date.today()) +
-          ': 1件\n将来日付: なし',
+        '',
         preview.displayText,
-        'Core 第7.9.6節: 取消プレビュー本文'
+        '共通基盤 第7.3節・Core 第7.9.6節: 内部件数は維持し、入出金取消画面へ表示しない'
       );
     }
   }
@@ -1362,9 +1360,9 @@ private class InvoicePaymentServiceTest {
       );
       System.assertEquals(0, preview.reverseCount);
       System.assertEquals(
-        '論理削除件数: 2\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし',
+        '',
         preview.displayText,
-        'Accounting 第4.2節: ON の取消プレビュー本文'
+        '共通基盤 第7.3節・Core 第7.9.6節: ONでも内部Diff件数は画面へ表示しない'
       );
     }
   }
