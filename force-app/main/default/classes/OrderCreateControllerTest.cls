@@ -1635,6 +1635,20 @@ private class OrderCreateControllerTest {
 
       OrderCreateController.confirmOrder(context.history.Id, null, false);
 
+      BillingAccount__c cachedBillingAccount = InvoiceProductGenerationService.billingAccountCached(
+        context.billingAccount.Id
+      );
+      System.assertNotEquals(
+        null,
+        cachedBillingAccount,
+        'Core 第12.4節: confirmOrderの受注検証で載せた請求アカウントを生成まで使い回す'
+      );
+      System.assertEquals(
+        15,
+        cachedBillingAccount.InvoiceDateDayOfMonth__c,
+        'Core 第5.2節・第7.2節・第12.4節: SOQLで取得したキャッシュに後続が読む請求日ルールを含める'
+      );
+
       BillingAccount__c updatedBillingAccount = [
         SELECT InvoiceDateDayOfMonth__c
         FROM BillingAccount__c
