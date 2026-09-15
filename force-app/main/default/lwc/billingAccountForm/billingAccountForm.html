@@ -148,11 +148,14 @@
               field-name="Name"
               onchange={handleFieldChange}
             ></lightning-input-field>
-            <lightning-input-field
-              field-name="Account__c"
-              value={accountIdValue}
-              onchange={handleFieldChange}
-            ></lightning-input-field>
+            <template for:each={accountInputItems} for:item="accountItem">
+              <lightning-input-field
+                key={accountItem.id}
+                field-name="Account__c"
+                value={accountIdValue}
+                onchange={handleFieldChange}
+              ></lightning-input-field>
+            </template>
             <template if:true={showKeyInput}>
               <lightning-input-field
                 field-name="BillingAccountKey__c"

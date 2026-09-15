@@ -5,6 +5,7 @@ import {
   isInvoiceDateFieldVisible,
   parseDefaultFieldValues,
   paymentTermMethodHelp,
+  resolveNewAccountId,
   METHOD_DAY_OFFSET,
   METHOD_MONTH_OFFSET,
   METHOD_ON_OR_AFTER,
@@ -296,6 +297,58 @@ describe("billingAccountForm (Core 3.3.2 / 3.3.3 / 7.2 / 7.5, 共通基盤 10.4)
       "accountIdValue"
     ).get;
     expect(accountIdValue.call(self)).toBe("001xx000000BA01");
+  });
+
+  it("クリック元の取引先を New の初期値にする (Core 3.3.2)", () => {
+    const payload = {
+      type: "standard__recordPage",
+      attributes: {
+        recordId: "001xx000000ACC1",
+        objectApiName: "Account",
+        actionName: "view"
+      }
+    };
+    const encoded =
+      "1." + Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
+    expect(resolveNewAccountId({ inContextOfRef: encoded })).toBe(
+      "001xx000000ACC1"
+    );
+    expect(
+      resolveNewAccountId({
+        backgroundContext: "/lightning/r/Account/001xx000000ACC2/view"
+      })
+    ).toBe("001xx000000ACC2");
+    expect(
+      resolveNewAccountId({
+        href: "https://example.lightning.force.com/lightning/r/Account/001xx000000ACC3/view"
+      })
+    ).toBe("001xx000000ACC3");
+    expect(
+      resolveNewAccountId({
+        defaultFieldValues: "Account__c=001FROMDEF000001",
+        inContextOfRef: encoded
+      })
+    ).toBe("001FROMDEF000001");
+    const opportunity = {
+      type: "standard__recordPage",
+      attributes: {
+        recordId: "006xx000000OPP1",
+        objectApiName: "Opportunity",
+        actionName: "view"
+      }
+    };
+    expect(
+      resolveNewAccountId({
+        inContextOfRef:
+          "1." + Buffer.from(JSON.stringify(opportunity), "utf8").toString("base64")
+      })
+    ).toBe("");
+    expect(parseDefaultFieldValues({ Account__c: "001OBJ000000001" })).toEqual({
+      Account__c: "001OBJ000000001"
+    });
+    expect(parseDefaultFieldValues("Account__c%3D001ENC000000001")).toEqual({
+      Account__c: "001ENC000000001"
+    });
   });
 
   it("19 が無ければ New／Edit は出さず、View は出す (Core 3.3.2 / 共通基盤 10.4)", () => {

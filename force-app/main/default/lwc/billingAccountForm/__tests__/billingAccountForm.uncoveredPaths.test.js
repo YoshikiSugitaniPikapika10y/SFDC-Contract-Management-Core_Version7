@@ -8,7 +8,8 @@ import BillingAccountForm, {
   METHOD_ON_OR_AFTER,
   METHOD_SAME_DAY,
   DAY_KIND_DAY,
-  parseDefaultFieldValues
+  parseDefaultFieldValues,
+  resolveNewAccountId
 } from "c/billingAccountForm";
 import { getFieldValue } from "lightning/uiRecordApi";
 
@@ -131,6 +132,7 @@ function bind(overrides = {}) {
     _objectInfo: { createable: true, updateable: true },
     draft: { InvoiceDateMethod__c: METHOD_SAME_DAY },
     errorMessage: "",
+    accountInputToken: 0,
     isSaving: false,
     template: { querySelector: jest.fn(() => ({ submit: jest.fn() })) },
     dispatchEvent: jest.fn(),
@@ -484,11 +486,44 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
   });
 
   it("wiredPageRef applies related-list defaults when no recordId (Core 3.3.2)", () => {
-    const ctx = bind({ recordId: "", draft: {} });
+    const ctx = bind({ recordId: "", formMode: "new", draft: {} });
     ctx.wiredPageRef({
       attributes: { actionName: "new" },
       state: { defaultFieldValues: "Account__c=001AAA" }
     });
     expect(ctx.draft.Account__c).toBe("001AAA");
+    expect(ctx.accountInputToken).toBe(1);
+  });
+
+  it("wiredPageRef uses inContextOfRef Account when defaultFieldValues is empty (Core 3.3.2)", () => {
+    const payload = {
+      type: "standard__recordPage",
+      attributes: {
+        recordId: "001xx000000ACC1",
+        objectApiName: "Account",
+        actionName: "view"
+      }
+    };
+    const encoded =
+      "1." + Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
+    const ctx = bind({ recordId: "", formMode: "new", draft: {} });
+    ctx.wiredPageRef({
+      attributes: { actionName: "new" },
+      state: { inContextOfRef: encoded }
+    });
+    expect(ctx.draft.Account__c).toBe("001xx000000ACC1");
+  });
+
+  it("Edit does not replace saved Account with related-list context (Core 3.3.2)", () => {
+    const ctx = bind({
+      recordId: "a00BA0000000001",
+      formMode: "edit",
+      draft: { Account__c: "001SAVED" }
+    });
+    ctx.wiredPageRef({
+      attributes: { actionName: "edit" },
+      state: { defaultFieldValues: "Account__c=001NEW" }
+    });
+    expect(ctx.draft.Account__c).toBe("001SAVED");
   });
 });

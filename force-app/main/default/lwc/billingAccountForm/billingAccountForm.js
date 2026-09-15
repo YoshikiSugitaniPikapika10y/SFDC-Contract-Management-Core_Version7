@@ -226,21 +226,135 @@ export function paymentTermMethodHelp(method) {
   return "";
 }
 
+function decodeFully(value) {
+  let current = value == null ? "" : String(value);
+  for (let i = 0; i < 3; i += 1) {
+    if (current.indexOf("%") === -1) {
+      break;
+    }
+    try {
+      const next = decodeURIComponent(current.replace(/\+/g, " "));
+      if (next === current) {
+        break;
+      }
+      current = next;
+    } catch (ex) {
+      break;
+    }
+  }
+  return current;
+}
+
+function queryParam(search, name) {
+  if (!search) {
+    return "";
+  }
+  const match = String(search).match(new RegExp("[?&]" + name + "=([^&]*)"));
+  if (!match) {
+    return "";
+  }
+  return decodeFully(match[1]);
+}
+
+function accountIdFromAccountUrl(url) {
+  const text = decodeFully(url);
+  if (!text) {
+    return "";
+  }
+  const match = text.match(
+    /\/(?:lightning\/r\/)?Account\/([a-zA-Z0-9]{15,18})(?:\/|$|\?|&)/
+  );
+  return match ? match[1] : "";
+}
+
+function decodeInContextOfRef(raw) {
+  if (!raw) {
+    return null;
+  }
+  if (typeof raw === "object") {
+    return raw;
+  }
+  if (typeof raw !== "string") {
+    return null;
+  }
+  let encoded = decodeFully(raw);
+  if (encoded.indexOf("1.") === 0) {
+    encoded = encoded.slice(2);
+  }
+  try {
+    const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded =
+      normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    return JSON.parse(window.atob(padded));
+  } catch (ex) {
+    return null;
+  }
+}
+
+function accountIdFromInContextOfRef(raw) {
+  const decoded = decodeInContextOfRef(raw);
+  const attributes = decoded && decoded.attributes ? decoded.attributes : null;
+  if (!attributes || !attributes.recordId) {
+    return "";
+  }
+  if (attributes.objectApiName === "Account") {
+    return attributes.recordId;
+  }
+  if (!attributes.objectApiName && String(attributes.recordId).indexOf("001") === 0) {
+    return attributes.recordId;
+  }
+  return "";
+}
+
 /** 仕様: Core 第3.3.2節。取引先の関連リスト新規の初期値。 */
 export function parseDefaultFieldValues(raw) {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const parsed = {};
+    Object.keys(raw).forEach((key) => {
+      if (raw[key] == null || raw[key] === "") {
+        return;
+      }
+      parsed[key] = String(raw[key]);
+    });
+    return parsed;
+  }
   if (!raw || typeof raw !== "string") {
     return {};
   }
   const parsed = {};
-  raw.split(",").forEach((pair) => {
+  decodeFully(raw).split(",").forEach((pair) => {
     const idx = pair.indexOf("=");
     if (idx < 1) {
       return;
     }
-    const apiName = decodeURIComponent(pair.slice(0, idx).trim());
-    parsed[apiName] = decodeURIComponent(pair.slice(idx + 1));
+    const apiName = decodeFully(pair.slice(0, idx).trim());
+    parsed[apiName] = decodeFully(pair.slice(idx + 1));
   });
   return parsed;
+}
+
+/** 仕様: Core 第3.3.2節。関連リスト／クリック元の取引先を New の初期値にする。 */
+export function resolveNewAccountId(context = {}) {
+  const search = context.search || "";
+  const defaults = parseDefaultFieldValues(
+    context.defaultFieldValues || queryParam(search, "defaultFieldValues")
+  );
+  if (defaults.Account__c) {
+    return defaults.Account__c;
+  }
+  const fromRef = accountIdFromInContextOfRef(
+    context.inContextOfRef || queryParam(search, "inContextOfRef")
+  );
+  if (fromRef) {
+    return fromRef;
+  }
+  const fromBackground = accountIdFromAccountUrl(
+    context.backgroundContext || queryParam(search, "backgroundContext")
+  );
+  if (fromBackground) {
+    return fromBackground;
+  }
+  return accountIdFromAccountUrl(context.href);
 }
 
 function pickFieldValue(event) {
@@ -274,6 +388,7 @@ export default class BillingAccountForm extends NavigationMixin(
   _objectInfo;
   @track draft = {};
   @track errorMessage = "";
+  @track accountInputToken = 0;
   isSaving = false;
 
   // 仕様: Core 第3.3.2節。Aura 入れ子では CurrentPageReference の defaultFieldValues が空。親から受け取る。
@@ -283,7 +398,7 @@ export default class BillingAccountForm extends NavigationMixin(
   }
   set defaultFieldValues(value) {
     this._defaultFieldValues = value || "";
-    this.applyDefaultFieldValues(this._defaultFieldValues);
+    this.applyParentAccountDefault();
   }
 
   @wire(CurrentPageReference)
@@ -292,10 +407,7 @@ export default class BillingAccountForm extends NavigationMixin(
     if (pageRef) {
       this.resolveReturnCallerOnce();
     }
-    if (!pageRef || this.recordId) {
-      return;
-    }
-    this.applyDefaultFieldValues(pageRef.state?.defaultFieldValues);
+    this.applyParentAccountDefault();
   }
 
   /** 仕様: Core 第3.3.2節。取引先の関連リスト新規の初期値を draft の正とする。 */
@@ -308,6 +420,43 @@ export default class BillingAccountForm extends NavigationMixin(
       ...this.draft,
       ...defaults
     });
+  }
+
+  /** 仕様: Core 第3.3.2節。クリック元の取引先を New の初期値にする。 */
+  applyParentAccountDefault() {
+    if (this.recordId && this.formMode !== "new") {
+      return;
+    }
+    const previousAccountId = this.draft.Account__c || "";
+    const state = this._pageRef?.state || {};
+    const href =
+      typeof window !== "undefined" && window.location
+        ? window.location.href
+        : "";
+    const search =
+      typeof window !== "undefined" && window.location
+        ? window.location.search
+        : "";
+    this.applyDefaultFieldValues(
+      this._defaultFieldValues || state.defaultFieldValues
+    );
+    const accountId = resolveNewAccountId({
+      defaultFieldValues: this._defaultFieldValues || state.defaultFieldValues,
+      inContextOfRef: state.inContextOfRef,
+      backgroundContext: state.backgroundContext,
+      href,
+      search
+    });
+    if (accountId && this.draft.Account__c !== accountId) {
+      this.draft = applyClearedScheduleFields({
+        ...this.draft,
+        Account__c: accountId
+      });
+    }
+    const nextAccountId = this.draft.Account__c || "";
+    if (nextAccountId && nextAccountId !== previousAccountId) {
+      this.accountInputToken += 1;
+    }
   }
 
   @wire(getObjectInfo, { objectApiName: BILLING_ACCOUNT_OBJECT })
@@ -455,6 +604,10 @@ export default class BillingAccountForm extends NavigationMixin(
 
   get accountIdValue() {
     return this.draft.Account__c || null;
+  }
+
+  get accountInputItems() {
+    return [{ id: "acc-" + this.accountInputToken }];
   }
 
   get showInvoiceDayKind() {
