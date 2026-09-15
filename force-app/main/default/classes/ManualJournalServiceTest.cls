@@ -602,6 +602,11 @@ private class ManualJournalServiceTest {
         null
       );
       System.assertEquals(
+        '',
+        preview.displayText,
+        '共通基盤 第7.3節: 手動仕訳取消では件数・日付内訳・将来日付を表示しない'
+      );
+      System.assertEquals(
         0,
         preview.logicalDeleteCount,
         'Core 第7.9.6節: 実行前プレビューに論理削除件数を出さない'
@@ -662,6 +667,11 @@ private class ManualJournalServiceTest {
       AccountingDiffService.CancelPreview preview = ManualJournalService.previewCancel(
         header.Id,
         null
+      );
+      System.assertEquals(
+        '',
+        preview.displayText,
+        '共通基盤 第7.3節: Lockがあっても手動仕訳取消では件数・日付内訳・将来日付を表示しない'
       );
       System.assertEquals(
         1,
