@@ -1620,7 +1620,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 - 検収日変更では、新しい計上日で変えた請求明細に紐づく仕訳のGoalを再計算し、そのCurrentとの差分をLock規則で反映する。他明細・NonInvoice・手動は対象にしない。日付だけを書き換えて終わらせない。差分のうちロック済みは逆仕訳、未ロックは論理削除する。
 - 手動仕訳取消では、そのヘッダーを有効な原因から外してGoalを再計算し、Currentとの差分をLock規則で反映する。修正版は作らない。差分のうちロック済みは逆仕訳、未ロックは論理削除する。
 
-請求取消、請求入出金取消および手動仕訳取消の取消基準日は第8.5節。その操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ取る。請求書の他原因Lockだけでは取らない。ON/OFFを問わず同じ。初期値は操作日、未入力はエラーとする。請求入出金の登録および検収終了日変更では、Accounting ONのときだけ同じ規則で取る。OFFの入金登録は取消基準日を出さず、仕訳を触らない。検収終了日変更はOFFでは標準画面から出さない。各逆仕訳日は`max(取消基準日, 元仕訳日)`で決めるため、同じ操作から複数の実際の逆仕訳日が生じうる。入力した取消基準日を、元より前だからといってエラーにはしない。仕訳処理へ進む操作の確認は業務の確認と必要な取消基準日だけとし、論理削除件数・逆仕訳件数・日付ごとの件数・将来日付は出さない。実行後の成功表示にも同じ件数・内訳を出さない。外部会計システムの締め期間は本パッケージで判定しない。
+請求取消、請求入出金取消および手動仕訳取消の取消基準日は第8.5節。その操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ取る。請求書の他原因Lockだけでは取らない。ON/OFFを問わず同じ。初期値は操作日、未入力はエラーとする。請求入出金の登録および検収終了日変更では、Accounting ONのときだけ同じ規則で取る。OFFの入金登録は取消基準日を出さず、仕訳を触らない。検収終了日変更はOFFでは標準画面から出さない。各逆仕訳日は`max(取消基準日, 元仕訳日)`で決めるため、同じ操作から複数の実際の逆仕訳日が生じうる。入力した取消基準日を、元より前だからといってエラーにはしない。仕訳処理へ進む操作の確認は業務の確認と必要な取消基準日だけとし、論理削除件数・逆仕訳件数・日付ごとの件数・将来日付は出さない。取消基準日の要否と実行結果を決めるための内部のDiff件数・日付内訳・将来日付判定は維持する。実行後の成功表示にも同じ件数・内訳を出さない。外部会計システムの締め期間は本パッケージで判定しない。
 
 **再生成は、根拠となる業務事実が変わったため、旧仕訳を廃止して同じ生成単位の修正版を作る処理である。**同一生成単位の再生成では元仕訳の仕訳パターンキー、勘定科目割当および実勘定科目を維持し、元割当または元科目が無効でも使用できる。そのパターンキーが現行Catalogになければ移行漏れとして整合性エラーとする。元仕訳が存在しない初回生成は第3.1節の固定会計方針を使い、現在割当の無効科目は第4.1節でエラーとする。運用開始後の方針変更自体を許可しない。
 
@@ -1638,7 +1638,7 @@ Goalと取消反映後のCurrentを生成単位キーで対応付け、その中
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>AccountingDiffService.applyForInvoice</code>
 ／ 入口は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePaymentService.register</code> / <code>cancel</code>、<code>InvoiceCancelService.cancelConfirmed</code>、<code>InvoiceCanonicalService.updateLineAcceptanceEndDates</code>、<code>ManualJournalService.register</code> / <code>cancel</code>
 ／ 画面 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>orderInvoicePreviewTable.handleAcceptanceEndDateChange</code> / <code>handleAcceptanceCancelSave</code>、<code>OrderCreateController.previewInvoiceLineAcceptanceEndDate</code>
-／ 検収日変更は変えた請求明細に紐づく仕訳だけを再計算する。入出金仕訳またはNo.6～9の日付書換だけで終わらせない。確認は業務確認と必要な取消基準日。件数・日付内訳は出さない。入出金取消の取消基準日は第8.5節（この操作の逆仕訳対象のLock。請求書全体でも入出金Lookupだけでもない）。
+／ 検収日変更は変えた請求明細に紐づく仕訳だけを再計算する。入出金仕訳またはNo.6～9の日付書換だけで終わらせない。確認は業務確認と必要な取消基準日。内部のDiff件数・日付内訳・将来日付判定は維持し、画面へは出さない。表示抑止は`AccountingDiffService.toDisplayText`。入出金取消の取消基準日は第8.5節（この操作の逆仕訳対象のLock。請求書全体でも入出金Lookupだけでもない）。
 ／ 逆仕訳は`IsLocked__c=True`で作る。取消元は元のLockのままTrue。手動Lock／Unlockの対象は有効だけ。逆仕訳の取消は持たない。
 </div>
 

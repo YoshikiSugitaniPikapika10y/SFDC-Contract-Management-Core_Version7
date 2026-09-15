@@ -2061,14 +2061,14 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 
 取消基準日は、その操作のDiffで逆仕訳になる仕訳にActiveなLockがあるときだけ取る。請求書内の他原因のLockだけでは取らない。入出金Lookupだけでも足りない。請求入出金取消では入金連動前受で戻す売上・税仕訳のLockも含める。請求取消・請求入出金取消・手動仕訳取消はAccountingのON/OFFを問わず同じ。初期値は組織タイムゾーンの操作日とする。未入力ならエラーにし、操作日を黙って使わない。逆仕訳が無いなら取消基準日は求めない。Accounting OFFで過去の関連仕訳がなければ仕訳処理を行わない。残りの判定はAccounting第1.1節。
 
-各ロック済み仕訳の逆仕訳日は「取消基準日と元仕訳日の遅い方」とする。将来日付の元仕訳より前へ取消仕訳を置かない。入力した取消基準日を、元より前だからといってエラーにはしない。同じ操作から複数の実際の逆仕訳日が生じることを許す。確認は業務の確認と必要な取消基準日だけとし、論理削除件数・逆仕訳件数・日付ごとの件数・将来日付は出さない。実行後の成功表示にも同じ件数・内訳を出さない。成功表示の置き場と文面は第0.3節。パッケージは外部会計システムの締め期間を判定しない。
+各ロック済み仕訳の逆仕訳日は「取消基準日と元仕訳日の遅い方」とする。将来日付の元仕訳より前へ取消仕訳を置かない。入力した取消基準日を、元より前だからといってエラーにはしない。同じ操作から複数の実際の逆仕訳日が生じることを許す。確認は業務の確認と必要な取消基準日だけとし、論理削除件数・逆仕訳件数・日付ごとの件数・将来日付は出さない。取消基準日の要否と実行結果を決めるための内部のDiff件数・日付内訳・将来日付判定は維持する。実行後の成功表示にも同じ件数・内訳を出さない。成功表示の置き場と文面は第0.3節。パッケージは外部会計システムの締め期間を判定しない。
 
 請求入出金の登録および検収終了日変更では、Accounting ONのときだけ同じ規則で取消基準日を取る。OFFの入金登録では出さない。検収終了日変更はOFFでは標準画面から出さない。入出金追加と検収終了日変更の画面ラベルは「逆仕訳基準日」とする。下にヘルプ「ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。」取消画面と仕様内部用語は「取消基準日」のまま。要否・初期値・空エラー・`max`・項目APIは変えない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderCreateController.previewInvoiceLineAcceptanceEndDate</code>、<code>orderInvoicePreviewTable.handleAcceptanceEndDateChange</code> / <code>handleAcceptanceCancelSave</code>
-／ 確認は業務確認と、この操作の逆仕訳対象にLockがあるときの取消基準日。件数・日付内訳は出さない。入出金取消は`InvoicePaymentService.cancel`／`orderInvoicePreviewTable.handlePaymentCancelSave`。請求取消は`InvoiceCancelService.cancelConfirmed`。手動取消は`ManualJournalService.cancel`。入金登録は`InvoicePaymentService.register`。請求書のActive Lock全体では見ない。
+／ 確認は業務確認と、この操作の逆仕訳対象にLockがあるときの取消基準日。内部のDiff件数・日付内訳・将来日付判定は維持し、画面へは出さない。表示抑止は`AccountingDiffService.toDisplayText`。入出金取消は`InvoicePaymentService.cancel`／`orderInvoicePreviewTable.handlePaymentCancelSave`。請求取消は`InvoiceCancelService.cancelConfirmed`。手動取消は`ManualJournalService.cancel`。入金登録は`InvoicePaymentService.register`。請求書のActive Lock全体では見ない。
 </div>
 
 #### 7.9.7 操作キーと版比較
