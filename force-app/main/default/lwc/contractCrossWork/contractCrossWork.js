@@ -410,7 +410,7 @@ export default class ContractCrossWork extends NavigationMixin(
   @track checkedIds = {};
   @track memoDrafts = {};
   @track extraDrafts = {};
-  @track journalColumnMode = false;
+  @track journalColumnMode = true;
   @track journalExtraDefinitions = [];
   @track journalLockExemptFieldApiNames = [];
   filtersOpen = false;
@@ -835,7 +835,7 @@ export default class ContractCrossWork extends NavigationMixin(
       headers.push({ key: "status", label: "状態" });
       headers.push({ key: "postingDate", label: "計上日" });
       headers.push({ key: "event", label: "イベント" });
-      headers.push({ key: "slot", label: "借貸" });
+      headers.push({ key: "slot", label: "借貸", className: "slot-cell" });
       headers.push({ key: "amount", label: "金額" });
       // 仕様: 横断画面.md 第5節
       headers.push({ key: "confirm", label: "確認用", className: "confirm-cell" });
