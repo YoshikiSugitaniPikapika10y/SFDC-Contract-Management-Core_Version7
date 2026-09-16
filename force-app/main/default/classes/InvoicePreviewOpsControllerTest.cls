@@ -2931,6 +2931,234 @@ private class InvoicePreviewOpsControllerTest {
     }
   }
 
+  @IsTest
+  static void getOpsBundle_remainingInclusive_partialFinalAndCancel() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+      fixture.line.AllocatedTaxAmount__c = 100;
+      update fixture.line;
+
+      InvoicePreviewOpsController.OpsBundleDto beforePay = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      System.assertEquals(
+        1100,
+        beforePay.paymentLines[0].remainingInclusive,
+        'Core 第8.6節: 未入金の処理可能残額は明細税込'
+      );
+
+      Invoice__c invoice = [
+        SELECT LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      InvoicePreviewOpsController.AllocationInputDto partial = new InvoicePreviewOpsController.AllocationInputDto();
+      partial.invoiceLineId = fixture.line.Id;
+      partial.amount = 440;
+      Test.startTest();
+      InvoicePreviewOpsController.savePaymentFromPreview(
+        null,
+        fixture.invoice.Id,
+        440,
+        InvoicePaymentService.PURPOSE_INVOICE,
+        Date.today(),
+        null,
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+        new List<InvoicePreviewOpsController.AllocationInputDto>{ partial },
+        null
+      );
+      InvoicePreviewOpsController.OpsBundleDto afterPartial = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      System.assertEquals(
+        660,
+        afterPartial.paymentLines[0].remainingInclusive,
+        'Core 第8.6節: 部分入金後の残は明細税込－有効割当'
+      );
+
+      invoice = [
+        SELECT LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      InvoicePreviewOpsController.AllocationInputDto rest = new InvoicePreviewOpsController.AllocationInputDto();
+      rest.invoiceLineId = fixture.line.Id;
+      rest.amount = 660;
+      InvoicePreviewOpsController.savePaymentFromPreview(
+        null,
+        fixture.invoice.Id,
+        660,
+        InvoicePaymentService.PURPOSE_INVOICE,
+        Date.today(),
+        null,
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+        new List<InvoicePreviewOpsController.AllocationInputDto>{ rest },
+        null
+      );
+      InvoicePreviewOpsController.OpsBundleDto afterFinal = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      System.assertEquals(
+        0,
+        afterFinal.paymentLines[0].remainingInclusive,
+        'Core 第8.6節: 最終決済は全明細残額を0にする'
+      );
+
+      Id toCancel;
+      for (
+        InvoicePreviewOpsController.PaymentRowDto row : afterFinal.payments
+      ) {
+        if (
+          row.amount == 660 &&
+          row.paymentTransactionStatus == InvoicePaymentService.STATUS_ACTIVE
+        ) {
+          toCancel = row.paymentId;
+        }
+      }
+      invoice = [
+        SELECT LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      InvoicePreviewOpsController.cancelPaymentFromPreview(
+        toCancel,
+        fixture.invoice.Id,
+        null,
+        'Duplicate',
+        null,
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate)
+      );
+      InvoicePreviewOpsController.OpsBundleDto afterCancel = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      System.assertEquals(
+        660,
+        afterCancel.paymentLines[0].remainingInclusive,
+        'Core 第8.6節: 取消後は取消した割当を残に戻す'
+      );
+      Test.stopTest();
+    }
+  }
+
+  @IsTest
+  static void getOpsBundle_remainingInclusive_negativeLineKeepsSign() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(false);
+      fixture.invoice.Amount__c = -1000;
+      fixture.invoice.TaxAmount__c = -100;
+      update fixture.invoice;
+      fixture.line.Amount__c = -1000;
+      fixture.line.AllocatedTaxAmount__c = -100;
+      fixture.line.UnitPrice__c = -1000;
+      update fixture.line;
+
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        -1100,
+        bundle.paymentLines[0].remainingInclusive,
+        'Core 第8.6節: 負額明細の処理可能残額は符号付き明細税込'
+      );
+    }
+  }
+
+  @IsTest
+  static void getOpsBundle_unpaidIsTaxInclusiveMinusPaymentNet() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(true);
+
+      InvoicePreviewOpsController.OpsBundleDto beforePay = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      System.assertEquals(
+        1100,
+        beforePay.taxInclusiveAmount,
+        'Core 第8.10節: カード税込は請求税込'
+      );
+      System.assertEquals(
+        1100,
+        beforePay.taxInclusiveAmount - beforePay.invoicePaymentNet,
+        'Core 第8.10節: 未入金額は税込－請求金額Net。入金前は税込そのもの'
+      );
+
+      Invoice__c invoice = [
+        SELECT LastModifiedDate
+        FROM Invoice__c
+        WHERE Id = :fixture.invoice.Id
+      ];
+      InvoicePreviewOpsController.AllocationInputDto allocation = new InvoicePreviewOpsController.AllocationInputDto();
+      allocation.invoiceLineId = fixture.line.Id;
+      allocation.amount = 440;
+      Test.startTest();
+      InvoicePreviewOpsController.savePaymentFromPreview(
+        null,
+        fixture.invoice.Id,
+        440,
+        InvoicePaymentService.PURPOSE_INVOICE,
+        Date.today(),
+        null,
+        ContractOptimisticLockUtil.toToken(invoice.LastModifiedDate),
+        new List<InvoicePreviewOpsController.AllocationInputDto>{ allocation },
+        null
+      );
+      InvoicePreviewOpsController.OpsBundleDto afterPay = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(1100, afterPay.taxInclusiveAmount);
+      System.assertEquals(
+        440,
+        afterPay.invoicePaymentNet,
+        'Core 第8.10節: 請求金額NetはPurpose=Invoiceの税込入金'
+      );
+      System.assertEquals(
+        660,
+        afterPay.taxInclusiveAmount - afterPay.invoicePaymentNet,
+        'Core 第8.10節: 未入金額は税込－請求金額Net'
+      );
+    }
+  }
+
+  @IsTest
+  static void getOpsBundle_unpaidKeepsNegativeSign() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture fixture = createInvoice(false);
+      fixture.invoice.Amount__c = -1000;
+      fixture.invoice.TaxAmount__c = -100;
+      update fixture.invoice;
+      fixture.line.Amount__c = -1000;
+      fixture.line.AllocatedTaxAmount__c = -100;
+      fixture.line.UnitPrice__c = -1000;
+      update fixture.line;
+
+      Test.startTest();
+      InvoicePreviewOpsController.OpsBundleDto bundle = InvoicePreviewOpsController.getOpsBundle(
+        fixture.invoice.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        -1100,
+        bundle.taxInclusiveAmount,
+        'Core 第8.10節: 負額請求でもカード税込の符号は反転しない'
+      );
+      System.assertEquals(
+        -1100,
+        bundle.taxInclusiveAmount - bundle.invoicePaymentNet,
+        'Core 第8.10節: 未入金額は税込－請求金額Netの符号付き'
+      );
+    }
+  }
+
   private static Id fakeJournalId(Integer n) {
     return (Id) (GlJournal__c.SObjectType.getDescribe().getKeyPrefix() +
       String.valueOf(n).leftPad(12, '0'));

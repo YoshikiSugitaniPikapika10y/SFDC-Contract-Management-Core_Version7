@@ -136,4 +136,82 @@ private class InvoicePaymentStatusUtilTest {
       'Core 第8.10節: 親バケットが無ければ明細税抜は請求前'
     );
   }
+
+  @IsTest
+  static void clearedAmount_nullInclusiveUsesAmountPlusTax_andClampsSigned() {
+    Invoice__c emptyInclusive = (Invoice__c) JSON.deserialize(
+      '{"Amount__c":1000,"TaxAmount__c":100,' +
+        '"InvoicePaymentNet__c":550,"InvoiceTransactionStatus__c":"Confirmed"}',
+      Invoice__c.class
+    );
+    System.assertEquals(
+      500,
+      InvoicePaymentStatusUtil.resolveClearedAmount(emptyInclusive, 1000),
+      'Core 第8.7節: 税込空の分母は税抜＋税。550/1100を税抜へ比例'
+    );
+    InvoicePaymentStatusUtil.StatusAmounts emptyStatus = InvoicePaymentStatusUtil.resolveStatusAmounts(
+      emptyInclusive,
+      1000
+    );
+    System.assertEquals(0, emptyStatus.openAmount);
+    System.assertEquals(500, emptyStatus.integratedAmount);
+    System.assertEquals(500, emptyStatus.clearedAmount);
+
+    Invoice__c overCleared = (Invoice__c) JSON.deserialize(
+      '{"Amount__c":1000,"TaxAmount__c":100,"TaxInclusiveAmount__c":1100,' +
+        '"InvoicePaymentNet__c":2000,"InvoiceTransactionStatus__c":"Confirmed"}',
+      Invoice__c.class
+    );
+    System.assertEquals(
+      1000,
+      InvoicePaymentStatusUtil.resolveClearedAmount(overCleared, 1000),
+      'Core 第8.7節: 比例結果が税抜を超えても消込は税抜までにclamp'
+    );
+
+    Invoice__c negativeOver = (Invoice__c) JSON.deserialize(
+      '{"Amount__c":-1000,"TaxAmount__c":-100,"TaxInclusiveAmount__c":-1100,' +
+        '"InvoicePaymentNet__c":-2000,"InvoiceTransactionStatus__c":"Confirmed"}',
+      Invoice__c.class
+    );
+    System.assertEquals(
+      -1000,
+      InvoicePaymentStatusUtil.resolveClearedAmount(negativeOver, -1000),
+      'Core 第8.7節: 負額は消込が税抜より負に振れても税抜までにclamp'
+    );
+    InvoicePaymentStatusUtil.StatusAmounts negativeStatus = InvoicePaymentStatusUtil.resolveStatusAmounts(
+      negativeOver,
+      -1000
+    );
+    System.assertEquals(0, negativeStatus.openAmount);
+    System.assertEquals(0, negativeStatus.integratedAmount);
+    System.assertEquals(-1000, negativeStatus.clearedAmount);
+  }
+
+  @IsTest
+  static void allocateLineStatusAmounts_absorbsRoundingIntoOpen() {
+    InvoicePaymentStatusUtil.StatusAmounts invoiceStatus = new InvoicePaymentStatusUtil.StatusAmounts(
+      334,
+      333,
+      333
+    );
+    InvoicePaymentStatusUtil.StatusAmounts lineStatus = InvoicePaymentStatusUtil.allocateLineStatusAmounts(
+      100,
+      1000,
+      invoiceStatus
+    );
+    System.assertEquals(
+      34,
+      lineStatus.openAmount,
+      'Core 第8.10節: 明細按分の端数は請求前へ吸収する'
+    );
+    System.assertEquals(33, lineStatus.integratedAmount);
+    System.assertEquals(33, lineStatus.clearedAmount);
+    System.assertEquals(
+      100,
+      lineStatus.openAmount +
+        lineStatus.integratedAmount +
+        lineStatus.clearedAmount,
+      'Core 第8.10節: 請求前＋請求済＋消込は明細税抜と一致'
+    );
+  }
 }
