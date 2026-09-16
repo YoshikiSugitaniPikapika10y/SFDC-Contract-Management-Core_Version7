@@ -371,22 +371,6 @@
                 data-name="jouInvoiceId"
                 onchange={handleLookupChange}
               ></lightning-record-picker>
-              <div class="filter-range">
-              <lightning-input
-                type="date"
-                name="jouCloseFrom"
-                label="完了予定日 FROM"
-                value={jouCloseFrom}
-                onchange={handleFilterChange}
-              ></lightning-input>
-              <lightning-input
-                type="date"
-                name="jouCloseTo"
-                label="完了予定日 TO"
-                value={jouCloseTo}
-                onchange={handleFilterChange}
-              ></lightning-input>
-              </div>
             </div>
           </template>
         </div>
@@ -568,6 +552,13 @@
                     </template>
                     <template for:each={row.cells} for:item="cell">
                       <td key={cell.key} class={cell.className} title={cell.text}>
+                        <template if:true={cell.isLockKey}>
+                          <template if:true={cell.on}>
+                            <span class="journal-lock-key-static" aria-hidden="true"
+                              >🔒</span
+                            >
+                          </template>
+                        </template>
                         <template if:true={cell.isText}>{cell.text}</template>
                         <template if:true={cell.isSlot}>
                           <template if:true={cell.debitAbbreviation}>

@@ -140,10 +140,6 @@ public without sharing class ContractCrossController {
     public Id accountId { get; set; }
     @AuraEnabled
     public Id invoiceId { get; set; }
-    @AuraEnabled
-    public Date closeDateFrom { get; set; }
-    @AuraEnabled
-    public Date closeDateTo { get; set; }
   }
 
   public class ListResultDto {

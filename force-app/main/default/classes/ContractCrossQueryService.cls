@@ -498,8 +498,7 @@ public with sharing class ContractCrossQueryService {
       'Invoice__c, Invoice__r.Name, Invoice__r.ContractHistory__c, Invoice__r.LastModifiedDate, ' +
       'Invoice__r.InvoiceTransactionStatus__c, ' +
       'Invoice__r.BillingAccountSnapShot__c, Invoice__r.BillingAccountSnapShot__r.Name, ' +
-      'Invoice__r.ContractService__r.Account__c, Invoice__r.ContractService__r.Account__r.Name, ' +
-      'Invoice__r.ContractHistory__r.Opportunity__r.CloseDate';
+      'Invoice__r.ContractService__r.Account__c, Invoice__r.ContractService__r.Account__r.Name';
     // 仕様: Core 第12.4節・第4.3.11節、横断画面.md 第5節 取得。追加項目は一覧SELECTへ重ね、対象仕訳を取り直さない。
     for (String apiName : InvoiceOpsFieldService.fieldApiNames('GlJournal__c')) {
       if (String.isBlank(apiName) || listedJournalFields.contains(apiName)) {
@@ -520,8 +519,6 @@ public with sharing class ContractCrossQueryService {
     Id billingAccountId = filter.billingAccountId;
     Id accountId = filter.accountId;
     Id invoiceId = filter.invoiceId;
-    Date closeFrom = filter.closeDateFrom;
-    Date closeTo = filter.closeDateTo;
     Id manualSettingId;
     if (String.isNotBlank(eventKey)) {
       if (JournalPatternFixedCatalog.isKnownKey(eventKey)) {
@@ -543,14 +540,6 @@ public with sharing class ContractCrossQueryService {
     }
     if (invoiceId != null) {
       soql += ' AND Invoice__c = :invoiceId';
-    }
-    if (closeFrom != null) {
-      soql +=
-        ' AND Invoice__r.ContractHistory__r.Opportunity__r.CloseDate >= :closeFrom';
-    }
-    if (closeTo != null) {
-      soql +=
-        ' AND Invoice__r.ContractHistory__r.Opportunity__r.CloseDate <= :closeTo';
     }
     soql +=
       ' ORDER BY PostingDate__c ASC NULLS LAST, Invoice__r.Name ASC NULLS LAST, Id ASC';

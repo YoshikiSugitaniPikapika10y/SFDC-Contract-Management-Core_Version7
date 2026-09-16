@@ -250,8 +250,6 @@ function bind(overrides = {}) {
     jouBillingAccountId: null,
     jouAccountId: null,
     jouInvoiceId: null,
-    jouCloseFrom: "",
-    jouCloseTo: "",
     unlockReason: "",
     journalExtraDefinitions: [],
     journalLockExemptFieldApiNames: [],
@@ -576,6 +574,8 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     ]);
     const jou = bind({ menu: "journal", jouLock: "Locked" });
     expect(jou.journalFilter().lockState).toBe("Locked");
+    expect(jou.journalFilter().closeDateFrom).toBeUndefined();
+    expect(jou.journalFilter().closeDateTo).toBeUndefined();
   });
 
   it("applyTruncation uses default 500件 copy (横断 第5節)", () => {

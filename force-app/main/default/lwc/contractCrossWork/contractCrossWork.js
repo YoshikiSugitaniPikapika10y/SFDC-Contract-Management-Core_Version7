@@ -356,8 +356,6 @@ export default class ContractCrossWork extends NavigationMixin(
   jouBillingAccountId = null;
   jouAccountId = null;
   jouInvoiceId = null;
-  jouCloseFrom = "";
-  jouCloseTo = "";
   unlockReason = "";
 
   @track estimateGroups = [
@@ -825,7 +823,8 @@ export default class ContractCrossWork extends NavigationMixin(
       if (this.showCheckColumn === true) {
         headers.push({ key: "check", label: "" });
       }
-      // 仕様: 共通基盤契約横断部第5節。鍵列は置かない。グループOFFの請求アカウントと請求は固定列の左。
+      // 仕様: 共通基盤契約横断部第5節。Lock列はLock済みだけ鍵。グループOFFの請求アカウントと請求はLockの右。
+      headers.push({ key: "lock", label: "Lock", className: "lock-cell" });
       journalOffGroups(this.journalGroups).forEach((item) =>
         headers.push({
           key: journalGroupColumnKey(item.id),
@@ -1046,7 +1045,6 @@ export default class ContractCrossWork extends NavigationMixin(
       pushLookup("jouBa", "請求アカウント", this.jouBillingAccountId);
       pushLookup("jouAccount", "取引先", this.jouAccountId);
       pushLookup("jouInvoice", "請求", this.jouInvoiceId);
-      pushRange("jouClose", "完了予定日", this.jouCloseFrom, this.jouCloseTo);
     }
     return items;
   }
@@ -1247,9 +1245,7 @@ export default class ContractCrossWork extends NavigationMixin(
       eventKey: this.jouEvent || null,
       billingAccountId: this.jouBillingAccountId,
       accountId: this.jouAccountId,
-      invoiceId: this.jouInvoiceId,
-      closeDateFrom: this.jouCloseFrom || null,
-      closeDateTo: this.jouCloseTo || null
+      invoiceId: this.jouInvoiceId
     };
   }
 
@@ -2462,7 +2458,14 @@ export default class ContractCrossWork extends NavigationMixin(
 
   journalCells(row, memoValue) {
     const cells = [];
-    // 仕様: 共通基盤契約横断部第5節。鍵列は置かない。計上日・パターンは固定列と重ねない。
+    // 仕様: 共通基盤契約横断部第5節。Lock列はLock済みだけ鍵。計上日・パターンは固定列と重ねない。
+    cells.push({
+      key: "lock",
+      isLockKey: true,
+      on: row.isLocked === true,
+      text: row.isLocked === true ? "Lock済み" : "",
+      className: "lock-cell"
+    });
     journalOffGroups(this.journalGroups).forEach((item) => {
       if (item.id === "billingAccount") {
         cells.push(

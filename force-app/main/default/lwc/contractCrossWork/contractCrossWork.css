@@ -372,13 +372,13 @@
   white-space: nowrap;
 }
 
-.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td:not(.num):not(.icon-cell):not(.check-col) {
+.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td:not(.num):not(.icon-cell):not(.check-col):not(.lock-cell) {
   max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td:not(.num):not(.icon-cell):not(.check-col) a {
+.table-wrap:not(.lock-unlocked):not(.lock-locked) .cross-table td:not(.num):not(.icon-cell):not(.check-col):not(.lock-cell) a {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -434,6 +434,19 @@
   overflow: visible;
   text-overflow: unset;
   overflow-wrap: normal;
+}
+
+.lock-cell {
+  width: 2.35rem;
+  max-width: 2.35rem;
+  text-align: center;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+}
+
+.journal-lock-key-static {
+  font-size: 0.875rem;
+  line-height: 1;
 }
 
 .journal-slot-abbr {

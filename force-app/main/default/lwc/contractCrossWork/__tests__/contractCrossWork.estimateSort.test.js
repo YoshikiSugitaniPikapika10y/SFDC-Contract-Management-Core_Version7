@@ -425,12 +425,13 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     return getHeaders.call(ctx).map((item) => item.label);
   }
 
-  it("固定列は状態・計上日・イベント・借貸1列。鍵列は置かない", () => {
+  it("固定列はLock・状態・計上日・イベント・借貸1列。Lock済みだけ鍵", () => {
     const labels = headerLabels({
       menu: "journal",
       journalGroups: offGroups
     });
     expect(labels).toEqual([
+      "Lock",
       "請求アカウント",
       "請求",
       "状態",
@@ -447,8 +448,6 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     expect(labels).not.toContain("パターン");
     expect(labels).not.toContain("借方");
     expect(labels).not.toContain("貸方");
-    expect(labels).not.toContain("Lock");
-    expect(labels).not.toContain("鍵");
   });
 
   it("請求グループOFFなら請求と請求書名を両方出す", () => {
@@ -540,6 +539,26 @@ describe("contractCrossWork journal columns (横断画面.md 第5節)", () => {
     expect(slot.creditAccountLabel).toBe("売上");
     expect(cells.some((cell) => cell.key === "debit")).toBe(false);
     expect(cells.find((cell) => cell.key === "invoiceGroup").text).toBe("INV-1");
+    const lockCell = cells.find((cell) => cell.key === "lock");
+    expect(lockCell.isLockKey).toBe(true);
+    expect(lockCell.on).toBe(false);
+  });
+
+  it("Lock列はLock済みだけ鍵。未Lockは空", () => {
+    const locked = proto.journalCells.call(
+      { journalGroups: [], canEditJournalMemoOp: true, operationDay: "2026-09-13" },
+      { transactionStatus: "Active", isLocked: true, postingDate: "2026-09-13" },
+      ""
+    );
+    const unlocked = proto.journalCells.call(
+      { journalGroups: [], canEditJournalMemoOp: true, operationDay: "2026-09-13" },
+      { transactionStatus: "Active", isLocked: false, postingDate: "2026-09-13" },
+      ""
+    );
+    expect(locked.find((cell) => cell.key === "lock").on).toBe(true);
+    expect(locked.find((cell) => cell.key === "lock").text).toBe("Lock済み");
+    expect(unlocked.find((cell) => cell.key === "lock").on).toBe(false);
+    expect(unlocked.find((cell) => cell.key === "lock").text).toBe("");
   });
 
   it("取消元と逆仕訳の表示名はAccounting第2.3節", () => {
