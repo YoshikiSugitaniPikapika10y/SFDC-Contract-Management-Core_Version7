@@ -67,9 +67,11 @@
             <lightning-output-field
               field-name="InvoiceDateMethod__c"
             ></lightning-output-field>
-            <lightning-output-field
-              field-name="InvoiceDateAdjust__c"
-            ></lightning-output-field>
+            <template if:true={showInvoiceMonthOffset}>
+              <lightning-output-field
+                field-name="InvoiceDateMonthOffset__c"
+              ></lightning-output-field>
+            </template>
             <template if:true={showInvoiceDayKind}>
               <lightning-output-field
                 field-name="InvoiceDateDayKind__c"
@@ -80,16 +82,14 @@
                 field-name="InvoiceDateDayOfMonth__c"
               ></lightning-output-field>
             </template>
-            <template if:true={showInvoiceMonthOffset}>
-              <lightning-output-field
-                field-name="InvoiceDateMonthOffset__c"
-              ></lightning-output-field>
-            </template>
             <template if:true={showInvoiceDayOffset}>
               <lightning-output-field
                 field-name="InvoiceDateDayOffset__c"
               ></lightning-output-field>
             </template>
+            <lightning-output-field
+              field-name="InvoiceDateAdjust__c"
+            ></lightning-output-field>
           </div>
         </section>
         <section class="ba-section">
@@ -101,9 +101,11 @@
             <lightning-output-field
               field-name="PaymentTermMethod__c"
             ></lightning-output-field>
-            <lightning-output-field
-              field-name="PaymentTermAdjust__c"
-            ></lightning-output-field>
+            <template if:true={showPaymentMonthOffset}>
+              <lightning-output-field
+                field-name="PaymentTermMonthOffset__c"
+              ></lightning-output-field>
+            </template>
             <template if:true={showPaymentDayKind}>
               <lightning-output-field
                 field-name="PaymentTermDayKind__c"
@@ -114,16 +116,14 @@
                 field-name="PaymentTermDayOfMonth__c"
               ></lightning-output-field>
             </template>
-            <template if:true={showPaymentMonthOffset}>
-              <lightning-output-field
-                field-name="PaymentTermMonthOffset__c"
-              ></lightning-output-field>
-            </template>
             <template if:true={showPaymentDayOffset}>
               <lightning-output-field
                 field-name="PaymentTermDayOffset__c"
               ></lightning-output-field>
             </template>
+            <lightning-output-field
+              field-name="PaymentTermAdjust__c"
+            ></lightning-output-field>
           </div>
         </section>
       </lightning-record-view-form>
@@ -209,10 +209,6 @@
               field-name="InvoiceDateMethod__c"
               onchange={handleFieldChange}
             ></lightning-input-field>
-            <lightning-input-field
-              field-name="InvoiceDateAdjust__c"
-              onchange={handleFieldChange}
-            ></lightning-input-field>
             <template if:true={showInvoiceMonthOffset}>
               <lightning-input-field
                 field-name="InvoiceDateMonthOffset__c"
@@ -237,6 +233,10 @@
                 onchange={handleFieldChange}
               ></lightning-input-field>
             </template>
+            <lightning-input-field
+              field-name="InvoiceDateAdjust__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
           </div>
         </section>
         <section class="ba-section">
@@ -247,10 +247,6 @@
           <div class="ba-grid">
             <lightning-input-field
               field-name="PaymentTermMethod__c"
-              onchange={handleFieldChange}
-            ></lightning-input-field>
-            <lightning-input-field
-              field-name="PaymentTermAdjust__c"
               onchange={handleFieldChange}
             ></lightning-input-field>
             <template if:true={showPaymentMonthOffset}>
@@ -277,6 +273,10 @@
                 onchange={handleFieldChange}
               ></lightning-input-field>
             </template>
+            <lightning-input-field
+              field-name="PaymentTermAdjust__c"
+              onchange={handleFieldChange}
+            ></lightning-input-field>
           </div>
         </section>
         <div class="ba-toolbar">

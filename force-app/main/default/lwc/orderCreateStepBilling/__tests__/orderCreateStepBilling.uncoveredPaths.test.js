@@ -288,6 +288,62 @@ describe("orderCreateStepBilling uncovered (Core 5.2 / 7.2 / 7.5)", () => {
     ).toBe(false);
   });
 
+  it("請求日ルールは方式の値のあとに補正を並べる (Core 7.2)", () => {
+    const ctx = bind({
+      fieldDefinitions: [
+        {
+          apiName: "InvoiceDateAdjust__c",
+          label: "請求日の補正",
+          fieldType: "PICKLIST",
+          required: true,
+          picklistOptions: [{ label: "補正なし", value: "None" }]
+        },
+        {
+          apiName: "InvoiceDateDayOfMonth__c",
+          label: "請求日の指定日",
+          fieldType: "DOUBLE",
+          required: true
+        },
+        {
+          apiName: "InvoiceDateMethod__c",
+          label: "請求日の計算方式",
+          fieldType: "PICKLIST",
+          required: true,
+          picklistOptions: [
+            { label: "基準月から指定月数前後", value: METHOD_MONTH_OFFSET }
+          ]
+        },
+        {
+          apiName: "InvoiceDateDayKind__c",
+          label: "請求日の日種別",
+          fieldType: "PICKLIST",
+          required: true,
+          picklistOptions: [{ label: "指定日", value: "Day" }]
+        },
+        {
+          apiName: "InvoiceDateMonthOffset__c",
+          label: "請求日の月数",
+          fieldType: "DOUBLE",
+          required: true
+        }
+      ],
+      _billingCustomFields: {
+        InvoiceDateMethod__c: METHOD_MONTH_OFFSET,
+        InvoiceDateMonthOffset__c: 1,
+        InvoiceDateDayKind__c: "Day",
+        InvoiceDateDayOfMonth__c: 15,
+        InvoiceDateAdjust__c: "None"
+      }
+    });
+    expect(ctx.invoiceDateFieldInputs.map((field) => field.apiName)).toEqual([
+      "InvoiceDateMethod__c",
+      "InvoiceDateMonthOffset__c",
+      "InvoiceDateDayKind__c",
+      "InvoiceDateDayOfMonth__c",
+      "InvoiceDateAdjust__c"
+    ]);
+  });
+
   it("wired invoice settings no-ops without definitions", () => {
     const ctx = bind({ fieldDefinitions: [] });
     ctx.wiredBillingAccountInvoiceSettings({ data: { billingCustomFields: {} } });

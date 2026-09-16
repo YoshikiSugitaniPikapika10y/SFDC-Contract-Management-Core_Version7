@@ -36,22 +36,24 @@ export const METHOD_MONTH_OFFSET = "MonthOffset";
 export const METHOD_DAY_OFFSET = "DayOffset";
 export const DAY_KIND_DAY = "Day";
 
+/** 仕様: Core 第7.2節。方式 → 方式の値 → 算出後の補正。 */
 export const INVOICE_DATE_FIELD_APIS = [
   "InvoiceDateMethod__c",
-  "InvoiceDateAdjust__c",
+  "InvoiceDateMonthOffset__c",
   "InvoiceDateDayKind__c",
   "InvoiceDateDayOfMonth__c",
-  "InvoiceDateMonthOffset__c",
-  "InvoiceDateDayOffset__c"
+  "InvoiceDateDayOffset__c",
+  "InvoiceDateAdjust__c"
 ];
 
+/** 仕様: Core 第7.5節。方式 → 方式の値 → 算出後の補正。 */
 export const PAYMENT_TERM_FIELD_APIS = [
   "PaymentTermMethod__c",
-  "PaymentTermAdjust__c",
+  "PaymentTermMonthOffset__c",
   "PaymentTermDayKind__c",
   "PaymentTermDayOfMonth__c",
-  "PaymentTermMonthOffset__c",
-  "PaymentTermDayOffset__c"
+  "PaymentTermDayOffset__c",
+  "PaymentTermAdjust__c"
 ];
 
 export const DELIVERY_FIELD_APIS = [

@@ -6,6 +6,8 @@ import {
   parseDefaultFieldValues,
   paymentTermMethodHelp,
   resolveNewAccountId,
+  INVOICE_DATE_FIELD_APIS,
+  PAYMENT_TERM_FIELD_APIS,
   METHOD_DAY_OFFSET,
   METHOD_MONTH_OFFSET,
   METHOD_ON_OR_AFTER,
@@ -61,6 +63,25 @@ describe("billingAccountForm (Core 3.3.2 / 3.3.3 / 7.2 / 7.5, 共通基盤 10.4)
     expect(cleared.InvoiceDateMonthOffset__c).toBeNull();
     expect(cleared.InvoiceDateDayOffset__c).toBeNull();
     expect(cleared.InvoiceDateAdjust__c).toBe("None");
+  });
+
+  it("請求日ルールと支払条件は方式の値のあとに補正を置く (Core 7.2 / 7.5)", () => {
+    expect(INVOICE_DATE_FIELD_APIS).toEqual([
+      "InvoiceDateMethod__c",
+      "InvoiceDateMonthOffset__c",
+      "InvoiceDateDayKind__c",
+      "InvoiceDateDayOfMonth__c",
+      "InvoiceDateDayOffset__c",
+      "InvoiceDateAdjust__c"
+    ]);
+    expect(PAYMENT_TERM_FIELD_APIS).toEqual([
+      "PaymentTermMethod__c",
+      "PaymentTermMonthOffset__c",
+      "PaymentTermDayKind__c",
+      "PaymentTermDayOfMonth__c",
+      "PaymentTermDayOffset__c",
+      "PaymentTermAdjust__c"
+    ]);
   });
 
   it("OnOrAfter は Day のときだけ指定日を出し、MonthEnd では空にする (Core 7.2)", () => {

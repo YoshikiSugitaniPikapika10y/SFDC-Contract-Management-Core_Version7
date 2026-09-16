@@ -299,16 +299,26 @@ export default class OrderCreateStepBilling extends NavigationMixin(
     );
   }
 
+  /** 仕様: Core 第7.2節。方式 → 方式の値 → 算出後の補正。 */
   get invoiceDateFieldInputs() {
-    return this.billingFieldInputs.filter((field) =>
-      INVOICE_DATE_FIELD_API_SET.has(field.apiName)
-    );
+    return this.billingFieldInputs
+      .filter((field) => INVOICE_DATE_FIELD_API_SET.has(field.apiName))
+      .sort(
+        (left, right) =>
+          INVOICE_DATE_FIELD_APIS.indexOf(left.apiName) -
+          INVOICE_DATE_FIELD_APIS.indexOf(right.apiName)
+      );
   }
 
+  /** 仕様: Core 第7.5節。方式 → 方式の値 → 算出後の補正。 */
   get paymentTermFieldInputs() {
-    return this.billingFieldInputs.filter((field) =>
-      PAYMENT_TERM_FIELD_API_SET.has(field.apiName)
-    );
+    return this.billingFieldInputs
+      .filter((field) => PAYMENT_TERM_FIELD_API_SET.has(field.apiName))
+      .sort(
+        (left, right) =>
+          PAYMENT_TERM_FIELD_APIS.indexOf(left.apiName) -
+          PAYMENT_TERM_FIELD_APIS.indexOf(right.apiName)
+      );
   }
 
   formatDisplayValue(value) {
