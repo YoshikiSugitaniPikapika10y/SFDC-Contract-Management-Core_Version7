@@ -1247,10 +1247,30 @@
   grid-column: span 2;
 }
 
+.invoice-send-attach {
+  grid-column: span 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+  --slds-c-input-sizing-min-height: 1.875rem;
+  --slds-c-input-sizing-height: 1.875rem;
+}
+
+.invoice-send-attach lightning-combobox {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .invoice-send-preview {
   display: flex;
   align-items: flex-end;
-  min-height: 2.5rem;
+  flex: 0 0 auto;
+}
+
+.invoice-send-preview .ghost-btn {
+  min-height: var(--slds-c-input-sizing-min-height);
+  height: var(--slds-c-input-sizing-min-height);
 }
 
 .invoice-send-panel > .edit-actions {
