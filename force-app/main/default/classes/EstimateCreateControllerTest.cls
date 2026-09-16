@@ -4934,9 +4934,9 @@ private class EstimateCreateControllerTest {
       System.assertEquals(opportunity.Account.Name, preset.accountName);
       System.assertEquals('New', preset.selectedType);
       System.assertEquals(
-        'Copy Test Service',
+        'Copy Test Serviceのコピー',
         preset.contractServiceName,
-        'Core 第4.3.3節: Newコピーのサービス名にのコピーは付けない'
+        'Core 第4.3.3節・第4.7節: Newコピーの契約サービス名は元名のコピー'
       );
       System.assertEquals(
         'Copy Source Historyのコピー',

@@ -626,8 +626,10 @@ public without sharing class EstimateQueryService {
         preset.contractServiceId = history.ContractService__c;
         preset.nextHistoryVersion = history.Version__c;
       } else {
-        // 仕様: Core 第4.3.3節。Newコピーのサービス名は元名。のコピーは付けない。
-        preset.contractServiceName = service == null ? '' : service.Name;
+        // 仕様: Core 第4.3.3節、第4.7節。Newコピーの契約サービス名は {元のサービス名}のコピー。
+        preset.contractServiceName = service == null
+          ? ''
+          : buildCopyHistoryName(service.Name);
         preset.contractServiceId = null;
         // New コピーは契約サービスを新規化するため Lifecycle は載せない
         preset.serviceLifecycle = null;
@@ -810,7 +812,7 @@ public without sharing class EstimateQueryService {
     return false;
   }
 
-  /** 仕様: Core 第4.3.3節、第4.7節。コピーの履歴名は {元の履歴名}のコピー。 */
+  /** 仕様: Core 第4.3.3節、第4.7節。コピーの履歴名は {元の履歴名}のコピー。Newコピーの契約サービス名も同じ接尾。 */
   public static String buildCopyHistoryName(String sourceName) {
     String baseName = String.isBlank(sourceName) ? '' : sourceName.trim();
     if (String.isBlank(baseName)) {

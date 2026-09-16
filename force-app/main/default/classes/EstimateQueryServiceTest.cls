@@ -271,9 +271,9 @@ private class EstimateQueryServiceTest {
         'Core 第4.3.3節・第4.7節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(
-        'Query Copy Service',
+        'Query Copy Serviceのコピー',
         preset.contractServiceName,
-        'Core 第4.3.3節: Newコピーのサービス名にのコピーは付けない'
+        'Core 第4.3.3節・第4.7節: Newコピーの契約サービス名は元名のコピー'
       );
       System.assertEquals(null, preset.contractServiceId);
       System.assertEquals(
@@ -341,6 +341,11 @@ private class EstimateQueryServiceTest {
         'Core 第4.3.3節: コピーの履歴名は元名のコピー'
       );
       System.assertEquals(
+        'Query Name Service',
+        changePreset.contractServiceName,
+        'Core 第4.3.3節: Changeコピーのサービス名は元名'
+      );
+      System.assertEquals(
         true,
         String.isBlank(changePreset.contractEffectiveDate),
         'Core 第4.7節・第1.1.10節: 空の切替日を開始日で埋めない'
@@ -369,6 +374,11 @@ private class EstimateQueryServiceTest {
         'Query Name Cancel Estのコピー',
         cancelPreset.contractHistoryName,
         'Core 第4.3.3節: コピーの履歴名は元名のコピー'
+      );
+      System.assertEquals(
+        'Query Name Service',
+        cancelPreset.contractServiceName,
+        'Core 第4.3.3節: Cancelコピーのサービス名は元名'
       );
       System.assertEquals(
         false,
