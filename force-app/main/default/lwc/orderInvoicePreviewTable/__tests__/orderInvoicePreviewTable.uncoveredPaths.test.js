@@ -807,8 +807,8 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     confirmMock().mockResolvedValue(true);
     await ctx.handleSendInvoice();
     expect(confirmMock()).toHaveBeenCalled();
-    expect(confirmMock().mock.calls[0][0].message).toContain(
-      "失敗のあと送り直すと、先のメールが届いていることがある"
+    expect(confirmMock().mock.calls[0][0].message).toBe(
+      "to@example.comへ請求書を再送します。よろしいですか？"
     );
   });
 

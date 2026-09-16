@@ -237,11 +237,7 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     ).toBe(true);
   });
 
-  it("失敗のあと送り直す注記と送れない理由を本文どおり出す (Core 7.10 / 4.8)", () => {
-    const sendFailureRetryNote = Object.getOwnPropertyDescriptor(
-      proto,
-      "sendFailureRetryNote"
-    ).get;
+  it("送れない理由とFromの2択を本文どおり出す (Core 7.10 / 4.8)", () => {
     const unavailableMessage = Object.getOwnPropertyDescriptor(
       proto,
       "unavailableMessage"
@@ -250,9 +246,6 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
       proto,
       "fromChoiceOptions"
     ).get;
-    expect(sendFailureRetryNote.call({})).toBe(
-      "失敗のあと送り直すと、先のメールが届いていることがある"
-    );
     expect(unavailableMessage.call({ estimate: { sendable: false } })).toBe(
       "この見積は送付できません。"
     );

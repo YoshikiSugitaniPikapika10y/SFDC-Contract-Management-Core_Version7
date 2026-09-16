@@ -45,9 +45,6 @@ const VERSION_CONFLICT_MESSAGE =
   "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。";
 const SEND_MODE_UNUSED = "Unused";
 const SEND_MODE_PDF_AND_EMAIL = "PdfAndEmail";
-/** 仕様: Core 第7.10節 */
-const SEND_FAILURE_RETRY_NOTE =
-  "失敗のあと送り直すと、先のメールが届いていることがある";
 const CUSTOMER_CANCEL_NOTICE = "顧客への取消連絡が必要です。";
 
 /** 仕様: Core 第3.3.7節。保存値 Email／Post／None。空はメールではない。 */
@@ -1403,10 +1400,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return "PDFとメール送付のとき、組織の送信元を選んでください。";
     }
     return "";
-  }
-
-  get sendFailureRetryNote() {
-    return SEND_FAILURE_RETRY_NOTE;
   }
 
   /** 未保存の端数下書きがある間は Version 切替不可（別 Version への黙殺保存を防ぐ）。 */
@@ -3818,7 +3811,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (isResend) {
       const confirmed = await LightningConfirm.open({
         label: "請求書を再送",
-        message: `${this.invoiceSendState.toAddresses || "設定済みの宛先"}へ請求書を再送します。よろしいですか？\n${SEND_FAILURE_RETRY_NOTE}`,
+        message: `${this.invoiceSendState.toAddresses || "設定済みの宛先"}へ請求書を再送します。よろしいですか？`,
         variant: "header"
       });
       if (!confirmed) {

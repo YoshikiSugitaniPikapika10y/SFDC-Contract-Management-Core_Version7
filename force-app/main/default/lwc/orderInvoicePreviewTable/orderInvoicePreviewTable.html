@@ -486,7 +486,6 @@
                   value={invoice.invoiceDraftFileName}
                   onchange={handleInvoiceSendDraftChange}
                 ></lightning-input>
-                <p class="edit-note" role="note">{sendFailureRetryNote}</p>
               </div>
               <div class="edit-actions">
                 <template if:true={invoice.showEditProcessing}>

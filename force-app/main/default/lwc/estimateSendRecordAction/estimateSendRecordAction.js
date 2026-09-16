@@ -19,9 +19,6 @@ import hasSendEstimates from "@salesforce/customPermission/Loop_05_Can_SendEstim
 
 const INITIAL_ATTACHMENT_KEY = "cmc.estimateSend.initialContentDocumentId";
 const ATTACHMENT_NEW = "NEW";
-/** 仕様: Core 第7.10節 */
-const SEND_FAILURE_RETRY_NOTE =
-  "失敗のあと送り直すと、先のメールが届いていることがある";
 
 export default class EstimateSendRecordAction extends NavigationMixin(
   LightningElement
@@ -82,10 +79,6 @@ export default class EstimateSendRecordAction extends NavigationMixin(
 
   get canSendEstimates() {
     return hasSendEstimates === true;
-  }
-
-  get sendFailureRetryNote() {
-    return SEND_FAILURE_RETRY_NOTE;
   }
 
   /** 仕様: 共通基盤 第10.4節。横断オーバーレイは 18 のラッパ。それ以外は送付ボード入口。 */
