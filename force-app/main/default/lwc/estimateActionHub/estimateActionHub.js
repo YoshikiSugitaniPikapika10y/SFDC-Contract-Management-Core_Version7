@@ -18,6 +18,7 @@ const QUICK_ACTIONS = {
   edit: "ContractHistory__c.EstimateEdit",
   copy: "ContractHistory__c.EstimateCopy",
   archive: "ContractHistory__c.Estimate_Archive",
+  issue: "ContractHistory__c.Estimate_Issue",
   send: "ContractHistory__c.Estimate_Send"
 };
 
@@ -134,16 +135,9 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
     this.openRecordQuickAction(apiName);
   }
 
+  /** 仕様: Core 第4.3.1節・第4.8節。発行は送付と同じレコード上Quick Actionオーバーレイ。 */
   openEstimateDocumentIssue() {
-    this[NavigationMixin.Navigate](
-      {
-        type: "standard__webPage",
-        attributes: {
-          url: `/apex/EstimateDocumentIssue?id=${encodeURIComponent(this.recordId)}`
-        }
-      },
-      true
-    );
+    this.openRecordQuickAction(QUICK_ACTIONS.issue);
   }
 
   openRecordQuickAction(apiName) {

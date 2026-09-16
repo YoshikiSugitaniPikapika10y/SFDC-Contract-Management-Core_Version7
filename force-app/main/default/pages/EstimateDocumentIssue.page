@@ -67,7 +67,6 @@
           <span id="issuedPreviewDocumentId" style="display: none"
             >{!issuedContentDocumentId}</span
           >
-          <p>発行したファイルは標準 Files で確認できます。</p>
           <p>
             <button type="button" onclick="openIssuedPreviewIfAny()">
               発行したファイルをプレビュー
@@ -136,14 +135,5 @@
         encodeURIComponent(backgroundContext);
       navigateInLightningExperience(path);
     }
-    (function () {
-      var el = document.getElementById("issuedPreviewDocumentId");
-      var documentId = el
-        ? String(el.textContent || "").replace(/^\s+|\s+$/g, "")
-        : "";
-      if (documentId) {
-        openIssuedPreviewIfAny();
-      }
-    })();
   </script>
 </apex:page>

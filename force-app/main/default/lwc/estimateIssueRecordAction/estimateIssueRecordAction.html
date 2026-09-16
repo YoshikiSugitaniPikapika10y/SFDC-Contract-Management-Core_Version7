@@ -1,0 +1,25 @@
+<template>
+  <section class="issue-shell">
+    <template if:true={issuePageUrl}>
+      <iframe
+        class="issue-frame"
+        src={issuePageUrl}
+        title="見積書発行"
+      ></iframe>
+    </template>
+    <template if:false={issuePageUrl}>
+      <p class="missing-record" role="alert">
+        契約履歴IDが指定されていません。
+      </p>
+    </template>
+    <footer class="issue-footer">
+      <button
+        type="button"
+        class="slds-button slds-button_neutral"
+        onclick={handleClose}
+      >
+        閉じる
+      </button>
+    </footer>
+  </section>
+</template>

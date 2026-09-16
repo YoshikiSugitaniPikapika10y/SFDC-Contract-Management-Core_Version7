@@ -7,7 +7,7 @@ const issuePage = fs.readFileSync(
 );
 
 describe("EstimateDocumentIssue success navigation (Core 4.8 / 4.3.1)", () => {
-  it("does not treat parent postMessage as handled after the hub iframe was removed", () => {
+  it("keeps preview and send as explicit success-surface actions", () => {
     expect(issuePage).not.toMatch(/postToEstimateHub/);
     expect(issuePage).toMatch(/sforce\.one\.navigateToURL/);
     expect(issuePage).toMatch(/\/lightning\/page\/filePreview\?recordIds=/);
@@ -16,6 +16,12 @@ describe("EstimateDocumentIssue success navigation (Core 4.8 / 4.3.1)", () => {
     );
     expect(issuePage).toMatch(
       /cmc\.estimateSend\.initialContentDocumentId/
+    );
+    expect(issuePage).toMatch(/onclick="openIssuedPreviewIfAny\(\)"/);
+    expect(issuePage).toMatch(/このファイルを送る/);
+    expect(issuePage).not.toMatch(/\(function\s*\(\)\s*\{/);
+    expect(issuePage).not.toMatch(
+      /発行したファイルは標準 Files で確認できます。/
     );
   });
 });

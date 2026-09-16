@@ -122,7 +122,7 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
     );
   });
 
-  it("closes the hub and opens existing 見積書発行画面 (Core 4.3.1)", () => {
+  it("replaces the hub with 見積書発行 record Quick Action (Core 4.3.1)", () => {
     const { ctx, dispatched, navigate } = hubContext("a0H000000000001AAA");
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
@@ -132,9 +132,16 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
     expect(dispatched).toEqual([]);
     expect(navigate).toHaveBeenCalledWith(
       {
-        type: "standard__webPage",
+        type: "standard__quickAction",
         attributes: {
-          url: "/apex/EstimateDocumentIssue?id=a0H000000000001AAA"
+          apiName: "ContractHistory__c.Estimate_Issue"
+        },
+        state: {
+          objectApiName: "ContractHistory__c",
+          context: "RECORD_DETAIL",
+          recordId: "a0H000000000001AAA",
+          backgroundContext:
+            "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
         }
       },
       true
