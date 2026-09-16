@@ -769,7 +769,7 @@ Lifecycle=TermではChange・Renew・Cancel、Lifecycle=SpotではChangeだけ�
 | 作成 New | `{商談名}の契約サービス` | `{商談名}の契約履歴` |
 | 作成 Change / Renew / Cancel | 選んだサービスの保存名（参照） | `{商談名}の契約履歴` |
 | 編集（見積候補。種別共通） | 保存済みサービス名（Newは変更可。Change / Renew / Cancelは参照） | 保存済み履歴名 |
-| コピー New | 元のサービス名（接尾なし。保存すると別サービス） | `{元の履歴名}のコピー` |
+| コピー New | `{元のサービス名}のコピー`（保存すると別サービス） | `{元の履歴名}のコピー` |
 | コピー Change / Renew / Cancel | 元のサービス名（参照。同じサービス） | `{元の履歴名}のコピー` |
 
 作成中に種別を変えたときの履歴名も、新しい種別の作成行と同じ `{商談名}の契約履歴` である。サービスを選び直しても契約履歴名は変えない。第0.1節の「解約」は見積種別の画面表示名であり、作成・コピーの履歴名初期値には付けない。
@@ -785,7 +785,7 @@ Lifecycle=TermではChange・Renew・Cancel、Lifecycle=SpotではChangeだけ�
 <strong style="color:#1a5276;">ToBe</strong>
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractHistory__c.EstimateSendContact__c</code>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateSaveService.saveNewEstimate</code> / <code>saveChangeEstimate</code> / <code>saveCancelEstimate</code>、<code>estimateCreateModal2.maybeApplyDefaultNames</code> / <code>handleOpenbillingAccountFormalEdit</code>、<code>EstimateQueryService.buildEstimatePreset</code> / <code>buildCopyHistoryName</code>、<code>estimateCreateModal3</code>、<code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>
-／ 請求アカウント正規Editからの保存・キャンセル後は見積ウィザードを開き直す。第3.3.3節。
+／ 請求アカウント正規Editからの保存・キャンセル後は見積ウィザードを開き直す。第3.3.3節。Newコピーのサービス名は<code>{元のサービス名}のコピー</code>。保存後の別名も同じ。
 </div>
 
 #### 4.3.4 Step 2 詳細情報
@@ -1149,7 +1149,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 
 - Estimateは種別を固定したまま全内容を編集できる。ベースのLatest Orderedが変わった古いChange・Renew・Cancelは保存せず開き直しを求める。
 - Orderedは表示条件を満たす見積追加項目（契約サービスを含む）と受注追加項目だけ編集できる。見積用と受注用は見出しを分ける。Archiveは編集、コピー、発行、受注および復活ができない。
-- コピー元はEstimateだけとし、ウィザードで扱う内容を初期値にする。見積日・有効期限・備考を含む。見積書セクションの出す／出さないと空欄初期値は第4.10節。Newは新しい契約サービス、その他は同じ契約サービスとして扱う。契約サービス名と契約履歴名の初期値は第4.3.3節。コピーの履歴名は`{元の履歴名}のコピー`である。契約サービス名に「のコピー」は付けない。
+- コピー元はEstimateだけとし、ウィザードで扱う内容を初期値にする。見積日・有効期限・備考を含む。見積書セクションの出す／出さないと空欄初期値は第4.10節。Newは新しい契約サービス、その他は同じ契約サービスとして扱う。契約サービス名と契約履歴名の初期値は第4.3.3節。コピーの履歴名は`{元の履歴名}のコピー`である。Newコピーの契約サービス名は`{元のサービス名}のコピー`であり、保存後の別名も同じである。
 - 契約履歴は物理削除しない。見積を閉じる操作は第5.5節のArchiveだけとする。標準削除、API、Data Loaderからの削除も拒否する。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
