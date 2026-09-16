@@ -1989,6 +1989,107 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
+  @IsTest
+  static void splitLinesInPlace_copiesAcceptanceEndDateFromSourceLine() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createPointInTimeFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      Date sourceDate = Date.newInstance(2026, 8, 31);
+      line.AcceptanceEndDate__c = sourceDate;
+      update line;
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = 4000;
+      split.moveUnitPrice = 6000;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.splitLinesInPlace(
+        line.Invoice__c,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      List<InvoiceLine__c> rows = [
+        SELECT AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :line.Invoice__c
+      ];
+      System.assertEquals(2, rows.size());
+      for (InvoiceLine__c row : rows) {
+        System.assertEquals(
+          sourceDate,
+          row.AcceptanceEndDate__c,
+          'Core 第7.6節・第7.8節: 分割先の検収終了日は元明細であり空にしない'
+        );
+      }
+    }
+  }
+
+  @IsTest
+  static void splitInvoiceByDate_copiesAcceptanceEndDateFromSourceLine() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createPointInTimeFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      Date sourceDate = Date.newInstance(2026, 8, 31);
+      line.AcceptanceEndDate__c = sourceDate;
+      update line;
+
+      Decimal moveAmount = (line.Amount__c / 2)
+        .setScale(0, RoundingMode.HALF_UP);
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = moveAmount;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      Id createdId = InvoiceCanonicalService.splitInvoiceByDate(
+        source.Id,
+        Date.newInstance(2026, 7, 1),
+        Date.newInstance(2026, 7, 31),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split }
+      );
+      Test.stopTest();
+
+      Set<Id> invoiceIds = new Set<Id>{ source.Id, createdId };
+      List<InvoiceLine__c> rows = [
+        SELECT AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c IN :invoiceIds
+      ];
+      System.assertEquals(2, rows.size());
+      for (InvoiceLine__c row : rows) {
+        System.assertEquals(
+          sourceDate,
+          row.AcceptanceEndDate__c,
+          'Core 第7.6節・第7.8節: 分けた先の検収終了日は元明細であり空にしない'
+        );
+      }
+    }
+  }
+
   /**
    * ???????E?????????????E?E??????E
    * ??ESourcePeriodLineIds ????????????????E????E

@@ -1902,6 +1902,7 @@ public without sharing class InvoiceCanonicalService {
             SourcePeriodLineIds__c,
             ServicePeriodStartDate__c,
             ServicePeriodEndDate__c,
+            AcceptanceEndDate__c,
             RevenueRecognitionBasis__c,
             IsManuallyAdjusted__c,
             IsAmountAdjusted__c,
@@ -2047,6 +2048,8 @@ public without sharing class InvoiceCanonicalService {
         ? input.moveSourcePeriodLineIds
         : sourceLine.SourcePeriodLineIds__c;
       createdLine.RevenueRecognitionBasis__c = sourceLine.RevenueRecognitionBasis__c;
+      // 仕様: Core 第7.6節・第7.8節。検収終了日は元明細。空の新規行にしない。
+      createdLine.AcceptanceEndDate__c = sourceLine.AcceptanceEndDate__c;
       applyServicePeriodSnapshot(
         createdLine,
         sourceLine,
@@ -3014,6 +3017,7 @@ public without sharing class InvoiceCanonicalService {
           SourcePeriodLineIds__c,
           ServicePeriodStartDate__c,
           ServicePeriodEndDate__c,
+          AcceptanceEndDate__c,
           RevenueRecognitionBasis__c,
           ContractProduct__c,
           ContractProduct__r.Product__c,
@@ -3118,6 +3122,8 @@ public without sharing class InvoiceCanonicalService {
         ? input.moveSourcePeriodLineIds
         : sourceLine.SourcePeriodLineIds__c;
       createdLine.RevenueRecognitionBasis__c = sourceLine.RevenueRecognitionBasis__c;
+      // 仕様: Core 第7.6節・第7.8節。検収終了日は元明細。空の新規行にしない。
+      createdLine.AcceptanceEndDate__c = sourceLine.AcceptanceEndDate__c;
       applyServicePeriodSnapshot(
         createdLine,
         sourceLine,
