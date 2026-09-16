@@ -1688,6 +1688,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     const reasonText = element.shadowRoot.querySelector(
       'lightning-input[data-field="cancellationReasonText"]'
     );
+    expect(reasonText.required).toBe(true);
     reasonText.dispatchEvent(
       new CustomEvent("change", { detail: { value: "   " } })
     );

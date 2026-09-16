@@ -1120,6 +1120,7 @@
                                       data-field="cancellationReasonText"
                                       onchange={handlePaymentCancelDraftChange}
                                       disabled={invoice.paymentCancelBusy}
+                                      required={invoice.paymentCancelReasonTextRequired}
                                     ></lightning-input>
                                     <template
                                       if:true={invoice.paymentCancelRequiresDate}

@@ -3159,6 +3159,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           paymentCancelDateDisplay: cancelDraft?.paymentDate || "",
           paymentCancelReason: cancelDraft?.cancellationReason || "",
           paymentCancelReasonText: cancelDraft?.cancellationReasonText || "",
+          paymentCancelReasonTextRequired:
+            cancelDraft?.cancellationReason === "Other",
           paymentCancelRequiresDate: cancelDraft?.requiresDate === true,
           paymentCancelDate: cancelDraft?.cancelDate || "",
           paymentCancelBusy:
