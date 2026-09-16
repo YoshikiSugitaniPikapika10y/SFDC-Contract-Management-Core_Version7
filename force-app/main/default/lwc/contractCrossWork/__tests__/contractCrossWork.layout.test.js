@@ -188,8 +188,6 @@ describe("contractCrossWork left chrome (共通基盤 第5節)", () => {
       invAccountId: null,
       invDateFrom: "",
       invDateTo: "",
-      invCloseFrom: "",
-      invCloseTo: "",
       invIncludeCancelled: false,
       invSent: "",
       invIssued: "",

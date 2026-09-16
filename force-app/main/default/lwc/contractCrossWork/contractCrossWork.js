@@ -337,8 +337,6 @@ export default class ContractCrossWork extends NavigationMixin(
   invAccountId = null;
   invDateFrom = "";
   invDateTo = "";
-  invCloseFrom = "";
-  invCloseTo = "";
   invIncludeCancelled = false;
   invSent = "";
   invIssued = "";
@@ -1011,7 +1009,6 @@ export default class ContractCrossWork extends NavigationMixin(
       pushLookup("invBa", "請求アカウント", this.invBillingAccountId);
       pushLookup("invAccount", "取引先", this.invAccountId);
       pushRange("invDate", "請求日", this.invDateFrom, this.invDateTo);
-      pushRange("invClose", "完了予定日", this.invCloseFrom, this.invCloseTo);
       if (this.invIncludeCancelled === true) {
         items.push({ key: "invCancelled", text: "取消済みを含める" });
       }
@@ -1224,8 +1221,6 @@ export default class ContractCrossWork extends NavigationMixin(
       accountId: this.invAccountId,
       invoiceDateFrom: this.invDateFrom || null,
       invoiceDateTo: this.invDateTo || null,
-      closeDateFrom: this.invCloseFrom || null,
-      closeDateTo: this.invCloseTo || null,
       includeCancelled: this.invIncludeCancelled === true,
       sent: this.showInvoiceSendFilter ? triBoolean(this.invSent) : null,
       issued: this.showInvoiceIssueFilter ? triBoolean(this.invIssued) : null,

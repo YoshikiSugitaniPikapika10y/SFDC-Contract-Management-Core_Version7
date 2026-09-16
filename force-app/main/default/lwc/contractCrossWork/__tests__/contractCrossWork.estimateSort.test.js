@@ -767,8 +767,6 @@ describe("contractCrossWork send mode columns (横断画面.md 第1節、Core �
       invAccountId: null,
       invDateFrom: "",
       invDateTo: "",
-      invCloseFrom: "",
-      invCloseTo: "",
       invIncludeCancelled: false,
       invSent: "true",
       invIssued: "true",

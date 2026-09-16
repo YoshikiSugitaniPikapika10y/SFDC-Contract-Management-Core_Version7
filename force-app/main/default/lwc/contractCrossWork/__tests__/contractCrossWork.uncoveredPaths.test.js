@@ -234,8 +234,6 @@ function bind(overrides = {}) {
     invAccountId: null,
     invDateFrom: "",
     invDateTo: "",
-    invCloseFrom: "",
-    invCloseTo: "",
     invIncludeCancelled: false,
     invSent: "",
     invIssued: "",
@@ -569,6 +567,8 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     const invoiceFilter = inv.invoiceFilter();
     expect(invoiceFilter.sent).toBe(null);
     expect(invoiceFilter.issued).toBe(true);
+    expect(invoiceFilter.closeDateFrom).toBeUndefined();
+    expect(invoiceFilter.closeDateTo).toBeUndefined();
     expect(invoiceFilter.tagFilters).toEqual([
       { fieldApiName: "Tag__c", state: "True" }
     ]);

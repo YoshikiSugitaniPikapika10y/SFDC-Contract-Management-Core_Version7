@@ -104,10 +104,6 @@ public without sharing class ContractCrossController {
     @AuraEnabled
     public Date invoiceDateTo { get; set; }
     @AuraEnabled
-    public Date closeDateFrom { get; set; }
-    @AuraEnabled
-    public Date closeDateTo { get; set; }
-    @AuraEnabled
     public Boolean includeCancelled { get; set; }
     @AuraEnabled
     public Boolean sent { get; set; }

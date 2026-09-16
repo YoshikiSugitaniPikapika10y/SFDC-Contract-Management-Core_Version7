@@ -267,8 +267,6 @@ public with sharing class ContractCrossQueryService {
     }
     Date invoiceFrom = filter.invoiceDateFrom;
     Date invoiceTo = filter.invoiceDateTo;
-    Date closeFrom = filter.closeDateFrom;
-    Date closeTo = filter.closeDateTo;
     Date nextFrom = filter.nextAcceptanceFrom;
     Date nextTo = filter.nextAcceptanceTo;
     // 仕様: 横断画面.md 第5節。FROM・TOは空の請求日を消さない。
@@ -277,12 +275,6 @@ public with sharing class ContractCrossQueryService {
     }
     if (invoiceTo != null) {
       soql += ' AND (InvoiceDate__c = null OR InvoiceDate__c <= :invoiceTo)';
-    }
-    if (closeFrom != null) {
-      soql += ' AND ContractHistory__r.Opportunity__r.CloseDate >= :closeFrom';
-    }
-    if (closeTo != null) {
-      soql += ' AND ContractHistory__r.Opportunity__r.CloseDate <= :closeTo';
     }
     if (filter.sent == true) {
       soql += ' AND DeliveryStatus__c = \'Sent\'';
