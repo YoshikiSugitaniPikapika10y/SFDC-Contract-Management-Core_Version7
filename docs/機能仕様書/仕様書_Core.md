@@ -421,7 +421,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 
 ### 3.1 商品
 
-契約で選択できるのは契約利用可能に設定された商品だけである。利用可能にする商品には、課金形態、請求設定、参考単価、単位および売上計上基準を設定する。一回課金に月次分割は設定できない。商品マスタの売上計上基準はAccounting ON/OFFを問わず必須とする。見積ウィザードと請求ボードへの表示は第4.5.2節・第7.6節に従う。
+契約で選択できるのは契約利用可能に設定された商品だけである。利用可能にする商品には、課金形態、請求設定、参考単価、単位および売上計上基準を設定する。一回課金に月次分割は設定できない。商品マスタの売上計上基準はAccounting ON/OFFを問わず必須とする。帳票表示順は任意である。明細への写しと並びは第4.5.3節に従う。見積ウィザードと請求ボードへの表示は第4.5.2節・第7.6節に従う。
 
 - 商品マスタ値は見積商品の初期値であり、保存後の見積商品は契約条件のスナップショットである。
 - 見積商品の課金形態は必須とし、保存後はその値を正とする。未設定時に商品マスタへフォールバックせず、エラーにする。
@@ -434,6 +434,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 <strong style="color:#1a5276;">ToBe</strong>
 リストビュー 表示名「契約管理で利用可」。フィルタ <code>AvailableForContract__c = true</code>。列は名前、商品コード、有効、課金形態、請求設定、参考単価、単位、売上計上基準、<code>IncludeInARR__c</code>。<code>RevenueCategory__c</code>は出さない。「すべての商品」は残す。
 レコードページは標準。プレビューボタンは持たない。保存は標準。
+項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>Product2.DocumentSortOrder__c</code>（表示名 帳票表示順。任意。整数。小さいほど上。同じ番号は許す。小数は持たない）。明細への写しと並びは第4.5.3節。
 </div>
 
 ### 3.2 取引先
@@ -1124,6 +1125,26 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 
 **実装仕様（開発者向け）:** `ContractProduct__c.Account__c`はTriggerで設定する。
 
+#### 4.5.3 帳票表示順
+
+商品、契約商品、請求明細は、整数の帳票表示順を任意で持つ。小数は持たない。同じ番号は許す。小さいほど上である。空の商品は空のまま明細へ書き、番号がある商品のうしろに置く。手動の並べ替えと番号の手入力は持たない。
+
+契約商品と請求明細は、挿入の直前に、番号が空の行だけ書く。更新では書かない。すでに番号がある行は上書きしない。契約商品は商品の帳票表示順を書く。請求明細は元の契約商品の番号をコピーする。請求明細は見積明細の番号を引き継ぎ、請求側の並べ替えは持たない。分割と移動で増える行も同じ挿入である。すでに保存されている契約商品と請求明細は埋め戻さない。空のまま並べる。
+
+画面と標準帳票の明細順は次である。帳票表示順。同じなら、変更前の次が変更後。この段は、その区分がある契約商品だけ使う。請求明細と、Type=New および Renew の契約商品はこの段を飛ばし、番号の次が開始日である。同じなら開始日が古いほう。開始日が空の行は、日付がある行の下。請求明細の開始日は、その行自身の期間開始である。開始日まで同じときは、その明細自身の番号が小さいほうを上にする。
+
+この順を出すのは、見積ウィザード Step2、契約横断の見積書タイルの見積商品テーブル、契約横断の請求書タイル、請求ボードの明細、標準の見積書、標準の請求書である。税の配分、入金の配分、仕訳の並びは変えない。
+
+帳票単位で番号を切り替えることはパッケージの範囲外である。契約商品へカスタム項目を足し、自分で入力し、VFコントローラでそちらを優先するのは導入先のカスタマイズであり、パッケージは保証しない。
+
+<div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
+<strong style="color:#1a5276;">ToBe</strong>
+項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>Product2.DocumentSortOrder__c</code>、<code>ContractProduct__c.DocumentSortOrder__c</code>、<code>InvoiceLine__c.DocumentSortOrder__c</code>（表示名 帳票表示順。任意。整数）。
+手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>DocumentSortOrderService.fillContractProducts</code> / <code>fillInvoiceLines</code> / <code>sortContractProducts</code> / <code>sortInvoiceLines</code>。
+／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractProductTrigger</code> の before insert だけが <code>fillContractProducts</code> を呼ぶ。before update では呼ばない。<code>InvoiceLineTrigger</code> の before insert だけが <code>fillInvoiceLines</code> を呼ぶ。
+並びの適用は <code>EstimateQueryService.queryCopyProducts</code>、<code>estimateCreateModal3</code>、<code>EstimateDocumentService</code>、<code>InvoiceDocumentService</code>、<code>ContractCrossQueryService</code>、<code>OrderCreateController.getInvoicePreview</code>。税の配分、入金の配分、仕訳の並びは対象外。
+</div>
+
 ### 4.6 金額・税率・端数
 
 数量と単価、税抜金額、税額の丸め方式は第11.9節の会社設定を使う。シードの初期値は数量・単価が小数第2位の四捨五入、税抜が整数円の四捨五入、税額が0方向切捨てである。`OrgDefault`が無い、または方式が空なら既定へ落とさずエラーにする。Accounting ON/OFFを問わず同じ設定を使う。
@@ -1163,6 +1184,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 
 ### 4.8 見積書の生成・送付
 
+- 見積書PDFの明細順は第4.5.3節である。
 - 見積書を発行できるのはEstimateだけである。Changeでは課金イベントのない系統を掲載しない。見積書設定が`PDFのみ`または`PDFとメール送付`で、発行権限があればPDFを作れる。`使わない`なら発行しない。請求書のPDF発行は請求書設定に従う。発行専用の別スイッチは持たない。
 - 合計は見積商品の保存金額合計を使い、税抜合計へ税率を1回適用する。この税込は見積書の表示であり、後続の請求税込合計と一致することを求めない。第7.9.1節。
 - 発行PDFは契約履歴へ新しいファイルとして保存する。発行したファイルと、送付で「新しく発行する」を選んで作ったファイルには印を付ける。印は`ContentVersion.ContractDocumentIssued__c`である。Setup の表示名は契約帳票発行。付けるのはその insert だけである。手アップロードには付けない。過去ファイルは印なしのまま。バックフィルしない。画面・API・Data Loader で印を付け外ししない。発行操作で見積日、発行日、有効期限を自動設定しない。見積PDF本文の日付も保存値だけを印字する。見積日も発行日も空なら日付行は空のまま出す。今日で埋めない。ファイル名の`{yyyyMMdd}`だけ第11.3.2節どおり発行日未設定なら今日とする。保存したファイルの一覧と手アップロードは契約履歴レコードの標準Filesとする。専用の一覧LWCは持たない。拡張子制限もパッケージでは持たない。個別発行の連打と同時発行は第7.10節。操作キーは置かない。
@@ -1748,7 +1770,7 @@ Accountingは算出済みの請求日を仕訳計上日と時系列残高解決�
 
 フィルタは親子2段とする。親がVersion、子が請求書である。親の候補は「全Version」と、請求書が1件以上ある受注済みVersion（ラベルは第0.1節どおり `VersionN`）。請求書の無い受注済みVersionは親候補に出さない。子の候補は、親で選んだVersionに属する請求書だけとする。親を「全Version」にしたときは、その契約サービスのうち請求書がある全受注済みVersionの請求書を候補にする。親を変えたときは、子を「全請求書」へ戻す。ただし起動時に請求書を指定した場合は、その請求書のVersionと請求書を初期値にする。利用者が変えたフィルタは、保存・再取得のあとでも維持する。開いたままのボードと横断の右タイルでは、保存成功・版不一致の読み直し・処理中の取り直しのあと、同じ請求の同じタブへ戻す。タブが無ければ明細。編集パネル・行トグル・スクロール・未保存ドラフトは戻さない。処理中の枠は別論点である。
 
-Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する。請求書フィルタは`Invoice__c.Id`で判定する。選択に一致する請求カードを配下明細ごと表示し、明細単位では間引かない。金額は常に請求書ヘッダーの正本金額を使用する。明細表の Version 列のセルは番号だけを出す（`1`）。`Version1` も `V1` も出さない。フィルタの選択肢は第0.1節どおり「全Version」と請求書がある Version の `VersionN` とする。列ラベルは「版」。
+Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する。請求書フィルタは`Invoice__c.Id`で判定する。選択に一致する請求カードを配下明細ごと表示し、明細単位では間引かない。明細の行順は第4.5.3節である。請求明細の開始日は、その行自身の期間開始である。標準の請求書PDFの明細順も第4.5.3節である。金額は常に請求書ヘッダーの正本金額を使用する。明細表の Version 列のセルは番号だけを出す（`1`）。`Version1` も `V1` も出さない。フィルタの選択肢は第0.1節どおり「全Version」と請求書がある Version の `VersionN` とする。列ラベルは「版」。
 
 | 開いた場所   | 初期の親（Version）             | 初期の子（請求書） |
 | ------------ | ------------------------------- | ------------------ |
