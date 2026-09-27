@@ -180,6 +180,9 @@ public without sharing class EstimateDocumentService {
           CurrentTermStartDate__c,
           CurrentTermEndDate__c,
           DeltaAmountSum__c,
+          TaxPercent__c,
+          TaxAmount__c,
+          DeltaTaxInclusiveSum__c,
           EstimateNoteMaster__r.NoteText__c,
           Opportunity__c,
           Opportunity__r.Name,
@@ -209,25 +212,8 @@ public without sharing class EstimateDocumentService {
     context.companyRegistrationNumber = '';
     context.lines = loadLines(contractHistoryId, context.history.Type__c);
     context.lineTotal = resolveLineTotal(context.history, context.lines);
-    // Percent 項目の Apex 値（0.1＝10%）を表示％へ戻してから正規化する。未入力は 0%。
-    context.taxPercent = TaxCalculationUtil.resolveTaxPercent(
-      TaxCalculationUtil.fromPercentFieldStorage(
-        context.history.ContractService__r == null
-          ? null
-          : context.history.ContractService__r.TaxPercent__c
-      )
-    );
-    context.taxAmount = TaxCalculationUtil.calculateTaxAmount(
-      context.lineTotal,
-      context.taxPercent
-    );
-    context.lineTotalInclTax = TaxCalculationUtil.calculateAmountInclTax(
-      context.lineTotal,
-      context.taxPercent
-    );
-    context.taxPercentLabel = TaxCalculationUtil.formatTaxPercentLabel(
-      context.taxPercent
-    );
+    // 仕様: Core 第4.6節、第4.8節。保存値を読む。3つが空の過去履歴だけ、出すときに契約サービスの税率で1回計算する。
+    applyDocumentTax(context);
     context.addresseeName = resolveAddresseeName(context.history);
     context.accountName = resolveAccountName(context.history);
     context.masterNoteText = context.history.EstimateNoteMaster__r == null
@@ -363,6 +349,9 @@ public without sharing class EstimateDocumentService {
         CurrentTermStartDate__c,
         CurrentTermEndDate__c,
         DeltaAmountSum__c,
+        TaxPercent__c,
+        TaxAmount__c,
+        DeltaTaxInclusiveSum__c,
         EstimateNoteMaster__r.NoteText__c,
         Opportunity__c,
         Opportunity__r.Name,
@@ -792,6 +781,41 @@ public without sharing class EstimateDocumentService {
     return calculatedAmount == null ? 0 : calculatedAmount;
   }
 
+  /** 仕様: Core 第4.6節、第4.8節。保存済みの税率・税額・税込を読む。3つが空のときだけ契約サービスの税率で1回計算する。 */
+  private static void applyDocumentTax(DocumentContext context) {
+    ContractHistory__c history = context.history;
+    Boolean savedEmpty =
+      history.TaxPercent__c == null &&
+      history.TaxAmount__c == null &&
+      history.DeltaTaxInclusiveSum__c == null;
+    if (savedEmpty) {
+      context.taxPercent = TaxCalculationUtil.resolveTaxPercent(
+        TaxCalculationUtil.fromPercentFieldStorage(
+          history.ContractService__r == null
+            ? null
+            : history.ContractService__r.TaxPercent__c
+        )
+      );
+      context.taxAmount = TaxCalculationUtil.calculateTaxAmount(
+        context.lineTotal,
+        context.taxPercent
+      );
+      context.lineTotalInclTax = TaxCalculationUtil.calculateAmountInclTax(
+        context.lineTotal,
+        context.taxPercent
+      );
+    } else {
+      context.taxPercent = TaxCalculationUtil.resolveTaxPercent(
+        TaxCalculationUtil.fromPercentFieldStorage(history.TaxPercent__c)
+      );
+      context.taxAmount = history.TaxAmount__c;
+      context.lineTotalInclTax = history.DeltaTaxInclusiveSum__c;
+    }
+    context.taxPercentLabel = TaxCalculationUtil.formatTaxPercentLabel(
+      context.taxPercent
+    );
+  }
+
   private static Decimal resolveLineTotal(
     ContractHistory__c history,
     List<LineDto> lines
@@ -1008,10 +1032,8 @@ public without sharing class EstimateDocumentService {
     allGroups.addAll(context.otherGroups);
 
     Decimal grandExcl = sumGroupExcl(allGroups);
-    Decimal grandTax = TaxCalculationUtil.calculateTaxAmount(
-      grandExcl,
-      context.taxPercent
-    );
+    // 仕様: Core 第4.8節。グループへ配る総額の税は、見出しと同じ保存税額。
+    Decimal grandTax = context.taxAmount;
     allocateGrandTaxToGroups(allGroups, grandExcl, grandTax);
 
     context.digitalTotalIncTax = sumGroupTotalIncTax(context.digitalGroups);
@@ -1020,11 +1042,8 @@ public without sharing class EstimateDocumentService {
     );
     context.trainingTotalIncTax = sumGroupTotalIncTax(context.trainingGroups);
     context.otherTotalIncTax = sumGroupTotalIncTax(context.otherGroups);
-    context.totalAmount = grandExcl + grandTax;
-    // PDF 御見積と loadContext 側の税込正本を揃える（掲載明細ベース）。
-    context.lineTotal = grandExcl;
-    context.taxAmount = grandTax;
-    context.lineTotalInclTax = context.totalAmount;
+    // 仕様: Core 第4.8節。御見積の合計は保存した税込。掲載明細の再計算では置き換えない。
+    context.totalAmount = context.lineTotalInclTax;
   }
 
   private static Decimal sumGroupExcl(List<GroupDto> groups) {
@@ -1272,14 +1291,16 @@ public without sharing class EstimateDocumentService {
     // 仕様: Core 第11.3.1節・第4.8節。帳票フッターとプライバシーポリシーURLは空でなければ出す。定数で埋めない。
     text.documentFooter = orgDocumentText(orgSetting.DocumentFooter__c);
     text.privacyPolicyUrl = orgDocumentText(orgSetting.PrivacyPolicyUrl__c);
+    Decimal rateForText = history == null ? null : history.TaxPercent__c;
     if (
+      rateForText == null &&
       history != null &&
-      history.ContractService__r != null &&
-      history.ContractService__r.TaxPercent__c != null
+      history.ContractService__r != null
     ) {
-      text.tax = TaxCalculationUtil.fromPercentFieldStorage(
-        history.ContractService__r.TaxPercent__c
-      );
+      rateForText = history.ContractService__r.TaxPercent__c;
+    }
+    if (rateForText != null) {
+      text.tax = TaxCalculationUtil.fromPercentFieldStorage(rateForText);
     }
     return text;
   }

@@ -50,6 +50,99 @@ private class EstimateDocumentServiceTest {
   }
 
   @IsTest
+  static void loadContext_readsSavedTaxAndFallsBackOnlyWhenEmpty() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      Id serviceId = [
+        SELECT ContractService__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ]
+      .ContractService__c;
+      List<ContractProduct__c> products = [
+        SELECT Amount__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :fixture.history.Id
+      ];
+      EstimateSaveService.writeEstimateTaxSnapshot(
+        fixture.history,
+        serviceId,
+        products
+      );
+      ContractHistory__c stored = [
+        SELECT TaxPercent__c, TaxAmount__c, DeltaTaxInclusiveSum__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
+      System.assertEquals(
+        10,
+        TaxCalculationUtil.fromPercentFieldStorage(stored.TaxPercent__c)
+      );
+      System.assertEquals(14400, stored.TaxAmount__c);
+      System.assertEquals(158400, stored.DeltaTaxInclusiveSum__c);
+
+      update new ContractService__c(
+        Id = serviceId,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(8)
+      );
+      EstimateDocumentService.DocumentContext saved = EstimateDocumentService.loadContext(
+        fixture.history.Id
+      );
+      System.assertEquals(10, saved.taxPercent);
+      System.assertEquals(14400, saved.taxAmount);
+      System.assertEquals(158400, saved.lineTotalInclTax);
+
+      update new ContractHistory__c(
+        Id = fixture.history.Id,
+        TaxPercent__c = null,
+        TaxAmount__c = null,
+        DeltaTaxInclusiveSum__c = null
+      );
+      EstimateDocumentService.DocumentContext fallback = EstimateDocumentService.loadContext(
+        fixture.history.Id
+      );
+      System.assertEquals(8, fallback.taxPercent);
+      System.assertEquals(11520, fallback.taxAmount);
+      System.assertEquals(155520, fallback.lineTotalInclTax);
+
+      update new ContractService__c(
+        Id = serviceId,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(0)
+      );
+      EstimateSaveService.writeEstimateTaxSnapshot(
+        fixture.history,
+        serviceId,
+        products
+      );
+      ContractHistory__c zero = [
+        SELECT TaxPercent__c, TaxAmount__c, DeltaTaxInclusiveSum__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
+      System.assertEquals(
+        0,
+        TaxCalculationUtil.fromPercentFieldStorage(zero.TaxPercent__c)
+      );
+      System.assertEquals(0, zero.TaxAmount__c);
+      System.assertEquals(144000, zero.DeltaTaxInclusiveSum__c);
+
+      update new ContractService__c(Id = serviceId, TaxPercent__c = null);
+      Boolean thrown = false;
+      try {
+        EstimateSaveService.writeEstimateTaxSnapshot(
+          fixture.history,
+          serviceId,
+          products
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals('消費税率が空です。', ex.getMessage());
+      }
+      System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
   static void loadContext_nullTaxPercent_isZeroPercent() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();

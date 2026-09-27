@@ -1559,7 +1559,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (excl === 0) {
       return 0;
     }
-    // 仕様: Core 第11.9節、第1.1.10節。DOWN / HALF_UP / UP。無い・空・未知は 0方向へ落とさない。
+    // 仕様: Core 第4.6節、第11.9節。税抜合計へ税率を1回。行ごとの税は足さない。
     return this.roundTaxRaw((excl * taxPercent) / 100);
   }
 

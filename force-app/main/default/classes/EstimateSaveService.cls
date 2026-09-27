@@ -752,6 +752,7 @@ public without sharing class EstimateSaveService {
       request,
       existing.ContractHistoryContractProducts__r
     );
+    writeEstimateTaxSnapshot(existing, serviceId, replaced);
     return buildSaveResult(serviceId, existing, replaced);
   }
 
@@ -812,6 +813,7 @@ public without sharing class EstimateSaveService {
       request,
       existing.ContractHistoryContractProducts__r
     );
+    writeEstimateTaxSnapshot(existing, serviceId, replaced);
     return buildSaveResult(serviceId, existing, replaced);
   }
 
@@ -848,6 +850,7 @@ public without sharing class EstimateSaveService {
       request,
       existing.ContractHistoryContractProducts__r
     );
+    writeEstimateTaxSnapshot(existing, serviceId, replaced);
     return buildSaveResult(
       existing.ContractService__c,
       existing,
@@ -1045,6 +1048,7 @@ public without sharing class EstimateSaveService {
     );
     SystemContextAccess.insertRecords(newProducts);
     ContractArrCalculationService.rememberProductsForRecalc(newProducts);
+    writeEstimateTaxSnapshot(contractHistory, contractService.Id, newProducts);
 
     return buildSaveResult(
       contractService.Id,
@@ -1115,6 +1119,11 @@ public without sharing class EstimateSaveService {
     );
     SystemContextAccess.insertRecords(changeProducts);
     ContractArrCalculationService.rememberProductsForRecalc(changeProducts);
+    writeEstimateTaxSnapshot(
+      contractHistory,
+      request.contractServiceId,
+      changeProducts
+    );
 
     return buildSaveResult(
       request.contractServiceId,
@@ -1181,6 +1190,11 @@ public without sharing class EstimateSaveService {
     ContractArrCalculationService.rememberEmptyProductsForRecalc(
       contractHistory.Id
     );
+    writeEstimateTaxSnapshot(
+      contractHistory,
+      request.contractServiceId,
+      new List<ContractProduct__c>()
+    );
 
     applyDisplayedServiceCustomFields(request.contractServiceId, request);
 
@@ -1189,6 +1203,71 @@ public without sharing class EstimateSaveService {
       contractHistory,
       new List<ContractProduct__c>()
     );
+  }
+
+  /**
+   * 仕様: Core 第4.6節。見積保存だけが税率・税額・税込を書く。行ごとの税は足さない。
+   * 受注と契約サービスの編集では呼ばない。
+   */
+  @TestVisible
+  private static void writeEstimateTaxSnapshot(
+    ContractHistory__c history,
+    Id serviceId,
+    List<ContractProduct__c> products
+  ) {
+    if (history == null || history.Id == null || serviceId == null) {
+      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+    }
+    List<ContractService__c> services = [
+      SELECT TaxPercent__c
+      FROM ContractService__c
+      WHERE Id = :serviceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (services.isEmpty()) {
+      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+    }
+    Decimal excl = sumSavedProductAmounts(products);
+    Decimal displayPercent = TaxCalculationUtil.fromPercentFieldStorage(
+      services[0].TaxPercent__c
+    );
+    Decimal storedPercent;
+    Decimal taxAmount;
+    try {
+      storedPercent = TaxCalculationUtil.toPercentFieldStorage(displayPercent);
+      taxAmount = TaxCalculationUtil.calculateTaxAmount(excl, displayPercent);
+    } catch (TaxCalculationUtil.TaxPercentException ex) {
+      throw EstimateValidationService.wrapAura(ex.getMessage());
+    }
+    history.TaxPercent__c = storedPercent;
+    history.TaxAmount__c = taxAmount;
+    history.DeltaTaxInclusiveSum__c = excl + taxAmount;
+    SystemContextAccess.updateRecords(
+      new List<SObject>{
+        new ContractHistory__c(
+          Id = history.Id,
+          TaxPercent__c = storedPercent,
+          TaxAmount__c = taxAmount,
+          DeltaTaxInclusiveSum__c = history.DeltaTaxInclusiveSum__c
+        )
+      }
+    );
+  }
+
+  private static Decimal sumSavedProductAmounts(
+    List<ContractProduct__c> products
+  ) {
+    Decimal total = 0;
+    if (products == null) {
+      return total;
+    }
+    for (ContractProduct__c product : products) {
+      if (product != null && product.Amount__c != null) {
+        total += product.Amount__c;
+      }
+    }
+    return total;
   }
 
   /**

@@ -108,7 +108,9 @@ public without sharing class FieldCopyDefinitionService {
       'DeltaARR__c',
       'DeltaAveARR__c',
       'DeltaAmountSum__c',
-      'DeltaTaxInclusiveSum__c'
+      'DeltaTaxInclusiveSum__c',
+      'TaxPercent__c',
+      'TaxAmount__c'
     },
     'InvoiceProduct__c' => new Set<String>(),
     'Invoice__c' => new Set<String>{
