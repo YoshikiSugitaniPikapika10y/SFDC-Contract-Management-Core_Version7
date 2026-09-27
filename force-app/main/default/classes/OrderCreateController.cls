@@ -4417,7 +4417,7 @@ public without sharing class OrderCreateController {
     String soql =
       'SELECT ' +
       String.join(new List<String>(selectFields), ',') +
-      ', (SELECT Id, LineMergeKey__c, ProductName__c, HistoryVersionLabel__c, Unit__c, UnitPrice__c, Quantity__c, PeriodLabel__c, Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c, SourcePeriodLineIds__c, Invoice__c, AcceptanceEndDate__c, RevenueRecognitionBasis__c, ContractProduct__c, ContractProduct__r.Amount__c, ContractProduct__r.Unit__c, ContractProduct__r.BillingType__c, ContractProduct__r.ContractHistory__c, ContractProduct__r.StartDate__c, ContractProduct__r.Enddate__c FROM InvoiceLines__r ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC)' +
+      ', (SELECT Id, Name, LineMergeKey__c, ProductName__c, HistoryVersionLabel__c, Unit__c, UnitPrice__c, Quantity__c, PeriodLabel__c, Amount__c, IsManuallyAdjusted__c, IsAmountAdjusted__c, IsSplitMoved__c, SourcePeriodLineIds__c, Invoice__c, AcceptanceEndDate__c, RevenueRecognitionBasis__c, DocumentSortOrder__c, ServicePeriodStartDate__c, ContractProduct__c, ContractProduct__r.Amount__c, ContractProduct__r.Unit__c, ContractProduct__r.BillingType__c, ContractProduct__r.ContractHistory__c, ContractProduct__r.StartDate__c, ContractProduct__r.Enddate__c FROM InvoiceLines__r ORDER BY ProductName__c ASC NULLS LAST, CreatedDate ASC)' +
       ' FROM Invoice__c WHERE ContractService__c = :contractServiceId' +
       excludeClause +
       ' WITH SYSTEM_MODE ORDER BY InvoiceDate__c ASC NULLS LAST, CreatedDate ASC';
@@ -4615,7 +4615,11 @@ public without sharing class OrderCreateController {
       }
 
       if (invoiceRecord.InvoiceLines__r != null) {
-        for (InvoiceLine__c lineRecord : invoiceRecord.InvoiceLines__r) {
+        List<InvoiceLine__c> sortedLines = new List<InvoiceLine__c>();
+        sortedLines.addAll(invoiceRecord.InvoiceLines__r);
+        // 仕様: Core 第4.5.3節、第7.7.0節
+        DocumentSortOrderService.sortInvoiceLines(sortedLines);
+        for (InvoiceLine__c lineRecord : sortedLines) {
           InvoiceMergedLineDto line = new InvoiceMergedLineDto();
           line.lineId = lineRecord.Id;
           line.lineMergeKey = lineRecord.LineMergeKey__c;

@@ -1,4 +1,8 @@
 trigger ContractProductTrigger on ContractProduct__c (before insert, before update, after insert, after update, after delete, after undelete) {
+    if (Trigger.isBefore && Trigger.isInsert) {
+        // 仕様: Core 第4.5.3節。更新では書かない。
+        DocumentSortOrderService.fillContractProducts(Trigger.new);
+    }
     if (Trigger.isBefore && (Trigger.isInsert || Trigger.isUpdate)) {
         ContractProductTriggerHandler.handleBeforeInsertOrUpdate(Trigger.new);
     }

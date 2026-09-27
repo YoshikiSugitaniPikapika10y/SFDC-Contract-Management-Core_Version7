@@ -696,6 +696,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
+        <field>ContractProduct__c.DocumentSortOrder__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
         <field>ContractProduct__c.Type__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -1097,6 +1102,11 @@
     <fieldPermissions>
         <editable>false</editable>
         <field>InvoiceLine__c.ServicePeriodStartDate__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>InvoiceLine__c.DocumentSortOrder__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -1582,6 +1592,11 @@
     <fieldPermissions>
         <editable>false</editable>
         <field>Product2.AvailableForContract__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Product2.DocumentSortOrder__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

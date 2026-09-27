@@ -7,6 +7,8 @@ trigger InvoiceLineTrigger on InvoiceLine__c(
 ) {
   if (Trigger.isBefore && Trigger.isInsert) {
     InvoiceFieldCopyTriggerHandler.handleInvoiceLineBeforeInsert(Trigger.new);
+    // 仕様: Core 第4.5.3節。更新では書かない。すでに番号がある行は上書きしない。
+    DocumentSortOrderService.fillInvoiceLines(Trigger.new);
   }
   if (Trigger.isBefore && (Trigger.isInsert || Trigger.isUpdate)) {
     InvoiceCanonicalService.applyRecognitionBucketCount(Trigger.new, Trigger.oldMap);

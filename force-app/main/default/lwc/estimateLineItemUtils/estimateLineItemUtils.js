@@ -110,6 +110,92 @@ export const LEGACY_PRODUCT_TYPE_DERIVATIVE = "derivative";
 
 export const PRODUCT_TYPE_NEW = "New";
 
+// 仕様: Core 第4.5.3節
+export function compareDocumentSortLines(left, right) {
+  const orderCompare = compareBlankLastNumber(
+    left && left.documentSortOrder,
+    right && right.documentSortOrder
+  );
+  if (orderCompare !== 0) {
+    return orderCompare;
+  }
+  const typeCompare = compareOriginalBeforeRemake(left, right);
+  if (typeCompare !== 0) {
+    return typeCompare;
+  }
+  const startCompare = compareBlankLastText(
+    left && left.startDate,
+    right && right.startDate
+  );
+  if (startCompare !== 0) {
+    return startCompare;
+  }
+  return compareBlankLastText(lineNumberOf(left), lineNumberOf(right));
+}
+
+function lineNumberOf(row) {
+  if (!row) {
+    return "";
+  }
+  return row.lineName || row.name || "";
+}
+
+function compareBlankLastNumber(left, right) {
+  const leftBlank = left === null || left === undefined || left === "";
+  const rightBlank = right === null || right === undefined || right === "";
+  if (leftBlank && rightBlank) {
+    return 0;
+  }
+  if (leftBlank) {
+    return 1;
+  }
+  if (rightBlank) {
+    return -1;
+  }
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (leftNumber === rightNumber) {
+    return 0;
+  }
+  return leftNumber < rightNumber ? -1 : 1;
+}
+
+function compareBlankLastText(left, right) {
+  const leftText = left == null ? "" : String(left);
+  const rightText = right == null ? "" : String(right);
+  if (!leftText && !rightText) {
+    return 0;
+  }
+  if (!leftText) {
+    return 1;
+  }
+  if (!rightText) {
+    return -1;
+  }
+  if (leftText === rightText) {
+    return 0;
+  }
+  return leftText < rightText ? -1 : 1;
+}
+
+function compareOriginalBeforeRemake(left, right) {
+  const leftType = normalizeProductRecordType(left && left.recordType);
+  const rightType = normalizeProductRecordType(right && right.recordType);
+  const leftPair =
+    leftType === PRODUCT_TYPE_ORIGINAL || leftType === PRODUCT_TYPE_REMAKE;
+  const rightPair =
+    rightType === PRODUCT_TYPE_ORIGINAL || rightType === PRODUCT_TYPE_REMAKE;
+  if (!leftPair || !rightPair) {
+    return 0;
+  }
+  const leftRank = leftType === PRODUCT_TYPE_ORIGINAL ? 0 : 1;
+  const rightRank = rightType === PRODUCT_TYPE_ORIGINAL ? 0 : 1;
+  if (leftRank === rightRank) {
+    return 0;
+  }
+  return leftRank < rightRank ? -1 : 1;
+}
+
 export function normalizeProductRecordType(recordType) {
   if (!recordType) {
     return PRODUCT_TYPE_NEW;

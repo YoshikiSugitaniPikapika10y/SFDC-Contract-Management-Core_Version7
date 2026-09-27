@@ -49,6 +49,7 @@ import {
   isBillingTypeLockedLine,
   resolveProductTypeBadge,
   isChangeContinuationLine,
+  compareDocumentSortLines,
   canDuplicateProductLine,
   getEarliestChangeBillingThresholdDate,
   formatCurrencyNumber,
@@ -844,7 +845,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   get displayItemList() {
     let rows;
     if (!this.isChangeType) {
-      rows = this.itemList;
+      rows = [...this.itemList].sort(compareDocumentSortLines);
     } else {
       rows = this.buildChangeDisplayRows();
     }
@@ -883,7 +884,42 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   buildChangeDisplayRows() {
     const rows = [];
-    for (const group of this.changeProductGroups) {
+    const groups = this.changeProductGroups
+      .map((group) => ({
+        ...group,
+        remakeRows: [...group.remakeRows].sort(compareDocumentSortLines)
+      }))
+      .sort((left, right) =>
+        compareDocumentSortLines(left.original, right.original)
+      );
+    const newRows = [...this.changeNewProductRows].sort(
+      compareDocumentSortLines
+    );
+    const blocks = [
+      ...groups.map((group) => ({
+        kind: "group",
+        row: group.original,
+        group
+      })),
+      ...newRows.map((row) => ({ kind: "new", row }))
+    ].sort((left, right) => compareDocumentSortLines(left.row, right.row));
+    let newHeaderInserted = false;
+    blocks.forEach((block) => {
+      if (block.kind === "new") {
+        if (!newHeaderInserted) {
+          rows.push(this.changeNewSectionHeader());
+          newHeaderInserted = true;
+        }
+        rows.push({
+          ...block.row,
+          rowContext: "changeNew",
+          canDelete: this.orderedCustomFieldsOnly !== true,
+          changeGroupBoundary: "middle",
+          changeGroupTone: "new"
+        });
+        return;
+      }
+      const group = block.group;
       rows.push({
         id: `group-header-${group.pairId}`,
         isGroupHeader: true,
@@ -895,7 +931,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       rows.push({
         ...group.original,
         rowContext: "changeOriginal",
-        changeGroupBoundary: "start"
+        changeGroupBoundary: group.remakeRows.length === 0 ? "end" : "start"
       });
       group.remakeRows.forEach((remake, index) => {
         rows.push({
@@ -912,15 +948,24 @@ export default class EstimateCreateModal3 extends LightningElement {
             index === group.remakeRows.length - 1 ? "end" : "middle"
         });
       });
-      if (group.remakeRows.length === 0) {
-        const lastOriginal = rows[rows.length - 1];
-        if (lastOriginal) {
-          lastOriginal.changeGroupBoundary = "end";
-        }
-      }
+    });
+    if (!newHeaderInserted) {
+      const header = this.changeNewSectionHeader();
+      header.changeGroupBoundary = "end";
+      rows.push(header);
+    } else {
+      const newDisplays = rows.filter((row) => row.rowContext === "changeNew");
+      newDisplays.forEach((row, index) => {
+        row.changeGroupBoundary =
+          index === newDisplays.length - 1 ? "end" : "middle";
+      });
     }
 
-    rows.push({
+    return rows.map((row) => this.applyChangeGroupBoundaryClass(row));
+  }
+
+  changeNewSectionHeader() {
+    return {
       id: "__new_products_header__",
       rowContext: "newSectionHeader",
       isGroupHeader: true,
@@ -930,26 +975,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         "est-change-group-card__header est-change-group-card__header_new",
       groupHeaderRowClass:
         "est-change-group-header-row est-change-group-header-row_new"
-    });
-
-    const newRows = this.changeNewProductRows;
-    newRows.forEach((row, index) => {
-      rows.push({
-        ...row,
-        rowContext: "changeNew",
-        canDelete: this.orderedCustomFieldsOnly !== true,
-        changeGroupBoundary: index === newRows.length - 1 ? "end" : "middle",
-        changeGroupTone: "new"
-      });
-    });
-    if (newRows.length === 0) {
-      const headerRow = rows[rows.length - 1];
-      if (headerRow) {
-        headerRow.changeGroupBoundary = "end";
-      }
-    }
-
-    return rows.map((row) => this.applyChangeGroupBoundaryClass(row));
+    };
   }
 
   get hasProductCustomFields() {
@@ -3450,6 +3476,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       this.updateRow(rowId, {
         productId: "",
         productName: "",
+        documentSortOrder: null,
         unit: "",
         billingType: "",
         productMasterBillingType: "",
@@ -3531,6 +3558,10 @@ export default class EstimateCreateModal3 extends LightningElement {
         // 仕様: Core 第4.5.2節、第4.3.9節。マスタ単価 null を 0 円に埋めない。
         unitPrice:
           defaults && defaults.unitPrice != null ? defaults.unitPrice : null,
+        documentSortOrder:
+          defaults && defaults.documentSortOrder != null
+            ? defaults.documentSortOrder
+            : null,
         invoiceType,
         // 商品差し替え時は金額入力を解除し、新単価から金額を再計算する
         amountEntryMode: false,

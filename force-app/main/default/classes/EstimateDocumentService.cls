@@ -724,6 +724,8 @@ public without sharing class EstimateDocumentService {
         BillingType__c,
         Type__c,
         Amount__c,
+        Name,
+        DocumentSortOrder__c,
         PreviousContractProduct__c
       FROM ContractProduct__c
       WHERE ContractHistory__c = :contractHistoryId
@@ -734,6 +736,8 @@ public without sharing class EstimateDocumentService {
       historyType,
       products
     );
+    // 仕様: Core 第4.5.3節、第4.8節
+    DocumentSortOrderService.sortContractProducts(products);
 
     List<LineDto> lines = new List<LineDto>();
     for (ContractProduct__c product : products) {

@@ -91,12 +91,16 @@ public without sharing class InvoiceDocumentService {
         Unit__c,
         Quantity__c,
         UnitPrice__c,
-        Amount__c
+        Amount__c,
+        DocumentSortOrder__c,
+        ServicePeriodStartDate__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :invoiceId
       WITH SYSTEM_MODE
       ORDER BY Name ASC
     ];
+    // 仕様: Core 第4.5.3節、第7.7.0節
+    DocumentSortOrderService.sortInvoiceLines(context.lines);
     context.documentSetting = loadDocumentSetting();
     context.addressee = nvl(invoice.BillingAddresseeSnapShot__c);
     context.invoiceDateLabel = formatDisplayDate(invoice.InvoiceDate__c);

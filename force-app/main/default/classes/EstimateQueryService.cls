@@ -851,6 +851,8 @@ public without sharing class EstimateQueryService {
       'RevenueRecognitionBasis__c',
       'Type__c',
       'Amount__c',
+      'Name',
+      'DocumentSortOrder__c',
       'PreviousContractProduct__c'
     };
     for (
@@ -880,6 +882,8 @@ public without sharing class EstimateQueryService {
       ' WITH SYSTEM_MODE' +
       ' ORDER BY Name ASC';
     List<ContractProduct__c> products = Database.query(soql);
+    // 仕様: Core 第4.5.3節
+    DocumentSortOrderService.sortContractProducts(products);
     return products;
   }
 
@@ -970,6 +974,8 @@ public without sharing class EstimateQueryService {
       product
     );
     line.recordType = recordType;
+    line.documentSortOrder = product.DocumentSortOrder__c;
+    line.lineName = product.Name;
     line.typeLabel = resolveCopyTypeLabel(recordType);
     line.isDuplicate = false;
     line.sourceContractProductId = product.PreviousContractProduct__c;
@@ -1159,7 +1165,8 @@ public without sharing class EstimateQueryService {
       'invoicetype__c',
       'BillingType__c',
       'RevenueRecognitionBasis__c',
-      'AvailableForContract__c'
+      'AvailableForContract__c',
+      'DocumentSortOrder__c'
     };
     selectFields.addAll(
       ContractWizardFieldService.getReferencedProduct2FieldApiNames()
@@ -1187,6 +1194,7 @@ public without sharing class EstimateQueryService {
     }
     EstimateCreateController.ProductDefaultDto dto = new EstimateCreateController.ProductDefaultDto();
     dto.productName = product.Name;
+    dto.documentSortOrder = product.DocumentSortOrder__c;
     dto.unitName = product.UnitName__c;
     dto.unitPrice = product.UnitPrice__c;
     dto.invoiceType = ContractMetadataService.resolveInvoiceSettingForBillingType(

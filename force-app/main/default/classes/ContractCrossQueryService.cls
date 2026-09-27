@@ -714,7 +714,7 @@ public with sharing class ContractCrossQueryService {
       history.Id
     );
     Boolean accountingOn = isAccountingEnabled();
-    for (ContractProduct__c product : [
+    List<ContractProduct__c> estimateProducts = [
       SELECT
         Id,
         Type__c,
@@ -727,12 +727,17 @@ public with sharing class ContractCrossQueryService {
         BillingType__c,
         InvoiceSetting__c,
         RevenueRecognitionBasis__c,
-        Amount__c
+        Amount__c,
+        Name,
+        DocumentSortOrder__c
       FROM ContractProduct__c
       WHERE ContractHistory__c = :historyId
       WITH USER_MODE
       ORDER BY StartDate__c ASC NULLS LAST, Product__r.Name ASC
-    ]) {
+    ];
+    // 仕様: Core 第4.5.3節
+    DocumentSortOrderService.sortContractProducts(estimateProducts);
+    for (ContractProduct__c product : estimateProducts) {
       ContractCrossController.EstimateProductDto line = new ContractCrossController.EstimateProductDto();
       line.id = product.Id;
       line.typeValue = product.Type__c;

@@ -32,6 +32,9 @@ public without sharing class EstimateCreateController {
     public String productName;
 
     @AuraEnabled
+    public Decimal documentSortOrder;
+
+    @AuraEnabled
     public Map<String, String> productVisibilityContext;
   }
 
@@ -81,6 +84,12 @@ public without sharing class EstimateCreateController {
 
     @AuraEnabled
     public String typeLabel;
+
+    @AuraEnabled
+    public Decimal documentSortOrder;
+
+    @AuraEnabled
+    public String lineName;
 
     @AuraEnabled
     public Boolean isDuplicate;
