@@ -1,5 +1,7 @@
 import { createElement } from "lwc";
-import EstimateCreateModal3 from "c/estimateCreateModal3";
+import EstimateCreateModal3, {
+  REMARK_MASTER_DISPLAY_INFO
+} from "c/estimateCreateModal3";
 import {
   BILLING_TYPE_ONE_TIME,
   BILLING_TYPE_RECURRING,
@@ -455,6 +457,20 @@ describe("estimateCreateModal3 uncovered paths (Core 0.1 / 4.3.4 / 4.3.5 / 4.5.2
     expect(ctx.estimateRemarkMasterDisplayValue).toBe("—");
     expect(ctx.isRemarksReadonly).toBe(true);
     expect(ctx.isHistoryNameReadonly).toBe(true);
+  });
+
+  it("remark master read does not show the record Id (Core 4.10)", () => {
+    const masterId = "a3fBW000000ZB5RYAW";
+    const ctx = bind({
+      _wizardData: { selectedType: "Change", estimateRemarkMasterId: masterId }
+    });
+    expect(ctx.estimateRemarkMasterId).toBe(masterId);
+    expect(ctx.estimateRemarkMasterDisplayValue).toBe("");
+    expect(ctx.estimateRemarkMasterDisplayValue).not.toBe(masterId);
+    expect(REMARK_MASTER_DISPLAY_INFO.primaryField).toBe("Name");
+    expect(REMARK_MASTER_DISPLAY_INFO.additionalFields || []).not.toContain(
+      "NoteText__c"
+    );
   });
 
   it("amount rounding alert copy mentions 請求ボードで調整 (Core 4.5)", () => {

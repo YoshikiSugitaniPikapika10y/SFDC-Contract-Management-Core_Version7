@@ -1,5 +1,10 @@
 // 仕様: Core 第4.10節、第11.3節
 import { LightningElement, api, track, wire } from "lwc";
+
+// 仕様: Core 第4.10節。見積備考マスタのレコード選択は名前を出す。
+export const REMARK_MASTER_DISPLAY_INFO = {
+  primaryField: "Name"
+};
 import {
   getRecord,
   getFieldValue,
@@ -376,9 +381,8 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
   };
 
-  remarkMasterDisplayInfo = {
-    additionalFields: ["NoteText__c"]
-  };
+  // 仕様: Core 第4.10節。参照先の名前を出す。
+  remarkMasterDisplayInfo = REMARK_MASTER_DISPLAY_INFO;
 
   @wire(getInvoiceSettingOptions)
   wiredInvoiceSettingOptions(result) {
@@ -727,8 +731,9 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this.orderedCustomFieldsOnly === true;
   }
 
+  // 仕様: Core 第4.10節。名前はレコード選択が解決する。Idだけの読取は空にする。
   get estimateRemarkMasterDisplayValue() {
-    return this.estimateRemarkMasterId || "—";
+    return this.estimateRemarkMasterId ? "" : "—";
   }
 
   get showProductTable() {

@@ -1121,7 +1121,15 @@
           <div class="est-field est-field_remark-master">
             <span class="est-label">見積備考マスタ</span>
             <template if:true={isRemarksReadonly}>
-              <div class="est-value">{estimateRemarkMasterDisplayValue}</div>
+              <lightning-record-picker
+                label="見積備考マスタ"
+                object-api-name="EstimateNoteMaster__c"
+                value={estimateRemarkMasterId}
+                variant="label-hidden"
+                display-info={remarkMasterDisplayInfo}
+                disabled
+              >
+              </lightning-record-picker>
             </template>
             <template if:false={isRemarksReadonly}>
               <lightning-record-picker
@@ -1199,7 +1207,15 @@
             <div class="est-field est-field_remark-master">
               <span class="est-label">見積備考マスタ</span>
               <template if:true={isRemarksReadonly}>
-                <div class="est-value">{estimateRemarkMasterDisplayValue}</div>
+                <lightning-record-picker
+                  label="見積備考マスタ"
+                  object-api-name="EstimateNoteMaster__c"
+                  value={estimateRemarkMasterId}
+                  variant="label-hidden"
+                  display-info={remarkMasterDisplayInfo}
+                  disabled
+                >
+                </lightning-record-picker>
               </template>
               <template if:false={isRemarksReadonly}>
                 <lightning-record-picker
