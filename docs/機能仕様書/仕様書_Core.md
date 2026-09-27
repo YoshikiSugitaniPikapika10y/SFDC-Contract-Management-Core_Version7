@@ -2573,6 +2573,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 | 初期値           | 固定値、または商談・取引先・商品から取得した値を設定できる                   |
 
 - 追加項目はすべて見積ウィザードのStep 2に表示し、Step 1には置かない。
+- 参照項目はレコード選択で出す。見せるのは参照先の名前である。保存する値はレコードIdのままである。読取も名前である。名前が取れないときは空のままにし、保存済みのIdは消さない。
 - Cancelでも表示中かつ必須に設定された契約サービスおよび契約履歴の項目は入力を必須とする。
 - 契約サービス・契約履歴の項目は「契約のカスタム項目」、見積商品の項目は各明細の「商品のカスタム項目」に表示する。見積商品の開閉は第4.3.4節のヘッダ1トグル。行別トグルは置かない。
 - 表示中の項目を空欄で保存した場合は既存値をクリアする。
@@ -2595,6 +2596,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 一覧 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateWizardField__mdt</code> の種別の行一覧。列は表示ラベル、有効、対象、出す版、並び順、DeveloperName（後ろ）。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateCreateModal3.hasServiceCustomFields</code>、<code>estimateCreateWizard.displayedHistoryFieldDefinitions</code>、<code>EstimateSaveService</code>、<code>ContractServiceWriteGuard.assertAllowedWrite</code>
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code> のレコード選択。読取も名前。<code>estimateCreateModal3</code> と <code>contractServiceEdit</code> は同じ部品。保存する値はレコードId。
 </div>
 
 ##### Visibility演算子
@@ -2736,6 +2738,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 | 初期値           | 固定値、操作日、商談、取引先。商品は選べない                                                                                                               |
 
 - 受注画面に契約履歴の追加項目セクションを出す。請求アカウント確認の必須項目は本定義に含めない。
+- 参照項目はレコード選択で出す。見せるのは参照先の名前である。保存する値はレコードIdのままである。読取も名前である。名前が取れないときは空のままにし、保存済みのIdは消さない。
 - 表示対象が1件もなければセクション自体出さない。
 - 表示中の項目を空欄で受注した場合は空を保存する。
 - 見積種別により非表示となった項目は保存対象にせず既存値を維持する。
@@ -2778,6 +2781,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 一覧 表示ラベル、有効、出す版、並び順、DeveloperName（後ろ）。対象列は置かない。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。必須は画面に出している受注・Ordered見積編集だけ。画面外のOrdered化では見ない。
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。
 </div>
 
 自動Renew見積は申込日を前Orderedからコピーしない。作成日でも埋めない。ウィザード追加項目の初期値は自動Renewでは走らせない。コピー定義のToに申込日・受注日を置いてよい。標準シードのコピー行は置かない。`自動Renew`で申込日をコピーする定義を置いた会社だけが前Versionの日付を空欄へ入れる。
@@ -2800,6 +2804,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 | 入出金の表示 | Purposeごとに表示ON/OFF。請求書・仕訳の行にPurpose旗を立てたら設定エラー                         |
 
 - 定義に確定後／Lock後の編集可否フラグは持たない。確定後・登録後・Lock後に直せるかは、各オブジェクトのロック除外一覧へ人がAPI名を足したときだけである。定義から組織設定へ自動では書かない。
+- 参照項目はレコード選択で出す。見せるのは参照先の名前である。保存する値はレコードIdのままである。読取も名前である。名前が取れないときは空のままにし、保存済みのIdは消さない。請求ボード、横断の請求書タイル、横断の仕訳一覧も同じである。
 
 `Active__c=true`だけを対象とする。`TargetObject__c`は`Invoice__c`、`InvoicePayment__c`、`GlJournal__c`の3種に限る。入出金の`ShowOnInvoicePurpose__c` / `ShowOnNonInvoicePurpose__c`は明示trueだけ表示し、未設定は非表示とする。請求書・仕訳の行にこの2旗のいずれかがtrueなら設定エラーにする。定義に、存在しない項目、対象外オブジェクト、型不一致その他の不整合がある場合は、**対象画面の表示・保存を続行せず設定エラーとする。**黙って無効化しない。エラーにDeveloperNameを含める。
 
@@ -2836,6 +2841,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 ／ 入出金は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewOpsController.savePaymentFromPreview</code> ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePreviewOpsController.updatePaymentFromPreview</code>
 ／ 仕訳ボードは <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewOpsController.updateJournalMemo</code>
 ／ 横断は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractCrossController.saveJournals</code>、<code>contractCrossWork</code>
+／ 参照項目は <code>orderInvoicePreviewTable</code> と <code>contractCrossWork</code> のレコード選択。読取も名前。保存する値はレコードId。
 </div>
 
 CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を再デプロイする。
