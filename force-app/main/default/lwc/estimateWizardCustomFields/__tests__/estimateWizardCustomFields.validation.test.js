@@ -452,4 +452,25 @@ describe("buildCustomFieldInputs picklist display (Core 第0.1節・第7.2節・
     expect(inputs[1].value).toBe("MonthOffset");
     expect(inputs[1].displayValue).toBe("請求月から指定月数後");
   });
+
+  it("keeps the record Id and does not show it as the reference display (Core 11.4.1)", () => {
+    const inputs = buildCustomFieldInputs(
+      [
+        {
+          apiName: "RemarkMaster__c",
+          label: "備考マスタ",
+          fieldType: "REFERENCE",
+          referenceObjectApiName: "EstimateRemarkMaster__c"
+        }
+      ],
+      { RemarkMaster__c: "a3fBW000000ZB5RYAW" },
+      "estimate",
+      true
+    );
+    expect(inputs[0].value).toBe("a3fBW000000ZB5RYAW");
+    expect(inputs[0].displayValue).toBe("");
+    expect(inputs[0].isReference).toBe(true);
+    expect(inputs[0].referenceObjectApiName).toBe("EstimateRemarkMaster__c");
+    expect(inputs[0].isText).toBe(false);
+  });
 });

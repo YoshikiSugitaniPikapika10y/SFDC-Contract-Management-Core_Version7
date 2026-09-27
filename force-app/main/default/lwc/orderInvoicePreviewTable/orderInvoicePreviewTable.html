@@ -712,6 +712,19 @@
                             onchange={handleBillingFieldChange}
                           ></lightning-textarea>
                         </template>
+                        <template if:true={field.isReference}>
+                          <lightning-record-picker
+                            label={field.label}
+                            object-api-name={field.referenceObjectApiName}
+                            value={field.value}
+                            required={field.required}
+                            disabled={field.disabled}
+                            data-field={field.apiName}
+                            data-extra="true"
+                            data-input-kind="reference"
+                            onchange={handleBillingFieldChange}
+                          ></lightning-record-picker>
+                        </template>
                         <template if:true={field.isInput}>
                           <lightning-input
                             type={field.inputType}
@@ -1013,6 +1026,19 @@
                                               onchange={handlePaymentEditFieldChange}
                                             ></lightning-textarea>
                                           </template>
+                                          <template if:true={field.isReference}>
+                                            <lightning-record-picker
+                                              label={field.label}
+                                              object-api-name={field.referenceObjectApiName}
+                                              value={field.value}
+                                              required={field.required}
+                                              disabled={field.disabled}
+                                              data-field={field.apiName}
+                                              data-extra="true"
+                                              data-input-kind="reference"
+                                              onchange={handlePaymentEditFieldChange}
+                                            ></lightning-record-picker>
+                                          </template>
                                           <template if:true={field.isInput}>
                                             <lightning-input
                                               type={field.inputType}
@@ -1287,6 +1313,20 @@
                                 data-extra="true"
                                 onchange={handlePaymentDraftChange}
                               ></lightning-textarea>
+                            </template>
+                            <template if:true={field.isReference}>
+                              <lightning-record-picker
+                                label={field.label}
+                                object-api-name={field.referenceObjectApiName}
+                                value={field.value}
+                                required={field.required}
+                                disabled={field.disabled}
+                                data-invoice-id={invoice.invoiceId}
+                                data-field={field.apiName}
+                                data-extra="true"
+                                data-input-kind="reference"
+                                onchange={handlePaymentDraftChange}
+                              ></lightning-record-picker>
                             </template>
                             <template if:true={field.isInput}>
                               <lightning-input
@@ -1958,6 +1998,20 @@
                                               data-extra="true"
                                               onchange={handleJournalExtraChange}
                                             ></lightning-textarea>
+                                          </template>
+                                          <template if:true={field.isReference}>
+                                            <lightning-record-picker
+                                              label={field.label}
+                                              object-api-name={field.referenceObjectApiName}
+                                              value={field.value}
+                                              required={field.required}
+                                              disabled={field.disabled}
+                                              data-journal-id={journal.journalId}
+                                              data-field={field.apiName}
+                                              data-extra="true"
+                                              data-input-kind="reference"
+                                              onchange={handleJournalExtraChange}
+                                            ></lightning-record-picker>
                                           </template>
                                           <template if:true={field.isInput}>
                                             <lightning-input

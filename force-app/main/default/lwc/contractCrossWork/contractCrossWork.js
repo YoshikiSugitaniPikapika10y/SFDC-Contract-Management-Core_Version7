@@ -1771,7 +1771,16 @@ export default class ContractCrossWork extends NavigationMixin(
     const value =
       event.currentTarget.dataset.inputKind === "checkbox"
         ? event.detail.checked === true
-        : event.detail.value;
+        : event.currentTarget.dataset.inputKind === "reference"
+          ? event.currentTarget.disabled
+            ? undefined
+            : event.detail?.recordId == null
+              ? ""
+              : event.detail.recordId
+          : event.detail.value;
+    if (value === undefined) {
+      return;
+    }
     this.extraDrafts = {
       ...(this.extraDrafts || {}),
       [id]: {
@@ -2554,6 +2563,7 @@ export default class ContractCrossWork extends NavigationMixin(
         const isPicklist = fieldType === "PICKLIST";
         const isTextarea =
           fieldType === "TEXTAREA" || fieldType === "LONGTEXTAREA";
+        const isReference = fieldType === "REFERENCE";
         const checked =
           raw === true || raw === "true" || raw === "1" || raw === 1;
         cells.push({
@@ -2566,7 +2576,9 @@ export default class ContractCrossWork extends NavigationMixin(
           isCheckbox,
           isPicklist,
           isTextarea,
-          isInput: !isCheckbox && !isPicklist && !isTextarea,
+          isReference,
+          referenceObjectApiName: definition.referenceObjectApiName || "",
+          isInput: !isCheckbox && !isPicklist && !isTextarea && !isReference,
           inputType: extraFieldInputType(fieldType),
           picklistOptions: definition.picklistOptions || [],
           required: definition.required === true && !disabled,

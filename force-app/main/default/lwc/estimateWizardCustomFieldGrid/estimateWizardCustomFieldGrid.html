@@ -14,7 +14,18 @@
           </template>
         </div>
         <template if:true={field.isReadonly}>
-          <div class="est-value est-value_compact">{field.displayValue}</div>
+          <template if:true={field.isReference}>
+            <lightning-record-picker
+              label={field.label}
+              variant="label-hidden"
+              object-api-name={field.referenceObjectApiName}
+              value={field.value}
+              disabled
+            ></lightning-record-picker>
+          </template>
+          <template if:false={field.isReference}>
+            <div class="est-value est-value_compact">{field.displayValue}</div>
+          </template>
         </template>
         <template if:false={field.isReadonly}>
           <template if:true={field.isCheckbox}>

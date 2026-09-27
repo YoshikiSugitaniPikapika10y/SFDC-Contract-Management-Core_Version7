@@ -1120,9 +1120,28 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     );
   }
 
+  fieldEventSource(event) {
+    const current = event.currentTarget;
+    if (current?.dataset?.field) {
+      return current;
+    }
+    return event.target;
+  }
+
   extraFieldValueFromEvent(event) {
-    if (event.target.dataset.inputKind === "checkbox") {
+    const kind =
+      event.currentTarget?.dataset?.inputKind ||
+      event.target?.dataset?.inputKind;
+    if (kind === "checkbox") {
       return event.detail.checked === true;
+    }
+    // 仕様: Core 第11.4.4節。レコード選択の保存値はId。名前が取れない表示では書かない。
+    if (kind === "reference") {
+      if (event.currentTarget?.disabled || event.target?.disabled) {
+        return undefined;
+      }
+      const recordId = event.detail?.recordId;
+      return recordId == null ? "" : recordId;
     }
     return event.detail.value;
   }
@@ -1171,6 +1190,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         const isPicklist = fieldType === "PICKLIST";
         const isTextarea =
           fieldType === "TEXTAREA" || fieldType === "LONGTEXTAREA";
+        const isReference = fieldType === "REFERENCE";
         const checked = extraFieldChecked(raw);
         return {
           apiName,
@@ -1182,7 +1202,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           isCheckbox,
           isPicklist,
           isTextarea,
-          isInput: !isCheckbox && !isPicklist && !isTextarea,
+          isReference,
+          referenceObjectApiName: definition.referenceObjectApiName || "",
+          isInput: !isCheckbox && !isPicklist && !isTextarea && !isReference,
           inputType: extraFieldInputType(fieldType),
           value: isCheckbox ? checked : raw == null ? "" : raw,
           checked,
@@ -3964,8 +3986,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   handlePaymentDraftChange(event) {
-    const invoiceId = event.target.dataset.invoiceId;
-    const field = event.target.dataset.field;
+    const source = this.fieldEventSource(event);
+    const invoiceId = source.dataset.invoiceId;
+    const field = source.dataset.field;
     if (!invoiceId || !field) {
       return;
     }
@@ -3978,8 +4001,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         ...(current.paymentDraft?.extraFieldValues || {})
       }
     };
-    if (event.target.dataset.extra === "true") {
-      nextDraft.extraFieldValues[field] = this.extraFieldValueFromEvent(event);
+    if (source.dataset.extra === "true") {
+      const nextValue = this.extraFieldValueFromEvent(event);
+      if (nextValue === undefined) {
+        return;
+      }
+      nextDraft.extraFieldValues[field] = nextValue;
     } else {
       nextDraft[field] = event.detail.value;
     }
@@ -4162,13 +4189,18 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!this.paymentEditState) {
       return;
     }
-    if (event.target.dataset.extra === "true") {
-      const field = event.target.dataset.field;
+    const source = this.fieldEventSource(event);
+    if (source.dataset.extra === "true") {
+      const field = source.dataset.field;
+      const nextValue = this.extraFieldValueFromEvent(event);
+      if (nextValue === undefined) {
+        return;
+      }
       this.paymentEditState = {
         ...this.paymentEditState,
         extraFieldValues: {
           ...(this.paymentEditState.extraFieldValues || {}),
-          [field]: this.extraFieldValueFromEvent(event)
+          [field]: nextValue
         }
       };
       return;
@@ -5764,17 +5796,22 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!this.billingEditState) {
       return;
     }
-    const field = event.target.dataset.field;
+    const source = this.fieldEventSource(event);
+    const field = source.dataset.field;
     if (!field) {
       return;
     }
-    if (event.target.dataset.extra === "true") {
+    if (source.dataset.extra === "true") {
+      const nextValue = this.extraFieldValueFromEvent(event);
+      if (nextValue === undefined) {
+        return;
+      }
       this.billingEditState = {
         ...this.billingEditState,
         dirty: true,
         extraFieldValues: {
           ...(this.billingEditState.extraFieldValues || {}),
-          [field]: this.extraFieldValueFromEvent(event)
+          [field]: nextValue
         }
       };
       return;
@@ -6193,16 +6230,21 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   handleJournalExtraChange(event) {
-    const journalId = event.target.dataset.journalId;
-    const field = event.target.dataset.field;
+    const source = this.fieldEventSource(event);
+    const journalId = source.dataset.journalId;
+    const field = source.dataset.field;
     if (!journalId || !field) {
+      return;
+    }
+    const nextValue = this.extraFieldValueFromEvent(event);
+    if (nextValue === undefined) {
       return;
     }
     this.journalExtraDrafts = {
       ...this.journalExtraDrafts,
       [journalId]: {
         ...(this.journalExtraDrafts[journalId] || {}),
-        [field]: this.extraFieldValueFromEvent(event)
+        [field]: nextValue
       }
     };
   }

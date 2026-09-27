@@ -543,15 +543,18 @@ export function buildCustomFieldInputs(
       hasHelpText: !!(field.helpText && String(field.helpText).trim()),
       key: `${keyPrefix}-${field.apiName}`,
       value,
-      displayValue: isCheckbox
-        ? value === true || value === "true"
-          ? "する"
-          : "しない"
-        : String(
-            (isPicklist && picklistLabel != null && picklistLabel !== ""
-              ? picklistLabel
-              : value) || ""
-          ),
+      // 仕様: Core 第11.4.1節。参照の読取は名前。ここにはIdを出さない。保存値は value。
+      displayValue: isReference
+        ? ""
+        : isCheckbox
+          ? value === true || value === "true"
+            ? "する"
+            : "しない"
+          : String(
+              (isPicklist && picklistLabel != null && picklistLabel !== ""
+                ? picklistLabel
+                : value) || ""
+            ),
       isCheckbox,
       isPicklist,
       isNumber,

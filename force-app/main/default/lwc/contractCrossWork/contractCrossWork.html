@@ -659,6 +659,20 @@
                               onchange={handleJournalExtraInput}
                             ></lightning-textarea>
                           </template>
+                          <template if:true={cell.isReference}>
+                            <lightning-record-picker
+                              variant="label-hidden"
+                              label={cell.label}
+                              object-api-name={cell.referenceObjectApiName}
+                              value={cell.value}
+                              required={cell.required}
+                              disabled={cell.disabled}
+                              data-id={row.id}
+                              data-field={cell.apiName}
+                              data-input-kind="reference"
+                              onchange={handleJournalExtraInput}
+                            ></lightning-record-picker>
+                          </template>
                           <template if:true={cell.isInput}>
                             <lightning-input
                               type={cell.inputType}
