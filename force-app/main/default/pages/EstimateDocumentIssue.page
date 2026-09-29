@@ -75,9 +75,7 @@
           <apex:outputPanel rendered="{!showSendThisFile}">
             <button
               type="button"
-              onclick="
-                openSendThisFile('{!issuedContentDocumentId}', '{!historyId}')
-              "
+              onclick="openSendThisFile()"
             >
               このファイルを送る
             </button>
@@ -87,53 +85,32 @@
     </apex:outputPanel>
   </apex:form>
   <script>
-    // 仕様: Core 第4.8節・第7.10節・第4.3.1節。発行はハブを閉じてこの画面を開く。Lightning の VF は parent があるがハブではない。postMessage を処理済みにしない。sforce.one で標準 Files オーバーレイ／見積送付を開く。
-    function navigateInLightningExperience(path) {
-      if (
-        typeof sforce !== "undefined" &&
-        sforce.one &&
-        typeof sforce.one.navigateToURL === "function"
-      ) {
-        sforce.one.navigateToURL(path);
-        return;
-      }
-      window.location.href = path;
-    }
-    function openIssuedPreviewIfAny() {
+    // 仕様: Core 第4.8節・第7.10節・第4.3.1節。発行面に留まる。プレビューと送付はページを移さず、同じ発行画面へ渡す。
+    function issuedDocumentId() {
       var el = document.getElementById("issuedPreviewDocumentId");
-      var documentId = el
+      return el
         ? String(el.textContent || "").replace(/^\s+|\s+$/g, "")
         : "";
-      if (!documentId) {
-        return;
-      }
-      var path =
-        "/lightning/page/filePreview?recordIds=" +
-        encodeURIComponent(documentId) +
-        "&selectedRecordId=" +
-        encodeURIComponent(documentId);
-      navigateInLightningExperience(path);
     }
-    function openSendThisFile(documentId, historyId) {
-      if (!historyId) {
+    function postIssueAction(action) {
+      var documentId = issuedDocumentId();
+      if (!documentId || !window.parent || window.parent === window) {
         return;
       }
-      try {
-        sessionStorage.setItem(
-          "cmc.estimateSend.initialContentDocumentId",
-          documentId
-        );
-      } catch (e) {}
-      var backgroundContext =
-        "/lightning/r/ContractHistory__c/" + historyId + "/view";
-      var path =
-        "/lightning/action/quick/ContractHistory__c.Estimate_Send?objectApiName=" +
-        encodeURIComponent("ContractHistory__c") +
-        "&context=RECORD_DETAIL&recordId=" +
-        encodeURIComponent(historyId) +
-        "&backgroundContext=" +
-        encodeURIComponent(backgroundContext);
-      navigateInLightningExperience(path);
+      window.parent.postMessage(
+        {
+          source: "cmc-estimate-issue",
+          action: action,
+          contentDocumentId: documentId
+        },
+        window.location.origin
+      );
+    }
+    function openIssuedPreviewIfAny() {
+      postIssueAction("preview");
+    }
+    function openSendThisFile() {
+      postIssueAction("send");
     }
   </script>
 </apex:page>
