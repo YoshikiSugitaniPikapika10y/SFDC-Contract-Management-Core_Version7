@@ -1135,4 +1135,24 @@ private class InvoiceCancelServiceTest {
       IsLocked__c = locked
     );
   }
+
+  @IsTest
+  static void extraCorrectionFields_includeFieldWithoutCreateRight() {
+    User limited = ContractTestDataFactory.getUserWithoutContractHistoryFieldEdit();
+    System.runAs(limited) {
+      System.assertEquals(
+        false,
+        Invoice__c.Memo__c.getDescribe().isCreateable(),
+        '共通基盤 第1.3節: この利用者は請求メモを作成できない'
+      );
+      Set<String> names = InvoiceCancelService.extraCorrectionFieldApiNames(
+        Invoice__c.SObjectType,
+        new Set<String>{ 'Memo__c' }
+      );
+      System.assert(
+        names.contains('Memo__c'),
+        '共通基盤 第1.3節: 作成権が無くても訂正の追加項目から外さない'
+      );
+    }
+  }
 }

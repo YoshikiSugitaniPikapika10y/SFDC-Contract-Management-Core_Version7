@@ -1,6 +1,7 @@
 /**
  * 共有ルール／FLS を bypass して DML する入口（SYSTEM_MODE）。
  * 見積保存・請求生成など、実行ユーザ権限に依存させないサーバ処理から利用する。
+ * 仕様: 共通基盤 第1.3節。対象操作の DML はシステム権限のまま。
  */
 public without sharing class SystemContextAccess {
     public static Database.SaveResult[] insertRecords(List<SObject> records) {

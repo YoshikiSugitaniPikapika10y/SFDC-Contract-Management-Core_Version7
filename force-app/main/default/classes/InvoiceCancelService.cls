@@ -625,6 +625,8 @@ public without sharing class InvoiceCancelService {
     }
   }
 
+  /** 仕様: 共通基盤 第1.3節。訂正に載せる追加項目は実行者の作成権で外さない。 */
+  @TestVisible
   private static Set<String> extraCorrectionFieldApiNames(
     Schema.SObjectType sobjectType,
     Set<String> candidates
@@ -640,7 +642,11 @@ public without sharing class InvoiceCancelService {
         continue;
       }
       Schema.DescribeFieldResult describe = fieldMap.get(candidate).getDescribe();
-      if (!describe.isCreateable()) {
+      if (
+        describe.isCalculated() ||
+        describe.isAutoNumber() ||
+        describe.isEncrypted()
+      ) {
         continue;
       }
       names.add(describe.getName());

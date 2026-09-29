@@ -313,7 +313,8 @@ public without sharing class FieldCopyDefinitionService {
       definition.SourceObject__c,
       definition.SourceFieldApiName__c
     );
-    if (!targetDescribe.isUpdateable() || isForbiddenTargetType(targetDescribe)) {
+    // 仕様: 共通基盤 第1.3節。実行者の更新権では落とさない。書けない型は残す。
+    if (isForbiddenTargetType(targetDescribe)) {
       throw new FieldCopyException('To項目へ書けません: ' + key);
     }
     if (isDeniedTarget(definition.TargetObject__c, definition.TargetFieldApiName__c)) {
@@ -594,6 +595,7 @@ public without sharing class FieldCopyDefinitionService {
     }
   }
 
+  /** 仕様: 共通基盤 第1.3節、Core 第11.4.2節。必須到達は実行者の作成権で間引かない。 */
   private static Set<String> requiredJournalCustomFieldApiNames() {
     Set<String> names = new Set<String>();
     Schema.SObjectType journalType = objectType('GlJournal__c');
@@ -608,7 +610,6 @@ public without sharing class FieldCopyDefinitionService {
       if (
         !describe.isCustom() ||
         describe.isNillable() ||
-        !describe.isCreateable() ||
         describe.getType() == Schema.DisplayType.BOOLEAN ||
         isForbiddenTargetType(describe) ||
         isDeniedTarget('GlJournal__c', describe.getName()) ||

@@ -798,4 +798,38 @@ private class OrderWizardFieldServiceTest {
     System.assertEquals(true, failed);
     OrderWizardFieldService.resetCache();
   }
+
+  @IsTest
+  static void applyHistoryFields_keepsInputWithoutFieldEdit() {
+    User limited = ContractTestDataFactory.getUserWithoutContractHistoryFieldEdit();
+    System.runAs(limited) {
+      System.assertEquals(
+        false,
+        ContractHistory__c.ApplicationDate__c.getDescribe().isUpdateable(),
+        '共通基盤 第1.3節: この利用者は申込日を編集できない'
+      );
+      OrderWizardFieldService.setCachedDefinitionsForTest(
+        new List<OrderWizardField__mdt>{
+          new OrderWizardField__mdt(
+            DeveloperName = 'Order_ApplicationDate',
+            MasterLabel = '申込日',
+            FieldApiName__c = 'ApplicationDate__c',
+            Active__c = true,
+            ShowOnNew__c = true
+          )
+        }
+      );
+      ContractHistory__c history = new ContractHistory__c(Type__c = 'New');
+      OrderWizardFieldService.applyHistoryFields(
+        history,
+        new Map<String, Object>{ 'ApplicationDate__c' => '2026-06-15' }
+      );
+      System.assertEquals(
+        Date.newInstance(2026, 6, 15),
+        history.ApplicationDate__c,
+        '共通基盤 第1.3節: 編集権が無くても出した申込日は捨てない'
+      );
+      OrderWizardFieldService.resetCache();
+    }
+  }
 }

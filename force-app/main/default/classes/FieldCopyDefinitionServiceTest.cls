@@ -907,4 +907,33 @@ private class FieldCopyDefinitionServiceTest {
     }
     return null;
   }
+
+  @IsTest
+  static void validateDefinition_doesNotFailWithoutFieldEdit() {
+    User limited = ContractTestDataFactory.getUserWithoutContractHistoryFieldEdit();
+    System.runAs(limited) {
+      System.assertEquals(
+        false,
+        ContractHistory__c.Note__c.getDescribe().isUpdateable(),
+        '共通基盤 第1.3節: この利用者は備考を更新できない'
+      );
+      try {
+        FieldCopyDefinitionService.validateDefinition(
+          new FieldCopyDefinition__c(
+            Name = 'NoFls_Note',
+            TargetObject__c = 'ContractHistory__c',
+            Context__c = FieldCopyDefinitionService.CONTEXT_NOT_AUTO_RENEW,
+            SourceObject__c = 'Account',
+            SourceFieldApiName__c = 'Name',
+            TargetFieldApiName__c = 'Note__c'
+          )
+        );
+      } catch (FieldCopyDefinitionService.FieldCopyException ex) {
+        System.assert(
+          !ex.getMessage().contains('書けません'),
+          ex.getMessage()
+        );
+      }
+    }
+  }
 }

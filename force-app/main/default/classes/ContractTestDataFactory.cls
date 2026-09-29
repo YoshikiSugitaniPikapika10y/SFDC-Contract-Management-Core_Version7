@@ -7,6 +7,7 @@
 @IsTest
 public class ContractTestDataFactory {
   private static User cachedAdminUser;
+  private static User cachedUserWithoutFieldEdit;
   private static Boolean permissionSetAssigned = false;
   private static Set<Id> validationEnforceOffOwnerIds = new Set<Id>();
   private static String cachedDefaultStageName;
@@ -174,6 +175,76 @@ public class ContractTestDataFactory {
     // runAs(admin) 内の DML に効くよう、admin ユーザー階層で Enforce OFF
     ensureCustomerValidationEnforceOff(cachedAdminUser.Id);
     return cachedAdminUser;
+  }
+
+  /**
+   * 共通基盤 第1.3節。契約履歴の申込日・備考と請求メモの編集権が無い標準ユーザ。
+   * 項目 describe はここでは取らない。呼んだテストが runAs の中で取る。
+   */
+  public static User getUserWithoutContractHistoryFieldEdit() {
+    if (cachedUserWithoutFieldEdit != null) {
+      return cachedUserWithoutFieldEdit;
+    }
+    Id profileId = profileWithoutEditOn(
+      new List<String>{
+        'ContractHistory__c.ApplicationDate__c',
+        'ContractHistory__c.Note__c',
+        'Invoice__c.Memo__c'
+      }
+    );
+    String unique = String.valueOf(DateTime.now().getTime());
+    User created = new User(
+      Alias = 'nofls',
+      Email = 'nofls' + unique + '@example.com',
+      EmailEncodingKey = 'UTF-8',
+      LastName = 'NoFieldEdit',
+      LanguageLocaleKey = 'ja',
+      LocaleSidKey = 'ja_JP',
+      ProfileId = profileId,
+      TimeZoneSidKey = 'Asia/Tokyo',
+      Username = 'nofls' + unique + '@example.com'
+    );
+    System.runAs(new User(Id = UserInfo.getUserId())) {
+      insert created;
+    }
+    cachedUserWithoutFieldEdit = created;
+    return cachedUserWithoutFieldEdit;
+  }
+
+  private static Id profileWithoutEditOn(List<String> fieldApiNames) {
+    Set<Id> editParents = new Set<Id>();
+    for (FieldPermissions perm : [
+      SELECT ParentId
+      FROM FieldPermissions
+      WHERE Field IN :fieldApiNames AND PermissionsEdit = TRUE
+    ]) {
+      editParents.add(perm.ParentId);
+    }
+    List<PermissionSet> owned = editParents.isEmpty()
+      ? [
+          SELECT ProfileId
+          FROM PermissionSet
+          WHERE
+            IsOwnedByProfile = TRUE
+            AND Profile.UserType = 'Standard'
+            AND Profile.PermissionsModifyAllData = FALSE
+          LIMIT 1
+        ]
+      : [
+          SELECT ProfileId
+          FROM PermissionSet
+          WHERE
+            IsOwnedByProfile = TRUE
+            AND Profile.UserType = 'Standard'
+            AND Profile.PermissionsModifyAllData = FALSE
+            AND Id NOT IN :editParents
+          LIMIT 1
+        ];
+    System.assert(
+      !owned.isEmpty() && owned[0].ProfileId != null,
+      '共通基盤 第1.3節: 申込日・備考・請求メモの編集権が無いプロファイルがありません'
+    );
+    return owned[0].ProfileId;
   }
 
   private static Id currentUserId() {

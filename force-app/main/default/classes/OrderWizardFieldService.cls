@@ -775,7 +775,8 @@ public without sharing class OrderWizardFieldService {
         continue;
       }
       Schema.DescribeFieldResult describe = fieldMap.get(apiName).getDescribe();
-      if (!describe.isUpdateable()) {
+      // 仕様: 共通基盤 第1.3節。実行者の項目編集権では捨てない。数式と自動採番は入力ではない。
+      if (describe.isCalculated() || describe.isAutoNumber()) {
         continue;
       }
       Object rawValue = customFields.get(apiName);
