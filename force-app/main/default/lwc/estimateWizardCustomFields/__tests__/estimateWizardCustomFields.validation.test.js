@@ -162,7 +162,7 @@ describe("default custom fields", () => {
       defaultValue: "hello",
       visibilityFieldApiName: "Family",
       visibilityOperator: "EQUALS",
-      visibilityValues: "Zeroboard"
+      visibilityValues: "SampleFamily"
     },
     {
       apiName: "Flag__c",
@@ -179,19 +179,19 @@ describe("default custom fields", () => {
   });
 
   it("applies defaults only for missing keys", () => {
-    expect(applyDefaultCustomFields({}, defs, { Family: "Zeroboard" })).toEqual(
+    expect(applyDefaultCustomFields({}, defs, { Family: "SampleFamily" })).toEqual(
       { Memo__c: "hello", Flag__c: true }
     );
     expect(
       applyDefaultCustomFields({ Memo__c: "", Flag__c: false }, defs, {
-        Family: "Zeroboard"
+        Family: "SampleFamily"
       })
     ).toEqual({ Memo__c: "", Flag__c: false });
   });
 
   it("reapplies defaults after hide then show", () => {
     const filled = applyDefaultCustomFields({}, defs, {
-      Family: "Zeroboard"
+      Family: "SampleFamily"
     });
     expect(filled.Memo__c).toBe("hello");
 
@@ -201,7 +201,7 @@ describe("default custom fields", () => {
     expect(hidden).toEqual({ Flag__c: true });
 
     const reshown = syncCustomFieldsForVisibility(hidden, defs, {
-      Family: "Zeroboard"
+      Family: "SampleFamily"
     });
     expect(reshown.Memo__c).toBe("hello");
     expect(reshown.Flag__c).toBe(true);
@@ -295,7 +295,7 @@ describe("default custom fields", () => {
       defaultValue: "Family",
       visibilityFieldApiName: "Family",
       visibilityOperator: "EQUALS",
-      visibilityValues: "Zeroboard",
+      visibilityValues: "SampleFamily",
       showOnNew: true,
       showOnChange: true,
       showOnRenew: true,
@@ -323,10 +323,10 @@ describe("default custom fields", () => {
     expect(
       resolveCustomFieldDefault(
         productField,
-        { Family: "Zeroboard" },
+        { Family: "SampleFamily" },
         undefined
       )
-    ).toBe("Zeroboard");
+    ).toBe("SampleFamily");
     expect(resolveCustomFieldDefault(staticField, undefined, undefined)).toBe(
       "固定メモ"
     );
@@ -356,14 +356,14 @@ describe("default custom fields", () => {
       applyDefaultCustomFields(
         {},
         [oppField, accountField, productField, staticField],
-        { Family: "Zeroboard" },
+        { Family: "SampleFamily" },
         "New",
         { Name: "商談A", "Account.Name": "取引先B" }
       )
     ).toEqual({
       Memo__c: "商談A",
       AccountMemo__c: "取引先B",
-      ProductMemo__c: "Zeroboard",
+      ProductMemo__c: "SampleFamily",
       StaticMemo__c: "固定メモ"
     });
   });
@@ -375,7 +375,7 @@ describe("default custom fields", () => {
         fieldType: "STRING",
         visibilityFieldApiName: "Family",
         visibilityOperator: "EQUALS",
-        visibilityValues: "Zeroboard",
+        visibilityValues: "SampleFamily",
         showOnNew: true,
         showOnChange: true,
         showOnRenew: true,

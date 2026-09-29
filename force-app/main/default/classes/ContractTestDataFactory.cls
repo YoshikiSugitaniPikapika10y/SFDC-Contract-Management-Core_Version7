@@ -1,8 +1,7 @@
 /**
  * 契約管理パッケージのテストデータ組み立て。
- * 必須項目の describe 埋めと、導入先（テナント）固有の制約・候補値もここに集約する。
- * 他社展開時は本クラスの TENANT_* 定数と applyTenantExtraOpportunityFields /
- * テナント固有の商談必須項目・選択リスト値だけを差し替える。
+ * 必須項目は describe で埋める。顧客の名前、選択リスト値、項目API名、ステージ名、レコードタイプ名は書かない。
+ * 商談の候補リストは空のままにする。空ならその組織にある最初の値を使う。
  */
 @IsTest
 public class ContractTestDataFactory {
@@ -17,37 +16,25 @@ public class ContractTestDataFactory {
   private static final String PERMISSION_SET_NAME = 'Loop_01_Read';
 
   /**
-   * 商談 insert 時に使う StageName 候補（先頭から、組織に存在する最初の値を採用）。
+   * 商談 insert 時に使う StageName 候補。空のままにする。
    * 空の場合は OpportunityStage.SortOrder 先頭へフォールバックする。
-   * 現行サンプル: PhaseChangedRule 相当（RT=contact_oportunity 時）。
+   * 顧客のステージ名は書かない。
    */
-  public static final List<String> TENANT_OPPORTUNITY_INSERT_STAGE_CANDIDATES = new List<String>{
-    'S1_ライトパーソンを見極める'
-  };
+  public static final List<String> TENANT_OPPORTUNITY_INSERT_STAGE_CANDIDATES = new List<String>();
 
   /**
-   * 商談 insert 時に使う RecordType DeveloperName 候補。
+   * 商談 insert 時に使う RecordType DeveloperName 候補。空のままにする。
    * 空、または見つからない場合は RecordType を設定しない。
+   * 顧客のレコードタイプ名は書かない。
    */
-  public static final List<String> TENANT_OPPORTUNITY_RECORD_TYPE_DEV_NAME_CANDIDATES = new List<String>{
-    'contact_oportunity'
-  };
+  public static final List<String> TENANT_OPPORTUNITY_RECORD_TYPE_DEV_NAME_CANDIDATES = new List<String>();
 
   /**
-   * 商談 Product__c の導入先値。先頭から、組織のアクティブな選択リストにある最初を採用。
+   * 商談の商品候補。空のままにする。顧客の商品名は書かない。
    */
-  public static final List<String> TENANT_OPPORTUNITY_PRODUCT_CANDIDATES = new List<String>{
-    'ZB',
-    'ZB_ESG',
-    'Zbfb',
-    'PCAF',
-    'SAQ',
-    'LCA/CFP',
-    'Optionのみ',
-    'Other'
-  };
+  public static final List<String> TENANT_OPPORTUNITY_PRODUCT_CANDIDATES = new List<String>();
 
-  // ---- 導入先で差し替える選択リスト値（テスト共通）。顧客展開時はここだけ変更する ----
+  // ---- 請求日・支払条件の見本値。仕様の選択リストであり、顧客の商談ステージや商品名は書かない ----
   public static final Integer TENANT_BILLING_DAY_1 = 1;
   public static final Integer TENANT_BILLING_DAY_5 = 5;
   public static final Integer TENANT_BILLING_DAY_15 = 15;
@@ -931,48 +918,13 @@ public class ContractTestDataFactory {
   }
 
   /**
-   * describe では任意でも、導入先 VR で事実上必須になりやすい商談項目を埋める。
-   * 他社で不要ならメソッド本体を空にする。
+   * 顧客の商談項目は埋めない。項目API名も値も書かない。
    */
   public static void applyTenantExtraOpportunityFields(
     Opportunity opportunity
   ) {
     if (opportunity == null) {
       return;
-    }
-    Map<String, Schema.SObjectField> fieldMap = Schema.sObjectType.Opportunity.fields.getMap();
-    if (
-      fieldMap.containsKey('OpportunityCreater__c') &&
-      opportunity.get('OpportunityCreater__c') == null
-    ) {
-      opportunity.put('OpportunityCreater__c', UserInfo.getUserId());
-    }
-    if (
-      fieldMap.containsKey('CustomFieldDefinition9__c') &&
-      opportunity.get('CustomFieldDefinition9__c') == null
-    ) {
-      opportunity.put('CustomFieldDefinition9__c', Date.today());
-    }
-    if (fieldMap.containsKey('OpportunitySequeceNumber__c')) {
-      opportunity.put('OpportunitySequeceNumber__c', '1-1_');
-      if (
-        String.isNotBlank(opportunity.Name) &&
-        !Pattern.matches('^[0-9]+-[0-9]+_.*$', opportunity.Name)
-      ) {
-        opportunity.Name = '1-1_' + opportunity.Name;
-      }
-    }
-    if (fieldMap.containsKey('Product__c')) {
-      String productValue = firstActivePicklistValue(
-        fieldMap.get('Product__c'),
-        TENANT_OPPORTUNITY_PRODUCT_CANDIDATES
-      );
-      if (String.isNotBlank(productValue)) {
-        opportunity.put('Product__c', productValue);
-      }
-    }
-    if (fieldMap.containsKey('AccountingDepartment__c')) {
-      opportunity.put('AccountingDepartment__c', 'ES');
     }
   }
 
