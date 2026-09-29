@@ -248,7 +248,7 @@
 
       <section class="slds-m-top_large">
         <h2 class="slds-text-heading_small">5. 契約</h2>
-        <p class="slds-text-body_regular section-lead">継続課金の既定サイクル数、見積有効期間、更新商談スイッチ</p>
+        <p class="slds-text-body_regular section-lead">継続課金の既定サイクル数、見積有効期間、更新商談スイッチ、営業日</p>
         <div class="setting-row">
           <span class="row-num">行 5.1</span>
           <span class="slds-badge need need-required">必須</span>
@@ -284,6 +284,17 @@
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
             <span class="help-tip" role="tooltip">ONのときだけ、受注画面のチェックと件数の増減が動きます。OFFなら作成要求は拒否し、自動Renew見積も作りません。</span>
+          </span>
+        </div>
+        <div class="setting-row">
+          <!-- 仕様: Core 第11.6節 行5.4。説明。操作欄は空。リンクは置かない。保存しない。 -->
+          <span class="row-num">行 5.4</span>
+          <span class="slds-badge need need-optional">任意</span>
+          <span class="row-label">営業日</span>
+          <div class="row-control"></div>
+          <span class="help-wrap">
+            <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
+            <span class="help-tip" role="tooltip">自動で作る請求日と入金予定日を、前の営業日か次の営業日へ動かすとき、どの日が営業日かをこのカレンダーで見ます。</span>
           </span>
         </div>
       </section>

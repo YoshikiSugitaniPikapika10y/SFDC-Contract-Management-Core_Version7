@@ -3,7 +3,7 @@
     <apiVersion>66.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>組織設定</masterLabel>
-    <description>組織設定。見出し1〜9の入力とリンクを同じ一覧で扱う。</description>
+    <description>組織設定。見出し1〜9の入力とリンクと説明を同じ一覧で扱う。</description>
     <targets>
         <target>lightning__AppPage</target>
         <target>lightning__Tab</target>

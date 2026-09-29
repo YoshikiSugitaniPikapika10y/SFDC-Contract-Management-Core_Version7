@@ -156,6 +156,8 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     expect(text).toContain("行 3.1");
     expect(text).toContain("継続課金の既定サイクル数");
     expect(text).toContain("更新商談スイッチ");
+    expect(text).toContain("行 5.4");
+    expect(text).toContain("営業日");
     expect(text).toContain("見積備考");
     expect(text).not.toContain("帳票・送付");
     expect(text).not.toContain("組織の既定がありません");
@@ -176,6 +178,21 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
       "カスタム入力規則をON"
     );
     expect(row.querySelector(".row-label").textContent).not.toBe("入力強制");
+  });
+
+  it("shows row 5.4 as an explanation without a control", async () => {
+    const element = await mount(pageData());
+    const row = [...element.shadowRoot.querySelectorAll(".setting-row")].find(
+      (node) => node.querySelector(".row-num")?.textContent.trim() === "行 5.4"
+    );
+    expect(row.querySelector(".row-label").textContent.trim()).toBe("営業日");
+    expect(row.querySelector(".need-optional").textContent.trim()).toBe("任意");
+    expect(row.querySelector("a")).toBeNull();
+    expect(row.querySelector("lightning-input")).toBeNull();
+    expect(row.querySelector("lightning-button")).toBeNull();
+    expect(row.querySelector(".help-tip").textContent.trim()).toBe(
+      "自動で作る請求日と入金予定日を、前の営業日か次の営業日へ動かすとき、どの日が営業日かをこのカレンダーで見ます。"
+    );
   });
 
   it("shows checkbox rows 5.3, 8.1, 9.1 as optional", async () => {
@@ -217,7 +234,7 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
         "見積書・請求書の3択、会社情報。本体はリンク先。既定はカタログ",
       "4. 送付": "組織送信元。本体はリンク先。既定はカタログ",
       "5. 契約":
-        "継続課金の既定サイクル数、見積有効期間、更新商談スイッチ",
+        "継続課金の既定サイクル数、見積有効期間、更新商談スイッチ、営業日",
       "6. 追加項目": "ウィザード・請求操作の追加項目とコピー。検証は任意",
       "7. 金額計算": "丸め・按分。変更しても保存済みは再計算しない",
       "8. Accounting":
@@ -277,6 +294,8 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
         "ウィザードが見積日から有効期限の初期値を付けるときの暦月数です。",
       "行 5.3":
         "ONのときだけ、受注画面のチェックと件数の増減が動きます。OFFなら作成要求は拒否し、自動Renew見積も作りません。",
+      "行 5.4":
+        "自動で作る請求日と入金予定日を、前の営業日か次の営業日へ動かすとき、どの日が営業日かをこのカレンダーで見ます。",
       "行 6.1":
         "見積Step 2に出すカスタム項目、必須、初期値を指定します。",
       "行 6.2":
