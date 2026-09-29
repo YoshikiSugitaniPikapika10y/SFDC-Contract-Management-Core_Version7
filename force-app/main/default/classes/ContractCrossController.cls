@@ -557,19 +557,10 @@ public without sharing class ContractCrossController {
         ContractDocumentTemplateService.TYPE_ESTIMATE
       );
       dto.defaultDocumentTemplateKey = initialKey;
-      List<ContractHistory__c> histories = [
-        SELECT
-          Id,
-          Name,
-          EstimateTitleName__c,
-          EstimateIssueDate__c,
-          Opportunity__r.Name
-        FROM ContractHistory__c
-        WHERE Id = :historyId
-        WITH USER_MODE
-        LIMIT 1
-      ];
-      if (histories.isEmpty()) {
+      ContractHistory__c history = ContractCrossQueryService.queryHistoryForEstimateIssue(
+        historyId
+      );
+      if (history == null) {
         throw new CrossException('契約履歴が見つかりません。');
       }
       if (String.isNotBlank(initialKey)) {
@@ -580,8 +571,8 @@ public without sharing class ContractCrossController {
           );
         // 仕様: Core 第11.3.2節。{Title}は見積件名→商談名→契約履歴名。
         dto.fileName = EstimateDocumentService.buildFileName(
-          histories[0],
-          histories[0].EstimateIssueDate__c,
+          history,
+          history.EstimateIssueDate__c,
           selected
         );
       }
@@ -625,24 +616,15 @@ public without sharing class ContractCrossController {
         templateKey
       );
       // 仕様: Core 第11.3.2節。{Title}は見積件名→商談名→契約履歴名。
-      List<ContractHistory__c> histories = [
-        SELECT
-          Id,
-          Name,
-          EstimateTitleName__c,
-          EstimateIssueDate__c,
-          Opportunity__r.Name
-        FROM ContractHistory__c
-        WHERE Id = :historyId
-        WITH USER_MODE
-        LIMIT 1
-      ];
-      if (histories.isEmpty()) {
+      ContractHistory__c history = ContractCrossQueryService.queryHistoryForEstimateIssue(
+        historyId
+      );
+      if (history == null) {
         throw new CrossException('契約履歴が見つかりません。');
       }
       return EstimateDocumentService.buildFileName(
-        histories[0],
-        histories[0].EstimateIssueDate__c,
+        history,
+        history.EstimateIssueDate__c,
         template
       );
     } catch (Exception ex) {

@@ -1,6 +1,7 @@
 /**
  * 契約横断の左一覧取得。業務結果は既存手続き。
- * 仕様: 横断画面.md 第5節 取得、Core 第9章
+ * 仕様: 横断画面.md 第5節 取得、Core 第9章、共通基盤 第1.3節・第3.7節。
+ * 一覧は項目・オブジェクトの参照権では落とさない。行の範囲は with sharing（01は共有、02は全件）。
  */
 public with sharing class ContractCrossQueryService {
   public static final Integer ROW_LIMIT = 500;
@@ -74,7 +75,6 @@ public with sharing class ContractCrossQueryService {
       SELECT TagLabel__c, TargetFieldApiName__c, TagKey__c
       FROM GlAccountingTagRule__c
       WHERE IsEnabled__c = TRUE
-      WITH USER_MODE
       ORDER BY CreatedDate ASC, Name ASC
     ]) {
       ContractCrossController.TagRuleDto dto = new ContractCrossController.TagRuleDto();
@@ -145,7 +145,7 @@ public with sharing class ContractCrossQueryService {
     soql +=
       ' ORDER BY Opportunity__r.CloseDate ASC NULLS LAST, Opportunity__r.Account.Name ASC NULLS LAST, Name ASC';
     soql += ' LIMIT 501';
-    List<ContractHistory__c> rows = Database.query(soql, AccessLevel.USER_MODE);
+    List<ContractHistory__c> rows = Database.query(soql);
     ContractCrossController.ListResultDto result = newListResult(rows.size());
     Integer take = Math.min(rows.size(), ROW_LIMIT);
     for (Integer i = 0; i < take; i++) {
@@ -341,7 +341,7 @@ public with sharing class ContractCrossQueryService {
     soql +=
       ' ORDER BY InvoiceDate__c ASC NULLS FIRST, ContractService__r.Account__r.Name ASC NULLS LAST, Name ASC';
     soql += ' LIMIT 501';
-    List<Invoice__c> rows = Database.query(soql, AccessLevel.USER_MODE);
+    List<Invoice__c> rows = Database.query(soql);
     ContractCrossController.ListResultDto result = newListResult(rows.size());
     Integer take = Math.min(rows.size(), ROW_LIMIT);
     List<Invoice__c> taken = new List<Invoice__c>();
@@ -536,7 +536,7 @@ public with sharing class ContractCrossQueryService {
     soql +=
       ' ORDER BY PostingDate__c ASC NULLS LAST, Invoice__r.Name ASC NULLS LAST, Id ASC';
     soql += ' LIMIT 501';
-    List<GlJournal__c> rows = Database.query(soql, AccessLevel.USER_MODE);
+    List<GlJournal__c> rows = Database.query(soql);
     ContractCrossController.ListResultDto result = newListResult(rows.size());
     Integer take = Math.min(rows.size(), ROW_LIMIT);
     for (Integer i = 0; i < take; i++) {
@@ -640,6 +640,26 @@ public with sharing class ContractCrossQueryService {
     }
   }
 
+  /** 仕様: 共通基盤 第1.3節。04の発行前読取は項目・オブジェクトの参照権と共有で落とさない。 */
+  public static ContractHistory__c queryHistoryForEstimateIssue(Id historyId) {
+    if (historyId == null) {
+      return null;
+    }
+    List<ContractHistory__c> histories = [
+      SELECT
+        Id,
+        Name,
+        EstimateTitleName__c,
+        EstimateIssueDate__c,
+        Opportunity__r.Name
+      FROM ContractHistory__c
+      WHERE Id = :historyId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    return histories.isEmpty() ? null : histories[0];
+  }
+
   /** 仕様: 横断画面.md 第5節 見積書タイル。Core 第4.6節。Estimateだけ出す。Ordered・Archiveは出さない。 */
   public static ContractCrossController.EstimateTileDto getEstimateTile(Id historyId) {
     if (historyId == null) {
@@ -664,7 +684,6 @@ public with sharing class ContractCrossQueryService {
         ContractService__r.TaxPercent__c
       FROM ContractHistory__c
       WHERE Id = :historyId
-      WITH USER_MODE
       LIMIT 1
     ];
     if (histories.isEmpty()) {
@@ -732,7 +751,6 @@ public with sharing class ContractCrossQueryService {
         DocumentSortOrder__c
       FROM ContractProduct__c
       WHERE ContractHistory__c = :historyId
-      WITH USER_MODE
       ORDER BY StartDate__c ASC NULLS LAST, Product__r.Name ASC
     ];
     // 仕様: Core 第4.5.3節
@@ -887,7 +905,6 @@ public with sharing class ContractCrossQueryService {
       SELECT Invoice__c, RevenueRecognitionBasis__c, AcceptanceEndDate__c
       FROM InvoiceLine__c
       WHERE RevenueRecognitionBasis__c IN ('月次計上', '一括計上')
-      WITH USER_MODE
     ]) {
       applyInvoiceLineToAgg(loaded.lineAgg, line);
     }
@@ -1025,7 +1042,6 @@ public with sharing class ContractCrossQueryService {
       SELECT Invoice__c, RevenueRecognitionBasis__c, AcceptanceEndDate__c
       FROM InvoiceLine__c
       WHERE Invoice__c IN :invoiceIds
-      WITH USER_MODE
     ]) {
       applyInvoiceLineToAgg(byInvoice, line);
     }
@@ -1073,7 +1089,6 @@ public with sharing class ContractCrossQueryService {
         ContractHistory__c IN :historyIds
         AND InvoiceTransactionStatus__c != 'Cancelled'
         AND Id NOT IN :knownIds
-      WITH USER_MODE
     ]) {
       lastVersionTotalRemainderInvoiceIds.add(remainder.Id);
       addVersionInvoiceAmount(

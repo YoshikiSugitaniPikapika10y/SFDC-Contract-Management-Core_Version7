@@ -8,6 +8,7 @@
 public class ContractTestDataFactory {
   private static User cachedAdminUser;
   private static User cachedUserWithoutFieldEdit;
+  private static User cachedUserWithoutFieldRead;
   private static Boolean permissionSetAssigned = false;
   private static Set<Id> validationEnforceOffOwnerIds = new Set<Id>();
   private static String cachedDefaultStageName;
@@ -243,6 +244,72 @@ public class ContractTestDataFactory {
     System.assert(
       !owned.isEmpty() && owned[0].ProfileId != null,
       '共通基盤 第1.3節: 申込日・備考・請求メモの編集権が無いプロファイルがありません'
+    );
+    return owned[0].ProfileId;
+  }
+
+  /**
+   * 共通基盤 第1.3節。契約履歴の見積日を参照できない標準ユーザ。
+   * 項目 describe はここでは取らない。呼んだテストが runAs の中で取る。
+   */
+  public static User getUserWithoutContractHistoryFieldRead() {
+    if (cachedUserWithoutFieldRead != null) {
+      return cachedUserWithoutFieldRead;
+    }
+    Id profileId = profileWithoutReadOn(
+      new List<String>{ 'ContractHistory__c.EstimateDate__c' }
+    );
+    String unique = String.valueOf(DateTime.now().getTime());
+    User created = new User(
+      Alias = 'nord',
+      Email = 'nord' + unique + '@example.com',
+      EmailEncodingKey = 'UTF-8',
+      LastName = 'NoFieldRead',
+      LanguageLocaleKey = 'ja',
+      LocaleSidKey = 'ja_JP',
+      ProfileId = profileId,
+      TimeZoneSidKey = 'Asia/Tokyo',
+      Username = 'nord' + unique + '@example.com'
+    );
+    System.runAs(new User(Id = UserInfo.getUserId())) {
+      insert created;
+    }
+    cachedUserWithoutFieldRead = created;
+    return cachedUserWithoutFieldRead;
+  }
+
+  private static Id profileWithoutReadOn(List<String> fieldApiNames) {
+    Set<Id> readParents = new Set<Id>();
+    for (FieldPermissions perm : [
+      SELECT ParentId
+      FROM FieldPermissions
+      WHERE Field IN :fieldApiNames AND PermissionsRead = TRUE
+    ]) {
+      readParents.add(perm.ParentId);
+    }
+    List<PermissionSet> owned = readParents.isEmpty()
+      ? [
+          SELECT ProfileId
+          FROM PermissionSet
+          WHERE
+            IsOwnedByProfile = TRUE
+            AND Profile.UserType = 'Standard'
+            AND Profile.PermissionsModifyAllData = FALSE
+          LIMIT 1
+        ]
+      : [
+          SELECT ProfileId
+          FROM PermissionSet
+          WHERE
+            IsOwnedByProfile = TRUE
+            AND Profile.UserType = 'Standard'
+            AND Profile.PermissionsModifyAllData = FALSE
+            AND Id NOT IN :readParents
+          LIMIT 1
+        ];
+    System.assert(
+      !owned.isEmpty() && owned[0].ProfileId != null,
+      '共通基盤 第1.3節: 見積日の参照権が無いプロファイルがありません'
     );
     return owned[0].ProfileId;
   }

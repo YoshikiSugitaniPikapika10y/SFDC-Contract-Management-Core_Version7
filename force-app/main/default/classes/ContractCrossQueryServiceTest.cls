@@ -37,6 +37,39 @@ private class ContractCrossQueryServiceTest {
   }
 
   @IsTest
+  static void crossRead_doesNotFailWithoutFieldRead() {
+    User limited = ContractTestDataFactory.getUserWithoutContractHistoryFieldRead();
+    System.runAs(limited) {
+      System.assertEquals(
+        false,
+        ContractHistory__c.EstimateDate__c.getDescribe().isAccessible(),
+        '共通基盤 第1.3節: この利用者は見積日を参照できない'
+      );
+      String prefix = ContractHistory__c.SObjectType.getDescribe()
+        .getKeyPrefix();
+      Id missingId = (Id) (prefix + '000000000001');
+      System.assertEquals(
+        null,
+        ContractCrossQueryService.queryHistoryForEstimateIssue(missingId),
+        '共通基盤 第1.3節: 見積日を参照できなくても04の発行前読取は権限例外にしない'
+      );
+      Boolean accessFailure = false;
+      try {
+        ContractCrossQueryService.getEstimateTile(missingId);
+      } catch (ContractCrossQueryService.QueryException ex) {
+        System.assert(
+          ex.getMessage().contains('見つかりません'),
+          ex.getMessage()
+        );
+      } catch (Exception ex) {
+        accessFailure = true;
+        System.assert(false, ex.getTypeName() + ' ' + ex.getMessage());
+      }
+      System.assertEquals(false, accessFailure);
+    }
+  }
+
+  @IsTest
   static void queryEstimates_rejectsBlankCloseDatesAndReturnsEstimateOnly() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Boolean blankThrown = false;
