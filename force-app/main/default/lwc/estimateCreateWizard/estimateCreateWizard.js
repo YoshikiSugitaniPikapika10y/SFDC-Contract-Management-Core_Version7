@@ -526,9 +526,7 @@ export default class EstimateCreateWizard extends LightningElement {
     if (this.hasOpenConfirm) {
       // 既存確認を優先。新しい備考確認は拒否して Promise を閉じる。
       this.resolveModal3Confirm(requestId, false);
-      this.showValidationAlert(
-        "先に表示中の確認に回答してください。"
-      );
+      this.showValidationAlert("先に表示中の確認に回答してください。");
       return;
     }
     this.openConfirm({ kind: "remarks", requestId }, detail.message || "");
@@ -548,7 +546,6 @@ export default class EstimateCreateWizard extends LightningElement {
     }
     if (state.kind === "remarks") {
       this.resolveModal3Confirm(state.requestId, true);
-      return;
     }
   }
 
@@ -562,7 +559,6 @@ export default class EstimateCreateWizard extends LightningElement {
     this.clearValidationAlert();
     if (state.kind === "remarks") {
       this.resolveModal3Confirm(state.requestId, false);
-      return;
     }
   }
 
@@ -816,7 +812,8 @@ export default class EstimateCreateWizard extends LightningElement {
 
   loadDocumentDefaults() {
     const session = this._contentSessionSeq;
-    this._documentDefaultsRequestSeq = (this._documentDefaultsRequestSeq || 0) + 1;
+    this._documentDefaultsRequestSeq =
+      (this._documentDefaultsRequestSeq || 0) + 1;
     const requestSeq = this._documentDefaultsRequestSeq;
     this.wizardState = {
       ...this.wizardState,
@@ -966,9 +963,11 @@ export default class EstimateCreateWizard extends LightningElement {
       return;
     }
     try {
-      this.orderHistoryFieldDefinitions = await getOrderHistoryFieldDefinitions({
-        wizardType: preset.selectedType || ""
-      });
+      this.orderHistoryFieldDefinitions = await getOrderHistoryFieldDefinitions(
+        {
+          wizardType: preset.selectedType || ""
+        }
+      );
     } catch (error) {
       this.orderHistoryFieldDefinitions = [];
       this.wizardFieldConfigError = this.resolveApexErrorMessage(error);
@@ -1152,9 +1151,7 @@ export default class EstimateCreateWizard extends LightningElement {
       return;
     }
     if (this.hasOpenConfirm) {
-      this.showValidationAlert(
-        "確認ダイアログに回答してから進んでください。"
-      );
+      this.showValidationAlert("確認ダイアログに回答してから進んでください。");
       return;
     }
     if (!canLeaveCurrentStep(this.wizardState)) {
@@ -1524,7 +1521,10 @@ export default class EstimateCreateWizard extends LightningElement {
       if (line.amount == null && line.productId) {
         const qty = Number(line.quantity);
         if (Number.isNaN(qty) || qty !== 0) {
-          const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
+          const label = productTypeDisplayLabel(
+            line.recordType,
+            line.typeLabel
+          );
           return `商品明細（${label}）: 金額を計算できません。期間を確認してください。`;
         }
       }
@@ -1673,6 +1673,8 @@ export default class EstimateCreateWizard extends LightningElement {
               : Number(this.wizardData.taxPercent),
           estimateDate: this.wizardData.estimateDate || null,
           estimateValidDate: this.wizardData.estimateValidDate || null,
+          estimateIssueDate: this.wizardData.estimateIssueDate || null,
+          estimateTitleName: this.wizardData.estimateTitleName || null,
           estimateSendContactId: this.wizardData.estimateSendContactId || null,
           businessOperationKey: this._pendingOperationKey
         });

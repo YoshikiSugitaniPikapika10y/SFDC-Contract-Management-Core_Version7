@@ -211,6 +211,12 @@ public without sharing class EstimateCreateController {
     @AuraEnabled
     public String estimateValidDate;
 
+    @AuraEnabled
+    public String estimateIssueDate;
+
+    @AuraEnabled
+    public String estimateTitleName;
+
     /** 仕様: Core 第4.3.3節。見積送付先。Ordered編集では画面に出さない。 */
     @AuraEnabled
     public Id estimateSendContactId;
@@ -341,6 +347,12 @@ public without sharing class EstimateCreateController {
 
     @AuraEnabled
     public String estimateValidDate;
+
+    @AuraEnabled
+    public String estimateIssueDate;
+
+    @AuraEnabled
+    public String estimateTitleName;
 
     /** 仕様: Core 第4.3.3節。契約履歴へ保存する。必須にしない。 */
     @AuraEnabled
@@ -592,7 +604,9 @@ public without sharing class EstimateCreateController {
   public static BillingAccountInvoiceSettingsDto getBillingAccountInvoiceSettings(
     BillingAccount__c loaded
   ) {
-    return EstimateQueryService.getBillingAccountInvoiceSettingsFromLoaded(loaded);
+    return EstimateQueryService.getBillingAccountInvoiceSettingsFromLoaded(
+      loaded
+    );
   }
 
   @AuraEnabled
@@ -817,6 +831,8 @@ public without sharing class EstimateCreateController {
       estimateDate,
       estimateValidDate,
       estimateSendContactId,
+      null,
+      null,
       null
     );
   }
@@ -854,7 +870,9 @@ public without sharing class EstimateCreateController {
     String estimateDate,
     String estimateValidDate,
     Id estimateSendContactId,
-    String businessOperationKey
+    String businessOperationKey,
+    String estimateIssueDate,
+    String estimateTitleName
   ) {
     ContractPermissionUtil.assertEstimateSave(editHistoryId, copyFromHistoryId);
     return EstimateSaveService.saveEstimate(
@@ -881,7 +899,9 @@ public without sharing class EstimateCreateController {
       estimateDate,
       estimateValidDate,
       estimateSendContactId,
-      businessOperationKey
+      businessOperationKey,
+      estimateIssueDate,
+      estimateTitleName
     );
   }
 
@@ -923,7 +943,9 @@ public without sharing class EstimateCreateController {
     DocumentDefaultsDto dto = new DocumentDefaultsDto();
     dto.estimateValidMonths = ContractDocumentSettingService.requireEstimateValidMonths();
     dto.defaultMonthlyCycles = ContractDocumentSettingService.requireDefaultCycles();
-    dto.estimateSendMode = ContractDocumentSettingService.requireSendMode('Estimate');
+    dto.estimateSendMode = ContractDocumentSettingService.requireSendMode(
+      'Estimate'
+    );
     dto.today = String.valueOf(
       InvoiceTransactionStatusService.organizationToday()
     );

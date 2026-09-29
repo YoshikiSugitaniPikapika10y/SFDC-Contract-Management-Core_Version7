@@ -18,6 +18,7 @@ public without sharing class EstimateSaveService {
   private static final String PRODUCT_TYPE_NEW = ContractDomainConstants.PRODUCT_TYPE_NEW;
   private static final String PRODUCT_TYPE_RENEW = ContractDomainConstants.PRODUCT_TYPE_RENEW;
   private static final Integer NOTE_MAX_LENGTH = ContractDomainConstants.NOTE_MAX_LENGTH;
+  private static final Integer ESTIMATE_TITLE_MAX_LENGTH = 100;
 
   /** 仕様: Core 第12.4節。同一処理で Product2 を取り直さない。 */
   private static Map<Id, Product2> productBillingTypeCache = new Map<Id, Product2>();
@@ -247,6 +248,8 @@ public without sharing class EstimateSaveService {
       estimateDate,
       estimateValidDate,
       estimateSendContactId,
+      null,
+      null,
       null
     );
   }
@@ -276,7 +279,9 @@ public without sharing class EstimateSaveService {
     String estimateDate,
     String estimateValidDate,
     Id estimateSendContactId,
-    String businessOperationKey
+    String businessOperationKey,
+    String estimateIssueDate,
+    String estimateTitleName
   ) {
     EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
     request.opportunityId = opportunityId;
@@ -306,6 +311,8 @@ public without sharing class EstimateSaveService {
     request.taxPercent = taxPercent;
     request.estimateDate = estimateDate;
     request.estimateValidDate = estimateValidDate;
+    request.estimateIssueDate = estimateIssueDate;
+    request.estimateTitleName = estimateTitleName;
     request.estimateSendContactId = estimateSendContactId;
     request.businessOperationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
@@ -334,8 +341,7 @@ public without sharing class EstimateSaveService {
     // 仕様: Core 第4.3節。Change保存1処理で Path 同期と請求アカウント参照更新を同一処理にまとめる。
     ContractHistoryStatusPathService.beginPathSyncDefer();
     BillingAccountKeyService.beginReferenceRefreshDefer();
-    Boolean previousSkipEstimateSave =
-      ContractIrregularOperationLog.skipEstimateSavePath;
+    Boolean previousSkipEstimateSave = ContractIrregularOperationLog.skipEstimateSavePath;
     ContractIrregularOperationLog.skipEstimateSavePath = true;
     try {
       if (request.editHistoryId != null) {
@@ -851,11 +857,7 @@ public without sharing class EstimateSaveService {
       existing.ContractHistoryContractProducts__r
     );
     writeEstimateTaxSnapshot(existing, serviceId, replaced);
-    return buildSaveResult(
-      existing.ContractService__c,
-      existing,
-      replaced
-    );
+    return buildSaveResult(existing.ContractService__c, existing, replaced);
   }
 
   /** 仕様: Core 第4.3節、第4.7節、第12.4節。編集は配下見積商品を全削除して作り直さない。 */
@@ -1050,11 +1052,7 @@ public without sharing class EstimateSaveService {
     ContractArrCalculationService.rememberProductsForRecalc(newProducts);
     writeEstimateTaxSnapshot(contractHistory, contractService.Id, newProducts);
 
-    return buildSaveResult(
-      contractService.Id,
-      contractHistory,
-      newProducts
-    );
+    return buildSaveResult(contractService.Id, contractHistory, newProducts);
   }
 
   public static EstimateCreateController.EstimateSaveResult saveChangeEstimate(
@@ -1216,7 +1214,9 @@ public without sharing class EstimateSaveService {
     List<ContractProduct__c> products
   ) {
     if (history == null || history.Id == null || serviceId == null) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
     List<ContractService__c> services = [
       SELECT TaxPercent__c
@@ -1226,7 +1226,9 @@ public without sharing class EstimateSaveService {
       LIMIT 1
     ];
     if (services.isEmpty()) {
-      throw EstimateValidationService.wrapAura('契約サービスが見つかりません。');
+      throw EstimateValidationService.wrapAura(
+        '契約サービスが見つかりません。'
+      );
     }
     Decimal excl = sumSavedProductAmounts(products);
     Decimal displayPercent = TaxCalculationUtil.fromPercentFieldStorage(
@@ -1324,10 +1326,10 @@ public without sharing class EstimateSaveService {
     String unitValue;
     Boolean useInheritedUnitSnapshot =
       (selectedType == HISTORY_TYPE_CHANGE &&
-        (EstimateCreateSupport.isChangeOriginalLine(line) ||
-         EstimateCreateSupport.isChangeRemakeLine(line))) ||
+      (EstimateCreateSupport.isChangeOriginalLine(line) ||
+      EstimateCreateSupport.isChangeRemakeLine(line))) ||
       (selectedType == HISTORY_TYPE_RENEW &&
-        line.sourceContractProductId != null);
+      line.sourceContractProductId != null);
     if (useInheritedUnitSnapshot) {
       unitValue = line.unit;
     } else {
@@ -1708,7 +1710,7 @@ public without sharing class EstimateSaveService {
     contractHistory.Note__c = remarksText;
   }
 
-  /** 仕様: Core 第4.10節。空欄は埋めない。送られた値だけ書く。 */
+  /** 仕様: Core 第4.10節。見積日と有効期限は空のまま。発行日が空なら組織の今日。 */
   public static void applyEstimateDocumentDates(
     ContractHistory__c contractHistory,
     EstimateCreateController.EstimateSaveRequest request
@@ -1722,6 +1724,29 @@ public without sharing class EstimateSaveService {
     contractHistory.EstimateValidDate__c = EstimateCreateSupport.parseDate(
       request.estimateValidDate
     );
+    Date issueDate = EstimateCreateSupport.parseDate(request.estimateIssueDate);
+    contractHistory.EstimateIssueDate__c = issueDate == null
+      ? InvoiceTransactionStatusService.organizationToday()
+      : issueDate;
+    contractHistory.EstimateTitleName__c = normalizeEstimateTitle(
+      request.estimateTitleName
+    );
+  }
+
+  /** 仕様: Core 第4.10節。見積件名は100文字。空は空。 */
+  private static String normalizeEstimateTitle(String title) {
+    if (String.isBlank(title)) {
+      return null;
+    }
+    String trimmed = title.trim();
+    if (trimmed.length() > ESTIMATE_TITLE_MAX_LENGTH) {
+      throw EstimateValidationService.wrapAura(
+        '見積件名が最大長（' +
+          ESTIMATE_TITLE_MAX_LENGTH +
+          '文字）を超えています。'
+      );
+    }
+    return trimmed;
   }
 
   /** 仕様: Core 第4.10節。Cancelも見積書セクションの備考を使う。ここではクリアしない。 */
@@ -1862,10 +1887,12 @@ public without sharing class EstimateSaveService {
     if (
       request != null &&
       ContractDocumentSettingService.requireSendMode('Estimate') !=
-        ContractDocumentSettingService.MODE_UNUSED
+      ContractDocumentSettingService.MODE_UNUSED
     ) {
       snapshot.put('EstimateDate__c', history.EstimateDate__c);
       snapshot.put('EstimateValidDate__c', history.EstimateValidDate__c);
+      snapshot.put('EstimateIssueDate__c', history.EstimateIssueDate__c);
+      snapshot.put('EstimateTitleName__c', history.EstimateTitleName__c);
       snapshot.put('Note__c', history.Note__c);
       snapshot.put('EstimateNoteMaster__c', history.EstimateNoteMaster__c);
     }
@@ -1876,7 +1903,11 @@ public without sharing class EstimateSaveService {
     ContractHistory__c history,
     Map<String, Object> displayedValues
   ) {
-    if (history == null || displayedValues == null || displayedValues.isEmpty()) {
+    if (
+      history == null ||
+      displayedValues == null ||
+      displayedValues.isEmpty()
+    ) {
       return;
     }
     for (String apiName : displayedValues.keySet()) {

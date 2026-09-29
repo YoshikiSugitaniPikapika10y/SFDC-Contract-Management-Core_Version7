@@ -73,10 +73,7 @@ private class EstimateSaveServiceTest {
         blankEx = ex;
       }
       System.assertNotEquals(null, blankEx);
-      System.assertEquals(
-        '売上計上基準が空です。',
-        blankEx.getMessage()
-      );
+      System.assertEquals('売上計上基準が空です。', blankEx.getMessage());
     }
   }
 
@@ -222,7 +219,7 @@ private class EstimateSaveServiceTest {
       remakeLine.unit = '式';
       remakeLine.sourceContractProductId = Id.valueOf(
         ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
-          '000000000001'
+        '000000000001'
       );
 
       ContractProduct__c savedRemake = EstimateSaveService.buildContractProduct(
@@ -261,7 +258,7 @@ private class EstimateSaveServiceTest {
       renewLine.unit = '式';
       renewLine.sourceContractProductId = Id.valueOf(
         ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
-          '000000000001'
+        '000000000001'
       );
 
       ContractProduct__c savedRenew = EstimateSaveService.buildContractProduct(
@@ -348,7 +345,7 @@ private class EstimateSaveServiceTest {
       remakeLine.unit = '';
       remakeLine.sourceContractProductId = Id.valueOf(
         ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
-          '000000000001'
+        '000000000001'
       );
 
       ContractProduct__c savedRemake = EstimateSaveService.buildContractProduct(
@@ -375,7 +372,7 @@ private class EstimateSaveServiceTest {
       renewLine.unit = '';
       renewLine.sourceContractProductId = Id.valueOf(
         ContractProduct__c.SObjectType.getDescribe().getKeyPrefix() +
-          '000000000001'
+        '000000000001'
       );
 
       ContractProduct__c savedRenew = EstimateSaveService.buildContractProduct(
@@ -646,7 +643,9 @@ private class EstimateSaveServiceTest {
       ContractHistory__c history = new ContractHistory__c(
         Note__c = '既存備考',
         EstimateDate__c = Date.newInstance(2026, 1, 15),
-        EstimateValidDate__c = Date.newInstance(2026, 2, 15)
+        EstimateValidDate__c = Date.newInstance(2026, 2, 15),
+        EstimateIssueDate__c = Date.newInstance(2026, 1, 10),
+        EstimateTitleName__c = '既存件名'
       );
       EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
       request.remarksText = '新しい備考';
@@ -670,6 +669,16 @@ private class EstimateSaveServiceTest {
         history.EstimateValidDate__c,
         'Core 第4.10節: 使わないでは有効期限を保存対象にせず既存を維持する'
       );
+      System.assertEquals(
+        Date.newInstance(2026, 1, 10),
+        history.EstimateIssueDate__c,
+        'Core 第4.10節: 使わないでは発行日を保存対象にせず既存を維持する'
+      );
+      System.assertEquals(
+        '既存件名',
+        history.EstimateTitleName__c,
+        'Core 第4.10節: 使わないでは見積件名を保存対象にせず既存を維持する'
+      );
     }
   }
 
@@ -684,6 +693,7 @@ private class EstimateSaveServiceTest {
       request.remarksText = '見積書備考';
       request.estimateDate = '2026-08-01';
       request.estimateValidDate = '2026-09-01';
+      request.estimateTitleName = '  年度更新  ';
 
       EstimateSaveService.applyEstimateDocumentIfEnabled(history, request);
 
@@ -696,6 +706,12 @@ private class EstimateSaveServiceTest {
         Date.newInstance(2026, 9, 1),
         history.EstimateValidDate__c
       );
+      System.assertEquals(
+        InvoiceTransactionStatusService.organizationToday(),
+        history.EstimateIssueDate__c,
+        'Core 第4.10節: 発行日が空なら組織の今日'
+      );
+      System.assertEquals('年度更新', history.EstimateTitleName__c);
     }
   }
 
@@ -743,7 +759,9 @@ private class EstimateSaveServiceTest {
       setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
       update setting;
       ContractDocumentSettingService.clearCache();
-      Account account = ContractTestDataFactory.insertAccount('薄いサービス取引先');
+      Account account = ContractTestDataFactory.insertAccount(
+        '薄いサービス取引先'
+      );
       BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
         account.Id
       );
@@ -848,7 +866,9 @@ private class EstimateSaveServiceTest {
       setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
       update setting;
       ContractDocumentSettingService.clearCache();
-      Account account = ContractTestDataFactory.insertAccount('続き再利用取引先');
+      Account account = ContractTestDataFactory.insertAccount(
+        '続き再利用取引先'
+      );
       BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
         account.Id
       );
@@ -1011,7 +1031,7 @@ private class EstimateSaveServiceTest {
         rejected = true;
         System.assert(
           ex.getMessage().contains('Memo__c') ||
-            ex.getMessage().contains('Test_Journal_Memo_LineOnly_Save'),
+          ex.getMessage().contains('Test_Journal_Memo_LineOnly_Save'),
           ex.getMessage()
         );
       } finally {
@@ -1048,7 +1068,7 @@ private class EstimateSaveServiceTest {
         rejected = true;
         System.assert(
           ex.getMessage().contains('Memo__c') ||
-            ex.getMessage().contains('Test_Journal_Memo_LineOnly_Change'),
+          ex.getMessage().contains('Test_Journal_Memo_LineOnly_Change'),
           ex.getMessage()
         );
       } finally {
@@ -1085,7 +1105,7 @@ private class EstimateSaveServiceTest {
         rejected = true;
         System.assert(
           ex.getMessage().contains('Memo__c') ||
-            ex.getMessage().contains('Test_Journal_Memo_LineOnly_Cancel'),
+          ex.getMessage().contains('Test_Journal_Memo_LineOnly_Cancel'),
           ex.getMessage()
         );
       } finally {
@@ -1102,7 +1122,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void saveEstimate_unsupportedType_throwsCodedMessage() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Unsupported Type');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Unsupported Type'
+      );
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Unsupported Type Opp'
@@ -1239,7 +1261,9 @@ private class EstimateSaveServiceTest {
       );
       System.assertEquals(
         String.valueOf(termStart.addDays(1)),
-        String.valueOf(preset.contractHistoryCustomFields.get('ApplicationDate__c')),
+        String.valueOf(
+          preset.contractHistoryCustomFields.get('ApplicationDate__c')
+        ),
         'Core 第11.4.3節: Ordered見積編集の初期値は保存済みの受注追加項目'
       );
       System.assertEquals(
@@ -2648,7 +2672,8 @@ private class EstimateSaveServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     return billingAccount;
@@ -2861,10 +2886,7 @@ private class EstimateSaveServiceTest {
         'Core 第12.4節: 書いた履歴と見積商品の版を取り直さない'
       );
       System.assertEquals(history.Id, result.contractHistoryId);
-      System.assertEquals(
-        new List<Id>{ line.Id },
-        result.contractProductIds
-      );
+      System.assertEquals(new List<Id>{ line.Id }, result.contractProductIds);
       System.assertEquals(
         EstimateQueryService.copyPresetToken(
           history.LastModifiedDate,
@@ -2965,7 +2987,11 @@ private class EstimateSaveServiceTest {
           WHERE Id = :history.Id
         ]
         .LastModifiedDate;
-        if (productMax != null && historyLm != null && productMax.getTime() != historyLm.getTime()) {
+        if (
+          productMax != null &&
+          historyLm != null &&
+          productMax.getTime() != historyLm.getTime()
+        ) {
           System.assert(
             false,
             'Core 第4.3.12節: 見積編集の版は契約履歴と配下見積商品。商品追加後の履歴だけのトークンは拒否する'
@@ -3103,7 +3129,7 @@ private class EstimateSaveServiceTest {
         System.assert(
           ex.getMessage().contains('消費税率が空です'),
           'Core 第1.1.10節: 税なしoverloadはNewでも10で埋めない: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, rejected);
@@ -3304,10 +3330,7 @@ private class EstimateSaveServiceTest {
       EstimateSaveService.replaceProductSelectCount = 0;
       ContractOptimisticLockUtil.productMaxSelectCount = 0;
       ContractOptimisticLockUtil.historySelectCount = 0;
-      EstimateSaveService.saveEditedEstimate(
-        request,
-        'Edit No Reread History'
-      );
+      EstimateSaveService.saveEditedEstimate(request, 'Edit No Reread History');
       System.assertEquals(
         0,
         EstimateSaveService.replaceProductSelectCount,
@@ -3329,9 +3352,7 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void saveEditedEstimate_sameKeyRetry_returnsSameHistory() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Edit Key Acc'
-      );
+      Account account = ContractTestDataFactory.insertAccount('Edit Key Acc');
       Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
         account.Id,
         'Edit Key Opp'

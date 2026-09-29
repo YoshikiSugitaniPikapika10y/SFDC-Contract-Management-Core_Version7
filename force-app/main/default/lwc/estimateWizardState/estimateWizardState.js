@@ -78,6 +78,8 @@ const TYPE_DEPENDENT_FIELDS = [
   "estimateDate",
   "estimateValidDate",
   "estimateValidDateTouched",
+  "estimateIssueDate",
+  "estimateTitleName",
   "serviceLifecycle",
   "estimateSendContactId"
 ];
@@ -102,6 +104,8 @@ const CONTRACT_DEPENDENT_FIELDS = [
   "estimateDate",
   "estimateValidDate",
   "estimateValidDateTouched",
+  "estimateIssueDate",
+  "estimateTitleName",
   "estimateSendContactId"
 ];
 
@@ -128,7 +132,9 @@ const STEP3_ALLOWED_FIELDS = [
   "contractHistoryCustomFields",
   "estimateDate",
   "estimateValidDate",
-  "estimateValidDateTouched"
+  "estimateValidDateTouched",
+  "estimateIssueDate",
+  "estimateTitleName"
 ];
 
 export function createEmptyWizardData() {
@@ -171,6 +177,8 @@ export function createEmptyWizardData() {
     estimateDate: "",
     estimateValidDate: "",
     estimateValidDateTouched: false,
+    estimateIssueDate: "",
+    estimateTitleName: "",
     estimateSendContactId: "",
     opportunityContactId: "",
     defaultMonthlyCycles: null,
@@ -257,6 +265,8 @@ export function buildWizardDataFromPreset(preset) {
     estimateDate: preset.estimateDate || "",
     estimateValidDate: preset.estimateValidDate || "",
     estimateValidDateTouched: Boolean(preset.estimateValidDate),
+    estimateIssueDate: preset.estimateIssueDate || "",
+    estimateTitleName: preset.estimateTitleName || "",
     estimateSendContactId: preset.estimateSendContactId || "",
     historyStatus: preset.historyStatus || "",
     lastModifiedToken: preset.lastModifiedToken || "",
@@ -342,9 +352,7 @@ function reduceSetType(state, action) {
     data.taxPercent = state.data.taxPercent;
     data.renewEligible = state.data.renewEligible;
     data.estimateSendContactId = previousSendContactId;
-    data.contractHistoryName = buildCreateHistoryName(
-      data.opportunityName
-    );
+    data.contractHistoryName = buildCreateHistoryName(data.opportunityName);
   }
   data.selectedType = nextType;
   if (nextIsNew && (data.taxPercent == null || data.taxPercent === "")) {
@@ -457,7 +465,11 @@ function reduceSelectContractServiceStart(state, action) {
     data.selectedType = "";
   } else if (lifecycle === "Spot" && type !== "Change") {
     data.selectedType = "Change";
-  } else if (lifecycle === "Term" && type !== "" && !CONTINUATION_OPS.has(type)) {
+  } else if (
+    lifecycle === "Term" &&
+    type !== "" &&
+    !CONTINUATION_OPS.has(type)
+  ) {
     data.selectedType = "";
   }
   return {
@@ -484,8 +496,7 @@ function reduceSelectContractServiceResult(state, action, result) {
   data.nextHistoryVersion =
     result && result.nextVersion != null ? result.nextVersion : null;
   data.renewEligible = result ? result.renewEligible === true : null;
-  data.estimateSendContactId =
-    (result && result.estimateSendContactId) || "";
+  data.estimateSendContactId = (result && result.estimateSendContactId) || "";
   return {
     ...state,
     data,
@@ -744,8 +755,7 @@ export function applyEstimateDocumentDefaults(state, defaults) {
   data.estimateValidMonths = defaults.estimateValidMonths;
   data.estimateSendMode = mode;
   data.taxRoundingMode = defaults.taxRoundingMode;
-  data.quantityUnitPriceRoundingMode =
-    defaults.quantityUnitPriceRoundingMode;
+  data.quantityUnitPriceRoundingMode = defaults.quantityUnitPriceRoundingMode;
   data.amountRoundingMode = defaults.amountRoundingMode;
   // 仕様: Core 第4.6節、第11.9節。明細金額計算へ OrgDefault を載せる。
   setAmountCalculationRoundingModes({
@@ -760,6 +770,10 @@ export function applyEstimateDocumentDefaults(state, defaults) {
   if (!data.estimateDate) {
     data.estimateDate = defaults.today || "";
   }
+  // 仕様: Core 第4.10節。保存済みの発行日は今日で上書きしない。空なら組織の今日。
+  if (!data.estimateIssueDate) {
+    data.estimateIssueDate = defaults.today || "";
+  }
   // 仕様: Core 第4.10節。有効期限が空なら見積日の暦月N後。元値は上書きしない。
   if (!data.estimateValidDate) {
     data.estimateValidDate = addCalendarMonths(
@@ -770,7 +784,12 @@ export function applyEstimateDocumentDefaults(state, defaults) {
   return { ...state, data };
 }
 
-export function followEstimateValidDate(estimateDate, months, touched, currentValid) {
+export function followEstimateValidDate(
+  estimateDate,
+  months,
+  touched,
+  currentValid
+) {
   if (touched) {
     return currentValid || "";
   }

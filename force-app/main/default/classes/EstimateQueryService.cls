@@ -358,7 +358,9 @@ public without sharing class EstimateQueryService {
         AND Version__c != NULL
       WITH SYSTEM_MODE
     ]) {
-      Decimal current = cancelVersionByServiceId.get(history.ContractService__c);
+      Decimal current = cancelVersionByServiceId.get(
+        history.ContractService__c
+      );
       if (current == null || history.Version__c > current) {
         cancelVersionByServiceId.put(
           history.ContractService__c,
@@ -393,8 +395,8 @@ public without sharing class EstimateQueryService {
     if (
       current == null ||
       (history.Version__c != null &&
-        (current.Version__c == null ||
-          history.Version__c > current.Version__c))
+      (current.Version__c == null ||
+      history.Version__c > current.Version__c))
     ) {
       loadedOrderedByServiceId.put(history.ContractService__c, history);
     }
@@ -470,6 +472,8 @@ public without sharing class EstimateQueryService {
       'Note__c',
       'EstimateDate__c',
       'EstimateValidDate__c',
+      'EstimateIssueDate__c',
+      'EstimateTitleName__c',
       'EstimateSendContact__c',
       'PreviousHistory__c',
       'PreviousHistory__r.Id',
@@ -575,6 +579,12 @@ public without sharing class EstimateQueryService {
     preset.estimateValidDate = EstimateCreateSupport.formatDate(
       history.EstimateValidDate__c
     );
+    preset.estimateIssueDate = EstimateCreateSupport.formatDate(
+      history.EstimateIssueDate__c
+    );
+    preset.estimateTitleName = history.EstimateTitleName__c == null
+      ? ''
+      : history.EstimateTitleName__c;
     preset.estimateSendContactId = history.EstimateSendContact__c;
     preset.selectedProducts = toCopyProductLineItems(
       copyProducts,
@@ -585,10 +595,7 @@ public without sharing class EstimateQueryService {
       ContractWizardFieldService.WizardTarget.ContractHistory
     );
     // 仕様: Core 第4.3.11節、第12.4節、第11.4.3節。Ordered編集は読んだ契約履歴の受注追加項目を取り直さない。保存済み初期値は変えない。
-    if (
-      forEdit == true &&
-      history.historystatus__c == HISTORY_STATUS_ORDERED
-    ) {
+    if (forEdit == true && history.historystatus__c == HISTORY_STATUS_ORDERED) {
       if (preset.contractHistoryCustomFields == null) {
         preset.contractHistoryCustomFields = new Map<String, Object>();
       }
@@ -649,10 +656,7 @@ public without sharing class EstimateQueryService {
       : service.BiilingAcccount__c;
 
     // 仕様: Core 第4.3.11節、第12.4節。OrderedのChange／Renew／Cancel編集presetは読んだ対象見積商品をrenewEligible判定で取り直さない。明細初期値とrenewEligibleは変えない。
-    if (
-      forEdit == true &&
-      history.historystatus__c == HISTORY_STATUS_ORDERED
-    ) {
+    if (forEdit == true && history.historystatus__c == HISTORY_STATUS_ORDERED) {
       rememberRenewEligibleFromLoadedProducts(
         history.Id,
         history.CurrentTermEndDate__c,
@@ -832,7 +836,9 @@ public without sharing class EstimateQueryService {
   }
 
   /** 仕様: Core 第4.3.12節。コピー初期値と版トークンで同一の見積商品照会を使う。 */
-  private static List<ContractProduct__c> queryCopyProducts(Id contractHistoryId) {
+  private static List<ContractProduct__c> queryCopyProducts(
+    Id contractHistoryId
+  ) {
     List<String> selectFields = new List<String>{
       'Id',
       'LastModifiedDate',
@@ -921,7 +927,8 @@ public without sharing class EstimateQueryService {
         if (
           product != null &&
           product.LastModifiedDate != null &&
-          (maxLm == null || product.LastModifiedDate > maxLm)
+          (maxLm == null ||
+          product.LastModifiedDate > maxLm)
         ) {
           maxLm = product.LastModifiedDate;
         }
@@ -1394,14 +1401,12 @@ public without sharing class EstimateQueryService {
         ContractHistory__c IN :historyIds
         AND BillingType__c = :BILLING_TYPE_RECURRING
         AND Quantity__c > 0
-        AND (
-          Type__c = NULL
-          OR Type__c IN (
-            :PRODUCT_TYPE_REMAKE,
-            :PRODUCT_TYPE_NEW,
-            :PRODUCT_TYPE_RENEW
-          )
-        )
+        AND (Type__c = NULL
+        OR Type__c IN (
+          :PRODUCT_TYPE_REMAKE,
+          :PRODUCT_TYPE_NEW,
+          :PRODUCT_TYPE_RENEW
+        ))
       WITH SYSTEM_MODE
       ORDER BY Product__r.Name ASC
     ]) {
@@ -1505,10 +1510,16 @@ public without sharing class EstimateQueryService {
     if (loaded == null) {
       return dto;
     }
-    dto.billingCustomFields.put('BillingAddressee__c', loaded.BillingAddressee__c);
+    dto.billingCustomFields.put(
+      'BillingAddressee__c',
+      loaded.BillingAddressee__c
+    );
     dto.billingCustomFields.put('BillingEmailTo__c', loaded.BillingEmailTo__c);
     dto.billingCustomFields.put('BillingEmailCc__c', loaded.BillingEmailCc__c);
-    dto.billingCustomFields.put('BillingEmailBcc__c', loaded.BillingEmailBcc__c);
+    dto.billingCustomFields.put(
+      'BillingEmailBcc__c',
+      loaded.BillingEmailBcc__c
+    );
     dto.billingCustomFields.put(
       'InvoiceDeliveryMethod__c',
       loaded.InvoiceDeliveryMethod__c
@@ -1517,7 +1528,9 @@ public without sharing class EstimateQueryService {
       'BillingAccountKey__c',
       loaded.BillingAccountKey__c
     );
-    for (String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS) {
+    for (
+      String fieldApiName : BillingScheduleService.BILLING_ACCOUNT_SCHEDULE_FIELDS
+    ) {
       dto.billingCustomFields.put(fieldApiName, loaded.get(fieldApiName));
     }
     return dto;
@@ -1550,5 +1563,4 @@ public without sharing class EstimateQueryService {
     }
     return '';
   }
-
 }

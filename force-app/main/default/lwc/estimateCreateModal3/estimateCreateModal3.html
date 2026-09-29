@@ -1,9 +1,7 @@
 <template>
   <div class="est-step3">
     <template if:true={surfaceError}>
-      <div class="est-alert est-alert_error" role="alert">
-        {surfaceError}
-      </div>
+      <div class="est-alert est-alert_error" role="alert">{surfaceError}</div>
     </template>
     <template if:true={amountApplyError}>
       <div class="est-alert est-alert_error" role="alert">
@@ -142,7 +140,7 @@
     <template if:true={isLoadingDates}>
       <div class="est-loading est-loading_inline">
         <lightning-spinner
-            alternative-text="読み込み中"
+          alternative-text="読み込み中"
           size="small"
         ></lightning-spinner>
       </div>
@@ -831,7 +829,9 @@
                                   >{item.invoiceType}</span
                                 >
                               </template>
-                              <template if:false={item.isInvoiceSettingReadonly}>
+                              <template
+                                if:false={item.isInvoiceSettingReadonly}
+                              >
                                 <div class="est-cell-field">
                                   <select
                                     class="est-cell-input est-cell-select"
@@ -894,7 +894,9 @@
                                     >{item.revenueRecognitionBasisLabel}</span
                                   >
                                 </template>
-                                <template if:false={item.isRevenueBasisReadonly}>
+                                <template
+                                  if:false={item.isRevenueBasisReadonly}
+                                >
                                   <div class="est-cell-field">
                                     <select
                                       class="est-cell-input est-cell-select"
@@ -1118,6 +1120,39 @@
               </lightning-input>
             </template>
           </div>
+          <div class="est-field">
+            <span class="est-label">発行日</span>
+            <template if:true={isEstimateDocumentReadonly}>
+              <div class="est-value">{estimateIssueDate}</div>
+            </template>
+            <template if:false={isEstimateDocumentReadonly}>
+              <lightning-input
+                type="date"
+                label="発行日"
+                variant="label-hidden"
+                value={estimateIssueDate}
+                onchange={handleEstimateIssueDateChange}
+              >
+              </lightning-input>
+            </template>
+          </div>
+          <div class="est-field">
+            <span class="est-label">見積件名</span>
+            <template if:true={isEstimateDocumentReadonly}>
+              <div class="est-value">{estimateTitleName}</div>
+            </template>
+            <template if:false={isEstimateDocumentReadonly}>
+              <lightning-input
+                type="text"
+                label="見積件名"
+                variant="label-hidden"
+                value={estimateTitleName}
+                maxlength="100"
+                onchange={handleEstimateTitleNameChange}
+              >
+              </lightning-input>
+            </template>
+          </div>
           <div class="est-field est-field_remark-master">
             <span class="est-label">見積備考マスタ</span>
             <template if:true={isRemarksReadonly}>
@@ -1149,9 +1184,7 @@
           <div class="est-field est-field_remarks">
             <span class="est-label">見積備考</span>
             <template if:true={isRemarksReadonly}>
-              <div class="est-value est-value_multiline">
-                {estimateRemarks}
-              </div>
+              <div class="est-value est-value_multiline">{estimateRemarks}</div>
             </template>
             <template if:false={isRemarksReadonly}>
               <lightning-textarea

@@ -78,10 +78,7 @@ import {
   syncCustomFieldsForVisibility,
   shallowEqualFieldMaps
 } from "c/estimateWizardCustomFields";
-import {
-  createRowId,
-  followEstimateValidDate
-} from "c/estimateWizardState";
+import { createRowId, followEstimateValidDate } from "c/estimateWizardState";
 import {
   UI_ONLY_PRODUCT_FIELDS,
   stripUiFields,
@@ -564,7 +561,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       estimateRemarks: this.estimateRemarks,
       estimateDate: this.estimateDate,
       estimateValidDate: this.estimateValidDate,
-      estimateValidDateTouched: this._wizardData?.estimateValidDateTouched === true
+      estimateValidDateTouched:
+        this._wizardData?.estimateValidDateTouched === true
     });
     this.emitProductsFromItemList();
     return true;
@@ -685,8 +683,7 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   get isSpotChange() {
     return (
-      this.isChangeType &&
-      (this._wizardData?.serviceLifecycle || "") === "Spot"
+      this.isChangeType && (this._wizardData?.serviceLifecycle || "") === "Spot"
     );
   }
 
@@ -1477,6 +1474,14 @@ export default class EstimateCreateModal3 extends LightningElement {
     return this._wizardData?.estimateValidDate || "";
   }
 
+  get estimateIssueDate() {
+    return this._wizardData?.estimateIssueDate || "";
+  }
+
+  get estimateTitleName() {
+    return this._wizardData?.estimateTitleName || "";
+  }
+
   get isEstimateDocumentReadonly() {
     return this.orderedCustomFieldsOnly === true;
   }
@@ -1650,10 +1655,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   get defaultMonthlyCycles() {
-    return (
-      (this._wizardData && this._wizardData.defaultMonthlyCycles) ||
-      null
-    );
+    return (this._wizardData && this._wizardData.defaultMonthlyCycles) || null;
   }
 
   addOneMonthEndDate(isoStartDate) {
@@ -2775,13 +2777,7 @@ export default class EstimateCreateModal3 extends LightningElement {
       ? this.computeChangeEffectiveDate(list, this.contractStartDate)
       : this.contractEffectiveDate;
     const decorated = list.map((item, index) =>
-      this.decorateRow(
-        item,
-        index,
-        remakeCountByPairId,
-        list,
-        effectiveDateIso
-      )
+      this.decorateRow(item, index, remakeCountByPairId, list, effectiveDateIso)
     );
     return this.applyLineNumbers(decorated);
   }
@@ -4017,7 +4013,6 @@ export default class EstimateCreateModal3 extends LightningElement {
       const body = String(message || "").trim();
       const head = String(title || "").trim();
       this.surfaceError = body || head;
-      return;
     }
   }
 
@@ -4046,6 +4041,18 @@ export default class EstimateCreateModal3 extends LightningElement {
     this.applyBusinessFields({
       estimateValidDate: event.target.value || "",
       estimateValidDateTouched: true
+    });
+  }
+
+  handleEstimateIssueDateChange(event) {
+    this.applyBusinessFields({
+      estimateIssueDate: event.target.value || ""
+    });
+  }
+
+  handleEstimateTitleNameChange(event) {
+    this.applyBusinessFields({
+      estimateTitleName: event.target.value || ""
     });
   }
 
@@ -4100,6 +4107,12 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
     if (fields.estimateValidDateTouched !== undefined) {
       detail.estimateValidDateTouched = fields.estimateValidDateTouched;
+    }
+    if (fields.estimateIssueDate !== undefined) {
+      detail.estimateIssueDate = fields.estimateIssueDate;
+    }
+    if (fields.estimateTitleName !== undefined) {
+      detail.estimateTitleName = fields.estimateTitleName;
     }
     if (options.emit === false) {
       return;

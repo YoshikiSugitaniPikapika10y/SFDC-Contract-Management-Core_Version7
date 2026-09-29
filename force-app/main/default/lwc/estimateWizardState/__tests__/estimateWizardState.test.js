@@ -819,8 +819,12 @@ describe("見積日・有効期限の初期値", () => {
   };
 
   it("未入力なら見積日＝今日、有効期限＝暦月N後", () => {
-    const next = applyEstimateDocumentDefaults(createInitialWizardState(), defaults);
+    const next = applyEstimateDocumentDefaults(
+      createInitialWizardState(),
+      defaults
+    );
     expect(next.data.estimateDate).toBe("2026-08-28");
+    expect(next.data.estimateIssueDate).toBe("2026-08-28");
     expect(next.data.estimateValidDate).toBe("2026-09-28");
     expect(next.data.taxRoundingMode).toBe("DOWN");
     expect(next.data.quantityUnitPriceRoundingMode).toBe("Scale2HalfUp");
@@ -833,6 +837,7 @@ describe("見積日・有効期限の初期値", () => {
       estimateSendMode: "Unused"
     });
     expect(next.data.estimateDate).toBe("");
+    expect(next.data.estimateIssueDate).toBe("");
     expect(next.data.estimateValidDate).toBe("");
   });
 
@@ -842,6 +847,8 @@ describe("見積日・有効期限の初期値", () => {
       data: {
         ...createInitialWizardState().data,
         estimateDate: "2026-01-15",
+        estimateIssueDate: "2026-01-20",
+        estimateTitleName: "元の件名",
         estimateValidDate: "2026-03-01",
         estimateValidDateTouched: true,
         estimateRemarks: "元の備考"
@@ -849,6 +856,8 @@ describe("見積日・有効期限の初期値", () => {
     };
     const next = applyEstimateDocumentDefaults(state, defaults);
     expect(next.data.estimateDate).toBe("2026-01-15");
+    expect(next.data.estimateIssueDate).toBe("2026-01-20");
+    expect(next.data.estimateTitleName).toBe("元の件名");
     expect(next.data.estimateValidDate).toBe("2026-03-01");
     expect(next.data.estimateSendMode).toBe("PdfOnly");
     expect(next.data.estimateRemarks).toBe("元の備考");
@@ -911,9 +920,9 @@ describe("見積日・有効期限の初期値", () => {
   });
 
   it("触った有効期限は見積日に追従しない", () => {
-    expect(
-      followEstimateValidDate("2026-08-28", 1, true, "2026-12-01")
-    ).toBe("2026-12-01");
+    expect(followEstimateValidDate("2026-08-28", 1, true, "2026-12-01")).toBe(
+      "2026-12-01"
+    );
     expect(followEstimateValidDate("2026-08-28", 1, false, "")).toBe(
       "2026-09-28"
     );
