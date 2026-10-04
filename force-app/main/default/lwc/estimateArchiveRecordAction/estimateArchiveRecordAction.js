@@ -133,10 +133,13 @@ export default class EstimateArchiveRecordAction extends LightningElement {
     } catch (error) {
       const alert = resolveSaveErrorAlert(error);
       this.errorMessage = alert.messages.map((entry) => entry.text).join("\n");
-      // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直す。
+      // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直し、拒否文は残す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";
         await this.loadContext();
+        if (!this.errorMessage) {
+          this.errorMessage = VERSION_CONFLICT_MESSAGE;
+        }
       }
     } finally {
       this.isWorking = false;

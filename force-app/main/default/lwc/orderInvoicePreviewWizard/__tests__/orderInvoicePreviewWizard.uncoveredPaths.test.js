@@ -394,9 +394,9 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
       detail: { edits: [{ lineId: "1" }] }
     });
     expect(resolvePreviewScope).toHaveBeenCalled();
-    expect(ctx.reduceError({ body: { message: VERSION_CONFLICT } })).toBe(
-      VERSION_CONFLICT
-    );
+    expect(getInvoicePreview).toHaveBeenCalled();
+    expect(ctx.contentLoadFailed).toBe(false);
+    expect(ctx.errorMessage).toBe(VERSION_CONFLICT);
   });
 
   it("closes modal vs tab", () => {

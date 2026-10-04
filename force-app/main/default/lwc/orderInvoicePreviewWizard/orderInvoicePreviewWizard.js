@@ -495,9 +495,12 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     } catch (error) {
       this.errorMessage = this.reduceError(error);
       this.contentLoadFailed = true;
-      // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
+      // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直し、拒否文は残す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
         await this.loadPreview();
+        if (this.contentLoadFailed !== true && !this.errorMessage) {
+          this.errorMessage = VERSION_CONFLICT_MESSAGE;
+        }
       }
       return false;
     } finally {

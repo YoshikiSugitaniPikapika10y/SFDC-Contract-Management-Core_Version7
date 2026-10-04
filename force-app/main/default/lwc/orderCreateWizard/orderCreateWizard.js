@@ -373,10 +373,13 @@ export default class OrderCreateWizard extends NavigationMixin(
       this.closeAction();
     } catch (error) {
       this.errorMessage = this.reduceError(error);
-      // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直す。
+      // 仕様: Core 第4.3.12節。版比較失敗時は画面を読み直し、拒否文は残す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";
         await this.loadContext();
+        if (this.contentLoadFailed !== true && !this.errorMessage) {
+          this.errorMessage = VERSION_CONFLICT_MESSAGE;
+        }
       }
     } finally {
       this.isSaving = false;

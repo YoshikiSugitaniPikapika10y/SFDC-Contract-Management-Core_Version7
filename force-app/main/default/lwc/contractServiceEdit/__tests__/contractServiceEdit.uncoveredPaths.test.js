@@ -341,11 +341,13 @@ describe("contractServiceEdit uncovered (Core 3.4.1 / 4.3.12 / 4.6)", () => {
 
     save.mockRejectedValue({ body: { message: VERSION_CONFLICT_MESSAGE } });
     const conflict = bind({ _pendingOperationKey: "old" });
-    const loadSpy = jest.spyOn(conflict, "loadContext").mockImplementation(() => {});
     await conflict.handleSave();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(conflict.surfaceError).toBe(VERSION_CONFLICT_MESSAGE);
     expect(conflict._pendingOperationKey).toBe("");
-    expect(loadSpy).toHaveBeenCalled();
+    expect(conflict.lastModifiedToken).toBe("tok-1");
+    expect(getContext).toHaveBeenCalled();
   });
 
   it("handleReloadContext clears error and reloads", () => {

@@ -2149,8 +2149,12 @@ export default class ContractCrossWork extends NavigationMixin(
       return true;
     } catch (error) {
       this.invoiceError = this.reduceError(error);
+      // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時は右タイルを読み直し、拒否文は残す。
       if (this.invoiceError === VERSION_CONFLICT_MESSAGE) {
         await this.reloadInvoiceTile();
+        if (!this.invoiceError) {
+          this.invoiceError = VERSION_CONFLICT_MESSAGE;
+        }
       }
       return false;
     } finally {

@@ -369,12 +369,16 @@ describe("orderRevertWizard uncovered (Core 5.3 / 4.3.12 / 11.4.3)", () => {
     resolveSaveErrorAlert.mockReturnValue({
       messages: [{ text: VERSION_CONFLICT_MESSAGE }]
     });
+    getOrderContext.mockResolvedValue({
+      ...ORDERED,
+      lastModifiedToken: "tok-new"
+    });
     const ctx = bind({ _pendingOperationKey: "old" });
-    const loadSpy = jest.spyOn(ctx, "loadContext").mockResolvedValue();
     await ctx.handleRevert();
     expect(ctx.errorMessage).toBe(VERSION_CONFLICT_MESSAGE);
     expect(ctx._pendingOperationKey).toBe("");
-    expect(loadSpy).toHaveBeenCalled();
+    expect(ctx._lastModifiedToken).toBe("tok-new");
+    expect(getOrderContext).toHaveBeenCalled();
     expect(ctx.isSaving).toBe(false);
   });
 

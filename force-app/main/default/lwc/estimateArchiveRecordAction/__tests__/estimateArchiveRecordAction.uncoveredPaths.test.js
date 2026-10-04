@@ -267,6 +267,7 @@ describe("estimateArchiveRecordAction uncovered (Core 5.5 / 4.3.12 / 0.1)", () =
     expect(resolveSaveErrorAlert).toHaveBeenCalled();
     expect(ctx._pendingOperationKey).toBe("");
     expect(ctx._lastModifiedToken).toBe("tok-new");
+    expect(ctx.errorMessage).toBe(VERSION_CONFLICT_MESSAGE);
     expect(getArchiveContext).toHaveBeenCalled();
     expect(ctx.isWorking).toBe(false);
   });

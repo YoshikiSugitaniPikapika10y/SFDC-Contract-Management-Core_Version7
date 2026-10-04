@@ -303,6 +303,7 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
     );
     expect(getOrderContext).toHaveBeenCalled();
     expect(ctx.contentLoadFailed).toBe(false);
+    expect(ctx.errorMessage).toBe(VERSION_CONFLICT);
   });
 
   it("loadContext failure shows 再読み込み (Core 4.3.11)", async () => {

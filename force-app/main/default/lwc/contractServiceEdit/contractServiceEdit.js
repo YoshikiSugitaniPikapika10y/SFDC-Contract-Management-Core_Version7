@@ -120,12 +120,18 @@ export default class ContractServiceEdit extends LightningElement {
         this.allowOtherAccountBilling = this.isBillingOutsideRelated(
           this.billingAccountId
         );
-        this.setSurfaceError("");
+        // 仕様: Core 第3.4.1節・第4.3.12節。版比較の読み直し後も拒否文は残す。
+        if (this._restoreConflictMessage === true) {
+          this.setSurfaceError(VERSION_CONFLICT_MESSAGE);
+        } else {
+          this.setSurfaceError("");
+        }
       })
       .catch((error) => {
         this.setSurfaceError(this.messageOf(error), true);
       })
       .finally(() => {
+        this._restoreConflictMessage = false;
         this.loading = false;
       });
   }
@@ -289,9 +295,10 @@ export default class ContractServiceEdit extends LightningElement {
     } catch (error) {
       const msg = this.messageOf(error);
       this.setSurfaceError(msg);
-      // 仕様: Core 第3.4.1節・第4.3.12節。版比較失敗時は画面を読み直す。
+      // 仕様: Core 第3.4.1節・第4.3.12節。版比較失敗時は画面を読み直し、拒否文は残す。
       if (msg === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";
+        this._restoreConflictMessage = true;
         this.loadContext();
       }
     } finally {

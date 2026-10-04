@@ -609,6 +609,7 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     const ctx = bind({
       selectedId: "a02INV",
       menu: "invoice",
+      previewHistoryId: "a01HIS",
       invoicePreview: { sourceHistoryVersion: 1, contractHistoryId: "a01HIS" }
     });
     getInvoicePreview.mockResolvedValue({
@@ -627,6 +628,7 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
       { restrictToOpenedVersion: true }
     );
     expect(failed).toBe(false);
+    expect(getInvoicePreview).toHaveBeenCalled();
     expect(ctx.invoiceError).toBe(
       "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。"
     );
