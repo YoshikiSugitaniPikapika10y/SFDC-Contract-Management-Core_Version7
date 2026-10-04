@@ -2694,9 +2694,13 @@ export default class EstimateCreateModal3 extends LightningElement {
         row.billingCycle
       ),
       cycleCountDisplay: this.resolveCycleCountDisplay(row),
-      displayUnitPrice: Number.isFinite(Number(row.unitPrice))
-        ? formatCurrencyNumber(row.unitPrice)
-        : "",
+      // 仕様: Core 第4.4節。境界不一致のあいだ単価は空表示。行の単価は残す。
+      displayUnitPrice: row.endDateBoundaryError
+        ? ""
+        : Number.isFinite(Number(row.unitPrice))
+          ? formatCurrencyNumber(row.unitPrice)
+          : "",
+      shownUnitPrice: row.endDateBoundaryError ? null : row.unitPrice,
       displayAmount: formatAmountYen(
         row.amount != null &&
           row.amount !== "" &&
@@ -3039,6 +3043,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         ? roundAmountYen(row.manualAmount)
         : row.manualAmount;
     // 仕様: Core 第4.4節。境界に乗らない終了日は単価を空にし、確定した金額を残す。
+    // 仕様: Core 第4.4節。境界不一致のあいだ単価は捨てず、確定した金額を残す。空表示は decorate。
     if (row.endDateBoundaryError) {
       const kept =
         row.amountEntryMode === true && manualAmount != null
@@ -3046,7 +3051,6 @@ export default class EstimateCreateModal3 extends LightningElement {
           : row.amount;
       return {
         ...row,
-        unitPrice: null,
         amount: kept,
         manualAmount: row.amountEntryMode === true ? manualAmount : null,
         preserveSavedAmount: true,
@@ -3282,7 +3286,6 @@ export default class EstimateCreateModal3 extends LightningElement {
               merged.amountEntryMode === true
                 ? merged.manualAmount
                 : merged.amount,
-            unitPrice: null,
             preserveSavedAmount: true
           });
         } else {

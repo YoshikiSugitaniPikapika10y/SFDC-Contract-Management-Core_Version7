@@ -9,6 +9,7 @@ import {
   INVOICE_SETTING_SPLIT_MONTHLY,
   QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
   AMOUNT_ROUNDING_SCALE0_HALF_UP,
+  formatCurrencyNumber,
   setAmountCalculationRoundingModes
 } from "c/estimateLineItemUtils";
 
@@ -671,6 +672,35 @@ describe("estimateCreateModal3 uncovered paths (Core 0.1 / 4.3.4 / 4.3.5 / 4.5.2
     expect(ctx.itemList[0].amount).toBe(100000);
     expect(ctx.itemList[0].endDateBoundaryError).toBe(
       "終了日が開始日起点のサイクル境界ではありません。"
+    );
+  });
+
+  it("restores the unit price and formula amount when the end date returns to a boundary (Core 4.4)", () => {
+    const ctx = bind({ canEditProducts: true });
+    ctx.addRow(false);
+    const rowId = ctx.itemList[0].id;
+    ctx.updateRow(rowId, {
+      billingType: BILLING_TYPE_RECURRING,
+      quantity: 1,
+      unitPrice: 10000,
+      amountEntryMode: false,
+      startDate: "2026-04-01",
+      endDate: "2027-03-31"
+    });
+    expect(ctx.itemList[0].amount).toBe(120000);
+    ctx.updateRow(rowId, { endDate: "2027-03-30" });
+    expect(ctx.itemList[0].unitPrice).toBe(10000);
+    expect(ctx.itemList[0].amount).toBe(120000);
+    expect(ctx.itemList[0].endDateBoundaryError).toBe(
+      "終了日が開始日起点のサイクル境界ではありません。"
+    );
+    expect(ctx.decorateRow(ctx.itemList[0]).displayUnitPrice).toBe("");
+    ctx.updateRow(rowId, { endDate: "2027-02-28" });
+    expect(ctx.itemList[0].endDateBoundaryError).toBe("");
+    expect(ctx.itemList[0].unitPrice).toBe(10000);
+    expect(ctx.itemList[0].amount).toBe(110000);
+    expect(ctx.decorateRow(ctx.itemList[0]).displayUnitPrice).toBe(
+      formatCurrencyNumber(10000)
     );
   });
 

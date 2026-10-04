@@ -162,7 +162,7 @@ describe("restoreAmountEntryFromSavedAmount", () => {
 });
 
 describe("markRecurringEndBoundary", () => {
-  it("keeps an off-boundary end date and clears the unit price", () => {
+  it("keeps an off-boundary end date and keeps the unit price", () => {
     const marked = markRecurringEndBoundary({
       billingType: BILLING_TYPE_RECURRING,
       startDate: "2026-01-15",
@@ -171,7 +171,7 @@ describe("markRecurringEndBoundary", () => {
       amount: 5000
     });
     expect(marked.endDate).toBe("2026-03-01");
-    expect(marked.unitPrice).toBeNull();
+    expect(marked.unitPrice).toBe(1000);
     expect(marked.amount).toBe(5000);
     expect(marked.endDateBoundaryError).toBe(CYCLE_BOUNDARY_ERROR);
   });

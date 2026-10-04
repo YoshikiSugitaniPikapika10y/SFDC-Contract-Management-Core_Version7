@@ -1031,8 +1031,8 @@ export const CYCLE_BOUNDARY_ERROR =
   "終了日が開始日起点のサイクル境界ではありません。";
 
 /**
- * 仕様: Core 第4.4節。継続の終了日が境界に乗らなければ日付は変えず、単価を空にする。
- * 一回課金はサイクル境界を要求しない。
+ * 仕様: Core 第4.4節。継続の終了日が境界に乗らなければ日付は変えず、単価は捨てない。
+ * 空に見せるのは画面側。一回課金はサイクル境界を要求しない。
  */
 export function markRecurringEndBoundary(row) {
   if (!row) {
@@ -1050,7 +1050,6 @@ export function markRecurringEndBoundary(row) {
   }
   return {
     ...row,
-    unitPrice: null,
     preserveSavedAmount: true,
     endDateBoundaryError: CYCLE_BOUNDARY_ERROR
   };
