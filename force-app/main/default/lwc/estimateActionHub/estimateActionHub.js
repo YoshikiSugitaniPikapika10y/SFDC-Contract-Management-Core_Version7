@@ -140,22 +140,21 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
     this.openRecordQuickAction(QUICK_ACTIONS.issue);
   }
 
+  /** 仕様: Core 第4.3.1節。ハブを閉じ、選んだ画面を別の Quick Action として開く。置き換えでは送付の閉じるが届かない。 */
   openRecordQuickAction(apiName) {
     const backgroundContext = `/lightning/r/${OBJECT_API_NAME}/${this.recordId}/view`;
-    this[NavigationMixin.Navigate](
-      {
-        type: "standard__quickAction",
-        attributes: {
-          apiName
-        },
-        state: {
-          objectApiName: OBJECT_API_NAME,
-          context: "RECORD_DETAIL",
-          recordId: this.recordId,
-          backgroundContext
-        }
+    this.dispatchEvent(new CloseActionScreenEvent());
+    this[NavigationMixin.Navigate]({
+      type: "standard__quickAction",
+      attributes: {
+        apiName
       },
-      true
-    );
+      state: {
+        objectApiName: OBJECT_API_NAME,
+        context: "RECORD_DETAIL",
+        recordId: this.recordId,
+        backgroundContext
+      }
+    });
   }
 }

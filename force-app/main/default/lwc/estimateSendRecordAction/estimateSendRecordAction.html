@@ -24,6 +24,10 @@
         </div>
       </template>
 
+      <template if:true={sent}>
+        <p class="confirm-lead" role="status">{completionNote}</p>
+      </template>
+      <template if:false={sent}>
       <template if:true={estimate}>
         <section class="confirm-card">
           <div class="send-fields">
@@ -131,6 +135,9 @@
         </section>
       </template>
 
+      <template if:true={sendBlockedMessage}>
+        <div class="alert alert_warn" role="alert">{sendBlockedMessage}</div>
+      </template>
       <template if:true={errorMessage}>
         <div class="alert alert_error" role="alert">
           {errorMessage}
@@ -145,8 +152,10 @@
           </template>
         </div>
       </template>
+      </template>
     </main>
 
+    <template if:false={sent}>
     <footer class="confirm-footer">
       <button
         type="button"
@@ -178,5 +187,6 @@
         </button>
       </div>
     </footer>
+    </template>
   </div>
 </template>

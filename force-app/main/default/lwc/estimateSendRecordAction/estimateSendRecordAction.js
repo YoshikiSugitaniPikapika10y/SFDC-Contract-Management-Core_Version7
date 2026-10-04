@@ -26,6 +26,8 @@ export default class EstimateSendRecordAction extends NavigationMixin(
   _recordId;
   /** 仕様: 共通基盤 第10.4節。横断から開くとき 18。ハブ／レコードページは 05 のまま。 */
   @api fromCrossWork = false;
+  /** 仕様: Core 第4.8節。発行面の中では、この送付だけを閉じ、発行ポップアップは残す。 */
+  @api fromIssueSurface = false;
   estimate;
   documentTemplateKey = "";
   emailTemplateApiName = "";
@@ -47,6 +49,8 @@ export default class EstimateSendRecordAction extends NavigationMixin(
   attachmentOptions = [];
   preferredAttachmentId = "";
   errorMessage = "";
+  completionNote = "";
+  sent = false;
   isLoading = false;
   isSending = false;
 
@@ -120,6 +124,44 @@ export default class EstimateSendRecordAction extends NavigationMixin(
       }
     }
     return false;
+  }
+
+  /** 仕様: Core 第4.8節・第7.10節。送れないときは理由を出す。処理中はスピナーだけ。 */
+  get sendBlockedMessage() {
+    if (!this.sendDisabled || this.isLoading || this.isSending) {
+      return "";
+    }
+    if (this.estimate?.sendable !== true) {
+      return "";
+    }
+    if (!this.toAddresses) {
+      return "To が空のため送れません。";
+    }
+    if (!this.attachmentId) {
+      return "添付が未選択のため送れません。";
+    }
+    if (this.attachmentId === ATTACHMENT_NEW && !this.documentTemplateKey) {
+      return "帳票が未選択のため送れません。";
+    }
+    if (!this.emailTemplateApiName) {
+      return "メールが未選択のため送れません。";
+    }
+    if (this.isBlankText(this.fileName)) {
+      return "添付名が空のため送れません。";
+    }
+    if (
+      this.hasInvalidEmailList(this.ccAddresses) ||
+      this.hasInvalidEmailList(this.bccAddresses)
+    ) {
+      return "不正なアドレスがあるため送れません。";
+    }
+    if (this.fromChoice === "Org" && this.orgFromResolved !== true) {
+      return "組織の送信元を解決できないため送れません。";
+    }
+    if (this.fromChoice === "Self" && this.isBlankText(this.operatorEmail)) {
+      return "操作者のメールが空のため送れません。";
+    }
+    return "";
   }
 
   get sendDisabled() {
@@ -384,12 +426,16 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     this.closePanel();
   }
 
-  /** 仕様: 共通基盤 第2.1節。横断の見積書タイルでは送付画面を閉じ、契約履歴へ遷移しない。 */
-  closePanel() {
+  /** 仕様: 共通基盤 第2.1節。横断と発行面では送付だけを閉じ、契約履歴へ遷移しない。 */
+  closePanel(sent) {
     this.dispatchEvent(
-      new CustomEvent("panelclose", { bubbles: true, composed: true })
+      new CustomEvent("panelclose", {
+        bubbles: true,
+        composed: true,
+        detail: { sent: sent === true }
+      })
     );
-    if (this.fromCrossWork === true) {
+    if (this.fromCrossWork === true || this.fromIssueSurface === true) {
       return;
     }
     this.dispatchEvent(new CloseActionScreenEvent());
@@ -411,11 +457,15 @@ export default class EstimateSendRecordAction extends NavigationMixin(
   /** 仕様: Core 第7.10節。当該契約履歴の個別送付は終わるまで待たせる。裏では回さない。 */
   async handleSend() {
     if (this.sendDisabled) {
+      if (this.sendBlockedMessage) {
+        this.errorMessage = this.sendBlockedMessage;
+      }
       return;
     }
     this.isSending = true;
     this.notifyOverlayBusy(true);
     this.errorMessage = "";
+    this.completionNote = "";
     try {
       await this.sendEstimateApex()({
         historyId: this._recordId,
@@ -434,8 +484,10 @@ export default class EstimateSendRecordAction extends NavigationMixin(
         }
       });
       this.dispatchEvent(new RefreshEvent());
+      this.sent = true;
+      this.completionNote = "見積を送付しました。";
       this.notifyOverlayBusy(false);
-      this.closePanel();
+      this.closePanel(true);
     } catch (error) {
       const message = this.toMessage(error);
       await this.load();

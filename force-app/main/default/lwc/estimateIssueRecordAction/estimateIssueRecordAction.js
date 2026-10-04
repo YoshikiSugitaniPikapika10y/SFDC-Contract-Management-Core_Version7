@@ -1,5 +1,9 @@
 import { LightningElement, api } from "lwc";
 import { CloseActionScreenEvent } from "lightning/actions";
+import {
+  NavigationMixin,
+  openContentDocumentFilePreview
+} from "c/orderWizardNavigation";
 
 const ISSUE_MESSAGE_SOURCE = "cmc-estimate-issue";
 const INITIAL_ATTACHMENT_KEY = "cmc.estimateSend.initialContentDocumentId";
@@ -38,11 +42,12 @@ function isVisualforceOrigin(origin) {
 }
 
 /** 仕様: Core 第4.3.1節・第4.8節・第7.10節。発行面に留まり、プレビューと送付は開いているポップアップの中で終える。 */
-export default class EstimateIssueRecordAction extends LightningElement {
+export default class EstimateIssueRecordAction extends NavigationMixin(
+  LightningElement
+) {
   @api recordId;
   showSend = false;
-  previewDocumentId = "";
-  previewVersionId = "";
+  completionNote = "";
 
   connectedCallback() {
     this._onIssueMessage = (event) => this.handleIssueMessage(event);
@@ -62,29 +67,15 @@ export default class EstimateIssueRecordAction extends LightningElement {
     return `/apex/EstimateDocumentIssue?id=${encodeURIComponent(this.recordId)}&parentOrigin=${parentOrigin}`;
   }
 
-  /** 仕様: Core 第4.8節・第7.10節。プレビューは発行面の上。レコード画面は移さない。 */
-  get previewFrameUrl() {
-    if (this.previewVersionId) {
-      return `/sfc/servlet.shepherd/version/download/${this.previewVersionId}`;
-    }
-    if (this.previewDocumentId) {
-      return `/sfc/servlet.shepherd/document/download/${this.previewDocumentId}`;
-    }
-    return "";
-  }
-
-  get showPreview() {
-    return this.previewFrameUrl !== "";
-  }
-
   handleClose() {
     this.dispatchEvent(new CloseActionScreenEvent());
   }
 
-  /** 仕様: Core 第4.8節・第7.10節。プレビューを閉じると発行面に戻る。ポップアップは閉じない。 */
-  handleClosePreview() {
-    this.previewDocumentId = "";
-    this.previewVersionId = "";
+  /** 仕様: Core 第0.3節・第4.8節。送付だけを閉じ、発行面に留まる。成功の1文は発行面に残す。 */
+  handleSendPanelClose(event) {
+    const sent = event?.detail?.sent === true;
+    this.showSend = false;
+    this.completionNote = sent ? "見積を送付しました。" : "";
   }
 
   /** 仕様: Core 第4.8節・第7.10節・第4.3.1節。プレビューは発行面の上。送付は同じポップアップの見積送付。 */
@@ -102,8 +93,10 @@ export default class EstimateIssueRecordAction extends LightningElement {
       return;
     }
     if (data.action === "preview") {
-      this.previewDocumentId = documentId;
-      this.previewVersionId = versionId;
+      // 仕様: Core 第4.8節・第7.10節。標準 Files のオーバーレイ。ダウンロードにも発行面の差し替えにもしない。
+      if (documentId) {
+        openContentDocumentFilePreview(this, documentId);
+      }
       return;
     }
     if (data.action === "send" && this.recordId) {
@@ -114,8 +107,7 @@ export default class EstimateIssueRecordAction extends LightningElement {
           // 仕様: Core 第7.10節。渡せないときは通常の初期値。送付画面は開く。
         }
       }
-      this.previewDocumentId = "";
-      this.previewVersionId = "";
+      this.completionNote = "";
       this.showSend = true;
     }
   }

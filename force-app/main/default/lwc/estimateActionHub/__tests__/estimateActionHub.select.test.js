@@ -69,23 +69,20 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
       currentTarget: { dataset: { key: "edit" } }
     });
 
-    expect(dispatched).toEqual([]);
-    expect(navigate).toHaveBeenCalledWith(
-      {
-        type: "standard__quickAction",
-        attributes: {
-          apiName: "ContractHistory__c.EstimateEdit"
-        },
-        state: {
-          objectApiName: "ContractHistory__c",
-          context: "RECORD_DETAIL",
-          recordId: "a0H000000000001AAA",
-          backgroundContext:
-            "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
-        }
+    expect(dispatched).toEqual(["closeActionScreen"]);
+    expect(navigate).toHaveBeenCalledWith({
+      type: "standard__quickAction",
+      attributes: {
+        apiName: "ContractHistory__c.EstimateEdit"
       },
-      true
-    );
+      state: {
+        objectApiName: "ContractHistory__c",
+        context: "RECORD_DETAIL",
+        recordId: "a0H000000000001AAA",
+        backgroundContext:
+          "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
+      }
+    });
   });
 
   it("opens copy, archive, and send as record Quick Action overlays", () => {
@@ -97,8 +94,7 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
     expect(navigate).toHaveBeenLastCalledWith(
       expect.objectContaining({
         attributes: { apiName: "ContractHistory__c.EstimateCopy" }
-      }),
-      true
+      })
     );
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
@@ -107,8 +103,7 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
     expect(navigate).toHaveBeenLastCalledWith(
       expect.objectContaining({
         attributes: { apiName: "ContractHistory__c.Estimate_Archive" }
-      }),
-      true
+      })
     );
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
@@ -117,35 +112,31 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
     expect(navigate).toHaveBeenLastCalledWith(
       expect.objectContaining({
         attributes: { apiName: "ContractHistory__c.Estimate_Send" }
-      }),
-      true
+      })
     );
   });
 
-  it("replaces the hub with 見積書発行 record Quick Action (Core 4.3.1)", () => {
+  it("closes the hub and opens 見積書発行 as its own Quick Action (Core 4.3.1)", () => {
     const { ctx, dispatched, navigate } = hubContext("a0H000000000001AAA");
 
     EstimateActionHub.prototype.handleSelect.call(ctx, {
       currentTarget: { dataset: { key: "issue" } }
     });
 
-    expect(dispatched).toEqual([]);
-    expect(navigate).toHaveBeenCalledWith(
-      {
-        type: "standard__quickAction",
-        attributes: {
-          apiName: "ContractHistory__c.Estimate_Issue"
-        },
-        state: {
-          objectApiName: "ContractHistory__c",
-          context: "RECORD_DETAIL",
-          recordId: "a0H000000000001AAA",
-          backgroundContext:
-            "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
-        }
+    expect(dispatched).toEqual(["closeActionScreen"]);
+    expect(navigate).toHaveBeenCalledWith({
+      type: "standard__quickAction",
+      attributes: {
+        apiName: "ContractHistory__c.Estimate_Issue"
       },
-      true
-    );
+      state: {
+        objectApiName: "ContractHistory__c",
+        context: "RECORD_DETAIL",
+        recordId: "a0H000000000001AAA",
+        backgroundContext:
+          "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
+      }
+    });
   });
 
   it("does not navigate when the row has no action", () => {

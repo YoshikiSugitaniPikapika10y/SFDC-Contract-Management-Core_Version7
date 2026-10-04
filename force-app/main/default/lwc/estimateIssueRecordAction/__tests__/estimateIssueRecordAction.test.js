@@ -161,7 +161,7 @@ describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
     );
   });
 
-  it("opens file preview on the issue surface without closing it", async () => {
+  it("opens standard file preview over the issue surface without closing it", async () => {
     const element = createAction("a0H000000000001AAA");
     const closeHandler = jest.fn();
     element.addEventListener("closeActionScreen", closeHandler);
@@ -174,22 +174,72 @@ describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
     );
     await Promise.resolve();
 
-    expect(openContentDocumentFilePreview).not.toHaveBeenCalled();
+    expect(openContentDocumentFilePreview).toHaveBeenCalledTimes(1);
+    expect(openContentDocumentFilePreview.mock.calls[0][1]).toBe(
+      "069000000000001AAA"
+    );
     expect(closeHandler).not.toHaveBeenCalled();
     expect(element.shadowRoot.querySelector(".issue-frame")).not.toBeNull();
-    expect(element.shadowRoot.querySelector(".preview-frame").getAttribute("src")).toBe(
-      "/sfc/servlet.shepherd/version/download/068000000000001AAA"
-    );
+    expect(element.shadowRoot.querySelector(".preview-frame")).toBeNull();
+    expect(element.shadowRoot.innerHTML).not.toContain("shepherd");
     expect(
       element.shadowRoot.querySelector("c-estimate-send-record-action")
     ).toBeNull();
+  });
 
-    element.shadowRoot.querySelector(".preview-close").click();
+  it("キャンセルは送付だけを閉じ、発行面に戻る (Core 0.3 / 4.8)", async () => {
+    const element = createAction("a0H000000000001AAA");
+    const closeHandler = jest.fn();
+    element.addEventListener("closeActionScreen", closeHandler);
+
+    postIssue("send", "069000000000002AAA");
+    await Promise.resolve();
+
+    const send = element.shadowRoot.querySelector(
+      "c-estimate-send-record-action"
+    );
+    send.dispatchEvent(
+      new CustomEvent("panelclose", {
+        bubbles: true,
+        composed: true,
+        detail: { sent: false }
+      })
+    );
     await Promise.resolve();
 
     expect(closeHandler).not.toHaveBeenCalled();
-    expect(element.shadowRoot.querySelector(".preview-frame")).toBeNull();
+    expect(
+      element.shadowRoot.querySelector("c-estimate-send-record-action")
+    ).toBeNull();
     expect(element.shadowRoot.querySelector(".issue-frame")).not.toBeNull();
+    expect(element.shadowRoot.querySelector(".issue-complete")).toBeNull();
+  });
+
+  it("送付成功は見積を送付しました。を発行面に残す (Core 0.3 / 4.8)", async () => {
+    const element = createAction("a0H000000000001AAA");
+    const closeHandler = jest.fn();
+    element.addEventListener("closeActionScreen", closeHandler);
+
+    postIssue("send", "069000000000002AAA");
+    await Promise.resolve();
+
+    const send = element.shadowRoot.querySelector(
+      "c-estimate-send-record-action"
+    );
+    send.dispatchEvent(
+      new CustomEvent("panelclose", {
+        bubbles: true,
+        composed: true,
+        detail: { sent: true }
+      })
+    );
+    await Promise.resolve();
+
+    expect(closeHandler).not.toHaveBeenCalled();
+    expect(element.shadowRoot.querySelector(".issue-frame")).not.toBeNull();
+    expect(element.shadowRoot.querySelector(".issue-complete").textContent).toBe(
+      "見積を送付しました。"
+    );
   });
 
   it("ignores preview and send messages that are not from the issue page", () => {

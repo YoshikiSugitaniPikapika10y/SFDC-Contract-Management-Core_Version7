@@ -344,6 +344,18 @@ describe("estimateSendRecordAction uncovered (Core 7.10 / 4.8)", () => {
     expect(names).not.toContain("CloseActionScreenEvent");
   });
 
+  it("発行面では送付だけを閉じ、成功は sent を渡す (Core 4.8 / 0.3)", () => {
+    const ctx = bind({ fromIssueSurface: true });
+    ctx.closePanel(true);
+    const event = ctx.dispatchEvent.mock.calls[0][0];
+    expect(event.type).toBe("panelclose");
+    expect(event.detail).toEqual({ sent: true });
+    const names = ctx.dispatchEvent.mock.calls.map(
+      (call) => call[0].type || call[0].constructor.name
+    );
+    expect(names).not.toContain("CloseActionScreenEvent");
+  });
+
   it("send failure reloads then keeps failure message (Core 7.10)", async () => {
     sendEstimate.mockRejectedValue({
       body: { message: "見積を送付できませんでした。" }

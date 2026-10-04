@@ -304,4 +304,38 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     expect(toMessage).not.toHaveBeenCalled();
     expect(load).not.toHaveBeenCalled();
   });
+
+  it("成功は見積を送付しました。を出してから閉じる (Core 0.3)", async () => {
+    sendEstimate.mockReset().mockResolvedValue({});
+    const ctx = {
+      sendDisabled: false,
+      isSending: false,
+      errorMessage: "",
+      completionNote: "",
+      isResend: false,
+      fromCrossWork: false,
+      sendEstimateApex: proto.sendEstimateApex,
+      closePanel: jest.fn(),
+      toMessage: jest.fn(),
+      load: jest.fn(),
+      notifyOverlayBusy: jest.fn(),
+      dispatchEvent: jest.fn(),
+      _recordId: "a0H",
+      documentTemplateKey: "tpl",
+      emailTemplateApiName: "email",
+      toAddresses: "to@example.com",
+      estimate: { lastModifiedToken: "tok" },
+      ccAddresses: "",
+      bccAddresses: "",
+      subject: "s",
+      body: "b",
+      fileName: "estimate.pdf",
+      fromChoice: "Self",
+      attachmentId: "a01"
+    };
+    await proto.handleSend.call(ctx);
+    expect(ctx.sent).toBe(true);
+    expect(ctx.completionNote).toBe("見積を送付しました。");
+    expect(ctx.closePanel).toHaveBeenCalledWith(true);
+  });
 });
