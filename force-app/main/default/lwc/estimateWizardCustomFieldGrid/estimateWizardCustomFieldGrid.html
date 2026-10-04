@@ -1,6 +1,6 @@
 <template>
   <div class={gridClass}>
-    <template for:each={fields} for:item="field">
+    <template for:each={viewFields} for:item="field">
       <div key={field.key} class="est-custom-field">
         <div class="est-custom-label-row">
           <span class="est-custom-label">
@@ -20,6 +20,8 @@
               variant="label-hidden"
               object-api-name={field.referenceObjectApiName}
               value={field.value}
+              display-info={field.displayInfo}
+              matching-info={field.matchingInfo}
               disabled
             ></lightning-record-picker>
           </template>
@@ -92,6 +94,8 @@
               variant="label-hidden"
               object-api-name={field.referenceObjectApiName}
               value={field.value}
+              display-info={field.displayInfo}
+              matching-info={field.matchingInfo}
               data-field={field.apiName}
               onchange={handleFieldChange}
               required={field.required}

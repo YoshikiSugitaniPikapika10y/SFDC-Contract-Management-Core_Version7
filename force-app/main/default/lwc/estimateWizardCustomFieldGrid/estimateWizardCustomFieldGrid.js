@@ -1,5 +1,15 @@
 import { LightningElement, api } from "lwc";
 
+/** User は表示項目と検索項目を渡さないと record-picker が設定エラーになる。 */
+const USER_DISPLAY_INFO = {
+  primaryField: "Name",
+  additionalFields: ["Email"]
+};
+const USER_MATCHING_INFO = {
+  primaryField: { fieldPath: "Name" },
+  additionalFields: [{ fieldPath: "Email" }]
+};
+
 export default class EstimateWizardCustomFieldGrid extends LightningElement {
   @api fields = [];
   @api fieldTarget = "";
@@ -15,6 +25,19 @@ export default class EstimateWizardCustomFieldGrid extends LightningElement {
 
   get textareaRows() {
     return this.dense ? "2" : "4";
+  }
+
+  get viewFields() {
+    return (this.fields || []).map((field) => {
+      if (field && field.referenceObjectApiName === "User") {
+        return {
+          ...field,
+          displayInfo: USER_DISPLAY_INFO,
+          matchingInfo: USER_MATCHING_INFO
+        };
+      }
+      return field;
+    });
   }
 
   handleFieldChange(event) {
