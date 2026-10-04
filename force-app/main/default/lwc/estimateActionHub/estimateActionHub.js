@@ -23,7 +23,9 @@ const QUICK_ACTIONS = {
 };
 
 /** 仕様: Core 第4.3.1節、第4.3.11節。シェルは画面見た目第2節（受注と同じ Quick Action オーバーレイ）。 */
-export default class EstimateActionHub extends NavigationMixin(LightningElement) {
+export default class EstimateActionHub extends NavigationMixin(
+  LightningElement
+) {
   @api recordId;
 
   historyStatus = "";
@@ -114,8 +116,14 @@ export default class EstimateActionHub extends NavigationMixin(LightningElement)
     return this.visibleActions.length > 0;
   }
 
+  /** 仕様: Core 第4.3.1節・第5.5節。閉じるは変更せず、Quick Action 本体がパネルを閉じる。 */
   handleCancel() {
-    this.dispatchEvent(new CloseActionScreenEvent());
+    this.dispatchEvent(
+      new CustomEvent("requestclose", {
+        bubbles: true,
+        composed: true
+      })
+    );
   }
 
   // 仕様: Core 第4.3.1節。選んだらハブを閉じ、既存の各画面を開く。ハブ内で発行しない。

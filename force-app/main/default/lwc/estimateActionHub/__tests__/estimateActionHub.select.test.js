@@ -21,11 +21,9 @@ jest.mock(
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
-jest.mock(
-  "lightning/uiRecordApi",
-  () => ({ getRecord: jest.fn() }),
-  { virtual: true }
-);
+jest.mock("lightning/uiRecordApi", () => ({ getRecord: jest.fn() }), {
+  virtual: true
+});
 jest.mock(
   "lightning/actions",
   () => ({
@@ -137,6 +135,20 @@ describe("estimateActionHub select (Core 4.3.1 / 画面見た目第2節)", () =>
           "/lightning/r/ContractHistory__c/a0H000000000001AAA/view"
       }
     });
+  });
+
+  it("閉じるは親へ requestclose を渡し、子ではパネルを閉じない (Core 4.3.1 / 5.5)", () => {
+    const events = [];
+    EstimateActionHub.prototype.handleCancel.call({
+      dispatchEvent(event) {
+        events.push(event);
+      }
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("requestclose");
+    expect(events[0].bubbles).toBe(true);
+    expect(events[0].composed).toBe(true);
   });
 
   it("does not navigate when the row has no action", () => {

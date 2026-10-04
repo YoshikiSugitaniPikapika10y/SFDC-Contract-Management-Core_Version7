@@ -1,5 +1,8 @@
 <template>
   <div class="action-frame">
-    <c-estimate-action-hub record-id={recordId}></c-estimate-action-hub>
+    <c-estimate-action-hub
+      record-id={recordId}
+      onrequestclose={handleRequestClose}
+    ></c-estimate-action-hub>
   </div>
 </template>
