@@ -2004,16 +2004,18 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 
 #### 7.8.5 見積額と請求額のずれ
 
-見積税抜合計は当該Versionの契約履歴`DeltaAmountSum__c`である。受注時点の見積商品Amountの積み上げであり、分割・移動・端数調整では動かない。`Amount × InvoiceProduct件数 / サイクル`の按分は使わない。Estimate・Archiveや契約期間明細金額合算も使わない。
+見積税抜合計は当該Versionの契約履歴`DeltaAmountSum__c`である。受注時点の見積商品Amountの積み上げであり、分割・移動・端数調整では動かない。フッタと確定には、`Amount × InvoiceProduct件数 / サイクル`の按分は使わない。Estimate・Archiveや契約期間明細金額合算も使わない。
 
-請求ボードのフッタと確定は同じ合計を正とする。見積税抜と、取消済みを除く全請求書の税抜合計の差が端数である。見積を全期間一括で丸め、契約期間明細をサイクルごとに丸める差は第4.6節。Changeの見積は切替日で行を分ける。全期間1行のAmountを請求期間へ按分して揃える、ということはしない。
+請求ボードのフッタと確定は同じ合計を正とする。見積税抜と、取消済みを除く全請求書の税抜合計の差が端数である。見積を全期間一括で丸め、契約期間明細をサイクルごとに丸める差は第4.6節。Changeの見積は切替日で行を分ける。全期間1行のAmountを請求明細の金額へ按分して揃える、ということはしない。
+
+明細に出す比較の余りは、その見積商品の最後の明細に出す。調整する月は人が選ぶ。第7.7.1節。
 
 端数調整実績は「由来付き請求明細金額合計－期間ID重複除去後の由来契約期間明細金額合計」として別表示する。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderCreateController.getInvoicePreview</code>
-／ 見積税抜は契約履歴<code>DeltaAmountSum__c</code>。<code>buildScopedEstimateSummary</code>の件数按分は使わない。画面は<code>orderInvoicePreviewTable.isAmountMatchedForVersion</code>。確定は第7.9.1節。
+／ 見積税抜は契約履歴<code>DeltaAmountSum__c</code>。<code>buildScopedEstimateSummary</code>の件数按分は使わない。画面は<code>orderInvoicePreviewTable.isAmountMatchedForVersion</code>。確定は第7.9.1節。明細の比較の余りは<code>applyRecurringEstimateDriftToCpLines</code>と<code>applyOneTimeEstimateDriftToCpLines</code>が最後の明細に出す。画面は<code>orderInvoicePreviewTable</code>の端数あり。金額は自動で揃えない。
 </div>
 
 ### 7.9 請求確定・取消
