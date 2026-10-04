@@ -225,6 +225,16 @@ export default class ContractDocumentSettings extends LightningElement {
   get permissionSetsUrl() {
     return this.links.permissionSets;
   }
+
+  /** 仕様: Core 第11.6節 行5.4。営業時間は権限セットと同じ別タブ。保存しない。 */
+  get businessHoursUrl() {
+    return "/lightning/setup/BusinessHours/home";
+  }
+
+  /** 仕様: Core 第11.6節 行5.4。休日は権限セットと同じ別タブ。保存しない。 */
+  get holidayUrl() {
+    return "/lightning/setup/Holiday/home";
+  }
   get permissionSetGroupsUrl() {
     return this.links.permissionSetGroups;
   }

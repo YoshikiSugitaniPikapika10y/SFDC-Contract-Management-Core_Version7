@@ -287,11 +287,14 @@
           </span>
         </div>
         <div class="setting-row">
-          <!-- 仕様: Core 第11.6節 行5.4。説明。操作欄は空。リンクは置かない。保存しない。 -->
+          <!-- 仕様: Core 第11.6節 行5.4。操作欄は営業時間と休日。別タブ。保存しない。カレンダーの中身は出さない。 -->
           <span class="row-num">行 5.4</span>
           <span class="slds-badge need need-optional">任意</span>
           <span class="row-label">営業日</span>
-          <div class="row-control"></div>
+          <div class="row-control">
+            <a href={businessHoursUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>営業時間</a>
+            <a href={holidayUrl} target="_blank" rel="noopener" onclick={handleOpenLink}>休日</a>
+          </div>
           <span class="help-wrap">
             <button type="button" class="help-bang" aria-label="ヘルプ">!</button>
             <span class="help-tip" role="tooltip">自動で作る請求日と入金予定日を、前の営業日か次の営業日へ動かすとき、どの日が営業日かをこのカレンダーで見ます。</span>
@@ -522,8 +525,9 @@
         </div>
         <template lwc:if={showFrozenBy}>
           <div class="slds-grid slds-wrap slds-gutters slds-m-top_small">
-            <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="固定者" value={settings.frozenByName} disabled></lightning-input>
-            <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="固定日時" value={settings.frozenAtLabel} disabled></lightning-input>
+            <!-- 仕様: Core 第11.6節、Accounting 第3.1節。表示名だけ。API名、入れる値、固定の判定は変えない。 -->
+            <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="会計方針の固定者" value={settings.frozenByName} disabled></lightning-input>
+            <lightning-input class="slds-col slds-size_1-of-1 slds-large-size_1-of-2" label="会計方針の固定日時" value={settings.frozenAtLabel} disabled></lightning-input>
           </div>
         </template>
         <template lwc:if={showAccountingMasterLinks}>

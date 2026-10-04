@@ -3,7 +3,7 @@
     <fullName>FrozenBy__c</fullName>
     <deleteConstraint>SetNull</deleteConstraint>
     <description>仕様: Accounting 第3.1節</description>
-    <label>固定者</label>
+    <label>会計方針の固定者</label>
     <referenceTo>User</referenceTo>
     <relationshipLabel>固定した会計方針</relationshipLabel>
     <relationshipName>FrozenAccountingPolicies</relationshipName>

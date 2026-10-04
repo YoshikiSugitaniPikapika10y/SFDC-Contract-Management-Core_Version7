@@ -180,14 +180,25 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     expect(row.querySelector(".row-label").textContent).not.toBe("入力強制");
   });
 
-  it("shows row 5.4 as an explanation without a control", async () => {
+  it("shows row 5.4 business hours and holiday links in a new tab (Core 11.6)", async () => {
     const element = await mount(pageData());
     const row = [...element.shadowRoot.querySelectorAll(".setting-row")].find(
       (node) => node.querySelector(".row-num")?.textContent.trim() === "行 5.4"
     );
     expect(row.querySelector(".row-label").textContent.trim()).toBe("営業日");
     expect(row.querySelector(".need-optional").textContent.trim()).toBe("任意");
-    expect(row.querySelector("a")).toBeNull();
+    const links = [...row.querySelectorAll("a")];
+    expect(links.map((node) => node.textContent.trim())).toEqual([
+      "営業時間",
+      "休日"
+    ]);
+    expect(links.map((node) => node.getAttribute("href"))).toEqual([
+      "/lightning/setup/BusinessHours/home",
+      "/lightning/setup/Holiday/home"
+    ]);
+    expect(links.every((node) => node.getAttribute("target") === "_blank")).toBe(
+      true
+    );
     expect(row.querySelector("lightning-input")).toBeNull();
     expect(row.querySelector("lightning-button")).toBeNull();
     expect(row.querySelector(".help-tip").textContent.trim()).toBe(
@@ -418,8 +429,10 @@ describe("contractDocumentSettings headings 1-9 (Core 11.6)", () => {
     const frozenInputs = [
       ...frozen.shadowRoot.querySelectorAll("lightning-input")
     ];
-    const frozenBy = frozenInputs.find((node) => node.label === "固定者");
-    const frozenAt = frozenInputs.find((node) => node.label === "固定日時");
+    const frozenBy = frozenInputs.find((node) => node.label === "会計方針の固定者");
+    const frozenAt = frozenInputs.find(
+      (node) => node.label === "会計方針の固定日時"
+    );
     expect(frozenBy.value).toBe("固定者");
     expect(frozenAt.value).toBe("2026-08-01");
   });
