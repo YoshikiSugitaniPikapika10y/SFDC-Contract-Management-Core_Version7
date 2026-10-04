@@ -325,7 +325,7 @@
                 <componentInstanceProperties>
                     <name>richTextValue</name>
                     <value
-          >&lt;p&gt;受注後に生成される請求の正本です。例外編集は「請求ボード」から行います。&lt;/p&gt;</value>
+          >&lt;p&gt;受注後に生成される請求の正本です。編集や操作は「請求ボード」から行います。&lt;/p&gt;</value>
                 </componentInstanceProperties>
                 <componentName>flexipage:richText</componentName>
                 <identifier>flexipage_richText_invoice_hint</identifier>
