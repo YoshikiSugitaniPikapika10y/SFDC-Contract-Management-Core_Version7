@@ -1612,10 +1612,27 @@ public without sharing class EstimateValidationService {
           '行目: 変更前の行は前回の版の見積商品と一致している必要があります。'
       );
     }
-    // 仕様: Core 第4.4節、第4.5.2節。Original 税抜は -(前回 Amount)。
-    Decimal expectedOriginalAmount = source.Amount__c == null
-      ? null
-      : -source.Amount__c;
+    // 仕様: Core 第4.6節。Original 税抜は -(単価×数量×月数)。保存済み Amount が式と違っても式を正とする。
+    Decimal expectedOriginalAmount;
+    if (source.UnitPrice__c == null || source.Quantity__c == null) {
+      expectedOriginalAmount = source.Amount__c == null
+        ? null
+        : -source.Amount__c;
+    } else {
+      String sourceBillingType = ContractMetadataService.resolveLineBillingType(
+        source
+      );
+      Decimal unsignedSourceAmount = ContractProductAmountUtil.calculateUnsignedAmount(
+        source.Quantity__c,
+        source.UnitPrice__c,
+        sourceBillingType,
+        source.StartDate__c,
+        source.Enddate__c
+      );
+      expectedOriginalAmount = unsignedSourceAmount == null
+        ? (source.Amount__c == null ? null : -source.Amount__c)
+        : -unsignedSourceAmount;
+    }
     if (!decimalsEqual(line.amount, expectedOriginalAmount)) {
       throw wrapAura(
         '商品明細' +

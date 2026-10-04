@@ -797,14 +797,19 @@ function countMonthlyCycles(startDate, endDate) {
 }
 
 export function calculateLineAmount(row) {
-  const qty = Number(row.quantity) || 0;
-  const price = Number(row.unitPrice) || 0;
+  if (!row) {
+    return null;
+  }
+  const qty = Number(row.quantity);
+  const price = Number(row.unitPrice);
+  if (!Number.isFinite(qty) || !Number.isFinite(price)) {
+    return null;
+  }
 
-  if (
-    row.billingType === BILLING_TYPE_RECURRING &&
-    row.startDate &&
-    row.endDate
-  ) {
+  if (row.billingType === BILLING_TYPE_RECURRING) {
+    if (!row.startDate || !row.endDate) {
+      return null;
+    }
     const cycles = countBillingCycles(row.startDate, row.endDate);
 
     if (cycles == null || cycles < 1) {
@@ -819,15 +824,10 @@ export function calculateLineAmount(row) {
 }
 
 /**
- * 行の確定金額。金額入力モードでは manualAmount（UI 入力値）を優先し、
- * それ以外は calculateLineAmount + Original 符号反転。
+ * 行の確定金額。常に数量×単価（継続はさらにサイクル数）。Original は符号反転。
+ * 金額入力の円は単価の逆算にだけ使い、ここには残さない。
  */
 export function resolveLineAmount(row) {
-  if (row && row.amountEntryMode === true && row.manualAmount != null) {
-    const manual = roundAmountYen(row.manualAmount);
-    return Number.isFinite(manual) ? manual : Number.NaN;
-  }
-
   let amount = calculateLineAmount(row);
   if (amount == null) {
     return null;
@@ -1026,43 +1026,11 @@ export function resolveChangePairAmountsFromSource(sourceAmount) {
 }
 
 /**
- * 編集・コピー読込時用。見積商品に保存された Amount が見積画面の金額正本なので、
- * 数量×単価（×月数）と一致しない場合は金額入力モードとして復元する。
- * すでに金額入力モードなら何もしない。
+ * 読込時に保存金額へ寄せない。正本は単価で、金額は式の結果。
+ * 画面の金額入力モード（利用者がいま金額側を触っている）だけ残す。
  */
 export function restoreAmountEntryFromSavedAmount(row) {
-  if (!row || row.amountEntryMode === true) {
-    return row;
-  }
-  if (row.amount == null || row.amount === "") {
-    return row;
-  }
-  const saved = roundAmountYen(row.amount);
-  if (!Number.isFinite(saved)) {
-    return row;
-  }
-
-  let billingTotal = calculateLineAmount(row);
-  if (billingTotal == null || !Number.isFinite(Number(billingTotal))) {
-    // 期間不正などで再計算できない場合も、保存額を表示できるよう金額入力へ寄せる
-    return {
-      ...row,
-      amountEntryMode: true,
-      manualAmount: saved
-    };
-  }
-  billingTotal = Number(billingTotal);
-  if (isChangeOriginalLine(row)) {
-    billingTotal = -billingTotal;
-  }
-  if (saved === roundAmountYen(billingTotal)) {
-    return row;
-  }
-  return {
-    ...row,
-    amountEntryMode: true,
-    manualAmount: saved
-  };
+  return row;
 }
 
 /** Format a number for currency-like display (thousands separators). */
@@ -1750,7 +1718,13 @@ export function validateAmountEntryUnitPrices(products) {
       continue;
     }
     const price = Number(line.unitPrice);
-    if (line.amountEntryMode === true && !Number.isFinite(price)) {
+    if (
+      line.amountEntryMode === true &&
+      (line.unitPrice === null ||
+        line.unitPrice === undefined ||
+        line.unitPrice === "" ||
+        !Number.isFinite(price))
+    ) {
       const label = productTypeDisplayLabel(line.recordType, line.typeLabel);
       return `商品明細（${label}）: 金額から単価を計算できません（数量またはサイクル数が0です）。`;
     }

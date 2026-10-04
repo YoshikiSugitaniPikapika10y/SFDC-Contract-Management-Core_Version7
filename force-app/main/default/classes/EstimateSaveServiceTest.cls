@@ -106,7 +106,7 @@ private class EstimateSaveServiceTest {
       );
 
       System.assertEquals(742.86, contractProduct.UnitPrice__c);
-      System.assertEquals(9657000, contractProduct.Amount__c);
+      System.assertEquals(743, contractProduct.Amount__c);
     }
   }
 
@@ -1482,7 +1482,7 @@ private class EstimateSaveServiceTest {
         '仕様: Core 第4.7節・第12.4節。編集は見積商品を作り直さない'
       );
       System.assertEquals(3, savedProduct.Quantity__c);
-      System.assertEquals(30000, savedProduct.Amount__c);
+      System.assertEquals(360000, savedProduct.Amount__c);
       System.assertEquals(termStart, savedProduct.InvoiceAnchorDate__c);
       ContractHistory__c clearedRemarks = [
         SELECT Note__c
@@ -2761,11 +2761,13 @@ private class EstimateSaveServiceTest {
         null,
         null,
         null,
-        10,
+        10.0,
         null,
         null,
         null,
-        operationKey
+        operationKey,
+        null,
+        null
       );
       EstimateCreateController.EstimateSaveResult retry = EstimateCreateController.saveEstimate(
         opportunity.Id,
@@ -2787,11 +2789,13 @@ private class EstimateSaveServiceTest {
         null,
         null,
         null,
-        10,
+        10.0,
         null,
         null,
         null,
-        operationKey
+        operationKey,
+        null,
+        null
       );
 
       System.assertEquals(

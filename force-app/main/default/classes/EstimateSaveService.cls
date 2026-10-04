@@ -1368,11 +1368,25 @@ public without sharing class EstimateSaveService {
       Type__c = resolveProductType(line, selectedType),
       PreviousContractProduct__c = line.sourceContractProductId
     );
-    // 画面で確認した金額を保存。Trigger／Apex で数量×単価へ再計算しない。
-    // 仕様: Core 第4.6節、第11.9節
-    contractProduct.Amount__c = AmountCalculationSettingService.roundAmount(
-      line.amount
+    // 仕様: Core 第4.6節、第11.9節。金額は単価×数量×月数（Original は符号反転）。画面の入力円では上書きしない。
+    if (
+      contractProduct.UnitPrice__c == null ||
+      contractProduct.Quantity__c == null
+    ) {
+      throw EstimateValidationService.wrapAura(
+        '金額を計算できません。数量・単価・期間を確認してください。'
+      );
+    }
+    Decimal signedAmount = ContractProductAmountUtil.calculateSignedAmount(
+      contractProduct,
+      billingType
     );
+    if (signedAmount == null) {
+      throw EstimateValidationService.wrapAura(
+        '金額を計算できません。数量・単価・期間を確認してください。'
+      );
+    }
+    contractProduct.Amount__c = signedAmount;
     if (product != null) {
       contractProduct.putSObject('Product__r', product);
     }

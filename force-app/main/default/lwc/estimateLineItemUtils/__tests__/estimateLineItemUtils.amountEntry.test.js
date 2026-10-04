@@ -78,7 +78,7 @@ describe("resolveLineAmount amount entry mode", () => {
     typeLabel: "Remake"
   };
 
-  it("uses manualAmount instead of recalculated unitPrice × qty × cycles", () => {
+  it("keeps the formula even when the typed amount does not divide evenly", () => {
     const manualAmount = 9657000;
     const row = {
       ...recurringRow,
@@ -88,7 +88,7 @@ describe("resolveLineAmount amount entry mode", () => {
 
     expect(deriveUnitPriceFromAmount(row, manualAmount)).toBe(742.85);
     expect(1300 * 742.85 * 10).toBe(9657050);
-    expect(resolveLineAmount(row)).toBe(9657000);
+    expect(resolveLineAmount({ ...row, unitPrice: 742.85 })).toBe(9657050);
   });
 
   it("keeps calculated amount when not in amount entry mode", () => {
@@ -107,14 +107,13 @@ describe("restoreAmountEntryFromSavedAmount", () => {
     typeLabel: "Remake"
   };
 
-  it("restores amount entry mode when saved Amount differs from qty×price×cycles", () => {
+  it("does not keep a saved amount that differs from qty×price×cycles", () => {
     const restored = restoreAmountEntryFromSavedAmount({
       ...recurringRow,
       amount: 9657000
     });
-    expect(restored.amountEntryMode).toBe(true);
-    expect(restored.manualAmount).toBe(9657000);
-    expect(resolveLineAmount(restored)).toBe(9657000);
+    expect(restored.amountEntryMode).toBeFalsy();
+    expect(resolveLineAmount(restored)).toBe(9657050);
   });
 
   it("keeps unit-price mode when saved Amount matches calculated", () => {
@@ -126,16 +125,15 @@ describe("restoreAmountEntryFromSavedAmount", () => {
     expect(resolveLineAmount(restored)).toBe(9657050);
   });
 
-  it("restores negative Original amount entry mode", () => {
+  it("negates Original from unit price even when the saved amount differs", () => {
     const restored = restoreAmountEntryFromSavedAmount({
       ...recurringRow,
       recordType: PRODUCT_TYPE_ORIGINAL,
       typeLabel: "Original",
       amount: -9657000
     });
-    expect(restored.amountEntryMode).toBe(true);
-    expect(restored.manualAmount).toBe(-9657000);
-    expect(resolveLineAmount(restored)).toBe(-9657000);
+    expect(restored.amountEntryMode).toBeFalsy();
+    expect(resolveLineAmount(restored)).toBe(-9657050);
   });
 
   it("does not override an existing amount entry mode", () => {
@@ -160,17 +158,13 @@ describe("resolveAmountEntryRoundingDiff", () => {
     typeLabel: "Remake"
   };
 
-  it("returns billing total and delta when amount entry rounds unit price", () => {
+  it("has no estimate gap once unit price is the formula source", () => {
     const diff = resolveAmountEntryRoundingDiff({
       ...recurringRow,
       amountEntryMode: true,
       manualAmount: 9657000
     });
-    expect(diff).toEqual({
-      manualAmount: 9657000,
-      billingTotal: 9657050,
-      delta: 50
-    });
+    expect(diff).toBeNull();
   });
 
   it("returns null when estimate matches monthly billing regeneration", () => {

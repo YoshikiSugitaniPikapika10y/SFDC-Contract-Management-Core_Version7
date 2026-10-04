@@ -2690,7 +2690,17 @@ export default class EstimateCreateModal3 extends LightningElement {
       displayUnitPrice: Number.isNaN(Number(row.unitPrice))
         ? "NaN"
         : formatCurrencyNumber(row.unitPrice),
-      displayAmount: formatAmountYen(row.amount),
+      displayAmount: formatAmountYen(
+        row.amount != null &&
+          row.amount !== "" &&
+          Number.isFinite(Number(row.amount))
+          ? row.amount
+          : row.amountEntryMode === true &&
+              row.manualAmount != null &&
+              Number.isFinite(Number(row.manualAmount))
+            ? row.manualAmount
+            : row.amount
+      ),
       isUnitPriceLocked: !forceReadonly && row.amountEntryMode === true,
       isUnitPriceNan: Number.isNaN(Number(row.unitPrice)),
       canEditAmount:
@@ -3017,21 +3027,6 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   applyAmount(row) {
     // 仕様: Core 第4.5.2節、第4.3.9節。単価 null を 0 扱いしない（BUG-076 / BUG-077）。
-    let unitPrice;
-    if (
-      row.unitPrice === null ||
-      row.unitPrice === undefined ||
-      row.unitPrice === ""
-    ) {
-      unitPrice = null;
-    } else {
-      const rawPrice = Number(row.unitPrice);
-      unitPrice = Number.isFinite(rawPrice)
-        ? roundUnitPrice(rawPrice)
-        : Number.isNaN(rawPrice)
-          ? Number.NaN
-          : 0;
-    }
     const manualAmount =
       row.amountEntryMode === true && row.manualAmount != null
         ? roundAmountYen(row.manualAmount)
@@ -3049,6 +3044,32 @@ export default class EstimateCreateModal3 extends LightningElement {
       quantity = Number.isFinite(rawQty)
         ? roundQuantity(rawQty)
         : Number.isNaN(rawQty)
+          ? Number.NaN
+          : 0;
+    }
+    // 仕様: Core 第4.6節。金額入力中は、いまの数量と期間で単価を逆算してから式で金額を出す。
+    let unitPrice;
+    if (
+      row.amountEntryMode === true &&
+      manualAmount != null &&
+      row.isReadonly !== true
+    ) {
+      const derived = deriveUnitPriceFromAmount(
+        { ...row, quantity, manualAmount },
+        manualAmount
+      );
+      unitPrice = Number.isFinite(derived) ? derived : null;
+    } else if (
+      row.unitPrice === null ||
+      row.unitPrice === undefined ||
+      row.unitPrice === ""
+    ) {
+      unitPrice = null;
+    } else {
+      const rawPrice = Number(row.unitPrice);
+      unitPrice = Number.isFinite(rawPrice)
+        ? roundUnitPrice(rawPrice)
+        : Number.isNaN(rawPrice)
           ? Number.NaN
           : 0;
     }
@@ -3074,9 +3095,9 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
 
     const amount =
-      unitPrice === null && row.amountEntryMode !== true
+      unitPrice === null || !Number.isFinite(unitPrice)
         ? null
-        : resolveLineAmount({ ...normalized, ...row, manualAmount });
+        : resolveLineAmount(normalized);
     const amountInvalid =
       amount == null &&
       row.amountEntryMode !== true &&
@@ -3171,24 +3192,8 @@ export default class EstimateCreateModal3 extends LightningElement {
         delete rowUpdates.billingType;
         delete rowUpdates.billingCycle;
       }
-      let merged = { ...item, ...rowUpdates };
-      const structuralChange =
-        "quantity" in rowUpdates ||
-        "startDate" in rowUpdates ||
-        "endDate" in rowUpdates ||
-        "billingType" in rowUpdates ||
-        "billingCycle" in rowUpdates;
-      if (
-        merged.amountEntryMode === true &&
-        merged.manualAmount != null &&
-        structuralChange &&
-        rowUpdates.amountEntryMode !== false
-      ) {
-        merged = {
-          ...merged,
-          unitPrice: deriveUnitPriceFromAmount(merged, merged.manualAmount)
-        };
-      }
+      const merged = { ...item, ...rowUpdates };
+      // 単価の逆算は applyAmount が、終了日を埋めたあと・月次境界へ寄せたあとに行う。
       let updated = this.applyAmount(merged);
       if (
         "startDate" in rowUpdates &&
