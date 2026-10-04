@@ -54,6 +54,10 @@ public without sharing class EstimateCreateController {
     @AuraEnabled
     public Decimal amount;
 
+    /** 仕様: Core 第4.3.9節。金額入力だったか。Original は偽。 */
+    @AuraEnabled
+    public Boolean amountEntryMode;
+
     @AuraEnabled
     public String startDate;
 
@@ -477,6 +481,10 @@ public without sharing class EstimateCreateController {
     /** 契約商品 Amount（金額入力時の保存値含む）。ウィザード復元用。 */
     @AuraEnabled
     public Decimal amount;
+
+    /** 仕様: Core 第4.3.9節。同じ見積の開き直しは保存したモード。 */
+    @AuraEnabled
+    public Boolean amountEntryMode;
 
     @AuraEnabled
     public String startDate;

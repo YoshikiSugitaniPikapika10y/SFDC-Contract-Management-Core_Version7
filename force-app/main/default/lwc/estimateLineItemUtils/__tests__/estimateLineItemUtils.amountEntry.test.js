@@ -125,7 +125,7 @@ describe("restoreAmountEntryFromSavedAmount", () => {
     expect(resolveLineAmount(restored)).toBe(9657050);
   });
 
-  it("negates Original from unit price even when the saved amount differs", () => {
+  it("keeps the saved Original amount when it differs from qty×price×cycles", () => {
     const restored = restoreAmountEntryFromSavedAmount({
       ...recurringRow,
       recordType: PRODUCT_TYPE_ORIGINAL,
@@ -133,7 +133,7 @@ describe("restoreAmountEntryFromSavedAmount", () => {
       amount: -9657000
     });
     expect(restored.amountEntryMode).toBeFalsy();
-    expect(resolveLineAmount(restored)).toBe(-9657050);
+    expect(resolveLineAmount(restored)).toBe(-9657000);
   });
 
   it("does not override an existing amount entry mode", () => {
@@ -274,7 +274,7 @@ describe("unit price and amount scale", () => {
     expect(parseAmountYenInput("9,657,000.50")).toBe(9657001);
   });
 
-  it("negates Original display amount while keeping unsigned calc for billing total", () => {
+  it("keeps a saved Original amount and does not rebuild it from unit price", () => {
     const originalRow = {
       billingType: BILLING_TYPE_RECURRING,
       quantity: 1,
@@ -282,10 +282,11 @@ describe("unit price and amount scale", () => {
       startDate: "2026-04-01",
       endDate: "2027-03-31",
       recordType: PRODUCT_TYPE_ORIGINAL,
-      typeLabel: "Original"
+      typeLabel: "Original",
+      amount: -100000
     };
-    expect(resolveLineAmount(originalRow)).toBe(-120000);
-    expect(resolveAmountEntryRoundingDiff(originalRow)).toBeNull();
+    expect(resolveLineAmount(originalRow)).toBe(-100000);
+    expect(resolveLineAmount({ ...originalRow, amount: null })).toBeNull();
   });
 
   it("documents bulk vs monthly rounding gap used by billing regeneration", () => {

@@ -119,6 +119,7 @@ public without sharing class EstimateQueryService {
       'UnitPrice__c',
       'Quantity__c',
       'Amount__c',
+      'AmountEntryMode__c',
       'BillingType__c',
       'RevenueRecognitionBasis__c',
       'Type__c',
@@ -180,6 +181,8 @@ public without sharing class EstimateQueryService {
           billingType
         );
       }
+      // 仕様: Core 第4.3.9節。同じ見積の開き直しは保存したモード。
+      line.amountEntryMode = product.AmountEntryMode__c == true;
       line.startDate = EstimateCreateSupport.formatDate(product.StartDate__c);
       line.endDate = EstimateCreateSupport.formatDate(product.Enddate__c);
       line.invoiceType = ContractMetadataService.normalizeInvoiceSettingLabel(
@@ -857,6 +860,7 @@ public without sharing class EstimateQueryService {
       'RevenueRecognitionBasis__c',
       'Type__c',
       'Amount__c',
+      'AmountEntryMode__c',
       'Name',
       'DocumentSortOrder__c',
       'PreviousContractProduct__c'
@@ -994,6 +998,11 @@ public without sharing class EstimateQueryService {
         billingType
       );
     }
+    // 仕様: Core 第4.3.9節。同じ見積の開き直しは保存したモード。Original はモードを持たない。
+    // 変更後と Renew の新しい版は画面側で単価入力に戻し、元のモードは写さない。
+    line.amountEntryMode =
+      product.AmountEntryMode__c == true &&
+      recordType != PRODUCT_TYPE_ORIGINAL;
     line.customFields = recordType == PRODUCT_TYPE_ORIGINAL
       ? new Map<String, Object>()
       : ContractWizardFieldService.extractCustomFields(

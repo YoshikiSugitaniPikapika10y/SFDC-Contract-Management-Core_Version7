@@ -824,18 +824,19 @@ export function calculateLineAmount(row) {
 }
 
 /**
- * 行の確定金額。常に数量×単価（継続はさらにサイクル数）。Original は符号反転。
- * 金額入力の円は単価の逆算にだけ使い、ここには残さない。
+ * 行の確定金額。単価入力は数量×単価（継続はさらにサイクル数）。
+ * Original は保存してある金額のまま。式で作り直さない。
  */
+// 仕様: Core 第4.4.1節、第4.5.2節、第4.6節
 export function resolveLineAmount(row) {
-  let amount = calculateLineAmount(row);
-  if (amount == null) {
-    return null;
-  }
   if (isChangeOriginalLine(row)) {
-    amount = -amount;
+    if (row.amount === null || row.amount === undefined || row.amount === "") {
+      return null;
+    }
+    const saved = Number(row.amount);
+    return Number.isFinite(saved) ? saved : null;
   }
-  return amount;
+  return calculateLineAmount(row);
 }
 
 /**

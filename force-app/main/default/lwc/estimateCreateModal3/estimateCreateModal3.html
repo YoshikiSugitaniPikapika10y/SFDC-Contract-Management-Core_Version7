@@ -439,8 +439,7 @@
                                   <template if:true={item.isUnitPriceNan}>
                                     <span
                                       class="est-cell-static est-cell-static_num est-cell-static_nan"
-                                      >NaN</span
-                                    >
+                                    ></span>
                                   </template>
                                   <template if:false={item.isUnitPriceNan}>
                                     <span
@@ -633,6 +632,11 @@
                                     onchange={handleLineDateInputChange}
                                     required
                                   />
+                                  <template if:true={item.endDateBoundaryError}>
+                                    <p class="est-amount-inline-error" role="alert">
+                                      {item.endDateBoundaryError}
+                                    </p>
+                                  </template>
                                 </div>
                               </template>
                             </div>

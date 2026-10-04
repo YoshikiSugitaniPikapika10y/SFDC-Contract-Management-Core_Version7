@@ -3084,6 +3084,22 @@ export default class EstimateCreateModal3 extends LightningElement {
           : row.billingCycle
     };
 
+    // 仕様: Core 第4.4.1節、第4.5.2節、第4.6節。Original は保存金額の符号反転。式で上書きしない。
+    if (isChangeOriginalLine(normalized)) {
+      const savedOriginal =
+        normalized.amount === null ||
+        normalized.amount === undefined ||
+        normalized.amount === ""
+          ? null
+          : Number(normalized.amount);
+      return {
+        ...normalized,
+        amount: Number.isFinite(savedOriginal) ? savedOriginal : null,
+        amountInvalid: false,
+        unitPriceInvalid: false
+      };
+    }
+
     if (quantity === null) {
       return {
         ...normalized,

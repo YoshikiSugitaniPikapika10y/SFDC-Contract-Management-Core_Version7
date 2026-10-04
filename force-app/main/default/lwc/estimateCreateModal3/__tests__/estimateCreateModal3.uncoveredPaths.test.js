@@ -654,7 +654,7 @@ describe("estimateCreateModal3 uncovered paths (Core 0.1 / 4.3.4 / 4.3.5 / 4.5.2
     expect(ctx.itemList[0].amount).toBe(120000);
   });
 
-  it("amount entry derives unit price from the aligned end date (Core 4.6)", () => {
+  it("keeps an off-boundary end date and blocks the unit price (Core 4.4)", () => {
     const ctx = bind({ canEditProducts: true });
     ctx.addRow(false);
     const rowId = ctx.itemList[0].id;
@@ -666,9 +666,12 @@ describe("estimateCreateModal3 uncovered paths (Core 0.1 / 4.3.4 / 4.3.5 / 4.5.2
       startDate: "2026-04-01",
       endDate: "2026-06-15"
     });
-    expect(ctx.itemList[0].endDate).toBe("2026-05-31");
-    expect(ctx.itemList[0].unitPrice).toBe(50000);
+    expect(ctx.itemList[0].endDate).toBe("2026-06-15");
+    expect(ctx.itemList[0].unitPrice).toBeNull();
     expect(ctx.itemList[0].amount).toBe(100000);
+    expect(ctx.itemList[0].endDateBoundaryError).toBe(
+      "終了日が開始日起点のサイクル境界ではありません。"
+    );
   });
 
   it("quantity/unit price/date edits and New row delete follow Core 4.5.2", () => {

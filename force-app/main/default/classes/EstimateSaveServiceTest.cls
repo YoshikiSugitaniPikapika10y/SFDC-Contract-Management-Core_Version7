@@ -41,6 +41,76 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void buildContractProduct_rejectsOffCycleRecurringEnd() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct('Save Off Cycle');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 1, 15),
+        Date.newInstance(2026, 3, 1)
+      );
+
+      Exception offCycle = null;
+      try {
+        EstimateSaveService.buildContractProduct(
+          null,
+          null,
+          line,
+          product,
+          'New',
+          Date.newInstance(2026, 1, 15)
+        );
+      } catch (Exception ex) {
+        offCycle = ex;
+      }
+      System.assertNotEquals(null, offCycle);
+      System.assertEquals(
+        '終了日が開始日起点のサイクル境界ではありません。',
+        offCycle.getMessage()
+      );
+    }
+  }
+
+  @IsTest
+  static void buildContractProduct_storesAmountEntryMode() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct('Save Amount Mode');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 1, 15),
+        Date.newInstance(2026, 2, 14)
+      );
+      line.amountEntryMode = true;
+      line.amount = 12345;
+
+      ContractProduct__c contractProduct = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        line,
+        product,
+        'New',
+        Date.newInstance(2026, 1, 15)
+      );
+
+      System.assertEquals(true, contractProduct.AmountEntryMode__c);
+      System.assertEquals(12345, contractProduct.Amount__c);
+      System.assertEquals(Date.newInstance(2026, 2, 14), contractProduct.Enddate__c);
+    }
+  }
+
+  @IsTest
   static void buildContractProduct_rejectsBlankRevenueRecognitionBasis() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Product2 product = ContractTestDataFactory.buildProduct(

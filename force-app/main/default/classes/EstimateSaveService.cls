@@ -1476,6 +1476,25 @@ public without sharing class EstimateSaveService {
       Type__c = resolveProductType(line, selectedType),
       PreviousContractProduct__c = line.sourceContractProductId
     );
+    // 仕様: Core 第4.4節、共通基盤第2.1節。継続の終了日が境界に乗らなければ寄せず、保存を止める。
+    if (
+      billingType == BILLING_TYPE_RECURRING &&
+      contractProduct.StartDate__c != null &&
+      contractProduct.Enddate__c != null &&
+      MonthlyBillingPeriodUtil.countMonthlyCycles(
+        contractProduct.StartDate__c,
+        contractProduct.Enddate__c
+      ) < 1
+    ) {
+      throw EstimateValidationService.wrapAura(
+        '終了日が開始日起点のサイクル境界ではありません。'
+      );
+    }
+    // 仕様: Core 第4.3.9節。Original には金額入力モードを出さない。
+    contractProduct.AmountEntryMode__c =
+      line.amountEntryMode == true &&
+      !(selectedType == HISTORY_TYPE_CHANGE &&
+      EstimateCreateSupport.isChangeOriginalLine(line));
     // 仕様: Core 第4.6節。式との差だけでは拒まない。画面の税抜が第11.9節の桁ならその円を書く。
     if (
       contractProduct.UnitPrice__c == null ||
