@@ -29,7 +29,10 @@ private class RenewEstimateAutoCreateServiceTest {
           EffectiveDate__c,
           ApplicationDate__c,
           EstimateDate__c,
-          EstimateValidDate__c
+          EstimateValidDate__c,
+          TaxPercent__c,
+          TaxAmount__c,
+          DeltaTaxInclusiveSum__c
         FROM ContractHistory__c
         WHERE Opportunity__c = :renewal.Id
         LIMIT 1
@@ -102,6 +105,21 @@ private class RenewEstimateAutoCreateServiceTest {
         null,
         created.EstimateValidDate__c,
         'Core 第4.9節・第11.4.2節: 有効期限はApexで書かない'
+      );
+      System.assertEquals(
+        TaxCalculationUtil.toPercentFieldStorage(10),
+        created.TaxPercent__c,
+        'Core 第4.6節・第4.9節: 自動Renew作成時に契約サービスの税率を契約履歴へコピーする'
+      );
+      System.assertEquals(
+        9600,
+        created.TaxAmount__c,
+        'Core 第4.6節・第4.9節: 税額は見積商品の税抜合計へ税率を1回適用する'
+      );
+      System.assertEquals(
+        105600,
+        created.DeltaTaxInclusiveSum__c,
+        'Core 第4.6節・第4.9節: 税込は税抜合計に税額を足す'
       );
 
       ContractProduct__c createdProduct = [

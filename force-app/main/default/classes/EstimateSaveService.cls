@@ -1286,8 +1286,8 @@ public without sharing class EstimateSaveService {
     throw EstimateValidationService.wrapAura('保存値が不正です');
   }
 
-  @TestVisible
-  private static void writeEstimateTaxSnapshot(
+  /** 仕様: Core 第4.6節、第4.9節。見積保存と自動Renew作成が税率・税額・税込を書く。 */
+  public static void writeEstimateTaxSnapshot(
     ContractHistory__c history,
     Id serviceId,
     List<ContractProduct__c> products
@@ -1296,7 +1296,7 @@ public without sharing class EstimateSaveService {
   }
 
   /**
-   * 仕様: Core 第4.6節。見積保存だけが税率・税額・税込を書く。行ごとの税は足さない。
+   * 仕様: Core 第4.6節、第4.9節。見積保存と自動Renew作成が税率・税額・税込を書く。行ごとの税は足さない。
    * 受注と契約サービスの編集では呼ばない。
    */
   @TestVisible

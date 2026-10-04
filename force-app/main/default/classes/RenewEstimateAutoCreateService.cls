@@ -189,6 +189,42 @@ public without sharing class RenewEstimateAutoCreateService {
     if (!productsToInsert.isEmpty()) {
       SystemContextAccess.insertRecords(productsToInsert);
     }
+    writeRenewTaxSnapshots(contexts, productsToInsert);
+  }
+
+  /** 仕様: Core 第4.6節、第4.9節。自動Renew作成でも見積保存と同じ税率・税額・税込を残す。 */
+  private static void writeRenewTaxSnapshots(
+    List<RenewEstimateContext> contexts,
+    List<ContractProduct__c> products
+  ) {
+    Map<Id, List<ContractProduct__c>> productsByHistoryId = new Map<Id, List<ContractProduct__c>>();
+    if (products != null) {
+      for (ContractProduct__c product : products) {
+        if (product == null || product.ContractHistory__c == null) {
+          continue;
+        }
+        if (!productsByHistoryId.containsKey(product.ContractHistory__c)) {
+          productsByHistoryId.put(
+            product.ContractHistory__c,
+            new List<ContractProduct__c>()
+          );
+        }
+        productsByHistoryId.get(product.ContractHistory__c).add(product);
+      }
+    }
+    for (RenewEstimateContext context : contexts) {
+      if (context == null || context.renewHistory == null) {
+        continue;
+      }
+      List<ContractProduct__c> saved = productsByHistoryId.get(
+        context.renewHistory.Id
+      );
+      EstimateSaveService.writeEstimateTaxSnapshot(
+        context.renewHistory,
+        context.renewHistory.ContractService__c,
+        saved == null ? new List<ContractProduct__c>() : saved
+      );
+    }
   }
 
   private class RenewEstimateContext {
