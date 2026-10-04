@@ -358,6 +358,14 @@ public without sharing class EstimateCreateController {
     @AuraEnabled
     public Id estimateSendContactId;
 
+    /** 仕様: Core 第4.6節。画面の税額。未送信は null。 */
+    @AuraEnabled
+    public Decimal screenTaxAmount;
+
+    /** 仕様: Core 第4.6節。画面の税込。未送信は null。 */
+    @AuraEnabled
+    public Decimal screenTaxInclusiveAmount;
+
     @AuraEnabled
     public String applicationDate;
 
@@ -833,6 +841,8 @@ public without sharing class EstimateCreateController {
       estimateSendContactId,
       null,
       null,
+      null,
+      null,
       null
     );
   }
@@ -872,7 +882,9 @@ public without sharing class EstimateCreateController {
     Id estimateSendContactId,
     String businessOperationKey,
     String estimateIssueDate,
-    String estimateTitleName
+    String estimateTitleName,
+    Decimal screenTaxAmount,
+    Decimal screenTaxInclusiveAmount
   ) {
     ContractPermissionUtil.assertEstimateSave(editHistoryId, copyFromHistoryId);
     return EstimateSaveService.saveEstimate(
@@ -901,7 +913,9 @@ public without sharing class EstimateCreateController {
       estimateSendContactId,
       businessOperationKey,
       estimateIssueDate,
-      estimateTitleName
+      estimateTitleName,
+      screenTaxAmount,
+      screenTaxInclusiveAmount
     );
   }
 

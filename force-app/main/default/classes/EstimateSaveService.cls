@@ -283,6 +283,69 @@ public without sharing class EstimateSaveService {
     String estimateIssueDate,
     String estimateTitleName
   ) {
+    return saveEstimate(
+      opportunityId,
+      selectedType,
+      contractServiceName,
+      contractHistoryName,
+      contractServiceId,
+      previousHistoryId,
+      contractStartDate,
+      contractEndDate,
+      effectiveDate,
+      applicationDate,
+      productsJson,
+      estimateRemarkMasterId,
+      remarksText,
+      billingAccountId,
+      copyFromHistoryId,
+      editHistoryId,
+      contractServiceCustomFieldsJson,
+      contractHistoryCustomFieldsJson,
+      expectedLastModifiedToken,
+      taxPercent,
+      estimateDate,
+      estimateValidDate,
+      estimateSendContactId,
+      businessOperationKey,
+      estimateIssueDate,
+      estimateTitleName,
+      null,
+      null
+    );
+  }
+
+  /** 仕様: Core 第4.6節 */
+  public static EstimateCreateController.EstimateSaveResult saveEstimate(
+    Id opportunityId,
+    String selectedType,
+    String contractServiceName,
+    String contractHistoryName,
+    Id contractServiceId,
+    Id previousHistoryId,
+    String contractStartDate,
+    String contractEndDate,
+    String effectiveDate,
+    String applicationDate,
+    String productsJson,
+    Id estimateRemarkMasterId,
+    String remarksText,
+    Id billingAccountId,
+    Id copyFromHistoryId,
+    Id editHistoryId,
+    String contractServiceCustomFieldsJson,
+    String contractHistoryCustomFieldsJson,
+    String expectedLastModifiedToken,
+    Decimal taxPercent,
+    String estimateDate,
+    String estimateValidDate,
+    Id estimateSendContactId,
+    String businessOperationKey,
+    String estimateIssueDate,
+    String estimateTitleName,
+    Decimal screenTaxAmount,
+    Decimal screenTaxInclusiveAmount
+  ) {
     EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
     request.opportunityId = opportunityId;
     request.selectedType = selectedType;
@@ -314,6 +377,8 @@ public without sharing class EstimateSaveService {
     request.estimateIssueDate = estimateIssueDate;
     request.estimateTitleName = estimateTitleName;
     request.estimateSendContactId = estimateSendContactId;
+    request.screenTaxAmount = screenTaxAmount;
+    request.screenTaxInclusiveAmount = screenTaxInclusiveAmount;
     request.businessOperationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
     );
@@ -758,7 +823,7 @@ public without sharing class EstimateSaveService {
       request,
       existing.ContractHistoryContractProducts__r
     );
-    writeEstimateTaxSnapshot(existing, serviceId, replaced);
+    writeEstimateTaxSnapshot(existing, serviceId, replaced, request);
     return buildSaveResult(serviceId, existing, replaced);
   }
 
@@ -819,7 +884,7 @@ public without sharing class EstimateSaveService {
       request,
       existing.ContractHistoryContractProducts__r
     );
-    writeEstimateTaxSnapshot(existing, serviceId, replaced);
+    writeEstimateTaxSnapshot(existing, serviceId, replaced, request);
     return buildSaveResult(serviceId, existing, replaced);
   }
 
@@ -856,7 +921,7 @@ public without sharing class EstimateSaveService {
       request,
       existing.ContractHistoryContractProducts__r
     );
-    writeEstimateTaxSnapshot(existing, serviceId, replaced);
+    writeEstimateTaxSnapshot(existing, serviceId, replaced, request);
     return buildSaveResult(existing.ContractService__c, existing, replaced);
   }
 
@@ -1050,7 +1115,12 @@ public without sharing class EstimateSaveService {
     );
     SystemContextAccess.insertRecords(newProducts);
     ContractArrCalculationService.rememberProductsForRecalc(newProducts);
-    writeEstimateTaxSnapshot(contractHistory, contractService.Id, newProducts);
+    writeEstimateTaxSnapshot(
+      contractHistory,
+      contractService.Id,
+      newProducts,
+      request
+    );
 
     return buildSaveResult(contractService.Id, contractHistory, newProducts);
   }
@@ -1120,7 +1190,8 @@ public without sharing class EstimateSaveService {
     writeEstimateTaxSnapshot(
       contractHistory,
       request.contractServiceId,
-      changeProducts
+      changeProducts,
+      request
     );
 
     return buildSaveResult(
@@ -1191,7 +1262,8 @@ public without sharing class EstimateSaveService {
     writeEstimateTaxSnapshot(
       contractHistory,
       request.contractServiceId,
-      new List<ContractProduct__c>()
+      new List<ContractProduct__c>(),
+      request
     );
 
     applyDisplayedServiceCustomFields(request.contractServiceId, request);
@@ -1203,6 +1275,26 @@ public without sharing class EstimateSaveService {
     );
   }
 
+  /** 仕様: Core 第4.6節 */
+  private static void assertScreenValueMatchesSaved(
+    Decimal screen,
+    Decimal saved
+  ) {
+    if (EstimateValidationService.decimalsEqual(screen, saved)) {
+      return;
+    }
+    throw EstimateValidationService.wrapAura('保存値が不正です');
+  }
+
+  @TestVisible
+  private static void writeEstimateTaxSnapshot(
+    ContractHistory__c history,
+    Id serviceId,
+    List<ContractProduct__c> products
+  ) {
+    writeEstimateTaxSnapshot(history, serviceId, products, null);
+  }
+
   /**
    * 仕様: Core 第4.6節。見積保存だけが税率・税額・税込を書く。行ごとの税は足さない。
    * 受注と契約サービスの編集では呼ばない。
@@ -1211,7 +1303,8 @@ public without sharing class EstimateSaveService {
   private static void writeEstimateTaxSnapshot(
     ContractHistory__c history,
     Id serviceId,
-    List<ContractProduct__c> products
+    List<ContractProduct__c> products,
+    EstimateCreateController.EstimateSaveRequest request
   ) {
     if (history == null || history.Id == null || serviceId == null) {
       throw EstimateValidationService.wrapAura(
@@ -1242,9 +1335,19 @@ public without sharing class EstimateSaveService {
     } catch (TaxCalculationUtil.TaxPercentException ex) {
       throw EstimateValidationService.wrapAura(ex.getMessage());
     }
+    Decimal inclusive = excl + taxAmount;
+    if (request != null && request.screenTaxAmount != null) {
+      assertScreenValueMatchesSaved(request.screenTaxAmount, taxAmount);
+    }
+    if (request != null && request.screenTaxInclusiveAmount != null) {
+      assertScreenValueMatchesSaved(
+        request.screenTaxInclusiveAmount,
+        inclusive
+      );
+    }
     history.TaxPercent__c = storedPercent;
     history.TaxAmount__c = taxAmount;
-    history.DeltaTaxInclusiveSum__c = excl + taxAmount;
+    history.DeltaTaxInclusiveSum__c = inclusive;
     SystemContextAccess.updateRecords(
       new List<SObject>{
         new ContractHistory__c(
@@ -1347,16 +1450,21 @@ public without sharing class EstimateSaveService {
     } catch (ContractMetadataService.RevenueRecognitionBasisException ex) {
       throw EstimateValidationService.wrapAura(ex.getMessage());
     }
+    // 仕様: Core 第4.6節
+    Decimal roundedQuantity = AmountCalculationSettingService.roundQuantityUnitPrice(
+      line.quantity
+    );
+    Decimal roundedUnitPrice = AmountCalculationSettingService.roundQuantityUnitPrice(
+      line.unitPrice
+    );
+    assertScreenValueMatchesSaved(line.quantity, roundedQuantity);
+    assertScreenValueMatchesSaved(line.unitPrice, roundedUnitPrice);
     ContractProduct__c contractProduct = new ContractProduct__c(
       ContractHistory__c = contractHistoryId,
       Account__c = accountId,
       Product__c = line.productId,
-      Quantity__c = AmountCalculationSettingService.roundQuantityUnitPrice(
-        line.quantity
-      ),
-      UnitPrice__c = AmountCalculationSettingService.roundQuantityUnitPrice(
-        line.unitPrice
-      ),
+      Quantity__c = roundedQuantity,
+      UnitPrice__c = roundedUnitPrice,
       Unit__c = unitValue,
       StartDate__c = EstimateCreateSupport.parseDate(line.startDate),
       Enddate__c = EstimateCreateSupport.parseDate(line.endDate),
@@ -1368,7 +1476,7 @@ public without sharing class EstimateSaveService {
       Type__c = resolveProductType(line, selectedType),
       PreviousContractProduct__c = line.sourceContractProductId
     );
-    // 仕様: Core 第4.6節、第11.9節。金額は単価×数量×月数（Original は符号反転）。画面の入力円では上書きしない。
+    // 仕様: Core 第4.6節。式との差だけでは拒まない。画面の税抜が第11.9節の桁ならその円を書く。
     if (
       contractProduct.UnitPrice__c == null ||
       contractProduct.Quantity__c == null
@@ -1377,16 +1485,24 @@ public without sharing class EstimateSaveService {
         '金額を計算できません。数量・単価・期間を確認してください。'
       );
     }
-    Decimal signedAmount = ContractProductAmountUtil.calculateSignedAmount(
-      contractProduct,
-      billingType
-    );
-    if (signedAmount == null) {
-      throw EstimateValidationService.wrapAura(
-        '金額を計算できません。数量・単価・期間を確認してください。'
+    if (line.amount != null) {
+      Decimal roundedAmount = AmountCalculationSettingService.roundAmount(
+        line.amount
       );
+      assertScreenValueMatchesSaved(line.amount, roundedAmount);
+      contractProduct.Amount__c = roundedAmount;
+    } else {
+      Decimal signedAmount = ContractProductAmountUtil.calculateSignedAmount(
+        contractProduct,
+        billingType
+      );
+      if (signedAmount == null) {
+        throw EstimateValidationService.wrapAura(
+          '金額を計算できません。数量・単価・期間を確認してください。'
+        );
+      }
+      contractProduct.Amount__c = signedAmount;
     }
-    contractProduct.Amount__c = signedAmount;
     if (product != null) {
       contractProduct.putSObject('Product__r', product);
     }

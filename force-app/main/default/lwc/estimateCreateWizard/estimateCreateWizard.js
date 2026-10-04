@@ -1676,6 +1676,14 @@ export default class EstimateCreateWizard extends LightningElement {
           estimateIssueDate: this.wizardData.estimateIssueDate || null,
           estimateTitleName: this.wizardData.estimateTitleName || null,
           estimateSendContactId: this.wizardData.estimateSendContactId || null,
+          screenTaxAmount:
+            this.wizardData.screenTaxAmount == null
+              ? null
+              : Number(this.wizardData.screenTaxAmount),
+          screenTaxInclusiveAmount:
+            this.wizardData.screenTaxInclusiveAmount == null
+              ? null
+              : Number(this.wizardData.screenTaxInclusiveAmount),
           businessOperationKey: this._pendingOperationKey
         });
         // 連続保存用に楽観ロックトークンを更新

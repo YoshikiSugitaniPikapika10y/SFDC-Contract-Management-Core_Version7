@@ -4233,8 +4233,13 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   emitProductsFromItemList() {
+    const tax = this.totalTax;
+    const inclusive = this.totalAmountInclTax;
     const detail = {
-      selectedProducts: this.serializeProducts(this.itemList)
+      selectedProducts: this.serializeProducts(this.itemList),
+      // 仕様: Core 第4.6節
+      screenTaxAmount: Number.isFinite(tax) ? tax : null,
+      screenTaxInclusiveAmount: Number.isFinite(inclusive) ? inclusive : null
     };
     const headerDates = this.computeHeaderDatesFromRecurringProducts();
     if (headerDates) {

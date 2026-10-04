@@ -78,7 +78,7 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
-  static void buildContractProduct_roundsUnitPriceAndAmountScale() {
+  static void buildContractProduct_rejectsUnroundedUnitPrice() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Product2 product = ContractTestDataFactory.buildProduct(
         'Save Scale Round'
@@ -94,7 +94,46 @@ private class EstimateSaveServiceTest {
         Date.newInstance(2026, 4, 30)
       );
       line.unitPrice = 742.855;
-      line.amount = 9657000.49;
+      line.amount = 9657000;
+
+      Exception mismatch = null;
+      try {
+        EstimateSaveService.buildContractProduct(
+          null,
+          null,
+          line,
+          product,
+          'New',
+          Date.newInstance(2026, 4, 1)
+        );
+      } catch (Exception ex) {
+        mismatch = ex;
+      }
+      System.assertNotEquals(null, mismatch);
+      System.assertEquals('保存値が不正です', mismatch.getMessage());
+    }
+  }
+
+  @IsTest
+  static void buildContractProduct_keepsScreenAmountWhenFormulaDiffers() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Screen Amount'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2026, 4, 30)
+      );
+      line.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      line.quantity = 1;
+      line.unitPrice = 742.85;
+      line.amount = 9657000;
 
       ContractProduct__c contractProduct = EstimateSaveService.buildContractProduct(
         null,
@@ -105,8 +144,66 @@ private class EstimateSaveServiceTest {
         Date.newInstance(2026, 4, 1)
       );
 
-      System.assertEquals(742.86, contractProduct.UnitPrice__c);
-      System.assertEquals(743, contractProduct.Amount__c);
+      System.assertEquals(742.85, contractProduct.UnitPrice__c);
+      System.assertEquals(9657000, contractProduct.Amount__c);
+    }
+  }
+
+  @IsTest
+  static void writeEstimateTaxSnapshot_rejectsWhenScreenTaxDiffers() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount('Screen Tax Acc');
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Screen Tax Service'
+      );
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Screen Tax Opp'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Screen Tax History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1
+      );
+      insert history;
+      ContractProduct__c product = new ContractProduct__c(Amount__c = 1000);
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.screenTaxAmount = 1;
+      request.screenTaxInclusiveAmount = 1001;
+
+      Exception mismatch = null;
+      try {
+        EstimateSaveService.writeEstimateTaxSnapshot(
+          history,
+          service.Id,
+          new List<ContractProduct__c>{ product },
+          request
+        );
+      } catch (Exception ex) {
+        mismatch = ex;
+      }
+      System.assertNotEquals(null, mismatch);
+      System.assertEquals('保存値が不正です', mismatch.getMessage());
+
+      request.screenTaxAmount = 100;
+      request.screenTaxInclusiveAmount = 1100;
+      EstimateSaveService.writeEstimateTaxSnapshot(
+        history,
+        service.Id,
+        new List<ContractProduct__c>{ product },
+        request
+      );
+      ContractHistory__c saved = [
+        SELECT TaxAmount__c, DeltaTaxInclusiveSum__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      System.assertEquals(100, saved.TaxAmount__c);
+      System.assertEquals(1100, saved.DeltaTaxInclusiveSum__c);
     }
   }
 
@@ -1482,7 +1579,7 @@ private class EstimateSaveServiceTest {
         '仕様: Core 第4.7節・第12.4節。編集は見積商品を作り直さない'
       );
       System.assertEquals(3, savedProduct.Quantity__c);
-      System.assertEquals(360000, savedProduct.Amount__c);
+      System.assertEquals(30000, savedProduct.Amount__c);
       System.assertEquals(termStart, savedProduct.InvoiceAnchorDate__c);
       ContractHistory__c clearedRemarks = [
         SELECT Note__c
