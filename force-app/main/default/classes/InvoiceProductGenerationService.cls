@@ -866,9 +866,11 @@ public without sharing class InvoiceProductGenerationService {
 
       // past ≠ 0 の継続課金差分は打消し必須。作れない場合は黙殺せず Fail closed
       //（プラスだけ残して過大請求になるのを防ぐ。正規操作では稀で不整合データ向け）
+      // 仕様: Core 第6.3節。比較は取消行の開始日から。期間外の過去月は打消しない。
       if (
         pastAmount != 0 &&
-        !isOneTimeBillingForPeriod(historyProducts, productId, pastSample)
+        !isOneTimeBillingForPeriod(historyProducts, productId, pastSample) &&
+        !isPastPeriodOutsideOriginalWindow(historyProducts, productId, periodKey)
       ) {
         if (pastSample == null) {
           throw new InvoiceProductGenerationException(
@@ -1059,6 +1061,59 @@ public without sharing class InvoiceProductGenerationService {
       return null;
     }
     return (Id) parts[1];
+  }
+
+  /**
+   * 仕様: Core 第6.3節。取消行が無い商品は期間外とみなさず、従来の失敗にする。
+   */
+  private static Boolean isPastPeriodOutsideOriginalWindow(
+    List<ContractProduct__c> historyProducts,
+    Id productId,
+    String periodKey
+  ) {
+    if (historyProducts == null || productId == null || String.isBlank(periodKey)) {
+      return false;
+    }
+    Date periodStart = extractPeriodDate(periodKey, 2);
+    Date periodEnd = extractPeriodDate(periodKey, 3);
+    if (periodStart == null || periodEnd == null) {
+      return false;
+    }
+    Boolean hasOriginal = false;
+    for (ContractProduct__c contractProduct : historyProducts) {
+      if (
+        contractProduct == null ||
+        contractProduct.Product__c != productId ||
+        !isOriginalProductType(contractProduct)
+      ) {
+        continue;
+      }
+      hasOriginal = true;
+      if (
+        contractProduct.StartDate__c != null &&
+        contractProduct.Enddate__c != null &&
+        periodStart <= contractProduct.Enddate__c &&
+        periodEnd >= contractProduct.StartDate__c
+      ) {
+        return false;
+      }
+    }
+    return hasOriginal;
+  }
+
+  private static Date extractPeriodDate(String periodKey, Integer index) {
+    if (String.isBlank(periodKey) || index == null) {
+      return null;
+    }
+    List<String> parts = periodKey.split('_');
+    if (parts.size() <= index || String.isBlank(parts[index])) {
+      return null;
+    }
+    try {
+      return Date.valueOf(parts[index]);
+    } catch (TypeException ex) {
+      return null;
+    }
   }
 
   private static InvoiceProduct__c buildExplicitInvoiceProduct(

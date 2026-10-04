@@ -2782,6 +2782,196 @@ private class InvoiceProductGenerationServiceTest {
     }
   }
 
+  /**
+   * 仕様: Core 第6.3節。Renew の前の期間は取消行の外なので打ち消さない。
+   * 取消行の内側の差額は残す。
+   */
+  @IsTest
+  static void changeAfterRenew_doesNotReversePeriodsBeforeOriginalStart() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Prior Term Change Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Prior Term Change Service',
+        account
+      );
+      Date priorStart = Date.newInstance(2026, 4, 1);
+      Date priorEnd = Date.newInstance(2026, 4, 30);
+      Date currentStart = Date.newInstance(2026, 5, 1);
+      Date currentEnd = Date.newInstance(2026, 5, 31);
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Prior Term Change Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      ContractHistory__c priorHistory = new ContractHistory__c(
+        Name = 'Prior Term Change V1',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = priorStart,
+        CurrentTermEndDate__c = priorEnd,
+        EffectiveDate__c = priorStart
+      );
+      insertHistory(priorHistory);
+      ContractProduct__c priorProduct = new ContractProduct__c(
+        ContractHistory__c = priorHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 1,
+        StartDate__c = priorStart,
+        Enddate__c = priorEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      insert priorProduct;
+      insert new InvoiceProduct__c(
+        ContractHistory__c = priorHistory.Id,
+        ContractProduct__c = priorProduct.Id,
+        StartDate__c = priorStart,
+        Enddate__c = priorEnd,
+        InvoiceBucketKey__c = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
+          null,
+          priorHistory.Id,
+          priorStart,
+          null
+        ),
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 8000
+      );
+
+      ContractHistory__c renewHistory = new ContractHistory__c(
+        Name = 'Prior Term Change V2',
+        ContractService__c = service.Id,
+        Type__c = 'Renew',
+        historystatus__c = 'Ordered',
+        Version__c = 2,
+        CurrentTermStartDate__c = currentStart,
+        CurrentTermEndDate__c = currentEnd,
+        EffectiveDate__c = currentStart,
+        PreviousHistory__c = priorHistory.Id
+      );
+      insertHistory(renewHistory);
+      ContractProduct__c renewProduct = new ContractProduct__c(
+        ContractHistory__c = renewHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 1,
+        StartDate__c = currentStart,
+        Enddate__c = currentEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'Renew'
+      );
+      insert renewProduct;
+      insert new InvoiceProduct__c(
+        ContractHistory__c = renewHistory.Id,
+        ContractProduct__c = renewProduct.Id,
+        StartDate__c = currentStart,
+        Enddate__c = currentEnd,
+        InvoiceBucketKey__c = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
+          null,
+          renewHistory.Id,
+          currentStart,
+          null
+        ),
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 8000
+      );
+
+      Test.startTest();
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Prior Term Change V3',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 3,
+        CurrentTermStartDate__c = currentStart,
+        CurrentTermEndDate__c = currentEnd,
+        EffectiveDate__c = currentStart,
+        PreviousHistory__c = renewHistory.Id
+      );
+      insertHistory(changeHistory);
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          Amount__c = -1,
+          StartDate__c = currentStart,
+          Enddate__c = currentEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = renewProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = 1,
+          StartDate__c = currentStart,
+          Enddate__c = currentEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = renewProduct.Id
+        )
+      };
+      prepareHistoryForOrder(changeHistory);
+      commitOrder(changeHistory);
+
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE ContractHistory__c = :changeHistory.Id AND StartDate__c < :currentStart
+        ],
+        'Core 第6.3節: 取消行の開始より前の過去月は打ち消さない'
+      );
+      List<InvoiceProduct__c> reversalLines = [
+        SELECT Amount__c, StartDate__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :changeHistory.Id AND Amount__c < 0
+      ];
+      System.assertEquals(
+        1,
+        reversalLines.size(),
+        'Core 第6.3節: 取消行の内側の打消しは1本残る'
+      );
+      System.assertEquals(
+        currentStart,
+        reversalLines[0].StartDate__c,
+        'Core 第6.3節: 残る打消しは取消行の期間'
+      );
+      System.assertEquals(-8000, reversalLines[0].Amount__c, 'Core 第6.3節: 内側は過去額の打消し');
+      Decimal netAmount = (Decimal) [
+          SELECT SUM(Amount__c) totalAmount
+          FROM InvoiceProduct__c
+          WHERE ContractHistory__c = :changeHistory.Id
+        ][0]
+        .get('totalAmount');
+      System.assertEquals(
+        2000,
+        netAmount,
+        'Core 第7.8.5節: 期間明細の税抜は見積の差額と一致する'
+      );
+      Test.stopTest();
+    }
+  }
+
   private static void assertNoReversalInvoiceProducts(Id contractHistoryId) {
     System.assertEquals(
       0,
