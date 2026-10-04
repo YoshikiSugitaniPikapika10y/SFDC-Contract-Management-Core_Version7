@@ -18,6 +18,10 @@ describe("EstimateDocumentIssue success navigation (Core 4.8 / 4.3.1 / 7.10)", (
     expect(issuePage).toMatch(/postIssueAction\("preview"\)/);
     expect(issuePage).toMatch(/postIssueAction\("send"\)/);
     expect(issuePage).toMatch(/window\.parent\.postMessage/);
+    expect(issuePage).toMatch(/JSENCODE\(parentOrigin\)/);
+    expect(issuePage).toMatch(/contentVersionId/);
+    expect(issuePage).not.toMatch(/window\.location\.origin/);
+    expect(issuePage).not.toMatch(/window\.top/);
     expect(issuePage).toMatch(/onclick="openIssuedPreviewIfAny\(\)"/);
     expect(issuePage).toMatch(/このファイルを送る/);
     expect(issuePage).not.toMatch(/\(function\s*\(\)\s*\{/);

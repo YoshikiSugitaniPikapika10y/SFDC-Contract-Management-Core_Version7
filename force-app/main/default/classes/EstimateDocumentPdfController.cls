@@ -39,7 +39,19 @@ public with sharing class EstimateDocumentPdfController {
   public List<SelectOption> templateOptions { get; private set; }
   public Boolean issueSucceeded { get; private set; }
   public Id issuedContentDocumentId { get; private set; }
+  public Id issuedContentVersionId { get; private set; }
   public Boolean showSendThisFile { get; private set; }
+  private String parentOriginValue;
+
+  /** 仕様: Core 第4.8節・第7.10節・第4.3.1節。発行ポップアップの Lightning 住所だけを残す。 */
+  public String parentOrigin {
+    get {
+      return parentOriginValue;
+    }
+    set {
+      parentOriginValue = sanitizeLightningOrigin(value);
+    }
+  }
   public String filesPreviewUrl { get; private set; }
   public Id historyId { get; private set; }
 
@@ -63,6 +75,7 @@ public with sharing class EstimateDocumentPdfController {
   private ContractHistory__c issueHistory;
 
   public EstimateDocumentPdfController() {
+    captureParentOrigin();
     try {
       initializeTemplateOptions();
     } catch (
@@ -127,6 +140,7 @@ public with sharing class EstimateDocumentPdfController {
         selectedTemplateKey
       );
       issuedContentDocumentId = issueResult.contentDocumentId;
+      issuedContentVersionId = issueResult.contentVersionId;
       issueSucceeded = true;
       // 仕様: Core 第4.8節・第7.10節。発行成功後の確認は標準 Files オーバーレイ（filePreview）。
       filesPreviewUrl =
@@ -261,6 +275,7 @@ public with sharing class EstimateDocumentPdfController {
     issueSucceeded = false;
     showSendThisFile = false;
     issuedContentDocumentId = null;
+    issuedContentVersionId = null;
     filesPreviewUrl = '';
     issueFileName = '';
     issueHistory = null;
@@ -333,6 +348,36 @@ public with sharing class EstimateDocumentPdfController {
     if (selectedTemplateKey == null) {
       selectedTemplateKey = '';
     }
+  }
+
+  /** 仕様: Core 第4.8節・第7.10節・第4.3.1節。初回表示の住所を、発行の再描画後も残す。 */
+  private void captureParentOrigin() {
+    if (ApexPages.currentPage() == null) {
+      return;
+    }
+    String fromRequest = ApexPages.currentPage()
+      .getParameters()
+      .get('parentOrigin');
+    if (String.isNotBlank(fromRequest)) {
+      parentOrigin = fromRequest;
+    }
+  }
+
+  /** 仕様: Core 第4.8節・第7.10節・第4.3.1節。発行ポップアップ以外へファイルIDを渡さない。 */
+  private static String sanitizeLightningOrigin(String raw) {
+    if (String.isBlank(raw)) {
+      return null;
+    }
+    String value = raw.trim();
+    if (
+      !Pattern.matches(
+        'https://[A-Za-z0-9._-]+\\.(lightning\\.force\\.com|my\\.salesforce\\.com)',
+        value
+      )
+    ) {
+      return null;
+    }
+    return value;
   }
 
   private Id parseRecordId() {

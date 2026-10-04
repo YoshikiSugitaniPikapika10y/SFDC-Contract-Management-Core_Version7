@@ -14,6 +14,7 @@
     }
   </style>
   <apex:form>
+    <apex:inputHidden value="{!parentOrigin}" />
     <apex:outputPanel id="issuePanel">
       <apex:pageBlock title="見積書発行">
         <apex:pageMessages />
@@ -67,6 +68,9 @@
           <span id="issuedPreviewDocumentId" style="display: none"
             >{!issuedContentDocumentId}</span
           >
+          <span id="issuedPreviewVersionId" style="display: none"
+            >{!issuedContentVersionId}</span
+          >
           <p>
             <button type="button" onclick="openIssuedPreviewIfAny()">
               発行したファイルをプレビュー
@@ -85,25 +89,44 @@
     </apex:outputPanel>
   </apex:form>
   <script>
-    // 仕様: Core 第4.8節・第7.10節・第4.3.1節。発行面に留まる。プレビューと送付はページを移さず、同じ発行画面へ渡す。
+    // 仕様: Core 第4.8節・第7.10節・第4.3.1節。発行面に留まる。プレビューと送付はページを移さず、開いている発行ポップアップへ渡す。
     function issuedDocumentId() {
       var el = document.getElementById("issuedPreviewDocumentId");
       return el
         ? String(el.textContent || "").replace(/^\s+|\s+$/g, "")
         : "";
     }
+    function issuedVersionId() {
+      var el = document.getElementById("issuedPreviewVersionId");
+      return el
+        ? String(el.textContent || "").replace(/^\s+|\s+$/g, "")
+        : "";
+    }
+    function parentTargetOrigin() {
+      var origin = "{!JSENCODE(parentOrigin)}";
+      if (
+        !/^https:\/\/[A-Za-z0-9._-]+\.(lightning\.force\.com|my\.salesforce\.com)$/.test(
+          origin
+        )
+      ) {
+        return "";
+      }
+      return origin;
+    }
     function postIssueAction(action) {
       var documentId = issuedDocumentId();
-      if (!documentId || !window.parent || window.parent === window) {
+      var targetOrigin = parentTargetOrigin();
+      if (!documentId || !targetOrigin || !window.parent || window.parent === window) {
         return;
       }
       window.parent.postMessage(
         {
           source: "cmc-estimate-issue",
           action: action,
-          contentDocumentId: documentId
+          contentDocumentId: documentId,
+          contentVersionId: issuedVersionId()
         },
-        window.location.origin
+        targetOrigin
       );
     }
     function openIssuedPreviewIfAny() {

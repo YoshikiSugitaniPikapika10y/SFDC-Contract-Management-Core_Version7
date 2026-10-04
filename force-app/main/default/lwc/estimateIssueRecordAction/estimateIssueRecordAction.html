@@ -13,6 +13,24 @@
           title="見積書発行"
         ></iframe>
       </template>
+      <template if:true={showPreview}>
+        <div class="preview-layer">
+          <iframe
+            class="preview-frame"
+            src={previewFrameUrl}
+            title="発行したファイル"
+          ></iframe>
+          <footer class="issue-footer">
+            <button
+              type="button"
+              class="slds-button slds-button_neutral preview-close"
+              onclick={handleClosePreview}
+            >
+              閉じる
+            </button>
+          </footer>
+        </div>
+      </template>
       <template if:false={issuePageUrl}>
         <p class="missing-record" role="alert">
           契約履歴IDが指定されていません。

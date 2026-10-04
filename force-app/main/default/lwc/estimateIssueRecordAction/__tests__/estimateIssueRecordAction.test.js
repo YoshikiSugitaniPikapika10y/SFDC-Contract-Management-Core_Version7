@@ -83,7 +83,18 @@ jest.mock(
   { virtual: true }
 );
 
+let issueListeners = [];
+
 function createAction(recordId) {
+  const realAdd = window.addEventListener.bind(window);
+  const spy = jest
+    .spyOn(window, "addEventListener")
+    .mockImplementation((type, handler, options) => {
+      if (type === "message") {
+        issueListeners.push(handler);
+      }
+      return realAdd(type, handler, options);
+    });
   const element = createElement("c-estimate-issue-record-action", {
     is: EstimateIssueRecordAction
   });
@@ -91,26 +102,28 @@ function createAction(recordId) {
     element.recordId = recordId;
   }
   document.body.appendChild(element);
+  spy.mockRestore();
   return element;
 }
 
-function postIssue(action, contentDocumentId) {
-  window.dispatchEvent(
-    new MessageEvent("message", {
-      origin: window.location.origin,
-      data: {
-        source: "cmc-estimate-issue",
-        action,
-        contentDocumentId
-      }
-    })
-  );
+function postIssue(action, contentDocumentId, origin, contentVersionId) {
+  const event = {
+    origin: origin || "https://customer.vf.force.com",
+    data: {
+      source: "cmc-estimate-issue",
+      action,
+      contentDocumentId,
+      contentVersionId
+    }
+  };
+  issueListeners.forEach((handler) => handler(event));
 }
 
 describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
   afterEach(() => {
     document.body.innerHTML = "";
     sessionStorage.clear();
+    issueListeners = [];
     openContentDocumentFilePreview.mockClear();
   });
 
@@ -120,7 +133,7 @@ describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
 
     expect(frame).not.toBeNull();
     expect(frame.getAttribute("src")).toBe(
-      "/apex/EstimateDocumentIssue?id=a0H%20A%26B"
+      `/apex/EstimateDocumentIssue?id=a0H%20A%26B&parentOrigin=${encodeURIComponent(window.location.origin)}`
     );
     expect(frame.getAttribute("title")).toBe("見積書発行");
     expect(element.shadowRoot.querySelector('[role="alert"]')).toBeNull();
@@ -148,30 +161,63 @@ describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
     );
   });
 
-  it("opens file preview on the issue surface without closing it", () => {
+  it("opens file preview on the issue surface without closing it", async () => {
     const element = createAction("a0H000000000001AAA");
     const closeHandler = jest.fn();
     element.addEventListener("closeActionScreen", closeHandler);
 
-    postIssue("preview", "069AAA");
+    postIssue(
+      "preview",
+      "069000000000001AAA",
+      undefined,
+      "068000000000001AAA"
+    );
+    await Promise.resolve();
 
-    expect(openContentDocumentFilePreview).toHaveBeenCalledTimes(1);
-    expect(openContentDocumentFilePreview.mock.calls[0][1]).toBe("069AAA");
+    expect(openContentDocumentFilePreview).not.toHaveBeenCalled();
     expect(closeHandler).not.toHaveBeenCalled();
-    expect(element.shadowRoot.querySelector("iframe")).not.toBeNull();
+    expect(element.shadowRoot.querySelector(".issue-frame")).not.toBeNull();
+    expect(element.shadowRoot.querySelector(".preview-frame").getAttribute("src")).toBe(
+      "/sfc/servlet.shepherd/version/download/068000000000001AAA"
+    );
     expect(
       element.shadowRoot.querySelector("c-estimate-send-record-action")
     ).toBeNull();
+
+    element.shadowRoot.querySelector(".preview-close").click();
+    await Promise.resolve();
+
+    expect(closeHandler).not.toHaveBeenCalled();
+    expect(element.shadowRoot.querySelector(".preview-frame")).toBeNull();
+    expect(element.shadowRoot.querySelector(".issue-frame")).not.toBeNull();
+  });
+
+  it("ignores preview and send messages that are not from the issue page", () => {
+    const element = createAction("a0H000000000001AAA");
+
+    postIssue(
+      "preview",
+      "069000000000001AAA",
+      "https://example.lightning.force.com",
+      "068000000000001AAA"
+    );
+    postIssue("send", "069000000000002AAA", "https://evil.example");
+
+    expect(element.shadowRoot.querySelector(".preview-frame")).toBeNull();
+    expect(
+      element.shadowRoot.querySelector("c-estimate-send-record-action")
+    ).toBeNull();
+    expect(sessionStorage.getItem("cmc.estimateSend.initialContentDocumentId")).toBeNull();
   });
 
   it("shows the send screen in the same popup for the issued file", async () => {
     const element = createAction("a0H000000000001AAA");
 
-    postIssue("send", "069BBB");
+    postIssue("send", "069000000000002AAA");
     await Promise.resolve();
 
     expect(sessionStorage.getItem("cmc.estimateSend.initialContentDocumentId")).toBe(
-      "069BBB"
+      "069000000000002AAA"
     );
     expect(element.shadowRoot.querySelector("iframe")).toBeNull();
     expect(

@@ -1,5 +1,23 @@
 .issue-shell {
+  position: relative;
   background: #fff;
+}
+
+.preview-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.preview-frame {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 24rem;
+  border: 0;
 }
 
 .issue-frame {

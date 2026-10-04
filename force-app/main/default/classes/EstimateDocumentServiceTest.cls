@@ -1149,7 +1149,33 @@ private class EstimateDocumentServiceTest {
         )
       );
       System.assertEquals('StandardEstimate', controller.selectedTemplateKey);
+      System.assertNotEquals(null, controller.issuedContentVersionId);
     }
+  }
+
+  @IsTest
+  static void issuePage_parentOrigin_keepsLightningOnly() {
+    PageReference issuePage = Page.EstimateDocumentIssue;
+    issuePage.getParameters()
+      .put('parentOrigin', 'https://example.lightning.force.com');
+    Test.setCurrentPage(issuePage);
+
+    EstimateDocumentPdfController controller = new EstimateDocumentPdfController();
+
+    System.assertEquals(
+      'https://example.lightning.force.com',
+      controller.parentOrigin,
+      'Core 第4.8節: 発行ポップアップの Lightning 住所は残す'
+    );
+    controller.parentOrigin = 'https://example--dev.sandbox.lightning.force.com';
+    System.assertEquals(
+      'https://example--dev.sandbox.lightning.force.com',
+      controller.parentOrigin
+    );
+    controller.parentOrigin = 'https://evil.example';
+    System.assertEquals(null, controller.parentOrigin);
+    controller.parentOrigin = 'https://customer.vf.force.com';
+    System.assertEquals(null, controller.parentOrigin);
   }
 
   @IsTest
