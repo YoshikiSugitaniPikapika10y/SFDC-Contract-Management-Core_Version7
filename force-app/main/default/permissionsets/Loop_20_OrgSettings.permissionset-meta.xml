@@ -112,4 +112,8 @@
         <tab>standard-Product2</tab>
         <visibility>Available</visibility>
     </tabSettings>
+    <tabSettings>
+        <tab>GlAccountingPolicy__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
 </PermissionSet>

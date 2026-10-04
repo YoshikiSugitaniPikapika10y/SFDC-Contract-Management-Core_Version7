@@ -382,4 +382,20 @@
         <field>InvoiceProduct__c.UnitPrice__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <tabSettings>
+        <tab>ContractService__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>ContractHistory__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>ContractProduct__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>InvoiceProduct__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
 </PermissionSet>

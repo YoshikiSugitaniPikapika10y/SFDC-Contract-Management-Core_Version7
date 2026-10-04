@@ -197,4 +197,8 @@
         <tab>GlManualJournalSetting__c</tab>
         <visibility>Available</visibility>
     </tabSettings>
+    <tabSettings>
+        <tab>GlConditionRule__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
 </PermissionSet>

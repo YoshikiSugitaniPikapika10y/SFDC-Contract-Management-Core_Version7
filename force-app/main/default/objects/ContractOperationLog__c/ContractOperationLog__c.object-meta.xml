@@ -6,8 +6,8 @@
     <enableBulkApi>false</enableBulkApi>
     <enableHistory>false</enableHistory>
     <enableLicensing>false</enableLicensing>
-    <enableReports>false</enableReports>
-    <enableSearch>false</enableSearch>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
     <enableSharing>false</enableSharing>
     <enableStreamingApi>false</enableStreamingApi>
     <label>契約操作ログ</label>

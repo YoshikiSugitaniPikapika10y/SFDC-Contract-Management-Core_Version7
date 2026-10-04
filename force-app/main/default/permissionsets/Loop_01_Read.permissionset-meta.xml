@@ -1978,4 +1978,48 @@
         <tab>standard-Product2</tab>
         <visibility>Available</visibility>
     </tabSettings>
+    <tabSettings>
+        <tab>ContractService__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>ContractHistory__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>ContractProduct__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>InvoiceProduct__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>Invoice__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>InvoiceLine__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>InvoicePayment__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>InvoicePaymentAllocation__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>GlManualJournalHeader__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>GlConditionRule__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>GlAccountingPolicy__c</tab>
+        <visibility>Available</visibility>
+    </tabSettings>
 </PermissionSet>
