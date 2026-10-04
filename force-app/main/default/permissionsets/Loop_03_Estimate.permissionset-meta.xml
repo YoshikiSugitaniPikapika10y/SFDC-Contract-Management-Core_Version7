@@ -21,11 +21,6 @@
         <viewAllFields>false</viewAllFields>
         <viewAllRecords>false</viewAllRecords>
     </objectPermissions>
-    <fieldPermissions>
-        <editable>true</editable>
-        <field>EstimateNoteMaster__c.NoteText__c</field>
-        <readable>true</readable>
-    </fieldPermissions>
     <tabSettings>
         <tab>EstimateNoteMaster__c</tab>
         <visibility>Available</visibility>
