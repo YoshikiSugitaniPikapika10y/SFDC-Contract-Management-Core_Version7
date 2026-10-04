@@ -1462,6 +1462,52 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(saveEvent.detail.journalPreviewText).toBeUndefined();
   });
 
+  it("keeps the version conflict on the payment form and drops the draft (Core 4.3.12)", async () => {
+    getOpsBundle.mockResolvedValue(mockBundle({ accountingEnabled: false }));
+    savePaymentFromPreview.mockRejectedValue({
+      body: {
+        message:
+          "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。"
+      }
+    });
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    element.contractHistoryId = "a0H000000000001AAA";
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+
+    const amountInput = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amountInput.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "100" } })
+    );
+    await flush();
+    Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
+      .find((button) => button.textContent.trim() === "追加")
+      .click();
+    await flush();
+    await flush();
+
+    const formError = element.shadowRoot.querySelector(
+      "[data-payment-form-error]"
+    );
+    expect(formError.textContent).toBe(
+      "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。"
+    );
+    expect(element.shadowRoot.textContent).toContain(
+      "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。"
+    );
+    const amountAfter = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    expect(amountAfter.value).not.toBe("100");
+    expect(savePaymentFromPreview).toHaveBeenCalledTimes(1);
+  });
+
   it("does not open payment register confirm and still saves (Core 0.2)", async () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({ accountingEnabled: true, hasLockedJournals: false })

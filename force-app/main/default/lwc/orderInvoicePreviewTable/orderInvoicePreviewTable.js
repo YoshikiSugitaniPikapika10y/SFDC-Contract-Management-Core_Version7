@@ -747,7 +747,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         bundle: previous?.bundle || null,
         loading: previous?.loading === true,
         error: previous?.error || "",
-        // 仕様: Core 第7.7.0節。保存成功・版不一致の読み直しで未保存の入金下書きは戻さない。
+        // 仕様: Core 第4.3.12節・第7.7.0節。入金追加の版不一致だけ、そのフォームに拒否文を残す。下書きは戻さない。
+        paymentFormError:
+          this._paymentAddVersionConflictInvoiceId === invoice.invoiceId
+            ? VERSION_CONFLICT_MESSAGE
+            : "",
         paymentDraft: this.newPaymentDraft(invoice.invoiceId),
         cancelDraft: null
       };
@@ -758,7 +762,24 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       }
     });
     this.invoiceUiState = next;
+    const conflictInvoiceId = this._paymentAddVersionConflictInvoiceId;
+    this._paymentAddVersionConflictInvoiceId = null;
     invoiceIds.forEach((invoiceId) => this.loadOpsBundle(invoiceId));
+    if (conflictInvoiceId) {
+      Promise.resolve().then(() =>
+        this.scrollPaymentFormErrorIntoView(conflictInvoiceId)
+      );
+    }
+  }
+
+  /** 仕様: Core 第4.3.12節・第7.7.0節 */
+  scrollPaymentFormErrorIntoView(invoiceId) {
+    const node = this.template.querySelector(
+      `[data-payment-form-error="${invoiceId}"]`
+    );
+    if (node && typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ block: "nearest" });
+    }
   }
 
   newPaymentDraft(invoiceId, remainingNet, paymentLines) {
@@ -3147,6 +3168,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             paymentDraft
           ),
           paymentRegisterCancelDate: paymentDraft?.cancellationDate || "",
+          paymentFormError: uiState.paymentFormError || "",
           paymentFormTitle: "入出金を追加",
           paymentSaveLabel: "追加",
           paymentBlockedReason: bundle?.paymentBlockedReason || "",
@@ -4109,7 +4131,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     // 仕様: Core 第7.9.6節、Accounting 第8.8節。確認は業務確認と必要な取消基準日だけ。件数・日付内訳は出さない。
 
     const showJournalPreview = bundle?.accountingEnabled === true;
-    await this.runInvoiceOpsMutation(invoiceId, async () => {
+    await this.runInvoiceOpsMutation(
+      invoiceId,
+      async () => {
       if (showJournalPreview) {
         const preview = await previewRegisterFromPreview(paymentArgs);
         if (diffRequiresCancelDate(preview) && !draft.cancellationDate) {
@@ -4132,10 +4156,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
       this.updateInvoiceUiState(invoiceId, {
         paymentDraft: this.newPaymentDraft(invoiceId),
+        paymentFormError: "",
         cancelDraft: null
       });
       return "入出金を追加しました";
-    });
+      },
+      { paymentAddVersionConflict: true }
+    );
   }
 
   handleOpenPaymentEdit(event) {
@@ -4365,7 +4392,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     });
   }
 
-  async runInvoiceOpsMutation(invoiceId, action) {
+  async runInvoiceOpsMutation(invoiceId, action, options) {
     if (!invoiceId || this.invoiceOpsProcessingId != null) {
       return;
     }
@@ -4380,11 +4407,29 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
       const message = this.reduceInvoiceOpsError(error);
-      this.setSurfaceError("請求操作エラー", message);
-      // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
-      if (message === VERSION_CONFLICT_MESSAGE) {
+      // 仕様: Core 第4.3.12節・第7.7.0節。入金追加の版不一致だけ、そのフォームに残して見える位置へ動かす。
+      if (
+        message === VERSION_CONFLICT_MESSAGE &&
+        options?.paymentAddVersionConflict === true
+      ) {
+        this._paymentAddVersionConflictInvoiceId = invoiceId;
+        this.updateInvoiceUiState(invoiceId, {
+          paymentDraft: this.newPaymentDraft(invoiceId),
+          paymentFormError: VERSION_CONFLICT_MESSAGE,
+          cancelDraft: null
+        });
         this.clearPendingOperationKey(invoiceId);
         this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
+        Promise.resolve().then(() =>
+          this.scrollPaymentFormErrorIntoView(invoiceId)
+        );
+      } else {
+        this.setSurfaceError("請求操作エラー", message);
+        // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
+        if (message === VERSION_CONFLICT_MESSAGE) {
+          this.clearPendingOperationKey(invoiceId);
+          this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
+        }
       }
     } finally {
       this.invoiceOpsProcessingId = null;

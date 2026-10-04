@@ -1211,6 +1211,9 @@
 
                 <template if:true={invoice.showPaymentForm}>
                   <div class="ops-form ops-form_register">
+                    <template if:true={invoice.paymentFormError}>
+                      <p class="edit-note" role="alert" data-payment-form-error={invoice.invoiceId}>{invoice.paymentFormError}</p>
+                    </template>
                     <h3 class="ops-form-title">{invoice.paymentFormTitle}</h3>
                     <div class="ops-form-grid">
                       <lightning-combobox
