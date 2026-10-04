@@ -34,12 +34,16 @@ public without sharing class EstimateValidationService {
   private static Map<Id, List<ContractProduct__c>> changeSourceProductsByHistoryId = new Map<Id, List<ContractProduct__c>>();
 
   /** 仕様: Core 第4.3.3節、第12.4節。同一保存処理内の契約サービス照会を再利用する。 */
-  public static ContractService__c loadContinuationService(Id contractServiceId) {
+  public static ContractService__c loadContinuationService(
+    Id contractServiceId
+  ) {
     if (contractServiceId == null) {
       return null;
     }
     if (continuationServiceById.containsKey(contractServiceId)) {
-      ContractService__c cached = continuationServiceById.get(contractServiceId);
+      ContractService__c cached = continuationServiceById.get(
+        contractServiceId
+      );
       if (cached != null) {
         ContractHistoryOpportunityGuard.rememberServiceAccount(
           cached.Id,
@@ -75,12 +79,9 @@ public without sharing class EstimateValidationService {
   public static final String REMAKE_REVENUE_LOCKED_MESSAGE = '変更後の行の売上計上基準は前回の版と同じにしてください。';
 
   public static final String REMAKE_BILLING_TYPE_LOCKED_MESSAGE = '変更後の行の課金形態は前回の版と同じにしてください。';
-  public static final String RENEW_PRODUCT_LOCKED_MESSAGE =
-    '更新の継承行の商品は差し替えできません。';
-  public static final String SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE =
-    '都度契約の Change は一回課金だけです。';
-  public static final String SPOT_CHANGE_NO_PREVIOUS_PRODUCT_MESSAGE =
-    '都度契約の Change は過去の見積商品を引き継ぎません。';
+  public static final String RENEW_PRODUCT_LOCKED_MESSAGE = '更新の継承行の商品は差し替えできません。';
+  public static final String SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE = '都度契約の Change は一回課金だけです。';
+  public static final String SPOT_CHANGE_NO_PREVIOUS_PRODUCT_MESSAGE = '都度契約の Change は過去の見積商品を引き継ぎません。';
 
   @TestVisible
   private static final String CHANGE_EFFECTIVE_DATE_BILLING_PERIOD_START_MESSAGE = '切替日および課金イベント日は元明細開始日起点の請求期間開始日である必要があります（日割りはできません）。';
@@ -462,10 +463,7 @@ public without sharing class EstimateValidationService {
       String recordType = EstimateCreateSupport.normalizeProductRecordType(
         line.recordType
       );
-      if (
-        String.isNotBlank(recordType) &&
-        recordType != PRODUCT_TYPE_NEW
-      ) {
+      if (String.isNotBlank(recordType) && recordType != PRODUCT_TYPE_NEW) {
         throw new ChangeConsistencyException(SPOT_CHANGE_ONE_TIME_ONLY_MESSAGE);
       }
     }
@@ -971,10 +969,7 @@ public without sharing class EstimateValidationService {
         line.recordType
       );
 
-      if (
-        !oneTimeAddOnly &&
-        EstimateCreateSupport.isChangeOriginalLine(line)
-      ) {
+      if (!oneTimeAddOnly && EstimateCreateSupport.isChangeOriginalLine(line)) {
         if (line.sourceContractProductId == null) {
           throw wrapAura(
             '商品明細' +
@@ -998,10 +993,7 @@ public without sharing class EstimateValidationService {
         continue;
       }
 
-      if (
-        !oneTimeAddOnly &&
-        EstimateCreateSupport.isChangeRemakeLine(line)
-      ) {
+      if (!oneTimeAddOnly && EstimateCreateSupport.isChangeRemakeLine(line)) {
         if (line.sourceContractProductId == null) {
           throw wrapAura(
             '商品明細' +
@@ -1088,34 +1080,34 @@ public without sharing class EstimateValidationService {
 
     if (!oneTimeAddOnly) {
       for (ContractProduct__c source : sourceProducts) {
-      if (!originalBySourceId.containsKey(source.Id)) {
-        throw wrapAura(
-          '前回の版の継続課金商品すべてに変更前の行が必要です。'
+        if (!originalBySourceId.containsKey(source.Id)) {
+          throw wrapAura(
+            '前回の版の継続課金商品すべてに変更前の行が必要です。'
+          );
+        }
+        List<EstimateCreateController.ProductLineItem> remakes = remakesBySourceId.get(
+          source.Id
         );
-      }
-      List<EstimateCreateController.ProductLineItem> remakes = remakesBySourceId.get(
-        source.Id
-      );
-      if (remakes == null || remakes.isEmpty()) {
-        throw wrapAura(
-          '前回の版の継続課金商品すべてに変更後の行を1件以上入力してください。'
-        );
-      }
+        if (remakes == null || remakes.isEmpty()) {
+          throw wrapAura(
+            '前回の版の継続課金商品すべてに変更後の行を1件以上入力してください。'
+          );
+        }
 
-      String reconstitutionError = validateChangeReconstitutionCoverage(
-        originalBySourceId.get(source.Id),
-        remakes
-      );
-      if (reconstitutionError != null) {
-        throw wrapAura(reconstitutionError);
-      }
-      String midTermError = validateChangeMidTermRemakeSplit(
-        originalBySourceId.get(source.Id),
-        remakes
-      );
-      if (midTermError != null) {
-        throw wrapAura(midTermError);
-      }
+        String reconstitutionError = validateChangeReconstitutionCoverage(
+          originalBySourceId.get(source.Id),
+          remakes
+        );
+        if (reconstitutionError != null) {
+          throw wrapAura(reconstitutionError);
+        }
+        String midTermError = validateChangeMidTermRemakeSplit(
+          originalBySourceId.get(source.Id),
+          remakes
+        );
+        if (midTermError != null) {
+          throw wrapAura(midTermError);
+        }
       }
     }
 
@@ -1233,10 +1225,10 @@ public without sharing class EstimateValidationService {
     return dates;
   }
 
-/**
- * Change の課金イベント（日付＋一回課金由来か＋元明細開始日）。
- * 仕様: Core 第4.4節、日付仕様 第2.3節。サイクル境界は元明細開始日起点。
- */
+  /**
+   * Change の課金イベント（日付＋一回課金由来か＋元明細開始日）。
+   * 仕様: Core 第4.4節、日付仕様 第2.3節。サイクル境界は元明細開始日起点。
+   */
   public static List<ChangeBillingEventEntry> collectChangeBillingEventEntries(
     List<EstimateCreateController.ProductLineItem> products
   ) {
@@ -1612,27 +1604,10 @@ public without sharing class EstimateValidationService {
           '行目: 変更前の行は前回の版の見積商品と一致している必要があります。'
       );
     }
-    // 仕様: Core 第4.6節。Original 税抜は -(単価×数量×月数)。保存済み Amount が式と違っても式を正とする。
-    Decimal expectedOriginalAmount;
-    if (source.UnitPrice__c == null || source.Quantity__c == null) {
-      expectedOriginalAmount = source.Amount__c == null
-        ? null
-        : -source.Amount__c;
-    } else {
-      String sourceBillingType = ContractMetadataService.resolveLineBillingType(
-        source
-      );
-      Decimal unsignedSourceAmount = ContractProductAmountUtil.calculateUnsignedAmount(
-        source.Quantity__c,
-        source.UnitPrice__c,
-        sourceBillingType,
-        source.StartDate__c,
-        source.Enddate__c
-      );
-      expectedOriginalAmount = unsignedSourceAmount == null
-        ? (source.Amount__c == null ? null : -source.Amount__c)
-        : -unsignedSourceAmount;
-    }
+    // 仕様: Core 第4.4.1節、第4.5.2節、第4.6節。Original 税抜は -(前回 Amount)。式で作り直さない。
+    Decimal expectedOriginalAmount = source.Amount__c == null
+      ? null
+      : -source.Amount__c;
     if (!decimalsEqual(line.amount, expectedOriginalAmount)) {
       throw wrapAura(
         '商品明細' +
@@ -1978,9 +1953,7 @@ public without sharing class EstimateValidationService {
 
     if (history.Type__c == HISTORY_TYPE_CANCEL) {
       if (targetOperation == 'Renew') {
-        throw wrapAura(
-          '解約済みの契約履歴から更新は作成できません。'
-        );
+        throw wrapAura('解約済みの契約履歴から更新は作成できません。');
       }
       throw wrapAura('解約済みの契約履歴から解約は作成できません。');
     }
@@ -2084,7 +2057,7 @@ public without sharing class EstimateValidationService {
     for (EstimateCreateController.ProductLineItem line : products) {
       if (
         EstimateCreateSupport.normalizeProductRecordType(line.recordType) ==
-          PRODUCT_TYPE_RENEW &&
+        PRODUCT_TYPE_RENEW &&
         line.sourceContractProductId != null
       ) {
         sourceIds.add(line.sourceContractProductId);
@@ -2105,7 +2078,7 @@ public without sharing class EstimateValidationService {
       EstimateCreateController.ProductLineItem line = products[i];
       if (
         EstimateCreateSupport.normalizeProductRecordType(line.recordType) !=
-          PRODUCT_TYPE_RENEW ||
+        PRODUCT_TYPE_RENEW ||
         line.sourceContractProductId == null
       ) {
         continue;
@@ -2367,14 +2340,14 @@ public without sharing class EstimateValidationService {
       opportunityAccountId == null ||
       serviceAccountId != opportunityAccountId
     ) {
-    throw wrapAura(
-      '契約サービスの取引先と商談の取引先が一致しません' +
-        '（契約サービス取引先: ' +
-        String.valueOf(serviceAccountId) +
-        ' / 商談取引先: ' +
-        String.valueOf(opportunityAccountId) +
-        '）。'
-    );
+      throw wrapAura(
+        '契約サービスの取引先と商談の取引先が一致しません' +
+          '（契約サービス取引先: ' +
+          String.valueOf(serviceAccountId) +
+          ' / 商談取引先: ' +
+          String.valueOf(opportunityAccountId) +
+          '）。'
+      );
     }
   }
 
@@ -2743,7 +2716,9 @@ public without sharing class EstimateValidationService {
       );
       return null;
     } catch (ContractMetadataService.RevenueRecognitionBasisException ex) {
-      String code = String.isBlank(line == null ? null : line.revenueRecognitionBasis)
+      String code = String.isBlank(
+          line == null ? null : line.revenueRecognitionBasis
+        )
         ? '035'
         : '036';
       return estS3CodedLineMessage(
@@ -2793,9 +2768,11 @@ public without sharing class EstimateValidationService {
     }
     Map<Id, ContractProduct__c> sourceById = new Map<Id, ContractProduct__c>();
     for (Id historyId : changeSourceProductsByHistoryId.keySet()) {
-      for (ContractProduct__c source : changeSourceProductsByHistoryId.get(
-        historyId
-      )) {
+      for (
+        ContractProduct__c source : changeSourceProductsByHistoryId.get(
+          historyId
+        )
+      ) {
         if (source != null && sourceIds.contains(source.Id)) {
           sourceById.put(source.Id, source);
         }
@@ -2864,7 +2841,7 @@ public without sharing class EstimateValidationService {
         product == null ||
         product.PreviousContractProduct__c == null ||
         EstimateCreateSupport.normalizeProductRecordType(product.Type__c) !=
-          PRODUCT_TYPE_ORIGINAL
+        PRODUCT_TYPE_ORIGINAL
       ) {
         continue;
       }
@@ -2875,7 +2852,7 @@ public without sharing class EstimateValidationService {
         product == null ||
         product.PreviousContractProduct__c == null ||
         EstimateCreateSupport.normalizeProductRecordType(product.Type__c) !=
-          PRODUCT_TYPE_REMAKE
+        PRODUCT_TYPE_REMAKE
       ) {
         continue;
       }
@@ -3395,7 +3372,10 @@ public without sharing class EstimateValidationService {
     // 仕様: Core 第4.5.1節。Originalは判定外。一回×一回は許可。継続どうしと継続×一回だけ不可。
     List<EstimateCreateController.ProductLineItem> activeLines = new List<EstimateCreateController.ProductLineItem>();
     for (EstimateCreateController.ProductLineItem line : products) {
-      if (isActiveProductLine(line) && !EstimateCreateSupport.isChangeOriginalLine(line)) {
+      if (
+        isActiveProductLine(line) &&
+        !EstimateCreateSupport.isChangeOriginalLine(line)
+      ) {
         activeLines.add(line);
       }
     }

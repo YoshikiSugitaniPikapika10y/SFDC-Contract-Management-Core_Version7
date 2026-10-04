@@ -102,10 +102,7 @@ private class EstimateValidationServiceTest {
   static void rejectBranches_specMessagesWithoutHeavyDml() {
     System.assertEquals(
       null,
-      EstimateValidationService.resolvePersistedChangeReadinessError(
-        null,
-        null
-      )
+      EstimateValidationService.resolvePersistedChangeReadinessError(null, null)
     );
     ContractHistory__c missingPrevious = new ContractHistory__c(
       Type__c = 'Change'
@@ -284,10 +281,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception ex) {
       beforeEx = ex;
     }
-    assertRejected(
-      '開始日は期間開始日以降の日付を入力してください',
-      beforeEx
-    );
+    assertRejected('開始日は期間開始日以降の日付を入力してください', beforeEx);
 
     EstimateCreateController.ProductLineItem afterHeader = new EstimateCreateController.ProductLineItem();
     afterHeader.startDate = '2026-06-01';
@@ -304,10 +298,7 @@ private class EstimateValidationServiceTest {
     } catch (Exception ex) {
       afterEx = ex;
     }
-    assertRejected(
-      '終了日は期間終了日以前の日付を入力してください',
-      afterEx
-    );
+    assertRejected('終了日は期間終了日以前の日付を入力してください', afterEx);
 
     EstimateCreateController.ProductLineItem missingInvoice = new EstimateCreateController.ProductLineItem();
     missingInvoice.startDate = '2026-06-01';
@@ -481,14 +472,15 @@ private class EstimateValidationServiceTest {
         Account__c = serviceAccount.Id,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
         PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
         PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
       ContractService__c service = new ContractService__c(
@@ -965,7 +957,10 @@ private class EstimateValidationServiceTest {
     original.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
     original.startDate = '2026-04-01';
     original.endDate = '2027-03-31';
-    original.sourceContractProductId = fakeId(ContractProduct__c.SObjectType, 41);
+    original.sourceContractProductId = fakeId(
+      ContractProduct__c.SObjectType,
+      41
+    );
 
     EstimateCreateController.ProductLineItem remakeFullWash = new EstimateCreateController.ProductLineItem();
     remakeFullWash.productId = original.productId;
@@ -1646,7 +1641,9 @@ private class EstimateValidationServiceTest {
       );
 
       EstimateCreateController.ProductLineItem renewOneTimeMaster = new EstimateCreateController.ProductLineItem();
-      Product2 oneTimeMaster = ContractTestDataFactory.buildProduct('OneTimeMaster');
+      Product2 oneTimeMaster = ContractTestDataFactory.buildProduct(
+        'OneTimeMaster'
+      );
       oneTimeMaster.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       oneTimeMaster.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(oneTimeMaster);
@@ -1695,10 +1692,7 @@ private class EstimateValidationServiceTest {
       } catch (Exception ex) {
         zeroQtyEx = ex;
       }
-      assertRejected(
-        EstimateValidationService.QUANTITY_MIN_MESSAGE,
-        zeroQtyEx
-      );
+      assertRejected(EstimateValidationService.QUANTITY_MIN_MESSAGE, zeroQtyEx);
       System.assert(
         zeroQtyEx.getMessage()
           .contains(EstimateValidationService.QUANTITY_MIN_MESSAGE),
@@ -2106,8 +2100,12 @@ private class EstimateValidationServiceTest {
       remakeLockedOriginal.unitPrice = remakeSourceProduct.UnitPrice__c;
       remakeLockedOriginal.billingType = remakeSourceProduct.BillingType__c;
       remakeLockedOriginal.invoiceType = remakeSourceProduct.InvoiceSetting__c;
-      remakeLockedOriginal.startDate = String.valueOf(remakeSourceProduct.StartDate__c);
-      remakeLockedOriginal.endDate = String.valueOf(remakeSourceProduct.Enddate__c);
+      remakeLockedOriginal.startDate = String.valueOf(
+        remakeSourceProduct.StartDate__c
+      );
+      remakeLockedOriginal.endDate = String.valueOf(
+        remakeSourceProduct.Enddate__c
+      );
       remakeLockedOriginal.recordType = 'Original';
       remakeLockedOriginal.sourceContractProductId = remakeSourceProduct.Id;
       remakeLockedOriginal.amount = remakeSourceProduct.Amount__c == null
@@ -2242,6 +2240,30 @@ private class EstimateValidationServiceTest {
         amountMatchEx
       );
 
+      // 仕様: Core 第4.6節。保存金額が単価×数量×月数と違っても、Original は -(前回 Amount)。
+      sourceAmount.Amount__c = 10000;
+      amountMismatch.amount = -10000;
+      EstimateValidationService.validateOriginalMatchesSource(
+        amountMismatch,
+        sourceAmount,
+        1
+      );
+      amountMismatch.amount = -96000;
+      Exception formulaAmountEx = null;
+      try {
+        EstimateValidationService.validateOriginalMatchesSource(
+          amountMismatch,
+          sourceAmount,
+          1
+        );
+      } catch (Exception ex) {
+        formulaAmountEx = ex;
+      }
+      assertRejected(
+        '変更前の行は前回の版の見積商品と一致している必要があります',
+        formulaAmountEx
+      );
+
       ContractProduct__c sourceBilling = new ContractProduct__c(
         Product__c = available.Id,
         Quantity__c = 1,
@@ -2297,7 +2319,9 @@ private class EstimateValidationServiceTest {
         : -remakeSourceProduct.Amount__c;
       remakeOriginal.billingType = remakeSourceProduct.BillingType__c;
       remakeOriginal.invoiceType = remakeSourceProduct.InvoiceSetting__c;
-      remakeOriginal.startDate = String.valueOf(remakeSourceProduct.StartDate__c);
+      remakeOriginal.startDate = String.valueOf(
+        remakeSourceProduct.StartDate__c
+      );
       remakeOriginal.endDate = String.valueOf(remakeSourceProduct.Enddate__c);
       remakeOriginal.recordType = 'Original';
       remakeOriginal.sourceContractProductId = remakeSourceProduct.Id;
@@ -2518,32 +2542,32 @@ private class EstimateValidationServiceTest {
       insertHistory(changeHistory, account.Id);
       insertContractProducts(
         new List<ContractProduct__c>{
-        new ContractProduct__c(
-          ContractHistory__c = changeHistory.Id,
-          Product__c = product.Id,
-          Quantity__c = 1,
-          UnitPrice__c = 1000,
-          Amount__c = 12000,
-          StartDate__c = termStart,
-          Enddate__c = termEnd,
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-          Type__c = 'Original',
-          PreviousContractProduct__c = previousProduct.Id
-        ),
-        new ContractProduct__c(
-          ContractHistory__c = changeHistory.Id,
-          Product__c = product.Id,
-          Quantity__c = 2,
-          UnitPrice__c = 1000,
-          Amount__c = 24000,
-          StartDate__c = termStart,
-          Enddate__c = termEnd,
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-          Type__c = 'Remake',
-          PreviousContractProduct__c = previousProduct.Id
-        )
+          new ContractProduct__c(
+            ContractHistory__c = changeHistory.Id,
+            Product__c = product.Id,
+            Quantity__c = 1,
+            UnitPrice__c = 1000,
+            Amount__c = 12000,
+            StartDate__c = termStart,
+            Enddate__c = termEnd,
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+            BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+            Type__c = 'Original',
+            PreviousContractProduct__c = previousProduct.Id
+          ),
+          new ContractProduct__c(
+            ContractHistory__c = changeHistory.Id,
+            Product__c = product.Id,
+            Quantity__c = 2,
+            UnitPrice__c = 1000,
+            Amount__c = 24000,
+            StartDate__c = termStart,
+            Enddate__c = termEnd,
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+            BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+            Type__c = 'Remake',
+            PreviousContractProduct__c = previousProduct.Id
+          )
         }
       );
 
@@ -3145,7 +3169,8 @@ private class EstimateValidationServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
     ContractService__c service = new ContractService__c(
@@ -3200,7 +3225,9 @@ private class EstimateValidationServiceTest {
     }
   }
 
-  private static void insertContractProducts(List<ContractProduct__c> products) {
+  private static void insertContractProducts(
+    List<ContractProduct__c> products
+  ) {
     if (products == null) {
       return;
     }
@@ -3363,7 +3390,9 @@ private class EstimateValidationServiceTest {
       );
       System.assert(
         customOnlyEx.getMessage()
-          .contains(EstimateValidationService.CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE),
+          .contains(
+            EstimateValidationService.CHANGE_CUSTOM_FIELDS_ONLY_MESSAGE
+          ),
         '第4.5.2節: カスタム項目だけ変えたChangeは成立させない'
       );
 
@@ -3845,10 +3874,7 @@ private class EstimateValidationServiceTest {
       } catch (Exception ex) {
         emptyEx = ex;
       }
-      assertRejected(
-        '商品明細を1行以上入力してください。',
-        emptyEx
-      );
+      assertRejected('商品明細を1行以上入力してください。', emptyEx);
       EstimateCreateController.ProductLineItem recurringLine = new EstimateCreateController.ProductLineItem();
       recurringLine.productId = oneTimeProduct.Id;
       recurringLine.quantity = 1;
@@ -3967,8 +3993,7 @@ private class EstimateValidationServiceTest {
 
       System.assertEquals(
         0,
-        EstimateValidationService.buildRemakeReconstitutionSegments(null)
-          .size()
+        EstimateValidationService.buildRemakeReconstitutionSegments(null).size()
       );
       EstimateCreateController.ProductLineItem incomplete = new EstimateCreateController.ProductLineItem();
       incomplete.productId = fakeId(Product2.SObjectType, 9);
@@ -3986,9 +4011,7 @@ private class EstimateValidationServiceTest {
       System.assertEquals(
         1,
         EstimateValidationService.buildRemakeReconstitutionSegments(
-            new List<EstimateCreateController.ProductLineItem>{
-              incomplete
-            }
+            new List<EstimateCreateController.ProductLineItem>{ incomplete }
           )
           .size()
       );
@@ -4118,10 +4141,7 @@ private class EstimateValidationServiceTest {
       renewLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       renewLine.startDate = String.valueOf(termEnd.addDays(1));
       renewLine.endDate = String.valueOf(
-        MonthlyBillingPeriodUtil.endDateForMonthlyCycles(
-          termEnd.addDays(1),
-          12
-        )
+        MonthlyBillingPeriodUtil.endDateForMonthlyCycles(termEnd.addDays(1), 12)
       );
       renewLine.recordType = 'Renew';
       renewLine.sourceContractProductId = previousProduct.Id;
