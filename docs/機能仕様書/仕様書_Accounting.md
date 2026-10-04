@@ -382,8 +382,8 @@ Accounting会計方針はCustom Object `GlAccountingPolicy__c`の組織内1件�
 | 月次バケットの刻み方 | `MonthlyBucketMethod__c`            | 自動／契約日アンカー／暦月                 | 自動           | 月次計上の分割方式                                  |
 | 月次計上の計上日位置 | `MonthlyRecognitionDatePosition__c` | バケット開始日／終了日／終了日所属月の末日 | バケット終了日 | 月次売上の計上日                                    |
 | 端数の寄せ先         | `RoundingTargetBucket__c`           | 最終バケット／初回バケット                 | 最終バケット   | 月次売上・税配分の端数吸収先                        |
-| 固定日時             | `FrozenAt__c`                       | DateTime                                   | 空欄           | 最初の請求確定と同じトランザクションで設定          |
-| 固定者               | `FrozenBy__c`                       | User Lookup                                | 空欄           | 最初の請求確定を実行した利用者                      |
+| 会計方針の固定日時   | `FrozenAt__c`                       | DateTime                                   | 空欄           | 最初の請求確定と同じトランザクションで設定          |
+| 会計方針の固定者     | `FrozenBy__c`                       | User Lookup                                | 空欄           | 最初の請求確定を実行した利用者                      |
 
 請求取引状態が`Confirmed`または`Cancelled`の請求が1件もない間だけ、会計方針を編集できる。最初の請求確定処理は会計方針レコードを行ロックし、`FrozenAt__c`と`FrozenBy__c`を設定してから同じトランザクションで請求確定と必要仕訳を保存する。Accounting OFFで最初の請求を確定する場合もOFFの方針を固定する。固定後は、画面を参照専用とし、Apex、API、Data Loaderその他の全経路から会計方針項目の変更、固定情報の変更、レコード削除および2件目の作成をサーバ側で拒否する。20 および 102・103 では回避しない。101 は`共通基盤.md`第3.6節。未固定の会計方針を組織設定から保存するときの操作キー、行ロックおよび版比較はCore第11.6節・第4.3.12節。最初の確定での行ロックと固定は本節である。
 
@@ -391,7 +391,7 @@ MVPは方針世代、適用開始日、既存請求への方針スナップシ�
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountingPolicy__c.AccountingEnabled__c</code>、<code>RevenueRecognitionBasis__c</code>（<code>BillingBasis</code>／<code>CashBasis</code>）、<code>TaxRecognitionTiming__c</code>（<code>AtInvoice</code>／<code>AtRecognition</code>）、<code>MonthlyBucketMethod__c</code>（<code>Auto</code>／<code>ContractAnchor</code>／<code>CalendarMonth</code>）、<code>MonthlyRecognitionDatePosition__c</code>（<code>BucketStart</code>／<code>BucketEnd</code>／<code>MonthEnd</code>）、<code>RoundingTargetBucket__c</code>（<code>Last</code>／<code>First</code>）、<code>FrozenAt__c</code>、<code>FrozenBy__c</code>
+項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountingPolicy__c.AccountingEnabled__c</code>、<code>RevenueRecognitionBasis__c</code>（<code>BillingBasis</code>／<code>CashBasis</code>）、<code>TaxRecognitionTiming__c</code>（<code>AtInvoice</code>／<code>AtRecognition</code>）、<code>MonthlyBucketMethod__c</code>（<code>Auto</code>／<code>ContractAnchor</code>／<code>CalendarMonth</code>）、<code>MonthlyRecognitionDatePosition__c</code>（<code>BucketStart</code>／<code>BucketEnd</code>／<code>MonthEnd</code>）、<code>RoundingTargetBucket__c</code>（<code>Last</code>／<code>First</code>）、<code>FrozenAt__c</code>（表示名「会計方針の固定日時」）、<code>FrozenBy__c</code>（表示名「会計方針の固定者」）
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountingPolicyService.requireOrgPolicy</code> / <code>freezeOnFirstConfirm</code> / <code>deriveAllowedPatternKeys</code>、<code>GlAccountingPolicyTriggerHandler</code>
 ／ 最初の確定と同じTXで<code>freezeOnFirstConfirm</code>を呼ぶ。
 ／ 入口は既存 <code>contractDocumentSettings</code>。組織設定の初回保存で方針1件を既定値で書く。無いとき画面にシード値。業務操作では書かない。0件はエラー。固定後は参照専用。`GlAccountInstallService`は持たない。

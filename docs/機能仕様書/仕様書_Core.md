@@ -2904,7 +2904,7 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>contractDocumentSettings</code>、<code>ContractDocumentSettingsController.getSettings</code> / <code>issueOrgSettingsOperationKey</code> / <code>saveSettings</code>（保存停止は第11.3.1節の必須空と請求用組織送信元。カタログは発行・送付）
 ／ 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractDocumentSetting__c.BusinessOperationKey__c</code>
-／ タブ <code>Contract_Document_Settings</code>。表示名は「組織設定」。API名は変えない。部品・共有utilsは枠に載せない。第2の設定LWCは作らない。見出しは1〜9。入力とリンクと説明を混ぜる。行5.4は説明。操作欄は空。リンクは置かない。保存しない。リンクは常時。0件警告は出さない。コピー検証は見出し6。
+／ タブ <code>Contract_Document_Settings</code>。表示名は「組織設定」。API名は変えない。部品・共有utilsは枠に載せない。第2の設定LWCは作らない。見出しは1〜9。入力とリンクと説明を混ぜる。行5.4はリンク。操作欄に営業時間と休日。別タブ。保存しない。カレンダーの中身は出さない。リンクは常時。0件警告は出さない。コピー検証は見出し6。固定後に出すのは会計方針の固定者と会計方針の固定日時。
 ／ アプリ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>Contract_Estimate</code>。表示名は「契約管理設定」。ナビは<code>共通基盤.md</code>第3.9節。
 ／ コピー定義の任意検証は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>FieldCopyDefinitionService.validateAllDefinitions</code> ← <code>ContractDocumentSettingsController.validateFieldCopyDefinitions</code>。見出し6の「コピー設定を検証」。操作キーは置かない。固定後も実行できる。
 </div>
@@ -2949,7 +2949,7 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 | 5.1  | 入力   | 継続課金の既定サイクル数 | 赤必須         | Newで終了日が空のとき、手動Renewの初期終了日、自動Renew見積の延長の初期値に使います。                                       |                                            |
 | 5.2  | 入力   | 見積有効期間             | 赤必須         | ウィザードが見積日から有効期限の初期値を付けるときの暦月数です。                                                            |                                            |
 | 5.3  | 入力   | 更新商談スイッチ         | 灰任意         | ONのときだけ、受注画面のチェックと件数の増減が動きます。OFFなら作成要求は拒否し、自動Renew見積も作りません。                |                                            |
-| 5.4  | 説明   | 営業日                   | 灰任意         | 自動で作る請求日と入金予定日を、前の営業日か次の営業日へ動かすとき、どの日が営業日かをこのカレンダーで見ます。              |                                            |
+| 5.4  | リンク | 営業日                   | 灰任意         | 自動で作る請求日と入金予定日を、前の営業日か次の営業日へ動かすとき、どの日が営業日かをこのカレンダーで見ます。              |                                            |
 | 6.1  | リンク | 見積ウィザード追加項目   | 灰任意         | 見積Step 2に出すカスタム項目、必須、初期値を指定します。                                                                    |                                            |
 | 6.2  | リンク | 受注ウィザード追加項目   | 灰任意         | 受注、受注済みの見積編集、差し戻しに出すカスタム項目を指定します。                                                          |                                            |
 | 6.3  | リンク | 請求操作追加項目         | 灰任意         | 請求情報編集、入出金登録、仕訳に出すカスタム項目を指定します。                                                              |                                            |
@@ -2973,9 +2973,9 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 | 9.3  | 入力   | 入出金ロック除外項目     | 灰任意         | 登録後に人が直せるカスタム項目を指定します。                                                                                |                                            |
 | 9.4  | 入力   | 仕訳ロック除外項目       | 灰任意         | Lock後に人が直せるカスタム項目を指定します。                                                                                |                                            |
 
-行5.4は説明である。操作欄は空にする。リンクは置かない。保存しない。営業日カレンダーの中身は出さない。値は書かない。前営業日・翌営業日の選択は請求アカウントのままである。補正の計算は変えない。
+行5.4はリンクである。操作欄に、営業時間 `/lightning/setup/BusinessHours/home` と休日 `/lightning/setup/Holiday/home` のリンクを置く。開き方は権限セットと同じ別タブである。営業日カレンダーの中身は出さない。値は書かない。保存しない。前営業日・翌営業日の選択は請求アカウントのままである。補正の計算は変えない。
 
-8.1〜8.6は×の方針である。確定前は編集可。バッジ「確定後は変更不可」と案内「最初の請求確定まで変えられる。確定後は101以外では戻せない」。確定後は無効＋灰「変更不可」。固定者と日時を出す。
+8.1〜8.6は×の方針である。確定前は編集可。バッジ「確定後は変更不可」と案内「最初の請求確定まで変えられる。確定後は101以外では戻せない」。確定後は無効＋灰「変更不可」。会計方針の固定者と会計方針の固定日時を出す。
 
 この画面に置かない。請求アカウント。FixedCatalog。102の再計算。種類の目次。既定帳票・既定メール。
 
