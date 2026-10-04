@@ -153,11 +153,7 @@ private class OrderCreateControllerTest {
 
       System.assertEquals(true, dto.isOrdered);
       System.assertEquals(false, dto.canOrder, '????E???????E???E');
-      System.assertEquals(
-        true,
-        dto.canRevert,
-        '???????????E??????????????'
-      );
+      System.assertEquals(true, dto.canRevert, '???????????E??????????????');
       System.assertEquals(null, dto.revertBlockedReason);
       System.assertEquals(
         false,
@@ -441,10 +437,7 @@ private class OrderCreateControllerTest {
           'Core 第12.4節: 返す請求アカウント名は変えない'
         );
       }
-      System.assertEquals(
-        true,
-        previewIds.contains(context.billingAccount.Id)
-      );
+      System.assertEquals(true, previewIds.contains(context.billingAccount.Id));
       System.assertEquals(true, previewIds.contains(second.Id));
       System.assertEquals(
         preview.billingAccountOptions.size(),
@@ -777,10 +770,8 @@ private class OrderCreateControllerTest {
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
 
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       Boolean thrown = false;
       try {
         OrderCreateController.resetLatestVersionInvoicesToPostOrder(
@@ -808,10 +799,8 @@ private class OrderCreateControllerTest {
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
 
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       Boolean thrown = false;
       try {
         OrderCreateController.resetLatestVersionInvoicesToPostOrder(
@@ -888,12 +877,7 @@ private class OrderCreateControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
       ContractHistory__c locked = [
-        SELECT
-          Id,
-          Type__c,
-          historystatus__c,
-          StatusPath__c,
-          InvoiceCount__c
+        SELECT Id, Type__c, historystatus__c, StatusPath__c, InvoiceCount__c
         FROM ContractHistory__c
         WHERE Id = :context.history.Id
       ];
@@ -933,11 +917,7 @@ private class OrderCreateControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
       ContractHistory__c locked = [
-        SELECT
-          Id,
-          Type__c,
-          ContractService__c,
-          ContractService__r.Lifecycle__c
+        SELECT Id, Type__c, ContractService__c, ContractService__r.Lifecycle__c
         FROM ContractHistory__c
         WHERE Id = :context.history.Id
       ];
@@ -1004,10 +984,8 @@ private class OrderCreateControllerTest {
   static void confirmOrder_secondSubmitWithSameToken_throwsConflict() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
-      String token = OrderCreateController.getOrderContext(
-        context.history.Id
-      )
-      .lastModifiedToken;
+      String token = OrderCreateController.getOrderContext(context.history.Id)
+        .lastModifiedToken;
 
       OrderCreateController.confirmOrder(
         context.history.Id,
@@ -1173,8 +1151,9 @@ private class OrderCreateControllerTest {
       OrderTestContext own = createEstimateContext();
       OrderCreateController.confirmOrder(own.history.Id, null, false);
       String ownContentVersion = OrderCreateController.getInvoicePreview(
-        own.history.Id
-      ).contentVersion;
+          own.history.Id
+        )
+        .contentVersion;
 
       Test.startTest();
       OrderTestContext other = createEstimateContext();
@@ -1233,11 +1212,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(
-        true,
-        invoiceRejected,
-        '?????????E??E?????E'
-      );
+      System.assertEquals(true, invoiceRejected, '?????????E??E?????E');
 
       Boolean acceptancePreviewRejected = false;
       try {
@@ -1376,11 +1351,7 @@ private class OrderCreateControllerTest {
       );
       Test.stopTest();
 
-      System.assertNotEquals(
-        null,
-        preview,
-        'Core 第7.7.0節: 返却カードを返す'
-      );
+      System.assertNotEquals(null, preview, 'Core 第7.7.0節: 返却カードを返す');
       System.assertEquals(
         false,
         OrderCreateController.lastPreviewInvoiceSelectIds.contains(invoice.Id),
@@ -1941,7 +1912,8 @@ private class OrderCreateControllerTest {
       ];
       System.assertEquals(false, invoices.isEmpty());
       invoices[0].SystemIntegrationDate__c = Date.today();
-      invoices[0].InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoices[0]
+        .InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       InvoiceTransactionStatusService.allowStatusWrite = true;
       InvoiceLockUtil.allowLockedStatusWrite = true;
       update invoices[0];
@@ -2025,10 +1997,8 @@ private class OrderCreateControllerTest {
       Date paymentDue = Date.newInstance(2026, 8, 31);
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.updateInvoiceHeaderAndDates(
         context.history.Id,
         invoice.Id,
@@ -2087,10 +2057,7 @@ private class OrderCreateControllerTest {
       List<OrderCreateController.BillingAccountOptionDto> options = OrderCreateController.getBillingAccountOptionsForPreview(
         context.history.Id
       );
-      System.assert(
-        options.size() >= 1,
-        '?E??????E????????????'
-      );
+      System.assert(options.size() >= 1, '?E??????E????????????');
 
       BillingAccount__c otherBa = ContractTestDataFactory.insertBillingAccount(
         context.account.Id
@@ -2119,10 +2086,8 @@ private class OrderCreateControllerTest {
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByBillingAccount(
         context.history.Id,
         source.Id,
@@ -2461,7 +2426,10 @@ private class OrderCreateControllerTest {
         FROM Invoice__c
         WHERE ContractHistory__c = :context.history.Id
       ];
-      System.assert(!invoices.isEmpty(), 'Core 第5.2節: 受注は未確定請求を作る');
+      System.assert(
+        !invoices.isEmpty(),
+        'Core 第5.2節: 受注は未確定請求を作る'
+      );
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.DELETE_RECORDS => true,
         ContractPermissionUtil.FIX_CONTRACT => true,
@@ -2567,11 +2535,11 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         true,
         [
-            SELECT CreateRenewOpportunity__c
-            FROM ContractHistory__c
-            WHERE Id = :context.history.Id
-          ]
-          .CreateRenewOpportunity__c
+          SELECT CreateRenewOpportunity__c
+          FROM ContractHistory__c
+          WHERE Id = :context.history.Id
+        ]
+        .CreateRenewOpportunity__c
       );
 
       Test.startTest();
@@ -2811,18 +2779,15 @@ private class OrderCreateControllerTest {
         context.history.Id
       );
       System.assertEquals(true, afterOrder.hasRenewOpportunity);
-      System.assertEquals(
-        renewOpportunityId,
-        afterOrder.renewOpportunityId
-      );
+      System.assertEquals(renewOpportunityId, afterOrder.renewOpportunityId);
       System.assertEquals(
         1,
         [
-            SELECT RenewOpportunityRequestCount__c
-            FROM ContractHistory__c
-            WHERE Id = :context.history.Id
-          ]
-          .RenewOpportunityRequestCount__c,
+          SELECT RenewOpportunityRequestCount__c
+          FROM ContractHistory__c
+          WHERE Id = :context.history.Id
+        ]
+        .RenewOpportunityRequestCount__c,
         '第11.5節: 作成ONの受注でカウントを1増やす'
       );
 
@@ -2839,6 +2804,7 @@ private class OrderCreateControllerTest {
       Id archivedEstimateId = autoRenewEstimates[0].Id;
       autoRenewEstimates[0].historystatus__c = 'Archive';
       update autoRenewEstimates;
+      EstimateRevertInvoiceService.clearRevertCachesForTest();
 
       OrderCreateController.revertOrder(
         context.history.Id,
@@ -2879,11 +2845,11 @@ private class OrderCreateControllerTest {
       System.assertEquals(
         null,
         [
-            SELECT Opportunity__c
-            FROM ContractHistory__c
-            WHERE Id = :archivedEstimateId
-          ]
-          .Opportunity__c,
+          SELECT Opportunity__c
+          FROM ContractHistory__c
+          WHERE Id = :archivedEstimateId
+        ]
+        .Opportunity__c,
         '第4.9節・第5.3節: Archiveした見積のOpportunity__cを外してから商談を削除する'
       );
     }
@@ -3030,11 +2996,7 @@ private class OrderCreateControllerTest {
       Test.startTest();
       Boolean thrown = false;
       try {
-        OrderCreateController.confirmOrder(
-          context.history.Id,
-          null,
-          true
-        );
+        OrderCreateController.confirmOrder(context.history.Id, null, true);
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assert(
@@ -3043,7 +3005,7 @@ private class OrderCreateControllerTest {
               ContractHistoryTriggerHandler.RENEW_REQUEST_NOT_ALLOWED_MESSAGE
             ),
           'Core 第5.2節: Spotでは作成要求を無視せず拒否する。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       Test.stopTest();
@@ -3071,11 +3033,7 @@ private class OrderCreateControllerTest {
       OrderTestContext context = createEstimateContext();
       Boolean thrown = false;
       try {
-        OrderCreateController.confirmOrder(
-          context.history.Id,
-          null,
-          true
-        );
+        OrderCreateController.confirmOrder(context.history.Id, null, true);
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assert(
@@ -3084,7 +3042,7 @@ private class OrderCreateControllerTest {
               ContractHistoryTriggerHandler.RENEW_REQUEST_NOT_ALLOWED_MESSAGE
             ),
           'Core 第11.5節: OFFでは作成要求を無視せず拒否する。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -3203,11 +3161,7 @@ private class OrderCreateControllerTest {
       OrderTestContext context = createCancelEstimateContext();
       Boolean thrown = false;
       try {
-        OrderCreateController.confirmOrder(
-          context.history.Id,
-          null,
-          true
-        );
+        OrderCreateController.confirmOrder(context.history.Id, null, true);
       } catch (AuraHandledException ex) {
         thrown = true;
         System.assert(
@@ -3216,7 +3170,7 @@ private class OrderCreateControllerTest {
               ContractHistoryTriggerHandler.RENEW_REQUEST_NOT_ALLOWED_MESSAGE
             ),
           'Core 第5.2節: Cancelでは作成要求を無視せず拒否する。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       System.assertEquals(true, thrown);
@@ -3550,13 +3504,10 @@ private class OrderCreateControllerTest {
         ORDER BY Amount__c DESC
         LIMIT 1
       ];
-      System.assertEquals(
-        false,
-        invoices.isEmpty(),
-        '???????????????E????'
-      );
+      System.assertEquals(false, invoices.isEmpty(), '???????????????E????');
       invoices[0].SystemIntegrationDate__c = Date.today();
-      invoices[0].InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoices[0]
+        .InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       InvoiceTransactionStatusService.allowStatusWrite = true;
       update invoices[0];
       InvoiceTransactionStatusService.allowStatusWrite = false;
@@ -3644,7 +3595,8 @@ private class OrderCreateControllerTest {
         'Core 第11.9節: 請求ボードは組織の数量・単価丸めを返す'
       );
       System.assertEquals(
-        AmountCalculationSettingService.requireOrgDefault().AmountRoundingMode__c,
+        AmountCalculationSettingService.requireOrgDefault()
+          .AmountRoundingMode__c,
         preview.amountRoundingMode,
         'Core 第11.9節: 請求ボードは組織の税抜金額丸めを返す'
       );
@@ -3750,7 +3702,9 @@ private class OrderCreateControllerTest {
       Test.stopTest();
 
       Set<String> values = new Set<String>();
-      for (OrderCreateController.VersionOptionDto option : preview.versionOptions) {
+      for (
+        OrderCreateController.VersionOptionDto option : preview.versionOptions
+      ) {
         values.add(option.value);
       }
       System.assertEquals(
@@ -3935,10 +3889,8 @@ private class OrderCreateControllerTest {
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       List<InvoiceCanonicalService.SplitThresholdLineOptions> options = OrderCreateController.getSplitThresholdDateOptions(
         invoice.Id
       );
@@ -4093,10 +4045,7 @@ private class OrderCreateControllerTest {
         splitMoved,
         'Core 第7.8節: 返却カードの分割済は変えない'
       );
-      System.assert(
-        lineCount >= 2,
-        'Core 第7.8節: 返却カードの明細は変えない'
-      );
+      System.assert(lineCount >= 2, 'Core 第7.8節: 返却カードの明細は変えない');
     }
   }
 
@@ -4127,7 +4076,9 @@ private class OrderCreateControllerTest {
       );
       String token = beforePreview.contentVersion;
       Set<Id> beforeInvoiceIds = new Set<Id>();
-      for (OrderCreateController.InvoiceGroupDto groupRow : beforePreview.invoices) {
+      for (
+        OrderCreateController.InvoiceGroupDto groupRow : beforePreview.invoices
+      ) {
         if (groupRow != null && groupRow.invoiceId != null) {
           beforeInvoiceIds.add(groupRow.invoiceId);
         }
@@ -4389,7 +4340,9 @@ private class OrderCreateControllerTest {
       Id createdLineId;
       String sourceToken;
       String createdToken;
-      for (OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices) {
+      for (
+        OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices
+      ) {
         if (groupRow.invoiceId == source.Id) {
           sourceToken = groupRow.lastModifiedToken;
           continue;
@@ -4404,7 +4357,9 @@ private class OrderCreateControllerTest {
         }
       }
       if (createdId == null) {
-        for (OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices) {
+        for (
+          OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices
+        ) {
           if (groupRow.invoiceId != source.Id) {
             createdId = groupRow.invoiceId;
             createdLineId = groupRow.lines[0].lineId;
@@ -4631,7 +4586,9 @@ private class OrderCreateControllerTest {
       );
 
       Map<String, String> tokens = new Map<String, String>();
-      for (OrderCreateController.InvoiceGroupDto invoiceGroup : afterEdit.invoices) {
+      for (
+        OrderCreateController.InvoiceGroupDto invoiceGroup : afterEdit.invoices
+      ) {
         tokens.put(
           String.valueOf(invoiceGroup.invoiceId),
           invoiceGroup.lastModifiedToken
@@ -4711,11 +4668,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(
-        true,
-        thrown,
-        '?? Version ? resolve ???????'
-      );
+      System.assertEquals(true, thrown, '?? Version ? resolve ???????');
 
       Id latestId = OrderCreateController.resolveLatestOrderedHistoryIdForReset(
         newerHistory.Id,
@@ -4753,17 +4706,16 @@ private class OrderCreateControllerTest {
         LIMIT 1
       ];
       invoices[0].SystemIntegrationDate__c = Date.today();
-      invoices[0].InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
+      invoices[0]
+        .InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
       InvoiceTransactionStatusService.allowStatusWrite = true;
       update invoices;
       InvoiceTransactionStatusService.allowStatusWrite = false;
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       Boolean thrown = false;
       try {
         OrderCreateController.resetLatestVersionInvoicesToPostOrder(
@@ -4779,11 +4731,7 @@ private class OrderCreateControllerTest {
           ex.getMessage()
         );
       }
-      System.assertEquals(
-        true,
-        thrown,
-        '??E??????? Version ????E????'
-      );
+      System.assertEquals(true, thrown, '??E??????? Version ????E????');
     }
   }
 
@@ -5044,11 +4992,7 @@ private class OrderCreateControllerTest {
         preview.invoiceAmountTotal,
         '???E???????????'
       );
-      System.assertEquals(
-        -20,
-        preview.amountDifference,
-        '??E???????????'
-      );
+      System.assertEquals(-20, preview.amountDifference, '??E???????????');
       System.assertEquals(
         -20,
         preview.versionOptions[0].amountDifference,
@@ -5377,10 +5321,8 @@ private class OrderCreateControllerTest {
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       OrderCreateController.InvoicePreviewDto preview = OrderCreateController.splitInvoiceByDate(
         context.history.Id,
         source.Id,
@@ -5396,11 +5338,7 @@ private class OrderCreateControllerTest {
         preview.periodLineAmountTotal,
         '????????E?????E???'
       );
-      System.assertEquals(
-        600000,
-        preview.invoiceAmountTotal,
-        '??????????E???'
-      );
+      System.assertEquals(600000, preview.invoiceAmountTotal, '??????????E???');
       System.assertEquals(0, preview.amountDifference, '???????0');
       System.assertEquals(
         0,
@@ -5439,11 +5377,7 @@ private class OrderCreateControllerTest {
               ' delta=' +
               row.amountDeltaFromSource
           );
-          System.assertEquals(
-            0,
-            row.amountDeltaFromSource,
-            '?E????????E?????'
-          );
+          System.assertEquals(0, row.amountDeltaFromSource, '?E????????E?????');
         }
       }
       System.assertEquals(2, sawSplitLines, '???E????E2???????');
@@ -5477,10 +5411,8 @@ private class OrderCreateControllerTest {
 
       InvoiceCanonicalService.testHasEditPreviewPermission = true;
       Test.startTest();
-      String token = OrderCreateController.getInvoicePreview(
-        context.history.Id
-      )
-      .contentVersion;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
       OrderCreateController.InvoicePreviewDto afterSplit = OrderCreateController.splitInvoiceByDate(
         context.history.Id,
         source.Id,
@@ -5489,10 +5421,7 @@ private class OrderCreateControllerTest {
         new List<InvoiceCanonicalService.SplitLineInput>{ split },
         token
       );
-      System.assert(
-        afterSplit.invoices.size() >= 2,
-        '??: ?E??????2???????'
-      );
+      System.assert(afterSplit.invoices.size() >= 2, '??: ?E??????2???????');
 
       Id createdId = null;
       Id createdLineId = null;
@@ -5559,11 +5488,7 @@ private class OrderCreateControllerTest {
         }
       }
       System.assertEquals(true, sourceExists, '???E???E????');
-      System.assertEquals(
-        false,
-        createdExists,
-        '???????E???E??????'
-      );
+      System.assertEquals(false, createdExists, '???????E???E??????');
     }
   }
 
@@ -5688,7 +5613,9 @@ private class OrderCreateControllerTest {
   }
 
   /** 仕様: Core 第11.5節。受注済みのうえにテナント作成相当の更新商談をテスト準備で書く。 */
-  private static Id attachRenewOpportunityAfterOrdered(OrderTestContext context) {
+  private static Id attachRenewOpportunityAfterOrdered(
+    OrderTestContext context
+  ) {
     Opportunity renew = ContractTestDataFactory.buildOpportunity(
       context.account.Id,
       'Tenant Renew Opportunity',
@@ -5957,7 +5884,9 @@ private class OrderCreateControllerTest {
       );
       System.assertEquals(
         true,
-        OrderCreateController.lastDraftSiblingLineSelectIds.contains(sibling.Id),
+        OrderCreateController.lastDraftSiblingLineSelectIds.contains(
+          sibling.Id
+        ),
         'Core 第12.4節: 兄弟の初回は切らない'
       );
       System.assertEquals(
@@ -6022,7 +5951,9 @@ private class OrderCreateControllerTest {
         if (groupRow.invoiceId != invoiceId || groupRow.lines == null) {
           continue;
         }
-        for (OrderCreateController.InvoiceMergedLineDto lineDto : groupRow.lines) {
+        for (
+          OrderCreateController.InvoiceMergedLineDto lineDto : groupRow.lines
+        ) {
           if (lineDto.lineId == lineId) {
             cardAmount = lineDto.amount;
           }
@@ -6080,7 +6011,11 @@ private class OrderCreateControllerTest {
         );
       }
       Test.stopTest();
-      System.assertEquals(true, rejected, 'Core 第7.8節: 確定済みは端数調整できない');
+      System.assertEquals(
+        true,
+        rejected,
+        'Core 第7.8節: 確定済みは端数調整できない'
+      );
       System.assertEquals(
         line.Amount__c,
         [
@@ -6166,7 +6101,10 @@ private class OrderCreateControllerTest {
         WHERE Id = :invoice.Id
       ];
       System.assertEquals(paymentDue, stored.PaymentScheduledDate__c);
-      System.assertEquals(originalAddressee, stored.BillingAddresseeSnapShot__c);
+      System.assertEquals(
+        originalAddressee,
+        stored.BillingAddresseeSnapShot__c
+      );
       System.assertEquals(invoice.TaxPercent__c, stored.TaxPercent__c);
       System.assertNotEquals(null, preview);
     }
