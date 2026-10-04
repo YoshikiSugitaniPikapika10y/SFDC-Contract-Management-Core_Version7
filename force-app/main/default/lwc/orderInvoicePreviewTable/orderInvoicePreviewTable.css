@@ -185,7 +185,8 @@
 
 .invoice-card {
   width: 100%;
-  min-width: 0;
+  /* 0 だと明細の固定枠が枠線の外へ描かれる。中身の最小幅までカードを広げ、横移動は親に任せる */
+  min-width: min-content;
   box-sizing: border-box;
   background: var(--preview-surface);
   border: 1px solid #64748b;
@@ -1585,6 +1586,11 @@
   font-size: var(--preview-font-table);
 }
 
+/* 選択列・検収終了日・金額の固定枠（金額+端数+±）が同時に収まる最小。狭い窓では親が横に動かす */
+.preview-table {
+  min-width: 108rem;
+}
+
 .split-table th,
 .split-table td,
 .preview-table th,
@@ -1656,9 +1662,9 @@
 
 .table-wrap {
   width: 100%;
-  min-width: 0;
+  min-width: 108rem;
   box-sizing: border-box;
-  /* ネスト overflow 禁止（x:auto でも y が auto 化しホイールを奪う） */
+  /* ネスト overflow 禁止（x:auto でも y が auto 化しホイールを奪う）。横は親スクローラ */
   overflow: visible;
   max-height: none;
 }
@@ -2080,6 +2086,8 @@
   white-space: nowrap;
   padding-left: 0.35rem;
   padding-right: 0.35rem;
+  /* 金額・端数枠・± が折り返さず収まる幅。セルの外へ出さない */
+  min-width: 26.5rem;
   overflow: visible;
 }
 
