@@ -544,7 +544,7 @@
   /* 横罫線: --est-border よりわずかに濃く（極端にしない） */
   --est-row-rule: #b6c2d1;
   width: 100%;
-  min-width: 58rem;
+  min-width: 74rem;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -579,8 +579,9 @@
   width: 12%;
   min-width: 8rem;
 }
+/* 仕様: Core 第4.6節 */
 .est-col-invoice {
-  width: 10%;
+  width: 22rem;
 }
 .est-col-revenue {
   width: 8%;
@@ -866,11 +867,34 @@
   white-space: nowrap;
 }
 
-.est-td-product,
-.est-td-invoice {
+.est-td-product {
   min-width: 0;
   max-width: 0;
   overflow: hidden;
+  white-space: nowrap;
+}
+
+/* 仕様: Core 第4.6節 */
+.est-td-invoice {
+  min-width: 22rem;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.est-td-invoice .est-cell-stack__sub {
+  overflow: visible;
+}
+
+.est-td-invoice .est-invoice-anchor-meta {
+  overflow: visible;
+  max-width: none;
+  white-space: nowrap;
+}
+
+.est-td-invoice .est-invoice-anchor-label,
+.est-td-invoice .est-invoice-anchor-meta .est-price-meta-static {
+  flex-shrink: 0;
+  overflow: visible;
   white-space: nowrap;
 }
 

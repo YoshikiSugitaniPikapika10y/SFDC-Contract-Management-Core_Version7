@@ -6,6 +6,7 @@ import {
   BILLING_TYPE_ONE_TIME,
   BILLING_TYPE_RECURRING,
   INVOICE_SETTING_PREPAID_START,
+  INVOICE_SETTING_SPLIT_MONTHLY,
   QUANTITY_UNIT_PRICE_ROUNDING_SCALE2_HALF_UP,
   AMOUNT_ROUNDING_SCALE0_HALF_UP,
   setAmountCalculationRoundingModes
@@ -538,6 +539,50 @@ describe("estimateCreateModal3 uncovered paths (Core 0.1 / 4.3.4 / 4.3.5 / 4.5.2
       }
     ]);
     expect(rows[1].displayInvoiceAnchor).toBe("2026-05-01");
+  });
+
+  it("monthly split shows start through end and the cycle count, and prepaid stays one date (Core 4.6)", () => {
+    const ctx = bind({
+      _wizardData: {
+        selectedType: "New",
+        contractStartDate: "2025-08-01"
+      },
+      invoiceSettingOptions: [
+        { label: INVOICE_SETTING_SPLIT_MONTHLY },
+        { label: INVOICE_SETTING_PREPAID_START }
+      ]
+    });
+    const rows = ctx.decorateAllRows([
+      {
+        id: "monthly",
+        productId: "01tA",
+        quantity: 1,
+        unitPrice: 1000,
+        billingType: BILLING_TYPE_RECURRING,
+        invoiceType: INVOICE_SETTING_SPLIT_MONTHLY,
+        recordType: "New",
+        typeLabel: "New",
+        startDate: "2025-08-01",
+        endDate: "2026-07-31",
+        amount: 12000
+      },
+      {
+        id: "prepaid",
+        productId: "01tB",
+        quantity: 1,
+        unitPrice: 1000,
+        billingType: BILLING_TYPE_RECURRING,
+        invoiceType: INVOICE_SETTING_PREPAID_START,
+        recordType: "New",
+        typeLabel: "New",
+        startDate: "2025-08-01",
+        endDate: "2026-07-31",
+        amount: 12000
+      }
+    ]);
+    expect(rows[0].displayInvoiceAnchor).toBe("2025-08-01〜2026-07-31（12回）");
+    expect(rows[0].showInvoiceAnchor).toBe(true);
+    expect(rows[1].displayInvoiceAnchor).toBe("2025-08-01");
   });
 
   it("reduceErrorMessage prefers body.message then 不明なエラー", () => {
