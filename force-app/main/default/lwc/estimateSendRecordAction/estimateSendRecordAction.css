@@ -58,6 +58,24 @@
   color: #706e6b;
 }
 
+.send-to {
+  margin: 0;
+}
+
+.send-to-label {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #706e6b;
+}
+
+.send-to-value {
+  display: block;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: #181818;
+}
+
 .confirm-lead {
   margin: 0.625rem 0 0;
   font-size: 0.875rem;

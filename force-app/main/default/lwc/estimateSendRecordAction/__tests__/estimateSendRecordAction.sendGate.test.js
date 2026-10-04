@@ -1,5 +1,9 @@
+import { createElement } from "lwc";
 import EstimateSendRecordAction from "c/estimateSendRecordAction";
 import sendEstimate from "@salesforce/apex/EstimateSendBoardController.sendEstimateFromRecordPage";
+import getBoardContext from "@salesforce/apex/EstimateSendBoardController.getBoardContext";
+import getRecordActionEstimate from "@salesforce/apex/EstimateSendBoardController.getRecordActionEstimate";
+import previewEstimate from "@salesforce/apex/EstimateSendBoardController.previewEstimateFromRecordPage";
 
 jest.mock(
   "lightning/actions",
@@ -337,5 +341,46 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     expect(ctx.sent).toBe(true);
     expect(ctx.completionNote).toBe("見積を送付しました。");
     expect(ctx.closePanel).toHaveBeenCalledWith(true);
+  });
+
+  it("Toは入力欄にせず見積送付先のメールを出す (Core 4.8)", async () => {
+    getBoardContext.mockResolvedValue({
+      documentTemplateOptions: [{ label: "標準", value: "std" }],
+      emailTemplateOptions: [{ label: "標準", value: "mail" }],
+      defaultDocumentTemplateKey: "std",
+      defaultEmailTemplateApiName: "mail",
+      defaultFromChoice: "Self",
+      operatorEmail: "me@example.com"
+    });
+    getRecordActionEstimate.mockResolvedValue({
+      sendable: true,
+      historyName: "見積A",
+      lastModifiedToken: "tok"
+    });
+    previewEstimate.mockResolvedValue({
+      fromLabel: "me@example.com",
+      fromChoice: "Self",
+      operatorEmail: "me@example.com",
+      toAddresses: "to@example.com",
+      attachmentOptions: [
+        { label: "file.pdf", value: "069000000000001AAA", fileName: "file.pdf" }
+      ],
+      attachmentId: "069000000000001AAA",
+      fileName: "file.pdf"
+    });
+    const element = createElement("c-estimate-send-record-action", {
+      is: EstimateSendRecordAction
+    });
+    element.recordId = "a0H000000000001AAA";
+    document.body.appendChild(element);
+    for (let step = 0; step < 6; step += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    expect(element.shadowRoot.querySelector(".send-to-value").textContent).toBe(
+      "to@example.com"
+    );
+    expect(element.shadowRoot.innerHTML).not.toContain('name="toAddresses"');
+    document.body.removeChild(element);
   });
 });

@@ -7,7 +7,7 @@
         onpanelclose={handleSendPanelClose}
       ></c-estimate-send-record-action>
     </template>
-    <template if:false={showSend}>
+    <div class={issueSurfaceClass}>
       <template if:true={completionNote}>
         <p class="issue-complete" role="status">{completionNote}</p>
       </template>
@@ -32,6 +32,6 @@
           閉じる
         </button>
       </footer>
-    </template>
+    </div>
   </section>
 </template>

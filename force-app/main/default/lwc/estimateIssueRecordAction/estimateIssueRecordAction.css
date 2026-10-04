@@ -3,6 +3,10 @@
   background: #fff;
 }
 
+.issue-surface_held {
+  display: none;
+}
+
 .issue-complete {
   margin: 0.75rem 1rem 0;
 }

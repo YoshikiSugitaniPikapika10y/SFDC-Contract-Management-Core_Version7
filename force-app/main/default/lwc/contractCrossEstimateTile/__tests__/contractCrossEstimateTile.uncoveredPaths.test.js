@@ -256,7 +256,15 @@ describe("contractCrossEstimateTile uncovered (横断画面.md 第5節 / Core 4.
     expect(sessionStorage.getItem(INITIAL_ATTACHMENT_KEY)).toBe("069AAA");
     expect(ctx.showIssue).toBe(false);
     expect(ctx.showSend).toBe(true);
+    expect(ctx.openedSendFromIssue).toBe(true);
     expect(ctx.dispatchEvent).not.toHaveBeenCalled();
+    ctx.issueSucceeded = true;
+    ctx.completionNote = "見積書を発行しました。";
+    ctx.handleCloseWork({ detail: { sent: false } });
+    expect(ctx.showSend).toBe(false);
+    expect(ctx.showIssue).toBe(true);
+    expect(ctx.issueSucceeded).toBe(true);
+    expect(ctx.completionNote).toBe("見積書を発行しました。");
   });
 
   it("send and order stay on the tile (横断画面.md 第2.1節)", () => {

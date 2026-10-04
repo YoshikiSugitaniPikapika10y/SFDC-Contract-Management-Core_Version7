@@ -191,6 +191,7 @@ describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
     const element = createAction("a0H000000000001AAA");
     const closeHandler = jest.fn();
     element.addEventListener("closeActionScreen", closeHandler);
+    const issueFrame = element.shadowRoot.querySelector(".issue-frame");
 
     postIssue("send", "069000000000002AAA");
     await Promise.resolve();
@@ -211,7 +212,8 @@ describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
     expect(
       element.shadowRoot.querySelector("c-estimate-send-record-action")
     ).toBeNull();
-    expect(element.shadowRoot.querySelector(".issue-frame")).not.toBeNull();
+    expect(element.shadowRoot.querySelector(".issue-frame")).toBe(issueFrame);
+    expect(element.shadowRoot.querySelector(".issue-surface_held")).toBeNull();
     expect(element.shadowRoot.querySelector(".issue-complete")).toBeNull();
   });
 
@@ -269,7 +271,8 @@ describe("estimateIssueRecordAction (Core 4.3.1 / 4.8 / 7.10)", () => {
     expect(sessionStorage.getItem("cmc.estimateSend.initialContentDocumentId")).toBe(
       "069000000000002AAA"
     );
-    expect(element.shadowRoot.querySelector("iframe")).toBeNull();
+    expect(element.shadowRoot.querySelector("iframe")).not.toBeNull();
+    expect(element.shadowRoot.querySelector(".issue-surface_held")).not.toBeNull();
     expect(
       element.shadowRoot.querySelector("c-estimate-send-record-action")
     ).not.toBeNull();

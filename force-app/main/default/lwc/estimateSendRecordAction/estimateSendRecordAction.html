@@ -76,13 +76,11 @@
                 ></lightning-button>
               </p>
             </template>
-            <lightning-input
-              name="toAddresses"
-              label="To"
-              value={toAddresses}
-              required
-              read-only
-            ></lightning-input>
+            <!-- 仕様: Core 第4.8節。To は見積送付先のメールの参照。入力欄にしない。 -->
+            <p class="send-to">
+              <span class="send-to-label">To</span>
+              <span class="send-to-value">{toAddresses}</span>
+            </p>
             <lightning-input
               name="ccAddresses"
               label="Cc"

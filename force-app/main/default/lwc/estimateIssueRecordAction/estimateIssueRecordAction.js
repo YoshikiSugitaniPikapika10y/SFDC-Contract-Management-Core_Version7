@@ -71,6 +71,13 @@ export default class EstimateIssueRecordAction extends NavigationMixin(
     this.dispatchEvent(new CloseActionScreenEvent());
   }
 
+  /** 仕様: Core 第4.8節・第0.3節。送付中も発行ページは残す。 */
+  get issueSurfaceClass() {
+    return this.showSend === true
+      ? "issue-surface issue-surface_held"
+      : "issue-surface";
+  }
+
   /** 仕様: Core 第0.3節・第4.8節。送付だけを閉じ、発行面に留まる。成功の1文は発行面に残す。 */
   handleSendPanelClose(event) {
     const sent = event?.detail?.sent === true;

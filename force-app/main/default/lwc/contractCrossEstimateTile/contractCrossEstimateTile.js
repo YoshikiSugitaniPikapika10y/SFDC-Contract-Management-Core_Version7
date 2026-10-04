@@ -281,6 +281,7 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
     if (!this.tile?.id) {
       return;
     }
+    this.openedSendFromIssue = false;
     this.showIssue = false;
     this.showOrder = false;
     this.showSend = true;
@@ -302,14 +303,23 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
     this.workBusy = event.detail?.busy === true;
   }
 
-  // 仕様: Core 第7.10節。個別送付は終わるまで待たせる。裏では回さない。処理中は閉じない。終わったあとは閉じる。
-  handleCloseWork() {
+  // 仕様: Core 第7.10節・第4.8節・第0.3節。処理中は閉じない。このファイルを送るのあとは発行成功面に戻す。
+  handleCloseWork(event) {
     if (this.workBusy === true) {
       return;
     }
+    const backToIssue = this.openedSendFromIssue === true;
+    const sent = event?.detail?.sent === true;
+    this.openedSendFromIssue = false;
     this.showSend = false;
     this.showOrder = false;
     this.workBusy = false;
+    if (backToIssue) {
+      this.showIssue = true;
+      if (sent) {
+        this.completionNote = "見積を送付しました。";
+      }
+    }
     this.dispatchEvent(new CustomEvent("issuestatechange"));
   }
 
@@ -404,6 +414,9 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
     }
     this.showIssue = false;
     this.handleSendClick();
+    if (this.showSend === true) {
+      this.openedSendFromIssue = true;
+    }
   }
 
   reduceError(error) {
