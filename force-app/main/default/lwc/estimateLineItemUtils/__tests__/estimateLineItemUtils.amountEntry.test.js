@@ -6,6 +6,8 @@ import {
   resolveInvoicePreviewRoundingDiff,
   lineageHasChangeBillingEvent,
   restoreAmountEntryFromSavedAmount,
+  markRecurringEndBoundary,
+  CYCLE_BOUNDARY_ERROR,
   resolveChangePairAmountsFromSource,
   parseUnitPriceInput,
   parseQuantityInput,
@@ -144,6 +146,45 @@ describe("restoreAmountEntryFromSavedAmount", () => {
       manualAmount: 9657000
     });
     expect(restored.manualAmount).toBe(9657000);
+    expect(restored.preserveSavedAmount).toBe(true);
+  });
+
+  it("keeps the saved amount when the same estimate is reopened", () => {
+    const restored = restoreAmountEntryFromSavedAmount({
+      ...recurringRow,
+      contractProductId: "cp1",
+      amount: 9657000
+    });
+    expect(restored.amountEntryMode).toBe(false);
+    expect(restored.preserveSavedAmount).toBe(true);
+    expect(restored.amount).toBe(9657000);
+  });
+});
+
+describe("markRecurringEndBoundary", () => {
+  it("keeps an off-boundary end date and clears the unit price", () => {
+    const marked = markRecurringEndBoundary({
+      billingType: BILLING_TYPE_RECURRING,
+      startDate: "2026-01-15",
+      endDate: "2026-03-01",
+      unitPrice: 1000,
+      amount: 5000
+    });
+    expect(marked.endDate).toBe("2026-03-01");
+    expect(marked.unitPrice).toBeNull();
+    expect(marked.amount).toBe(5000);
+    expect(marked.endDateBoundaryError).toBe(CYCLE_BOUNDARY_ERROR);
+  });
+
+  it("does not require a cycle boundary for one-time billing", () => {
+    const marked = markRecurringEndBoundary({
+      billingType: BILLING_TYPE_ONE_TIME,
+      startDate: "2026-01-15",
+      endDate: "2026-03-01",
+      unitPrice: 1000
+    });
+    expect(marked.endDateBoundaryError).toBe("");
+    expect(marked.unitPrice).toBe(1000);
   });
 });
 

@@ -68,6 +68,7 @@ import {
   deriveUnitPriceFromAmount,
   resolveInvoicePreviewRoundingDiff,
   restoreAmountEntryFromSavedAmount,
+  markRecurringEndBoundary,
   resolveInvoiceAnchorFields,
   INVOICE_ANCHOR_DISPLAY_TITLE
 } from "c/estimateLineItemUtils";
@@ -2056,7 +2057,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       return null;
     }
     const contractStartDate = minStart;
-    const contractEndDate = this.alignContractEndDate(maxEnd, minStart);
+    // 仕様: Core 第4.4節。明細の終了日は寄せない。ヘッダーも最遅の終了日のまま出す。
+    const contractEndDate = maxEnd;
     if (this.isChangeType) {
       return {
         contractStartDate,
@@ -2400,6 +2402,9 @@ export default class EstimateCreateModal3 extends LightningElement {
           revenueRecognitionBasis: product.revenueRecognitionBasis || "",
           unitPrice,
           quantity,
+          amount: product.amount,
+          amountEntryMode: false,
+          preserveSavedAmount: true,
           startDate,
           endDate,
           // 仕様: Core 第4.5.2節、第1.1.10節。継承元の請求設定を組織既定で埋めない。
@@ -2568,6 +2573,8 @@ export default class EstimateCreateModal3 extends LightningElement {
             ...baseRow,
             id: createRowId(),
             amount: remakeAmount,
+            amountEntryMode: false,
+            preserveSavedAmount: true,
             recordType: PRODUCT_TYPE_REMAKE,
             typeLabel: "Remake",
             isReadonly: false,
@@ -2687,9 +2694,9 @@ export default class EstimateCreateModal3 extends LightningElement {
         row.billingCycle
       ),
       cycleCountDisplay: this.resolveCycleCountDisplay(row),
-      displayUnitPrice: Number.isNaN(Number(row.unitPrice))
-        ? "NaN"
-        : formatCurrencyNumber(row.unitPrice),
+      displayUnitPrice: Number.isFinite(Number(row.unitPrice))
+        ? formatCurrencyNumber(row.unitPrice)
+        : "",
       displayAmount: formatAmountYen(
         row.amount != null &&
           row.amount !== "" &&
@@ -3031,6 +3038,37 @@ export default class EstimateCreateModal3 extends LightningElement {
       row.amountEntryMode === true && row.manualAmount != null
         ? roundAmountYen(row.manualAmount)
         : row.manualAmount;
+    // 仕様: Core 第4.4節。境界に乗らない終了日は単価を空にし、確定した金額を残す。
+    if (row.endDateBoundaryError) {
+      const kept =
+        row.amountEntryMode === true && manualAmount != null
+          ? manualAmount
+          : row.amount;
+      return {
+        ...row,
+        unitPrice: null,
+        amount: kept,
+        manualAmount: row.amountEntryMode === true ? manualAmount : null,
+        preserveSavedAmount: true,
+        amountInvalid: false,
+        unitPriceInvalid: false
+      };
+    }
+    // 仕様: Core 第4.3.9節、第4.5.2節。開き直しと、単価入力へ戻した行は確定値を式で上書きしない。
+    if (row.preserveSavedAmount === true && !isChangeOriginalLine(row)) {
+      return {
+        ...row,
+        amountEntryMode: row.amountEntryMode === true,
+        manualAmount: row.amountEntryMode === true ? manualAmount : null,
+        amount:
+          row.amountEntryMode === true && manualAmount != null
+            ? manualAmount
+            : row.amount,
+        preserveSavedAmount: true,
+        amountInvalid: false,
+        unitPriceInvalid: false
+      };
+    }
     // 仕様: Core 第1.1.10節、第4.5節。数量 null／空を 0 で埋めない（BUG-093）。
     let quantity;
     if (
@@ -3191,6 +3229,14 @@ export default class EstimateCreateModal3 extends LightningElement {
         ? roundAmountYen(rawManual)
         : 0;
     }
+    if (
+      numericUpdates.preserveSavedAmount !== true &&
+      ("quantity" in numericUpdates ||
+        "unitPrice" in numericUpdates ||
+        "manualAmount" in numericUpdates)
+    ) {
+      numericUpdates.preserveSavedAmount = false;
+    }
 
     const nextList = this.itemList.map((item) => {
       if (item.id !== rowId) {
@@ -3209,7 +3255,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         delete rowUpdates.billingCycle;
       }
       const merged = { ...item, ...rowUpdates };
-      // 単価の逆算は applyAmount が、終了日を埋めたあと・月次境界へ寄せたあとに行う。
+      // 仕様: Core 第4.4節。終了日は寄せない。空の終了日を埋めたあと、境界でなければ単価を空にする。
       let updated = this.applyAmount(merged);
       if (
         "startDate" in rowUpdates &&
@@ -3228,12 +3274,23 @@ export default class EstimateCreateModal3 extends LightningElement {
         isValidIsoDate(updated.startDate) &&
         isValidIsoDate(updated.endDate)
       ) {
-        const alignedEnd = this.alignLineEndDate(
-          updated.startDate,
-          updated.endDate
-        );
-        if (alignedEnd && alignedEnd !== updated.endDate) {
-          updated = this.applyAmount({ ...updated, endDate: alignedEnd });
+        const marked = markRecurringEndBoundary(updated);
+        if (marked.endDateBoundaryError) {
+          updated = this.applyAmount({
+            ...marked,
+            amount:
+              merged.amountEntryMode === true
+                ? merged.manualAmount
+                : merged.amount,
+            unitPrice: null,
+            preserveSavedAmount: true
+          });
+        } else {
+          updated = this.applyAmount({
+            ...updated,
+            endDateBoundaryError: "",
+            preserveSavedAmount: false
+          });
         }
       }
       return {
@@ -3799,7 +3856,8 @@ export default class EstimateCreateModal3 extends LightningElement {
     this.updateRow(rowId, {
       unitPrice,
       amountEntryMode: false,
-      manualAmount: null
+      manualAmount: null,
+      preserveSavedAmount: true
     });
   }
 
@@ -4093,14 +4151,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       detail.contractStartDate = fields.contractStartDate;
     }
     if (fields.contractEndDate !== undefined) {
-      const startForAlign =
-        fields.contractStartDate !== undefined
-          ? fields.contractStartDate
-          : this.contractStartDate;
-      detail.contractEndDate = this.alignContractEndDate(
-        fields.contractEndDate,
-        startForAlign
-      );
+      // 仕様: Core 第4.4節、共通基盤第2.1節。終了日は短い側へ寄せない。
+      detail.contractEndDate = fields.contractEndDate;
     }
     if (fields.contractEffectiveDate !== undefined) {
       detail.contractEffectiveDate = fields.contractEffectiveDate;

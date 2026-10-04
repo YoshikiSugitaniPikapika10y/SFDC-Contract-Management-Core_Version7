@@ -1018,7 +1018,7 @@ export function resolveChangePairAmountsFromSource(sourceAmount) {
   }
   const signed = roundAmountYen(sourceAmount);
   if (!Number.isFinite(signed)) {
-    return { originalAmount: Number.NaN, remakeAmount: Number.NaN };
+    return { originalAmount: null, remakeAmount: null };
   }
   return {
     originalAmount: -signed,
@@ -1026,12 +1026,73 @@ export function resolveChangePairAmountsFromSource(sourceAmount) {
   };
 }
 
+/** 仕様: Core 第4.4節、共通基盤第2.1節。 */
+export const CYCLE_BOUNDARY_ERROR =
+  "終了日が開始日起点のサイクル境界ではありません。";
+
 /**
- * 読込時に保存金額へ寄せない。正本は単価で、金額は式の結果。
- * 画面の金額入力モード（利用者がいま金額側を触っている）だけ残す。
+ * 仕様: Core 第4.4節。継続の終了日が境界に乗らなければ日付は変えず、単価を空にする。
+ * 一回課金はサイクル境界を要求しない。
+ */
+export function markRecurringEndBoundary(row) {
+  if (!row) {
+    return row;
+  }
+  if (
+    row.billingType !== BILLING_TYPE_RECURRING ||
+    !row.startDate ||
+    !row.endDate ||
+    !isValidIsoDate(row.startDate) ||
+    !isValidIsoDate(row.endDate) ||
+    countMonthlyCycles(row.startDate, row.endDate) >= 1
+  ) {
+    return { ...row, endDateBoundaryError: "" };
+  }
+  return {
+    ...row,
+    unitPrice: null,
+    preserveSavedAmount: true,
+    endDateBoundaryError: CYCLE_BOUNDARY_ERROR
+  };
+}
+
+/**
+ * 仕様: Core 第4.3.9節、第4.5.2節。
+ * 同じ見積の開き直しは保存したモード。Original はモードを持たず、保存金額を残す。
  */
 export function restoreAmountEntryFromSavedAmount(row) {
-  return row;
+  if (!row) {
+    return row;
+  }
+  if (isChangeOriginalLine(row)) {
+    return {
+      ...row,
+      amountEntryMode: false,
+      manualAmount: null,
+      preserveSavedAmount: true
+    };
+  }
+  if (row.amountEntryMode === true && row.isReadonly !== true) {
+    const saved =
+      row.manualAmount != null && row.manualAmount !== ""
+        ? row.manualAmount
+        : row.amount;
+    return {
+      ...row,
+      amountEntryMode: true,
+      manualAmount: saved,
+      preserveSavedAmount: true
+    };
+  }
+  if (row.preserveSavedAmount === true || row.contractProductId) {
+    return {
+      ...row,
+      amountEntryMode: false,
+      manualAmount: null,
+      preserveSavedAmount: true
+    };
+  }
+  return { ...row, amountEntryMode: false, preserveSavedAmount: false };
 }
 
 /** Format a number for currency-like display (thousands separators). */
@@ -1717,6 +1778,9 @@ export function validateAmountEntryUnitPrices(products) {
     const line = products[i];
     if (!line || !line.productId || line.isReadonly === true) {
       continue;
+    }
+    if (line.endDateBoundaryError) {
+      return line.endDateBoundaryError;
     }
     const price = Number(line.unitPrice);
     if (
