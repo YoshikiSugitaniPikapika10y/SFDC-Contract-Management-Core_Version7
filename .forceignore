@@ -35,7 +35,6 @@ force-app/main/default/profiles/Admin.profile-meta.xml
 **/classes/SyncFromZuora*
 **/classes/TestOpportunityContactRoleHandler*
 **/flexipages/TCTD_OppPage.flexipage-meta.xml
-**/flexipages/FlexiPage3.flexipage-meta.xml
 
 # Sample CMDT (Zeroboard test data — must not deploy to U-ZERO prod)
 **/customMetadata/EstimateWizardField.Sample_*
