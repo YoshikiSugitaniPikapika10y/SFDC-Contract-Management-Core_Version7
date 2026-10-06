@@ -19,13 +19,17 @@ private class InvoiceSendBoardControllerTest {
         'Confirmed',
         'board@example.com'
       );
+      useBundledInvoiceDefault();
       Test.startTest();
       InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
       Test.stopTest();
       System.assertEquals(true, context.canSend);
       System.assertEquals(true, context.featureEnabled);
       System.assertEquals(500, context.listLimit);
-      System.assertEquals('StandardInvoice', context.defaultDocumentTemplateKey);
+      System.assertEquals(
+        'StandardInvoice',
+        context.defaultDocumentTemplateKey
+      );
       System.assertEquals(
         'Contract_Standard_Invoice_Email',
         context.defaultEmailTemplateApiName
@@ -108,8 +112,8 @@ private class InvoiceSendBoardControllerTest {
           FROM ContentVersion
           WHERE
             ContentDocumentId IN :documentIds
-            AND IsLatest = true
-            AND ContractDocumentIssued__c = true
+            AND IsLatest = TRUE
+            AND ContractDocumentIssued__c = TRUE
         ],
         'Core 第7.10節: 確定ではPDFを付けない'
       );
@@ -212,6 +216,7 @@ private class InvoiceSendBoardControllerTest {
   @IsTest
   static void getBoardContext_initialSelectionUsesCatalogDefault() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      useBundledInvoiceDefault();
       InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
       System.assertEquals(
         'StandardInvoice',
@@ -224,6 +229,7 @@ private class InvoiceSendBoardControllerTest {
   @IsTest
   static void getBoardContext_reusesOrgSettingAndCatalogsInSameRequest() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      useBundledInvoiceDefault();
       InvoiceSendBoardController.getBoardContext();
       Integer before = Limits.getQueries();
       InvoiceSendBoardController.BoardContextDto context = InvoiceSendBoardController.getBoardContext();
@@ -232,7 +238,10 @@ private class InvoiceSendBoardControllerTest {
         Limits.getQueries(),
         'Core 第4.3.11節: 同一取得で組織設定と帳票・メールカタログを取り直さない'
       );
-      System.assertEquals('StandardInvoice', context.defaultDocumentTemplateKey);
+      System.assertEquals(
+        'StandardInvoice',
+        context.defaultDocumentTemplateKey
+      );
     }
   }
 
@@ -331,7 +340,8 @@ private class InvoiceSendBoardControllerTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billing);
     insert billing;
 
@@ -356,7 +366,10 @@ private class InvoiceSendBoardControllerTest {
       EffectiveDate__c = Date.today()
     );
     ContractTestDataFactory.applyRequiredFields(history);
-    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     insert history;
 
     Product2 product = ContractTestDataFactory.buildProduct(
@@ -396,9 +409,7 @@ private class InvoiceSendBoardControllerTest {
     Invoice__c invoice;
     if (!generated.isEmpty()) {
       invoice = generated[0];
-      invoice.BillingEmailToSnapShot__c = toAddress == null
-        ? ';'
-        : toAddress;
+      invoice.BillingEmailToSnapShot__c = toAddress == null ? ';' : toAddress;
       invoice.InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.EMAIL;
       if (collectionStatus == 'Draft') {
         invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT;
@@ -486,7 +497,7 @@ private class InvoiceSendBoardControllerTest {
         System.assert(
           ex.getMessage().contains('空'),
           'Core 第7.4節・第7.9.1節: 税抜0でも税率空は確定しない。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
       }
       Test.stopTest();
@@ -530,7 +541,7 @@ private class InvoiceSendBoardControllerTest {
         System.assert(
           ex.getMessage().contains('未確定の請求のみ確定できます'),
           '共通基盤第3.8節: Loop_11無しでも未確定でない請求は状態エラー。実際: ' +
-            ex.getMessage()
+          ex.getMessage()
         );
         System.assert(
           !ex.getMessage().contains('権限がありません'),
@@ -813,5 +824,19 @@ private class InvoiceSendBoardControllerTest {
 
   private static String currentToken(Id invoiceId) {
     return AccountingCauseLockService.resolveInvoiceOperationToken(invoiceId);
+  }
+
+  private static void useBundledInvoiceDefault() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      new ContractDocumentTemplate__mdt(
+        MasterLabel = ContractDocumentTemplateService.DEFAULT_INVOICE_KEY,
+        TemplateKey__c = ContractDocumentTemplateService.DEFAULT_INVOICE_KEY,
+        DocumentType__c = ContractDocumentTemplateService.TYPE_INVOICE,
+        IsActive__c = true,
+        IsDefault__c = true,
+        VisualforcePage__c = 'InvoiceDocumentPdf',
+        SortOrder__c = 1
+      )
+    };
   }
 }
