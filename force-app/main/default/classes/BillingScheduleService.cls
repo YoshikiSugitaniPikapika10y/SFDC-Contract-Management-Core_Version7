@@ -321,15 +321,35 @@ public without sharing class BillingScheduleService {
     throw new ScheduleException('補正が不正です。');
   }
 
+  static Id cachedDefaultBusinessHoursId;
+  static Boolean defaultBusinessHoursLoaded = false;
+  @TestVisible
+  static Boolean treatDefaultBusinessHoursAsMissing = false;
+
+  @TestVisible
+  static void clearDefaultBusinessHoursCache() {
+    cachedDefaultBusinessHoursId = null;
+    defaultBusinessHoursLoaded = false;
+  }
+
   static Id defaultBusinessHoursId() {
-    List<BusinessHours> rows = [
-      SELECT Id
-      FROM BusinessHours
-      WHERE IsDefault = TRUE
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
-    return rows.isEmpty() ? null : rows[0].Id;
+    if (defaultBusinessHoursLoaded) {
+      return cachedDefaultBusinessHoursId;
+    }
+    if (treatDefaultBusinessHoursAsMissing) {
+      cachedDefaultBusinessHoursId = null;
+    } else {
+      List<BusinessHours> rows = [
+        SELECT Id
+        FROM BusinessHours
+        WHERE IsDefault = TRUE
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      cachedDefaultBusinessHoursId = rows.isEmpty() ? null : rows[0].Id;
+    }
+    defaultBusinessHoursLoaded = true;
+    return cachedDefaultBusinessHoursId;
   }
 
   static void assertDayKindRequired(String label, String dayKind, Integer day) {

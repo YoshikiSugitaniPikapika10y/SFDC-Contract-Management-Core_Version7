@@ -368,4 +368,174 @@ private class BillingScheduleServiceTest {
     BillingScheduleService.applySnapshots(null, new BillingAccount__c());
     BillingScheduleService.applySnapshots(new Invoice__c(), null);
   }
+
+  @IsTest
+  static void applyAdjust_noneDoesNotQueryBusinessHoursAndKeepsTheDate() {
+    BillingAccount__c account = sameDayAccount(BillingScheduleService.ADJUST_NONE);
+    ContractTestDataFactory.applyPaymentMonthEnd(account, 0);
+    Date anchor = Date.newInstance(2026, 1, 31);
+    Integer before = Limits.getQueries();
+    Date invoiceDate = BillingScheduleService.computeInvoiceDateFromAnchor(
+      account,
+      anchor
+    );
+    Date paymentDate = BillingScheduleService.computePaymentScheduledDate(
+      account,
+      invoiceDate
+    );
+    System.assertEquals(
+      0,
+      Limits.getQueries() - before,
+      'Core 第7.2節: 補正なしは営業時間を取らない'
+    );
+    System.assertEquals(
+      anchor,
+      invoiceDate,
+      'Core 第7.2節: 補正なしは算出した請求日を動かさない'
+    );
+    System.assertEquals(
+      Date.newInstance(2026, 1, 31),
+      paymentDate,
+      'Core 第7.5節: 補正なしは算出した入金予定日を動かさない'
+    );
+  }
+
+  @IsTest
+  static void applyAdjust_nextAndPreviousMatchDefaultBusinessHoursOnce() {
+    assertAdjustMatchesFreshBusinessHours(BillingScheduleService.ADJUST_NEXT);
+    assertAdjustMatchesFreshBusinessHours(BillingScheduleService.ADJUST_PREVIOUS);
+  }
+
+  @IsTest
+  static void applyAdjust_missingDefaultBusinessHoursKeepsTheRefusal() {
+    BillingScheduleService.treatDefaultBusinessHoursAsMissing = true;
+    BillingAccount__c account = sameDayAccount(BillingScheduleService.ADJUST_NEXT);
+    Integer before = Limits.getQueries();
+    Boolean rejected = false;
+    try {
+      BillingScheduleService.computeInvoiceDateFromAnchor(
+        account,
+        Date.newInstance(2026, 6, 1)
+      );
+    } catch (BillingScheduleService.ScheduleException ex) {
+      rejected = true;
+      System.assertEquals(
+        '営業日補正には組織の既定営業時間が必要です。',
+        ex.getMessage(),
+        'Core 第7.2節: 既定営業時間が無い補正は拒否する'
+      );
+    }
+    System.assertEquals(
+      true,
+      rejected,
+      'Core 第7.2節: 既定営業時間が無い補正は拒否する'
+    );
+    System.assertEquals(
+      0,
+      Limits.getQueries() - before,
+      'Core 第7.2節: 既定営業時間が無いと分かったあとは取り直さない'
+    );
+    Boolean rejectedAgain = false;
+    try {
+      BillingScheduleService.computeInvoiceDateFromAnchor(
+        account,
+        Date.newInstance(2026, 6, 2)
+      );
+    } catch (BillingScheduleService.ScheduleException ex) {
+      rejectedAgain = ex.getMessage() == '営業日補正には組織の既定営業時間が必要です。';
+    }
+    System.assertEquals(
+      true,
+      rejectedAgain,
+      'Core 第7.2節: 既定営業時間が無い補正は同じ文で拒否する'
+    );
+  }
+
+  static void assertAdjustMatchesFreshBusinessHours(String adjust) {
+    BillingScheduleService.clearDefaultBusinessHoursCache();
+    BillingAccount__c invoiceAccount = sameDayAccount(adjust);
+    BillingAccount__c paymentAccount = new BillingAccount__c();
+    paymentAccount.PaymentTermMethod__c = BillingScheduleService.METHOD_DAY_OFFSET;
+    paymentAccount.PaymentTermDayOffset__c = 0;
+    paymentAccount.PaymentTermAdjust__c = adjust;
+    List<Date> anchors = new List<Date>();
+    Date cursor = Date.newInstance(2026, 1, 1);
+    while (cursor <= Date.newInstance(2026, 1, 31)) {
+      anchors.add(cursor);
+      cursor = cursor.addDays(1);
+    }
+    List<Date> invoiceDates = new List<Date>();
+    List<Date> paymentDates = new List<Date>();
+    Integer before = Limits.getQueries();
+    for (Date anchor : anchors) {
+      Date invoiceDate = BillingScheduleService.computeInvoiceDateFromAnchor(
+        invoiceAccount,
+        anchor
+      );
+      invoiceDates.add(invoiceDate);
+      paymentDates.add(
+        BillingScheduleService.computePaymentScheduledDate(
+          paymentAccount,
+          invoiceDate
+        )
+      );
+    }
+    System.assertEquals(
+      1,
+      Limits.getQueries() - before,
+      'Core 第7.2節・第7.5節: 同一処理の営業時間は1回だけ取る'
+    );
+    Id businessHoursId = [
+      SELECT Id
+      FROM BusinessHours
+      WHERE IsDefault = TRUE
+      LIMIT 1
+    ]
+    .Id;
+    for (Integer i = 0; i < anchors.size(); i++) {
+      System.assertEquals(
+        adjustByFreshBusinessHours(anchors[i], adjust, businessHoursId),
+        invoiceDates[i],
+        'Core 第7.2節: 補正後の請求日は既定営業時間で決めた日と同じ'
+      );
+      System.assertEquals(
+        adjustByFreshBusinessHours(invoiceDates[i], adjust, businessHoursId),
+        paymentDates[i],
+        'Core 第7.5節: 補正後の入金予定日は既定営業時間で決めた日と同じ'
+      );
+    }
+  }
+
+  static BillingAccount__c sameDayAccount(String adjust) {
+    BillingAccount__c account = new BillingAccount__c();
+    ContractTestDataFactory.applySameDayBilling(account);
+    account.InvoiceDateAdjust__c = adjust;
+    return account;
+  }
+
+  static Date adjustByFreshBusinessHours(
+    Date value,
+    String adjust,
+    Id businessHoursId
+  ) {
+    Datetime midday = Datetime.newInstance(value, Time.newInstance(12, 0, 0, 0));
+    if (BusinessHours.isWithin(businessHoursId, midday)) {
+      return value;
+    }
+    if (adjust == BillingScheduleService.ADJUST_NEXT) {
+      return BusinessHours.nextStartDate(businessHoursId, midday).date();
+    }
+    Date previous = value.addDays(-1);
+    for (Integer i = 0; i < 366; i++) {
+      Datetime previousMidday = Datetime.newInstance(
+        previous,
+        Time.newInstance(12, 0, 0, 0)
+      );
+      if (BusinessHours.isWithin(businessHoursId, previousMidday)) {
+        return previous;
+      }
+      previous = previous.addDays(-1);
+    }
+    return null;
+  }
 }

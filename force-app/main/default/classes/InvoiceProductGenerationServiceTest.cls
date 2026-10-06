@@ -4545,4 +4545,196 @@ private class InvoiceProductGenerationServiceTest {
     }
     return raw.trim();
   }
+
+  @IsTest
+  static void estimateToOrdered_businessDayAdjustKeepsGeneratedDates() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Business Day Adjust Account'
+      );
+      BillingAccount__c billingAccount = new BillingAccount__c(
+        Account__c = account.Id,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_DAY_OFFSET,
+        PaymentTermDayOffset__c = 14,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_PREVIOUS,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NEXT,
+        BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
+        BillingEmailTo__c = 'to@example.com'
+      );
+      ContractTestDataFactory.applyRequiredFields(billingAccount);
+      insert billingAccount;
+      ContractService__c service = new ContractService__c(
+        Name = 'Business Day Adjust Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = MonthlyBillingPeriodUtil.endDateForMonthlyCycles(termStart, 6);
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Business Day Adjust History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd
+      );
+      insertHistory(history);
+      Product2 monthlyProduct = ContractTestDataFactory.buildProduct(
+        'Business Day Adjust Product'
+      );
+      monthlyProduct.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+      monthlyProduct.UnitPrice__c = 5000;
+      monthlyProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
+      monthlyProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      ContractTestDataFactory.insertProduct(monthlyProduct);
+      insert new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Product__c = monthlyProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 5000,
+        Amount__c = 1,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      List<MonthlyBillingPeriodUtil.BillingPeriod> periods = MonthlyBillingPeriodUtil.buildMonthlyPeriods(
+        termStart,
+        termEnd
+      );
+      Test.startTest();
+      orderHistory(history);
+      Test.stopTest();
+
+      Id businessHoursId = [
+        SELECT Id
+        FROM BusinessHours
+        WHERE IsDefault = TRUE
+        LIMIT 1
+      ]
+      .Id;
+      List<InvoiceProduct__c> periodLines = [
+        SELECT StartDate__c, Enddate__c, Amount__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :history.Id
+        ORDER BY StartDate__c ASC
+      ];
+      System.assertEquals(
+        periods.size(),
+        periodLines.size(),
+        'Core 第7.3節: 月次の期間明細の件数はサイクル数のまま'
+      );
+      Decimal amountTotal = 0;
+      Map<String, Integer> expectedInvoices = new Map<String, Integer>();
+      for (Integer i = 0; i < periods.size(); i++) {
+        System.assertEquals(
+          periods[i].startDate,
+          periodLines[i].StartDate__c,
+          '日付仕様 第3.1節: 月次の開始日は変えない'
+        );
+        System.assertEquals(
+          periods[i].endDate,
+          periodLines[i].Enddate__c,
+          '日付仕様 第3.1節: 月次の終了日は変えない'
+        );
+        System.assertEquals(
+          5000,
+          periodLines[i].Amount__c,
+          'Core 第7.3節: 1サイクルの金額は数量×単価のまま'
+        );
+        amountTotal += periodLines[i].Amount__c;
+        Date invoiceDate = adjustGeneratedDate(
+          periods[i].startDate,
+          BillingScheduleService.ADJUST_NEXT,
+          businessHoursId
+        );
+        Date paymentDate = adjustGeneratedDate(
+          invoiceDate.addDays(14),
+          BillingScheduleService.ADJUST_PREVIOUS,
+          businessHoursId
+        );
+        String key = String.valueOf(invoiceDate) + '|' + String.valueOf(paymentDate);
+        Integer count = expectedInvoices.containsKey(key)
+          ? expectedInvoices.get(key)
+          : 0;
+        expectedInvoices.put(key, count + 1);
+      }
+      List<Invoice__c> invoices = [
+        SELECT InvoiceDate__c, PaymentScheduledDate__c, Amount__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :history.Id
+      ];
+      System.assertEquals(
+        expectedInvoices.size(),
+        invoices.size(),
+        'Core 第7.3節: 請求の件数は請求日と入金予定日の組の数のまま'
+      );
+      Decimal invoiceAmountTotal = 0;
+      for (Invoice__c invoice : invoices) {
+        String key =
+          String.valueOf(invoice.InvoiceDate__c) +
+          '|' +
+          String.valueOf(invoice.PaymentScheduledDate__c);
+        System.assertEquals(
+          true,
+          expectedInvoices.containsKey(key),
+          'Core 第7.2節・第7.5節: 請求日と入金予定日は補正した日のまま'
+        );
+        invoiceAmountTotal += invoice.Amount__c;
+      }
+      List<InvoiceLine__c> invoiceLines = [
+        SELECT Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :history.Id
+      ];
+      System.assertEquals(
+        periods.size(),
+        invoiceLines.size(),
+        'Core 第7.3節: 請求明細の件数は期間明細の件数のまま'
+      );
+      Decimal lineAmountTotal = 0;
+      for (InvoiceLine__c line : invoiceLines) {
+        lineAmountTotal += line.Amount__c;
+      }
+      System.assertEquals(
+        amountTotal,
+        lineAmountTotal,
+        'Core 第7.3節: 請求明細の金額合計は期間明細の合計のまま'
+      );
+      System.assertEquals(
+        amountTotal,
+        invoiceAmountTotal,
+        'Core 第7.3節: 請求の税抜合計は期間明細の合計のまま'
+      );
+    }
+  }
+
+  static Date adjustGeneratedDate(Date value, String adjust, Id businessHoursId) {
+    Datetime midday = Datetime.newInstance(value, Time.newInstance(12, 0, 0, 0));
+    if (BusinessHours.isWithin(businessHoursId, midday)) {
+      return value;
+    }
+    if (adjust == BillingScheduleService.ADJUST_NEXT) {
+      return BusinessHours.nextStartDate(businessHoursId, midday).date();
+    }
+    Date previous = value.addDays(-1);
+    for (Integer i = 0; i < 366; i++) {
+      Datetime previousMidday = Datetime.newInstance(
+        previous,
+        Time.newInstance(12, 0, 0, 0)
+      );
+      if (BusinessHours.isWithin(businessHoursId, previousMidday)) {
+        return previous;
+      }
+      previous = previous.addDays(-1);
+    }
+    return null;
+  }
 }
