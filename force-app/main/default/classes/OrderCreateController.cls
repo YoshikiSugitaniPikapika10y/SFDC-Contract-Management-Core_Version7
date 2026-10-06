@@ -4044,6 +4044,8 @@ public without sharing class OrderCreateController {
         linesByInvoice
       );
     }
+    // 仕様: Core 第7.7.0節・第7.9.3節。insert 直後の自動採番はメモリに無い。見出しの請求番号だけ読む。
+    stampMissingInvoiceNames(byId);
     List<Invoice__c> assembled = new List<Invoice__c>();
     for (Invoice__c invoice : byId.values()) {
       Map<Id, InvoiceLine__c> lineMap = linesByInvoice.get(invoice.Id);
@@ -4060,6 +4062,58 @@ public without sharing class OrderCreateController {
     refreshPreviewInvoiceModifiedDates(assembled);
     previewInvoicesByServiceId.put(contractServiceId, assembled);
     rememberPreviewLineProducts(assembled);
+  }
+
+  /**
+   * 仕様: Core 第7.7.0節・第7.9.3節・第12.4節。
+   * ロック済み・照会済みで請求番号がある行は読まない。番号が空の新規だけ Id と Name を1回読む。
+   */
+  private static void stampMissingInvoiceNames(Map<Id, Invoice__c> byId) {
+    if (byId == null || byId.isEmpty()) {
+      return;
+    }
+    Set<Id> missing = new Set<Id>();
+    for (Invoice__c invoice : byId.values()) {
+      if (
+        invoice == null ||
+        invoice.Id == null ||
+        String.isNotBlank(invoice.Name)
+      ) {
+        continue;
+      }
+      missing.add(invoice.Id);
+    }
+    if (missing.isEmpty()) {
+      return;
+    }
+    Map<Id, String> names = new Map<Id, String>();
+    for (Invoice__c row : [
+      SELECT Id, Name
+      FROM Invoice__c
+      WHERE Id IN :missing
+      WITH SYSTEM_MODE
+    ]) {
+      if (String.isNotBlank(row.Name)) {
+        names.put(row.Id, row.Name);
+      }
+    }
+    for (Id invoiceId : names.keySet()) {
+      byId.put(invoiceId, invoiceWithName(byId.get(invoiceId), names.get(invoiceId)));
+    }
+  }
+
+  private static Invoice__c invoiceWithName(
+    Invoice__c invoice,
+    String invoiceName
+  ) {
+    if (invoice == null || String.isBlank(invoiceName)) {
+      return invoice;
+    }
+    Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(
+      JSON.serialize(invoice)
+    );
+    root.put('Name', invoiceName);
+    return (Invoice__c) JSON.deserialize(JSON.serialize(root), Invoice__c.class);
   }
 
   private static void loadMissingPreviewLines(

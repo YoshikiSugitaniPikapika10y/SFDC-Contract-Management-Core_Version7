@@ -4110,6 +4110,7 @@ private class OrderCreateControllerTest {
       );
       Test.stopTest();
       Id createdId;
+      String createdName;
       for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
         if (
           groupRow != null &&
@@ -4117,10 +4118,16 @@ private class OrderCreateControllerTest {
           !beforeInvoiceIds.contains(groupRow.invoiceId)
         ) {
           createdId = groupRow.invoiceId;
+          createdName = groupRow.invoiceName;
           break;
         }
       }
       System.assertNotEquals(null, createdId, 'Core 第7.8節: 新しい請求を返す');
+      System.assertEquals(
+        [SELECT Name FROM Invoice__c WHERE Id = :createdId].Name,
+        createdName,
+        'Core 第7.7.0節: 分けた新しい請求の見出しは請求番号'
+      );
       System.assertEquals(
         false,
         OrderCreateController.lastPreviewInvoiceSelectIds.contains(source.Id),
@@ -4876,12 +4883,18 @@ private class OrderCreateControllerTest {
         'Core 第12.4節: 返却の手直し集計が期間明細を取り直さない'
       );
       List<Invoice__c> regenerated = [
-        SELECT Id, BusinessOperationKey__c
+        SELECT Id, Name, BusinessOperationKey__c
         FROM Invoice__c
         WHERE
           ContractHistory__c = :context.history.Id
           AND InvoiceTransactionStatus__c = :InvoiceTransactionStatusService.TX_DRAFT
       ];
+      Map<Id, String> namesOnCards = new Map<Id, String>();
+      for (OrderCreateController.InvoiceGroupDto card : preview.invoices) {
+        if (card != null && card.invoiceId != null) {
+          namesOnCards.put(card.invoiceId, card.invoiceName);
+        }
+      }
       System.assert(
         !regenerated.isEmpty(),
         'Core 第6.6節: 未確定請求と契約期間明細だけを再生成する'
@@ -4898,6 +4911,11 @@ private class OrderCreateControllerTest {
           true,
           String.isNotBlank(regeneratedInvoice.BusinessOperationKey__c),
           'Core 第7.9.7節: 操作キーを新未確定へ書く'
+        );
+        System.assertEquals(
+          regeneratedInvoice.Name,
+          namesOnCards.get(regeneratedInvoice.Id),
+          'Core 第7.7.0節: 再生成した請求の見出しは請求番号'
         );
       }
       System.assertNotEquals(null, preview);
