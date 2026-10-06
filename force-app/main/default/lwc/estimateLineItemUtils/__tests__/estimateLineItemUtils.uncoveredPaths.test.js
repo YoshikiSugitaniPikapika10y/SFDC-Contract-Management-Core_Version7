@@ -66,6 +66,8 @@ describe("estimateLineItemUtils uncovered labels/dates (Core 0.1 / 日付)", () 
     expect(normalizeDateInput(null)).toBe("");
     expect(normalizeDateInput("2026-01-15")).toBe("2026-01-15");
     expect(normalizeDateInput(" 2026-01-15 ")).toBe("2026-01-15");
+    expect(normalizeDateInput("2027-10-02")).toBe("2027-10-02");
+    expect(normalizeDateInput("0007-10-02")).toBe("0007-10-02");
     expect(isValidIsoDate("2026-01-15")).toBe(true);
     expect(isValidIsoDate("bad")).toBe(false);
     expect(isValidIsoDate("")).toBe(false);

@@ -551,10 +551,10 @@
                                     type="date"
                                     class="est-cell-input est-cell-date"
                                     aria-label="提供開始日"
-                                    value={item.startDate}
                                     data-id={item.id}
                                     data-field="startDate"
                                     onchange={handleLineDateInputChange}
+                                    onblur={handleLineDateInputBlur}
                                     required
                                   />
                                 </div>
@@ -626,10 +626,10 @@
                                     type="date"
                                     class="est-cell-input est-cell-date"
                                     aria-label="提供終了日"
-                                    value={item.endDate}
                                     data-id={item.id}
                                     data-field="endDate"
                                     onchange={handleLineDateInputChange}
+                                    onblur={handleLineDateInputBlur}
                                     required
                                   />
                                   <template if:true={item.endDateBoundaryError}>

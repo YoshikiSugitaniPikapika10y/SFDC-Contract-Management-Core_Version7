@@ -3093,7 +3093,7 @@ export default class EstimateCreateModal3 extends LightningElement {
           ? Number.NaN
           : 0;
     }
-    // 仕様: Core 第4.6節。金額入力中は、いまの数量と期間で単価を逆算してから式で金額を出す。
+    // 仕様: Core 第4.3.9節、第4.6節。金額入力中は確定した円を残し、単価だけ逆算する。
     let unitPrice;
     if (
       row.amountEntryMode === true &&
@@ -3143,6 +3143,18 @@ export default class EstimateCreateModal3 extends LightningElement {
         amount: Number.isFinite(savedOriginal) ? savedOriginal : null,
         amountInvalid: false,
         unitPriceInvalid: false
+      };
+    }
+
+    // 仕様: Core 第4.3.9節、第4.6節。金額入力は確定円を残す。月数が無いときは単価だけ空にする。
+    if (row.amountEntryMode === true) {
+      return {
+        ...normalized,
+        unitPrice: Number.isFinite(unitPrice) ? unitPrice : null,
+        amount: resolveLineAmount(normalized),
+        manualAmount,
+        amountInvalid: false,
+        unitPriceInvalid: !Number.isFinite(unitPrice)
       };
     }
 
@@ -3337,7 +3349,27 @@ export default class EstimateCreateModal3 extends LightningElement {
     this.insertCopiedRow(source, sourceIndex);
   }
 
+  // 仕様: Core 第4.5節
   handleLineDateInputChange(event) {
+    const value = this.readDateInputValue(event);
+    if (this.isPartialYearEntry(value)) {
+      return;
+    }
+    this.applyLineDateInput(event);
+  }
+
+  // 仕様: Core 第4.5節
+  handleLineDateInputBlur(event) {
+    this.applyLineDateInput(event);
+  }
+
+  isPartialYearEntry(value) {
+    return (
+      /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) < 1000
+    );
+  }
+
+  applyLineDateInput(event) {
     const rowId = event.currentTarget.dataset.id;
     const field = event.currentTarget.dataset.field;
     const value = this.readDateInputValue(event);
@@ -3348,6 +3380,33 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (field === "endDate") {
       this.updateRow(rowId, { endDate: value });
     }
+  }
+
+  // 仕様: Core 第4.5節。打鍵中の年・月・日は欄へ書き戻さない。
+  syncUnfocusedLineDateInputs() {
+    const inputs = this.template.querySelectorAll("input.est-cell-date");
+    if (!inputs) {
+      return;
+    }
+    const active = this.template.activeElement;
+    inputs.forEach((input) => {
+      if (!input || input === active) {
+        return;
+      }
+      const row = (this.itemList || []).find(
+        (item) => item.id === input.dataset.id
+      );
+      if (!row) {
+        return;
+      }
+      const next =
+        input.dataset.field === "endDate"
+          ? row.endDate || ""
+          : row.startDate || "";
+      if (input.value !== next) {
+        input.value = next;
+      }
+    });
   }
 
   handleFillLineStartOneYear(event) {
@@ -3429,6 +3488,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   renderedCallback() {
+    this.syncUnfocusedLineDateInputs();
     if (this.isProductModalOpen && !this._productModalFocused) {
       this._productModalFocused = true;
       Promise.resolve().then(() => {

@@ -869,6 +869,45 @@ describe("estimateCreateModal3 uncovered paths remaining (Core 4.3 / 4.3.4 / 4.3
     expect(ctx.itemList[0].startDate).not.toBe(start);
   });
 
+  it("keeps typed line dates and does not shift a short year into the 1900s", () => {
+    const ctx = bind();
+    ctx.addRow(false);
+    const id = ctx.itemList[0].id;
+    const before = ctx.itemList[0].startDate;
+    ctx.handleLineDateInputChange({
+      currentTarget: { dataset: { id, field: "startDate" } },
+      target: { value: "0007-10-02" }
+    });
+    expect(ctx.itemList[0].startDate).toBe(before);
+    ctx.handleLineDateInputBlur({
+      currentTarget: { dataset: { id, field: "startDate" } },
+      target: { value: "2027-10-02" }
+    });
+    expect(ctx.itemList[0].startDate).toBe("2027-10-02");
+    ctx.handleLineDateInputBlur({
+      currentTarget: { dataset: { id, field: "endDate" } },
+      target: { value: "0007-10-02" }
+    });
+    expect(ctx.itemList[0].endDate).toBe("0007-10-02");
+  });
+
+  it("does not write a line date back into the field being typed", () => {
+    const input = {
+      dataset: { id: "row-1", field: "startDate" },
+      value: "2026-01-01"
+    };
+    const ctx = bind({
+      itemList: [{ id: "row-1", startDate: "2026-10-01", endDate: "" }],
+      template: {
+        activeElement: input,
+        querySelector: jest.fn(() => null),
+        querySelectorAll: jest.fn(() => [input])
+      }
+    });
+    ctx.syncUnfocusedLineDateInputs();
+    expect(input.value).toBe("2026-01-01");
+  });
+
   it("handleLineDateInputChange writes start and end", () => {
     const ctx = bind();
     ctx.addRow(false);

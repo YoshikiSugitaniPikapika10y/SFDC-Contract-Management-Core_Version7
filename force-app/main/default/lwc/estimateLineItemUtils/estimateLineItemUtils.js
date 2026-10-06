@@ -302,9 +302,16 @@ export function parseLocalDate(isoDate) {
     return null;
   }
 
-  const parts = isoDate.split("-");
-
-  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  const parts = String(isoDate).split("-");
+  const year = Number(parts[0]);
+  const monthIndex = Number(parts[1]) - 1;
+  const day = Number(parts[2]);
+  const date = new Date(year, monthIndex, day);
+  // Date コンストラクタは年 0–99 を 1900 年代にする。入力の年はその年のままにする。
+  if (year >= 0 && year < 100) {
+    date.setFullYear(year);
+  }
+  return date;
 }
 
 function daysInMonth(year, monthIndex) {
@@ -369,7 +376,7 @@ function applyStickyMonthBoundary(sourceDate, resultDate) {
 }
 
 export function formatLocalDate(date) {
-  const year = date.getFullYear();
+  const year = String(date.getFullYear()).padStart(4, "0");
 
   const month = String(date.getMonth() + 1).padStart(2, "0");
 
@@ -466,9 +473,14 @@ export function normalizeDateInput(value) {
     return trimmed;
   }
 
+  const typedYear = Number(trimmed.slice(0, 4));
   const date = parseLocalDate(trimmed);
 
-  if (!date) {
+  if (!date || Number.isNaN(date.getTime())) {
+    return trimmed;
+  }
+  // 仕様: Core 第4.5節。年 0〜99 は Date が 1900 年代にする。打った 0007 を 1907 にしない。
+  if (date.getFullYear() !== typedYear) {
     return trimmed;
   }
 
@@ -835,6 +847,16 @@ export function resolveLineAmount(row) {
     }
     const saved = Number(row.amount);
     return Number.isFinite(saved) ? saved : null;
+  }
+  // 仕様: Core 第4.3.9節、第4.6節。金額入力の画面と保存は確定した円。式とずれても残す。
+  if (row.amountEntryMode === true) {
+    const confirmed =
+      row.manualAmount != null && row.manualAmount !== ""
+        ? Number(row.manualAmount)
+        : row.amount != null && row.amount !== ""
+          ? Number(row.amount)
+          : null;
+    return Number.isFinite(confirmed) ? confirmed : null;
   }
   return calculateLineAmount(row);
 }
