@@ -54,7 +54,7 @@
             <p class="edit-note">{resetPostOrderBlockedReason}</p>
           </template>
           <template if:true={showResetNotice}>
-            <p class="edit-note" role="status">{boardNoticeText}</p>
+            <p class={boardNoticeClass} role={boardNoticeRole}>{boardNoticeText}</p>
             <template if:true={boardNoticeReload}>
               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
             </template>
@@ -151,7 +151,7 @@
             <p class="edit-note">{amountDraftBlockedReason}</p>
           </template>
           <template if:true={showAmountNotice}>
-            <p class="edit-note" role="status">{boardNoticeText}</p>
+            <p class={boardNoticeClass} role={boardNoticeRole}>{boardNoticeText}</p>
             <template if:true={boardNoticeReload}>
               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
             </template>
@@ -227,7 +227,7 @@
                       <p class="edit-note">{invoice.billingEditTitle}</p>
                     </template>
                     <template if:true={invoice.showBillingNotice}>
-                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                       <template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                       </template>
@@ -251,7 +251,7 @@
                     </template>
                     <template if:true={invoice.showSplitNotice}>
                       <template if:false={invoice.isInvoiceSplitOpen}>
-                        <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                         <template if:true={invoice.actionNoticeReload}>
                           <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                         </template>
@@ -259,7 +259,7 @@
                     </template>
                     <template if:true={invoice.showMoveNotice}>
                       <template if:false={invoice.isInvoiceMoveOpen}>
-                        <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                         <template if:true={invoice.actionNoticeReload}>
                           <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                         </template>
@@ -267,7 +267,7 @@
                     </template>
                     <template if:true={invoice.showLineSplitNotice}>
                       <template if:false={invoice.isLineSplitOpen}>
-                        <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                         <template if:true={invoice.actionNoticeReload}>
                           <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                         </template>
@@ -290,7 +290,7 @@
                     <p class="edit-note">{invoice.confirmActionTitle}</p>
                   </template>
                   <template if:true={invoice.showConfirmNotice}>
-                    <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                    <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                     <template if:true={invoice.actionNoticeReload}>
                       <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                     </template>
@@ -322,7 +322,7 @@
                       <p class="edit-note">{invoice.issueActionTitle}</p>
                     </template>
                     <template if:true={invoice.showIssueNotice}>
-                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                       <template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                       </template>
@@ -360,7 +360,7 @@
                     <p class="edit-note">{invoice.sendActionTitle}</p>
                   </template>
                   <template if:true={invoice.showSendNotice}>
-                    <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                    <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                     <template if:true={invoice.actionNoticeReload}>
                       <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                     </template>
@@ -382,7 +382,7 @@
                       <p class="edit-note">{invoice.cancelActionTitle}</p>
                     </template>
                     <template if:true={invoice.showCancelNotice}>
-                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                       <template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                       </template>
@@ -392,7 +392,7 @@
               </div>
             </div>
             <template if:true={invoice.showEditProcessing}>
-              <p class="edit-note" role="status">
+              <p class="edit-note edit-note_wait" role="status">
                 <lightning-spinner
                   alternative-text="処理中"
                   size="small"
@@ -512,7 +512,7 @@
                   <p class="edit-note">{invoice.invoiceIssueConfirmReason}</p>
                 </template>
                 <template if:true={invoice.showIssueNotice}>
-                  <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                   <template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                   </template>
@@ -645,7 +645,7 @@
                   <p class="edit-note">{invoice.invoiceSendConfirmReason}</p>
                 </template>
                 <template if:true={invoice.showSendNotice}>
-                  <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                   <template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                   </template>
@@ -721,7 +721,7 @@
                   <p class="edit-note">{invoice.invoiceCancelConfirmReason}</p>
                 </template>
                 <template if:true={invoice.showCancelNotice}>
-                  <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                   <template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                   </template>
@@ -913,7 +913,7 @@
                   保存
                 </button>
                 <template if:true={invoice.showBillingNotice}>
-                  <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                   <template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                   </template>
@@ -951,7 +951,7 @@
                       メモを保存
                     </button>
                     <template if:true={invoice.showMemoNotice}>
-                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                       <template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                       </template>
@@ -1021,10 +1021,10 @@
                 </template>
                 <template if:false={invoice.showDraftPaymentGuide}>
                   <template if:true={invoice.opsLoading}>
-                    <p class="edit-note">読み込み中</p>
+                    <p class="edit-note edit-note_wait">読み込み中</p>
                   </template>
                   <template if:true={invoice.opsError}>
-                    <p class="edit-note">{invoice.opsError}</p>
+                    <p class="edit-note" role="alert">{invoice.opsError}</p>
                     <button
                       type="button"
                       class="ghost-btn"
@@ -1238,7 +1238,7 @@
                                       保存
                                     </button>
                                     <template if:true={invoice.showPaymentEditNotice}>
-                                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                                       <template if:true={invoice.actionNoticeReload}>
                                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                                       </template>
@@ -1355,7 +1355,7 @@
                                       取消する
                                     </button>
                                     <template if:true={invoice.showPaymentCancelNotice}>
-                                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                                       <template if:true={invoice.actionNoticeReload}>
                                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                                       </template>
@@ -1668,7 +1668,7 @@
                         {invoice.paymentSaveLabel}
                       </button>
                       <template if:true={invoice.showPaymentAddNotice}>
-                        <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                       </template>
                     </div>
                   </div>
@@ -1690,10 +1690,10 @@
             <template if:true={invoice.isJournalsTab}>
               <div class="ops-panel">
                 <template if:true={invoice.opsLoading}>
-                  <p class="edit-note">読み込み中</p>
+                  <p class="edit-note edit-note_wait">読み込み中</p>
                 </template>
                 <template if:true={invoice.opsError}>
-                  <p class="edit-note">{invoice.opsError}</p>
+                  <p class="edit-note" role="alert">{invoice.opsError}</p>
                   <button
                     type="button"
                     class="ghost-btn"
@@ -1745,7 +1745,7 @@
                             {invoice.journalLockBarLabel}
                           </button>
                           <template if:true={invoice.showLockNotice}>
-                            <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                            <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                             <template if:true={invoice.actionNoticeReload}>
                               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                             </template>
@@ -1772,7 +1772,7 @@
                             <p class="edit-note">{invoice.journalBarUnlockReason}</p>
                           </template>
                           <template if:true={invoice.showUnlockNotice}>
-                            <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                            <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                             <template if:true={invoice.actionNoticeReload}>
                               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                             </template>
@@ -2244,7 +2244,7 @@
                                           保存
                                         </button>
                                         <template if:true={invoice.showJournalMemoNotice}>
-                                          <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                                          <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                                           <template if:true={invoice.actionNoticeReload}>
                                             <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                                           </template>
@@ -2416,7 +2416,7 @@
                       <p class="edit-note">{invoice.invoiceMoveConfirmReason}</p>
                     </template>
                     <template if:true={invoice.showMoveNotice}>
-                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                       <template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                       </template>
@@ -2592,7 +2592,7 @@
                       <p class="edit-note">{invoice.invoiceSplitConfirmReason}</p>
                     </template>
                     <template if:true={invoice.showSplitNotice}>
-                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                       <template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                       </template>
@@ -2603,10 +2603,10 @@
 
               <template if:true={invoice.isLineSplitOpen}>
                 <template if:true={invoice.lineSplitLoading}>
-                  <p class="edit-note line-split-status">読み込み中</p>
+                  <p class="edit-note edit-note_wait line-split-status">読み込み中</p>
                 </template>
                 <template if:true={invoice.lineSplitError}>
-                  <p class="edit-note line-split-status">
+                  <p class="edit-note line-split-status" role="alert">
                     {invoice.lineSplitError}
                   </p>
                   <button
@@ -3053,7 +3053,7 @@
                                   <p class="edit-note">{invoice.lineSplitConfirmReason}</p>
                                 </template>
                                 <template if:true={invoice.showLineSplitNotice}>
-                                  <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                                   <template if:true={invoice.actionNoticeReload}>
                                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                                   </template>
@@ -3113,7 +3113,7 @@
                                   <p class="edit-note">{invoice.acceptanceCancelReason}</p>
                                 </template>
                                 <template if:true={invoice.showAcceptanceNotice}>
-                                  <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
                                   <template if:true={invoice.actionNoticeReload}>
                                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
                                   </template>

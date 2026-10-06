@@ -1818,6 +1818,16 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return this.cardNotice?.reload === true;
   }
 
+  get boardNoticeClass() {
+    return this.boardNoticeReload
+      ? "edit-note"
+      : "edit-note edit-note_success";
+  }
+
+  get boardNoticeRole() {
+    return this.boardNoticeReload ? "alert" : "status";
+  }
+
   get showAmountDraftWait() {
     return this.isSaving === true && this.showAmountDraftActions;
   }
@@ -2670,6 +2680,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           bundle?.paymentAllowed === true &&
           paymentTypeOptions.length > 0 &&
           !opsBusy;
+        const paymentRegisterBusy =
+          !cancelDraft &&
+          (this.invoiceOpsProcessingId === invoiceId ||
+            (this.isSaving === true &&
+              !this.editProcessingInvoiceId &&
+              this.invoiceOpsProcessingId == null));
         const cancelBlockedReason = this.invoiceCancelBlockedReason(bundle);
         const paymentRegisterExtraFields = this.buildExtraFieldViews({
           targetObject: "InvoicePayment__c",
@@ -2972,6 +2988,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           ),
           actionNoticeText: this.cardNotice?.text || "",
           actionNoticeReload: this.cardNotice?.reload === true,
+          actionNoticeClass:
+            this.cardNotice?.reload === true
+              ? "edit-note"
+              : "edit-note edit-note_success",
+          actionNoticeRole: this.cardNotice?.reload === true ? "alert" : "status",
           isInvoiceSendOpen,
           isInvoiceIssueOpen,
           invoiceIssuePreviewFailed:
@@ -3060,7 +3081,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           invoiceSendConfirmDisabled:
             invoiceOpsBusy ||
             !isInvoiceSendOpen ||
-            !this.invoiceSendState?.documentTemplateKey ||
+            (this.invoiceSendState?.attachmentId === "NEW" &&
+              !this.invoiceSendState?.documentTemplateKey) ||
             !this.invoiceSendState?.emailTemplateApiName ||
             this.isBlankReasonText(this.invoiceSendState?.toAddresses) ||
             this.hasInvalidEmailList(this.invoiceSendState?.toAddresses) ||
@@ -3373,12 +3395,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
               (this.isSaving === true &&
                 !this.editProcessingInvoiceId &&
                 this.invoiceOpsProcessingId == null)),
-          paymentRegisterBusy:
-            !cancelDraft &&
-            (this.invoiceOpsProcessingId === invoiceId ||
-              (this.isSaving === true &&
-                !this.editProcessingInvoiceId &&
-                this.invoiceOpsProcessingId == null)),
+          paymentRegisterBusy,
           paymentEditBusy:
             this.paymentEditState?.invoiceId === invoiceId &&
             (this.invoiceOpsProcessingId === invoiceId ||
@@ -3776,6 +3793,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       documentTemplateKey: this.defaultInvoiceDocumentTemplateKey,
       fileName: ""
     };
+    // 仕様: Core 第11.3.2節。有効な既定が1件でないときは未選択のまま開く。空キーのプレビューは失敗扱いにしない。
+    if (!this.invoiceIssueState.documentTemplateKey) {
+      return;
+    }
     try {
       await this.reloadInvoiceIssuePreview();
     } catch (error) {
@@ -4058,9 +4079,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   async handleSendInvoice() {
     const invoiceId = this.invoiceSendState?.invoiceId;
     const invoice = this.findInvoice(invoiceId);
+    const needsNewDocument =
+      this.invoiceSendState?.attachmentId === "NEW";
     if (
       !invoice ||
-      !this.invoiceSendState?.documentTemplateKey ||
+      (needsNewDocument && !this.invoiceSendState?.documentTemplateKey) ||
       this.isBlankReasonText(this.invoiceSendState?.fileName) ||
       this.isBlankReasonText(this.invoiceSendState?.toAddresses) ||
       this.hasInvalidEmailList(this.invoiceSendState?.toAddresses) ||
@@ -7052,7 +7075,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (invoiceOpsBusy) {
       return this.operationBlockedSentence();
     }
-    if (!this.invoiceSendState?.documentTemplateKey) {
+    if (
+      this.invoiceSendState?.attachmentId === "NEW" &&
+      !this.invoiceSendState?.documentTemplateKey
+    ) {
       return "帳票を選んでください。";
     }
     if (!this.invoiceSendState?.emailTemplateApiName) {

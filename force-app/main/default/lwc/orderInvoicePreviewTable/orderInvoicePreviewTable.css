@@ -159,8 +159,24 @@
 
 .edit-note {
   margin: 0 0 0.75rem;
-  color: var(--preview-muted);
+  color: #334155;
   font-size: 0.875rem;
+}
+
+.edit-note[role="alert"] {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.edit-note_success {
+  color: #047857;
+}
+
+.edit-note_wait {
+  color: #64748b;
 }
 
 .period-split-warn {
@@ -909,6 +925,14 @@
 .invoice-card_cancelled .invoice-header .invoice-meta-k,
 .invoice-card_cancelled .invoice-header .invoice-meta-v {
   color: var(--preview-muted);
+}
+
+.invoice-card_cancelled .invoice-header .edit-note[role="alert"] {
+  color: #991b1b;
+}
+
+.invoice-card_cancelled .invoice-header .edit-note_success {
+  color: #047857;
 }
 
 .invoice-header-bar {
@@ -2395,5 +2419,5 @@ tr.journal-row_highlight td {
 .surface-complete {
   margin: 0.5rem 0;
   font-size: 0.875rem;
-  color: #1b4332;
+  color: #047857;
 }

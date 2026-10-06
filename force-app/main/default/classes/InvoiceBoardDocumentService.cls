@@ -376,10 +376,18 @@ public without sharing class InvoiceBoardDocumentService {
       String resolvedKey = String.isNotBlank(documentTemplateKey)
         ? documentTemplateKey.trim()
         : null;
-      ContractDocumentTemplateService.TemplateDefinition template = ContractDocumentTemplateService.resolveTemplate(
-        ContractDocumentTemplateService.TYPE_INVOICE,
-        resolvedKey
-      );
+      // 仕様: Core 第11.3.2節。有効な既定が1件でないときは未選択。空キーでは帳票を埋めず、宛先と添付は出す。
+      ContractDocumentTemplateService.TemplateDefinition template = String.isBlank(
+          resolvedKey
+        )
+        ? null
+        : ContractDocumentTemplateService.resolveTemplate(
+            ContractDocumentTemplateService.TYPE_INVOICE,
+            resolvedKey
+          );
+      String newIssueFileName = template == null
+        ? null
+        : InvoiceDocumentService.buildFileName(invoice, template);
       SendPreviewDto preview = new SendPreviewDto();
       preview.orgWideEmailAddress = sender.address;
       preview.fromLabel = ContractEmailTemplateService.formatOrgWideFrom(
@@ -390,7 +398,9 @@ public without sharing class InvoiceBoardDocumentService {
       preview.bccAddresses = invoice.BillingEmailBccSnapShot__c;
       preview.subject = merged.subject;
       preview.body = merged.body;
-      preview.documentTemplateKey = template.templateKey;
+      preview.documentTemplateKey = template == null
+        ? null
+        : template.templateKey;
       preview.emailTemplateApiName = merged.apiName;
       preview.attachmentOptions = EstimateDocumentService.listLinkedFiles(
         invoice.Id
@@ -402,12 +412,9 @@ public without sharing class InvoiceBoardDocumentService {
       preview.fileName = EstimateDocumentService.fileNameForAttachment(
         preview.attachmentOptions,
         preview.attachmentId,
-        InvoiceDocumentService.buildFileName(invoice, template)
+        newIssueFileName
       );
-      preview.newIssueFileName = InvoiceDocumentService.buildFileName(
-        invoice,
-        template
-      );
+      preview.newIssueFileName = newIssueFileName;
       return preview;
     } catch (AuraHandledException ex) {
       throw ex;
