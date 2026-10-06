@@ -201,35 +201,13 @@ export default class OrderCreateWizard extends NavigationMixin(
     return this.historyFieldInputs.length > 0;
   }
 
+  // 仕様: Core 第11.4.1節・第11.4.3節。見積商品の表示行は受注に出さない。
   get productDisplayLines() {
-    const definitions = (this.context?.productFieldDefinitions || []).filter(
-      (field) => field && !field.apiName
-    );
-    if (!definitions.length) {
-      return [];
-    }
-    return (this.context?.products || [])
-      .map((line, index) => {
-        const inputs = buildCustomFieldInputs(
-          definitions,
-          {},
-          `order-product-${index}`,
-          true,
-          line.productVisibilityContext || {},
-          this.context?.historyType,
-          this.context?.opportunityDefaultContext
-        );
-        return {
-          key: `order-product-display-${index}`,
-          productName: line.productName || "",
-          inputs
-        };
-      })
-      .filter((line) => line.inputs.length > 0);
+    return [];
   }
 
   get showProductDisplayLines() {
-    return this.productDisplayLines.length > 0;
+    return false;
   }
 
   get showMissingRecordError() {

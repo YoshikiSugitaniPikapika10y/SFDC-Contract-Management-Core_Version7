@@ -730,7 +730,7 @@ public without sharing class OrderCreateController {
       dto.opportunityDefaultContext = ContractWizardFieldService.getOpportunityDefaultContext(
         history.Opportunity__c
       );
-      dto.productFieldDefinitions = ContractWizardFieldService.getContractProductFieldDefinitions();
+      // 仕様: Core 第11.4.1節・第11.4.3節。見積商品の表示行は受注と差し戻しへ渡さない。
       dto.historyCustomFields = OrderWizardFieldService.buildHistoryFieldValuesForWizard(
         history
       );

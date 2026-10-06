@@ -26,6 +26,11 @@ private class OrderCreateControllerTest {
       System.assertEquals(true, dto.canOrder);
       System.assertEquals(false, dto.isOrdered);
       System.assertEquals(1, dto.products.size());
+      System.assertEquals(
+        null,
+        dto.productFieldDefinitions,
+        'Core 第11.4.1節・第11.4.3節: 見積商品の表示行は受注へ渡さない'
+      );
       System.assertEquals(context.billingAccount.Id, dto.billingAccountId);
       System.assertEquals(
         String.valueOf(context.billingAccount.Id),

@@ -191,35 +191,13 @@ export default class OrderRevertWizard extends NavigationMixin(
     return this.canRevert && this.historyFieldInputs.length > 0;
   }
 
+  // 仕様: Core 第11.4.1節・第11.4.3節。見積商品の表示行は差し戻しに出さない。
   get productDisplayLines() {
-    const definitions = (this.context?.productFieldDefinitions || []).filter(
-      (field) => field && !field.apiName
-    );
-    if (!definitions.length || !this.canRevert) {
-      return [];
-    }
-    return (this.context?.products || [])
-      .map((line, index) => {
-        const inputs = buildCustomFieldInputs(
-          definitions,
-          {},
-          `revert-product-${index}`,
-          true,
-          line.productVisibilityContext || {},
-          this.context?.historyType,
-          this.context?.opportunityDefaultContext
-        );
-        return {
-          key: `revert-product-display-${index}`,
-          productName: line.productName || "",
-          inputs
-        };
-      })
-      .filter((line) => line.inputs.length > 0);
+    return [];
   }
 
   get showProductDisplayLines() {
-    return this.productDisplayLines.length > 0;
+    return false;
   }
 
   handleHistoryFieldChange(event) {
