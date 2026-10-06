@@ -429,6 +429,11 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     this.closePanel();
   }
 
+  /** 仕様: Core 第0.3節。レコードの見積を送るは、成功の1文を出したあと閉じる。 */
+  handleCloseAfterSend() {
+    this.closePanel(true);
+  }
+
   /** 仕様: 共通基盤 第2.1節。横断と発行面では送付だけを閉じ、契約履歴へ遷移しない。 */
   closePanel(sent) {
     this.dispatchEvent(
@@ -490,7 +495,9 @@ export default class EstimateSendRecordAction extends NavigationMixin(
       this.sent = true;
       this.completionNote = "見積を送付しました。";
       this.notifyOverlayBusy(false);
-      this.closePanel(true);
+      if (this.fromCrossWork === true || this.fromIssueSurface === true) {
+        this.closePanel(true);
+      }
     } catch (error) {
       const message = this.toMessage(error);
       await this.load();

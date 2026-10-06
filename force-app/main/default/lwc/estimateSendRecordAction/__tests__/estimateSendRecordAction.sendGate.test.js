@@ -276,6 +276,7 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
       errorMessage: "",
       isResend: false,
       fromCrossWork: false,
+      fromIssueSurface: true,
       sendEstimateApex: proto.sendEstimateApex,
       closePanel: proto.closePanel,
       toMessage,
@@ -309,7 +310,7 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     expect(load).not.toHaveBeenCalled();
   });
 
-  it("成功は見積を送付しました。を出してから閉じる (Core 0.3)", async () => {
+  it("レコードの見積を送るは成功の1文を残して閉じない (Core 0.3)", async () => {
     sendEstimate.mockReset().mockResolvedValue({});
     const ctx = {
       sendDisabled: false,
@@ -318,6 +319,7 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
       completionNote: "",
       isResend: false,
       fromCrossWork: false,
+      fromIssueSurface: false,
       sendEstimateApex: proto.sendEstimateApex,
       closePanel: jest.fn(),
       toMessage: jest.fn(),
@@ -340,6 +342,8 @@ describe("estimateSendRecordAction send gate (Core 7.10 / 1.1.10)", () => {
     await proto.handleSend.call(ctx);
     expect(ctx.sent).toBe(true);
     expect(ctx.completionNote).toBe("見積を送付しました。");
+    expect(ctx.closePanel).not.toHaveBeenCalled();
+    proto.handleCloseAfterSend.call(ctx);
     expect(ctx.closePanel).toHaveBeenCalledWith(true);
   });
 

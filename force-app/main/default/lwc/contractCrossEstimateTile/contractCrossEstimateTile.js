@@ -91,6 +91,16 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
     );
   }
 
+  /** 仕様: Core 第0.3節。見積を送るをタイルから閉じたあとの1文。発行面に戻るときはそちらに出す。 */
+  get showTileCompletion() {
+    return (
+      Boolean(this.completionNote) &&
+      this.showIssue !== true &&
+      this.showSend !== true &&
+      this.showOrder !== true
+    );
+  }
+
   get historyName() {
     return this.tile?.historyName || "";
   }
@@ -282,6 +292,7 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
       return;
     }
     this.openedSendFromIssue = false;
+    this.completionNote = "";
     this.showIssue = false;
     this.showOrder = false;
     this.showSend = true;
@@ -314,11 +325,11 @@ export default class ContractCrossEstimateTile extends NavigationMixin(
     this.showSend = false;
     this.showOrder = false;
     this.workBusy = false;
+    if (sent) {
+      this.completionNote = "見積を送付しました。";
+    }
     if (backToIssue) {
       this.showIssue = true;
-      if (sent) {
-        this.completionNote = "見積を送付しました。";
-      }
     }
     this.dispatchEvent(new CustomEvent("issuestatechange"));
   }

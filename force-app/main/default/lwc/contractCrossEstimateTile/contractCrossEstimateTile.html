@@ -70,6 +70,9 @@
         </template>
       </div>
       </template>
+      <template if:true={showTileCompletion}>
+        <p class="surface-complete" role="status">{completionNote}</p>
+      </template>
 
       <template if:true={showIssue}>
       <div class="issue-panel" role="dialog" aria-label="見積書発行">

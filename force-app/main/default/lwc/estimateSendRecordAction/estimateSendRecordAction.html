@@ -26,6 +26,15 @@
 
       <template if:true={sent}>
         <p class="confirm-lead" role="status">{completionNote}</p>
+        <footer class="confirm-footer">
+          <button
+            type="button"
+            class="btn btn_secondary"
+            onclick={handleCloseAfterSend}
+          >
+            閉じる
+          </button>
+        </footer>
       </template>
       <template if:false={sent}>
       <template if:true={estimate}>

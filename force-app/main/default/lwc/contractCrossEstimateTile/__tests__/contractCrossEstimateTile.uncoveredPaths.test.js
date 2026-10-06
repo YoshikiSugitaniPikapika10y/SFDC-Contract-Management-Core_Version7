@@ -267,6 +267,15 @@ describe("contractCrossEstimateTile uncovered (横断画面.md 第5節 / Core 4.
     expect(ctx.completionNote).toBe("見積書を発行しました。");
   });
 
+  it("タイルから送った成功は見積を送付しました。を残す (Core 0.3)", () => {
+    const ctx = bind();
+    ctx.handleCloseWork({ detail: { sent: true } });
+    expect(ctx.showSend).toBe(false);
+    expect(ctx.showIssue).toBe(false);
+    expect(ctx.completionNote).toBe("見積を送付しました。");
+    expect(ctx.showTileCompletion).toBe(true);
+  });
+
   it("send and order stay on the tile (横断画面.md 第2.1節)", () => {
     const ctx = bind();
     ctx.handleSendClick();
