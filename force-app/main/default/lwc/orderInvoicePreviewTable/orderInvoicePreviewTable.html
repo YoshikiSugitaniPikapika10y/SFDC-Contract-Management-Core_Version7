@@ -13,6 +13,12 @@
           dropdown-alignment="left"
         >
         </lightning-combobox>
+        <template if:true={showVersionFilterReason}>
+          <p class="edit-note">{versionFilterTitle}</p>
+        </template>
+        <template if:true={versionFilterError}>
+          <p class="edit-note" role="alert">{versionFilterError}</p>
+        </template>
       </div>
       <div class="version-filter invoice-filter">
         <lightning-combobox
@@ -226,6 +232,15 @@
                   >
                     確定する
                   </button>
+                  <template if:true={invoice.showConfirmBlockedReason}>
+                    <p class="edit-note">{invoice.confirmActionTitle}</p>
+                  </template>
+                  <template if:true={invoice.showConfirmNotice}>
+                    <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                    <template if:true={invoice.actionNoticeReload}>
+                      <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                    </template>
+                  </template>
                 </template>
                 <template if:true={invoice.showViewPdfAction}>
                   <button
@@ -249,6 +264,15 @@
                     >
                       PDF発行
                     </button>
+                    <template if:true={invoice.showIssueBlockedReason}>
+                      <p class="edit-note">{invoice.issueActionTitle}</p>
+                    </template>
+                    <template if:true={invoice.showIssueNotice}>
+                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <template if:true={invoice.actionNoticeReload}>
+                        <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                      </template>
+                    </template>
                   </template>
                 </template>
                 <template if:true={invoice.showSendAction}>
@@ -278,6 +302,15 @@
                       </button>
                     </template>
                   </template>
+                  <template if:true={invoice.showSendBlockedReason}>
+                    <p class="edit-note">{invoice.sendActionTitle}</p>
+                  </template>
+                  <template if:true={invoice.showSendNotice}>
+                    <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                    <template if:true={invoice.actionNoticeReload}>
+                      <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                    </template>
+                  </template>
                 </template>
                 <template if:true={invoice.showCancelAction}>
                   <template if:false={invoice.isCardWorkOpen}>
@@ -291,6 +324,15 @@
                     >
                       取消
                     </button>
+                    <template if:true={invoice.showCancelBlockedReason}>
+                      <p class="edit-note">{invoice.cancelActionTitle}</p>
+                    </template>
+                    <template if:true={invoice.showCancelNotice}>
+                      <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      <template if:true={invoice.actionNoticeReload}>
+                        <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                      </template>
+                    </template>
                   </template>
                 </template>
               </div>
@@ -340,6 +382,14 @@
 
           <template if:true={invoice.isInvoiceIssueOpen}>
             <div class="edit-panel invoice-issue-panel">
+              <template if:true={invoice.invoiceIssuePreviewFailed}>
+                <p class="edit-note" role="alert">{invoice.invoiceIssuePreviewError}</p>
+                <div class="edit-actions">
+                  <button type="button" class="ghost-btn" onclick={handleCloseInvoiceIssue}>キャンセル</button>
+                  <button type="button" class="ghost-btn" onclick={handleReloadInvoiceIssuePreview}>再読み込み</button>
+                </div>
+              </template>
+              <template if:false={invoice.invoiceIssuePreviewFailed}>
               <div class="invoice-send-fields">
                 <lightning-combobox
                   label="帳票"
@@ -405,10 +455,19 @@
                   発行する
                 </button>
               </div>
+              </template>
             </div>
           </template>
           <template if:true={invoice.isInvoiceSendOpen}>
             <div class="edit-panel invoice-send-panel">
+              <template if:true={invoice.invoiceSendPreviewFailed}>
+                <p class="edit-note" role="alert">{invoice.invoiceSendPreviewError}</p>
+                <div class="edit-actions">
+                  <button type="button" class="ghost-btn" onclick={handleCloseInvoiceSend}>キャンセル</button>
+                  <button type="button" class="ghost-btn" onclick={handleReloadInvoiceSendPreview}>再読み込み</button>
+                </div>
+              </template>
+              <template if:false={invoice.invoiceSendPreviewFailed}>
               <div class="invoice-send-fields">
                 <template if:true={invoice.showInvoiceDocumentTemplatePicker}>
                   <lightning-combobox
@@ -520,6 +579,7 @@
                   {invoice.sendActionLabel}する
                 </button>
               </div>
+              </template>
             </div>
           </template>
           <template if:true={invoice.isInvoiceCancelOpen}>
@@ -1502,6 +1562,9 @@
                       >
                         {invoice.paymentSaveLabel}
                       </button>
+                      <template if:true={invoice.showPaymentAddNotice}>
+                        <p class="edit-note" role="status">{invoice.actionNoticeText}</p>
+                      </template>
                     </div>
                   </div>
                 </template>

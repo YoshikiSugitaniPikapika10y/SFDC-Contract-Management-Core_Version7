@@ -513,6 +513,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   @track invoiceOpsProcessingMode = null;
   @track completionNote = "";
   @track surfaceError = "";
+  @track cardNotice = null;
+  @track versionFilterError = "";
   _isSaving = false;
   _invoiceOpsContextLoaded = false;
   @api
@@ -747,12 +749,16 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         bundle: previous?.bundle || null,
         loading: previous?.loading === true,
         error: previous?.error || "",
-        // 仕様: Core 第4.3.12節・第7.7.0節。入金追加の版不一致だけ、そのフォームに拒否文を残す。下書きは戻さない。
+        // 仕様: Core 第4.3.12節・第7.7.0節。入金追加の版不一致はフォームに残し、打った入力も残す。
         paymentFormError:
           this._paymentAddVersionConflictInvoiceId === invoice.invoiceId
             ? VERSION_CONFLICT_MESSAGE
-            : "",
-        paymentDraft: this.newPaymentDraft(invoice.invoiceId),
+            : previous?.paymentFormError || "",
+        paymentDraft:
+          this._paymentAddVersionConflictInvoiceId === invoice.invoiceId &&
+          previous?.paymentDraft
+            ? previous.paymentDraft
+            : this.newPaymentDraft(invoice.invoiceId),
         cancelDraft: null
       };
     }
@@ -1455,6 +1461,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return "端数調整の保存または取消後にVersionを切り替えられます";
     }
     return "";
+  }
+
+  get showVersionFilterReason() {
+    return this.versionFilterDisabled === true && Boolean(this.versionFilterTitle);
   }
 
   /** Ordered Version の最大値（フィルタ value と同形式）。 */
@@ -2845,8 +2855,49 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           sendActionLabel: invoice.sentDate ? "再送" : "送付",
           sendActionDisabled: invoiceOpsBusy || Boolean(sendUnavailableReason),
           sendActionTitle: sendUnavailableReason,
+          showConfirmBlockedReason:
+            Boolean(this.confirmBlockedReason(invoice)) &&
+            (invoiceOpsBusy ||
+              this.hasAmountDrafts ||
+              Boolean(this.confirmBlockedReason(invoice))),
+          showIssueBlockedReason:
+            Boolean(issueUnavailableReason) &&
+            (invoiceOpsBusy || Boolean(issueUnavailableReason)),
+          showSendBlockedReason:
+            Boolean(sendUnavailableReason) &&
+            (invoiceOpsBusy || Boolean(sendUnavailableReason)),
+          showCancelBlockedReason:
+            Boolean(cancelBlockedReason) &&
+            (invoiceOpsBusy || Boolean(cancelBlockedReason)),
+          showConfirmNotice:
+            this.cardNotice?.invoiceId === invoiceId &&
+            this.cardNotice?.anchor === "confirm",
+          showIssueNotice:
+            this.cardNotice?.invoiceId === invoiceId &&
+            this.cardNotice?.anchor === "issue",
+          showSendNotice:
+            this.cardNotice?.invoiceId === invoiceId &&
+            this.cardNotice?.anchor === "send",
+          showCancelNotice:
+            this.cardNotice?.invoiceId === invoiceId &&
+            this.cardNotice?.anchor === "cancel",
+          showPaymentAddNotice:
+            this.cardNotice?.invoiceId === invoiceId &&
+            this.cardNotice?.anchor === "paymentAdd",
+          actionNoticeText: this.cardNotice?.text || "",
+          actionNoticeReload: this.cardNotice?.reload === true,
           isInvoiceSendOpen,
           isInvoiceIssueOpen,
+          invoiceIssuePreviewFailed:
+            isInvoiceIssueOpen && this.invoiceIssueState?.previewFailed === true,
+          invoiceIssuePreviewError: isInvoiceIssueOpen
+            ? this.invoiceIssueState?.previewError || ""
+            : "",
+          invoiceSendPreviewFailed:
+            isInvoiceSendOpen && this.invoiceSendState?.previewFailed === true,
+          invoiceSendPreviewError: isInvoiceSendOpen
+            ? this.invoiceSendState?.previewError || ""
+            : "",
           invoiceIssueDocumentTemplateKey: isInvoiceIssueOpen
             ? this.invoiceIssueState.documentTemplateKey
             : "",
@@ -3414,9 +3465,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (this.hasAmountDrafts || this.isSaving) {
-      this.setSurfaceError("端数調整を先に確定してください", "未保存の端数調整があります。保存または取消してからVersionを切り替えてください。");
+      this.versionFilterError =
+        "未保存の端数調整があります。保存または取消してからVersionを切り替えてください。";
+      this.surfaceError = "";
+      this.cardNotice = null;
       return;
     }
+    this.versionFilterError = "";
     this.selectedVersion = next;
     this.selectedInvoiceId = ALL_INVOICES;
   }
@@ -3606,8 +3661,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     try {
       await this.reloadInvoiceIssuePreview();
     } catch (error) {
-      this.invoiceIssueState = null;
-      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
+      this.invoiceIssueState = {
+        ...this.invoiceIssueState,
+        previewFailed: true,
+        previewError: this.reduceInvoiceOpsError(error)
+      };
     }
   }
 
@@ -3631,6 +3689,46 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   handleCloseInvoiceIssue() {
     if (this.invoiceOpsProcessingId == null) {
       this.invoiceIssueState = null;
+    }
+  }
+
+  async handleReloadInvoiceIssuePreview() {
+    if (!this.invoiceIssueState?.invoiceId) {
+      return;
+    }
+    try {
+      await this.reloadInvoiceIssuePreview();
+      this.invoiceIssueState = {
+        ...this.invoiceIssueState,
+        previewFailed: false,
+        previewError: ""
+      };
+    } catch (error) {
+      this.invoiceIssueState = {
+        ...this.invoiceIssueState,
+        previewFailed: true,
+        previewError: this.reduceInvoiceOpsError(error)
+      };
+    }
+  }
+
+  async handleReloadInvoiceSendPreview() {
+    if (!this.invoiceSendState?.invoiceId) {
+      return;
+    }
+    try {
+      await this.reloadInvoiceSendPreview();
+      this.invoiceSendState = {
+        ...this.invoiceSendState,
+        previewFailed: false,
+        previewError: ""
+      };
+    } catch (error) {
+      this.invoiceSendState = {
+        ...this.invoiceSendState,
+        previewFailed: true,
+        previewError: this.reduceInvoiceOpsError(error)
+      };
     }
   }
 
@@ -3687,8 +3785,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     try {
       await this.reloadInvoiceSendPreview();
     } catch (error) {
-      this.invoiceSendState = null;
-      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
+      this.invoiceSendState = {
+        ...this.invoiceSendState,
+        previewFailed: true,
+        previewError: this.reduceInvoiceOpsError(error)
+      };
     }
   }
 
@@ -3898,8 +3999,23 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       入出金を取消しました: "入金を取り消しました"
     };
     const sentence = mapped[raw] || raw;
-    this.completionNote = sentence ? `${sentence}。` : "";
+    const text = sentence ? `${sentence}。` : "";
+    const target = this._noticeTarget;
+    this._noticeTarget = null;
     this.surfaceError = "";
+    this.versionFilterError = "";
+    if (target?.invoiceId && target?.anchor && text) {
+      this.cardNotice = {
+        invoiceId: target.invoiceId,
+        anchor: target.anchor,
+        text,
+        reload: false
+      };
+      this.completionNote = "";
+      return;
+    }
+    this.cardNotice = null;
+    this.completionNote = text;
   }
 
   handleSurfaceErrorReload() {
@@ -3914,6 +4030,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
     this.invoiceOpsProcessingId = invoiceId;
     this.invoiceOpsProcessingMode = mode;
+    this._noticeTarget = { invoiceId, anchor: mode };
     try {
       await action();
       this.invoiceSendState = null;
@@ -3924,9 +4041,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         issue: "請求書を発行しました",
         cancel: "請求を取り消しました"
       };
+      this._noticeTarget = { invoiceId, anchor: mode };
       this.noteCompletion(labels[mode]);
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
+      this._noticeTarget = { invoiceId, anchor: mode };
       this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
     } finally {
       this.invoiceOpsProcessingId = null;
@@ -4087,7 +4206,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
     // 仕様: Core 第8.3節。0円と小数は登録しない。
     if (!Number.isFinite(amount) || amount !== Math.trunc(amount)) {
-      this.setSurfaceError("請求操作エラー", "入出金金額は整数にしてください。");
+      this.updateInvoiceUiState(invoiceId, {
+        paymentFormError: "入出金金額は整数にしてください。"
+      });
       return;
     }
     const remaining =
@@ -4099,8 +4220,21 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       Math.sign(amount) === Math.sign(remaining) &&
       Math.abs(amount) > Math.abs(remaining)
     ) {
+      this.updateInvoiceUiState(invoiceId, {
+        paymentFormError:
+          "登録上限を超えています。超過額は目的「請求金額以外」の別レコードで登録してください。この保存では目的を変えず、複数の入出金も作りません。"
+      });
       return;
     }
+    const extraFieldValues = this.extraFieldValuesFromViews(
+      this.buildExtraFieldViews({
+        targetObject: "InvoicePayment__c",
+        storedValues: {},
+        draftValues: draft.extraFieldValues,
+        purpose,
+        disabledAll: false
+      })
+    );
     const paymentArgs = {
       paymentId: null,
       invoiceId,
@@ -4108,15 +4242,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       purpose,
       paymentDate: draft.paymentDate,
       memo: draft.memo || null,
-      extraFieldValues: this.extraFieldValuesFromViews(
-        this.buildExtraFieldViews({
-          targetObject: "InvoicePayment__c",
-          storedValues: {},
-          draftValues: draft.extraFieldValues,
-          purpose,
-          disabledAll: false
-        })
-      ),
+      extraFieldValues,
       expectedToken: bundle?.invoiceToken,
       allocations:
         purpose === "Invoice"
@@ -4136,22 +4262,28 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       async () => {
       if (showJournalPreview) {
         const preview = await previewRegisterFromPreview(paymentArgs);
-        if (diffRequiresCancelDate(preview) && !draft.cancellationDate) {
+        if (diffRequiresCancelDate(preview) && !draft.requiresDate) {
           const current = this.invoiceUiState[invoiceId] || {};
           this.updateInvoiceUiState(invoiceId, {
             paymentDraft: {
               ...current.paymentDraft,
               requiresDate: true,
               cancellationDate: this.todayLocalIso()
-            }
+            },
+            paymentFormError: ""
           });
-          throw new Error("ロック済み仕訳がある取消では取消基準日が必要です。");
+          return { skip: true };
+        }
+        if (diffRequiresCancelDate(preview) && !draft.cancellationDate) {
+          this.updateInvoiceUiState(invoiceId, {
+            paymentFormError: "ロック済み仕訳がある取消では取消基準日が必要です。"
+          });
+          return { skip: true };
         }
       }
       const key = await this.resolvePendingOperationKey(invoiceId);
       await savePaymentFromPreview({
         ...paymentArgs,
-        extraFieldValues: draft.extraFieldValues || {},
         businessOperationKey: key
       });
       this.updateInvoiceUiState(invoiceId, {
@@ -4399,31 +4531,38 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.invoiceOpsProcessingId = invoiceId;
     try {
       const success = await action();
+      if (success?.skip === true) {
+        return;
+      }
       this.clearPendingOperationKey(invoiceId);
       const successTitle =
         typeof success === "string" ? success : success?.title;
+      this._noticeTarget = {
+        invoiceId,
+        anchor: options?.paymentAddVersionConflict === true ? "paymentAdd" : "payment"
+      };
       this.noteCompletion(successTitle || "更新しました");
       await this.loadOpsBundle(invoiceId);
       this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
     } catch (error) {
       const message = this.reduceInvoiceOpsError(error);
       // 仕様: Core 第4.3.12節・第7.7.0節。入金追加の版不一致だけ、そのフォームに残して見える位置へ動かす。
-      if (
-        message === VERSION_CONFLICT_MESSAGE &&
-        options?.paymentAddVersionConflict === true
-      ) {
-        this._paymentAddVersionConflictInvoiceId = invoiceId;
+      if (options?.paymentAddVersionConflict === true) {
         this.updateInvoiceUiState(invoiceId, {
-          paymentDraft: this.newPaymentDraft(invoiceId),
-          paymentFormError: VERSION_CONFLICT_MESSAGE,
-          cancelDraft: null
+          paymentFormError: message
         });
-        this.clearPendingOperationKey(invoiceId);
-        this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
-        Promise.resolve().then(() =>
-          this.scrollPaymentFormErrorIntoView(invoiceId)
-        );
+        this.surfaceError = "";
+        this.cardNotice = null;
+        if (message === VERSION_CONFLICT_MESSAGE) {
+          this._paymentAddVersionConflictInvoiceId = invoiceId;
+          this.clearPendingOperationKey(invoiceId);
+          this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
+          Promise.resolve().then(() =>
+            this.scrollPaymentFormErrorIntoView(invoiceId)
+          );
+        }
       } else {
+        this._noticeTarget = { invoiceId, anchor: "payment" };
         this.setSurfaceError("請求操作エラー", message);
         // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
         if (message === VERSION_CONFLICT_MESSAGE) {
@@ -6681,6 +6820,26 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   setSurfaceError(title, message) {
-    this.surfaceError = String(message || title || "");
+    const text = String(message || title || "");
+    const target = this._noticeTarget;
+    this._noticeTarget = null;
+    this.completionNote = "";
+    if (target?.invoiceId && target?.anchor) {
+      this.cardNotice = {
+        invoiceId: target.invoiceId,
+        anchor: target.anchor,
+        text,
+        reload: true
+      };
+      this.surfaceError = "";
+      return;
+    }
+    this.cardNotice = null;
+    this.surfaceError = text;
+  }
+
+  handleCardNoticeReload() {
+    this.cardNotice = null;
+    this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
   }
 }

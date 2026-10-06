@@ -134,6 +134,40 @@ public without sharing class InvoiceOpsController {
     return true;
   }
 
+  /**
+   * 仕様: Core 第7.7.3節。送付の開始と実行は、ボードの契約サービスと請求の契約サービスが同じなら通す。版の一致は見ない。
+   */
+  public static void assertSendSameContractService(
+    Id contractHistoryId,
+    List<Id> invoiceIds
+  ) {
+    if (invoiceIds == null || invoiceIds.isEmpty()) {
+      return;
+    }
+    Set<Id> targetIds = new Set<Id>();
+    for (Id invoiceId : invoiceIds) {
+      if (invoiceId != null) {
+        targetIds.add(invoiceId);
+      }
+    }
+    if (targetIds.isEmpty()) {
+      return;
+    }
+    Id serviceId = resolveContractServiceId(contractHistoryId);
+    if (serviceId == null) {
+      throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
+    }
+    Integer inScope = [
+      SELECT COUNT()
+      FROM Invoice__c
+      WHERE Id IN :targetIds AND ContractService__c = :serviceId
+      WITH SYSTEM_MODE
+    ];
+    if (inScope != targetIds.size()) {
+      throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
+    }
+  }
+
   private static Id resolveContractServiceId(Id contractHistoryId) {
     if (contractHistoryId == null) {
       return null;

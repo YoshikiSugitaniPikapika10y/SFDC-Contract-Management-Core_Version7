@@ -276,10 +276,9 @@ public without sharing class InvoiceBoardDocumentService {
     try {
       Invoice__c invoice = loadInvoice(invoiceId, true);
       if (checkScope == true) {
-        InvoiceOpsController.assertInvoicesInScope(
+        InvoiceOpsController.assertSendSameContractService(
           contractHistoryId,
-          new List<Id>{ invoiceId },
-          invoice
+          new List<Id>{ invoiceId }
         );
       }
       assertIssuable(invoice, true);
@@ -323,7 +322,7 @@ public without sharing class InvoiceBoardDocumentService {
     String preferredAttachmentId,
     Id contractHistoryId
   ) {
-    InvoiceOpsController.assertInvoicesInScope(
+    InvoiceOpsController.assertSendSameContractService(
       contractHistoryId,
       new List<Id>{ invoiceId }
     );
