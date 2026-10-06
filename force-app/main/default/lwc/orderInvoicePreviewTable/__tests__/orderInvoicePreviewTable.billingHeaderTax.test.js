@@ -61,7 +61,8 @@ describe("orderInvoicePreviewTable billing header (Core 7.8)", () => {
       buildExtraFieldViews: () => [],
       isConfirmedInvoice: () => false,
       resolvePendingOperationKey: async () => "k1",
-      dispatchEvent
+      dispatchEvent,
+      beginCardNotice() {}
     });
     const event = dispatchEvent.mock.calls[0][0];
     expect(event.type).toBe("savebillingheader");
@@ -82,7 +83,8 @@ describe("orderInvoicePreviewTable billing header (Core 7.8)", () => {
       isConcurrentEditBusy: true,
       editProcessingInvoiceId: "a00INV000000001",
       hasAmountDrafts: false,
-      dispatchEvent
+      dispatchEvent,
+      beginCardNotice() {}
     });
     expect(dispatchEvent).not.toHaveBeenCalled();
   });

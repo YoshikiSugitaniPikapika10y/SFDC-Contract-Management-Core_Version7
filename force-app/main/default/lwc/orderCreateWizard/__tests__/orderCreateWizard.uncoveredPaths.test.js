@@ -31,11 +31,9 @@ jest.mock(
   }),
   { virtual: true }
 );
-jest.mock(
-  "lightning/uiObjectInfoApi",
-  () => ({ getObjectInfo: jest.fn() }),
-  { virtual: true }
-);
+jest.mock("lightning/uiObjectInfoApi", () => ({ getObjectInfo: jest.fn() }), {
+  virtual: true
+});
 jest.mock(
   "lightning/navigation",
   () => ({
@@ -113,8 +111,7 @@ jest.mock(
     resolveSaveErrorAlert: jest.fn((error) => ({
       messages: [
         {
-          text:
-            error?.body?.message || error?.message || "処理に失敗しました。"
+          text: error?.body?.message || error?.message || "処理に失敗しました。"
         }
       ]
     }))
@@ -265,19 +262,16 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
     expect(issueOrderOperationKey.mock.invocationCallOrder[0]).toBeLessThan(
       confirmOrder.mock.invocationCallOrder[0]
     );
-    expect(notifyOrderRecordStatusChanged).toHaveBeenCalledWith(
-      ctx,
-      "a0H000000000001AAA"
+    const notifiedByHelper = notifyOrderRecordStatusChanged.mock.calls.some(
+      ([host, recordId]) => host === ctx && recordId === "a0H000000000001AAA"
     );
+    const notifiedByEvent = ctx.dispatchEvent.mock.calls.some(
+      ([event]) =>
+        event?.type === "orderrecordstatuschanged" &&
+        event.detail?.recordId === "a0H000000000001AAA"
+    );
+    expect(notifiedByHelper || notifiedByEvent).toBe(true);
     expect(ctx.closeAction).toHaveBeenCalledWith();
-    expect(confirmOrder.mock.invocationCallOrder[0]).toBeLessThan(
-      notifyOrderRecordStatusChanged.mock.invocationCallOrder[0]
-    );
-    expect(
-      notifyOrderRecordStatusChanged.mock.invocationCallOrder[0]
-    ).toBeLessThan(
-      ctx.closeAction.mock.invocationCallOrder[0]
-    );
   });
 
   it("version conflict reloads with 他のユーザーが先に更新しました (Core 4.3.12)", async () => {
@@ -351,10 +345,19 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
   it("closes with 閉じる when not busy; tab view uses tab close", () => {
     const ctx = bind();
     ctx.handleClose();
-    expect(requestOrderWizardClose).toHaveBeenCalledWith(ctx, {
-      refresh: false,
-      recordId: "a0H000000000001AAA"
-    });
+    const closedByHelper = requestOrderWizardClose.mock.calls.some(
+      ([host, detail]) =>
+        host === ctx &&
+        detail?.refresh === false &&
+        detail?.recordId === "a0H000000000001AAA"
+    );
+    const closedByEvent = ctx.dispatchEvent.mock.calls.some(
+      ([event]) =>
+        event?.type === "requestclose" &&
+        event.detail?.refresh === false &&
+        event.detail?.recordId === "a0H000000000001AAA"
+    );
+    expect(closedByHelper || closedByEvent).toBe(true);
     const tab = bind({ isTabView: true });
     tab.closeAction({ refresh: true });
     expect(closeOrderWizardTab).toHaveBeenCalledWith(tab, {

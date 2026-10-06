@@ -1,25 +1,4 @@
-const mockNavigate = Symbol.for("NavigationMixin.Navigate");
-const mockGetRecordNotifyChange = jest.fn();
 const mockGetLightningBase = jest.fn(() => "https://example.my.salesforce.com");
-
-jest.mock(
-  "lightning/navigation",
-  () => {
-    const NavigationMixin = (Base) => class extends Base {};
-    NavigationMixin.Navigate = Symbol.for("NavigationMixin.Navigate");
-    NavigationMixin.GenerateUrl = Symbol.for("NavigationMixin.GenerateUrl");
-    return { NavigationMixin };
-  },
-  { virtual: true }
-);
-
-jest.mock(
-  "lightning/uiRecordApi",
-  () => ({
-    getRecordNotifyChange: (...args) => mockGetRecordNotifyChange(...args)
-  }),
-  { virtual: true }
-);
 
 jest.mock("c/estimateWizardNavigation", () => ({
   getLightningBase: (...args) => mockGetLightningBase(...args)
@@ -33,15 +12,37 @@ import {
   navigateToContractHistoryRecord,
   navigateToOrderWizard,
   openContentDocumentFilePreview,
-  readOrderWizardRecordId
+  readOrderWizardRecordId,
+  NavigationMixin
 } from "c/orderWizardNavigation";
+import { getRecordNotifyChange } from "lightning/uiRecordApi";
+
+const mockNavigate = NavigationMixin.Navigate;
+
+function withNavigate(navigate, fields = {}) {
+  const host = { ...fields };
+  if (mockNavigate) {
+    host[mockNavigate] = navigate;
+  }
+  return new Proxy(host, {
+    get(target, prop) {
+      if (prop in target) {
+        return target[prop];
+      }
+      if (typeof prop === "symbol") {
+        return navigate;
+      }
+      return undefined;
+    }
+  });
+}
 
 describe("orderWizardNavigation", () => {
   beforeEach(() => {
-    mockGetRecordNotifyChange.mockReset();
-    mockGetLightningBase.mockReset().mockReturnValue(
-      "https://example.my.salesforce.com"
-    );
+    getRecordNotifyChange.mockReset();
+    mockGetLightningBase
+      .mockReset()
+      .mockReturnValue("https://example.my.salesforce.com");
     window.history.replaceState({}, "", "/lightning/page/home");
     window.close = jest.fn();
   });
@@ -99,9 +100,12 @@ describe("orderWizardNavigation", () => {
   });
 
   test("ページ状態とURLから契約履歴IDを安全に読む", () => {
+    expect(readOrderWizardRecordId({ state: { c__recordId: "a01AAA" } })).toBe(
+      "a01AAA"
+    );
     expect(
-      readOrderWizardRecordId({ state: { c__recordId: "a01AAA" } })
-    ).toBe("a01AAA");
+      readOrderWizardRecordId({ state: { recordId: "a3rBW000000aVEzYAM" } })
+    ).toBe("a3rBW000000aVEzYAM");
     expect(readOrderWizardRecordId(null)).toBe("");
 
     const component = {};
@@ -119,9 +123,9 @@ describe("orderWizardNavigation", () => {
   });
 
   test("3種類のウィザードURLをコンポーネント・ナビ項目の順で組み立てる", () => {
-    expect(buildOrderWizardUrls({ wizardKey: "unknown", recordId: "a01" })).toEqual(
-      []
-    );
+    expect(
+      buildOrderWizardUrls({ wizardKey: "unknown", recordId: "a01" })
+    ).toEqual([]);
     expect(buildOrderWizardUrls({ wizardKey: "order" })).toEqual([]);
 
     expect(
@@ -134,7 +138,7 @@ describe("orderWizardNavigation", () => {
 
   test("受注ウィザードへ正規pageRefで遷移し、対象不足は拒否する", () => {
     const navigate = jest.fn();
-    const component = { [mockNavigate]: navigate };
+    const component = withNavigate(navigate);
 
     navigateToOrderWizard(component, {
       wizardKey: "order",
@@ -160,7 +164,7 @@ describe("orderWizardNavigation", () => {
   test("契約履歴詳細へ戻し、IDまたはNavigateが無ければ何もしない", () => {
     const navigate = jest.fn();
     navigateToContractHistoryRecord(
-      { recordId: "a01HOST", [mockNavigate]: navigate },
+      withNavigate(navigate, { recordId: "a01HOST" }),
       null
     );
     expect(navigate).toHaveBeenCalledWith({
@@ -173,38 +177,38 @@ describe("orderWizardNavigation", () => {
     });
 
     navigate.mockClear();
-    navigateToContractHistoryRecord({ [mockNavigate]: navigate }, null);
+    navigateToContractHistoryRecord(withNavigate(navigate), null);
     navigateToContractHistoryRecord({ recordId: "a01HOST" }, null);
     expect(navigate).not.toHaveBeenCalled();
   });
 
   test("閉じる際は必要なレコードだけ通知し、詳細へ戻す", () => {
     const navigate = jest.fn();
-    const component = { recordId: "a01HOST", [mockNavigate]: navigate };
+    const component = withNavigate(navigate, { recordId: "a01HOST" });
 
     closeOrderWizardTab(component);
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledWith([
+    expect(getRecordNotifyChange).toHaveBeenCalledWith([
       { recordId: "a01HOST" }
     ]);
     expect(navigate).toHaveBeenCalledTimes(1);
     expect(window.close).not.toHaveBeenCalled();
 
-    mockGetRecordNotifyChange.mockClear();
+    getRecordNotifyChange.mockClear();
     navigate.mockClear();
     closeOrderWizardTab(component, { refresh: false, recordId: "a01ARG" });
-    expect(mockGetRecordNotifyChange).not.toHaveBeenCalled();
+    expect(getRecordNotifyChange).not.toHaveBeenCalled();
     expect(navigate.mock.calls[0][0].attributes.recordId).toBe("a01ARG");
   });
 
   test("戻り先IDが無い場合だけ現在タブを閉じる", () => {
     closeOrderWizardTab({});
     expect(window.close).toHaveBeenCalledTimes(1);
-    expect(mockGetRecordNotifyChange).not.toHaveBeenCalled();
+    expect(getRecordNotifyChange).not.toHaveBeenCalled();
   });
 
   test("Filesプレビューは標準filePreviewへ対象IDを1件渡す", () => {
     const navigate = jest.fn();
-    const component = { [mockNavigate]: navigate };
+    const component = withNavigate(navigate);
 
     openContentDocumentFilePreview(component, 123);
     expect(navigate).toHaveBeenCalledWith({

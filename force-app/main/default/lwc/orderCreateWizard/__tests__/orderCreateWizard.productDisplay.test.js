@@ -12,13 +12,7 @@ jest.mock(
 );
 jest.mock(
   "lightning/uiRecordApi",
-  () => {
-    class GetRecordAdapter {}
-    return {
-      getRecord: GetRecordAdapter,
-      getRecordNotifyChange: jest.fn()
-    };
-  },
+  () => jest.requireActual("lightning/uiRecordApi"),
   { virtual: true }
 );
 jest.mock(
@@ -31,10 +25,17 @@ jest.mock(
 );
 jest.mock(
   "lightning/navigation",
-  () => ({
-    NavigationMixin: (Base) => class extends Base {},
-    CurrentPageReference: class CurrentPageReference {}
-  }),
+  () => {
+    const Navigate = Symbol.for("NavigationMixin.Navigate");
+    const GenerateUrl = Symbol.for("NavigationMixin.GenerateUrl");
+    const NavigationMixin = (Base) => class extends Base {};
+    NavigationMixin.Navigate = Navigate;
+    NavigationMixin.GenerateUrl = GenerateUrl;
+    return {
+      NavigationMixin,
+      CurrentPageReference: class CurrentPageReference {}
+    };
+  },
   { virtual: true }
 );
 jest.mock(

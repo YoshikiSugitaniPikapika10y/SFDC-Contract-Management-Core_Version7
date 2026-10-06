@@ -618,7 +618,7 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     ctx.amountDrafts = { [LINE_B]: 1999 };
     ctx.handleVersionChange({ detail: { value: "2" } });
     expect(ctx.selectedVersion).toBe("1");
-    expect(ctx.surfaceError).toContain("未保存の端数調整があります");
+    expect(ctx.versionFilterError).toContain("未保存の端数調整があります");
   });
 
   it("取消済みは明示したときだけ出し、カードに差額フィルタは出さない (Core 7.7.0)", () => {
@@ -694,9 +694,9 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     expect(ctx.manualJournalStatusLabel("Active")).toBe("有効");
     expect(ctx.manualJournalStatusLabel("Cancelled")).toBe("取消済");
     expect(ctx.invoiceIssueUnavailableReason(true, false)).toBe("");
-    expect(ctx.invoiceSendUnavailableReason(data.invoices[0], true, false)).toBe(
-      ""
-    );
+    expect(
+      ctx.invoiceSendUnavailableReason(data.invoices[0], true, false)
+    ).toBe("");
   });
 
   it("同一請求内分割のカード枝と数式ラベル (Core 7.8)", () => {
@@ -740,7 +740,9 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
       invoiceUiState: {}
     });
     expect(off.resetPostOrderConfirmMessage()).not.toContain("検収終了日");
-    expect(off.resetPostOrderConfirmMessage()).toContain("受注直後の状態に作り直します");
+    expect(off.resetPostOrderConfirmMessage()).toContain(
+      "受注直後の状態に作り直します"
+    );
     await ctx.handleResetPostOrderClick();
     expect(confirmMock()).toHaveBeenCalled();
     expect(ctx.dispatchEvent).toHaveBeenCalled();
@@ -766,7 +768,7 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     };
     await ctx.handleSubmitInvoiceIssue();
     expect(issueInvoiceDocument).toHaveBeenCalled();
-    expect(ctx.completionNote).toBe("請求書を発行しました。");
+    expect(ctx.cardNotice.text).toBe("請求書を発行しました。");
   });
 
   it("初回送付は重ねず、再送だけ確認する (Core 0.2 / 7.10)", async () => {
@@ -884,9 +886,11 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     await ctx.loadOpsBundle(CONFIRMED, { keepPaymentInput: true });
     expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.amount).toBe("100");
     expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.memo).toBe("メモ");
-    expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.extraFieldValues).toEqual({
-      Note__c: "残す"
-    });
+    expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.extraFieldValues).toEqual(
+      {
+        Note__c: "残す"
+      }
+    );
     expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.allocations).toEqual([
       { lineId: "L1", amount: 100 }
     ]);
@@ -947,7 +951,7 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
       currentTarget: { dataset: { invoiceId: CONFIRMED } }
     });
     expect(updateInvoiceMemo).toHaveBeenCalled();
-    expect(ctx.completionNote).toBe("メモを保存しました。");
+    expect(ctx.cardNotice.text).toBe("メモを保存しました。");
     ctx.handleInvoiceTabClick({
       currentTarget: { dataset: { invoiceId: CONFIRMED, tab: "payments" } }
     });
@@ -1273,7 +1277,9 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     });
     expect(previewCancelPaymentFromPreview).toHaveBeenCalled();
     ctx.handlePaymentCancelDraftChange({
-      target: { dataset: { invoiceId: CONFIRMED, field: "cancellationReason" } },
+      target: {
+        dataset: { invoiceId: CONFIRMED, field: "cancellationReason" }
+      },
       detail: { value: "Duplicate" }
     });
     ctx.handlePaymentCancelClose({

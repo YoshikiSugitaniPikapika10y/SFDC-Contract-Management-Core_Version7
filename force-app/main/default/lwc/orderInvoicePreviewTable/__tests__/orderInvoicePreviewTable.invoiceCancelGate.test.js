@@ -81,6 +81,7 @@ describe("orderInvoicePreviewTable invoice cancel gate (Core 7.9.3 / 7.7.3 / 1.1
       invoiceCancelBlockedReason: () => "",
       isBlankReasonText: proto.isBlankReasonText,
       dispatchEvent,
+      beginCardNotice() {},
       setSurfaceError(title, message) {
         dispatchEvent(
           new CustomEvent("error", { detail: { message: message || title } })

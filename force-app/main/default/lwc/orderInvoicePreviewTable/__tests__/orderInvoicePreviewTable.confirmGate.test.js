@@ -156,9 +156,7 @@ describe("orderInvoicePreviewTable confirm gate (Core 7.9.1 / 7.6 / 11.9)", () =
       invoiceAmountTotal: 1000,
       invoices: [{ ...matchedInvoice, invoiceDeliveryMethod: "" }]
     });
-    expect(
-      proto.confirmBlockedReason.call(ctx, ctx.preview.invoices[0])
-    ).toBe(
+    expect(proto.confirmBlockedReason.call(ctx, ctx.preview.invoices[0])).toBe(
       "組織の請求書設定がPDFとメール送付のとき、届け方が空の請求は確定できません。"
     );
   });
@@ -432,7 +430,8 @@ describe("orderInvoicePreviewTable confirm gate (Core 7.9.1 / 7.6 / 11.9)", () =
             }
           }
         },
-        dispatchEvent
+        dispatchEvent,
+        beginCardNotice() {}
       },
       { currentTarget: { dataset: { invoiceId: "a00INV000000001" } } }
     );

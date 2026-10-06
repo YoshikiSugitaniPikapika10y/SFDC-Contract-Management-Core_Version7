@@ -1,5 +1,4 @@
 import BillingAccountForm, {
-  applyClearedScheduleFields,
   invoiceDateMethodHelp,
   isBillingScheduleFieldVisible,
   isPaymentTermFieldVisible,
@@ -8,8 +7,7 @@ import BillingAccountForm, {
   METHOD_ON_OR_AFTER,
   METHOD_SAME_DAY,
   DAY_KIND_DAY,
-  parseDefaultFieldValues,
-  resolveNewAccountId
+  parseDefaultFieldValues
 } from "c/billingAccountForm";
 import { getFieldValue } from "lightning/uiRecordApi";
 
@@ -35,16 +33,16 @@ jest.mock(
   },
   { virtual: true }
 );
+jest.mock("lightning/uiObjectInfoApi", () => ({ getObjectInfo: jest.fn() }), {
+  virtual: true
+});
 jest.mock(
-  "lightning/uiObjectInfoApi",
-  () => ({ getObjectInfo: jest.fn() }),
-  { virtual: true }
-);
-jest.mock(
-  "lightning/uiRecordApi",
+  "@salesforce/schema/BillingAccount__c.Account__c",
   () => ({
-    getRecord: jest.fn(),
-    getFieldValue: jest.fn()
+    default: {
+      objectApiName: "BillingAccount__c",
+      fieldApiName: "Account__c"
+    }
   }),
   { virtual: true }
 );
@@ -156,7 +154,17 @@ function bind(overrides = {}) {
       ctx[name] = desc.value;
     }
   });
-  return ctx;
+  return new Proxy(ctx, {
+    get(target, prop) {
+      if (prop in target) {
+        return target[prop];
+      }
+      if (typeof prop === "symbol") {
+        return target[Navigate];
+      }
+      return undefined;
+    }
+  });
 }
 
 describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => {
@@ -185,9 +193,7 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
     expect(
       isPaymentTermFieldVisible("PaymentTermMonthOffset__c", METHOD_DAY_OFFSET)
     ).toBe(false);
-    expect(isBillingScheduleFieldVisible("BillingAddressee__c", {})).toBe(
-      true
-    );
+    expect(isBillingScheduleFieldVisible("BillingAddressee__c", {})).toBe(true);
     expect(invoiceDateMethodHelp("Unknown")).toBe("");
   });
 
@@ -204,10 +210,15 @@ describe("billingAccountForm uncovered (Core 3.3.2 / 3.3.3 / 7.2 / 7.5)", () => 
   });
 
   it("wiredRecord fills draft methods", () => {
-    getFieldValue.mockImplementation((_data, field) => field.fieldApiName);
     const ctx = bind({ draft: {} });
-    ctx.wiredRecord({ data: { fields: {} } });
-    expect(ctx.draft.InvoiceDateMethod__c).toBeDefined();
+    ctx.wiredRecord({
+      data: {
+        fields: {
+          InvoiceDateMethod__c: { value: "SameDay" }
+        }
+      }
+    });
+    expect(ctx.draft.InvoiceDateMethod__c).toBe("SameDay");
   });
 
   it("handleFieldChange clears hidden schedule fields (Core 7.2)", () => {

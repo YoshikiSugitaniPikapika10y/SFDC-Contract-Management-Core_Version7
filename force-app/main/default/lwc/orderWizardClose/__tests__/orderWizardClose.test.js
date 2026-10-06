@@ -1,37 +1,4 @@
-const mockGetRecordNotifyChange = jest.fn();
 const mockNavigateToContractHistoryRecord = jest.fn();
-
-jest.mock(
-  "lightning/actions",
-  () => ({
-    CloseActionScreenEvent: class CloseActionScreenEvent extends Event {
-      constructor() {
-        super("closeActionScreen");
-      }
-    }
-  }),
-  { virtual: true }
-);
-
-jest.mock(
-  "lightning/refresh",
-  () => ({
-    RefreshEvent: class RefreshEvent extends Event {
-      constructor() {
-        super("refresh");
-      }
-    }
-  }),
-  { virtual: true }
-);
-
-jest.mock(
-  "lightning/uiRecordApi",
-  () => ({
-    getRecordNotifyChange: (...args) => mockGetRecordNotifyChange(...args)
-  }),
-  { virtual: true }
-);
 
 jest.mock(
   "c/orderWizardNavigation",
@@ -42,8 +9,7 @@ jest.mock(
   { virtual: true }
 );
 
-import { CloseActionScreenEvent } from "lightning/actions";
-import { RefreshEvent } from "lightning/refresh";
+import { getRecordNotifyChange } from "lightning/uiRecordApi";
 import {
   HISTORY_STATUS_ARCHIVE,
   closeOrderRecordAction,
@@ -62,6 +28,12 @@ import {
   scheduleRecordActionLoad
 } from "c/orderWizardClose";
 
+function dispatchedType(component, type) {
+  return component.dispatchEvent.mock.calls.some(
+    ([event]) => event && event.type === type
+  );
+}
+
 async function flushPromises() {
   await Promise.resolve();
   await Promise.resolve();
@@ -71,7 +43,7 @@ async function flushPromises() {
 describe("orderWizardClose", () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    mockGetRecordNotifyChange.mockReset();
+    getRecordNotifyChange.mockReset();
     mockNavigateToContractHistoryRecord.mockReset();
   });
 
@@ -87,21 +59,19 @@ describe("orderWizardClose", () => {
     const component = { dispatchEvent: jest.fn() };
 
     refreshOrderRecordPage(component, "a01AAA");
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledWith([
+    expect(getRecordNotifyChange).toHaveBeenCalledWith([
       { recordId: "a01AAA" }
     ]);
-    expect(component.dispatchEvent).toHaveBeenCalledWith(
-      expect.any(RefreshEvent)
-    );
+    expect(dispatchedType(component, "lightning__refresh")).toBe(true);
 
     jest.advanceTimersByTime(299);
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledTimes(1);
+    expect(getRecordNotifyChange).toHaveBeenCalledTimes(1);
     jest.advanceTimersByTime(1);
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledTimes(2);
+    expect(getRecordNotifyChange).toHaveBeenCalledTimes(2);
 
     refreshOrderRecordPage(component, null);
     scheduleOrderRecordPageRefresh(null);
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledTimes(2);
+    expect(getRecordNotifyChange).toHaveBeenCalledTimes(2);
   });
 
   test("通常閉じるは指定IDを優先して更新後にQuick Actionを閉じる", () => {
@@ -112,35 +82,23 @@ describe("orderWizardClose", () => {
 
     closeOrderWizard(component, { recordId: "a01ARG" });
 
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledWith([
+    expect(getRecordNotifyChange).toHaveBeenCalledWith([
       { recordId: "a01ARG" }
     ]);
-    expect(component.dispatchEvent).toHaveBeenCalledWith(
-      expect.any(RefreshEvent)
-    );
-    expect(component.dispatchEvent).toHaveBeenCalledWith(
-      expect.any(CloseActionScreenEvent)
-    );
+    expect(dispatchedType(component, "lightning__refresh")).toBe(true);
+    expect(dispatchedType(component, "closeActionScreen")).toBe(true);
   });
 
   test("更新不要とID無し更新を区別して閉じる", () => {
     const withoutRefresh = { recordId: "a01AAA", dispatchEvent: jest.fn() };
     closeOrderWizard(withoutRefresh, { refresh: false });
-    expect(mockGetRecordNotifyChange).not.toHaveBeenCalled();
-    expect(
-      withoutRefresh.dispatchEvent.mock.calls.some(
-        ([event]) => event instanceof RefreshEvent
-      )
-    ).toBe(false);
+    expect(getRecordNotifyChange).not.toHaveBeenCalled();
+    expect(dispatchedType(withoutRefresh, "lightning__refresh")).toBe(false);
 
     const withoutId = { dispatchEvent: jest.fn() };
     closeOrderWizard(withoutId);
-    expect(withoutId.dispatchEvent).toHaveBeenCalledWith(
-      expect.any(RefreshEvent)
-    );
-    expect(withoutId.dispatchEvent).toHaveBeenCalledWith(
-      expect.any(CloseActionScreenEvent)
-    );
+    expect(dispatchedType(withoutId, "lightning__refresh")).toBe(true);
+    expect(dispatchedType(withoutId, "closeActionScreen")).toBe(true);
   });
 
   test("子ウィザードから親へ閉じる条件とIDを伝播する", () => {
@@ -171,24 +129,36 @@ describe("orderWizardClose", () => {
     handleOrderModalRequestClose(modal, {
       detail: { recordId: "a01ARG" }
     });
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledWith([
+    expect(getRecordNotifyChange).toHaveBeenCalledWith([
       { recordId: "a01ARG" }
     ]);
     expect(modal.close).toHaveBeenCalledTimes(1);
 
-    mockGetRecordNotifyChange.mockClear();
+    getRecordNotifyChange.mockClear();
     handleOrderModalRequestClose(modal, {
       detail: { refresh: false }
     });
-    expect(mockGetRecordNotifyChange).not.toHaveBeenCalled();
+    expect(getRecordNotifyChange).not.toHaveBeenCalled();
     expect(modal.close).toHaveBeenCalledTimes(2);
   });
 
   test.each([
-    [{ isLoading: true, recordId: "a01", _recordActionMissingHandled: false }, true],
-    [{ isLoading: false, recordId: null, _recordActionMissingHandled: false }, true],
-    [{ isLoading: false, recordId: null, _recordActionMissingHandled: true }, false],
-    [{ isLoading: false, recordId: "a01", _recordActionMissingHandled: false }, false]
+    [
+      { isLoading: true, recordId: "a01", _recordActionMissingHandled: false },
+      true
+    ],
+    [
+      { isLoading: false, recordId: null, _recordActionMissingHandled: false },
+      true
+    ],
+    [
+      { isLoading: false, recordId: null, _recordActionMissingHandled: true },
+      false
+    ],
+    [
+      { isLoading: false, recordId: "a01", _recordActionMissingHandled: false },
+      false
+    ]
   ])("起動中状態をロードとID確定状況から判定する", (component, expected) => {
     expect(isOrderActionBootstrapping(component)).toBe(expected);
   });
@@ -214,14 +184,14 @@ describe("orderWizardClose", () => {
     };
 
     refreshOnRecordActionUnmount(host);
-    expect(mockGetRecordNotifyChange).not.toHaveBeenCalled();
+    expect(getRecordNotifyChange).not.toHaveBeenCalled();
 
     markOrderRecordForRefresh(host, "a01ARG");
     refreshOnRecordActionUnmount(host);
-    expect(mockGetRecordNotifyChange).toHaveBeenCalledWith([
+    expect(getRecordNotifyChange).toHaveBeenCalledWith([
       { recordId: "a01ARG" }
     ]);
-    expect(host.dispatchEvent).toHaveBeenCalledWith(expect.any(RefreshEvent));
+    expect(dispatchedType(host, "lightning__refresh")).toBe(true);
     expect(mockNavigateToContractHistoryRecord).toHaveBeenCalledWith(
       host,
       "a01ARG"
@@ -235,10 +205,8 @@ describe("orderWizardClose", () => {
     };
 
     closeOrderRecordAction(host, { refresh: false, recordId: "a01ARG" });
-    expect(mockGetRecordNotifyChange).not.toHaveBeenCalled();
-    expect(host.dispatchEvent).toHaveBeenCalledWith(
-      expect.any(CloseActionScreenEvent)
-    );
+    expect(getRecordNotifyChange).not.toHaveBeenCalled();
+    expect(dispatchedType(host, "closeActionScreen")).toBe(true);
     expect(mockNavigateToContractHistoryRecord).toHaveBeenCalledWith(
       host,
       "a01ARG"
@@ -293,9 +261,9 @@ describe("orderWizardClose", () => {
       isLoading: true
     };
     handleMissingRecordActionId(withoutErrorProperty);
-    expect(Object.prototype.hasOwnProperty.call(withoutErrorProperty, "errorMessage")).toBe(
-      false
-    );
+    expect(
+      Object.prototype.hasOwnProperty.call(withoutErrorProperty, "errorMessage")
+    ).toBe(false);
   });
 
   test("遅れて入るrecordIdをマイクロタスクで一度だけロードする", async () => {

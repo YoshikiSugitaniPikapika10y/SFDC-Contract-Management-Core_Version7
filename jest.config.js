@@ -5,7 +5,11 @@ module.exports = {
   moduleNameMapper: {
     ...jestConfig.moduleNameMapper,
     "^lightning/actions$":
-      "<rootDir>/force-app/test/jest-mocks/lightning/actions.js"
+      "<rootDir>/force-app/test/jest-mocks/lightning/actions.js",
+    "^lightning/navigation$":
+      "<rootDir>/force-app/test/jest-mocks/lightning/navigation.js",
+    "^lightning/uiRecordApi$":
+      "<rootDir>/force-app/test/jest-mocks/lightning/uiRecordApi.js"
   },
   modulePathIgnorePatterns: [
     "<rootDir>/.localdevserver",

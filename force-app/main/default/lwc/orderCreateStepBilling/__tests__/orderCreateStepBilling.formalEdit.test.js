@@ -17,14 +17,7 @@ jest.mock(
 );
 jest.mock(
   "lightning/uiRecordApi",
-  () => {
-    class GetRecordAdapter {}
-    return {
-      getRecord: GetRecordAdapter,
-      getFieldValue: jest.fn(),
-      getRecordNotifyChange: jest.fn()
-    };
-  },
+  () => jest.requireActual("lightning/uiRecordApi"),
   { virtual: true }
 );
 jest.mock(
@@ -218,13 +211,12 @@ describe("orderCreateStepBilling formal edit (Core 5.2)", () => {
     const titles = Array.from(
       element.shadowRoot.querySelectorAll(".ba-bundle-title")
     ).map((node) => node.textContent.trim());
-    expect(titles).toEqual([
-      "識別",
-      "送付",
-      "請求日ルール",
-      "支払条件"
-    ]);
-    expect(element.shadowRoot.querySelector("c-billing-account-form")).toBeFalsy();
-    expect(element.shadowRoot.querySelector("lightning-input-field")).toBeFalsy();
+    expect(titles).toEqual(["識別", "送付", "請求日ルール", "支払条件"]);
+    expect(
+      element.shadowRoot.querySelector("c-billing-account-form")
+    ).toBeFalsy();
+    expect(
+      element.shadowRoot.querySelector("lightning-input-field")
+    ).toBeFalsy();
   });
 });

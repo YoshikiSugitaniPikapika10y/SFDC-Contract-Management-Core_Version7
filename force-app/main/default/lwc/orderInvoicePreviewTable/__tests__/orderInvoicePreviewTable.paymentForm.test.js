@@ -313,23 +313,28 @@ async function waitUntil(predicate, attempts = 50) {
     if (last) {
       return last;
     }
+    // eslint-disable-next-line no-await-in-loop
     await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => {
+      // eslint-disable-next-line @lwc/lwc/no-async-operation
+      setTimeout(resolve, 0);
+    });
   }
   return last;
 }
 
 async function openPaymentsTab(element) {
-  const tab = await waitUntil(
-    () => element.shadowRoot.querySelector("button[data-tab='payments']")
+  const tab = await waitUntil(() =>
+    element.shadowRoot.querySelector("button[data-tab='payments']")
   );
   tab.click();
   await flush();
 }
 
 async function openJournalsTab(element) {
-  const tab = await waitUntil(
-    () => element.shadowRoot.querySelector("button[data-tab='journals']")
+  const tab = await waitUntil(() =>
+    element.shadowRoot.querySelector("button[data-tab='journals']")
   );
   tab.click();
   await flush();
@@ -480,9 +485,7 @@ describe("orderInvoicePreviewTable payment form", () => {
       new CustomEvent("change", { detail: { value: "0" } })
     );
     await flush();
-    expect(element.shadowRoot.textContent).not.toContain(
-      "未処理額が0のため"
-    );
+    expect(element.shadowRoot.textContent).not.toContain("未処理額が0のため");
     expect(element.shadowRoot.textContent).not.toContain(
       "金額の符号が登録可能額と一致していません"
     );
@@ -539,7 +542,9 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(element.shadowRoot.textContent).toContain("入出金を取消");
     expect(element.shadowRoot.textContent).toContain("INV-1");
     expect(
-      element.shadowRoot.querySelector('lightning-input[data-field="cancelDate"]')
+      element.shadowRoot.querySelector(
+        'lightning-input[data-field="cancelDate"]'
+      )
     ).toBeNull();
   });
 
@@ -700,7 +705,8 @@ describe("orderInvoicePreviewTable payment form", () => {
           {
             journalId: "a03JNL000000003",
             eventKey: "PAYMENT_RECORDED",
-            eventName: "請求入出金登録（Purpose=Invoice／NonInvoiceと符号付きAmountを含む）",
+            eventName:
+              "請求入出金登録（Purpose=Invoice／NonInvoiceと符号付きAmountを含む）",
             debitAccountName: "現預金",
             creditAccountName: "売掛金",
             amount: 1100,
@@ -751,9 +757,7 @@ describe("orderInvoicePreviewTable payment form", () => {
       "2026-06-02 到来済み",
       "2026-06-04 到来済み"
     ]);
-    expect(
-      element.shadowRoot.querySelector(".journal-filters")
-    ).toBeNull();
+    expect(element.shadowRoot.querySelector(".journal-filters")).toBeNull();
     const journalHeads = Array.from(
       element.shadowRoot.querySelectorAll(
         ".ops-panel .ops-table_journals thead th"
@@ -1068,9 +1072,7 @@ describe("orderInvoicePreviewTable payment form", () => {
       documentTemplateOptions: [],
       emailTemplateOptions: []
     });
-    getOpsBundle.mockResolvedValue(
-      mockBundle({ accountingEnabled: false })
-    );
+    getOpsBundle.mockResolvedValue(mockBundle({ accountingEnabled: false }));
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -1233,7 +1235,8 @@ describe("orderInvoicePreviewTable payment form", () => {
     previewCancelConfirmed.mockClear();
     LightningConfirm.open.mockClear();
     previewCancelConfirmed.mockResolvedValue({
-      displayText: "論理削除件数: 0\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし"
+      displayText:
+        "論理削除件数: 0\n逆仕訳件数: 0\n実際の逆仕訳日:\nなし\n将来日付: なし"
     });
     LightningConfirm.open.mockResolvedValue(false);
     const preview = buildPreview();
@@ -1275,9 +1278,7 @@ describe("orderInvoicePreviewTable payment form", () => {
   });
 
   it("hides manual journal entry on draft invoices even when Accounting is on", async () => {
-    getOpsBundle.mockResolvedValue(
-      mockBundle({ accountingEnabled: true })
-    );
+    getOpsBundle.mockResolvedValue(mockBundle({ accountingEnabled: true }));
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -1294,9 +1295,7 @@ describe("orderInvoicePreviewTable payment form", () => {
   });
 
   it("shows manual journal entry only on confirmed invoices when Accounting is on", async () => {
-    getOpsBundle.mockResolvedValue(
-      mockBundle({ accountingEnabled: true })
-    );
+    getOpsBundle.mockResolvedValue(mockBundle({ accountingEnabled: true }));
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -1313,10 +1312,12 @@ describe("orderInvoicePreviewTable payment form", () => {
       element.shadowRoot.querySelector("c-manual-journal-entry").operationDay
     ).toBe("2026-08-29");
     expect(
-      element.shadowRoot.querySelector("c-manual-journal-entry").contractHistoryId
+      element.shadowRoot.querySelector("c-manual-journal-entry")
+        .contractHistoryId
     ).toBe("a0H000000000001AAA");
     expect(
-      element.shadowRoot.querySelector("c-manual-journal-entry").hasLockedJournals
+      element.shadowRoot.querySelector("c-manual-journal-entry")
+        .hasLockedJournals
     ).toBe(false);
   });
 
@@ -1462,7 +1463,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(saveEvent.detail.journalPreviewText).toBeUndefined();
   });
 
-  it("keeps the version conflict on the payment form and drops the draft (Core 4.3.12)", async () => {
+  it("keeps the version conflict on the payment form and keeps the typed amount (Core 4.3.12)", async () => {
     getOpsBundle.mockResolvedValue(mockBundle({ accountingEnabled: false }));
     savePaymentFromPreview.mockRejectedValue({
       body: {
@@ -1504,7 +1505,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     const amountAfter = element.shadowRoot.querySelector(
       'lightning-input[data-field="amount"]'
     );
-    expect(amountAfter.value).not.toBe("100");
+    expect(amountAfter.value).toBe("100");
     expect(savePaymentFromPreview).toHaveBeenCalledTimes(1);
   });
 
@@ -1698,7 +1699,8 @@ describe("orderInvoicePreviewTable payment form", () => {
       hasAmountDrafts: false,
       findInvoice: () => preview.invoices[0],
       dispatchEvent,
-      resolvePendingOperationKey: async () => "op-key-1"
+      resolvePendingOperationKey: async () => "op-key-1",
+      beginCardNotice() {}
     });
 
     expect(LightningConfirm.open).not.toHaveBeenCalled();
@@ -1708,7 +1710,10 @@ describe("orderInvoicePreviewTable payment form", () => {
 
   it("入出金取消はその他理由テキストが空白のみなら保存できない (Core 7.9.5 / 1.1.10)", async () => {
     getOpsBundle.mockResolvedValue(mockBundle());
-    previewCancelPaymentFromPreview.mockResolvedValue({ reverseCount: 0, displayText: "" });
+    previewCancelPaymentFromPreview.mockResolvedValue({
+      reverseCount: 0,
+      displayText: ""
+    });
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
     });
@@ -1785,7 +1790,9 @@ describe("orderInvoicePreviewTable payment form", () => {
     getOpsBundle.mockResolvedValue(
       mockBundle({
         payments: [],
-        manualJournals: [{ headerId: "a04MJ0000000001", transactionStatus: "Active" }]
+        manualJournals: [
+          { headerId: "a04MJ0000000001", transactionStatus: "Active" }
+        ]
       })
     );
     previewCancelConfirmed.mockClear();
@@ -1927,12 +1934,14 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
     await openPaymentsTab(element);
     expect(
-      element.shadowRoot.querySelector('lightning-combobox[data-field="purpose"]')
-        .value
+      element.shadowRoot.querySelector(
+        'lightning-combobox[data-field="purpose"]'
+      ).value
     ).toBe("Invoice");
     expect(
-      element.shadowRoot.querySelector('lightning-input[data-field="paymentDate"]')
-        .value
+      element.shadowRoot.querySelector(
+        'lightning-input[data-field="paymentDate"]'
+      ).value
     ).toBe("2026-08-29");
   });
 });
