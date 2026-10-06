@@ -3988,8 +3988,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     );
   }
 
-  noteCompletion(text) {
-    const raw = String(text || "")
+  noteCompletion(message) {
+    const raw = String(message || "")
       .replace(/しました。?$/, "しました")
       .replace(/[。．.]+$/, "");
     const mapped = {
