@@ -46,7 +46,7 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
       lineItem.customFields = new Map<String, Object>{
-        'Description__c' => 'product-memo-original'
+        'Unit__c' => 'product-memo-original'
       };
 
       EstimateCreateController.EstimateSaveResult saveResult = saveEstimateWithRequiredTax(
@@ -99,7 +99,7 @@ private class EstimateWizardCustomFieldPresetTest {
       System.assertEquals(1, preset.selectedProducts.size());
       System.assertEquals(
         'product-memo-original',
-        preset.selectedProducts[0].customFields.get('Description__c')
+        preset.selectedProducts[0].customFields.get('Unit__c')
       );
       System.assertEquals(true, preset.contractCustomFieldsExpanded);
 
@@ -129,14 +129,14 @@ private class EstimateWizardCustomFieldPresetTest {
       );
 
       ContractProduct__c reloadedProduct = [
-        SELECT Description__c
+        SELECT Unit__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :editResult.contractHistoryId
         LIMIT 1
       ];
       System.assertEquals(
         'product-memo-original',
-        reloadedProduct.Description__c,
+        reloadedProduct.Unit__c,
         '編集保存後も商品カスタム項目が残ること'
       );
     }
@@ -184,7 +184,7 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
       lineItem.customFields = new Map<String, Object>{
-        'Description__c' => 'product-before'
+        'Unit__c' => 'product-before'
       };
 
       EstimateCreateController.EstimateSaveResult saveResult = saveEstimateWithRequiredTax(
@@ -246,7 +246,7 @@ private class EstimateWizardCustomFieldPresetTest {
       String remarksBefore = history.Note__c;
 
       ContractProduct__c productBefore = [
-        SELECT Id, Quantity__c, UnitPrice__c, Description__c
+        SELECT Id, Quantity__c, UnitPrice__c, Unit__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :history.Id
         LIMIT 1
@@ -263,7 +263,7 @@ private class EstimateWizardCustomFieldPresetTest {
 
       EstimateCreateController.ProductLineItem editedLine = preset.selectedProducts[0];
       editedLine.customFields = new Map<String, Object>{
-        'Description__c' => 'product-after'
+        'Unit__c' => 'product-after'
       };
       // 改ざんしても標準項目は反映されないこと
       editedLine.quantity = 999;
@@ -335,7 +335,7 @@ private class EstimateWizardCustomFieldPresetTest {
       );
 
       ContractProduct__c productAfter = [
-        SELECT Quantity__c, UnitPrice__c, Description__c
+        SELECT Quantity__c, UnitPrice__c, Unit__c
         FROM ContractProduct__c
         WHERE Id = :productBefore.Id
       ];
@@ -344,7 +344,7 @@ private class EstimateWizardCustomFieldPresetTest {
         productBefore.UnitPrice__c,
         productAfter.UnitPrice__c
       );
-      System.assertEquals('product-after', productAfter.Description__c);
+      System.assertEquals('product-after', productAfter.Unit__c);
     }
   }
 
@@ -394,9 +394,7 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
-      lineItem.customFields = new Map<String, Object>{
-        'Description__c' => 'keep-me'
-      };
+      lineItem.customFields = new Map<String, Object>{ 'Unit__c' => 'keep-me' };
       lineItem.productVisibilityContext = new Map<String, String>{
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
       };
@@ -433,19 +431,19 @@ private class EstimateWizardCustomFieldPresetTest {
       update history;
 
       ContractProduct__c productBefore = [
-        SELECT Id, Description__c
+        SELECT Id, Unit__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :history.Id
         LIMIT 1
       ];
-      System.assertEquals('keep-me', productBefore.Description__c);
+      System.assertEquals('keep-me', productBefore.Unit__c);
 
       EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
         history.Id
       );
       EstimateCreateController.ProductLineItem editedLine = preset.selectedProducts[0];
       editedLine.customFields = new Map<String, Object>{
-        'Description__c' => 'still-here'
+        'Unit__c' => 'still-here'
       };
       // 画面から context が欠落したケースを模擬
       editedLine.productVisibilityContext = new Map<String, String>();
@@ -483,13 +481,13 @@ private class EstimateWizardCustomFieldPresetTest {
       Test.stopTest();
 
       ContractProduct__c productAfter = [
-        SELECT Description__c
+        SELECT Unit__c
         FROM ContractProduct__c
         WHERE Id = :productBefore.Id
       ];
       System.assertEquals(
         'still-here',
-        productAfter.Description__c,
+        productAfter.Unit__c,
         '空の visibility context でも Product2 再構築により条件付き項目を保持すること'
       );
     }
@@ -541,7 +539,7 @@ private class EstimateWizardCustomFieldPresetTest {
       lineItem.billingCycle = '月';
       lineItem.recordType = 'New';
       lineItem.customFields = new Map<String, Object>{
-        'Description__c' => 'keep-stale'
+        'Unit__c' => 'keep-stale'
       };
       lineItem.productVisibilityContext = new Map<String, String>{
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
@@ -579,19 +577,19 @@ private class EstimateWizardCustomFieldPresetTest {
       update history;
 
       ContractProduct__c productBefore = [
-        SELECT Id, Description__c
+        SELECT Id, Unit__c
         FROM ContractProduct__c
         WHERE ContractHistory__c = :history.Id
         LIMIT 1
       ];
-      System.assertEquals('keep-stale', productBefore.Description__c);
+      System.assertEquals('keep-stale', productBefore.Unit__c);
 
       EstimateCreateController.EstimateCopyPresetDto preset = EstimateCreateController.getEstimateEditPreset(
         history.Id
       );
       EstimateCreateController.ProductLineItem editedLine = preset.selectedProducts[0];
       editedLine.customFields = new Map<String, Object>{
-        'Description__c' => 'kept-despite-stale-ctx'
+        'Unit__c' => 'kept-despite-stale-ctx'
       };
       // 誤った Family を送っても Product2 実値を正とする
       editedLine.productVisibilityContext = new Map<String, String>{
@@ -631,13 +629,13 @@ private class EstimateWizardCustomFieldPresetTest {
       Test.stopTest();
 
       ContractProduct__c productAfter = [
-        SELECT Description__c
+        SELECT Unit__c
         FROM ContractProduct__c
         WHERE Id = :productBefore.Id
       ];
       System.assertEquals(
         'kept-despite-stale-ctx',
-        productAfter.Description__c,
+        productAfter.Unit__c,
         '古い visibility context を無視し Product2 で判定して条件付き項目を保持すること'
       );
     }
@@ -851,7 +849,7 @@ private class EstimateWizardCustomFieldPresetTest {
       badLine.billingCycle = '月';
       badLine.recordType = 'New';
       badLine.customFields = new Map<String, Object>{
-        'Description__c' => 'should-not-save'
+        'Unit__c' => 'should-not-save'
       };
 
       Boolean thrown = false;
@@ -1005,7 +1003,7 @@ private class EstimateWizardCustomFieldPresetTest {
       ContractWizardFieldService.getActiveFieldApiNames(
           ContractWizardFieldService.WizardTarget.ContractProduct
         )
-        .contains('Description__c')
+        .contains('Unit__c')
     );
 
     Product2 product = ContractTestDataFactory.buildProduct(
@@ -1018,11 +1016,11 @@ private class EstimateWizardCustomFieldPresetTest {
       product
     );
     Map<String, Object> visible = ContractWizardFieldService.filterCustomFieldsByVisibility(
-      new Map<String, Object>{ 'Description__c' => 'helper-memo' },
+      new Map<String, Object>{ 'Unit__c' => 'helper-memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct,
       context
     );
-    System.assertEquals('helper-memo', visible.get('Description__c'));
+    System.assertEquals('helper-memo', visible.get('Unit__c'));
 
     System.assertNotEquals(
       null,

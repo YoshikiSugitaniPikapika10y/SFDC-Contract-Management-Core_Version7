@@ -30,8 +30,8 @@ private class AmountAccuracyAuditTest {
       EstimateCreateController.ProductLineItem newLine = new EstimateCreateController.ProductLineItem();
       newLine.productId = product.Id;
       newLine.quantity = 1.5;
-      newLine.unitPrice = 100.455;
-      newLine.amount = 1234.4;
+      newLine.unitPrice = 100.46;
+      newLine.amount = 1234;
       newLine.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       newLine.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       newLine.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
@@ -47,16 +47,20 @@ private class AmountAccuracyAuditTest {
         'New',
         Date.newInstance(2026, 4, 1)
       );
-      System.assertEquals(1.5, savedNew.Quantity__c, '???E??E????');
+      System.assertEquals(
+        1.5,
+        savedNew.Quantity__c,
+        'Core 第4.6節: 画面の数量を残す'
+      );
       System.assertEquals(
         100.46,
         savedNew.UnitPrice__c,
-        '?? scale=2 HALF_UP'
+        'Core 第4.6節: 画面の単価を残す'
       );
       System.assertEquals(
         1234,
         savedNew.Amount__c,
-        '????????E??????E?????E??E'
+        'Core 第4.6節: 画面の税抜を残す'
       );
       // ????E? qty�?????E?????????E
       System.assertNotEquals(
@@ -161,11 +165,7 @@ private class AmountAccuracyAuditTest {
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
       ];
-      System.assertEquals(
-        400,
-        cp.Amount__c,
-        '??EAmount ??????E????'
-      );
+      System.assertEquals(400, cp.Amount__c, '??EAmount ??????E????');
       System.assertNotEquals(
         cp.Amount__c,
         periodSum,
@@ -226,11 +226,7 @@ private class AmountAccuracyAuditTest {
         FROM ContractProduct__c
         WHERE Id = :cp.Id
       ];
-      System.assertEquals(
-        9657000,
-        saved.Amount__c,
-        '??EAmount ???E??E??'
-      );
+      System.assertEquals(9657000, saved.Amount__c, '??EAmount ???E??E??');
       System.assertEquals(50, periodSum - saved.Amount__c, 'SPEC ????');
     }
   }
@@ -369,11 +365,7 @@ private class AmountAccuracyAuditTest {
         changeSum += line.Amount__c == null ? 0 : line.Amount__c;
       }
       // ?????E9??E ??E1 ?E+10000�E
-      System.assertEquals(
-        90000,
-        changeSum,
-        'Change ??E?E??????E??E??'
-      );
+      System.assertEquals(90000, changeSum, 'Change ??E?E??????E??E??');
     }
   }
 
@@ -512,11 +504,7 @@ private class AmountAccuracyAuditTest {
         );
       }
       // ?????E??? 8000?E ?????? = -48000
-      System.assertEquals(
-        -48000,
-        changeSum,
-        '?????E????E Remake?E??E??E???E'
-      );
+      System.assertEquals(-48000, changeSum, '?????E????E Remake?E??E??E???E');
     }
   }
 
@@ -535,9 +523,7 @@ private class AmountAccuracyAuditTest {
       Amount__c = 15
     );
     ContractHistory__c taxHistory = new ContractHistory__c();
-    taxHistory.ContractService__r = new ContractService__c(
-      TaxPercent__c = 0.1
-    );
+    taxHistory.ContractService__r = new ContractService__c(TaxPercent__c = 0.1);
     a.ContractHistory__r = taxHistory;
     b.ContractHistory__r = taxHistory;
     // ?????E????E???E
@@ -600,11 +586,7 @@ private class AmountAccuracyAuditTest {
         FROM Invoice__c
         WHERE Id = :line.Invoice__c
       ];
-      System.assertEquals(
-        baseAmount + 1,
-        invoice.Amount__c,
-        '???????????E'
-      );
+      System.assertEquals(baseAmount + 1, invoice.Amount__c, '???????????E');
       System.assertEquals(true, invoice.IsManuallyAdjusted__c);
       System.assertEquals(
         TaxCalculationUtil.calculateTaxAmount(baseAmount + 1, 10),
@@ -879,8 +861,14 @@ private class AmountAccuracyAuditTest {
   private static BillingAccount__c insertBillingAccount(Id accountId) {
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = accountId,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 1, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 1,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 1,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
       BillingAddressee__c = '????',
       BillingEmailTo__c = 'to@example.com'
     );

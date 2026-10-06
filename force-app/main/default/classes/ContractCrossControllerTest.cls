@@ -409,9 +409,22 @@ private class ContractCrossControllerTest {
         'Title Opp Est'
       );
       System.assertEquals(null, history.history.EstimateTitleName__c);
+      ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+        new ContractDocumentTemplate__mdt(
+          MasterLabel = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+          TemplateKey__c = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+          DocumentType__c = ContractDocumentTemplateService.TYPE_ESTIMATE,
+          IsActive__c = true,
+          IsDefault__c = true,
+          VisualforcePage__c = 'EstimateDocumentPdf',
+          SortOrder__c = 1,
+          FileNamePattern__c = '{TemplateKey}_{Title}_{yyyyMMdd}.pdf'
+        )
+      };
       ContractCrossController.IssueContextDto dto = ContractCrossController.getEstimateIssueContext(
         history.history.Id
       );
+      ContractDocumentTemplateService.clearTestState();
       System.assert(
         dto.fileName.contains(
           EstimateDocumentService.sanitizeFileName(history.opportunity.Name)

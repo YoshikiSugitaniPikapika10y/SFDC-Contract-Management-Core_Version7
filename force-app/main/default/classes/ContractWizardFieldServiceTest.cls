@@ -56,7 +56,7 @@ private class ContractWizardFieldServiceTest {
     for (
       ContractWizardFieldService.WizardFieldDefinition definition : definitions
     ) {
-      if (definition.apiName == 'Description__c') {
+      if (definition.apiName == 'Unit__c') {
         productField = definition;
         break;
       }
@@ -235,7 +235,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Legacy',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'Description__c',
+          FieldApiName__c = 'Unit__c',
           DefaultSource__c = 'Opportunity',
           DefaultValue__c = 'Account.Name',
           SortOrder__c = 30,
@@ -249,7 +249,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Product2',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'Description__c',
+          FieldApiName__c = 'Unit__c',
           DefaultSource__c = 'Product2',
           DefaultValue__c = 'Family',
           SortOrder__c = 40,
@@ -600,7 +600,7 @@ private class ContractWizardFieldServiceTest {
 
     System.assert(serviceFields.contains('CustomerMemo__c'));
     System.assert(historyFields.contains('ApplicationDate__c'));
-    System.assert(productFields.contains('Description__c'));
+    System.assert(productFields.contains('Unit__c'));
   }
 
   @IsTest
@@ -697,21 +697,21 @@ private class ContractWizardFieldServiceTest {
   static void filterCustomFieldsByVisibility_respectsProductFamily() {
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
     Map<String, Object> hidden = ContractWizardFieldService.filterCustomFieldsByVisibility(
-      new Map<String, Object>{ 'Description__c' => 'memo' },
+      new Map<String, Object>{ 'Unit__c' => 'memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct,
       new Map<String, String>{ 'Family' => 'Software' }
     );
-    System.assertEquals(true, hidden.containsKey('Description__c'));
-    System.assertEquals(null, hidden.get('Description__c'));
+    System.assertEquals(true, hidden.containsKey('Unit__c'));
+    System.assertEquals(null, hidden.get('Unit__c'));
 
     Map<String, Object> visible = ContractWizardFieldService.filterCustomFieldsByVisibility(
-      new Map<String, Object>{ 'Description__c' => 'memo' },
+      new Map<String, Object>{ 'Unit__c' => 'memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct,
       new Map<String, String>{
         'Family' => ContractTestDataFactory.WIZARD_TEST_PRODUCT_FAMILY
       }
     );
-    System.assertEquals('memo', visible.get('Description__c'));
+    System.assertEquals('memo', visible.get('Unit__c'));
   }
 
   @IsTest
@@ -722,7 +722,7 @@ private class ContractWizardFieldServiceTest {
       ContractWizardFieldService.WizardTarget.ContractProduct,
       new Map<String, String>{ 'Family' => 'Software' }
     );
-    System.assertEquals(null, cleared.get('Description__c'));
+    System.assertEquals(null, cleared.get('Unit__c'));
   }
 
   @IsTest
@@ -893,7 +893,7 @@ private class ContractWizardFieldServiceTest {
       System.assert(
         ex.getMessage().contains('必須のカスタム項目を入力してください'),
         'Core 第4.3.4節・第11.4.1節: CancelでもShowOnCancelの契約サービス必須は保存を止める。実際: ' +
-          ex.getMessage()
+        ex.getMessage()
       );
     }
     System.assertEquals(true, thrown);
@@ -910,7 +910,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Bad Visibility Field',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'Description__c',
+          FieldApiName__c = 'Unit__c',
           VisibilityFieldApiName__c = 'DoesNotExistOnProduct2__c',
           VisibilityOperator__c = 'IN',
           VisibilityValues__c = 'X',
@@ -976,7 +976,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Bad Visibility Op',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'Description__c',
+          FieldApiName__c = 'Unit__c',
           VisibilityFieldApiName__c = 'Family',
           VisibilityOperator__c = 'CONTAINS',
           VisibilityValues__c = 'X',
@@ -1009,7 +1009,7 @@ private class ContractWizardFieldServiceTest {
           MasterLabel = 'Test Empty Visibility Values',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'Description__c',
+          FieldApiName__c = 'Unit__c',
           VisibilityFieldApiName__c = 'Family',
           VisibilityOperator__c = 'IN',
           VisibilityValues__c = null,
@@ -1154,7 +1154,7 @@ private class ContractWizardFieldServiceTest {
         MasterLabel = 'Test Dotted Visibility',
         Active__c = true,
         TargetObject__c = 'ContractProduct__c',
-        FieldApiName__c = 'Description__c',
+        FieldApiName__c = 'Unit__c',
         VisibilityFieldApiName__c = 'Product2.Family',
         VisibilityOperator__c = 'IN',
         VisibilityValues__c = 'Software',
@@ -1189,7 +1189,7 @@ private class ContractWizardFieldServiceTest {
         MasterLabel = 'Test Bad Product2 Path',
         Active__c = true,
         TargetObject__c = 'ContractProduct__c',
-        FieldApiName__c = 'Description__c',
+        FieldApiName__c = 'Unit__c',
         DefaultSource__c = 'Product2',
         DefaultValue__c = 'DoesNotExist__c',
         SortOrder__c = 10,
@@ -1238,9 +1238,8 @@ private class ContractWizardFieldServiceTest {
     );
     System.assert(
       quantityTypeError != null &&
-        quantityTypeError.contains('カスタム項目の形式が不正です: 数量'),
-      'Core 第11.4.1節: 追加項目の型不一致は保存を止める: ' +
-        quantityTypeError
+      quantityTypeError.contains('カスタム項目の形式が不正です: 数量'),
+      'Core 第11.4.1節: 追加項目の型不一致は保存を止める: ' + quantityTypeError
     );
     System.assertEquals(
       'カスタム項目の形式が不正です: 単価（数値で入力してください）',
@@ -1267,10 +1266,7 @@ private class ContractWizardFieldServiceTest {
     );
     System.assertEquals(
       true,
-      ContractWizardFieldService.coerceValue(
-        User.IsActive.getDescribe(),
-        true
-      )
+      ContractWizardFieldService.coerceValue(User.IsActive.getDescribe(), true)
     );
     System.assertEquals(
       '整数で入力してください',
@@ -1358,17 +1354,11 @@ private class ContractWizardFieldServiceTest {
     );
     System.assertEquals(
       null,
-      ContractWizardFieldService.coerceValue(
-        User.IsActive.getDescribe(),
-        ' '
-      )
+      ContractWizardFieldService.coerceValue(User.IsActive.getDescribe(), ' ')
     );
     System.assertEquals(
       false,
-      ContractWizardFieldService.coerceValue(
-        User.IsActive.getDescribe(),
-        '0'
-      )
+      ContractWizardFieldService.coerceValue(User.IsActive.getDescribe(), '0')
     );
     System.assertEquals(
       '有効なレコードを選択してください',
@@ -1388,7 +1378,7 @@ private class ContractWizardFieldServiceTest {
     ContractWizardFieldService.resetCache();
     System.assert(
       ContractWizardFieldService.getContractHistoryFieldDefinitions().size() >=
-        0
+      0
     );
     System.assertEquals(
       0,

@@ -80,7 +80,9 @@ private class EstimateSaveServiceTest {
   @IsTest
   static void buildContractProduct_storesAmountEntryMode() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Product2 product = ContractTestDataFactory.buildProduct('Save Amount Mode');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Save Amount Mode'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
@@ -106,7 +108,10 @@ private class EstimateSaveServiceTest {
 
       System.assertEquals(true, contractProduct.AmountEntryMode__c);
       System.assertEquals(12345, contractProduct.Amount__c);
-      System.assertEquals(Date.newInstance(2026, 2, 14), contractProduct.Enddate__c);
+      System.assertEquals(
+        Date.newInstance(2026, 2, 14),
+        contractProduct.Enddate__c
+      );
     }
   }
 
@@ -2934,6 +2939,8 @@ private class EstimateSaveServiceTest {
         null,
         operationKey,
         null,
+        null,
+        null,
         null
       );
       EstimateCreateController.EstimateSaveResult retry = EstimateCreateController.saveEstimate(
@@ -2961,6 +2968,8 @@ private class EstimateSaveServiceTest {
         null,
         null,
         operationKey,
+        null,
+        null,
         null,
         null
       );
@@ -3730,7 +3739,7 @@ private class EstimateSaveServiceTest {
       System.assertEquals(true, missingThrown);
       line.contractProductId = productRow.Id;
       line.customFields = new Map<String, Object>{
-        'Description__c' => 'ordered-custom'
+        'Unit__c' => 'ordered-custom'
       };
       EstimateCreateController.EstimateSaveRequest withId = new EstimateCreateController.EstimateSaveRequest();
       withId.opportunityId = opportunity.Id;
@@ -3752,7 +3761,7 @@ private class EstimateSaveServiceTest {
       );
       EstimateSaveService.saveEditedEstimate(withId, ordered.Name);
       ContractProduct__c still = [
-        SELECT Quantity__c, UnitPrice__c, Description__c
+        SELECT Quantity__c, UnitPrice__c, Unit__c
         FROM ContractProduct__c
         WHERE Id = :productRow.Id
       ];
@@ -3764,7 +3773,7 @@ private class EstimateSaveServiceTest {
       System.assertEquals(3000, still.UnitPrice__c);
       System.assertEquals(
         'ordered-custom',
-        still.Description__c,
+        still.Unit__c,
         'Core 第4.7節・第11.4.1節: Ordered編集は表示中の見積商品追加項目を保存する'
       );
     }

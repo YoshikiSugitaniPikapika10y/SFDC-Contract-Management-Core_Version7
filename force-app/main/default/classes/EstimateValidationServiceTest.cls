@@ -3339,7 +3339,7 @@ private class EstimateValidationServiceTest {
         BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
         Type__c = ContractDomainConstants.PRODUCT_TYPE_NEW,
         RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
-        Description__c = 'previous-memo'
+        Unit__c = 'previous-unit'
       );
       insert previousProduct;
 
@@ -3369,7 +3369,7 @@ private class EstimateValidationServiceTest {
       remakeCustomOnly.sourceContractProductId = previousProduct.Id;
       remakeCustomOnly.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeCustomOnly.customFields = new Map<String, Object>{
-        'Description__c' => 'changed-memo'
+        'Unit__c' => 'changed-unit'
       };
 
       Exception customOnlyEx = null;
@@ -3409,7 +3409,7 @@ private class EstimateValidationServiceTest {
       remakeWithPrice.sourceContractProductId = previousProduct.Id;
       remakeWithPrice.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
       remakeWithPrice.customFields = new Map<String, Object>{
-        'Description__c' => 'changed-memo'
+        'Unit__c' => 'changed-unit'
       };
       EstimateValidationService.validateProductLines(
         new List<EstimateCreateController.ProductLineItem>{

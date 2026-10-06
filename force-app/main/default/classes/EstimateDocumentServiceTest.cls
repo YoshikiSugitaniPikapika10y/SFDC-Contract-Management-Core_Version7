@@ -349,6 +349,7 @@ private class EstimateDocumentServiceTest {
   @IsTest
   static void issuePage_showsPatternFileNameReadOnly() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      pinPackageEstimateTemplate();
       EstimateFixture fixture = createEstimateFixture();
       PageReference issuePage = Page.EstimateDocumentIssue;
       issuePage.getParameters().put('id', fixture.history.Id);
@@ -378,6 +379,7 @@ private class EstimateDocumentServiceTest {
         controller.issueFileName.endsWith('.pdf'),
         'Core 第11.3.2節: ファイル名はパターンの参照'
       );
+      ContractDocumentTemplateService.clearTestState();
     }
   }
 
@@ -1122,6 +1124,7 @@ private class EstimateDocumentServiceTest {
   @IsTest
   static void issuePdfController_staysOnPageAndExposesFilesPreview() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      pinPackageEstimateTemplate();
       EstimateFixture fixture = createEstimateFixture();
 
       PageReference issuePage = Page.EstimateDocumentIssue;
@@ -1150,6 +1153,7 @@ private class EstimateDocumentServiceTest {
       );
       System.assertEquals('StandardEstimate', controller.selectedTemplateKey);
       System.assertNotEquals(null, controller.issuedContentVersionId);
+      ContractDocumentTemplateService.clearTestState();
     }
   }
 
@@ -1727,6 +1731,21 @@ private class EstimateDocumentServiceTest {
     return fixture;
   }
 
+  private static void pinPackageEstimateTemplate() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      new ContractDocumentTemplate__mdt(
+        MasterLabel = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+        TemplateKey__c = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+        DocumentType__c = ContractDocumentTemplateService.TYPE_ESTIMATE,
+        IsActive__c = true,
+        IsDefault__c = true,
+        VisualforcePage__c = 'EstimateDocumentPdf',
+        SortOrder__c = 1,
+        FileNamePattern__c = '{TemplateKey}_{Title}_{yyyyMMdd}.pdf'
+      )
+    };
+  }
+
   private static EstimateFixture createEstimateFixture() {
     Account account = ContractTestDataFactory.insertAccount('テスト取引先');
     BillingAccount__c billingAccount = new BillingAccount__c(
@@ -2097,10 +2116,7 @@ private class EstimateDocumentServiceTest {
 
       Boolean lockThrown = false;
       try {
-        EstimateDocumentService.issueEstimateDocument(
-          null,
-          'StandardEstimate'
-        );
+        EstimateDocumentService.issueEstimateDocument(null, 'StandardEstimate');
       } catch (EstimateDocumentService.EstimateDocumentException ex) {
         lockThrown = true;
         System.assertEquals(
