@@ -777,6 +777,8 @@ Lifecycle=TermではChange・Renew・Cancel、Lifecycle=SpotではChangeだけ�
 
 作成中に種別を変えたときの履歴名も、新しい種別の作成行と同じ `{商談名}の契約履歴` である。サービスを選び直しても契約履歴名は変えない。第0.1節の「解約」は見積種別の画面表示名であり、作成・コピーの履歴名初期値には付けない。
 
+契約履歴名とは別に、契約履歴番号を持つ。自動番号で、表示形式は `HIS-{000000}`、ラベルは契約履歴番号である。人が入力しない。見積、受注済み、不採用で同じ番号のままとする。受注時に別番号は振らない。Versionの代わりにしない。契約サービスには番号を付けない。作成済みの契約履歴にも同じ形式で番号を振る。ウィザードの契約履歴名の初期値と入力は本節のままである。
+
 - 見積送付先は契約履歴の Lookup 1本（`EstimateSendContact__c`）である。契約サービスにも請求アカウントにも置かない。商談の役割は辿らない。候補は契約サービスの取引先（Newで未作成なら商談の取引先）に属する有効な取引先責任者。他取引先は検索しない。User／Leadは選べない。メールが空でも選べる。保存は必須にしない。送付時の初期 To とエラーは第4.8節・第7.10節。
 - Lifecycle=Termで前回終了日まで届く継続課金がなければChange・Renew・Cancelを作成できない。Termカード自体は表示し、選択直後と「次へ」でエラーにする。Lifecycle=SpotのChangeにはこの継続課金要件を適用しない。
 - 前回がCancelなら後続操作不可。請求アカウントは契約サービス値の参照専用で、未設定なら見積保存も受注もできない。続き操作で空欄を補ったり、別の請求アカウントへ置き換えたりしない。
@@ -787,6 +789,7 @@ Lifecycle=TermではChange・Renew・Cancel、Lifecycle=SpotではChangeだけ�
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
+項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractHistory__c.HistoryNumber__c</code>（自動番号。表示形式 <code>HIS-{000000}</code>。ラベルは契約履歴番号）
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractHistory__c.EstimateSendContact__c</code>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateSaveService.saveNewEstimate</code> / <code>saveChangeEstimate</code> / <code>saveCancelEstimate</code>、<code>estimateCreateModal2.maybeApplyDefaultNames</code> / <code>handleOpenbillingAccountFormalEdit</code>、<code>EstimateQueryService.buildEstimatePreset</code> / <code>buildCopyHistoryName</code>、<code>estimateCreateModal3</code>、<code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>
 ／ 請求アカウント正規Editからの保存・キャンセル後は見積ウィザードを開き直す。第3.3.3節。Newコピーのサービス名は<code>{元のサービス名}のコピー</code>。保存後の別名も同じ。
@@ -2530,13 +2533,15 @@ Term契約サービスのサービス開始日はFirst Orderedの継続課金期
 お世話になっております。
 見積書を添付いたしましたので、ご確認ください。
 
-見積番号: {!ContractHistory__c.Name}
+見積番号: {!ContractHistory__c.HistoryNumber__c}
 件名: {!ContractHistory__c.EstimateTitleName__c}
 見積日: {!ContractHistory__c.EstimateDate__c}
 有効期限: {!ContractHistory__c.EstimateValidDate__c}
 
 ご不明点がございましたら、本メールへご返信ください。
 ```
+
+見積番号の見出しは「見積番号」のままとする。値は契約履歴番号である。件名の契約履歴名は変えない。すでに送ったメールは書き換えない。その見積番号は送った時点の契約履歴名のままで、契約履歴番号とは一致しない。
 
 請求の同梱。件名は`請求書のご送付（{!Invoice__c.Name}）`。本文は次である。
 
@@ -2576,7 +2581,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractDocumentSetting__c.CompanyName__c</code> / <code>Address__c</code> / <code>InvoiceRegistrationNumber__c</code> / <code>BankTransferInfo__c</code> / <code>DocumentFooter__c</code> / <code>PrivacyPolicyUrl__c</code> / <code>EstimateSendMode__c</code> / <code>InvoiceSendMode__c</code> / <code>EstimateOrgWideEmailAddress__c</code> / <code>InvoiceOrgWideEmailAddress__c</code>。<code>ContractDocumentTemplate__mdt</code> / <code>FileNamePattern__c</code>。<code>ContractEmailTemplate__mdt</code>（<code>DocumentType__c</code> は <code>Estimate</code>／<code>Invoice</code>、<code>EmailTemplateApiName__c</code>、<code>IsActive__c</code>、<code>SortOrder__c</code>）。同梱行 <code>Contract_Standard_Estimate_Email</code> / <code>Contract_Standard_Invoice_Email</code>。EmailTemplate 同梱 <code>Contract_Standard_Estimate_Email</code> / <code>Contract_Standard_Invoice_Email</code>（<code>TemplateType = text</code>）。<code>ContractHistory__c.EstimateSendContact__c</code>。旧<code>EstimateDefaultDocumentTemplateKey__c</code> / <code>InvoiceDefaultDocumentTemplateKey__c</code> / <code>EstimateDefaultEmailTemplateApiName__c</code> / <code>InvoiceDefaultEmailTemplateApiName__c</code> / <code>EstimateDefaultEmailTemplateId__c</code> / <code>InvoiceDefaultEmailTemplateId__c</code> / <code>OrgWideEmailAddressId__c</code> / 単一の<code>OrgWideEmailAddress__c</code>は持たない。
+項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractDocumentSetting__c.CompanyName__c</code> / <code>Address__c</code> / <code>InvoiceRegistrationNumber__c</code> / <code>BankTransferInfo__c</code> / <code>DocumentFooter__c</code> / <code>PrivacyPolicyUrl__c</code> / <code>EstimateSendMode__c</code> / <code>InvoiceSendMode__c</code> / <code>EstimateOrgWideEmailAddress__c</code> / <code>InvoiceOrgWideEmailAddress__c</code>。<code>ContractDocumentTemplate__mdt</code> / <code>FileNamePattern__c</code>。<code>ContractEmailTemplate__mdt</code>（<code>DocumentType__c</code> は <code>Estimate</code>／<code>Invoice</code>、<code>EmailTemplateApiName__c</code>、<code>IsActive__c</code>、<code>SortOrder__c</code>）。同梱行 <code>Contract_Standard_Estimate_Email</code> / <code>Contract_Standard_Invoice_Email</code>。EmailTemplate 同梱 <code>Contract_Standard_Estimate_Email</code> / <code>Contract_Standard_Invoice_Email</code>（<code>TemplateType = text</code>）。<code>ContractHistory__c.EstimateSendContact__c</code>。<span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractHistory__c.HistoryNumber__c</code>（見積番号の値。見出しは見積番号のまま。件名は契約履歴名のまま）。旧<code>EstimateDefaultDocumentTemplateKey__c</code> / <code>InvoiceDefaultDocumentTemplateKey__c</code> / <code>EstimateDefaultEmailTemplateApiName__c</code> / <code>InvoiceDefaultEmailTemplateApiName__c</code> / <code>EstimateDefaultEmailTemplateId__c</code> / <code>InvoiceDefaultEmailTemplateId__c</code> / <code>OrgWideEmailAddressId__c</code> / 単一の<code>OrgWideEmailAddress__c</code>は持たない。
 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractDocumentTemplate__mdt.IsDefault__c</code> / <code>ContractEmailTemplate__mdt.IsDefault__c</code>（同梱4行の初期値ON）。
 一覧 帳票は表示ラベル、種別、有効、既定、DeveloperName（後ろ）。送付メールは表示ラベル、種別、有効、既定、DeveloperName（後ろ）。LWC編集器は持たない。
 レコードページ 帳票の見出しはキー、種別、VF、ファイル名パターン、既定。送付メールの見出しはAPI名、種別、既定。プレビューボタンは持たない。保存は標準。検証ボタンは置かない。
