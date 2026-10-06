@@ -940,7 +940,7 @@ Change列のOriginal・Remakeおよび変更後行はTermだけに適用する�
 | Accountingマスタ（勘定科目、テナント条件、勘定科目割当、会計タグルール、手動仕訳設定） | 比較なし。操作キーも行ロックもしない。後から保存した内容が残る。標準画面。会計方針の固定はAccounting第3.1節                                                                                    | —                      |
 | 見積・請求の個別PDF発行                                                                | 比較なし。操作キーは置かない。処理中は重ねない。終わったあとの再発行は可                                                                                                                       | —                      |
 | 請求の確定・取消                                                                       | 第7.9.7節。対象請求、配下の請求入出金、手動仕訳、仕訳                                                                                                                                          | 対象請求を再取得する   |
-| 請求入出金の操作                                                                       | 第7.9.7節。対象請求、配下の請求入出金、手動仕訳、仕訳。登録・取消と、メモ・追加項目の編集                                                                                                      | 対象データを再取得する。入金追加の版不一致だけ、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。金額、入出金日、目的、メモ、割当、追加項目は残す。保存はしない。自動ではやり直さない。他の操作の未保存ドラフトは戻さない。他の操作の拒否文の位置は、この読み直しでは変えない |
+| 請求入出金の操作                                                                       | 第7.9.7節。対象請求、配下の請求入出金、手動仕訳、仕訳。登録・取消と、メモ・追加項目の編集                                                                                                      | 対象データを再取得する。入金追加の版不一致だけ、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。未保存の入金入力は戻さない。保存はしない。自動ではやり直さない。他の操作の拒否文の位置は変えない |
 | 請求・見積の個別送付                                                                   | 比較なし。操作キーは置かない。処理中は重ねない。第7.10節                                                                                                                                       | —                      |
 
 本表で比較ありの操作は、画面、更新API、Apex直呼びのいずれでも比較値が未指定なら更新を拒否する。検査を省略する互換経路は持たない。比較なしの行は対象外とする。受注は同じレコードの同時更新を直列化する行ロックも取得したうえで、状態と比較値を再検証する。見積新規保存の操作キーは本節上文。親の行ロックはしない。請求ボードの未確定編集の操作キーと行ロックと版は第7.9.7節。組織設定の保存は第11.6節。比較値は本表。
@@ -1205,7 +1205,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 
 ### 4.8 見積書の生成・送付
 
-- 見積書PDFの明細順は第4.5.3節である。明細の呼び方は商品名である。顧客固有の分類見出しは持たない。
+- 見積書PDFの明細順は第4.5.3節である。
 - 見積書を発行できるのはEstimateだけである。Changeでは課金イベントのない系統を掲載しない。見積書設定が`PDFのみ`または`PDFとメール送付`で、発行権限があればPDFを作れる。`使わない`なら発行しない。請求書のPDF発行は請求書設定に従う。発行専用の別スイッチは持たない。
 - 合計は契約履歴の保存値を読む。税抜は見積商品の保存金額合計、税額は`TaxAmount__c`、税込は`DeltaTaxInclusiveSum__c`、税率は`TaxPercent__c`である。保存値が空の過去履歴は、出すときだけ契約サービスの税率で税抜合計へ1回適用する。この税込は見積書の表示であり、後続の請求税込合計と一致することを求めない。第4.6節・第7.9.1節。
 - 発行PDFは契約履歴へ新しいファイルとして保存する。発行したファイルと、送付で「新しく発行する」を選んで作ったファイルには印を付ける。印は`ContentVersion.ContractDocumentIssued__c`である。Setup の表示名は契約帳票発行。付けるのはその insert だけである。手アップロードには付けない。過去ファイルは印なしのまま。バックフィルしない。画面・API・Data Loader で印を付け外ししない。発行操作で見積日、発行日、有効期限を自動設定しない。発行日の空欄を組織の今日にするのは、見積書セクションを出しているウィザード保存だけである。第4.10節。見積PDF本文の日付も保存値だけを印字する。見積日も発行日も空なら日付行は空のまま出す。今日で埋めない。ファイル名の`{yyyyMMdd}`だけ第11.3.2節どおり発行日未設定なら今日とする。保存したファイルの一覧と手アップロードは契約履歴レコードの標準Filesとする。専用の一覧LWCは持たない。拡張子制限もパッケージでは持たない。個別発行の連打と同時発行は第7.10節。操作キーは置かない。
@@ -1792,7 +1792,7 @@ Accountingは算出済みの請求日を仕訳計上日と時系列残高解決�
 
 受注済み請求の確認と例外編集の画面であり、受注前ドライランではない。未受注見積の予定行を表示しない。対象は1件の契約サービスに属する受注済みVersionの請求書に限る。契約サービスをまたがない。
 
-フィルタは親子2段とする。親がVersion、子が請求書である。親の候補は「全Version」と、請求書が1件以上ある受注済みVersion（ラベルは第0.1節どおり `VersionN`）。請求書の無い受注済みVersionは親候補に出さない。子の候補は、親で選んだVersionに属する請求書だけとする。親を「全Version」にしたときは、その契約サービスのうち請求書がある全受注済みVersionの請求書を候補にする。親を変えたときは、子を「全請求書」へ戻す。ただし起動時に請求書を指定した場合は、その請求書のVersionと請求書を初期値にする。利用者が変えたフィルタは、保存・再取得のあとでも維持する。開いたままのボードと横断の右タイルでは、保存成功・版不一致の読み直し・処理中の取り直しのあと、同じ請求の同じタブへ戻す。タブが無ければ明細。編集パネル・行トグル・スクロール・未保存ドラフトは戻さない。入金追加の版不一致は、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。金額、入出金日、目的、メモ、割当、追加項目は残す。保存はしない。自動ではやり直さない。読み直しは同じ請求の同じタブへ戻す。開いたボードと横断の右タイルの両方。他の操作の未保存ドラフトは戻さない。入出金の追加の拒否文は、その請求の入出金フォームに残し、最上部には出さない。この拒否では最上部の再読み込みは出さない。自動では読み直さない。入力は消さない。登録は失敗し、レコードは増えない。文言は変えない。対象は第8.9節。確定、発行、送付、入出金の更新、入出金の取消、およびカードで押した操作の失敗と成功は、そのボタンの直下に1文出す。最上部には出さない。再読み込みもそのカードに置く。同時に出すのは1件で、次の操作で前の文は消える。版フィルタの端数未保存はフィルタの直下に残す。入出金の追加の失敗はフォームのままにし、ボタン直下と二重には出さない。追加の成功はボタン直下。PDF発行と送付を開いた瞬間のプレビュー失敗の文は第7.10節のパネルの中だけにし、ボタン直下と二重には出さない。文言、成否、止めている条件は変えない。ボタンが灰色のあいだ、そのボタンの直下に理由を1文残す。カードと版フィルタは、今 title に出している文を使う。対象は、確定する、PDF発行、送付、再送、取消、請求書情報、別の請求へ分ける、受注直後の請求に戻す、端数の増減、版フィルタ、行の分割である。パネルは、今の非活性条件を1文にする。対象は、発行する、送付する、再送する、取り消す、明細分割の保存、請求を分ける側の保存、既存へ移す側の保存、調整を保存、元に戻す、検収終了日の変更する、仕訳のUnlockである。新しい止め条件は足さない。title だけにはしない。入出金フォームの注記は動かさない。灰色の理由は、版不一致のあとの拒否文とは別文である。処理中の枠は別論点である。
+フィルタは親子2段とする。親がVersion、子が請求書である。親の候補は「全Version」と、請求書が1件以上ある受注済みVersion（ラベルは第0.1節どおり `VersionN`）。請求書の無い受注済みVersionは親候補に出さない。子の候補は、親で選んだVersionに属する請求書だけとする。親を「全Version」にしたときは、その契約サービスのうち請求書がある全受注済みVersionの請求書を候補にする。親を変えたときは、子を「全請求書」へ戻す。ただし起動時に請求書を指定した場合は、その請求書のVersionと請求書を初期値にする。利用者が変えたフィルタは、保存・再取得のあとでも維持する。開いたままのボードと横断の右タイルでは、保存成功・版不一致の読み直し・処理中の取り直しのあと、同じ請求の同じタブへ戻す。タブが無ければ明細。編集パネル・行トグル・スクロール・未保存ドラフトは戻さない。入金追加の版不一致だけは、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。未保存の入金入力は戻さない。保存はしない。自動ではやり直さない。入出金の追加の拒否文は、その請求の入出金フォームに残し、最上部には出さない。この拒否では最上部の再読み込みは出さない。自動では読み直さない。入力は消さない。登録は失敗し、レコードは増えない。文言は変えない。対象は第8.9節。確定、発行、送付、入出金の更新、入出金の取消の拒否文の位置は変えない。処理中の枠は別論点である。
 
 Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する。請求書フィルタは`Invoice__c.Id`で判定する。選択に一致する請求カードを配下明細ごと表示し、明細単位では間引かない。明細の行順は第4.5.3節である。請求明細の開始日は、その行自身の期間開始である。標準の請求書PDFの明細順も第4.5.3節である。金額は常に請求書ヘッダーの正本金額を使用する。明細表の Version 列のセルは番号だけを出す（`1`）。`Version1` も `V1` も出さない。フィルタの選択肢は第0.1節どおり「全Version」と請求書がある Version の `VersionN` とする。列ラベルは「版」。
 
@@ -1815,7 +1815,7 @@ Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewIntegrityService.assertSameHistory</code>
 ／ <code>OrderCreateController.getInvoicePreview</code>の取得直後。不一致なら表示・編集・確定を止める。同一取得リクエストで対象請求・明細・定義を取り直さない。返すカードは本節どおり。
-／ 3入口は<code>OrderCreateController.resolvePreviewScope</code>。<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code> / <code>orderInvoicePreviewTable</code>。部品は枠に載せない。「差額あり／なし」フィルタは出さない。明細表の Version 列セルは番号のみ。版フィルタの親候補は「全Version」と請求書がある Version の <code>VersionN</code>。<code>loadOrderedVersionOptions</code> / <code>orderInvoicePreviewTable.versionOptions</code>。保存成功・版不一致の読み直し・処理中の取り直しのあと、同じ請求の同じタブへ戻す。タブが無ければ明細。編集パネル・行トグル・スクロール・未保存ドラフトは戻さない。入金追加の版不一致は、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。金額、入出金日、目的、メモ、割当、追加項目は残す。入口は既存<code>orderInvoicePreviewTable</code>。カードで押した操作の失敗と成功は、そのボタンの直下。開いた瞬間のプレビュー失敗は第7.10節のパネルの中だけ。灰色のあいだの理由はボタンの直下。入出金の追加の失敗はフォーム。
+／ 3入口は<code>OrderCreateController.resolvePreviewScope</code>。<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code> / <code>orderInvoicePreviewTable</code>。部品は枠に載せない。「差額あり／なし」フィルタは出さない。明細表の Version 列セルは番号のみ。版フィルタの親候補は「全Version」と請求書がある Version の <code>VersionN</code>。<code>loadOrderedVersionOptions</code> / <code>orderInvoicePreviewTable.versionOptions</code>。保存成功・版不一致の読み直し・処理中の取り直しのあと、同じ請求の同じタブへ戻す。タブが無ければ明細。編集パネル・行トグル・スクロール・未保存ドラフトは戻さない。入金追加の版不一致だけは、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。未保存の入金入力は戻さない。入出金の追加の拒否文は、その請求の入出金フォームに残し、最上部には出さない。入口は既存<code>orderInvoicePreviewTable</code>。確定、発行、送付、入出金の更新、入出金の取消の拒否文の位置は変えない。
 </div>
 
 - ボード自身がビューポート実測値から高さを決めた縦スクローラを1本だけ持つ。カード、表、タブに入れ子スクローラを作らない。combobox等ポインタ直下の小スクローラだけを優先する。
@@ -2153,7 +2153,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 
 - 発行PDFの保存先は次のとおり違う。見積は契約履歴の標準Files。請求は請求書の標準Files。印の付け方、手アップロード、過去ファイルは印なしのまま、バックフィルしない、画面・API・Data Loader で印を付け外ししない、専用の一覧LWCを持たない、拡張子制限を持たない、は見積も請求も同じである。第4.8節。
 
-- 送付の直前にプレビューを出す。見積送付も請求送付も、入口以外の出し物は同じである。表示は From、To、Cc、Bcc、件名、本文、添付。件名・本文・ファイル名はその送付だけ直せる。請求アカウント、請求書スナップショット、見積送付先、組織設定、Files の本体には書き戻さない。見積の発行成功から「このファイルを送る」で開いたときの添付初期選択は後段。請求の発行成功後は請求ボードに留まる。成功プレビューへは行かない。送付へも飛ばない。見積の発行成功後は第4.8節。PDF発行と送付を開いた瞬間のプレビュー失敗では、そのカードのパネルを残す。中は失敗の文と、キャンセル、再読み込みだけにする。空の帳票欄・宛先・件名・本文は出さない。帳票や宛先はプレビューが成功したときだけ出す。失敗文はボード最上部だけにはしない。ボタンの直下と二重には出さない。自動ではやり直さない。PDFは発行しない。メールは送らない。成功したプレビューの中身は変えない。失敗文の文言は変えない。発行する・送付するを押したあとの失敗文は第7.7.0節。
+- 送付の直前にプレビューを出す。見積送付も請求送付も、入口以外の出し物は同じである。表示は From、To、Cc、Bcc、件名、本文、添付。件名・本文・ファイル名はその送付だけ直せる。請求アカウント、請求書スナップショット、見積送付先、組織設定、Files の本体には書き戻さない。見積の発行成功から「このファイルを送る」で開いたときの添付初期選択は後段。請求の発行成功後は請求ボードに留まる。成功プレビューへは行かない。送付へも飛ばない。見積の発行成功後は第4.8節。
 - 宛先の変え方は次のとおり違う。請求の To／Cc／Bcc はこの画面では直さない。請求書スナップショットの参照である。直すなら確定前の「請求アカウントの内容を反映」、または請求アカウントを直してから反映する。確定後はスナップショットのまま送る。見積の To はこの画面では直さない。見積送付先のメールの参照である。直すならウィザードの見積送付先。見積の Cc／Bcc はその送付だけ指定できる。見積送付先には書き戻さない。初期値は空。再送の初期値も空。
 - To／Cc／Bcc の値は、カンマ区切りで複数アドレスを入れてよい。255文字以内。前後の空白は除く。空の区切りは無視する。送るときは1アドレスずつ宛先にする。1本の文字列を1アドレスにはしない。不正なアドレスがあれば送れない。請求アカウントの To／Cc／Bcc（`BillingEmailTo__c` / `BillingEmailCc__c` / `BillingEmailBcc__c`）と、請求書スナップショット（`BillingEmailToSnapShot__c` / `BillingEmailCcSnapShot__c` / `BillingEmailBccSnapShot__c`）も同じ Text(255) である。見積送付画面の Cc／Bcc も同じ（255文字、カンマ区切り）。見積の To は見積送付先1人のメールであり、カンマ区切りの複数にはしない。
 - From は次のとおり違う。請求は請求用組織送信元の参照だけで、この画面では変えない。操作者の個人メールを From にしない。見積は組織（見積用組織送信元）か自分（操作者）を選べる。初期値は自分。自分を選んで操作者のメールが空なら送れない。第4.8節・第11.3.2節。
@@ -2192,7 +2192,7 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>estimateIssueRecordAction</code> / <code>ContractHistory__c.Estimate_Issue</code>
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceBoardDocumentService.issueFromPreview</code> / <code>sendFromPreview</code>、<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>、<code>EstimateDocumentService.issueEstimateDocument</code>、<code>EstimateDocumentPdfController.issuePdf</code>、<code>EstimateDocumentIssue</code>
-／ PDF本体は<code>InvoiceDocumentService.issueInvoiceDocument</code>。キー空はエラー。既定印では埋めない。確定はPDFを付けない。<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>は確定とAccountingだけ。3択は<code>ContractDocumentSettingService.requireSendMode</code>。画面は第7.7節の請求ボードと<code>orderInvoicePreviewTable</code>、見積書発行は<code>estimateIssueRecordAction</code>（見積を送ると同じレコード上オーバーレイ）。カタログは第11.3節。見積送付は<code>estimateSendRecordAction</code>。パッケージ入口のプレビューは<code>orderWizardNavigation.openContentDocumentFilePreview</code>（標準 Files のオーバーレイ filePreview）。自前ビューアは作らない。見積の発行成功後は発行面に留まる。プレビューはボタン。自動では開かない。請求の発行と送付を開いた瞬間のプレビュー失敗は、そのカードのパネルに失敗の文とキャンセルと再読み込みだけを残す。入口は既存<code>orderInvoicePreviewTable</code>。
+／ PDF本体は<code>InvoiceDocumentService.issueInvoiceDocument</code>。キー空はエラー。既定印では埋めない。確定はPDFを付けない。<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>は確定とAccountingだけ。3択は<code>ContractDocumentSettingService.requireSendMode</code>。画面は第7.7節の請求ボードと<code>orderInvoicePreviewTable</code>、見積書発行は<code>estimateIssueRecordAction</code>（見積を送ると同じレコード上オーバーレイ）。カタログは第11.3節。見積送付は<code>estimateSendRecordAction</code>。パッケージ入口のプレビューは<code>orderWizardNavigation.openContentDocumentFilePreview</code>（標準 Files のオーバーレイ filePreview）。自前ビューアは作らない。見積の発行成功後は発行面に留まる。プレビューはボタン。自動では開かない。
 ／ 個別発行・送付は開始時に対象請求／契約履歴を行ロックし、処理中の重ねを止める。操作キーは置かない。確定のキーにPDFは含めない。請求の送付は<code>InvoiceDeliveryMethodService.allowsEmailSend</code>（組織が<code>PdfAndEmail</code>かつ届け方スナップショットが<code>Email</code>）。
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContentVersion.ContractDocumentIssued__c</code>（Setup 表示名は契約帳票発行）。
 ／ 専用の送付履歴オブジェクトは持たない。<code>EstimateSendHistory__c</code> / <code>InvoiceSendHistory__c</code>は持たない。操作ログは第2.5節。旧<code>EmailTemplateId__c</code> / <code>OrgWideEmailAddressId__c</code>は持たない。
@@ -2369,7 +2369,7 @@ Purpose=Invoiceについて入力額の符号が登録可能額と一致しな�
 
 未処理Netが0のときPurpose=Invoiceは登録できない。入力額と入出金日が揃っているときは、同じ注記枠に一文「未処理額が0のため、目的「請求金額」では登録できません。目的を「請求金額以外」にしてください。」を出す。空欄・0円・入出金日なしの注記は出さない。
 
-小数、明細の残額超過、割当行が無いとき、処理中に追加できないときは、登録しない。理由は入出金フォームに残す。ボタンは灰色のままでよい。別の請求に同じ業務操作キーの入出金が既にあるときは、この請求に行が増えていないことをフォームに書き、成功にしない。同じ請求への同じキーの再試行は、1件のまま成功にする。保存してよい入力の登録結果は変えない。入出金の追加が拒否された文は、その請求の入出金フォームに残す。最上部には出さない。この拒否では最上部の再読み込みは出さない。自動では読み直さない。入力は消さない。登録は失敗し、レコードは増えない。文言は変えない。対象は、ロック済み仕訳、割当、未確定、取消済み、未処理の超過、仕訳差分、追加項目の必須、項目コピー定義、契約サービスの範囲、権限、同じトランザクションで契約履歴の更新が失敗したとき、整数でない金額である。版不一致と、超過・符号不一致・未処理0の注記は今のフォームのままである。確定、発行、送付、入出金の更新、入出金の取消の失敗と成功は、押したボタンの直下に出す。最上部には出さない。第7.7.0節。
+小数、明細の残額超過、割当行が無いとき、処理中に追加できないときは、登録しない。理由は入出金フォームに残す。ボタンは灰色のままでよい。別の請求に同じ業務操作キーの入出金が既にあるときは、この請求に行が増えていないことをフォームに書き、成功にしない。同じ請求への同じキーの再試行は、1件のまま成功にする。保存してよい入力の登録結果は変えない。入出金の追加が拒否された文は、その請求の入出金フォームに残す。最上部には出さない。この拒否では最上部の再読み込みは出さない。自動では読み直さない。入力は消さない。登録は失敗し、レコードは増えない。文言は変えない。対象は、ロック済み仕訳、割当、未確定、取消済み、未処理の超過、仕訳差分、追加項目の必須、項目コピー定義、契約サービスの範囲、権限、同じトランザクションで契約履歴の更新が失敗したとき、整数でない金額である。版不一致と、超過・符号不一致・未処理0の注記は今のフォームのままである。確定、発行、送付、入出金の更新、入出金の取消の拒否文の位置は変えない。
 
 AccountingがONの場合は、Coreの請求金額Net上限に加え、Goalの業務容量（前受の新設を含む）も検証する。現行のAR・DEF残高だけを上限にしない。いずれかの上限を超える場合は、請求入出金、明細別割当および仕訳をすべてロールバックする。第8.6節。
 
@@ -2390,7 +2390,7 @@ Accounting ONの入金登録では、取消基準日を第7.9.6節と同じ規�
 ／ 符号不一致と未処理0の請求金額目的は超過と同じ入金フォーム上の注記。カード操作のtitleにしない。
 ／ 登録の金額ラベルは「金額」。項目ヘルプ「初期値はカードの未入金額（税込）です。明細タブの金額は税抜です。」。割当列は「処理可能残額（税込）」。目的・入金履歴・明細タブ・カードのラベルは変えない。算法は変えない。明細税込列は足さない。
 ／ Purpose切替は割当だけ作り直し（Invoice＝第8.6節の再提案、NonInvoice＝空）。金額・入出金日・メモ・追加項目の入力は維持。入力に無い追加項目だけDefaultValue。入口<code>orderInvoicePreviewTable.handlePaymentDraftChange</code>
-／ 小数、明細の残額超過、割当行が無いとき、処理中に追加できないときは登録せず、入出金フォームに理由を残す。空欄・0円・入出金日なしの注記は出さない。ボタンは灰色のままでよい。別の請求に同じ業務操作キーの入出金が既にあるときは、この請求に行が増えていないことをフォームに書き、成功にしない。同じ請求への同じキーの再試行は1件のまま成功にする。保存してよい入力の登録結果は変えない。入出金の追加が拒否された文は、その請求の入出金フォームに残す。最上部には出さない。この拒否では最上部の再読み込みは出さない。自動では読み直さない。入力は消さない。登録は失敗し、レコードは増えない。文言は変えない。対象は、ロック済み仕訳、割当、未確定、取消済み、未処理の超過、仕訳差分、追加項目の必須、項目コピー定義、契約サービスの範囲、権限、同じトランザクションで契約履歴の更新が失敗したとき、整数でない金額である。版不一致と、超過・符号不一致・未処理0の注記は今のフォームのままである。確定、発行、送付、入出金の更新、入出金の取消の失敗と成功は、押したボタンの直下に出す。最上部には出さない。第7.7.0節。入口は既存<code>orderInvoicePreviewTable</code>
+／ 小数、明細の残額超過、割当行が無いとき、処理中に追加できないときは登録せず、入出金フォームに理由を残す。空欄・0円・入出金日なしの注記は出さない。ボタンは灰色のままでよい。別の請求に同じ業務操作キーの入出金が既にあるときは、この請求に行が増えていないことをフォームに書き、成功にしない。同じ請求への同じキーの再試行は1件のまま成功にする。保存してよい入力の登録結果は変えない。入出金の追加が拒否された文は、その請求の入出金フォームに残す。最上部には出さない。この拒否では最上部の再読み込みは出さない。自動では読み直さない。入力は消さない。登録は失敗し、レコードは増えない。文言は変えない。対象は、ロック済み仕訳、割当、未確定、取消済み、未処理の超過、仕訳差分、追加項目の必須、項目コピー定義、契約サービスの範囲、権限、同じトランザクションで契約履歴の更新が失敗したとき、整数でない金額である。版不一致と、超過・符号不一致・未処理0の注記は今のフォームのままである。確定、発行、送付、入出金の更新、入出金の取消の拒否文の位置は変えない。入口は既存<code>orderInvoicePreviewTable</code>
 </div>
 
 ### 8.10 請求ボードの入出金集計表示
@@ -2588,7 +2588,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 
 ### 11.4 カスタム項目コピー
 
-顧客が項目を足す手段は Salesforce のカスタム項目である。項目設計エンジンは作らない。足してよいオブジェクトは定義しない。パッケージが読むのは次の4面である。見積ウィザードの追加項目定義、受注ウィザードの追加項目定義、請求操作追加項目定義、コピー定義。パッケージは顧客固有の項目を同梱しない。顧客固有の見積書分類も同梱しない。顧客の項目は、この4定義で会社が置いたときだけ読む。標準として同梱する定義は、本文が名前を書いたものだけである。見積は条件を書く用、受注は成立を記録する用、で分ける。請求書・請求入出金・仕訳の追加項目は第11.4.4節。請求明細、手動仕訳ヘッダー、仕訳ヘッダの動的項目は持たない。メモは標準項目で扱う。
+顧客が項目を足す手段は Salesforce のカスタム項目である。項目設計エンジンは作らない。足してよいオブジェクトは定義しない。パッケージが読むのは次の4面である。見積ウィザードの追加項目定義、受注ウィザードの追加項目定義、請求操作追加項目定義、コピー定義。見積は条件を書く用、受注は成立を記録する用、で分ける。請求書・請求入出金・仕訳の追加項目は第11.4.4節。請求明細、手動仕訳ヘッダー、仕訳ヘッダの動的項目は持たない。メモは標準項目で扱う。
 
 #### 11.4.1 見積ウィザードの追加項目
 
@@ -2615,7 +2615,6 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 - 追加項目定義に、存在しない項目、対象外オブジェクト、型不一致その他の不整合がある場合は、**見積ウィザードの表示・保存を続行せず設定エラーとする。**
 - 初期値は固定値、商談、取引先または商品から取得できる。商品由来の初期値と商品条件は見積商品にだけ設定できる。
 - 商品条件は選択中の商品マスタから保存時に再評価し、画面の一時状態を信頼しない。
-- 同じ定義に、保存しない表示行を足す。項目API名は空。保存しない。必須にしない。入力行の空欄クリア、種別で隠した値の維持、商品条件で隠した見積商品のクリアは変えない。読む先は商談、商談の取引先、選択中の商品である。参照階層は保存の初期値と同じで、取得元の直下だけである。商談と商品はドットなし。取引先は商談の取引先の直下である。`Account.Name` は正規化までである。参照の先の項目は読まない。読んだ項目が参照なら名前を出す。Idは保存しない。商品の値は見積商品の欄だけである。商品を選び直したら表示と商品条件を取り直す。出す版と商品条件は今のフラグである。サービスと履歴に商品条件は置かない。見積商品の表示行は、受注、Orderedの見積編集、差し戻しで読み取りだけ再表示する。定義は見積側に1回書く。入力行の数式と自動採番は設定エラーとする。パスが不正ならウィザードを止める。契約サービスを編集には出さない。パッケージは計算式を持たない。残したい値は入力行の初期値で写す。
 
 `Active__c=true`だけを対象とし、`TargetObject__c`は`ContractService__c`、`ContractHistory__c`、`ContractProduct__c`の3種に限る。`ShowOnNew__c` / `ShowOnChange__c` / `ShowOnRenew__c` / `ShowOnCancel__c`は明示trueだけ表示し、未設定は非表示とする。
 
@@ -2626,7 +2625,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 一覧 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateWizardField__mdt</code> の種別の行一覧。列は表示ラベル、有効、対象、出す版、並び順、DeveloperName（後ろ）。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateCreateModal3.hasServiceCustomFields</code>、<code>estimateCreateWizard.displayedHistoryFieldDefinitions</code>、<code>EstimateSaveService</code>、<code>ContractServiceWriteGuard.assertAllowedWrite</code>
-／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code> のレコード選択。読取も名前。<code>estimateCreateModal3</code> と <code>contractServiceEdit</code> は同じ部品。保存する値はレコードId。保存しない表示行は同じ <code>EstimateWizardField__mdt</code>。項目API名は空。画面は既存 <code>estimateCreateModal3</code>。受注側の再表示は既存 <code>orderCreateWizard</code> と <code>orderRevertWizard</code>。
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code> のレコード選択。読取も名前。<code>estimateCreateModal3</code> と <code>contractServiceEdit</code> は同じ部品。保存する値はレコードId。
 </div>
 
 ##### Visibility演算子
@@ -2776,7 +2775,6 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 - 申込日・受注日を含む受注追加項目の訂正は、Orderedの見積編集で行う。見積ウィザードStep 2のカスタム項目欄へ、見積用とは別見出しで出す。見積候補の見積編集と+見積には出さない。標準レコード画面は正式な訂正入口にしない。
 - 差し戻し画面にも同じ定義の表示対象を出す。初期値は保存済み。人が空にも変更にもできる。必須は差し戻しでは見ない。画面外の差し戻しは追加項目を触らない。再受注では、空なら定義の初期値を付ける。保存済みがあれば初期値で上書きしない。受注日だけ空にする・出さない専用処理は持たない。
 - Cancelでも表示対象の項目を出す。小さい確認でも省略しない。
-- 同じ定義に、保存しない表示行を足す。項目API名は空。保存しない。必須にしない。読む先は商談と商談の取引先だけである。商品を書くと設定エラーとする。参照階層は見積の表示行と同じである。見積商品の表示行は、受注、Orderedの見積編集、差し戻しで読み取りだけ再表示し、定義は見積側に1回である。入力行の数式と自動採番は設定エラーとする。パスが不正ならウィザードを止める。
 - 追加項目定義に、存在しない項目、契約履歴以外、型不一致、商品条件、商品初期値その他の不整合がある場合は、**受注・Ordered見積編集・差し戻しの表示・保存を続行せず設定エラーとする。**
 - 無効な定義は無視する。有効な不正定義は黙って無効化しない。
 
@@ -2812,7 +2810,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 一覧 表示ラベル、有効、出す版、並び順、DeveloperName（後ろ）。対象列は置かない。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。必須は画面に出している受注・Ordered見積編集だけ。画面外のOrdered化では見ない。
-／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。保存しない表示行は同じ <code>OrderWizardField__mdt</code>。読む先は商談と取引先。商品は設定エラー。見積商品の表示行は見積定義。
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。
 </div>
 
 自動Renew見積は申込日を前Orderedからコピーしない。作成日でも埋めない。ウィザード追加項目の初期値は自動Renewでは走らせない。コピー定義のToに申込日・受注日を置いてよい。標準シードのコピー行は置かない。`自動Renew`で申込日をコピーする定義を置いた会社だけが前Versionの日付を空欄へ入れる。
@@ -2823,7 +2821,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 
 #### 11.4.4 請求書・入出金・仕訳の追加項目
 
-見積ウィザード・受注ウィザードの定義とは別である。表示行は足さない。`EstimateWizardField__mdt` / `OrderWizardField__mdt`と共用しない。コピー定義`FieldCopyDefinition__c`とも別である。定義はCustom Metadata `InvoiceOpsField__mdt`（表示名「請求操作追加項目」）1本とする。保持体の寄せはしない。
+見積ウィザード・受注ウィザードの定義とは別である。`EstimateWizardField__mdt` / `OrderWizardField__mdt`と共用しない。コピー定義`FieldCopyDefinition__c`とも別である。定義はCustom Metadata `InvoiceOpsField__mdt`（表示名「請求操作追加項目」）1本とする。保持体の寄せはしない。
 
 対象は請求書、請求入出金、仕訳の3つに限る。手動仕訳ヘッダー、請求明細、仕訳ヘッダへ広げない。請求ボードのカード常時表示と、横断の請求一覧左にはカスタム列を足さない。
 
@@ -2863,7 +2861,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
-その他 表示行は足さない。<span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoiceOpsField__mdt</code>（<code>Active__c</code>、<code>TargetObject__c</code>は<code>Invoice__c</code>／<code>InvoicePayment__c</code>／<code>GlJournal__c</code>、<code>FieldApiName__c</code>、<code>LabelOverride__c</code>、<code>HelpText__c</code>、<code>SortOrder__c</code>、<code>Required__c</code>、<code>DefaultValue__c</code>、<code>ShowOnInvoicePurpose__c</code>／<code>ShowOnNonInvoicePurpose__c</code>）
+その他 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoiceOpsField__mdt</code>（<code>Active__c</code>、<code>TargetObject__c</code>は<code>Invoice__c</code>／<code>InvoicePayment__c</code>／<code>GlJournal__c</code>、<code>FieldApiName__c</code>、<code>LabelOverride__c</code>、<code>HelpText__c</code>、<code>SortOrder__c</code>、<code>Required__c</code>、<code>DefaultValue__c</code>、<code>ShowOnInvoicePurpose__c</code>／<code>ShowOnNonInvoicePurpose__c</code>）
 一覧 表示ラベル、有効、対象、並び順、DeveloperName（後ろ）。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoiceOpsFieldService.getDefinitions</code>
