@@ -164,7 +164,14 @@
         <type>AutoNumber</type>
     </nameField>
     <pluralLabel>請求</pluralLabel>
-    <searchLayouts />
+    <searchLayouts>
+        <searchResultsAdditionalFields>InvoiceTransactionStatus__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>InvoiceDate__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>TaxInclusiveAmount__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>PaymentScheduledDate__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>BillingAddresseeSnapShot__c</searchResultsAdditionalFields>
+        <searchResultsAdditionalFields>ContractHistory__c</searchResultsAdditionalFields>
+    </searchLayouts>
     <sharingModel>ControlledByParent</sharingModel>
     <visibility>Public</visibility>
 </CustomObject>
