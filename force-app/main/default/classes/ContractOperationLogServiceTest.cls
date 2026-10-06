@@ -229,10 +229,7 @@ private class ContractOperationLogServiceTest {
       '共通基盤第12章: 請求アカウント保存は対象レコードごとに1行を保存する'
     );
     ContractOperationLog__c stored = [
-      SELECT
-        BusinessOperationKey__c,
-        TargetObject__c,
-        TargetRecordId__c
+      SELECT BusinessOperationKey__c, TargetObject__c, TargetRecordId__c
       FROM ContractOperationLog__c
       WHERE
         OperationType__c = 'SaveBillingAccount'
@@ -356,6 +353,55 @@ private class ContractOperationLogServiceTest {
       '再確認が必要なため',
       stored.UnlockReason__c,
       '共通基盤第12章・Accounting第9.5節: その操作のUnlock理由を保存する'
+    );
+  }
+
+  @IsTest
+  static void deleteEstimateNoteMaster_logsDeleteType() {
+    EstimateNoteMaster__c master = ContractTestDataFactory.insertEstimateNoteMaster(
+      'Note Delete',
+      '削除する注記'
+    );
+    String masterId = String.valueOf(master.Id);
+    Integer beforeCount = [
+      SELECT COUNT()
+      FROM ContractOperationLog__c
+      WHERE
+        OperationType__c = 'DeleteEstimateNoteMaster'
+        AND TargetRecordId__c = :masterId
+    ];
+    Test.startTest();
+    delete master;
+    Test.stopTest();
+    ContractOperationLog__c stored = [
+      SELECT OperationType__c, TargetRecordId__c
+      FROM ContractOperationLog__c
+      WHERE
+        OperationType__c = 'DeleteEstimateNoteMaster'
+        AND TargetRecordId__c = :masterId
+      ORDER BY CreatedDate DESC
+      LIMIT 1
+    ];
+    System.assertEquals(
+      beforeCount + 1,
+      [
+        SELECT COUNT()
+        FROM ContractOperationLog__c
+        WHERE
+          OperationType__c = 'DeleteEstimateNoteMaster'
+          AND TargetRecordId__c = :masterId
+      ],
+      '共通基盤第12章: 見積注記マスタの削除は1行残る'
+    );
+    System.assertEquals(
+      'DeleteEstimateNoteMaster',
+      stored.OperationType__c,
+      '共通基盤第12章: 見積注記マスタの削除は削除種別で残る'
+    );
+    System.assertEquals(
+      masterId,
+      stored.TargetRecordId__c,
+      '共通基盤第12章: 削除ログの対象は消した注記マスタ'
     );
   }
 }

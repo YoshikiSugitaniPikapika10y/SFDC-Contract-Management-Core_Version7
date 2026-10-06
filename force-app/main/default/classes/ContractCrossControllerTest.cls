@@ -217,11 +217,7 @@ private class ContractCrossControllerTest {
     } finally {
       ContractPermissionUtil.testOverrides = null;
     }
-    System.assertEquals(
-      true,
-      thrown,
-      '共通基盤 第10.4節: 見積タイル読込は 18'
-    );
+    System.assertEquals(true, thrown, '共通基盤 第10.4節: 見積タイル読込は 18');
   }
 
   @IsTest
@@ -284,11 +280,7 @@ private class ContractCrossControllerTest {
     } finally {
       ContractPermissionUtil.testOverrides = null;
     }
-    System.assertEquals(
-      true,
-      thrown,
-      '共通基盤 第10.4節: 横断右の端数は 18'
-    );
+    System.assertEquals(true, thrown, '共通基盤 第10.4節: 横断右の端数は 18');
   }
 
   @IsTest
@@ -312,11 +304,7 @@ private class ContractCrossControllerTest {
     } finally {
       ContractPermissionUtil.testOverrides = null;
     }
-    System.assertEquals(
-      true,
-      thrown,
-      '共通基盤 第10.4節: 横断右の分けるは 18'
-    );
+    System.assertEquals(true, thrown, '共通基盤 第10.4節: 横断右の分けるは 18');
   }
 
   @IsTest
@@ -386,11 +374,7 @@ private class ContractCrossControllerTest {
     } finally {
       ContractPermissionUtil.testOverrides = null;
     }
-    System.assertEquals(
-      true,
-      thrown,
-      '共通基盤 第10.4節: 横断の見積送付は 18'
-    );
+    System.assertEquals(true, thrown, '共通基盤 第10.4節: 横断の見積送付は 18');
   }
 
   @IsTest
@@ -488,11 +472,7 @@ private class ContractCrossControllerTest {
   static void queryEstimates_returnsEstimateInDefaultCloseDateOnly() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Date today = ContractCrossQueryService.organizationToday();
-      HistoryFixture inRange = insertHistory(
-        'Estimate',
-        today,
-        'InRange Est'
-      );
+      HistoryFixture inRange = insertHistory('Estimate', today, 'InRange Est');
       insertHistory('Estimate', today.addYears(-1), 'Old Est');
       insertHistory('Ordered', today, 'Ordered Est');
 
@@ -521,11 +501,11 @@ private class ContractCrossControllerTest {
       System.assertEquals(true, tile.isEstimate);
       System.assertEquals(inRange.history.Name, tile.historyName);
       Decimal estimateExcl = [
-          SELECT DeltaAmountSum__c
-          FROM ContractHistory__c
-          WHERE Id = :inRange.history.Id
-        ]
-        .DeltaAmountSum__c;
+        SELECT DeltaAmountSum__c
+        FROM ContractHistory__c
+        WHERE Id = :inRange.history.Id
+      ]
+      .DeltaAmountSum__c;
       System.assertEquals(
         estimateExcl,
         result.estimates[0].amount,
@@ -690,10 +670,7 @@ private class ContractCrossControllerTest {
         ContractCrossQueryService.lastLatestIssuedReloadedIssuedFiles,
         'Core 第12.4節: 発行フィルタOFFの初回最新発行は取り直さない対象外'
       );
-      System.assertEquals(
-        false,
-        byId.get(unissued.invoice.Id).issued
-      );
+      System.assertEquals(false, byId.get(unissued.invoice.Id).issued);
       System.assertEquals(
         null,
         byId.get(unissued.invoice.Id).latestIssuedContentDocumentId
@@ -862,10 +839,7 @@ private class ContractCrossControllerTest {
       List<Invoice__c> invoices = new List<Invoice__c>();
       for (Integer i = 0; i < 500; i++) {
         invoices.add(
-          newDraftInvoice(
-            historyFixture,
-            Date.newInstance(2026, 1, 1)
-          )
+          newDraftInvoice(historyFixture, Date.newInstance(2026, 1, 1))
         );
       }
       invoices.add(
@@ -956,10 +930,7 @@ private class ContractCrossControllerTest {
       List<Invoice__c> invoices = new List<Invoice__c>();
       for (Integer i = 0; i < 500; i++) {
         invoices.add(
-          newDraftInvoice(
-            historyFixture,
-            Date.newInstance(2026, 1, 1)
-          )
+          newDraftInvoice(historyFixture, Date.newInstance(2026, 1, 1))
         );
       }
       invoices.add(
@@ -1092,13 +1063,7 @@ private class ContractCrossControllerTest {
         lastMonthDay,
         'UNLOCKED'
       );
-      insertJournal(
-        fixture.invoice.Id,
-        true,
-        'Active',
-        lastMonthDay,
-        'LOCKED'
-      );
+      insertJournal(fixture.invoice.Id, true, 'Active', lastMonthDay, 'LOCKED');
       insertJournal(
         fixture.invoice.Id,
         false,
@@ -1175,7 +1140,9 @@ private class ContractCrossControllerTest {
       );
       System.assertEquals(
         true,
-        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(journal.Id),
+        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(
+          journal.Id
+        ),
         'Core 第12.4節: 一覧仕訳の更新日時は一覧行から重ねる'
       );
     }
@@ -1356,7 +1323,7 @@ private class ContractCrossControllerTest {
       System.assertEquals(
         false,
         [SELECT IsLocked__c FROM GlJournal__c WHERE Id = :journal.Id]
-          .IsLocked__c
+        .IsLocked__c
       );
     }
   }
@@ -1408,7 +1375,7 @@ private class ContractCrossControllerTest {
       System.assertEquals(
         '横断追加',
         [SELECT UnlockReason__c FROM GlJournal__c WHERE Id = :journal.Id]
-          .UnlockReason__c
+        .UnlockReason__c
       );
       InvoiceOpsFieldService.resetCache();
     }
@@ -1503,7 +1470,9 @@ private class ContractCrossControllerTest {
       };
       request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(fixture.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          fixture.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           fixture.invoice.Id
         )
       };
@@ -1513,7 +1482,7 @@ private class ContractCrossControllerTest {
       System.assertEquals(
         true,
         [SELECT IsLocked__c FROM GlJournal__c WHERE Id = :journal.Id]
-          .IsLocked__c
+        .IsLocked__c
       );
       System.assertEquals(
         'Lock込み',
@@ -1549,7 +1518,13 @@ private class ContractCrossControllerTest {
       Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
         .dateFrom;
       insertJournal(first.invoice.Id, false, 'Active', postingDate, 'MEMLOCK1');
-      insertJournal(second.invoice.Id, false, 'Active', postingDate, 'MEMLOCK2');
+      insertJournal(
+        second.invoice.Id,
+        false,
+        'Active',
+        postingDate,
+        'MEMLOCK2'
+      );
       Set<Id> invoiceIds = new Set<Id>{ first.invoice.Id, second.invoice.Id };
       List<GlJournal__c> grouped = [
         SELECT
@@ -1568,10 +1543,14 @@ private class ContractCrossControllerTest {
       request.checkedJournalIds = new List<Id>{ grouped[0].Id, grouped[1].Id };
       request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(first.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          first.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           first.invoice.Id
         ),
-        String.valueOf(second.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          second.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           second.invoice.Id
         )
       };
@@ -1590,7 +1569,11 @@ private class ContractCrossControllerTest {
         request
       );
       Test.stopTest();
-      System.assertEquals(2, result.lockCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(
+        2,
+        result.lockCount,
+        'Accounting 第9.5節: 選んだ有効仕訳をLockする'
+      );
       System.assertEquals(
         0,
         InvoicePreviewOpsController.journalMemoSelectCount,
@@ -1612,7 +1595,11 @@ private class ContractCrossControllerTest {
           journal.Invoice__r.InvoiceTransactionStatus__c,
           '開発ルール第13節: 入口はSOQL行の請求状態を読む'
         );
-        System.assertEquals(true, after.IsLocked__c, 'Accounting 第9.5節: Lock状態は変えない');
+        System.assertEquals(
+          true,
+          after.IsLocked__c,
+          'Accounting 第9.5節: Lock状態は変えない'
+        );
         System.assertEquals(
           'Lock後メモ',
           after.Memo__c,
@@ -1652,7 +1639,9 @@ private class ContractCrossControllerTest {
       request.lockState = ContractCrossQueryService.LOCK_LOCKED;
       request.unlockReason = '横断監査';
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(fixture.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          fixture.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           fixture.invoice.Id
         )
       };
@@ -1669,7 +1658,11 @@ private class ContractCrossControllerTest {
         request
       );
       Test.stopTest();
-      System.assertEquals(1, result.lockCount, 'Accounting 第9.5節: 選んだ行をUnlockする');
+      System.assertEquals(
+        1,
+        result.lockCount,
+        'Accounting 第9.5節: 選んだ行をUnlockする'
+      );
       System.assertEquals(
         0,
         InvoicePreviewOpsController.journalMemoSelectCount,
@@ -1685,7 +1678,11 @@ private class ContractCrossControllerTest {
         after.Invoice__c,
         '開発ルール第13節: 入口はSOQL行の請求Idを読む'
       );
-      System.assertEquals(false, after.IsLocked__c, 'Accounting 第9.5節: Unlock後は未Lock');
+      System.assertEquals(
+        false,
+        after.IsLocked__c,
+        'Accounting 第9.5節: Unlock後は未Lock'
+      );
       System.assertEquals(
         'Unlock後メモ',
         after.Memo__c,
@@ -1708,7 +1705,13 @@ private class ContractCrossControllerTest {
       Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
         .dateFrom;
       insertJournal(first.invoice.Id, false, 'Active', postingDate, 'GRPLOCK1');
-      insertJournal(second.invoice.Id, false, 'Active', postingDate, 'GRPLOCK2');
+      insertJournal(
+        second.invoice.Id,
+        false,
+        'Active',
+        postingDate,
+        'GRPLOCK2'
+      );
       Set<Id> invoiceIds = new Set<Id>{ first.invoice.Id, second.invoice.Id };
       List<GlJournal__c> grouped = [
         SELECT
@@ -1726,10 +1729,14 @@ private class ContractCrossControllerTest {
       request.checkedJournalIds = new List<Id>{ grouped[0].Id, grouped[1].Id };
       request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(first.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          first.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           first.invoice.Id
         ),
-        String.valueOf(second.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          second.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           second.invoice.Id
         )
       };
@@ -1739,8 +1746,16 @@ private class ContractCrossControllerTest {
         request
       );
       Test.stopTest();
-      System.assertEquals(2, result.lockCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
-      System.assertEquals(true, result.refreshed, '共通基盤契約横断部第28節: Lock成功後は左を取り直す');
+      System.assertEquals(
+        2,
+        result.lockCount,
+        'Accounting 第9.5節: 選んだ有効仕訳をLockする'
+      );
+      System.assertEquals(
+        true,
+        result.refreshed,
+        '共通基盤契約横断部第28節: Lock成功後は左を取り直す'
+      );
       System.assertEquals(
         0,
         JournalLockService.journalLockSelectCount,
@@ -1754,7 +1769,7 @@ private class ContractCrossControllerTest {
             FROM GlJournal__c
             WHERE Id = :journal.Id
           ]
-            .Invoice__c,
+          .Invoice__c,
           '開発ルール第13節: 入口はSOQL行の請求Idを読む'
         );
         System.assertEquals(
@@ -1764,7 +1779,7 @@ private class ContractCrossControllerTest {
             FROM GlJournal__c
             WHERE Id = :journal.Id
           ]
-            .IsLocked__c,
+          .IsLocked__c,
           'Accounting 第9.5節: Lock状態は変えない'
         );
       }
@@ -1789,7 +1804,9 @@ private class ContractCrossControllerTest {
       request.checkedJournalIds = new List<Id>{ journal.Id };
       request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(fixture.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          fixture.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           fixture.invoice.Id
         )
       };
@@ -1810,7 +1827,7 @@ private class ContractCrossControllerTest {
           FROM GlJournal__c
           WHERE Id = :journal.Id
         ]
-          .IsLocked__c,
+        .IsLocked__c,
         'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効だけ'
       );
       System.assertEquals(
@@ -1820,7 +1837,7 @@ private class ContractCrossControllerTest {
           FROM Invoice__c
           WHERE Id = :fixture.invoice.Id
         ]
-          .InvoiceTransactionStatus__c,
+        .InvoiceTransactionStatus__c,
         'Accounting 第9.5節: 請求書の取引状態は変えない'
       );
     }
@@ -1854,10 +1871,14 @@ private class ContractCrossControllerTest {
       request.lockState = ContractCrossQueryService.LOCK_LOCKED;
       request.unlockReason = '横断監査';
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(first.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          first.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           first.invoice.Id
         ),
-        String.valueOf(second.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          second.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           second.invoice.Id
         )
       };
@@ -1867,8 +1888,16 @@ private class ContractCrossControllerTest {
         request
       );
       Test.stopTest();
-      System.assertEquals(2, result.lockCount, 'Accounting 第9.5節: 選んだ行をUnlockする');
-      System.assertEquals(true, result.refreshed, '共通基盤契約横断部第29節: Unlock成功後は左を取り直す');
+      System.assertEquals(
+        2,
+        result.lockCount,
+        'Accounting 第9.5節: 選んだ行をUnlockする'
+      );
+      System.assertEquals(
+        true,
+        result.refreshed,
+        '共通基盤契約横断部第29節: Unlock成功後は左を取り直す'
+      );
       System.assertEquals(
         0,
         JournalLockService.journalLockSelectCount,
@@ -1906,8 +1935,20 @@ private class ContractCrossControllerTest {
       InvoiceFixture fixture = insertInvoice('Confirmed');
       Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
         .dateFrom;
-      insertJournal(fixture.invoice.Id, false, 'Active', postingDate, 'CURGRP1');
-      insertJournal(fixture.invoice.Id, false, 'Active', postingDate, 'CURGRP2');
+      insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        postingDate,
+        'CURGRP1'
+      );
+      insertJournal(
+        fixture.invoice.Id,
+        false,
+        'Active',
+        postingDate,
+        'CURGRP2'
+      );
       List<GlJournal__c> grouped = [
         SELECT
           Id,
@@ -1929,7 +1970,9 @@ private class ContractCrossControllerTest {
       request.checkedJournalIds = new List<Id>{ lockedJournal.Id };
       request.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(fixture.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          fixture.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           fixture.invoice.Id
         )
       };
@@ -1941,7 +1984,11 @@ private class ContractCrossControllerTest {
         request
       );
       Test.stopTest();
-      System.assertEquals(1, result.lockCount, 'Accounting 第9.5節: 選んだ有効仕訳をLockする');
+      System.assertEquals(
+        1,
+        result.lockCount,
+        'Accounting 第9.5節: 選んだ有効仕訳をLockする'
+      );
       System.assertEquals(
         1,
         AccountingCurrentService.currentLoadSelectCount,
@@ -1964,7 +2011,7 @@ private class ContractCrossControllerTest {
           FROM GlJournal__c
           WHERE Id = :lockedJournal.Id
         ]
-          .IsLocked__c,
+        .IsLocked__c,
         'Accounting 第9.5節: Lock状態は変えない'
       );
       System.assertEquals(
@@ -1974,7 +2021,7 @@ private class ContractCrossControllerTest {
           FROM GlJournal__c
           WHERE Id = :otherJournal.Id
         ]
-          .IsLocked__c,
+        .IsLocked__c,
         'Accounting 第9.5節: 選んでいない行はLockしない'
       );
       System.assertEquals(
@@ -1997,8 +2044,20 @@ private class ContractCrossControllerTest {
       InvoiceFixture fixture = insertInvoice('Confirmed');
       Date postingDate = ContractCrossQueryService.defaultJournalPostingDates()
         .dateFrom;
-      insertJournal(fixture.invoice.Id, true, 'Active', postingDate, 'CURUNGRP1');
-      insertJournal(fixture.invoice.Id, true, 'Active', postingDate, 'CURUNGRP2');
+      insertJournal(
+        fixture.invoice.Id,
+        true,
+        'Active',
+        postingDate,
+        'CURUNGRP1'
+      );
+      insertJournal(
+        fixture.invoice.Id,
+        true,
+        'Active',
+        postingDate,
+        'CURUNGRP2'
+      );
       List<GlJournal__c> grouped = [
         SELECT
           Id,
@@ -2021,7 +2080,9 @@ private class ContractCrossControllerTest {
       request.lockState = ContractCrossQueryService.LOCK_LOCKED;
       request.unlockReason = '横断監査';
       request.invoiceTokens = new Map<String, String>{
-        String.valueOf(fixture.invoice.Id) => AccountingCauseLockService.resolveInvoiceOperationToken(
+        String.valueOf(
+          fixture.invoice.Id
+        ) => AccountingCauseLockService.resolveInvoiceOperationToken(
           fixture.invoice.Id
         )
       };
@@ -2045,7 +2106,9 @@ private class ContractCrossControllerTest {
       );
       System.assertEquals(
         true,
-        AccountingCurrentService.lastLoadExcludedIds.contains(unlockedJournal.Id),
+        AccountingCurrentService.lastLoadExcludedIds.contains(
+          unlockedJournal.Id
+        ),
         'Core 第12.4節: グルーピング済み仕訳はCurrent収集で取り直さない'
       );
       System.assertEquals(
@@ -2060,7 +2123,7 @@ private class ContractCrossControllerTest {
           FROM GlJournal__c
           WHERE Id = :unlockedJournal.Id
         ]
-          .IsLocked__c,
+        .IsLocked__c,
         'Accounting 第9.5節: Unlock後は未Lock'
       );
       System.assertEquals(
@@ -2070,7 +2133,7 @@ private class ContractCrossControllerTest {
           FROM GlJournal__c
           WHERE Id = :otherJournal.Id
         ]
-          .IsLocked__c,
+        .IsLocked__c,
         'Accounting 第9.5節: 選んでいない行はUnlockしない'
       );
       System.assertEquals(
@@ -2261,12 +2324,16 @@ private class ContractCrossControllerTest {
       );
       System.assertEquals(
         true,
-        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(unlocked.Id),
+        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(
+          unlocked.Id
+        ),
         'Core 第12.4節: 一覧で読んだ仕訳は版比較MAXに重ねない'
       );
       System.assertEquals(
         false,
-        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(locked.Id),
+        AccountingCauseLockService.lastJournalMaxExcludedIds.contains(
+          locked.Id
+        ),
         'Core 第7.9.7節: 左に無い仕訳のMAXは残す'
       );
     }
@@ -2497,7 +2564,10 @@ private class ContractCrossControllerTest {
       Version__c = 1
     );
     ContractTestDataFactory.applyRequiredFields(history);
-    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     insert history;
     Opportunity opportunity = [
       SELECT Id, Name, AccountId, CloseDate
@@ -2876,5 +2946,485 @@ private class ContractCrossControllerTest {
       thrown,
       '共通基盤.md 第10.4節: 横断の見積一覧は 18'
     );
+  }
+
+  private class CrossOrderContext {
+    Account account;
+    ContractHistory__c history;
+  }
+
+  private static CrossOrderContext insertConfirmedOrder(String lifecycle) {
+    CrossOrderContext context = new CrossOrderContext();
+    context.account = ContractTestDataFactory.insertAccount(
+      'Cross Order ' + lifecycle
+    );
+    ContractService__c service = ContractTestDataFactory.insertContractService(
+      context.account.Id,
+      'Cross Order Service ' + lifecycle,
+      lifecycle
+    );
+    context.history = new ContractHistory__c(
+      Name = 'Cross Order History ' + lifecycle,
+      ContractService__c = service.Id,
+      Type__c = 'New',
+      historystatus__c = 'Estimate',
+      Version__c = 1,
+      CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+      CurrentTermEndDate__c = Date.newInstance(2027, 5, 31),
+      EffectiveDate__c = Date.newInstance(2026, 6, 1),
+      ApplicationDate__c = Date.newInstance(2026, 6, 1)
+    );
+    ContractTestDataFactory.applyRequiredFields(context.history);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      context.history,
+      context.account.Id
+    );
+    insert context.history;
+
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Cross Order Product ' + lifecycle
+    );
+    product.BillingType__c = lifecycle == ContractDomainConstants.LIFECYCLE_SPOT
+      ? ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME
+      : ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    ContractTestDataFactory.insertProduct(product);
+
+    ContractProduct__c line = new ContractProduct__c(
+      ContractHistory__c = context.history.Id,
+      Product__c = product.Id,
+      Quantity__c = 10,
+      UnitPrice__c = 5000,
+      Amount__c = 600000,
+      Unit__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT,
+      StartDate__c = Date.newInstance(2026, 6, 1),
+      Enddate__c = Date.newInstance(2027, 5, 31),
+      InvoiceSetting__c = lifecycle == ContractDomainConstants.LIFECYCLE_SPOT
+        ? ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        : ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+      BillingType__c = product.BillingType__c,
+      Type__c = 'New'
+    );
+    ContractTestDataFactory.applyRequiredFields(line);
+    insert line;
+    OrderCreateController.confirmOrder(context.history.Id, null, false);
+    return context;
+  }
+
+  @IsTest
+  static void updateInvoiceHeaderAndDates_persistsPaymentDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      CrossOrderContext context = insertConfirmedOrder(
+        ContractDomainConstants.LIFECYCLE_TERM
+      );
+      Invoice__c invoice = [
+        SELECT Id, InvoiceDate__c, TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      Decimal originalTax = TaxCalculationUtil.fromPercentFieldStorage(
+        invoice.TaxPercent__c
+      );
+      Date paymentDue = Date.newInstance(2026, 8, 31);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      Test.startTest();
+      ContractCrossController.updateInvoiceHeaderAndDates(
+        context.history.Id,
+        invoice.Id,
+        invoice.InvoiceDate__c,
+        paymentDue,
+        null,
+        null,
+        null,
+        null,
+        originalTax,
+        token,
+        null,
+        null
+      );
+      Test.stopTest();
+      InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      System.assertEquals(
+        paymentDue,
+        [
+          SELECT PaymentScheduledDate__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+        .PaymentScheduledDate__c,
+        'Core 第7.8節: 横断の請求情報編集は入金予定日を当該請求へ保存する'
+      );
+    }
+  }
+
+  @IsTest
+  static void updateInvoiceLineAcceptanceEndDate_persistsDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      CrossOrderContext context = insertConfirmedOrder(
+        ContractDomainConstants.LIFECYCLE_SPOT
+      );
+      InvoiceLine__c line = [
+        SELECT Id, Invoice__c, AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      Date nextDate = line.AcceptanceEndDate__c == null
+        ? Date.newInstance(2026, 6, 30)
+        : line.AcceptanceEndDate__c.addDays(1);
+      String token = AccountingCauseLockService.resolveInvoiceOperationToken(
+        line.Invoice__c
+      );
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      ContractCrossController.updateInvoiceLineAcceptanceEndDate(
+        context.history.Id,
+        line.Id,
+        nextDate,
+        token,
+        null,
+        null
+      );
+      Test.stopTest();
+      InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      System.assertEquals(
+        nextDate,
+        [
+          SELECT AcceptanceEndDate__c
+          FROM InvoiceLine__c
+          WHERE Id = :line.Id
+        ]
+        .AcceptanceEndDate__c,
+        'Core 第7.6節: 横断の検収終了日を指定日へ更新する'
+      );
+    }
+  }
+
+  @IsTest
+  static void applyBillingAccountContent_copiesDeliveryMethod() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      CrossOrderContext context = insertConfirmedOrder(
+        ContractDomainConstants.LIFECYCLE_TERM
+      );
+      Invoice__c invoice = [
+        SELECT Id, BillingAccountSnapShot__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      BillingAccount__c billingAccount = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :invoice.BillingAccountSnapShot__c
+      ];
+      billingAccount.InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST;
+      update billingAccount;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      ContractCrossController.applyBillingAccountContent(
+        context.history.Id,
+        invoice.Id,
+        token,
+        null
+      );
+      Test.stopTest();
+      InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      System.assertEquals(
+        InvoiceDeliveryMethodService.POST,
+        [
+          SELECT InvoiceDeliveryMethodSnapShot__c
+          FROM Invoice__c
+          WHERE Id = :invoice.Id
+        ]
+        .InvoiceDeliveryMethodSnapShot__c,
+        'Core 第7.8節: 横断の反映は届け方スナップショットを載せ直す'
+      );
+    }
+  }
+
+  @IsTest
+  static void splitInvoiceByBillingAccount_createsInvoiceOnOtherAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      CrossOrderContext context = insertConfirmedOrder(
+        ContractDomainConstants.LIFECYCLE_TERM
+      );
+      BillingAccount__c otherAccount = ContractTestDataFactory.insertBillingAccount(
+        context.account.Id
+      );
+      Invoice__c source = [
+        SELECT Id, PaymentScheduledDate__c, InvoiceDate__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = 1;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      Test.startTest();
+      ContractCrossController.splitInvoiceByBillingAccount(
+        context.history.Id,
+        source.Id,
+        otherAccount.Id,
+        source.InvoiceDate__c,
+        source.PaymentScheduledDate__c,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token,
+        null
+      );
+      Test.stopTest();
+      InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM Invoice__c
+          WHERE
+            ContractHistory__c = :context.history.Id
+            AND BillingAccountSnapShot__c = :otherAccount.Id
+        ],
+        'Core 第7.8節: 横断のアカウント分割は先の請求アカウントの請求を作る'
+      );
+    }
+  }
+
+  @IsTest
+  static void moveLinesToExistingInvoice_movesLineOntoTarget() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      CrossOrderContext context = insertConfirmedOrder(
+        ContractDomainConstants.LIFECYCLE_TERM
+      );
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        ORDER BY InvoiceDate__c ASC
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = (line.Amount__c / 2)
+        .setScale(0, System.RoundingMode.DOWN);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      OrderCreateController.InvoicePreviewDto afterSplit = ContractCrossController.splitInvoiceByDate(
+        context.history.Id,
+        source.Id,
+        Date.newInstance(2026, 9, 1),
+        Date.newInstance(2026, 9, 30),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token,
+        null
+      );
+      Id createdId;
+      Id createdLineId;
+      String sourceToken;
+      String createdToken;
+      for (
+        OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices
+      ) {
+        if (groupRow.invoiceId == source.Id) {
+          sourceToken = groupRow.lastModifiedToken;
+          continue;
+        }
+        createdId = groupRow.invoiceId;
+        createdLineId = groupRow.lines[0].lineId;
+        createdToken = groupRow.lastModifiedToken;
+        break;
+      }
+      System.assertNotEquals(
+        null,
+        createdId,
+        'Core 第7.8節: 日付で分けた請求が返る'
+      );
+      Test.startTest();
+      ContractCrossController.moveLinesToExistingInvoice(
+        context.history.Id,
+        createdId,
+        source.Id,
+        new List<Id>{ createdLineId },
+        createdToken,
+        sourceToken,
+        null
+      );
+      Test.stopTest();
+      InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoiceLine__c
+          WHERE Invoice__c = :createdId
+        ],
+        'Core 第7.8節: 横断の移動は分割先から明細を外す'
+      );
+      System.assert(
+        [
+          SELECT COUNT()
+          FROM InvoiceLine__c
+          WHERE Invoice__c = :source.Id
+        ] >= 2,
+        'Core 第7.8節: 横断の移動は明細を既存請求へ載せる'
+      );
+    }
+  }
+
+  @IsTest
+  static void splitLinesInPlace_addsLineOnSameInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      CrossOrderContext context = insertConfirmedOrder(
+        ContractDomainConstants.LIFECYCLE_TERM
+      );
+      Invoice__c invoice = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, UnitPrice__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+        LIMIT 1
+      ];
+      Decimal remainPrice = (line.UnitPrice__c / 2)
+        .setScale(2, System.RoundingMode.HALF_UP);
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.splitMode = InvoiceCanonicalService.SPLIT_MODE_UNIT_PRICE;
+      split.remainUnitPrice = remainPrice;
+      split.moveUnitPrice = line.UnitPrice__c - remainPrice;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      Test.startTest();
+      ContractCrossController.splitLinesInPlace(
+        context.history.Id,
+        invoice.Id,
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token,
+        null
+      );
+      Test.stopTest();
+      InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      System.assert(
+        [
+          SELECT COUNT()
+          FROM InvoiceLine__c
+          WHERE Invoice__c = :invoice.Id
+        ] >= 2,
+        'Core 第7.8節: 横断のその場分割は同じ請求の明細を増やす'
+      );
+    }
+  }
+
+  @IsTest
+  static void estimateSendRecordAndPreview_useSendContact() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Cross Send Account'
+      );
+      Contact sendContact = ContractTestDataFactory.insertContact(
+        account.Id,
+        'Cross Send Contact'
+      );
+      sendContact.Email = 'cross-send@example.com';
+      update sendContact;
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Cross Send Service'
+      );
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Cross Send History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.today(),
+        CurrentTermEndDate__c = Date.today().addYears(1).addDays(-1),
+        EstimateTitleName__c = 'Cross Send Title',
+        EstimateDate__c = Date.today(),
+        EstimateValidDate__c = Date.today().addDays(30),
+        EstimateIssueDate__c = Date.newInstance(2026, 3, 15),
+        EstimateSendContact__c = sendContact.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_PDF_AND_EMAIL;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+        new ContractDocumentTemplate__mdt(
+          MasterLabel = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+          TemplateKey__c = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+          DocumentType__c = ContractDocumentTemplateService.TYPE_ESTIMATE,
+          IsActive__c = true,
+          IsDefault__c = true,
+          VisualforcePage__c = 'EstimateDocumentPdf',
+          SortOrder__c = 1
+        )
+      };
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_ESTIMATE,
+        'EstimateMail'
+      );
+      Test.startTest();
+      EstimateSendBoardController.EstimateRowDto row = ContractCrossController.getEstimateSendRecord(
+        history.Id
+      );
+      EstimateSendBoardController.SendPreviewDto preview = ContractCrossController.previewEstimateFromRecordPage(
+        history.Id,
+        ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+        'EstimateMail',
+        EstimateSendBoardController.FROM_SELF,
+        null
+      );
+      Test.stopTest();
+      ContractDocumentTemplateService.testRecords = null;
+      System.assertEquals(
+        history.Id,
+        row.historyId,
+        '共通基盤 第1.4節: 送付レコードは対象の見積'
+      );
+      System.assertEquals(
+        'cross-send@example.com',
+        row.toAddresses,
+        'Core 第4.8節: 送付先は見積送付先のメール'
+      );
+      System.assertEquals(
+        'cross-send@example.com',
+        preview.toAddresses,
+        'Core 第4.8節: プレビューの初期Toは見積送付先のメール'
+      );
+      System.assertEquals(
+        EstimateSendBoardController.FROM_SELF,
+        preview.fromChoice,
+        'Core 第4.8節: Fromの初期値は自分'
+      );
+    }
   }
 }

@@ -70,7 +70,9 @@ private class EstimateCreateControllerTest {
     insert product;
   }
 
-  private static void insertContractProducts(List<ContractProduct__c> products) {
+  private static void insertContractProducts(
+    List<ContractProduct__c> products
+  ) {
     if (products == null) {
       return;
     }
@@ -149,15 +151,16 @@ private class EstimateCreateControllerTest {
       null,
       null,
       null,
-      10,
-      null,
+      10.0,
       null,
       null,
       null
     );
   }
 
-  private static String alignRemakeRevenueRecognitionBasis(String productsJson) {
+  private static String alignRemakeRevenueRecognitionBasis(
+    String productsJson
+  ) {
     if (String.isBlank(productsJson)) {
       return productsJson;
     }
@@ -459,8 +462,14 @@ private class EstimateCreateControllerTest {
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = opportunity.AccountId,
         BillingEmailTo__c = 'to@example.com',
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE
       );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
@@ -531,15 +540,16 @@ private class EstimateCreateControllerTest {
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = testAccount.Id,
         BillingEmailTo__c = 'to@example.com',
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NEXT,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NEXT,
         PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
         PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY,
         PaymentTermDayOfMonth__c = 15,
         PaymentTermMonthOffset__c = 1,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -745,28 +755,30 @@ private class EstimateCreateControllerTest {
         new List<Product2>{ recurringProduct, oneTimeProduct }
       );
 
-      insertContractProducts(new List<ContractProduct__c>{
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = recurringProduct.Id,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-          Quantity__c = 2,
-          UnitPrice__c = 5000,
-          StartDate__c = ContractTestDataFactory.stableTermStart(),
-          Enddate__c = ContractTestDataFactory.stableTermEnd(),
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-        ),
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = oneTimeProduct.Id,
-          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
-          Quantity__c = 1,
-          UnitPrice__c = 10000,
-          StartDate__c = ContractTestDataFactory.stableTermStart(),
-          Enddate__c = ContractTestDataFactory.stableTermEnd(),
-          InvoiceSetting__c = ContractMetadataService.INVOICE_SETTING_PREPAID_START
-        )
-      });
+      insertContractProducts(
+        new List<ContractProduct__c>{
+          new ContractProduct__c(
+            ContractHistory__c = history.Id,
+            Product__c = recurringProduct.Id,
+            BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+            Quantity__c = 2,
+            UnitPrice__c = 5000,
+            StartDate__c = ContractTestDataFactory.stableTermStart(),
+            Enddate__c = ContractTestDataFactory.stableTermEnd(),
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+          ),
+          new ContractProduct__c(
+            ContractHistory__c = history.Id,
+            Product__c = oneTimeProduct.Id,
+            BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+            Quantity__c = 1,
+            UnitPrice__c = 10000,
+            StartDate__c = ContractTestDataFactory.stableTermStart(),
+            Enddate__c = ContractTestDataFactory.stableTermEnd(),
+            InvoiceSetting__c = ContractMetadataService.INVOICE_SETTING_PREPAID_START
+          )
+        }
+      );
 
       List<EstimateCreateController.ContractProductLineDto> results = EstimateCreateController.getRecurringContractProducts(
         history.Id
@@ -791,7 +803,9 @@ private class EstimateCreateControllerTest {
   @IsTest
   static void getRecurringContractProducts_blankUnit_doesNotFillFromProduct2() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Blank Unit Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Blank Unit Account'
+      );
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Blank Unit Service'
@@ -804,24 +818,28 @@ private class EstimateCreateControllerTest {
       );
       insertWithOpportunity(history);
 
-      Product2 product = ContractTestDataFactory.buildProduct('Blank Unit Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Blank Unit Product'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       product.UnitName__c = 'ライセンス';
       product.UnitPrice__c = 5000;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 5000,
-        Unit__c = null,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        StartDate__c = ContractTestDataFactory.stableTermStart(),
-        Enddate__c = ContractTestDataFactory.stableTermEnd(),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 5000,
+          Unit__c = null,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          StartDate__c = ContractTestDataFactory.stableTermStart(),
+          Enddate__c = ContractTestDataFactory.stableTermEnd(),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        )
+      );
 
       List<EstimateCreateController.ContractProductLineDto> results = EstimateCreateController.getRecurringContractProducts(
         history.Id
@@ -840,7 +858,9 @@ private class EstimateCreateControllerTest {
   @IsTest
   static void loadCopyProductLines_originalBlankUnit_doesNotFillFromProduct2() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Copy Unit Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Copy Unit Account'
+      );
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Copy Unit Service'
@@ -854,25 +874,29 @@ private class EstimateCreateControllerTest {
       );
       insertWithOpportunity(history);
 
-      Product2 product = ContractTestDataFactory.buildProduct('Copy Unit Product');
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Copy Unit Product'
+      );
       product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       product.UnitName__c = 'ライセンス';
       product.UnitPrice__c = 5000;
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 5000,
-        Unit__c = null,
-        Type__c = 'Original',
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        StartDate__c = ContractTestDataFactory.stableTermStart(),
-        Enddate__c = ContractTestDataFactory.stableTermEnd(),
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 5000,
+          Unit__c = null,
+          Type__c = 'Original',
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          StartDate__c = ContractTestDataFactory.stableTermStart(),
+          Enddate__c = ContractTestDataFactory.stableTermEnd(),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        )
+      );
 
       List<EstimateCreateController.ProductLineItem> lines = EstimateQueryService.loadCopyProductLines(
         history.Id,
@@ -955,41 +979,43 @@ private class EstimateCreateControllerTest {
       );
       insertContractProduct(sourceProduct);
 
-      insertContractProducts(new List<ContractProduct__c>{
-        new ContractProduct__c(
-          ContractHistory__c = changeHistory.Id,
-          Product__c = product.Id,
-          Quantity__c = 2,
-          UnitPrice__c = 5000,
-          StartDate__c = ContractTestDataFactory.stableTermStart(),
-          Enddate__c = ContractTestDataFactory.stableTermEnd(),
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-          Type__c = 'Original',
-          PreviousContractProduct__c = sourceProduct.Id
-        ),
-        new ContractProduct__c(
-          ContractHistory__c = changeHistory.Id,
-          Product__c = product.Id,
-          Quantity__c = 3,
-          UnitPrice__c = 5000,
-          StartDate__c = ContractTestDataFactory.stableTermStart(),
-          Enddate__c = ContractTestDataFactory.stableTermEnd(),
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-          Type__c = 'Remake',
-          PreviousContractProduct__c = sourceProduct.Id
-        ),
-        new ContractProduct__c(
-          ContractHistory__c = changeHistory.Id,
-          Product__c = removedProduct.Id,
-          Quantity__c = 0,
-          UnitPrice__c = 3000,
-          StartDate__c = ContractTestDataFactory.stableTermStart(),
-          Enddate__c = ContractTestDataFactory.stableTermEnd(),
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-          Type__c = 'Remake',
-          PreviousContractProduct__c = sourceProduct.Id
-        )
-      });
+      insertContractProducts(
+        new List<ContractProduct__c>{
+          new ContractProduct__c(
+            ContractHistory__c = changeHistory.Id,
+            Product__c = product.Id,
+            Quantity__c = 2,
+            UnitPrice__c = 5000,
+            StartDate__c = ContractTestDataFactory.stableTermStart(),
+            Enddate__c = ContractTestDataFactory.stableTermEnd(),
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+            Type__c = 'Original',
+            PreviousContractProduct__c = sourceProduct.Id
+          ),
+          new ContractProduct__c(
+            ContractHistory__c = changeHistory.Id,
+            Product__c = product.Id,
+            Quantity__c = 3,
+            UnitPrice__c = 5000,
+            StartDate__c = ContractTestDataFactory.stableTermStart(),
+            Enddate__c = ContractTestDataFactory.stableTermEnd(),
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+            Type__c = 'Remake',
+            PreviousContractProduct__c = sourceProduct.Id
+          ),
+          new ContractProduct__c(
+            ContractHistory__c = changeHistory.Id,
+            Product__c = removedProduct.Id,
+            Quantity__c = 0,
+            UnitPrice__c = 3000,
+            StartDate__c = ContractTestDataFactory.stableTermStart(),
+            Enddate__c = ContractTestDataFactory.stableTermEnd(),
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+            Type__c = 'Remake',
+            PreviousContractProduct__c = sourceProduct.Id
+          )
+        }
+      );
 
       List<EstimateCreateController.ContractProductLineDto> results = EstimateCreateController.getRecurringContractProducts(
         changeHistory.Id
@@ -1036,26 +1062,28 @@ private class EstimateCreateControllerTest {
         new List<Product2>{ productA, productB }
       );
 
-      insertContractProducts(new List<ContractProduct__c>{
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = productA.Id,
-          Quantity__c = 1,
-          UnitPrice__c = 5000,
-          StartDate__c = ContractTestDataFactory.stableTermStart(),
-          Enddate__c = termEnd,
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-        ),
-        new ContractProduct__c(
-          ContractHistory__c = history.Id,
-          Product__c = productB.Id,
-          Quantity__c = 1,
-          UnitPrice__c = 3000,
-          StartDate__c = ContractTestDataFactory.stableTermStart(),
-          Enddate__c = Date.newInstance(2026, 3, 31),
-          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-        )
-      });
+      insertContractProducts(
+        new List<ContractProduct__c>{
+          new ContractProduct__c(
+            ContractHistory__c = history.Id,
+            Product__c = productA.Id,
+            Quantity__c = 1,
+            UnitPrice__c = 5000,
+            StartDate__c = ContractTestDataFactory.stableTermStart(),
+            Enddate__c = termEnd,
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+          ),
+          new ContractProduct__c(
+            ContractHistory__c = history.Id,
+            Product__c = productB.Id,
+            Quantity__c = 1,
+            UnitPrice__c = 3000,
+            StartDate__c = ContractTestDataFactory.stableTermStart(),
+            Enddate__c = Date.newInstance(2026, 3, 31),
+            InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+          )
+        }
+      );
 
       List<EstimateCreateController.ContractProductLineDto> results = EstimateCreateController.getRenewContractProducts(
         service.Id
@@ -1093,16 +1121,18 @@ private class EstimateCreateControllerTest {
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 5000,
-        StartDate__c = ContractTestDataFactory.stableTermStart(),
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'Original'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 5000,
+          StartDate__c = ContractTestDataFactory.stableTermStart(),
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'Original'
+        )
+      );
 
       System.assertEquals(
         0,
@@ -1159,15 +1189,17 @@ private class EstimateCreateControllerTest {
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = orderedHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 5000,
-        StartDate__c = ContractTestDataFactory.stableTermStart(),
-        Enddate__c = priorTermEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = orderedHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 5000,
+          StartDate__c = ContractTestDataFactory.stableTermStart(),
+          Enddate__c = priorTermEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID
+        )
+      );
 
       List<EstimateCreateController.ContractProductLineDto> results = EstimateCreateController.getRenewContractProducts(
         service.Id
@@ -2228,28 +2260,32 @@ private class EstimateCreateControllerTest {
       addonProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(addonProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        Unit__c = 'ID/月',
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = addonProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        Unit__c = 'ID/月',
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          Unit__c = 'ID/月',
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = addonProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          Unit__c = 'ID/月',
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       EstimateCreateController.ProductLineItem renewLine = new EstimateCreateController.ProductLineItem();
       renewLine.productId = product.Id;
@@ -2380,16 +2416,18 @@ private class EstimateCreateControllerTest {
       oneTimeProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       ContractTestDataFactory.insertProduct(oneTimeProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = recurringProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = recurringProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       EstimateCreateController.ProductLineItem renewLine = new EstimateCreateController.ProductLineItem();
       renewLine.productId = recurringProduct.Id;
@@ -2490,16 +2528,18 @@ private class EstimateCreateControllerTest {
       oneTimeProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       ContractTestDataFactory.insertProduct(oneTimeProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = recurringProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = recurringProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       EstimateCreateController.ProductLineItem oneTimeLine = new EstimateCreateController.ProductLineItem();
       oneTimeLine.productId = oneTimeProduct.Id;
@@ -2587,16 +2627,18 @@ private class EstimateCreateControllerTest {
       recurringProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(recurringProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = recurringProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = recurringProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       EstimateNoteMaster__c remarkMaster = ContractTestDataFactory.insertEstimateNoteMaster(
         'Cancel Should Ignore Master',
@@ -2705,16 +2747,18 @@ private class EstimateCreateControllerTest {
       recurringProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(recurringProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = recurringHistory.Id,
-        Product__c = recurringProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = recurringHistory.Id,
+          Product__c = recurringProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       Test.startTest();
       EstimateCreateController.ContractHistoryDto result = EstimateCreateController.getLatestContractHistory(
@@ -2755,17 +2799,19 @@ private class EstimateCreateControllerTest {
       recurringMaster.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       recurringMaster.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(recurringMaster);
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = oneTimeHistory.Id,
-        Product__c = recurringMaster.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = oneTimeHistory.Id,
+          Product__c = recurringMaster.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+          Type__c = 'New'
+        )
+      );
 
       ContractService__c flippedToRecurring = ContractTestDataFactory.insertContractService(
         account.Id,
@@ -2787,17 +2833,19 @@ private class EstimateCreateControllerTest {
       oneTimeMaster.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       oneTimeMaster.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(oneTimeMaster);
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = recurringHistory.Id,
-        Product__c = oneTimeMaster.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = recurringHistory.Id,
+          Product__c = oneTimeMaster.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'New'
+        )
+      );
 
       Test.startTest();
       System.assertEquals(
@@ -2885,16 +2933,18 @@ private class EstimateCreateControllerTest {
       oneTimeProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
       ContractTestDataFactory.insertProduct(oneTimeProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = oneTimeProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 100000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractMetadataService.INVOICE_SETTING_PREPAID_START,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = oneTimeProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 100000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractMetadataService.INVOICE_SETTING_PREPAID_START,
+          Type__c = 'New'
+        )
+      );
 
       EstimateCreateController.ProductLineItem renewLine = new EstimateCreateController.ProductLineItem();
       renewLine.productId = oneTimeProduct.Id;
@@ -2980,16 +3030,18 @@ private class EstimateCreateControllerTest {
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       EstimateCreateController.ProductLineItem renewLine = new EstimateCreateController.ProductLineItem();
       renewLine.productId = product.Id;
@@ -3078,16 +3130,18 @@ private class EstimateCreateControllerTest {
       product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(product);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = product.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       EstimateCreateController.ProductLineItem renewLine = new EstimateCreateController.ProductLineItem();
       renewLine.productId = product.Id;
@@ -3305,16 +3359,18 @@ private class EstimateCreateControllerTest {
       recurringProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(recurringProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = recurringProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = recurringProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       EstimateCreateController.ProductLineItem line = new EstimateCreateController.ProductLineItem();
       line.productId = recurringProduct.Id;
@@ -3393,16 +3449,18 @@ private class EstimateCreateControllerTest {
       recurringProduct.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
       ContractTestDataFactory.insertProduct(recurringProduct);
 
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = sourceHistory.Id,
-        Product__c = recurringProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 8000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = sourceHistory.Id,
+          Product__c = recurringProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          Type__c = 'New'
+        )
+      );
 
       Boolean thrown = false;
       try {
@@ -5332,12 +5390,21 @@ private class EstimateCreateControllerTest {
         service.Id,
         estimateHistory.Id
       );
+      Decimal facadeVersion = EstimateCreateController.resolveEstimateHistoryVersion(
+        service.Id,
+        estimateHistory.Id
+      );
       Test.stopTest();
 
       System.assertEquals(
         2,
         resolvedVersion,
         'コピーでも最新 Ordered + 1（コピー元 Version は使わない）'
+      );
+      System.assertEquals(
+        2,
+        facadeVersion,
+        'Core 第4.3節: 互換入口の版は最新 Ordered + 1'
       );
     }
   }
@@ -5376,7 +5443,8 @@ private class EstimateCreateControllerTest {
       );
       System.assertEquals(
         0,
-        EstimateCreateController.getActiveContractServicesByAccount(null).size(),
+        EstimateCreateController.getActiveContractServicesByAccount(null)
+          .size(),
         'Core 第5.4節 Lifecycle候補: 取引先未指定の契約サービス候補は空'
       );
 
@@ -5488,7 +5556,8 @@ private class EstimateCreateControllerTest {
         'Core 第4.6節・第11.9節: 数量・単価丸め'
       );
       System.assertEquals(
-        AmountCalculationSettingService.requireOrgDefault().AmountRoundingMode__c,
+        AmountCalculationSettingService.requireOrgDefault()
+          .AmountRoundingMode__c,
         dto.amountRoundingMode,
         'Core 第4.6節・第11.9節: 税抜金額丸め'
       );
@@ -5524,38 +5593,40 @@ private class EstimateCreateControllerTest {
       update termService;
       Date termStart = ContractTestDataFactory.stableTermStart();
       Date termEnd = ContractTestDataFactory.stableTermEnd();
-      insertWithOpportunity(new List<ContractHistory__c>{
-        new ContractHistory__c(
-          Name = 'Estimate Only V1',
-          ContractService__c = estimateOnlyService.Id,
-          Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
-          Version__c = 1,
-          CurrentTermStartDate__c = termStart,
-          CurrentTermEndDate__c = termEnd,
-          EffectiveDate__c = termStart
-        ),
-        new ContractHistory__c(
-          Name = 'Blank Ordered V1',
-          ContractService__c = blankOrderedService.Id,
-          Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
-          Version__c = 1,
-          CurrentTermStartDate__c = termStart,
-          CurrentTermEndDate__c = termEnd,
-          EffectiveDate__c = termStart
-        ),
-        new ContractHistory__c(
-          Name = 'Term V1',
-          ContractService__c = termService.Id,
-          Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
-          historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
-          Version__c = 1,
-          CurrentTermStartDate__c = termStart,
-          CurrentTermEndDate__c = termEnd,
-          EffectiveDate__c = termStart
-        )
-      });
+      insertWithOpportunity(
+        new List<ContractHistory__c>{
+          new ContractHistory__c(
+            Name = 'Estimate Only V1',
+            ContractService__c = estimateOnlyService.Id,
+            Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+            historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+            Version__c = 1,
+            CurrentTermStartDate__c = termStart,
+            CurrentTermEndDate__c = termEnd,
+            EffectiveDate__c = termStart
+          ),
+          new ContractHistory__c(
+            Name = 'Blank Ordered V1',
+            ContractService__c = blankOrderedService.Id,
+            Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+            historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
+            Version__c = 1,
+            CurrentTermStartDate__c = termStart,
+            CurrentTermEndDate__c = termEnd,
+            EffectiveDate__c = termStart
+          ),
+          new ContractHistory__c(
+            Name = 'Term V1',
+            ContractService__c = termService.Id,
+            Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+            historystatus__c = ContractDomainConstants.HISTORY_STATUS_ORDERED,
+            Version__c = 1,
+            CurrentTermStartDate__c = termStart,
+            CurrentTermEndDate__c = termEnd,
+            EffectiveDate__c = termStart
+          )
+        }
+      );
 
       Test.startTest();
       List<EstimateCreateController.ContractServiceOptionDto> services = EstimateCreateController.getActiveContractServicesByAccount(
@@ -5614,18 +5685,20 @@ private class EstimateCreateControllerTest {
       );
       recurringProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
       ContractTestDataFactory.insertProduct(recurringProduct);
-      insertContractProduct(new ContractProduct__c(
-        ContractHistory__c = history.Id,
-        Product__c = recurringProduct.Id,
-        Quantity__c = 1,
-        UnitPrice__c = 1000,
-        Amount__c = 12000,
-        StartDate__c = termStart,
-        Enddate__c = termEnd,
-        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
-        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
-        Type__c = 'New'
-      ));
+      insertContractProduct(
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Product__c = recurringProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 1000,
+          Amount__c = 12000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          Type__c = 'New'
+        )
+      );
 
       Test.startTest();
       List<EstimateCreateController.ContractServiceOptionDto> services = EstimateCreateController.getActiveContractServicesByAccount(
@@ -5957,5 +6030,318 @@ private class EstimateCreateControllerTest {
       ContractPermissionUtil.testAllowAll = true;
     }
     System.assertEquals(true, thrown);
+  }
+
+  private class NewSaveFixture {
+    Opportunity opportunity;
+    Product2 product;
+    String productsJson;
+    Date termStart;
+    Date termEnd;
+    Id billingAccountId;
+  }
+
+  private static NewSaveFixture buildNewSaveFixture(String nameSuffix) {
+    Account testAccount = ContractTestDataFactory.insertAccount(
+      'Facade Account ' + nameSuffix
+    );
+    NewSaveFixture fixture = new NewSaveFixture();
+    fixture.opportunity = ContractTestDataFactory.insertOpportunity(
+      testAccount.Id,
+      'Facade Opportunity ' + nameSuffix
+    );
+    fixture.product = ContractTestDataFactory.buildProduct(
+      'Facade Product ' + nameSuffix
+    );
+    fixture.product.UnitName__c = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+    fixture.product.UnitPrice__c = 10000;
+    fixture.product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    fixture.product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    ContractTestDataFactory.insertProduct(fixture.product);
+    fixture.billingAccountId = ContractTestDataFactory.insertBillingAccount(
+        testAccount.Id
+      )
+      .Id;
+    fixture.termStart = ContractTestDataFactory.stableTermStart();
+    fixture.termEnd = ContractTestDataFactory.stableTermEnd();
+
+    EstimateCreateController.ProductLineItem lineItem = new EstimateCreateController.ProductLineItem();
+    lineItem.productId = fixture.product.Id;
+    lineItem.quantity = 2;
+    lineItem.unitPrice = 10000;
+    lineItem.amount = 20000;
+    lineItem.startDate = String.valueOf(fixture.termStart);
+    lineItem.endDate = String.valueOf(fixture.termEnd);
+    lineItem.invoiceType = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+    lineItem.unit = ContractTestDataFactory.TENANT_UNIT_NAME_DEFAULT;
+    lineItem.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+    lineItem.revenueRecognitionBasis = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+    lineItem.billingCycle = '月';
+    lineItem.recordType = 'New';
+    fixture.productsJson = alignRemakeRevenueRecognitionBasis(
+      JSON.serialize(
+        new List<EstimateCreateController.ProductLineItem>{ lineItem }
+      )
+    );
+    return fixture;
+  }
+
+  private static void assertSameNewHistoryAndLine(
+    EstimateCreateController.EstimateSaveResult result,
+    NewSaveFixture fixture,
+    String historyName
+  ) {
+    ContractHistory__c history = [
+      SELECT Name, Type__c, historystatus__c, Version__c
+      FROM ContractHistory__c
+      WHERE Id = :result.contractHistoryId
+    ];
+    System.assertEquals(historyName, history.Name);
+    System.assertEquals('New', history.Type__c, '現行のNew保存と同じ種別');
+    System.assertEquals(
+      'Estimate',
+      history.historystatus__c,
+      '現行のNew保存と同じ見積'
+    );
+    System.assertEquals(1, history.Version__c, '現行のNew保存と同じ版');
+
+    ContractProduct__c contractProduct = [
+      SELECT Product__c, Quantity__c, UnitPrice__c, Amount__c, Type__c
+      FROM ContractProduct__c
+      WHERE Id = :result.contractProductIds[0]
+    ];
+    System.assertEquals(fixture.product.Id, contractProduct.Product__c);
+    System.assertEquals(
+      2,
+      contractProduct.Quantity__c,
+      '現行のNew保存と同じ数量'
+    );
+    System.assertEquals(
+      10000,
+      contractProduct.UnitPrice__c,
+      '現行のNew保存と同じ単価'
+    );
+    System.assertEquals(
+      20000,
+      contractProduct.Amount__c,
+      '現行のNew保存と同じ明細金額'
+    );
+    System.assertEquals('New', contractProduct.Type__c);
+  }
+
+  private static void assertUnspecifiedTaxRefusesHistory(String historyName) {
+    System.assertEquals(
+      0,
+      [
+        SELECT COUNT()
+        FROM ContractHistory__c
+        WHERE Name = :historyName
+      ],
+      'Core 第4.6節: 税率未指定の互換入口は履歴を作らない'
+    );
+  }
+
+  @IsTest
+  static void saveEstimate_jsonFacade_matchesCurrentNewSave() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      NewSaveFixture fixture = buildNewSaveFixture('Json');
+      Boolean thrown = false;
+      try {
+        EstimateCreateController.saveEstimate(
+          fixture.opportunity.Id,
+          'New',
+          'Facade Service Json',
+          'Facade History Json',
+          null,
+          null,
+          String.valueOf(fixture.termStart),
+          String.valueOf(fixture.termEnd),
+          String.valueOf(fixture.termStart),
+          String.valueOf(fixture.termStart),
+          fixture.productsJson,
+          null,
+          null,
+          fixture.billingAccountId,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '消費税率が空です。',
+          ex.getMessage(),
+          'Core 第4.6節: 税率未指定は埋めない'
+        );
+      }
+      System.assertEquals(true, thrown);
+      assertUnspecifiedTaxRefusesHistory('Facade History Json');
+
+      Test.startTest();
+      EstimateCreateController.EstimateSaveResult current = saveEstimateWithTax(
+        fixture.opportunity.Id,
+        'New',
+        'Facade Service Json',
+        'Facade History Json',
+        null,
+        null,
+        String.valueOf(fixture.termStart),
+        String.valueOf(fixture.termEnd),
+        String.valueOf(fixture.termStart),
+        String.valueOf(fixture.termStart),
+        fixture.productsJson,
+        null,
+        null,
+        fixture.billingAccountId,
+        null
+      );
+      Decimal screenTax = TaxCalculationUtil.calculateTaxAmount(20000, 10);
+      Decimal screenInclusive = TaxCalculationUtil.calculateAmountInclTax(
+        20000,
+        10
+      );
+      EstimateCreateController.EstimateSaveResult withScreenTax = EstimateCreateController.saveEstimate(
+        fixture.opportunity.Id,
+        'New',
+        'Facade Service Screen',
+        'Facade History Screen',
+        null,
+        null,
+        String.valueOf(fixture.termStart),
+        String.valueOf(fixture.termEnd),
+        String.valueOf(fixture.termStart),
+        String.valueOf(fixture.termStart),
+        fixture.productsJson,
+        null,
+        null,
+        fixture.billingAccountId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        10.0,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        screenTax,
+        screenInclusive
+      );
+      Test.stopTest();
+      assertSameNewHistoryAndLine(current, fixture, 'Facade History Json');
+      assertSameNewHistoryAndLine(
+        withScreenTax,
+        fixture,
+        'Facade History Screen'
+      );
+      ContractHistory__c taxed = [
+        SELECT TaxAmount__c, DeltaTaxInclusiveSum__c
+        FROM ContractHistory__c
+        WHERE Id = :withScreenTax.contractHistoryId
+      ];
+      System.assertEquals(
+        screenTax,
+        taxed.TaxAmount__c,
+        'Core 第4.6節: 画面税額を保存する'
+      );
+      System.assertEquals(
+        screenInclusive,
+        taxed.DeltaTaxInclusiveSum__c,
+        'Core 第4.6節: 画面税込を保存する'
+      );
+    }
+  }
+
+  @IsTest
+  static void saveEstimate_editIdFacade_matchesCurrentNewSave() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      NewSaveFixture fixture = buildNewSaveFixture('Edit');
+      Boolean thrown = false;
+      try {
+        EstimateCreateController.saveEstimate(
+          fixture.opportunity.Id,
+          'New',
+          'Facade Service Edit',
+          'Facade History Edit',
+          null,
+          null,
+          String.valueOf(fixture.termStart),
+          String.valueOf(fixture.termEnd),
+          String.valueOf(fixture.termStart),
+          String.valueOf(fixture.termStart),
+          fixture.productsJson,
+          null,
+          null,
+          fixture.billingAccountId,
+          null,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '消費税率が空です。',
+          ex.getMessage(),
+          'Core 第4.6節: 税率未指定は埋めない'
+        );
+      }
+      System.assertEquals(true, thrown);
+      assertUnspecifiedTaxRefusesHistory('Facade History Edit');
+    }
+  }
+
+  @IsTest
+  static void saveEstimate_tokenFacade_matchesCurrentNewSave() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      NewSaveFixture fixture = buildNewSaveFixture('Token');
+      Boolean thrown = false;
+      try {
+        EstimateCreateController.saveEstimate(
+          fixture.opportunity.Id,
+          'New',
+          'Facade Service Token',
+          'Facade History Token',
+          null,
+          null,
+          String.valueOf(fixture.termStart),
+          String.valueOf(fixture.termEnd),
+          String.valueOf(fixture.termStart),
+          String.valueOf(fixture.termStart),
+          fixture.productsJson,
+          null,
+          null,
+          fixture.billingAccountId,
+          null,
+          null,
+          null,
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assertEquals(
+          '消費税率が空です。',
+          ex.getMessage(),
+          'Core 第4.6節: 税率未指定は埋めない'
+        );
+      }
+      System.assertEquals(true, thrown);
+      assertUnspecifiedTaxRefusesHistory('Facade History Token');
+    }
+  }
+
+  @IsTest
+  static void issueEstimateOperationKey_returnsHexWhen03() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      String key = EstimateCreateController.issueEstimateOperationKey();
+      System.assertEquals(
+        32,
+        key.length(),
+        'Core 第4.3.12節: 見積の操作キーを返す'
+      );
+      System.assert(
+        Pattern.matches('[0-9A-Fa-f]{32}', key),
+        'Core 第4.3.12節: 見積の操作キーは16進である'
+      );
+    }
   }
 }
