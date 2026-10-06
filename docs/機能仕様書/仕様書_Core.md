@@ -2620,7 +2620,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 - 追加項目定義に、存在しない項目、対象外オブジェクト、型不一致その他の不整合がある場合は、**見積ウィザードの表示・保存を続行せず設定エラーとする。**
 - 初期値は固定値、商談、取引先または商品から取得できる。商品由来の初期値と商品条件は見積商品にだけ設定できる。
 - 商品条件は選択中の商品マスタから保存時に再評価し、画面の一時状態を信頼しない。
-- 同じ定義に、保存しない表示行を足す。項目API名は空。保存しない。必須にしない。入力行の空欄クリア、種別で隠した値の維持、商品条件で隠した見積商品のクリアは変えない。読む先は商談、商談の取引先、選択中の商品である。参照階層は保存の初期値と同じで、取得元の直下だけである。商談と商品はドットなし。取引先は商談の取引先の直下である。`Account.Name` は正規化までである。参照の先の項目は読まない。読んだ項目が参照なら名前を出す。Idは保存しない。商品の値は見積商品の欄だけである。商品を選び直したら表示と商品条件を取り直す。出す版と商品条件は今のフラグである。サービスと履歴に商品条件は置かない。見積商品の表示行は、受注、Orderedの見積編集、差し戻しで読み取りだけ再表示する。定義は見積側に1回書く。入力行の数式と自動採番は設定エラーとする。パスが不正ならウィザードを止める。契約サービスを編集には出さない。パッケージは計算式を持たない。残したい値は入力行の初期値で写す。
+- 同じ定義に、保存しない表示行を足す。項目API名は空。保存しない。必須にしない。入力行の空欄クリア、種別で隠した値の維持、商品条件で隠した見積商品のクリアは変えない。読む先は商談、商談の取引先、選択中の商品である。参照階層は保存の初期値と同じで、取得元の直下だけである。商談と商品はドットなし。取引先は商談の取引先の直下である。`Account.Name` は正規化までである。参照の先の項目は読まない。読んだ項目が参照なら名前を出す。Idは保存しない。商品の値は見積商品の欄だけである。商品を選び直したら表示と商品条件を取り直す。出す版と商品条件は今のフラグである。サービスと履歴に商品条件は置かない。見積商品の表示行は見積ウィザードの商品明細に出す。受注ウィザードと差し戻しには出さない。受注済みの見積編集は見積ウィザードなので、見積商品の表示行は商品明細に残す。定義は見積側に1回書く。入力行の数式と自動採番は設定エラーとする。パスが不正ならウィザードを止める。契約サービスを編集には出さない。パッケージは計算式を持たない。残したい値は入力行の初期値で写す。
 
 `Active__c=true`だけを対象とし、`TargetObject__c`は`ContractService__c`、`ContractHistory__c`、`ContractProduct__c`の3種に限る。`ShowOnNew__c` / `ShowOnChange__c` / `ShowOnRenew__c` / `ShowOnCancel__c`は明示trueだけ表示し、未設定は非表示とする。
 
@@ -2631,7 +2631,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 一覧 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateWizardField__mdt</code> の種別の行一覧。列は表示ラベル、有効、対象、出す版、並び順、DeveloperName（後ろ）。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateCreateModal3.hasServiceCustomFields</code>、<code>estimateCreateWizard.displayedHistoryFieldDefinitions</code>、<code>EstimateSaveService</code>、<code>ContractServiceWriteGuard.assertAllowedWrite</code>
-／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code> のレコード選択。読取も名前。<code>estimateCreateModal3</code> と <code>contractServiceEdit</code> は同じ部品。保存する値はレコードId。保存しない表示行は同じ <code>EstimateWizardField__mdt</code>。項目API名は空。画面は既存 <code>estimateCreateModal3</code>。受注側の再表示は既存 <code>orderCreateWizard</code> と <code>orderRevertWizard</code>。
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code> のレコード選択。読取も名前。<code>estimateCreateModal3</code> と <code>contractServiceEdit</code> は同じ部品。保存する値はレコードId。保存しない表示行は同じ <code>EstimateWizardField__mdt</code>。項目API名は空。画面は既存 <code>estimateCreateModal3</code>。見積商品の表示行は <code>orderCreateWizard</code> と <code>orderRevertWizard</code> には出さない。
 </div>
 
 ##### Visibility演算子
@@ -2781,7 +2781,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 - 申込日・受注日を含む受注追加項目の訂正は、Orderedの見積編集で行う。見積ウィザードStep 2のカスタム項目欄へ、見積用とは別見出しで出す。見積候補の見積編集と+見積には出さない。標準レコード画面は正式な訂正入口にしない。
 - 差し戻し画面にも同じ定義の表示対象を出す。初期値は保存済み。人が空にも変更にもできる。必須は差し戻しでは見ない。画面外の差し戻しは追加項目を触らない。再受注では、空なら定義の初期値を付ける。保存済みがあれば初期値で上書きしない。受注日だけ空にする・出さない専用処理は持たない。
 - Cancelでも表示対象の項目を出す。小さい確認でも省略しない。
-- 同じ定義に、保存しない表示行を足す。項目API名は空。保存しない。必須にしない。読む先は商談と商談の取引先だけである。商品を書くと設定エラーとする。参照階層は見積の表示行と同じである。見積商品の表示行は、受注、Orderedの見積編集、差し戻しで読み取りだけ再表示し、定義は見積側に1回である。入力行の数式と自動採番は設定エラーとする。パスが不正ならウィザードを止める。
+- 同じ定義に、保存しない表示行を足す。項目API名は空。保存しない。必須にしない。読む先は商談と商談の取引先だけである。商品を書くと設定エラーとする。参照階層は見積の表示行と同じである。見積商品の表示行は受注ウィザードと差し戻しには出さない。受注済みの見積編集では見積ウィザードの商品明細に残す。定義は見積側に1回である。入力行の数式と自動採番は設定エラーとする。パスが不正ならウィザードを止める。
 - 追加項目定義に、存在しない項目、契約履歴以外、型不一致、商品条件、商品初期値その他の不整合がある場合は、**受注・Ordered見積編集・差し戻しの表示・保存を続行せず設定エラーとする。**
 - 無効な定義は無視する。有効な不正定義は黙って無効化しない。
 
@@ -2817,7 +2817,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 一覧 表示ラベル、有効、出す版、並び順、DeveloperName（後ろ）。対象列は置かない。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。必須は画面に出している受注・Ordered見積編集だけ。画面外のOrdered化では見ない。
-／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。保存しない表示行は同じ <code>OrderWizardField__mdt</code>。読む先は商談と取引先。商品は設定エラー。見積商品の表示行は見積定義。
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。保存しない表示行は同じ <code>OrderWizardField__mdt</code>。読む先は商談と取引先。商品は設定エラー。見積商品の表示行は受注と差し戻しに出さない。見積ウィザードの商品明細に残す。
 </div>
 
 自動Renew見積は申込日を前Orderedからコピーしない。作成日でも埋めない。ウィザード追加項目の初期値は自動Renewでは走らせない。コピー定義のToに申込日・受注日を置いてよい。標準シードのコピー行は置かない。`自動Renew`で申込日をコピーする定義を置いた会社だけが前Versionの日付を空欄へ入れる。
