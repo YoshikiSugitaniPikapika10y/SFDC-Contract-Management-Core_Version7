@@ -1,16 +1,15 @@
-const GenerateUrl = Symbol.for("NavigationMixin.GenerateUrl");
-
 jest.mock(
   "lightning/navigation",
   () => {
     const NavigationMixin = (Base) => class extends Base {};
     NavigationMixin.Navigate = Symbol.for("NavigationMixin.Navigate");
-    NavigationMixin.GenerateUrl = GenerateUrl;
+    NavigationMixin.GenerateUrl = Symbol.for("NavigationMixin.GenerateUrl");
     return { NavigationMixin };
   },
   { virtual: true }
 );
 
+import { NavigationMixin } from "lightning/navigation";
 import {
   buildEstimateWizardUrl,
   getLightningBase,
@@ -18,6 +17,8 @@ import {
   resolveEstimateWizardUrl,
   toAbsoluteLightningUrl
 } from "c/estimateWizardNavigation";
+
+const GenerateUrl = NavigationMixin.GenerateUrl;
 
 describe("estimateWizardNavigation", () => {
   beforeEach(() => {
@@ -129,9 +130,7 @@ describe("estimateWizardNavigation", () => {
 
   test("GenerateUrl経路でも別タブを開き、URL無しとポップアップ拒否を区別する", async () => {
     const component = {
-      [GenerateUrl]: jest
-        .fn()
-        .mockResolvedValue("/lightning/n/Estimate_Create")
+      [GenerateUrl]: jest.fn().mockResolvedValue("/lightning/n/Estimate_Create")
     };
 
     await expect(openEstimateWizardTab(component, {})).resolves.toBe(
