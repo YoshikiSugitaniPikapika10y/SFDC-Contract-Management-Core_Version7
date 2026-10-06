@@ -16,11 +16,15 @@ private class EstimateSendBoardControllerTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractHistory__c history = createEstimate('board@example.com');
 
+      useBundledEstimateDefault();
       EstimateSendBoardController.BoardContextDto context = EstimateSendBoardController.getBoardContext();
       System.assertEquals(true, context.canSend);
       System.assertEquals(true, context.featureEnabled);
       System.assertEquals(500, context.listLimit);
-      System.assertEquals('StandardEstimate', context.defaultDocumentTemplateKey);
+      System.assertEquals(
+        'StandardEstimate',
+        context.defaultDocumentTemplateKey
+      );
       System.assert(
         !context.documentTemplateOptions.isEmpty(),
         'Estimate帳票テンプレートが返ること'
@@ -36,10 +40,7 @@ private class EstimateSendBoardControllerTest {
         row.toAddresses,
         'Core 第4.8節: 宛先の正は見積送付先'
       );
-      System.assertEquals(
-        currentToken(history.Id),
-        row.lastModifiedToken
-      );
+      System.assertEquals(currentToken(history.Id), row.lastModifiedToken);
     }
   }
 
@@ -88,6 +89,7 @@ private class EstimateSendBoardControllerTest {
       );
       String token = currentToken(history.Id);
 
+      Test.startTest();
       EstimateSendBoardController.SendDraftDto draft = new EstimateSendBoardController.SendDraftDto();
       draft.toAddresses = 'not-an-email';
       draft.fileName = 'estimate-send.pdf';
@@ -112,6 +114,7 @@ private class EstimateSendBoardControllerTest {
       );
       System.assertEquals(updated.EstimateSentAt__c, result.sentAt);
       EstimateSendBoardController.skipEmailSend = false;
+      Test.stopTest();
     }
   }
 
@@ -366,6 +369,7 @@ private class EstimateSendBoardControllerTest {
   static void sendEstimate_rejectsMissingTo() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractHistory__c history = createEstimate(null);
+      Test.startTest();
       try {
         EstimateSendBoardController.sendEstimateFromRecordPage(
           history.Id,
@@ -390,6 +394,7 @@ private class EstimateSendBoardControllerTest {
         .EstimateSentAt__c,
         'Core 第4.8節: 送れなければ送付日を書かない'
       );
+      Test.stopTest();
     }
   }
 
@@ -425,6 +430,7 @@ private class EstimateSendBoardControllerTest {
       draft.body = '本文';
       draft.fileName = 'hand-upload.pdf';
       draft.attachmentId = String.valueOf(documentId);
+      Test.startTest();
       try {
         EstimateSendBoardController.sendEstimateFromRecordPage(
           history.Id,
@@ -440,6 +446,7 @@ private class EstimateSendBoardControllerTest {
           'Core 第7.10節: 手アップロードは送れない'
         );
       }
+      Test.stopTest();
     }
   }
 
@@ -459,6 +466,7 @@ private class EstimateSendBoardControllerTest {
       draft.body = '本文';
       draft.fileName = 'older-issued.pdf';
       draft.attachmentId = String.valueOf(olderIssuedId);
+      Test.startTest();
       try {
         EstimateSendBoardController.sendEstimateFromRecordPage(
           history.Id,
@@ -474,6 +482,7 @@ private class EstimateSendBoardControllerTest {
           'Core 第7.10節: 古い発行は送れない'
         );
       }
+      Test.stopTest();
     }
   }
 
@@ -529,6 +538,7 @@ private class EstimateSendBoardControllerTest {
       ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
         ContractPermissionUtil.SEND_ESTIMATE => false
       };
+      Test.startTest();
       try {
         EstimateSendBoardController.SendDraftDto draft = new EstimateSendBoardController.SendDraftDto();
         draft.fileName = 'estimate-send.pdf';
@@ -542,13 +552,11 @@ private class EstimateSendBoardControllerTest {
         );
         System.assert(false, '権限05が無いときは送れない');
       } catch (AuraHandledException ex) {
-        System.assertEquals(
-          '見積を送る権限がありません。',
-          ex.getMessage()
-        );
+        System.assertEquals('見積を送る権限がありません。', ex.getMessage());
       } finally {
         ContractPermissionUtil.testOverrides = null;
         EstimateSendBoardController.skipEmailSend = false;
+        Test.stopTest();
       }
     }
   }
@@ -614,6 +622,7 @@ private class EstimateSendBoardControllerTest {
       draft.attachmentId = EstimateSendBoardController.ATTACHMENT_NEW;
       draft.fromChoice = EstimateSendBoardController.FROM_ORG;
       EstimateSendBoardController.skipEmailSend = true;
+      Test.startTest();
       try {
         EstimateSendBoardController.ActionResultDto result = EstimateSendBoardController.sendEstimateFromRecordPage(
           history.Id,
@@ -629,6 +638,7 @@ private class EstimateSendBoardControllerTest {
         );
       } finally {
         EstimateSendBoardController.skipEmailSend = false;
+        Test.stopTest();
       }
     }
   }
@@ -651,6 +661,7 @@ private class EstimateSendBoardControllerTest {
       setting.EstimateSendMode__c = 'PdfOnly';
       update setting;
       ContractDocumentSettingService.clearCache();
+      Test.startTest();
       try {
         EstimateSendBoardController.sendEstimateFromRecordPage(
           history.Id,
@@ -666,12 +677,14 @@ private class EstimateSendBoardControllerTest {
           'Core 第4.8節・第4.10節: 3択拒否は変えない'
         );
       }
+      Test.stopTest();
     }
   }
 
   @IsTest
   static void getBoardContext_initialSelectionUsesCatalogDefault() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      useBundledEstimateDefault();
       EstimateSendBoardController.BoardContextDto context = EstimateSendBoardController.getBoardContext();
       System.assertEquals(
         'StandardEstimate',
@@ -689,6 +702,7 @@ private class EstimateSendBoardControllerTest {
   @IsTest
   static void getBoardContext_reusesOrgSettingAndCatalogsInSameRequest() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
+      useBundledEstimateDefault();
       EstimateSendBoardController.getBoardContext();
       Integer before = Limits.getQueries();
       EstimateSendBoardController.BoardContextDto context = EstimateSendBoardController.getBoardContext();
@@ -697,7 +711,10 @@ private class EstimateSendBoardControllerTest {
         Limits.getQueries(),
         'Core 第4.3.11節: 同一取得で組織設定と帳票・メールカタログを取り直さない'
       );
-      System.assertEquals('StandardEstimate', context.defaultDocumentTemplateKey);
+      System.assertEquals(
+        'StandardEstimate',
+        context.defaultDocumentTemplateKey
+      );
     }
   }
 
@@ -713,7 +730,10 @@ private class EstimateSendBoardControllerTest {
 
     Contact sendContact;
     if (String.isNotBlank(toAddress)) {
-      sendContact = ContractTestDataFactory.insertContact(account.Id, '見積送付先');
+      sendContact = ContractTestDataFactory.insertContact(
+        account.Id,
+        '見積送付先'
+      );
       sendContact.Email = toAddress;
       update sendContact;
     }
@@ -728,7 +748,8 @@ private class EstimateSendBoardControllerTest {
     insert service;
 
     ContractHistory__c history = new ContractHistory__c(
-      Name = 'EST-SEND-' + String.valueOf(Crypto.getRandomInteger()).replace('-', ''),
+      Name = 'EST-SEND-' +
+        String.valueOf(Crypto.getRandomInteger()).replace('-', ''),
       ContractService__c = service.Id,
       Type__c = 'New',
       historystatus__c = 'Estimate',
@@ -742,7 +763,10 @@ private class EstimateSendBoardControllerTest {
       RenewEstimateAutoCreated__c = true
     );
     ContractTestDataFactory.applyRequiredFields(history);
-    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     Boolean previousAllow = ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite;
     ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite = true;
     try {
@@ -938,6 +962,7 @@ private class EstimateSendBoardControllerTest {
       draft.ccAddresses = 'cc@example.com';
       draft.bccAddresses = 'bcc@example.com';
       Boolean thrown = false;
+      Test.startTest();
       try {
         EstimateSendBoardController.sendEstimateFromRecordPage(
           history.Id,
@@ -965,6 +990,21 @@ private class EstimateSendBoardControllerTest {
         .EstimateSentAt__c,
         'Core 第4.8節: 送れなければ送付日を書かない'
       );
+      Test.stopTest();
     }
+  }
+
+  private static void useBundledEstimateDefault() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      new ContractDocumentTemplate__mdt(
+        MasterLabel = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+        TemplateKey__c = ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+        DocumentType__c = ContractDocumentTemplateService.TYPE_ESTIMATE,
+        IsActive__c = true,
+        IsDefault__c = true,
+        VisualforcePage__c = 'EstimateDocumentPdf',
+        SortOrder__c = 1
+      )
+    };
   }
 }
