@@ -29,9 +29,14 @@ private class InvoiceProductGenerationServiceTest {
       return;
     }
     List<ContractProduct__c> rows = [
-      SELECT Id, Product__r.RevenueRecognitionBasis__c, RevenueRecognitionBasis__c
+      SELECT
+        Id,
+        Product__r.RevenueRecognitionBasis__c,
+        RevenueRecognitionBasis__c
       FROM ContractProduct__c
-      WHERE ContractHistory__c IN :historyIds AND RevenueRecognitionBasis__c = NULL
+      WHERE
+        ContractHistory__c IN :historyIds
+        AND RevenueRecognitionBasis__c = NULL
     ];
     for (ContractProduct__c row : rows) {
       row.RevenueRecognitionBasis__c = row.Product__r.RevenueRecognitionBasis__c;
@@ -134,7 +139,9 @@ private class InvoiceProductGenerationServiceTest {
   }
 
   /** 仕様: Core 第4.4.3節。Remake の請求設定と売上計上基準は前回値のまま。 */
-  private static void syncChangeRemakeLockedFieldsToPrevious(Id changeHistoryId) {
+  private static void syncChangeRemakeLockedFieldsToPrevious(
+    Id changeHistoryId
+  ) {
     List<ContractProduct__c> remakes = [
       SELECT Id, PreviousContractProduct__c
       FROM ContractProduct__c
@@ -227,8 +234,14 @@ private class InvoiceProductGenerationServiceTest {
   ) {
     BillingAccount__c billingAccount = new BillingAccount__c(
       Account__c = account.Id,
-      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 1, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+      PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+      PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+      PaymentTermMonthOffset__c = 1,
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+      InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+      InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+      InvoiceDateDayOfMonth__c = 1,
+      InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
       BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
       BillingEmailTo__c = 'to@example.com'
     );
@@ -311,7 +324,11 @@ private class InvoiceProductGenerationServiceTest {
         );
       }
       Test.stopTest();
-      System.assertEquals(true, thrown, 'Core 第4.1節: 取引先不一致は受注しない');
+      System.assertEquals(
+        true,
+        thrown,
+        'Core 第4.1節: 取引先不一致は受注しない'
+      );
       System.assertEquals(
         'Estimate',
         [
@@ -718,8 +735,14 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 5,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -730,7 +753,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -1014,10 +1037,7 @@ private class InvoiceProductGenerationServiceTest {
         FROM Invoice__c
         WHERE ContractHistory__c = :data.history.Id
       ];
-      System.assert(
-        !lockedInvoices.isEmpty(),
-        '??????E????????????'
-      );
+      System.assert(!lockedInvoices.isEmpty(), '??????E????????????');
       for (Invoice__c invoice : lockedInvoices) {
         invoice.InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED;
         invoice.CollectionRefundStatus__c = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
@@ -1053,11 +1073,7 @@ private class InvoiceProductGenerationServiceTest {
         InvoiceLockUtil.testCanBypassLockedDml = previousBypass;
         Test.stopTest();
       }
-      System.assertEquals(
-        true,
-        thrown,
-        '??E????????????E????????'
-      );
+      System.assertEquals(true, thrown, '??E????????????E????????');
       System.assertEquals(
         1,
         [
@@ -1159,8 +1175,15 @@ private class InvoiceProductGenerationServiceTest {
       ];
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = service.Account__c,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY, PaymentTermDayOfMonth__c = 15, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        PaymentTermDayOfMonth__c = 15,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -1196,8 +1219,14 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -1208,7 +1237,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -1266,8 +1295,14 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 5,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -1278,7 +1313,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -1349,8 +1384,15 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY, PaymentTermDayOfMonth__c = 15, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 25, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        PaymentTermDayOfMonth__c = 15,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = '???????????E?? ??',
         BillingEmailTo__c = 'billing-to@example.com',
         BillingEmailCc__c = 'billing-cc@example.com',
@@ -1364,7 +1406,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -1494,8 +1536,12 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -1506,7 +1552,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -2366,7 +2412,9 @@ private class InvoiceProductGenerationServiceTest {
       );
       System.assert(
         message != null &&
-          message.contains('変更前の行は前回の版の見積商品と一致している必要があります'),
+        message.contains(
+          '変更前の行は前回の版の見積商品と一致している必要があります'
+        ),
         'Core 第6.1節: Original 不一致は fail-closed。実際: ' + message
       );
       System.assertEquals(
@@ -2472,11 +2520,7 @@ private class InvoiceProductGenerationServiceTest {
         );
       }
       Test.stopTest();
-      System.assertEquals(
-        true,
-        thrown,
-        'Original ???E Change ????????????E'
-      );
+      System.assertEquals(true, thrown, 'Original ???E Change ????????????E');
       System.assertEquals(
         'Estimate',
         [
@@ -2766,7 +2810,11 @@ private class InvoiceProductGenerationServiceTest {
         ][0]
         .get('totalAmount');
       // 1??E?E(10000 - 9000) = 1000
-      System.assertEquals(1000, v3Net, 'Core 第6.1節: V3 の期間明細 Net は 1000');
+      System.assertEquals(
+        1000,
+        v3Net,
+        'Core 第6.1節: V3 の期間明細 Net は 1000'
+      );
       for (InvoiceProduct__c reversal : [
         SELECT Amount__c, UnitPrice__c, ContractProduct__r.UnitPrice__c
         FROM InvoiceProduct__c
@@ -2937,7 +2985,9 @@ private class InvoiceProductGenerationServiceTest {
         [
           SELECT COUNT()
           FROM InvoiceProduct__c
-          WHERE ContractHistory__c = :changeHistory.Id AND StartDate__c < :currentStart
+          WHERE
+            ContractHistory__c = :changeHistory.Id
+            AND StartDate__c < :currentStart
         ],
         'Core 第6.3節: 取消行の開始より前の過去月は打ち消さない'
       );
@@ -2956,7 +3006,11 @@ private class InvoiceProductGenerationServiceTest {
         reversalLines[0].StartDate__c,
         'Core 第6.3節: 残る打消しは取消行の期間'
       );
-      System.assertEquals(-8000, reversalLines[0].Amount__c, 'Core 第6.3節: 内側は過去額の打消し');
+      System.assertEquals(
+        -8000,
+        reversalLines[0].Amount__c,
+        'Core 第6.3節: 内側は過去額の打消し'
+      );
       Decimal netAmount = (Decimal) [
           SELECT SUM(Amount__c) totalAmount
           FROM InvoiceProduct__c
@@ -2967,6 +3021,241 @@ private class InvoiceProductGenerationServiceTest {
         2000,
         netAmount,
         'Core 第7.8.5節: 期間明細の税抜は見積の差額と一致する'
+      );
+      Test.stopTest();
+    }
+  }
+
+  /**
+   * 仕様: Core 第6.3節・第7.8.5節。
+   * 取消行より前の月は打ち消さない。内側で単価0にした月は打ち消す。
+   * 期間明細の合計は見積行の合計と一致する。
+   */
+  @IsTest
+  static void changeAfterRenew_zeroPriceInsideOriginalStillReverses() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Zero Inside Change Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Zero Inside Change Service',
+        account
+      );
+      Date priorStart = Date.newInstance(2026, 4, 1);
+      Date priorEnd = Date.newInstance(2026, 4, 30);
+      Date renewStart = Date.newInstance(2026, 5, 1);
+      Date renewEnd = Date.newInstance(2026, 6, 30);
+      Date effectiveDate = Date.newInstance(2026, 6, 1);
+      Date preEffectiveEnd = effectiveDate.addDays(-1);
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Zero Inside Change Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      ContractHistory__c priorHistory = new ContractHistory__c(
+        Name = 'Zero Inside Change V1',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = priorStart,
+        CurrentTermEndDate__c = priorEnd,
+        EffectiveDate__c = priorStart
+      );
+      insertHistory(priorHistory);
+      ContractProduct__c priorProduct = new ContractProduct__c(
+        ContractHistory__c = priorHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 8000,
+        StartDate__c = priorStart,
+        Enddate__c = priorEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      insert priorProduct;
+      insert new InvoiceProduct__c(
+        ContractHistory__c = priorHistory.Id,
+        ContractProduct__c = priorProduct.Id,
+        StartDate__c = priorStart,
+        Enddate__c = priorEnd,
+        InvoiceBucketKey__c = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
+          null,
+          priorHistory.Id,
+          priorStart,
+          null
+        ),
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 8000
+      );
+
+      ContractHistory__c renewHistory = new ContractHistory__c(
+        Name = 'Zero Inside Change V2',
+        ContractService__c = service.Id,
+        Type__c = 'Renew',
+        historystatus__c = 'Ordered',
+        Version__c = 2,
+        CurrentTermStartDate__c = renewStart,
+        CurrentTermEndDate__c = renewEnd,
+        EffectiveDate__c = renewStart,
+        PreviousHistory__c = priorHistory.Id
+      );
+      insertHistory(renewHistory);
+      ContractProduct__c renewProduct = new ContractProduct__c(
+        ContractHistory__c = renewHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 16000,
+        StartDate__c = renewStart,
+        Enddate__c = renewEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'Renew'
+      );
+      insert renewProduct;
+      insert new List<InvoiceProduct__c>{
+        new InvoiceProduct__c(
+          ContractHistory__c = renewHistory.Id,
+          ContractProduct__c = renewProduct.Id,
+          StartDate__c = renewStart,
+          Enddate__c = preEffectiveEnd,
+          InvoiceBucketKey__c = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
+            null,
+            renewHistory.Id,
+            renewStart,
+            null
+          ),
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          Amount__c = 8000
+        ),
+        new InvoiceProduct__c(
+          ContractHistory__c = renewHistory.Id,
+          ContractProduct__c = renewProduct.Id,
+          StartDate__c = effectiveDate,
+          Enddate__c = renewEnd,
+          InvoiceBucketKey__c = InvoiceProductMergeKeyUtil.buildExportInvoiceMergeKey(
+            null,
+            renewHistory.Id,
+            effectiveDate,
+            null
+          ),
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          Amount__c = 8000
+        )
+      };
+
+      Test.startTest();
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Zero Inside Change V3',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 3,
+        CurrentTermStartDate__c = renewStart,
+        CurrentTermEndDate__c = renewEnd,
+        EffectiveDate__c = effectiveDate,
+        PreviousHistory__c = renewHistory.Id
+      );
+      insertHistory(changeHistory);
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          Amount__c = -16000,
+          StartDate__c = renewStart,
+          Enddate__c = renewEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = renewProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 8000,
+          Amount__c = 8000,
+          StartDate__c = renewStart,
+          Enddate__c = preEffectiveEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = renewProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 0,
+          Amount__c = 0,
+          StartDate__c = effectiveDate,
+          Enddate__c = renewEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = renewProduct.Id
+        )
+      };
+      prepareHistoryForOrder(changeHistory);
+      commitOrder(changeHistory);
+
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoiceProduct__c
+          WHERE
+            ContractHistory__c = :changeHistory.Id
+            AND StartDate__c < :renewStart
+        ],
+        'Core 第6.3節: 取消行の開始より前の過去月は打ち消さない'
+      );
+      List<InvoiceProduct__c> insideReversals = [
+        SELECT Amount__c, StartDate__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :changeHistory.Id AND Amount__c < 0
+      ];
+      System.assertEquals(
+        1,
+        insideReversals.size(),
+        'Core 第6.3節: 取消行の内側で単価0にした月は打ち消す'
+      );
+      System.assertEquals(
+        effectiveDate,
+        insideReversals[0].StartDate__c,
+        'Core 第6.3節: 残る打消しは単価0の月'
+      );
+      System.assertEquals(
+        -8000,
+        insideReversals[0].Amount__c,
+        'Core 第6.3節: 内側の打消しは過去の1ヶ月'
+      );
+      Decimal periodTotal = (Decimal) [
+          SELECT SUM(Amount__c) totalAmount
+          FROM InvoiceProduct__c
+          WHERE ContractHistory__c = :changeHistory.Id
+        ][0]
+        .get('totalAmount');
+      Decimal estimateTotal = (Decimal) [
+          SELECT SUM(Amount__c) totalAmount
+          FROM ContractProduct__c
+          WHERE ContractHistory__c = :changeHistory.Id
+        ][0]
+        .get('totalAmount');
+      System.assertEquals(
+        estimateTotal,
+        periodTotal,
+        'Core 第7.8.5節: 期間明細の税抜は見積行の合計と一致する'
       );
       Test.stopTest();
     }
@@ -3098,8 +3387,14 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 15, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 15,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -3110,7 +3405,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -3229,8 +3524,14 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 5,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -3241,7 +3542,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -3406,8 +3707,14 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER, InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY, InvoiceDateDayOfMonth__c = 5, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 1, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 5,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 1,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -3418,7 +3725,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -3544,8 +3851,12 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -3556,7 +3867,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -3687,8 +3998,12 @@ private class InvoiceProductGenerationServiceTest {
       );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Account__c = account.Id,
-        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY, InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
-        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET, PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END, PaymentTermMonthOffset__c = 0, PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_SAME_DAY,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
+        PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
+        PaymentTermMonthOffset__c = 0,
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE,
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = 'to@example.com'
       );
@@ -3699,7 +4014,7 @@ private class InvoiceProductGenerationServiceTest {
         Account__c = account.Id,
         BiilingAcccount__c = billingAccount.Id,
         TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
-      Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
+        Lifecycle__c = ContractDomainConstants.LIFECYCLE_TERM
       );
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
@@ -3987,10 +4302,7 @@ private class InvoiceProductGenerationServiceTest {
           changeInvoice.StartDate__c >= effectiveDate,
           '??E????E??????E?'
         );
-        System.assert(
-          changeInvoice.Enddate__c <= firstEnd,
-          '??1????E?????E'
-        );
+        System.assert(changeInvoice.Enddate__c <= firstEnd, '??1????E?????E');
       }
       Decimal totalAmount = 0;
       for (InvoiceProduct__c changeInvoice : changeInvoices) {
