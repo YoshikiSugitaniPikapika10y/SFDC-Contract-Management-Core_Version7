@@ -1195,7 +1195,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       "service",
       false,
       undefined,
-      this.effectiveSelectedType
+      this.effectiveSelectedType,
+      this.opportunityDefaultContext
     );
   }
 
@@ -1206,7 +1207,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       "history",
       false,
       undefined,
-      this.effectiveSelectedType
+      this.effectiveSelectedType,
+      this.opportunityDefaultContext
     );
   }
 
@@ -1217,7 +1219,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       "order",
       false,
       undefined,
-      this.effectiveSelectedType
+      this.effectiveSelectedType,
+      this.opportunityDefaultContext
     );
   }
 
@@ -1289,7 +1292,8 @@ export default class EstimateCreateModal3 extends LightningElement {
         row.id,
         customFieldsReadonly,
         row.productVisibilityContext,
-        this.effectiveSelectedType
+        this.effectiveSelectedType,
+        this.opportunityDefaultContext
       );
       if (customFieldInputs.length === 0) {
         result.push(row);

@@ -131,6 +131,12 @@ public without sharing class OrderCreateController {
     public List<ContractWizardFieldService.WizardFieldDefinition> historyFieldDefinitions;
 
     @AuraEnabled
+    public Map<String, Object> opportunityDefaultContext;
+
+    @AuraEnabled
+    public List<ContractWizardFieldService.WizardFieldDefinition> productFieldDefinitions;
+
+    @AuraEnabled
     public Map<String, Object> historySavedFields;
 
     @AuraEnabled
@@ -202,6 +208,9 @@ public without sharing class OrderCreateController {
 
     @AuraEnabled
     public Decimal lineAmount;
+
+    @AuraEnabled
+    public Map<String, String> productVisibilityContext;
   }
 
   public class OrderSaveResult {
@@ -718,6 +727,10 @@ public without sharing class OrderCreateController {
       dto.historyFieldDefinitions = OrderWizardFieldService.getDefinitions(
         history.Type__c
       );
+      dto.opportunityDefaultContext = ContractWizardFieldService.getOpportunityDefaultContext(
+        history.Opportunity__c
+      );
+      dto.productFieldDefinitions = ContractWizardFieldService.getContractProductFieldDefinitions();
       dto.historyCustomFields = OrderWizardFieldService.buildHistoryFieldValuesForWizard(
         history
       );
@@ -3035,6 +3048,9 @@ public without sharing class OrderCreateController {
       Decimal qty = product.Quantity__c == null ? 0 : product.Quantity__c;
       Decimal price = product.UnitPrice__c == null ? 0 : product.UnitPrice__c;
       line.lineAmount = qty * price;
+      line.productVisibilityContext = ContractWizardFieldService.buildProductVisibilityContext(
+        product.Product__r
+      );
       lines.add(line);
       if (
         maxModifiedOut != null &&
@@ -3069,6 +3085,20 @@ public without sharing class OrderCreateController {
     return EstimateCreateController.getBillingAccountInvoiceSettings(
       billingAccount
     );
+  }
+
+  private static String productRelationshipSelectClause() {
+    List<String> extras = new List<String>();
+    for (
+      String fieldName : ContractWizardFieldService.getProduct2RelationshipSelectFields(
+        'Product__r'
+      )
+    ) {
+      if (fieldName != 'Product__r.Name') {
+        extras.add(fieldName);
+      }
+    }
+    return extras.isEmpty() ? '' : ', ' + String.join(extras, ', ');
   }
 
   private static List<ContractHistory__c> queryContractHistoryForOrderContext(
@@ -3109,7 +3139,9 @@ public without sharing class OrderCreateController {
       'ContractService__r.BiilingAcccount__r.BillingEmailCc__c, ' +
       'ContractService__r.BiilingAcccount__r.BillingEmailBcc__c, ' +
       'ContractService__r.BiilingAcccount__r.Account__r.Name, ' +
-      '(SELECT Id, Product__r.Name, Quantity__c, UnitPrice__c, Unit__c, BillingType__c, ' +
+      '(SELECT Id, Product__r.Name' +
+      productRelationshipSelectClause() +
+      ', Quantity__c, UnitPrice__c, Unit__c, BillingType__c, ' +
       'InvoiceSetting__c, StartDate__c, Enddate__c, LastModifiedDate ' +
       'FROM ContractHistoryContractProducts__r ' +
       'ORDER BY StartDate__c ASC NULLS LAST, Product__r.Name ASC), ' +

@@ -80,6 +80,18 @@
                 ></c-estimate-wizard-custom-field-grid>
               </section>
             </template>
+            <template if:true={showProductDisplayLines}>
+              <template for:each={productDisplayLines} for:item="line">
+                <section key={line.key} class="option-panel">
+                  <h3 class="confirm-history-title">{line.productName}</h3>
+                  <c-estimate-wizard-custom-field-grid
+                    fields={line.inputs}
+                    field-target="product"
+                    disabled
+                  ></c-estimate-wizard-custom-field-grid>
+                </section>
+              </template>
+            </template>
 
             <template if:true={hasRenewOpportunity}>
               <section class="option-panel">

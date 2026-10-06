@@ -1778,6 +1778,46 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return this.isSaving === true;
   }
 
+  get amountDraftBlockedReason() {
+    return this.amountDraftActionsDisabled
+      ? "処理中は他の編集へ進めません"
+      : "";
+  }
+
+  get resetPostOrderBlockedReason() {
+    if (!this.resetPostOrderDisabled) {
+      return "";
+    }
+    if (
+      this.isSaving === true &&
+      !this.hasAmountDrafts &&
+      !this.isBillingEditUiOpen &&
+      !this.isSplitOrMoveUiOpen
+    ) {
+      return "処理中は他の編集へ進めません";
+    }
+    const title = this.resetPostOrderTitle;
+    return title === "このVersionの請求を受注直後の状態に作り直します"
+      ? ""
+      : title;
+  }
+
+  get showResetNotice() {
+    return this.cardNotice?.anchor === "reset";
+  }
+
+  get showAmountNotice() {
+    return this.cardNotice?.anchor === "amount";
+  }
+
+  get boardNoticeText() {
+    return this.cardNotice?.text || "";
+  }
+
+  get boardNoticeReload() {
+    return this.cardNotice?.reload === true;
+  }
+
   get showAmountDraftWait() {
     return this.isSaving === true && this.showAmountDraftActions;
   }
@@ -2300,6 +2340,22 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
                     : invoice.locked === true
                       ? LOCKED_INVOICE_EDIT_NOTE
                       : "",
+              rowSplitBlockedReason:
+                this.hasAmountDrafts ||
+                this.isSaving ||
+                this.isBillingEditUiOpen ||
+                invoice.locked === true ||
+                splitBusyOther
+                  ? splitBusyOther
+                    ? "編集中の分割をキャンセルまたは実行してから操作してください"
+                    : this.isBillingEditUiOpen
+                      ? "請求情報編集をキャンセルまたは保存してから操作できます"
+                      : this.hasAmountDrafts
+                        ? "端数調整の保存または取消後に操作できます"
+                        : invoice.locked === true
+                          ? LOCKED_INVOICE_EDIT_NOTE
+                          : "処理中は他の編集へ進めません"
+                  : "",
               splitSelected,
               splitKind,
               splitKindOptions: kindOptions.map((option) => ({
@@ -2717,6 +2773,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             this.isUnlockReasonTooLong(
               this.journalUnlockReasonByInvoice[invoiceId]
             ),
+          journalBarUnlockReason: this.isUnlockReasonTooLong(
+            this.journalUnlockReasonByInvoice[invoiceId]
+          )
+            ? "Unlock理由は255文字以内で指定してください。"
+            : this.isBlankReasonText(this.journalUnlockReasonByInvoice[invoiceId])
+              ? "Unlockには理由が必要です"
+              : "",
           journalPostingMonthOptions: withFilterChecked(
             uniqueSorted(
               allJournals.map((journal) => postingMonthKey(journal.postingDate))
@@ -2884,6 +2947,29 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           showPaymentAddNotice:
             this.cardNotice?.invoiceId === invoiceId &&
             this.cardNotice?.anchor === "paymentAdd",
+          showBillingNotice: this.noticeAt(invoiceId, "billing"),
+          showSplitNotice: this.noticeAt(invoiceId, "split"),
+          showMoveNotice: this.noticeAt(invoiceId, "move"),
+          showLineSplitNotice: this.noticeAt(invoiceId, "lineSplit"),
+          showMemoNotice: this.noticeAt(invoiceId, "memo"),
+          showJournalMemoNotice: this.noticeAt(invoiceId, "journalMemo"),
+          showLockNotice: this.noticeAt(invoiceId, "lock"),
+          showUnlockNotice: this.noticeAt(invoiceId, "unlock"),
+          showAcceptanceNotice: this.noticeAt(invoiceId, "acceptance"),
+          showPaymentEditNotice: this.noticeAt(invoiceId, "paymentEdit"),
+          showPaymentCancelNotice: this.noticeAt(invoiceId, "paymentCancel"),
+          invoiceIssueConfirmReason: this.issuePanelReason(
+            invoiceOpsBusy,
+            isInvoiceIssueOpen
+          ),
+          invoiceSendConfirmReason: this.sendPanelReason(
+            invoiceOpsBusy,
+            isInvoiceSendOpen
+          ),
+          invoiceCancelConfirmReason: this.cancelPanelReason(
+            invoiceOpsBusy,
+            this.invoiceCancelState?.invoiceId === invoiceId
+          ),
           actionNoticeText: this.cardNotice?.text || "",
           actionNoticeReload: this.cardNotice?.reload === true,
           isInvoiceSendOpen,
@@ -3038,6 +3124,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             !hasInvoiceMoveSelection ||
             this.hasAmountDrafts ||
             this.isSaving === true,
+          invoiceSplitConfirmReason: this.splitPanelReason(isInvoiceSplitOpen),
+          invoiceMoveConfirmReason: this.movePanelReason(isInvoiceMoveOpen),
+          lineSplitConfirmReason: this.lineSplitPanelReason(isLineSplitOpen),
           canMoveLines,
           moveLinesDisabled:
             this.hasAmountDrafts ||
@@ -3092,6 +3181,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           amountAdjustMinus10Title: amountAdjustDisabled
             ? amountAdjustBlockedTitle
             : "10円減らす",
+          amountAdjustBlockedReason: amountAdjustDisabled
+            ? amountAdjustBlockedTitle
+            : "",
           lockNote:
             invoice.locked === true ? LOCKED_INVOICE_EDIT_NOTE : "",
           showEditProcessing:
@@ -3219,7 +3311,24 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             paymentDraft
           ),
           paymentRegisterCancelDate: paymentDraft?.cancellationDate || "",
-          paymentFormError: uiState.paymentFormError || "",
+          paymentFormError:
+            uiState.paymentFormError ||
+            (paymentRegisterBusy &&
+            inputAmount &&
+            inputAmount !== 0 &&
+            purpose &&
+            paymentDraft?.paymentDate
+              ? "処理中は他の編集へ進めません"
+              : "") ||
+            (isInvoicePurpose &&
+            !paymentRegisterBusy &&
+            inputAmount &&
+            inputAmount !== 0 &&
+            purpose &&
+            paymentDraft?.paymentDate &&
+            paymentAllocationRows.length === 0
+              ? "請求金額の入出金は明細別割当が1件以上必要です。"
+              : ""),
           paymentFormTitle: "入出金を追加",
           paymentSaveLabel: "追加",
           paymentBlockedReason: bundle?.paymentBlockedReason || "",
@@ -3303,6 +3412,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             opsBusy ||
             (uiState.acceptanceDraft?.requiresDate === true &&
               !uiState.acceptanceDraft?.cancellationDate),
+          acceptanceCancelReason: opsBusy
+            ? "処理中は他の編集へ進めません"
+            : uiState.acceptanceDraft?.requiresDate === true &&
+                !uiState.acceptanceDraft?.cancellationDate
+              ? "ロック済み仕訳がある取消では取消基準日が必要です。"
+              : "",
           // 仕様: Accounting 第1.1節。OFFは仕訳タブも停止中注記も出さない。
           showAccountingOffNote: false,
           accountingEnabled,
@@ -3565,9 +3680,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       }
     }
     const keyInvoiceId = versionInvoices[0]?.invoiceId;
+    this.beginCardNotice("board", "reset");
     this.dispatchEvent(
       new CustomEvent("resetpostorder", {
         detail: {
+          noticeInvoiceId: "board",
+          noticeAnchor: "reset",
           versionValue: String(this.selectedVersion),
           expectedTokenByInvoiceId,
           businessOperationKey: keyInvoiceId
@@ -4377,6 +4495,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
     const state = this.paymentEditState;
     const invoiceId = state.invoiceId;
+    this.beginCardNotice(invoiceId, "paymentEdit");
     await this.runInvoiceOpsMutation(invoiceId, async () => {
       const key = await this.resolvePendingOperationKey(invoiceId);
       await updatePaymentFromPreview({
@@ -4400,7 +4519,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
       this.paymentEditState = null;
       return "入出金を更新しました";
-    });
+    }, { noticeAnchor: "paymentEdit" });
   }
 
   async handlePaymentCancel(event) {
@@ -4471,6 +4590,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   // 仕様: Core 第7.9.5節・第7.9.6節・第1.1.10節、Accounting 第8.5節、日付仕様 第7.3節
   async handlePaymentCancelSave(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
+    this.beginCardNotice(invoiceId, "paymentCancel");
     const draft = this.invoiceUiState[invoiceId]?.cancelDraft;
     if (!invoiceId || !draft || this.invoiceOpsProcessingId != null) {
       return;
@@ -4521,7 +4641,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
       this.updateInvoiceUiState(invoiceId, { cancelDraft: null });
       return "入出金を取消しました";
-    });
+    }, { noticeAnchor: "paymentCancel" });
   }
 
   async runInvoiceOpsMutation(invoiceId, action, options) {
@@ -4539,7 +4659,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         typeof success === "string" ? success : success?.title;
       this._noticeTarget = {
         invoiceId,
-        anchor: options?.paymentAddVersionConflict === true ? "paymentAdd" : "payment"
+        anchor:
+          options?.noticeAnchor ||
+          (options?.paymentAddVersionConflict === true ? "paymentAdd" : "payment")
       };
       this.noteCompletion(successTitle || "更新しました");
       await this.loadOpsBundle(invoiceId);
@@ -4562,7 +4684,10 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           );
         }
       } else {
-        this._noticeTarget = { invoiceId, anchor: "payment" };
+        this._noticeTarget = {
+          invoiceId,
+          anchor: options?.noticeAnchor || "payment"
+        };
         this.setSurfaceError("請求操作エラー", message);
         // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直す。
         if (message === VERSION_CONFLICT_MESSAGE) {
@@ -4783,6 +4908,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("saveacceptanceenddate", {
         detail: {
+          noticeInvoiceId: invoiceId,
+          noticeAnchor: "acceptance",
           lineId,
           acceptanceEndDate: next,
           cancellationDate: null,
@@ -4844,6 +4971,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   // 仕様: Core 第7.6節、第7.8.2節、第7.9.6節、Accounting 第8.5節、日付仕様 第7.3節
   async handleAcceptanceCancelSave(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
+    this.beginCardNotice(invoiceId, "acceptance");
     const draft = this.invoiceUiState[invoiceId]?.acceptanceDraft;
     if (
       !invoiceId ||
@@ -4887,6 +5015,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("saveacceptanceenddate", {
         detail: {
+          noticeInvoiceId: invoiceId,
+          noticeAnchor: "acceptance",
           lineId: draft.lineId,
           acceptanceEndDate: draft.nextDate,
           cancellationDate: draft.requiresDate ? draft.cancellationDate : null,
@@ -4924,9 +5054,12 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       }
     }
     this.editProcessingInvoiceId = (keyInvoiceId);
+    this.beginCardNotice(keyInvoiceId || "board", "amount");
     this.dispatchEvent(
       new CustomEvent("savelineamounts", {
         detail: {
+          noticeInvoiceId: keyInvoiceId || "board",
+          noticeAnchor: "amount",
           edits,
           expectedTokenByInvoiceId,
           businessOperationKey: keyInvoiceId
@@ -5369,6 +5502,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     ) {
       return;
     }
+    this.beginCardNotice(this.invoiceSplitState.invoiceId, "split");
     if (!this.invoiceSplitState.newInvoiceDate) {
       this.setSurfaceError("請求日を入力してください", "分割先の請求日は必須です。");
       return;
@@ -5407,6 +5541,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("splitinvoice", {
         detail: {
+          noticeInvoiceId: this.invoiceSplitState.invoiceId,
+          noticeAnchor: "split",
           mode: changedBillingAccount ? "billingAccount" : "date",
           sourceInvoiceId: this.invoiceSplitState.invoiceId,
           newInvoiceDate: this.invoiceSplitState.newInvoiceDate,
@@ -5433,6 +5569,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     ) {
       return;
     }
+    this.beginCardNotice(this.invoiceMoveState.invoiceId, "move");
     if (!this.invoiceMoveState.targetInvoiceId) {
       this.setSurfaceError("移動先を選択してください", "同じVersionの移動先請求を選んでから実行してください。");
       return;
@@ -5461,6 +5598,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("movelines", {
         detail: {
+          noticeInvoiceId: this.invoiceMoveState.invoiceId,
+          noticeAnchor: "move",
           sourceInvoiceId: this.invoiceMoveState.invoiceId,
           targetInvoiceId: this.invoiceMoveState.targetInvoiceId,
           lineIds,
@@ -5882,6 +6021,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     ) {
       return;
     }
+    this.beginCardNotice(this.lineSplitState.invoiceId, "lineSplit");
     if (this.unitPriceFormulaLineId != null) {
       this.setSurfaceError("単価の入力を確定してください", "数式ポップアップを適用（またはキャンセル）してから分割を実行してください。");
       return;
@@ -5900,6 +6040,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("splitlinesinplace", {
         detail: {
+          noticeInvoiceId: this.lineSplitState.invoiceId,
+          noticeAnchor: "lineSplit",
           invoiceId: this.lineSplitState.invoiceId,
           splitLines,
           expectedContentVersion: invoice?.lastModifiedToken,
@@ -6012,6 +6154,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!this.billingEditState?.invoiceId) {
       return;
     }
+    this.beginCardNotice(this.billingEditState.invoiceId, "billing");
     if (
       this.isSaving ||
       this.isDocumentOpsWaiting ||
@@ -6037,6 +6180,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("savebillingheader", {
         detail: {
+          noticeInvoiceId: this.billingEditState.invoiceId,
+          noticeAnchor: "billing",
           invoiceId,
           invoiceDate: this.billingEditState.invoiceDate,
           paymentScheduledDate: this.billingEditState.paymentScheduledDate,
@@ -6203,6 +6348,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("applybillingaccountcontent", {
         detail: {
+          noticeInvoiceId: invoiceId,
+          noticeAnchor: "billing",
           invoiceId,
           expectedContentVersion: invoice.lastModifiedToken,
           businessOperationKey: await this.resolvePendingOperationKey(invoiceId)
@@ -6238,6 +6385,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!invoiceId) {
       return;
     }
+    this.beginCardNotice(invoiceId, "memo");
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
       this.setSurfaceError("請求操作エラー", "取消済み請求のメモは編集できません。");
       return;
@@ -6315,6 +6463,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   // 仕様: Core 第7.9.3節、第7.9.5節、第7.9.6節、第7.10節、第1.1.10節、Accounting 第8.5節、日付仕様 第7.3節
   async handleConfirmInvoiceCancel() {
+    if (this.invoiceCancelState?.invoiceId) {
+      this.beginCardNotice(this.invoiceCancelState.invoiceId, "cancel");
+    }
     if (
       !this.invoiceCancelState?.invoiceId ||
       this.invoiceOpsProcessingId != null ||
@@ -6372,6 +6523,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.dispatchEvent(
       new CustomEvent("cancelconfirmed", {
         detail: {
+          noticeInvoiceId: invoiceId,
+          noticeAnchor: "cancel",
           invoiceId,
           cancellationReason: this.invoiceCancelState.cancellationReason,
           cancellationReasonText:
@@ -6443,6 +6596,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     if (!journalId) {
       return;
     }
+    this.beginCardNotice(invoiceId, "journalMemo");
     if (this.isCancelledInvoice(this.findInvoice(invoiceId))) {
       this.setSurfaceError("請求操作エラー", "取消済み請求の仕訳メモは編集できません。");
       return;
@@ -6720,6 +6874,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   async lockSelectedOrRefuse(invoiceId, journalIds) {
+    this.beginCardNotice(invoiceId, "lock");
     if (!journalIds.length) {
       this.setSurfaceError("Lockする仕訳を選んでください。", undefined);
       return;
@@ -6761,6 +6916,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   async unlockSelectedFromBar(invoiceId, journalIds) {
+    this.beginCardNotice(invoiceId, "unlock");
     if (!journalIds.length) {
       this.setSurfaceError("Unlockする仕訳を選んでください。", undefined);
       return;
@@ -6817,6 +6973,203 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   handleManualJournalComplete() {
     this.dispatchEvent(new CustomEvent("invoiceopscomplete"));
+  }
+
+  noticeAt(invoiceId, anchor) {
+    return (
+      this.cardNotice?.invoiceId === invoiceId &&
+      this.cardNotice?.anchor === anchor
+    );
+  }
+
+  beginCardNotice(invoiceId, anchor) {
+    this.cardNotice = null;
+    this.surfaceError = "";
+    this.completionNote = "";
+    this._noticeTarget =
+      invoiceId && anchor ? { invoiceId, anchor } : null;
+  }
+
+  @api
+  showCardNotice(invoiceId, anchor, message, reload) {
+    const text = String(message || "");
+    this.surfaceError = "";
+    this.completionNote = "";
+    if (!invoiceId || !anchor || !text) {
+      this.cardNotice = null;
+      return;
+    }
+    this.cardNotice = {
+      invoiceId,
+      anchor,
+      text,
+      reload: reload === true
+    };
+  }
+
+  operationBlockedSentence() {
+    if (this.hasAmountDrafts) {
+      return "端数調整の保存または取消後に操作できます";
+    }
+    if (this.isBillingEditUiOpen) {
+      return "請求情報編集をキャンセルまたは保存してから操作できます";
+    }
+    if (this.isSplitOrMoveUiOpen) {
+      return "別の請求へ分ける／分割をキャンセルまたは実行してから操作できます";
+    }
+    if (this.isDocumentOpsWaiting) {
+      return "発行または送付が終わるまで操作できません";
+    }
+    if (this.invoiceOpsProcessingId != null || this.isSaving === true) {
+      return "処理中は他の編集へ進めません";
+    }
+    return "";
+  }
+
+  issuePanelReason(invoiceOpsBusy, isOpen) {
+    if (!isOpen) {
+      return "";
+    }
+    if (invoiceOpsBusy) {
+      return this.operationBlockedSentence();
+    }
+    if (!this.invoiceIssueState?.documentTemplateKey) {
+      return "帳票を選んでください。";
+    }
+    if (!this.invoiceIssueState?.fileName) {
+      return "ファイル名を入力してください。";
+    }
+    if (!this.isBlankReasonText(this.companyBlockedReason)) {
+      return this.companyBlockedReason;
+    }
+    return "";
+  }
+
+  sendPanelReason(invoiceOpsBusy, isOpen) {
+    if (!isOpen) {
+      return "";
+    }
+    if (invoiceOpsBusy) {
+      return this.operationBlockedSentence();
+    }
+    if (!this.invoiceSendState?.documentTemplateKey) {
+      return "帳票を選んでください。";
+    }
+    if (!this.invoiceSendState?.emailTemplateApiName) {
+      return "メールを選んでください。";
+    }
+    if (this.isBlankReasonText(this.invoiceSendState?.toAddresses)) {
+      return "請求のToメールアドレスが設定されていません。";
+    }
+    if (
+      this.hasInvalidEmailList(this.invoiceSendState?.toAddresses) ||
+      this.hasInvalidEmailList(this.invoiceSendState?.ccAddresses) ||
+      this.hasInvalidEmailList(this.invoiceSendState?.bccAddresses)
+    ) {
+      return "不正なメールアドレスがあるため送れません。";
+    }
+    if (!this.invoiceSendState?.attachmentId) {
+      return "送付するファイルを選んでください。";
+    }
+    if (this.isBlankReasonText(this.invoiceSendState?.fileName)) {
+      return "ファイル名を入力してください。";
+    }
+    if (this.orgFromResolved !== true) {
+      return "PDFとメール送付のとき、組織の送信元を選んでください。";
+    }
+    return "";
+  }
+
+  cancelPanelReason(invoiceOpsBusy, isOpen) {
+    if (!isOpen) {
+      return "";
+    }
+    if (invoiceOpsBusy) {
+      return this.operationBlockedSentence();
+    }
+    if (!this.invoiceCancelState?.cancellationReason) {
+      return "取消理由を入力してください。";
+    }
+    if (
+      this.invoiceCancelState?.cancellationReason === "Other" &&
+      this.isBlankReasonText(this.invoiceCancelState?.cancellationReasonText)
+    ) {
+      return "取消理由がその他のときは内容を入力してください。";
+    }
+    if (
+      requiresCancelDate(
+        this.invoiceUiState[this.invoiceCancelState?.invoiceId]?.bundle
+      ) &&
+      !this.invoiceCancelState?.cancellationDate
+    ) {
+      return "ロック済み仕訳がある取消では取消基準日が必要です。";
+    }
+    return "";
+  }
+
+  splitPanelReason(isOpen) {
+    if (!isOpen) {
+      return "";
+    }
+    const blocked = this.operationBlockedSentence();
+    if (blocked) {
+      return blocked;
+    }
+    if (!this.invoiceSplitState?.newInvoiceDate) {
+      return "分割先の請求日は必須です。";
+    }
+    if (!this.invoiceSplitState?.newPaymentDate) {
+      return "分割先の入金予定日は必須です。";
+    }
+    if (!this.invoiceSplitState?.newBillingAccountId) {
+      return "分割先の請求アカウントは必須です。";
+    }
+    const invoice = this.findInvoice(this.invoiceSplitState?.invoiceId);
+    const selected = (invoice?.lines || []).some(
+      (line) =>
+        line?.lineId && this.invoiceSplitState.selected?.[line.lineId] === true
+    );
+    return selected ? "" : "分ける明細にチェックを入れてから実行してください。";
+  }
+
+  movePanelReason(isOpen) {
+    if (!isOpen) {
+      return "";
+    }
+    const blocked = this.operationBlockedSentence();
+    if (blocked) {
+      return blocked;
+    }
+    if (!this.invoiceMoveState?.targetInvoiceId) {
+      return "同じVersionの移動先請求を選んでから実行してください。";
+    }
+    const invoice = this.findInvoice(this.invoiceMoveState?.invoiceId);
+    const selected = (invoice?.lines || []).some(
+      (line) =>
+        line?.lineId && this.invoiceMoveState.selected?.[line.lineId] === true
+    );
+    return selected ? "" : "移す明細にチェックを入れてから実行してください。";
+  }
+
+  lineSplitPanelReason(isOpen) {
+    if (!isOpen) {
+      return "";
+    }
+    const blocked = this.operationBlockedSentence();
+    if (blocked) {
+      return blocked;
+    }
+    if (this.lineSplitState?.loadingThresholds === true) {
+      return "読み込み完了後に分割を実行してください。";
+    }
+    if (this.unitPriceFormulaLineId != null) {
+      return "数式ポップアップを適用（またはキャンセル）してから分割を実行してください。";
+    }
+    const rows = this.lineSplitState?.rows || {};
+    const selected = Object.keys(rows).some((id) => rows[id]?.selected === true);
+    return selected
+      ? ""
+      : "明細を選択し、期間／単価／数量の分割内容を確定してください。";
   }
 
   setSurfaceError(title, message) {

@@ -204,6 +204,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleSaveLineAmounts(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const { edits, expectedTokenByInvoiceId, businessOperationKey } =
       event.detail || {};
     if (!edits?.length) {
@@ -220,6 +221,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleSaveAcceptanceEndDate(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       lineId,
       acceptanceEndDate,
@@ -246,7 +248,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     );
     if (
       !saved &&
-      String(this.errorMessage || "").includes("取消基準日が必要")
+      String(this._lastEditError || this.errorMessage || "").includes("取消基準日が必要")
     ) {
       const table = this.template.querySelector("c-order-invoice-preview-table");
       if (table && typeof table.showAcceptanceCancelDateRequired === "function") {
@@ -256,6 +258,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleSaveBillingHeader(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       invoiceId,
       invoiceDate,
@@ -272,11 +275,11 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return;
     }
     if (!invoiceDate) {
-      this.errorMessage = "請求日は必須です。";
+      this.placeCardError(event.detail, "請求日は必須です。");
       return;
     }
     if (!paymentScheduledDate) {
-      this.errorMessage = "入金予定日は必須です。";
+      this.placeCardError(event.detail, "入金予定日は必須です。");
       return;
     }
     const saved = await this.runEdit(() =>
@@ -307,6 +310,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleSplitInvoice(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       mode,
       sourceInvoiceId,
@@ -321,11 +325,11 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return;
     }
     if (!newInvoiceDate) {
-      this.errorMessage = "分割先の請求日は必須です。";
+      this.placeCardError(event.detail, "分割先の請求日は必須です。");
       return;
     }
     if (!newPaymentScheduledDate) {
-      this.errorMessage = "分割先の入金予定日は必須です。";
+      this.placeCardError(event.detail, "分割先の入金予定日は必須です。");
       return;
     }
     if (mode === "billingAccount") {
@@ -362,6 +366,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleMoveLines(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       sourceInvoiceId,
       targetInvoiceId,
@@ -391,6 +396,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleSplitLinesInPlace(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       invoiceId,
       splitLines,
@@ -413,6 +419,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleResetPostOrder(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       versionValue,
       expectedTokenByInvoiceId,
@@ -432,6 +439,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleApplyBillingAccountContent(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const { invoiceId, expectedContentVersion, businessOperationKey } =
       event.detail || {};
     if (!invoiceId) {
@@ -449,6 +457,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   }
 
   async handleCancelConfirmed(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       invoiceId,
       cancellationReason,
@@ -482,18 +491,67 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     await this.loadPreview();
   }
 
+  cardNoticeFrom(detail) {
+    if (!detail?.noticeInvoiceId || !detail?.noticeAnchor) {
+      return null;
+    }
+    return {
+      invoiceId: detail.noticeInvoiceId,
+      anchor: detail.noticeAnchor
+    };
+  }
+
+  placeCardError(detail, message) {
+    const card = this.cardNoticeFrom(detail);
+    const table = this.template.querySelector("c-order-invoice-preview-table");
+    if (card && table?.showCardNotice) {
+      this.errorMessage = "";
+      table.showCardNotice(card.invoiceId, card.anchor, message, true);
+      return;
+    }
+    this.errorMessage = message;
+  }
+
   async runEdit(action, successMessage) {
     if (this.isSaving) {
       return false;
     }
+    const card = this._pendingCardNotice;
+    this._pendingCardNotice = null;
     this.isSaving = true;
     this.errorMessage = "";
+    this._lastEditError = "";
     try {
       this.invoicePreview = await action();
-      this.completionNote = "請求情報を保存しました。";
+      if (card) {
+        this.completionNote = "";
+        this.template
+          .querySelector("c-order-invoice-preview-table")
+          ?.showCardNotice(
+            card.invoiceId,
+            card.anchor,
+            "請求情報を保存しました。",
+            false
+          );
+      } else {
+        this.completionNote = "請求情報を保存しました。";
+      }
       return true;
     } catch (error) {
-      this.errorMessage = this.reduceError(error);
+      const message = this.reduceError(error);
+      this._lastEditError = message;
+      if (card) {
+        this.errorMessage = "";
+        this.contentLoadFailed = false;
+        if (message === VERSION_CONFLICT_MESSAGE) {
+          await this.loadPreview();
+        }
+        this.template
+          .querySelector("c-order-invoice-preview-table")
+          ?.showCardNotice(card.invoiceId, card.anchor, message, true);
+        return false;
+      }
+      this.errorMessage = message;
       this.contentLoadFailed = true;
       // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時はボード全体を読み直し、拒否文は残す。
       if (this.errorMessage === VERSION_CONFLICT_MESSAGE) {

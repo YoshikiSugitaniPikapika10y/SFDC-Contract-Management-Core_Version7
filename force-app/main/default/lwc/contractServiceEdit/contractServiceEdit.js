@@ -62,7 +62,7 @@ export default class ContractServiceEdit extends LightningElement {
 
   get customFieldInputs() {
     return buildCustomFieldInputs(
-      this.fieldDefinitions,
+      (this.fieldDefinitions || []).filter((field) => field?.apiName),
       this.customFields,
       "service",
       false,

@@ -86,6 +86,97 @@ private class ContractWizardFieldServiceTest {
   }
 
   @IsTest
+  static void getOpportunityDefaultContext_displayRowReadsReferenceName() {
+    Account account = ContractTestDataFactory.insertAccount('Disp Ctx Account');
+    Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+      account.Id,
+      'Disp Ctx Opp'
+    );
+    ContractWizardFieldService.setCachedDefinitionsForTest(
+      new List<EstimateWizardField__mdt>{
+        new EstimateWizardField__mdt(
+          DeveloperName = 'Disp_Opp_Owner',
+          MasterLabel = 'Disp Opp Owner',
+          Active__c = true,
+          TargetObject__c = 'ContractHistory__c',
+          DefaultSource__c = 'Opportunity',
+          DefaultValue__c = 'OwnerId',
+          ShowOnNew__c = true
+        ),
+        new EstimateWizardField__mdt(
+          DeveloperName = 'Disp_Acct_Owner',
+          MasterLabel = 'Disp Acct Owner',
+          Active__c = true,
+          TargetObject__c = 'ContractService__c',
+          DefaultSource__c = 'Account',
+          DefaultValue__c = 'OwnerId',
+          ShowOnNew__c = true
+        )
+      }
+    );
+    Opportunity queried = [
+      SELECT Owner.Name, Account.Owner.Name
+      FROM Opportunity
+      WHERE Id = :opportunity.Id
+    ];
+    Map<String, Object> context = ContractWizardFieldService.getOpportunityDefaultContext(
+      opportunity.Id
+    );
+    System.assertEquals(
+      queried.Owner.Name,
+      context.get('OwnerId.Name'),
+      'Core 第11.4.1節: 表示行の参照は名前を読む。Idは保存しない'
+    );
+    System.assertEquals(
+      queried.Account.Owner.Name,
+      context.get('Account.OwnerId.Name'),
+      'Core 第11.4.1節: 取引先の参照は商談の取引先の直下の名前'
+    );
+  }
+
+  @IsTest
+  static void displayProductRow_readsRelatedNameFromQueriedProduct() {
+    ContractWizardFieldService.setCachedDefinitionsForTest(
+      new List<EstimateWizardField__mdt>{
+        new EstimateWizardField__mdt(
+          DeveloperName = 'Disp_Product_Owner',
+          MasterLabel = 'Disp Product Owner',
+          Active__c = true,
+          TargetObject__c = 'ContractProduct__c',
+          DefaultSource__c = 'Product2',
+          DefaultValue__c = 'CreatedById',
+          ShowOnNew__c = true
+        )
+      }
+    );
+    List<String> selectFields = ContractWizardFieldService.getProduct2RelationshipSelectFields(
+      'Product__r'
+    );
+    System.assertEquals(
+      true,
+      selectFields.contains('Product__r.CreatedBy.Name'),
+      'Core 第11.4.1節: 商品の表示行が参照なら関係名.NameをSELECTする'
+    );
+    Product2 product = ContractTestDataFactory.buildProduct(
+      'Disp Row ' + String.valueOf(Crypto.getRandomInteger())
+    );
+    ContractTestDataFactory.insertProduct(product);
+    Product2 queried = [
+      SELECT CreatedBy.Name
+      FROM Product2
+      WHERE Id = :product.Id
+    ];
+    Map<String, String> context = ContractWizardFieldService.buildProductVisibilityContext(
+      queried
+    );
+    System.assertEquals(
+      queried.CreatedBy.Name,
+      context.get('CreatedById.Name'),
+      'Core 第11.4.1節: 商品の表示行は参照の名前。Idは保存しない'
+    );
+  }
+
+  @IsTest
   static void getOpportunityDefaultContext_readsOpportunityAndAccount() {
     Account account = ContractTestDataFactory.insertAccount(
       'Default Ctx Account'
@@ -1021,7 +1112,7 @@ private class ContractWizardFieldServiceTest {
         ShowOnRenew__c = true,
         ShowOnCancel__c = true
       ),
-      '見積ウィザードカスタム項目「Test_Blank_Field」の FieldApiName が未設定です。'
+      '見積ウィザードカスタム項目「Test_Blank_Field」の表示行は、商談・取引先・商品のいずれかを読んでください。'
     );
     assertWizardConfigRejected(
       new EstimateWizardField__mdt(

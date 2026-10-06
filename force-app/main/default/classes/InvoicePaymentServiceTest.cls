@@ -256,6 +256,60 @@ private class InvoicePaymentServiceTest {
   }
 
   @IsTest
+  static void register_sameOperationKey_reusesSameInvoiceAndRejectsOtherInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      insert GlAccountingPolicyService.newOrgDefault();
+      InvoiceFixture first = createInvoice(true);
+      InvoiceFixture second = createInvoice(true);
+      InvoicePaymentService.RegisterRequest request = invoiceRequest(first, 1100);
+      request.businessOperationKey = 'pay-same-key';
+      Test.startTest();
+      Id paymentId = InvoicePaymentService.register(request);
+      InvoicePaymentService.RegisterRequest retry = invoiceRequest(first, 1100);
+      retry.businessOperationKey = 'pay-same-key';
+      Id retried = InvoicePaymentService.register(retry);
+      System.assertEquals(
+        paymentId,
+        retried,
+        'Core 第8.9節: 同じ請求の同じキーは1件のまま成功する'
+      );
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM InvoicePayment__c
+          WHERE Invoice__c = :first.invoice.Id
+        ],
+        'Core 第8.9節: 同じ請求への再試行で行は増えない'
+      );
+      InvoicePaymentService.RegisterRequest other = invoiceRequest(second, 1100);
+      other.businessOperationKey = 'pay-same-key';
+      Boolean thrown = false;
+      try {
+        InvoicePaymentService.register(other);
+      } catch (Exception ex) {
+        thrown = true;
+        System.assertEquals(
+          'この請求には行が増えていません。',
+          ex.getMessage(),
+          'Core 第8.9節: 別請求の同じキーは成功にしない'
+        );
+      }
+      System.assertEquals(true, thrown);
+      System.assertEquals(
+        0,
+        [
+          SELECT COUNT()
+          FROM InvoicePayment__c
+          WHERE Invoice__c = :second.invoice.Id
+        ],
+        'Core 第8.9節: 別請求には行が増えない'
+      );
+      Test.stopTest();
+    }
+  }
+
+  @IsTest
   static void registerThenCancel_keepsOriginalAndOppositeSign() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();

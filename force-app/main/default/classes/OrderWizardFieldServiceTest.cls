@@ -734,7 +734,7 @@ private class OrderWizardFieldServiceTest {
     } catch (AuraHandledException ex) {
       failed = true;
       System.assertEquals(
-        '受注ウィザード追加項目「Blank_Api」の FieldApiName が未設定です。',
+        '受注ウィザード追加項目「Blank_Api」の表示行は、商談か取引先を読んでください。',
         ex.getMessage(),
         'Core 第11.4.3節: FieldApiName 空は DeveloperName を含める'
       );

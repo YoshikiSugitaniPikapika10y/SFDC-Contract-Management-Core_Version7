@@ -67,28 +67,16 @@ public without sharing class InvoicePaymentService {
       request == null ? null : request.businessOperationKey
     );
     if (request != null && String.isNotBlank(request.businessOperationKey)) {
-      List<InvoicePayment__c> existing = [
-        SELECT Id
-        FROM InvoicePayment__c
-        WHERE BusinessOperationKey__c = :operationKey
-        WITH SYSTEM_MODE
-        LIMIT 1
-      ];
-      if (!existing.isEmpty()) {
-        return existing[0].Id;
+      Id reused = reuseSameInvoicePayment(operationKey, request.invoiceId);
+      if (reused != null) {
+        return reused;
       }
     }
     Invoice__c invoice = prepareRegister(request);
     if (String.isNotBlank(request.businessOperationKey)) {
-      List<InvoicePayment__c> existingAfterLock = [
-        SELECT Id
-        FROM InvoicePayment__c
-        WHERE BusinessOperationKey__c = :operationKey
-        WITH SYSTEM_MODE
-        LIMIT 1
-      ];
-      if (!existingAfterLock.isEmpty()) {
-        return existingAfterLock[0].Id;
+      Id reusedAfterLock = reuseSameInvoicePayment(operationKey, request.invoiceId);
+      if (reusedAfterLock != null) {
+        return reusedAfterLock;
       }
     }
     // 仕様: Core 第4.3.12節・第7.9.7節。比較値未指定は拒否。検査省略の互換は持たない。
@@ -704,6 +692,23 @@ public without sharing class InvoicePaymentService {
       InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
       InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
+  }
+
+  private static Id reuseSameInvoicePayment(String operationKey, Id invoiceId) {
+    List<InvoicePayment__c> existing = [
+      SELECT Id, Invoice__c
+      FROM InvoicePayment__c
+      WHERE BusinessOperationKey__c = :operationKey
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (existing.isEmpty()) {
+      return null;
+    }
+    if (existing[0].Invoice__c != invoiceId) {
+      throw new PaymentException('この請求には行が増えていません。');
+    }
+    return existing[0].Id;
   }
 
   public class PaymentException extends Exception {

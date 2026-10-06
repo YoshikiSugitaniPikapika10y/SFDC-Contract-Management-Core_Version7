@@ -1892,6 +1892,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleSaveLineAmounts(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const { edits, expectedTokenByInvoiceId, businessOperationKey } =
       event.detail || {};
     if (!edits?.length) {
@@ -1908,6 +1909,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleSaveAcceptanceEndDate(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       lineId,
       acceptanceEndDate,
@@ -1934,7 +1936,9 @@ export default class ContractCrossWork extends NavigationMixin(
     );
     if (
       !saved &&
-      String(this.invoiceError || "").includes("取消基準日が必要")
+      String(this._lastEditError || this.invoiceError || "").includes(
+        "取消基準日が必要"
+      )
     ) {
       const table = this.template.querySelector("c-order-invoice-preview-table");
       if (table && typeof table.showAcceptanceCancelDateRequired === "function") {
@@ -1944,6 +1948,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleSaveBillingHeader(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       invoiceId,
       invoiceDate,
@@ -1981,6 +1986,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleSplitInvoice(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       mode,
       sourceInvoiceId,
@@ -2031,6 +2037,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleMoveLines(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       sourceInvoiceId,
       targetInvoiceId,
@@ -2063,6 +2070,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleSplitLinesInPlace(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const { invoiceId, splitLines, expectedContentVersion, businessOperationKey } =
       event.detail || {};
     if (!invoiceId || !(splitLines || []).length) {
@@ -2081,6 +2089,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleApplyBillingAccountContent(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const { invoiceId, expectedContentVersion, businessOperationKey } =
       event.detail || {};
     if (!invoiceId) {
@@ -2098,6 +2107,7 @@ export default class ContractCrossWork extends NavigationMixin(
   }
 
   async handleCancelConfirmed(event) {
+    this._pendingCardNotice = this.cardNoticeFrom(event.detail);
     const {
       invoiceId,
       cancellationReason,
@@ -2132,12 +2142,25 @@ export default class ContractCrossWork extends NavigationMixin(
     await this.reloadInvoiceTile();
   }
 
+  cardNoticeFrom(detail) {
+    if (!detail?.noticeInvoiceId || !detail?.noticeAnchor) {
+      return null;
+    }
+    return {
+      invoiceId: detail.noticeInvoiceId,
+      anchor: detail.noticeAnchor
+    };
+  }
+
   async runEdit(action, successMessage, options) {
     if (this.isSaving) {
       return false;
     }
+    const card = this._pendingCardNotice;
+    this._pendingCardNotice = null;
     this.isSaving = true;
     this.invoiceError = "";
+    this._lastEditError = "";
     try {
       const next = await action();
       // 仕様: 横断画面.md 操作14・操作32。成功後は右の当該 Version グループだけ取り直す。左の一覧全体はリロードしない。
@@ -2145,10 +2168,34 @@ export default class ContractCrossWork extends NavigationMixin(
         options?.restrictToOpenedVersion === true
           ? restrictPreviewToOpenedVersion(next)
           : next;
-      this.completionNote = "請求情報を保存しました。";
+      if (card) {
+        this.completionNote = "";
+        this.template
+          .querySelector("c-order-invoice-preview-table")
+          ?.showCardNotice(
+            card.invoiceId,
+            card.anchor,
+            "請求情報を保存しました。",
+            false
+          );
+      } else {
+        this.completionNote = "請求情報を保存しました。";
+      }
       return true;
     } catch (error) {
-      this.invoiceError = this.reduceError(error);
+      const message = this.reduceError(error);
+      this._lastEditError = message;
+      if (card) {
+        this.invoiceError = "";
+        if (message === VERSION_CONFLICT_MESSAGE) {
+          await this.reloadInvoiceTile();
+        }
+        this.template
+          .querySelector("c-order-invoice-preview-table")
+          ?.showCardNotice(card.invoiceId, card.anchor, message, true);
+        return false;
+      }
+      this.invoiceError = message;
       // 仕様: Core 第7.9.7節・第4.3.12節。版比較失敗時は右タイルを読み直し、拒否文は残す。
       if (this.invoiceError === VERSION_CONFLICT_MESSAGE) {
         await this.reloadInvoiceTile();

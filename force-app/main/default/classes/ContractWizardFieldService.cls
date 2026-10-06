@@ -157,10 +157,17 @@ public without sharing class ContractWizardFieldService {
   public static List<WizardFieldDefinition> getContractServiceFieldDefinitions() {
     try {
       validateActiveDefinitions();
-      return getActiveFieldDefinitions(
+      List<WizardFieldDefinition> definitions = getActiveFieldDefinitions(
         ContractService__c.SObjectType,
         getFieldConfigs(WizardTarget.ContractService)
       );
+      List<WizardFieldDefinition> editable = new List<WizardFieldDefinition>();
+      for (WizardFieldDefinition definition : definitions) {
+        if (definition != null && String.isNotBlank(definition.apiName)) {
+          editable.add(definition);
+        }
+      }
+      return editable;
     } catch (WizardFieldConfigException ex) {
       throw toAuraHandled(ex.getMessage());
     }
@@ -208,6 +215,8 @@ public without sharing class ContractWizardFieldService {
 
     Set<String> opportunityFields = new Set<String>{ 'Id', 'ContactId' };
     Set<String> accountFields = new Set<String>();
+    Set<String> opportunityNameFields = new Set<String>();
+    Set<String> accountNameFields = new Set<String>();
     Map<String, Schema.SObjectField> opportunityDescribe = Opportunity.SObjectType.getDescribe()
       .fields.getMap();
     Map<String, Schema.SObjectField> accountDescribe = Account.SObjectType.getDescribe()
@@ -227,6 +236,12 @@ public without sharing class ContractWizardFieldService {
             opportunityDescribe.containsKey(config.defaultValue)
           ) {
             opportunityFields.add(config.defaultValue);
+            if (
+              String.isBlank(config.fieldApiName) &&
+              isReferenceField(opportunityDescribe, config.defaultValue)
+            ) {
+              opportunityNameFields.add(config.defaultValue);
+            }
           }
         } else if (config.defaultSource == DEFAULT_SOURCE_ACCOUNT) {
           String accountPath = normalizeAccountDefaultPath(config.defaultValue);
@@ -235,14 +250,40 @@ public without sharing class ContractWizardFieldService {
             accountDescribe.containsKey(accountPath)
           ) {
             accountFields.add(accountPath);
+            if (
+              String.isBlank(config.fieldApiName) &&
+              isReferenceField(accountDescribe, accountPath)
+            ) {
+              accountNameFields.add(accountPath);
+            }
           }
         }
       }
     }
+    addOrderDisplayReads(
+      opportunityDescribe,
+      accountDescribe,
+      opportunityFields,
+      accountFields,
+      opportunityNameFields,
+      accountNameFields
+    );
 
     List<String> selectFields = new List<String>(opportunityFields);
     for (String accountField : accountFields) {
       selectFields.add('Account.' + accountField);
+    }
+    for (String fieldName : opportunityNameFields) {
+      String relationship = relationshipName(opportunityDescribe, fieldName);
+      if (String.isNotBlank(relationship)) {
+        selectFields.add(relationship + '.Name');
+      }
+    }
+    for (String accountField : accountNameFields) {
+      String relationship = relationshipName(accountDescribe, accountField);
+      if (String.isNotBlank(relationship)) {
+        selectFields.add('Account.' + relationship + '.Name');
+      }
     }
 
     String soql =
@@ -263,6 +304,12 @@ public without sharing class ContractWizardFieldService {
         fieldName,
         stringifyDefaultContextValue(opportunity.get(fieldName))
       );
+      if (opportunityNameFields.contains(fieldName)) {
+        context.put(
+          fieldName + '.Name',
+          relatedName(opportunity, relationshipName(opportunityDescribe, fieldName))
+        );
+      }
     }
 
     if (!accountFields.isEmpty()) {
@@ -275,6 +322,17 @@ public without sharing class ContractWizardFieldService {
           'Account.' + accountField,
           stringifyDefaultContextValue(raw)
         );
+        if (accountNameFields.contains(accountField)) {
+          context.put(
+            'Account.' + accountField + '.Name',
+            accountRecord == null
+              ? null
+              : relatedName(
+                  accountRecord,
+                  relationshipName(accountDescribe, accountField)
+                )
+          );
+        }
       }
     }
     return context;
@@ -320,6 +378,83 @@ public without sharing class ContractWizardFieldService {
     return trimmed;
   }
 
+  private static Boolean isReferenceField(
+    Map<String, Schema.SObjectField> fieldMap,
+    String fieldName
+  ) {
+    if (fieldMap == null || !fieldMap.containsKey(fieldName)) {
+      return false;
+    }
+    return fieldMap.get(fieldName).getDescribe().getType() ==
+      Schema.DisplayType.REFERENCE;
+  }
+
+  private static String relationshipName(
+    Map<String, Schema.SObjectField> fieldMap,
+    String fieldName
+  ) {
+    if (!isReferenceField(fieldMap, fieldName)) {
+      return null;
+    }
+    return fieldMap.get(fieldName).getDescribe().getRelationshipName();
+  }
+
+  private static void addOrderDisplayReads(
+    Map<String, Schema.SObjectField> opportunityDescribe,
+    Map<String, Schema.SObjectField> accountDescribe,
+    Set<String> opportunityFields,
+    Set<String> accountFields,
+    Set<String> opportunityNameFields,
+    Set<String> accountNameFields
+  ) {
+    for (OrderWizardField__mdt definition : [
+      SELECT FieldApiName__c, DefaultSource__c, DefaultValue__c
+      FROM OrderWizardField__mdt
+      WHERE Active__c = TRUE
+    ]) {
+      if (definition == null || String.isNotBlank(definition.FieldApiName__c)) {
+        continue;
+      }
+      String source = String.isBlank(definition.DefaultSource__c)
+        ? null
+        : definition.DefaultSource__c.trim();
+      if (source == DEFAULT_SOURCE_OPPORTUNITY) {
+        if (
+          isValidOpportunityDefaultPath(definition.DefaultValue__c) &&
+          opportunityDescribe.containsKey(definition.DefaultValue__c)
+        ) {
+          opportunityFields.add(definition.DefaultValue__c);
+          if (isReferenceField(opportunityDescribe, definition.DefaultValue__c)) {
+            opportunityNameFields.add(definition.DefaultValue__c);
+          }
+        }
+      } else if (source == DEFAULT_SOURCE_ACCOUNT) {
+        String accountPath = normalizeAccountDefaultPath(
+          definition.DefaultValue__c
+        );
+        if (
+          isValidAccountDefaultPath(accountPath) &&
+          accountDescribe.containsKey(accountPath)
+        ) {
+          accountFields.add(accountPath);
+          if (isReferenceField(accountDescribe, accountPath)) {
+            accountNameFields.add(accountPath);
+          }
+        }
+      }
+    }
+  }
+
+  private static Object relatedName(SObject record, String relationship) {
+    if (record == null || String.isBlank(relationship)) {
+      return null;
+    }
+    SObject related = record.getSObject(relationship);
+    return related == null
+      ? null
+      : stringifyDefaultContextValue(related.get('Name'));
+  }
+
   private static Object stringifyDefaultContextValue(Object raw) {
     if (raw == null) {
       return null;
@@ -350,7 +485,29 @@ public without sharing class ContractWizardFieldService {
 
     for (FieldConfig config : fieldConfigs) {
       String apiName = config.fieldApiName;
-      if (String.isBlank(apiName) || !fieldMap.containsKey(apiName)) {
+      if (String.isBlank(apiName)) {
+        WizardFieldDefinition displayRow = new WizardFieldDefinition();
+        displayRow.apiName = null;
+        displayRow.label = String.isNotBlank(config.label)
+          ? config.label
+          : '表示';
+        displayRow.fieldType = 'STRING';
+        displayRow.required = false;
+        displayRow.sortOrder = config.sortOrder == null ? 0 : config.sortOrder;
+        displayRow.helpText = config.helpText;
+        displayRow.defaultValue = config.defaultValue;
+        displayRow.defaultSource = config.defaultSource;
+        displayRow.visibilityFieldApiName = config.visibilityFieldApiName;
+        displayRow.visibilityOperator = config.visibilityOperator;
+        displayRow.visibilityValues = config.visibilityValues;
+        displayRow.showOnNew = config.showOnNew == true;
+        displayRow.showOnChange = config.showOnChange == true;
+        displayRow.showOnRenew = config.showOnRenew == true;
+        displayRow.showOnCancel = config.showOnCancel == true;
+        definitions.add(displayRow);
+        continue;
+      }
+      if (!fieldMap.containsKey(apiName)) {
         continue;
       }
       Schema.DescribeFieldResult describe = fieldMap.get(apiName).getDescribe();
@@ -532,6 +689,22 @@ public without sharing class ContractWizardFieldService {
     return apiNames;
   }
 
+  private static Boolean isDisplayProductPath(String apiName) {
+    if (String.isBlank(apiName)) {
+      return false;
+    }
+    for (FieldConfig config : getFieldConfigs(WizardTarget.ContractProduct)) {
+      if (
+        String.isBlank(config.fieldApiName) &&
+        config.defaultSource == DEFAULT_SOURCE_PRODUCT2 &&
+        config.defaultValue == apiName
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public static List<String> getProduct2RelationshipSelectFields(
     String relationshipName
   ) {
@@ -539,8 +712,21 @@ public without sharing class ContractWizardFieldService {
     if (String.isBlank(relationshipName)) {
       return selectFields;
     }
+    Map<String, Schema.SObjectField> productFields = Product2.SObjectType.getDescribe()
+      .fields.getMap();
     for (String apiName : getReferencedProduct2FieldApiNames()) {
       selectFields.add(relationshipName + '.' + apiName);
+      if (
+        isDisplayProductPath(apiName) &&
+        isReferenceField(productFields, apiName)
+      ) {
+        String referenceRelationship = relationshipName(productFields, apiName);
+        if (String.isNotBlank(referenceRelationship)) {
+          selectFields.add(
+            relationshipName + '.' + referenceRelationship + '.Name'
+          );
+        }
+      }
     }
     return selectFields;
   }
@@ -552,6 +738,8 @@ public without sharing class ContractWizardFieldService {
     if (product == null) {
       return context;
     }
+    Map<String, Schema.SObjectField> productFields = Product2.SObjectType.getDescribe()
+      .fields.getMap();
     for (String apiName : getReferencedProduct2FieldApiNames()) {
       Object raw;
       try {
@@ -560,6 +748,24 @@ public without sharing class ContractWizardFieldService {
         continue;
       }
       context.put(apiName, stringifyVisibilityValue(raw));
+      if (
+        isDisplayProductPath(apiName) &&
+        isReferenceField(productFields, apiName)
+      ) {
+        try {
+          context.put(
+            apiName + '.Name',
+            stringifyVisibilityValue(
+              relatedName(
+                product,
+                relationshipName(productFields, apiName)
+              )
+            )
+          );
+        } catch (Exception e) {
+          context.put(apiName + '.Name', '');
+        }
+      }
     }
     return context;
   }
@@ -963,13 +1169,14 @@ public without sharing class ContractWizardFieldService {
       if (definition.TargetObject__c != targetObjectApiName) {
         continue;
       }
-      if (String.isBlank(definition.FieldApiName__c)) {
-        continue;
-      }
       FieldConfig config = new FieldConfig();
-      config.fieldApiName = definition.FieldApiName__c.trim();
+      config.fieldApiName = String.isBlank(definition.FieldApiName__c)
+        ? null
+        : definition.FieldApiName__c.trim();
       config.label = definition.LabelOverride__c;
-      config.required = definition.Required__c == true;
+      config.required = String.isBlank(config.fieldApiName)
+        ? false
+        : definition.Required__c == true;
       config.sortOrder = definition.SortOrder__c == null
         ? 0
         : Integer.valueOf(definition.SortOrder__c);
@@ -1026,11 +1233,25 @@ public without sharing class ContractWizardFieldService {
       );
     }
     if (String.isBlank(definition.FieldApiName__c)) {
-      throw new WizardFieldConfigException(
-        '見積ウィザードカスタム項目「' +
-          label +
-          '」の FieldApiName が未設定です。'
+      Boolean isProductTarget = targetObject == 'ContractProduct__c';
+      ResolvedDefault resolved = resolveDefaultSourceAndValue(
+        definition,
+        isProductTarget
       );
+      if (
+        resolved.defaultSource != DEFAULT_SOURCE_OPPORTUNITY &&
+        resolved.defaultSource != DEFAULT_SOURCE_ACCOUNT &&
+        !(isProductTarget == true &&
+        resolved.defaultSource == DEFAULT_SOURCE_PRODUCT2)
+      ) {
+        throw new WizardFieldConfigException(
+          '見積ウィザードカスタム項目「' +
+            label +
+            '」の表示行は、商談・取引先・商品のいずれかを読んでください。'
+        );
+      }
+      validateVisibilityConfig(definition, isProductTarget, label);
+      return;
     }
     Schema.SObjectType sobjectType = toSObjectTypeForTargetObject(targetObject);
     Map<String, Schema.SObjectField> fieldMap = sobjectType.getDescribe()
@@ -1047,6 +1268,24 @@ public without sharing class ContractWizardFieldService {
     }
     Schema.DescribeFieldResult describe = fieldMap.get(fieldApiName)
       .getDescribe();
+    if (describe.isCalculated()) {
+      throw new WizardFieldConfigException(
+        '見積ウィザードカスタム項目「' +
+          label +
+          '」の項目「' +
+          fieldApiName +
+          '」は数式のため入力行にできません。'
+      );
+    }
+    if (describe.isAutoNumber()) {
+      throw new WizardFieldConfigException(
+        '見積ウィザードカスタム項目「' +
+          label +
+          '」の項目「' +
+          fieldApiName +
+          '」は自動採番のため入力行にできません。'
+      );
+    }
     if (!isSupportedType(describe.getType())) {
       throw new WizardFieldConfigException(
         '見積ウィザードカスタム項目「' +

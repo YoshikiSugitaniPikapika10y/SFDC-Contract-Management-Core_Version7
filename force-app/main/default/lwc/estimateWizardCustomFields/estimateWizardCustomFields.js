@@ -451,6 +451,9 @@ export function validateCustomFieldMaps(
   const typeErrors = [];
 
   for (const field of visibleDefinitions) {
+    if (!field?.apiName) {
+      continue;
+    }
     const label = field.label || field.apiName;
     const raw = map[field.apiName];
 
@@ -486,13 +489,58 @@ export function shallowEqualFieldMaps(a, b) {
 }
 
 /** 仕様: Core 第0.1節、第5.2節、第7.2節、第7.5節 */
+function resolveDisplayRowValue(
+  field,
+  productVisibilityContext,
+  opportunityDefaultContext
+) {
+  const source = (field?.defaultSource || "").trim();
+  const path = (field?.defaultValue || "").trim();
+  const nameOf = (context, key) => {
+    if (!context || !Object.prototype.hasOwnProperty.call(context, key)) {
+      return undefined;
+    }
+    const value = context[key];
+    return value === null || value === undefined ? "" : String(value);
+  };
+  if (source === "Opportunity" && path) {
+    const named = nameOf(opportunityDefaultContext, `${path}.Name`);
+    if (named !== undefined) {
+      return named;
+    }
+  }
+  if (source === "Account" && path) {
+    const key = path.startsWith("Account.") ? path : `Account.${path}`;
+    const named = nameOf(opportunityDefaultContext, `${key}.Name`);
+    if (named !== undefined) {
+      return named;
+    }
+  }
+  if (source === "Product2" && path) {
+    const named = nameOf(productVisibilityContext, `${path}.Name`);
+    if (named !== undefined) {
+      return named;
+    }
+  }
+  const value = resolveCustomFieldDefault(
+    field,
+    productVisibilityContext,
+    opportunityDefaultContext
+  );
+  if (value === undefined || value === null) {
+    return "";
+  }
+  return String(value);
+}
+
 export function buildCustomFieldInputs(
   definitions,
   customFields = {},
   keyPrefix,
   isReadonly = false,
   productVisibilityContext,
-  wizardType
+  wizardType,
+  opportunityDefaultContext
 ) {
   const visibleDefinitions = filterVisibleCustomFieldDefinitions(
     definitions,
@@ -503,7 +551,36 @@ export function buildCustomFieldInputs(
     return [];
   }
 
-  return visibleDefinitions.map((field) => {
+  return visibleDefinitions.map((field, index) => {
+    if (!field?.apiName) {
+      const shown = resolveDisplayRowValue(
+        field,
+        productVisibilityContext,
+        opportunityDefaultContext
+      );
+      return {
+        apiName: "",
+        label: field.label || "",
+        required: false,
+        fieldType: "STRING",
+        helpText: field.helpText || "",
+        hasHelpText: !!(field.helpText && String(field.helpText).trim()),
+        key: `${keyPrefix}-display-${field.sortOrder || 0}-${index}`,
+        value: shown,
+        displayValue: shown,
+        isCheckbox: false,
+        isPicklist: false,
+        isNumber: false,
+        isDate: false,
+        isReference: false,
+        referenceObjectApiName: "",
+        isTextarea: false,
+        isText: true,
+        isReadonly: true,
+        checked: false,
+        picklistOptions: []
+      };
+    }
     const rawValue = customFields[field.apiName];
     const isPicklist = field.fieldType === "PICKLIST";
     const value =

@@ -192,12 +192,44 @@ export default class OrderCreateWizard extends NavigationMixin(
       "order-history",
       false,
       null,
-      this.context?.historyType
+      this.context?.historyType,
+      this.context?.opportunityDefaultContext
     );
   }
 
   get showHistoryFields() {
     return this.historyFieldInputs.length > 0;
+  }
+
+  get productDisplayLines() {
+    const definitions = (this.context?.productFieldDefinitions || []).filter(
+      (field) => field && !field.apiName
+    );
+    if (!definitions.length) {
+      return [];
+    }
+    return (this.context?.products || [])
+      .map((line, index) => {
+        const inputs = buildCustomFieldInputs(
+          definitions,
+          {},
+          `order-product-${index}`,
+          true,
+          line.productVisibilityContext || {},
+          this.context?.historyType,
+          this.context?.opportunityDefaultContext
+        );
+        return {
+          key: `order-product-display-${index}`,
+          productName: line.productName || "",
+          inputs
+        };
+      })
+      .filter((line) => line.inputs.length > 0);
+  }
+
+  get showProductDisplayLines() {
+    return this.productDisplayLines.length > 0;
   }
 
   get showMissingRecordError() {

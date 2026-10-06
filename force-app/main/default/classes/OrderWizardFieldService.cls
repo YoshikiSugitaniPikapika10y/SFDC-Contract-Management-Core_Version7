@@ -137,6 +137,9 @@ public without sharing class OrderWizardFieldService {
       visible
     );
     for (FieldConfig config : visible) {
+      if (String.isBlank(config.fieldApiName)) {
+        continue;
+      }
       if (!isMissingValue(values.get(config.fieldApiName))) {
         continue;
       }
@@ -166,6 +169,9 @@ public without sharing class OrderWizardFieldService {
         history.Type__c
       )
     ) {
+      if (String.isBlank(config.fieldApiName)) {
+        continue;
+      }
       filtered.put(
         config.fieldApiName,
         source.containsKey(config.fieldApiName)
@@ -253,14 +259,15 @@ public without sharing class OrderWizardFieldService {
   private static List<FieldConfig> orderHistoryFields() {
     List<FieldConfig> fieldConfigs = new List<FieldConfig>();
     for (OrderWizardField__mdt definition : getActiveDefinitions()) {
-      if (String.isBlank(definition.FieldApiName__c)) {
-        continue;
-      }
       FieldConfig config = new FieldConfig();
       config.developerName = definition.DeveloperName;
-      config.fieldApiName = definition.FieldApiName__c.trim();
+      config.fieldApiName = String.isBlank(definition.FieldApiName__c)
+        ? null
+        : definition.FieldApiName__c.trim();
       config.label = definition.LabelOverride__c;
-      config.required = definition.Required__c == true;
+      config.required = String.isBlank(config.fieldApiName)
+        ? false
+        : definition.Required__c == true;
       config.sortOrder = definition.SortOrder__c == null
         ? 0
         : Integer.valueOf(definition.SortOrder__c);
@@ -333,9 +340,18 @@ public without sharing class OrderWizardFieldService {
     }
     String label = definitionLabel(definition);
     if (String.isBlank(definition.FieldApiName__c)) {
-      throw new WizardFieldConfigException(
-        '受注ウィザード追加項目「' + label + '」の FieldApiName が未設定です。'
-      );
+      ResolvedDefault resolved = resolveDefaultSourceAndValue(definition);
+      if (
+        resolved.defaultSource != DEFAULT_SOURCE_OPPORTUNITY &&
+        resolved.defaultSource != DEFAULT_SOURCE_ACCOUNT
+      ) {
+        throw new WizardFieldConfigException(
+          '受注ウィザード追加項目「' +
+            label +
+            '」の表示行は、商談か取引先を読んでください。'
+        );
+      }
+      return;
     }
     Map<String, Schema.SObjectField> fieldMap = ContractHistory__c.SObjectType.getDescribe()
       .fields.getMap();
@@ -351,6 +367,24 @@ public without sharing class OrderWizardFieldService {
     }
     Schema.DescribeFieldResult describe = fieldMap.get(fieldApiName)
       .getDescribe();
+    if (describe.isCalculated()) {
+      throw new WizardFieldConfigException(
+        '受注ウィザード追加項目「' +
+          label +
+          '」の項目「' +
+          fieldApiName +
+          '」は数式のため入力行にできません。'
+      );
+    }
+    if (describe.isAutoNumber()) {
+      throw new WizardFieldConfigException(
+        '受注ウィザード追加項目「' +
+          label +
+          '」の項目「' +
+          fieldApiName +
+          '」は自動採番のため入力行にできません。'
+      );
+    }
     if (!ContractWizardFieldService.isSupportedType(describe.getType())) {
       throw new WizardFieldConfigException(
         '受注ウィザード追加項目「' +
@@ -794,6 +828,18 @@ public without sharing class OrderWizardFieldService {
     }
   }
 
+  private static String referenceObjectApiName(
+    Schema.DescribeFieldResult describe
+  ) {
+    if (describe.getType() != Schema.DisplayType.REFERENCE) {
+      return null;
+    }
+    List<Schema.SObjectType> referenceTypes = describe.getReferenceTo();
+    return referenceTypes.isEmpty()
+      ? null
+      : referenceTypes[0].getDescribe().getName();
+  }
+
   private static List<ContractWizardFieldService.WizardFieldDefinition> buildFieldDefinitions(
     Schema.SObjectType sobjectType,
     List<FieldConfig> fieldConfigs
@@ -804,7 +850,26 @@ public without sharing class OrderWizardFieldService {
 
     for (FieldConfig config : fieldConfigs) {
       String apiName = config.fieldApiName;
-      if (String.isBlank(apiName) || !fieldMap.containsKey(apiName)) {
+      if (String.isBlank(apiName)) {
+        ContractWizardFieldService.WizardFieldDefinition displayRow = new ContractWizardFieldService.WizardFieldDefinition();
+        displayRow.apiName = null;
+        displayRow.label = String.isNotBlank(config.label)
+          ? config.label
+          : '表示';
+        displayRow.fieldType = 'STRING';
+        displayRow.required = false;
+        displayRow.sortOrder = config.sortOrder == null ? 0 : config.sortOrder;
+        displayRow.helpText = config.helpText;
+        displayRow.defaultValue = config.defaultValue;
+        displayRow.defaultSource = config.defaultSource;
+        displayRow.showOnNew = config.showOnNew == true;
+        displayRow.showOnChange = config.showOnChange == true;
+        displayRow.showOnRenew = config.showOnRenew == true;
+        displayRow.showOnCancel = config.showOnCancel == true;
+        definitions.add(displayRow);
+        continue;
+      }
+      if (!fieldMap.containsKey(apiName)) {
         continue;
       }
       Schema.DescribeFieldResult describe = fieldMap.get(apiName).getDescribe();
@@ -826,6 +891,7 @@ public without sharing class OrderWizardFieldService {
       definition.picklistOptions = ContractWizardFieldService.buildPicklistOptions(
         describe
       );
+      definition.referenceObjectApiName = referenceObjectApiName(describe);
       definition.helpText = config.helpText;
       definition.defaultValue = config.defaultValue;
       definition.defaultSource = config.defaultSource;

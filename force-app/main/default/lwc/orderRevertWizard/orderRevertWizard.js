@@ -182,12 +182,44 @@ export default class OrderRevertWizard extends NavigationMixin(
       "revert-history",
       false,
       null,
-      this.context?.historyType
+      this.context?.historyType,
+      this.context?.opportunityDefaultContext
     );
   }
 
   get showHistoryFields() {
     return this.canRevert && this.historyFieldInputs.length > 0;
+  }
+
+  get productDisplayLines() {
+    const definitions = (this.context?.productFieldDefinitions || []).filter(
+      (field) => field && !field.apiName
+    );
+    if (!definitions.length || !this.canRevert) {
+      return [];
+    }
+    return (this.context?.products || [])
+      .map((line, index) => {
+        const inputs = buildCustomFieldInputs(
+          definitions,
+          {},
+          `revert-product-${index}`,
+          true,
+          line.productVisibilityContext || {},
+          this.context?.historyType,
+          this.context?.opportunityDefaultContext
+        );
+        return {
+          key: `revert-product-display-${index}`,
+          productName: line.productName || "",
+          inputs
+        };
+      })
+      .filter((line) => line.inputs.length > 0);
+  }
+
+  get showProductDisplayLines() {
+    return this.productDisplayLines.length > 0;
   }
 
   handleHistoryFieldChange(event) {
