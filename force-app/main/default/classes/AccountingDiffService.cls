@@ -49,6 +49,8 @@ public without sharing class AccountingDiffService {
     @AuraEnabled
     public Boolean hasFutureReverseDate;
     @AuraEnabled
+    public Date cancellationDateFloor;
+    @AuraEnabled
     public String displayText;
   }
 
@@ -602,30 +604,7 @@ public without sharing class AccountingDiffService {
     CancelPreview preview = new CancelPreview();
     preview.logicalDeleteCount = unlocked.size();
     preview.reverseCount = locked.size();
-    preview.reverseDateCounts = new List<ReverseDateCount>();
-    preview.hasFutureReverseDate = false;
-    Map<Date, Integer> countByDate = new Map<Date, Integer>();
-    // 仕様: 日付仕様 第8章
-    Date operationDay = InvoiceTransactionStatusService.organizationToday();
-    for (GlJournal__c original : locked) {
-      Date reverseDate = reversalDateOf(original, cancellationDate);
-      Integer currentCount = countByDate.containsKey(reverseDate)
-        ? countByDate.get(reverseDate)
-        : 0;
-      countByDate.put(reverseDate, currentCount + 1);
-      if (reverseDate != null && reverseDate > operationDay) {
-        preview.hasFutureReverseDate = true;
-      }
-    }
-    List<Date> dates = new List<Date>(countByDate.keySet());
-    dates.sort();
-    for (Date reverseDate : dates) {
-      ReverseDateCount row = new ReverseDateCount();
-      row.reverseDate = reverseDate;
-      row.journalCount = countByDate.get(reverseDate);
-      preview.reverseDateCounts.add(row);
-    }
-    preview.displayText = toDisplayText(preview);
+    stampReverseDates(preview, locked, cancellationDate);
     return preview;
   }
 
@@ -651,32 +630,7 @@ public without sharing class AccountingDiffService {
       ? 0
       : logicalDeletes.size();
     preview.reverseCount = reversals == null ? 0 : reversals.size();
-    preview.reverseDateCounts = new List<ReverseDateCount>();
-    preview.hasFutureReverseDate = false;
-    Map<Date, Integer> countByDate = new Map<Date, Integer>();
-    // 仕様: 日付仕様 第8章
-    Date operationDay = InvoiceTransactionStatusService.organizationToday();
-    if (reversals != null) {
-      for (GlJournal__c original : reversals) {
-        Date reverseDate = reversalDateOf(original, cancellationDate);
-        Integer currentCount = countByDate.containsKey(reverseDate)
-          ? countByDate.get(reverseDate)
-          : 0;
-        countByDate.put(reverseDate, currentCount + 1);
-        if (reverseDate != null && reverseDate > operationDay) {
-          preview.hasFutureReverseDate = true;
-        }
-      }
-    }
-    List<Date> dates = new List<Date>(countByDate.keySet());
-    dates.sort();
-    for (Date reverseDate : dates) {
-      ReverseDateCount row = new ReverseDateCount();
-      row.reverseDate = reverseDate;
-      row.journalCount = countByDate.get(reverseDate);
-      preview.reverseDateCounts.add(row);
-    }
-    preview.displayText = toDisplayText(preview);
+    stampReverseDates(preview, reversals, cancellationDate);
     return preview;
   }
 
@@ -686,16 +640,77 @@ public without sharing class AccountingDiffService {
     return '';
   }
 
-  /** 仕様: Accounting 第8.5節・第8.8節、Core 第7.9.6節。保存時だけ未入力を拒否する。プレビューは件数を返す。 */
+  /** 仕様: 共通基盤 第7.3節、Accounting 第8.5節。未入力は保存時だけ拒否する。初期値より前はプレビューでも拒否する。 */
   private static void assertCancellationDateIfReversals(
     List<GlJournal__c> reversals,
     Date cancellationDate
   ) {
-    if (reversals != null && !reversals.isEmpty() && cancellationDate == null) {
+    if (reversals == null || reversals.isEmpty()) {
+      return;
+    }
+    Date floor = cancellationDateFloor(reversals);
+    if (cancellationDate == null) {
+      throw new DiffException(cancellationDateRequiredMessage(floor));
+    }
+    assertCancellationDateOnOrAfterFloor(cancellationDate, floor);
+  }
+
+  /** 仕様: 共通基盤 第7.3節。操作日と、この操作で逆仕訳になる仕訳の最も遅い計上日の遅い方。 */
+  private static Date cancellationDateFloor(List<GlJournal__c> reversals) {
+    Date floor = InvoiceTransactionStatusService.organizationToday();
+    if (reversals == null) {
+      return floor;
+    }
+    for (GlJournal__c original : reversals) {
+      if (original.PostingDate__c != null && original.PostingDate__c > floor) {
+        floor = original.PostingDate__c;
+      }
+    }
+    return floor;
+  }
+
+  private static String cancellationDateRequiredMessage(Date floor) {
+    return 'ロック済み仕訳がある取消では取消基準日が必要です。初期値は' +
+      String.valueOf(floor) +
+      'です。';
+  }
+
+  private static void assertCancellationDateOnOrAfterFloor(
+    Date cancellationDate,
+    Date floor
+  ) {
+    if (cancellationDate < floor) {
       throw new DiffException(
-        'ロック済み仕訳がある取消では取消基準日が必要です。'
+        '初期値より前の日付は指定できません。初期値は' +
+          String.valueOf(floor) +
+          'です。'
       );
     }
+  }
+
+  /** 仕様: 共通基盤 第7.3節、Core 第7.9.6節。入力した日を逆仕訳すべての計上日にする。未入力のプレビューは件数だけ返す。 */
+  private static void stampReverseDates(
+    CancelPreview preview,
+    List<GlJournal__c> originals,
+    Date cancellationDate
+  ) {
+    Date operationDay = InvoiceTransactionStatusService.organizationToday();
+    Boolean hasReversals = originals != null && !originals.isEmpty();
+    Date floor = hasReversals ? cancellationDateFloor(originals) : null;
+    preview.cancellationDateFloor = floor;
+    preview.reverseDateCounts = new List<ReverseDateCount>();
+    preview.hasFutureReverseDate = false;
+    if (hasReversals && cancellationDate != null) {
+      assertCancellationDateOnOrAfterFloor(cancellationDate, floor);
+      ReverseDateCount row = new ReverseDateCount();
+      row.reverseDate = cancellationDate;
+      row.journalCount = originals.size();
+      preview.reverseDateCounts.add(row);
+      preview.hasFutureReverseDate = cancellationDate > operationDay;
+    } else if (hasReversals) {
+      preview.hasFutureReverseDate = floor > operationDay;
+    }
+    preview.displayText = toDisplayText(preview);
   }
 
   private static Boolean isCancelEvent(String eventKey) {
@@ -1146,7 +1161,7 @@ public without sharing class AccountingDiffService {
         'ロック済み仕訳の逆仕訳には取消基準日が必要です。'
       );
     }
-    Date postingDate = reversalDateOf(original, cancellationDate);
+    Date postingDate = reversalDateOf(cancellationDate);
     // 仕様: Accounting 第8.8節。請求明細・仕訳パターンキー・売上計上回番号は clone で元のまま保持する。
     GlJournal__c reversal = original.clone(false, true, false, false);
     reversal.DebitSlotKey__c = original.CreditSlotKey__c;
@@ -1177,14 +1192,9 @@ public without sharing class AccountingDiffService {
     return reversal;
   }
 
-  /** 仕様: Accounting 第8.5節、日付仕様 第7.3節 */
-  private static Date reversalDateOf(
-    GlJournal__c original,
-    Date cancellationDate
-  ) {
-    return cancellationDate >= original.PostingDate__c
-      ? cancellationDate
-      : original.PostingDate__c;
+  /** 仕様: 共通基盤 第7.3節、Accounting 第8.5節。入力した取消基準日を計上日にする。元仕訳日との遅い方は取らない。 */
+  private static Date reversalDateOf(Date cancellationDate) {
+    return cancellationDate;
   }
 
   /**

@@ -246,13 +246,20 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
         }),
       journalPreviewText || ""
     );
+    const editError = String(this._lastEditError || this.errorMessage || "");
     if (
       !saved &&
-      String(this._lastEditError || this.errorMessage || "").includes("取消基準日が必要")
+      (editError.includes("取消基準日が必要") ||
+        editError.includes("初期値より前の日付は指定できません"))
     ) {
       const table = this.template.querySelector("c-order-invoice-preview-table");
       if (table && typeof table.showAcceptanceCancelDateRequired === "function") {
-        table.showAcceptanceCancelDateRequired(lineId, acceptanceEndDate);
+        const floor = (editError.match(/初期値は(\d{4}-\d{2}-\d{2})です/) || [])[1];
+        if (floor) {
+          table.showAcceptanceCancelDateRequired(lineId, acceptanceEndDate, floor);
+        } else {
+          table.showAcceptanceCancelDateRequired(lineId, acceptanceEndDate);
+        }
       }
     }
   }

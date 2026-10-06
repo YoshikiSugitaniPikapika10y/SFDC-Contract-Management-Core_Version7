@@ -579,9 +579,8 @@ private class InvoiceCancelServiceTest {
         InvoiceCancelService.cancelConfirmed(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assertEquals(
-          'ロック済み仕訳がある取消では取消基準日が必要です。',
-          ex.getMessage(),
+        System.assert(
+          ex.getMessage().startsWith('ロック済み仕訳がある取消では取消基準日が必要です。'),
           'Core 第7.9.6節、共通基盤 第7.3節: ロック済み仕訳がある取消は未入力をエラーにする'
         );
       }
@@ -659,9 +658,21 @@ private class InvoiceCancelServiceTest {
         'LOCKFUTURE'
       );
 
+      Date floor = Date.today().addMonths(2);
+      Boolean tooEarly = false;
+      try {
+        InvoiceCancelService.previewConfirmed(invoice.Id, Date.today());
+      } catch (Exception ex) {
+        tooEarly = true;
+        System.assert(
+          ex.getMessage().startsWith('初期値より前の日付は指定できません。'),
+          '共通基盤 第7.3節: 将来の元仕訳より前の取消基準日はエラー'
+        );
+      }
+      System.assertEquals(true, tooEarly);
       AccountingDiffService.CancelPreview preview = InvoiceCancelService.previewConfirmed(
         invoice.Id,
-        Date.today()
+        floor
       );
 
       System.assertEquals(
@@ -674,13 +685,14 @@ private class InvoiceCancelServiceTest {
         preview.reverseCount,
         'Core 第7.9.6節・Accounting 第8.5節: プレビューはロック済みを逆仕訳件数に数える（確認画面には出さない）'
       );
-      System.assertEquals(2, preview.reverseDateCounts.size());
-      System.assertEquals(Date.today(), preview.reverseDateCounts[0].reverseDate);
-      System.assertEquals(1, preview.reverseDateCounts[0].journalCount);
+      System.assertEquals(1, preview.reverseDateCounts.size());
+      System.assertEquals(floor, preview.reverseDateCounts[0].reverseDate);
       System.assertEquals(
-        Date.today().addMonths(2),
-        preview.reverseDateCounts[1].reverseDate
+        2,
+        preview.reverseDateCounts[0].journalCount,
+        '共通基盤 第7.3節: 同じ操作の逆仕訳は入力した日の1日'
       );
+      System.assertEquals(floor, preview.cancellationDateFloor);
       System.assertEquals(
         true,
         preview.hasFutureReverseDate,
@@ -695,7 +707,7 @@ private class InvoiceCancelServiceTest {
       InvoiceCancelService.CancelRequest request = new InvoiceCancelService.CancelRequest();
       request.invoiceId = invoice.Id;
       request.cancellationReason = 'Duplicate';
-      request.cancellationDate = Date.today();
+      request.cancellationDate = floor;
       request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
         invoice.Id
       );

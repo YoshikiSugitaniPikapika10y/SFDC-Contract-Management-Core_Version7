@@ -1137,7 +1137,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(dateInput.label).toBe("逆仕訳基準日");
     expect(dateInput.value).toBe("2026-08-29");
     expect(element.shadowRoot.textContent).toContain(
-      "ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。"
+      "入力した日が、この操作で打ち消す仕訳すべての計上日になります。初期値より前は選べません。"
     );
   });
 

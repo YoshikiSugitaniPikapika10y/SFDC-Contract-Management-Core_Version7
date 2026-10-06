@@ -66,11 +66,15 @@
           type="date"
           label="取消基準日"
           value={registerCancelDate}
+          min={registerCancelDateMin}
           data-field="registerCancelDate"
           onchange={handleFieldChange}
           disabled={inputsDisabled}
           required
         ></lightning-input>
+        <p class="edit-note" role="note">
+          入力した日が、この操作で打ち消す仕訳すべての計上日になります。初期値より前は選べません。
+        </p>
       </template>
     </div>
     <div class="panel-actions">
@@ -156,11 +160,15 @@
                             type="date"
                             label="取消基準日"
                             value={cancelDate}
+                            min={cancelDateMin}
                             data-field="cancelDate"
                             onchange={handleFieldChange}
                             disabled={busy}
                             required
                           ></lightning-input>
+                          <p class="edit-note" role="note">
+                            入力した日が、この操作で打ち消す仕訳すべての計上日になります。初期値より前は選べません。
+                          </p>
                         </template>
                       </div>
                       <div class="panel-actions">

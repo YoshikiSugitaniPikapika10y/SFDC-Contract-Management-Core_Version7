@@ -652,14 +652,20 @@
                   required={invoice.cancelReasonTextRequired}
                 ></lightning-input>
                 <template if:true={invoice.cancelRequiresDate}>
-                  <lightning-input
-                    type="date"
-                    label="取消基準日"
-                    value={invoice.cancelDate}
-                    data-field="cancellationDate"
-                    onchange={handleCancelFieldChange}
-                    required
-                  ></lightning-input>
+                  <div>
+                    <lightning-input
+                      type="date"
+                      label="取消基準日"
+                      value={invoice.cancelDate}
+                      min={invoice.cancelDateMin}
+                      data-field="cancellationDate"
+                      onchange={handleCancelFieldChange}
+                      required
+                    ></lightning-input>
+                    <p class="edit-note" role="note">
+                      入力した日が、この操作で打ち消す仕訳すべての計上日になります。初期値より前は選べません。
+                    </p>
+                  </div>
                 </template>
               </div>
               <div class="edit-actions">
@@ -1283,16 +1289,22 @@
                                     <template
                                       if:true={invoice.paymentCancelRequiresDate}
                                     >
-                                      <lightning-input
-                                        type="date"
-                                        label="取消基準日"
-                                        value={invoice.paymentCancelDate}
-                                        data-invoice-id={invoice.invoiceId}
-                                        data-field="cancelDate"
-                                        onchange={handlePaymentCancelDraftChange}
-                                        disabled={invoice.paymentCancelBusy}
-                                        required
-                                      ></lightning-input>
+                                      <div>
+                                        <lightning-input
+                                          type="date"
+                                          label="取消基準日"
+                                          value={invoice.paymentCancelDate}
+                                          min={invoice.paymentCancelDateMin}
+                                          data-invoice-id={invoice.invoiceId}
+                                          data-field="cancelDate"
+                                          onchange={handlePaymentCancelDraftChange}
+                                          disabled={invoice.paymentCancelBusy}
+                                          required
+                                        ></lightning-input>
+                                        <p class="edit-note" role="note">
+                                          入力した日が、この操作で打ち消す仕訳すべての計上日になります。初期値より前は選べません。
+                                        </p>
+                                      </div>
                                     </template>
                                   </div>
                                   <div class="panel-actions">
@@ -1389,13 +1401,14 @@
                             type="date"
                             label="逆仕訳基準日"
                             value={invoice.paymentRegisterCancelDate}
+                            min={invoice.paymentRegisterCancelDateMin}
                             data-invoice-id={invoice.invoiceId}
                             data-field="cancellationDate"
                             onchange={handlePaymentDraftChange}
                             required
                           ></lightning-input>
                           <p class="edit-note" role="note">
-                            ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。
+                            入力した日が、この操作で打ち消す仕訳すべての計上日になります。初期値より前は選べません。
                           </p>
                         </div>
                       </template>
@@ -3039,12 +3052,13 @@
                                 type="date"
                                 label="逆仕訳基準日"
                                 value={invoice.acceptanceCancelDate}
+                                min={invoice.acceptanceCancelDateMin}
                                 data-invoice-id={invoice.invoiceId}
                                 onchange={handleAcceptanceCancelDraftChange}
                                 required
                               ></lightning-input>
                               <p class="edit-note" role="note">
-                                ロック済み仕訳を打ち消すときの基準日です。仕訳に付く日付は、ここで指定した日と元の仕訳の日付のうち遅い方になります。
+                                入力した日が、この操作で打ち消す仕訳すべての計上日になります。初期値より前は選べません。
                               </p>
                               <div class="panel-actions">
                                 <template if:true={invoice.showEditProcessing}>

@@ -931,7 +931,22 @@ private class AccountingEngineTest {
         AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id),
         null
       );
-      Date cancellationDate = Date.newInstance(2026, 5, 1);
+      Date cancellationDate = Date.today();
+      for (GlJournal__c lockedRow : [
+        SELECT PostingDate__c
+        FROM GlJournal__c
+        WHERE
+          Invoice__c = :fixture.invoice.Id
+          AND TransactionStatus__c = 'Active'
+          AND IsLocked__c = TRUE
+      ]) {
+        if (
+          lockedRow.PostingDate__c != null &&
+          lockedRow.PostingDate__c > cancellationDate
+        ) {
+          cancellationDate = lockedRow.PostingDate__c;
+        }
+      }
       markCancelled(fixture.invoice);
       Test.startTest();
       AccountingDiffService.applyForInvoice(
@@ -972,14 +987,10 @@ private class AccountingEngineTest {
       System.assertEquals(originals.size(), reversals.size());
       for (GlJournal__c reversal : reversals) {
         GlJournal__c original = originalsById.get(reversal.OriginalJournal__c);
-        Date originalDate = original.PostingDate__c;
-        Date expected = cancellationDate >= originalDate
-          ? cancellationDate
-          : originalDate;
         System.assertEquals(
-          expected,
+          cancellationDate,
           reversal.PostingDate__c,
-          'Accounting 第8.5節、日付仕様 第7.3節: 逆仕訳日はmax(取消基準日, 元仕訳日)'
+          '共通基盤 第7.3節、Accounting 第8.5節: 入力した取消基準日が逆仕訳すべての計上日'
         );
         System.assertEquals(
           original.InvoiceLine__c,
@@ -1741,7 +1752,22 @@ private class AccountingEngineTest {
         AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id),
         null
       );
-      Date cancellationDate = Date.newInstance(2026, 8, 29);
+      Date cancellationDate = Date.today();
+      for (GlJournal__c lockedRow : [
+        SELECT PostingDate__c
+        FROM GlJournal__c
+        WHERE
+          Invoice__c = :fixture.invoice.Id
+          AND TransactionStatus__c = 'Active'
+          AND IsLocked__c = TRUE
+      ]) {
+        if (
+          lockedRow.PostingDate__c != null &&
+          lockedRow.PostingDate__c > cancellationDate
+        ) {
+          cancellationDate = lockedRow.PostingDate__c;
+        }
+      }
       Test.startTest();
       AccountingCurrentService.invalidate(fixture.invoice.Id);
       AccountingCurrentService.currentLoadSelectCount = 0;

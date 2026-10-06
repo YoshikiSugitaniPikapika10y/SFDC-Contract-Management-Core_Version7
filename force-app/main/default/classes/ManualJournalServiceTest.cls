@@ -51,9 +51,8 @@ private class ManualJournalServiceTest {
         ManualJournalService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assertEquals(
-          'ロック済み仕訳がある取消では取消基準日が必要です。',
-          ex.getMessage(),
+        System.assert(
+          ex.getMessage().startsWith('ロック済み仕訳がある取消では取消基準日が必要です。'),
           'Accounting 第8.5節: この操作のDiffで逆仕訳になるLockなら取消基準日必須'
         );
       }
@@ -469,9 +468,8 @@ private class ManualJournalServiceTest {
         ManualJournalService.cancel(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assertEquals(
-          'ロック済み仕訳がある取消では取消基準日が必要です。',
-          ex.getMessage(),
+        System.assert(
+          ex.getMessage().startsWith('ロック済み仕訳がある取消では取消基準日が必要です。'),
           'Accounting 第10.3節、第10.4節、日付仕様 第7.3節: ロック済みなら未入力はエラー'
         );
       }

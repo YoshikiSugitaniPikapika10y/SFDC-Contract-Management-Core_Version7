@@ -364,7 +364,7 @@ private class AccountingDiffServiceTest {
         invoice.Id,
         AccountingEventFixedCatalog.BILLING_CANCELLED.key,
         'TEST_OFF_CANCEL_REV',
-        Date.newInstance(2026, 6, 15)
+        Date.today()
       );
       leftover = [
         SELECT TransactionStatus__c, IsLocked__c
@@ -441,7 +441,7 @@ private class AccountingDiffServiceTest {
         invoice.Id,
         AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
         'TEST_ON_CANCEL_LOCKED',
-        Date.newInstance(2026, 6, 15)
+        Date.today()
       );
       leftover = [
         SELECT TransactionStatus__c
@@ -543,7 +543,7 @@ private class AccountingDiffServiceTest {
       AccountingDiffService.CancelPreview preview = AccountingDiffService.previewCancel(
         invoice.Id,
         AccountingEventFixedCatalog.BILLING_CANCELLED.key,
-        Date.newInstance(2026, 6, 15),
+        Date.today(),
         null,
         null
       );
@@ -555,8 +555,9 @@ private class AccountingDiffServiceTest {
       System.assertEquals(0, preview.logicalDeleteCount);
       System.assertEquals(1, preview.reverseDateCounts.size());
       System.assertEquals(
-        Date.newInstance(2026, 6, 15),
-        preview.reverseDateCounts[0].reverseDate
+        Date.today(),
+        preview.reverseDateCounts[0].reverseDate,
+        '共通基盤 第7.3節: 入力した取消基準日が逆仕訳の計上日'
       );
       System.assertEquals(
         '',
@@ -762,7 +763,7 @@ private class AccountingDiffServiceTest {
       AccountingDiffService.CancelPreview preview = AccountingDiffService.previewApply(
         invoice.Id,
         AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
-        Date.newInstance(2026, 6, 15)
+        Date.today()
       );
       Test.stopTest();
       System.assertEquals(
@@ -774,23 +775,39 @@ private class AccountingDiffServiceTest {
   }
 
   @IsTest
-  static void previewCancel_locked_usesPostingWhenCancelDateEarlier() {
+  static void previewCancel_locked_rejectsDateBeforeFloor() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       insert GlAccountingPolicyService.newOrgDefault();
       Invoice__c invoice = insertConfirmedInvoice();
       insertActiveJournal(invoice.Id, 'preview-early-cancel', true);
+      Boolean thrown = false;
+      try {
+        AccountingDiffService.previewCancel(
+          invoice.Id,
+          AccountingEventFixedCatalog.BILLING_CANCELLED.key,
+          Date.newInstance(2026, 5, 1),
+          null,
+          null
+        );
+      } catch (Exception ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage().startsWith('初期値より前の日付は指定できません。'),
+          '共通基盤 第7.3節: 初期値より前の取消基準日はエラー'
+        );
+      }
+      System.assertEquals(true, thrown);
       AccountingDiffService.CancelPreview preview = AccountingDiffService.previewCancel(
         invoice.Id,
         AccountingEventFixedCatalog.BILLING_CANCELLED.key,
-        Date.newInstance(2026, 5, 1),
+        null,
         null,
         null
       );
-      System.assertEquals(1, preview.reverseCount);
       System.assertEquals(
-        Date.newInstance(2026, 6, 1),
-        preview.reverseDateCounts[0].reverseDate,
-        '日付仕様 第7.3節: 取消基準日が計上日より前なら逆仕訳日は計上日'
+        Date.today(),
+        preview.cancellationDateFloor,
+        '共通基盤 第7.3節: 元仕訳が操作日より前なら初期値は操作日'
       );
     }
   }
@@ -827,7 +844,7 @@ private class AccountingDiffServiceTest {
         invoice.Id,
         AccountingEventFixedCatalog.BILLING_CANCELLED.key,
         'TEST_OFF_EARLY_REV',
-        Date.newInstance(2026, 5, 1)
+        Date.today()
       );
       GlJournal__c reversal = [
         SELECT PostingDate__c, DebitSlotKey__c, CreditSlotKey__c
@@ -837,9 +854,9 @@ private class AccountingDiffServiceTest {
           AND TransactionStatus__c = 'Reversal'
       ];
       System.assertEquals(
-        Date.newInstance(2026, 6, 1),
+        Date.today(),
         reversal.PostingDate__c,
-        '日付仕様 第7.3節: 取消基準日が前なら逆仕訳の計上日は元の計上日'
+        '共通基盤 第7.3節: 入力した取消基準日が逆仕訳の計上日。元仕訳日へ繰り上げない'
       );
       System.assertEquals(
         AccountingSlotFixedCatalog.Revenue.key,

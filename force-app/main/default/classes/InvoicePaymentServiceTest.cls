@@ -598,9 +598,8 @@ private class InvoicePaymentServiceTest {
         InvoicePaymentService.register(request);
       } catch (Exception ex) {
         thrown = true;
-        System.assertEquals(
-          'ロック済み仕訳がある取消では取消基準日が必要です。',
-          ex.getMessage(),
+        System.assert(
+          ex.getMessage().startsWith('ロック済み仕訳がある取消では取消基準日が必要です。'),
           'Accounting 第8.5節: ONかつこの操作のDiffで逆仕訳になるLockなら取消基準日必須'
         );
       }
@@ -663,7 +662,7 @@ private class InvoicePaymentServiceTest {
       request.amount = 100;
       request.purpose = InvoicePaymentService.PURPOSE_NON_INVOICE;
       request.paymentDate = Date.newInstance(2026, 6, 1);
-      request.cancellationDate = Date.newInstance(2026, 8, 29);
+      request.cancellationDate = Date.today();
       request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
         fixture.invoice.Id
       );

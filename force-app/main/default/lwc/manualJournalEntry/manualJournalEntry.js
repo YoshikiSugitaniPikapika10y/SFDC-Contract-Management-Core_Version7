@@ -36,11 +36,13 @@ export default class ManualJournalEntry extends LightningElement {
   @track postingDate = "";
   @track amount = "";
   @track registerCancelDate = "";
+  @track registerCancelDateMin = "";
   @track registerNeedsCancelDateFromDiff = false;
   @track cancelHeaderId = "";
   @track cancelReason = "";
   @track cancelReasonText = "";
   @track cancelDate = "";
+  @track cancelDateMin = "";
   @track cancelRequiresDate = false;
   @track busy = false;
   pendingOperationKey;
@@ -179,14 +181,19 @@ export default class ManualJournalEntry extends LightningElement {
     return String(value).slice(0, 10);
   }
 
-  seedRegisterCancelDate() {
-    if (!this.registerRequiresDate || this.registerCancelDate) {
+  seedRegisterCancelDate(message) {
+    if (!this.registerRequiresDate) {
       return;
     }
-    const today = this.todayLocalIso();
-    if (today) {
-      this.registerCancelDate = today;
+    const match = String(message || "").match(/初期値は(\d{4}-\d{2}-\d{2})です/);
+    const floor = match ? match[1] : this.todayLocalIso();
+    if (!floor) {
+      return;
     }
+    if (!this.registerCancelDate || (match && this.registerCancelDate < floor)) {
+      this.registerCancelDate = floor;
+    }
+    this.registerCancelDateMin = floor;
   }
 
   handleFieldChange(event) {
@@ -258,9 +265,9 @@ export default class ManualJournalEntry extends LightningElement {
       this.dispatchEvent(new CustomEvent("complete"));
     } catch (error) {
       const message = this.reduceError(error);
-      if (String(message || "").includes("取消基準日が必要")) {
+      if (String(message || "").includes("取消基準日が必要") || String(message || "").includes("初期値より前の日付は指定できません")) {
         this.registerNeedsCancelDateFromDiff = true;
-        this.seedRegisterCancelDate();
+        this.seedRegisterCancelDate(message);
       }
       this.setSurfaceError("手動仕訳の登録に失敗しました", message);
     } finally {
@@ -284,7 +291,11 @@ export default class ManualJournalEntry extends LightningElement {
         contractHistoryId: this.contractHistoryId
       });
       this.cancelRequiresDate = (preview?.reverseCount || 0) > 0;
-      this.cancelDate = this.cancelRequiresDate ? this.todayLocalIso() : "";
+      const floor = preview?.cancellationDateFloor
+        ? String(preview.cancellationDateFloor).slice(0, 10)
+        : this.todayLocalIso();
+      this.cancelDate = this.cancelRequiresDate ? floor : "";
+      this.cancelDateMin = this.cancelRequiresDate ? floor : "";
     } catch (error) {
       this.setSurfaceError("手動仕訳エラー", this.reduceError(error));
     }
@@ -318,7 +329,11 @@ export default class ManualJournalEntry extends LightningElement {
       });
       if ((preview?.reverseCount || 0) > 0 && this.cancelRequiresDate !== true) {
         this.cancelRequiresDate = true;
-        this.cancelDate = this.todayLocalIso();
+        const floor = preview?.cancellationDateFloor
+          ? String(preview.cancellationDateFloor).slice(0, 10)
+          : this.todayLocalIso();
+        this.cancelDate = floor;
+        this.cancelDateMin = floor;
         this.busy = false;
         this.setSurfaceError("手動仕訳の取消に失敗しました", "ロック済み仕訳がある取消では取消基準日が必要です。");
         return;

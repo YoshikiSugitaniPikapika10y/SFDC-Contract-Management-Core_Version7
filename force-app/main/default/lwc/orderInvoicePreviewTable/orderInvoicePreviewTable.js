@@ -431,6 +431,18 @@ function diffRequiresCancelDate(preview) {
   return (preview?.reverseCount || 0) > 0;
 }
 
+/** 仕様: 共通基盤 第7.3節。初期値はサーバが返した日。無ければ操作日。 */
+function cancellationDateFloorIso(preview, todayIso) {
+  const raw = preview?.cancellationDateFloor;
+  const floor = raw ? String(raw).slice(0, 10) : "";
+  return floor || todayIso || "";
+}
+
+function floorIsoFromMessage(message) {
+  const match = String(message || "").match(/初期値は(\d{4}-\d{2}-\d{2})です/);
+  return match ? match[1] : "";
+}
+
 function extraFieldInputType(fieldType) {
   if (fieldType === "DATE") {
     return "date";
@@ -2871,6 +2883,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           cancelReasonText:
             this.invoiceCancelState?.cancellationReasonText || "",
           cancelDate: this.invoiceCancelState?.cancellationDate || "",
+          cancelDateMin: this.invoiceCancelState?.cancellationDateMin || "",
           cancelRequiresDate: requiresCancelDate(bundle),
           cancelReasonTextRequired:
             this.invoiceCancelState?.cancellationReason === "Other",
@@ -3340,6 +3353,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             paymentDraft
           ),
           paymentRegisterCancelDate: paymentDraft?.cancellationDate || "",
+          paymentRegisterCancelDateMin: paymentDraft?.cancellationDateMin || "",
           paymentFormError:
             uiState.paymentFormError ||
             (paymentRegisterBusy &&
@@ -3412,6 +3426,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             cancelDraft?.cancellationReason === "Other",
           paymentCancelRequiresDate: cancelDraft?.requiresDate === true,
           paymentCancelDate: cancelDraft?.cancelDate || "",
+          paymentCancelDateMin: cancelDraft?.cancelDateMin || "",
           paymentCancelBusy:
             Boolean(cancelDraft) &&
             (this.invoiceOpsProcessingId === invoiceId ||
@@ -3448,6 +3463,8 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
                 paymentAllocationRows.length === 0)),
           acceptanceCancelDraft: uiState.acceptanceDraft || null,
           acceptanceCancelDate: uiState.acceptanceDraft?.cancellationDate || "",
+          acceptanceCancelDateMin:
+            uiState.acceptanceDraft?.cancellationDateMin || "",
           acceptanceCancelSaveDisabled:
             opsBusy ||
             (uiState.acceptanceDraft?.requiresDate === true &&
@@ -4435,11 +4452,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         const preview = await previewRegisterFromPreview(paymentArgs);
         if (diffRequiresCancelDate(preview) && !draft.requiresDate) {
           const current = this.invoiceUiState[invoiceId] || {};
+          const floor = cancellationDateFloorIso(preview, this.todayLocalIso());
           this.updateInvoiceUiState(invoiceId, {
             paymentDraft: {
               ...current.paymentDraft,
               requiresDate: true,
-              cancellationDate: this.todayLocalIso()
+              cancellationDate: floor,
+              cancellationDateMin: floor
             },
             paymentFormError: ""
           });
@@ -4595,26 +4614,28 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         contractHistoryId: this.contractHistoryId
       });
       requiresDate = diffRequiresCancelDate(preview);
+      const floor = cancellationDateFloorIso(preview, this.todayLocalIso());
+      this.updateInvoiceUiState(invoiceId, {
+        cancelDraft: {
+          invoiceId,
+          paymentId: payment.paymentId,
+          purpose: payment.paymentPurpose,
+          purposeLabel: this.paymentPurposeLabel(payment.paymentPurpose),
+          amount: payment.amount,
+          paymentDate: payment.paymentDate,
+          invoiceName: invoice?.invoiceName || "—",
+          cancellationReason: "",
+          cancellationReasonText: "",
+          cancelDate: requiresDate ? floor : "",
+          cancelDateMin: requiresDate ? floor : "",
+          requiresDate,
+          expectedToken: bundle?.invoiceToken
+        }
+      });
+      return;
     } catch (error) {
       this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
-      return;
     }
-    this.updateInvoiceUiState(invoiceId, {
-      cancelDraft: {
-        invoiceId,
-        paymentId: payment.paymentId,
-        purpose: payment.paymentPurpose,
-        purposeLabel: this.paymentPurposeLabel(payment.paymentPurpose),
-        amount: payment.amount,
-        paymentDate: payment.paymentDate,
-        invoiceName: invoice?.invoiceName || "—",
-        cancellationReason: "",
-        cancellationReasonText: "",
-        cancelDate: requiresDate ? this.todayLocalIso() : "",
-        requiresDate,
-        expectedToken: bundle?.invoiceToken
-      }
-    });
   }
 
   handlePaymentCancelDraftChange(event) {
@@ -4672,11 +4693,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
       if (diffRequiresCancelDate(preview) && !draft.requiresDate) {
         const current = this.invoiceUiState[invoiceId] || {};
+        const floor = cancellationDateFloorIso(preview, this.todayLocalIso());
         this.updateInvoiceUiState(invoiceId, {
           cancelDraft: {
             ...current.cancelDraft,
             requiresDate: true,
-            cancelDate: this.todayLocalIso()
+            cancelDate: floor,
+            cancelDateMin: floor
           }
         });
         throw new Error("ロック済み仕訳がある取消では取消基準日が必要です。");
@@ -4944,11 +4967,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         contractHistoryId: this.contractHistoryId
       });
       if (diffRequiresCancelDate(preview)) {
+        const floor = cancellationDateFloorIso(preview, this.todayLocalIso());
         this.updateInvoiceUiState(invoiceId, {
           acceptanceDraft: {
             lineId,
             nextDate: next,
-            cancellationDate: this.todayLocalIso(),
+            cancellationDate: floor,
+            cancellationDateMin: floor,
             requiresDate: true
           }
         });
@@ -4977,18 +5002,20 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
    * 仕様: Accounting 第8.5節。保存時にこの操作のDiff逆仕訳へ取消基準日が要るときだけ出す。
    */
   @api
-  showAcceptanceCancelDateRequired(lineId, nextDate) {
+  showAcceptanceCancelDateRequired(lineId, nextDate, floorIso) {
     const invoiceId = (this.preview?.invoices || []).find((invoice) =>
       (invoice.lines || []).some((row) => row.lineId === lineId)
     )?.invoiceId;
     if (!invoiceId || !lineId) {
       return;
     }
+    const floor = floorIso || this.todayLocalIso();
     this.updateInvoiceUiState(invoiceId, {
       acceptanceDraft: {
         lineId,
         nextDate,
-        cancellationDate: this.todayLocalIso(),
+        cancellationDate: floor,
+        cancellationDateMin: floor,
         requiresDate: true
       }
     });
@@ -5049,11 +5076,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         contractHistoryId: this.contractHistoryId
       });
       if (diffRequiresCancelDate(preview) && !draft.requiresDate) {
+        const floor = cancellationDateFloorIso(preview, this.todayLocalIso());
         this.updateInvoiceUiState(invoiceId, {
           acceptanceDraft: {
             ...draft,
             requiresDate: true,
-            cancellationDate: this.todayLocalIso()
+            cancellationDate: floor,
+            cancellationDateMin: floor
           }
         });
         this.setSurfaceError("請求操作エラー", "ロック済み仕訳がある取消では取消基準日が必要です。");
@@ -6478,18 +6507,29 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.setSurfaceError("請求操作エラー", blocked);
       return;
     }
+    const requiresDate = requiresCancelDate(
+      this.invoiceUiState[invoiceId]?.bundle
+    );
+    let floor = this.todayLocalIso();
+    if (requiresDate) {
+      try {
+        const preview = await previewCancelConfirmed({
+          invoiceId,
+          cancellationDate: null,
+          contractHistoryId: this.contractHistoryId
+        });
+        floor = cancellationDateFloorIso(preview, floor);
+      } catch (error) {
+        this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
+        return;
+      }
+    }
     this.invoiceCancelState = {
       invoiceId,
       cancellationReason: "",
       cancellationReasonText: "",
-      cancellationDate: ""
-    };
-    const requiresDate = requiresCancelDate(
-      this.invoiceUiState[invoiceId]?.bundle
-    );
-    this.invoiceCancelState = {
-      ...this.invoiceCancelState,
-      cancellationDate: requiresDate ? this.todayLocalIso() : ""
+      cancellationDate: requiresDate ? floor : "",
+      cancellationDateMin: requiresDate ? floor : ""
     };
   }
 
