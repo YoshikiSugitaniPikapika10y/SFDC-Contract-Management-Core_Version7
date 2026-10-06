@@ -65,7 +65,7 @@ jest.mock(
 function bind(overrides = {}) {
   const ctx = {
     context: {
-      productFieldDefinitions: [{ label: "成約パートナー①", apiName: null }],
+      productFieldDefinitions: [{ label: "表示項目", apiName: null }],
       products: [{ productName: "A商品" }],
       historyType: "New"
     },
