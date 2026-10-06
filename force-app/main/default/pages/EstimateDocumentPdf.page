@@ -700,16 +700,6 @@
 
           <apex:outputPanel rendered="{!NOT(otherGroups.empty)}">
             <div class="section">
-              <h2 class="section-title">
-                <apex:outputText value="{!documentText.otherFeeLabel}" />
-                <span class="section-total">
-                  合計:
-                  <apex:outputText value="{0, number, ###,###,###}"
-                    ><apex:param value="{!otherTotalIncTax}"
-                  /></apex:outputText>
-                  <apex:outputText value="{!documentText.unitSentence}" />
-                </span>
-              </h2>
               <apex:repeat value="{!otherGroups}" var="group">
                 <div class="product-name-header">
                   <apex:outputText value="{!group.productName}" />

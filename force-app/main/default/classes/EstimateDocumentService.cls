@@ -1007,22 +1007,14 @@ public without sharing class EstimateDocumentService {
       context.history.Id,
       context.history.Type__c
     );
-    Map<Id, String> categoryByProductId = loadProductCategories(products);
 
     for (ContractProduct__c product : products) {
       GroupedLineDto item = toGroupedLine(product);
-      String category = categoryByProductId.get(product.Product__c);
-      String groupingName = resolveGroupingProductName(product);
-
-      if (category == '研修（エンパワー）') {
-        addToGroup(context.trainingGroups, groupingName, item);
-      } else if (category != null && category.left(4) == 'SaaS') {
-        addToGroup(context.digitalGroups, groupingName, item);
-      } else if (category == 'コンサル') {
-        addToGroup(context.consultingGroups, groupingName, item);
-      } else {
-        addToGroup(context.otherGroups, groupingName, item);
-      }
+      addToGroup(
+        context.otherGroups,
+        resolveGroupingProductName(product),
+        item
+      );
     }
 
     List<GroupDto> allGroups = new List<GroupDto>();
@@ -1134,7 +1126,8 @@ public without sharing class EstimateDocumentService {
         Product__r.Name,
         Product__r.UnitName__c,
         Product__r.BillingType__c,
-        Description__c,
+        Name,
+        DocumentSortOrder__c,
         Unit__c,
         UnitPrice__c,
         Quantity__c,
@@ -1148,57 +1141,22 @@ public without sharing class EstimateDocumentService {
       FROM ContractProduct__c
       WHERE ContractHistory__c = :contractHistoryId
       WITH SYSTEM_MODE
-      ORDER BY StartDate__c ASC NULLS LAST, Name ASC
     ];
+    DocumentSortOrderService.sortContractProducts(products);
     return ChangeBillingEventUtil.filterProductsForEstimateDocument(
       historyType,
       products
     );
   }
 
-  private static Map<Id, String> loadProductCategories(
-    List<ContractProduct__c> products
-  ) {
-    Map<Id, String> categoryByProductId = new Map<Id, String>();
-    if (
-      products == null ||
-      products.isEmpty() ||
-      !Schema.SObjectType.Product2.fields.getMap().containsKey('Field1__c')
-    ) {
-      return categoryByProductId;
-    }
-    Set<Id> productIds = new Set<Id>();
-    for (ContractProduct__c product : products) {
-      if (product.Product__c != null) {
-        productIds.add(product.Product__c);
-      }
-    }
-    if (productIds.isEmpty()) {
-      return categoryByProductId;
-    }
-    for (
-      SObject product : Database.query(
-        'SELECT Id, Field1__c FROM Product2 WHERE Id IN :productIds WITH SYSTEM_MODE'
-      )
-    ) {
-      categoryByProductId.put(
-        (Id) product.get('Id'),
-        (String) product.get('Field1__c')
-      );
-    }
-    return categoryByProductId;
-  }
-
-  /** 仕様: Core 第4.8節、第11.9節。数量は OrgDefault。HALF_UP 直書きしない。 */
+  /** 仕様: Core 第4.8節、第11.9節。数量は OrgDefault。HALF_UP 直書きしない。明細の呼び方は商品名。 */
   private static GroupedLineDto toGroupedLine(ContractProduct__c product) {
     String billingType = ContractMetadataService.resolveLineBillingType(
       product
     );
 
     GroupedLineDto item = new GroupedLineDto();
-    item.breakdown = String.isNotBlank(product.Description__c)
-      ? product.Description__c
-      : product.Product__r == null ? '' : product.Product__r.Name;
+    item.breakdown = product.Product__r == null ? '' : product.Product__r.Name;
     item.unit = String.isNotBlank(product.Unit__c)
       ? product.Unit__c
       : buildDisplayUnit(
@@ -1225,9 +1183,7 @@ public without sharing class EstimateDocumentService {
   }
 
   private static String itemFallbackName(ContractProduct__c product) {
-    return String.isNotBlank(product.Description__c)
-      ? product.Description__c
-      : '';
+    return product == null || String.isBlank(product.Name) ? '' : product.Name;
   }
 
   private static void addToGroup(

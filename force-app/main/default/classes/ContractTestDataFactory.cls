@@ -907,6 +907,7 @@ public class ContractTestDataFactory {
       }
     }
     opportunity.StageName = resolveDefaultStageName();
+    applySequenceNamePrefix(opportunity);
     if (opportunity.CloseDate == null) {
       opportunity.CloseDate = Date.today().addMonths(1);
     }
@@ -915,6 +916,27 @@ public class ContractTestDataFactory {
     }
     applyRequiredFields(opportunity);
     applyTenantExtraOpportunityFields(opportunity);
+  }
+
+  /**
+   * 連番の数式がある組織では、前商談の名前を「数字-数字_」で始める。
+   * 数式が空だと、その組織の更新商談作成が受注を戻す。項目の値は書かない。
+   */
+  private static void applySequenceNamePrefix(Opportunity opportunity) {
+    if (opportunity == null || String.isBlank(opportunity.Name)) {
+      return;
+    }
+    Map<String, Schema.SObjectField> fields = Schema.sObjectType.Opportunity.fields.getMap();
+    if (
+      !fields.containsKey('OppSequenceFirstHalf__c') ||
+      !fields.containsKey('OppSequenceSecondHalf__c')
+    ) {
+      return;
+    }
+    if (Pattern.matches('(?i)^\\d+-\\d+_.*', opportunity.Name)) {
+      return;
+    }
+    opportunity.Name = '1-1_' + opportunity.Name;
   }
 
   /**
@@ -1115,11 +1137,11 @@ public class ContractTestDataFactory {
           ShowOnCancel__c = true
         ),
         new EstimateWizardField__mdt(
-          DeveloperName = 'Test_Product_Description',
-          MasterLabel = 'Test Product Description',
+          DeveloperName = 'Test_Product_Unit',
+          MasterLabel = 'Test Product Unit',
           Active__c = true,
           TargetObject__c = 'ContractProduct__c',
-          FieldApiName__c = 'Description__c',
+          FieldApiName__c = 'Unit__c',
           DefaultValue__c = 'サンプルデフォルトメモ',
           SortOrder__c = 10,
           ShowOnNew__c = true,

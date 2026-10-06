@@ -456,10 +456,10 @@ private class ContractWizardFieldServiceTest {
     ContractProduct__c product = new ContractProduct__c();
     ContractWizardFieldService.applyCustomFields(
       product,
-      new Map<String, Object>{ 'Description__c' => 'product memo' },
+      new Map<String, Object>{ 'Unit__c' => 'product memo' },
       ContractWizardFieldService.WizardTarget.ContractProduct
     );
-    System.assertEquals('product memo', product.Description__c);
+    System.assertEquals('product memo', product.Unit__c);
   }
 
   @IsTest
