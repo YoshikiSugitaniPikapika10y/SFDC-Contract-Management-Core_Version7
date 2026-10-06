@@ -863,6 +863,68 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     );
   });
 
+  it("版不一致の再読込は打った入金を残し、小数はフォームに理由を出す (Core 4.3.12 / 8.9)", async () => {
+    const ctx = bind({ preview: preview() });
+    await ctx.loadOpsBundle(CONFIRMED);
+    ctx.invoiceUiState = {
+      ...ctx.invoiceUiState,
+      [CONFIRMED]: {
+        ...ctx.invoiceUiState[CONFIRMED],
+        paymentDraft: {
+          invoiceId: CONFIRMED,
+          amount: "100",
+          purpose: "Invoice",
+          paymentDate: "2026-10-01",
+          memo: "メモ",
+          extraFieldValues: { Note__c: "残す" },
+          allocations: [{ lineId: "L1", amount: 100 }]
+        }
+      }
+    };
+    await ctx.loadOpsBundle(CONFIRMED, { keepPaymentInput: true });
+    expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.amount).toBe("100");
+    expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.memo).toBe("メモ");
+    expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.extraFieldValues).toEqual({
+      Note__c: "残す"
+    });
+    expect(ctx.invoiceUiState[CONFIRMED].paymentDraft.allocations).toEqual([
+      { lineId: "L1", amount: 100 }
+    ]);
+    ctx.invoiceUiState = {
+      ...ctx.invoiceUiState,
+      [CONFIRMED]: {
+        ...ctx.invoiceUiState[CONFIRMED],
+        paymentDraft: {
+          ...ctx.invoiceUiState[CONFIRMED].paymentDraft,
+          amount: "10.5"
+        }
+      }
+    };
+    const decimalCard = ctx.invoiceCards.find(
+      (card) => card.invoiceId === CONFIRMED
+    );
+    expect(decimalCard.paymentFormError).toBe(
+      "入出金金額は整数にしてください。"
+    );
+    ctx.invoiceUiState = {
+      ...ctx.invoiceUiState,
+      [CONFIRMED]: {
+        ...ctx.invoiceUiState[CONFIRMED],
+        paymentDraft: {
+          ...ctx.invoiceUiState[CONFIRMED].paymentDraft,
+          amount: "200",
+          allocations: [{ lineId: "L1", amount: 999999 }]
+        }
+      }
+    };
+    const overCard = ctx.invoiceCards.find(
+      (card) => card.invoiceId === CONFIRMED
+    );
+    expect(overCard.paymentFormError).toBe(
+      "明細別割当は各明細の処理可能残額以内にしてください。"
+    );
+  });
+
   it("メモ保存・タブ・フィルタ・入金割当の未踏経路 (Core 7.7.3 / 8.3)", async () => {
     const ctx = bind({
       preview: preview(),

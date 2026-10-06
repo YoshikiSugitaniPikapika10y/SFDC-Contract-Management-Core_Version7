@@ -134,6 +134,9 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     if (this.estimate?.sendable !== true) {
       return "";
     }
+    if (!this.emailTemplateApiName) {
+      return "メールが未選択のため送れません。";
+    }
     if (!this.toAddresses) {
       return "To が空のため送れません。";
     }
@@ -142,9 +145,6 @@ export default class EstimateSendRecordAction extends NavigationMixin(
     }
     if (this.attachmentId === ATTACHMENT_NEW && !this.documentTemplateKey) {
       return "帳票が未選択のため送れません。";
-    }
-    if (!this.emailTemplateApiName) {
-      return "メールが未選択のため送れません。";
     }
     if (this.isBlankText(this.fileName)) {
       return "添付名が空のため送れません。";
@@ -270,7 +270,10 @@ export default class EstimateSendRecordAction extends NavigationMixin(
       this.operatorEmail = context?.operatorEmail || "";
       this.orgFromLabel = context?.orgFromLabel || "";
       this.orgFromResolved = false;
-      await this.reloadPreview();
+      // 仕様: Core 第11.3.2節。有効な既定が1件でないときは未選択。空メールのプレビューは失敗にしない。
+      if (this.emailTemplateApiName || this.emailTemplateOptions.length === 0) {
+        await this.reloadPreview();
+      }
     } catch (error) {
       this.estimate = null;
       this.errorMessage = this.toMessage(error);

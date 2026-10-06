@@ -655,6 +655,23 @@ describe("estimateCreateModal3 uncovered paths (Core 0.1 / 4.3.4 / 4.3.5 / 4.5.2
     expect(ctx.itemList[0].amount).toBe(120000);
   });
 
+  it("keeps a typed year under 1000 until blur, then stores it as typed (Core 4.5)", () => {
+    const ctx = bind({ canEditProducts: true });
+    ctx.addRow(false);
+    const rowId = ctx.itemList[0].id;
+    ctx.updateRow(rowId, { startDate: "2026-04-01", endDate: "2027-03-31" });
+    ctx.handleLineDateInputChange({
+      currentTarget: { dataset: { id: rowId, field: "startDate" } },
+      target: { value: "0007-04-01" }
+    });
+    expect(ctx.itemList[0].startDate).toBe("2026-04-01");
+    ctx.handleLineDateInputBlur({
+      currentTarget: { dataset: { id: rowId, field: "startDate" } },
+      target: { value: "0007-04-01" }
+    });
+    expect(ctx.itemList[0].startDate).toBe("0007-04-01");
+  });
+
   it("keeps an off-boundary end date and blocks the unit price (Core 4.4)", () => {
     const ctx = bind({ canEditProducts: true });
     ctx.addRow(false);

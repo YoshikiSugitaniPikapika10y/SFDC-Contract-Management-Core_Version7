@@ -421,6 +421,8 @@ public without sharing class RenewEstimateAutoCreateService {
         Unit__c,
         UnitPrice__c,
         Quantity__c,
+        Amount__c,
+        StartDate__c,
         InvoiceSetting__c,
         Enddate__c,
         Type__c
@@ -492,13 +494,33 @@ public without sharing class RenewEstimateAutoCreateService {
     Decimal unitPrice = AmountCalculationSettingService.roundQuantityUnitPrice(
       sourceProduct.UnitPrice__c
     );
-    Decimal amount = ContractProductAmountUtil.calculateUnsignedAmount(
+    Decimal formulaAmount = ContractProductAmountUtil.calculateUnsignedAmount(
       quantity,
       unitPrice,
       billingType,
       renewStartDate,
       renewEndDate
     );
+    // 仕様: Core 第4.6節。月数が同じなら前回の整数円。月数が変わったら式。
+    Integer sourceCycles = MonthlyBillingPeriodUtil.countMonthlyCycles(
+      sourceProduct.StartDate__c,
+      sourceProduct.Enddate__c
+    );
+    Integer renewCycles = MonthlyBillingPeriodUtil.countMonthlyCycles(
+      renewStartDate,
+      renewEndDate
+    );
+    Decimal amount = formulaAmount;
+    if (
+      sourceCycles != null &&
+      sourceCycles >= 1 &&
+      sourceCycles == renewCycles &&
+      sourceProduct.Amount__c != null
+    ) {
+      amount = AmountCalculationSettingService.roundAmount(
+        sourceProduct.Amount__c
+      );
+    }
     ContractProduct__c product = new ContractProduct__c(
       ContractHistory__c = renewHistoryId,
       Account__c = sourceProduct.Account__c,

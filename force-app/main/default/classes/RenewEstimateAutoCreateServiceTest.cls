@@ -7,6 +7,32 @@ private class RenewEstimateAutoCreateServiceTest {
   }
 
   @IsTest
+  static void renewalOpportunityInsert_keepsPreviousAmountWhenCyclesMatch() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
+      TestData data = createSourceData(true);
+      data.sourceProduct.Amount__c = 95950;
+      update data.sourceProduct;
+
+      Test.startTest();
+      Opportunity renewal = insertRenewalOpportunity(data);
+      Test.stopTest();
+
+      ContractProduct__c createdProduct = [
+        SELECT Amount__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__r.Opportunity__c = :renewal.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        95950,
+        createdProduct.Amount__c,
+        'Core 第4.6節: 延長後のサイクル数が元と同じなら前回の整数円を残す'
+      );
+    }
+  }
+
+  @IsTest
   static void renewalOpportunityInsert_createsLinkedRenewEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       enableRenewOpportunity();
@@ -178,7 +204,7 @@ private class RenewEstimateAutoCreateServiceTest {
       System.assertEquals(
         96000,
         createdProduct.Amount__c,
-        'Core 第4.6節・第4.9節: 継続課金は数量×単価×12サイクルの整数円を保存する'
+        'Core 第4.6節: 延長後のサイクル数が元と同じで前回金額が式と一致するときはその整数円を残す'
       );
       System.assertEquals(
         'ID/月',

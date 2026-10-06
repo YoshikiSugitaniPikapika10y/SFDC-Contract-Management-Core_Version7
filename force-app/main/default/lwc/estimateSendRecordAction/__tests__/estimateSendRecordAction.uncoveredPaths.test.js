@@ -210,6 +210,30 @@ describe("estimateSendRecordAction uncovered (Core 7.10 / 4.8)", () => {
     sessionStorage.clear();
   });
 
+  it("opens unselected when the email default is not exactly one (Core 11.3.2)", async () => {
+    getBoardContext.mockResolvedValue({
+      documentTemplateOptions: [{ label: "標準", value: "std" }],
+      emailTemplateOptions: [
+        { label: "メール", value: "mail" },
+        { label: "控え", value: "mail2" }
+      ],
+      defaultDocumentTemplateKey: "std",
+      defaultEmailTemplateApiName: "",
+      defaultFromChoice: "Self",
+      operatorEmail: "me@example.com",
+      orgFromLabel: "org@example.com"
+    });
+    const ctx = bind({ estimate: undefined });
+    await ctx.load();
+    expect(previewEstimate).not.toHaveBeenCalled();
+    expect(ctx.estimate).toEqual(
+      expect.objectContaining({ historyName: "見積A" })
+    );
+    expect(ctx.emailTemplateApiName).toBe("");
+    expect(ctx.errorMessage).toBe("");
+    expect(ctx.sendBlockedMessage).toBe("メールが未選択のため送れません。");
+  });
+
   it("load fills From 自分 and keeps existing file name on re-preview (Core 7.10)", async () => {
     const ctx = bind({ estimate: undefined, attachmentId: "069AAA", fileName: "keep.pdf" });
     await ctx.load();

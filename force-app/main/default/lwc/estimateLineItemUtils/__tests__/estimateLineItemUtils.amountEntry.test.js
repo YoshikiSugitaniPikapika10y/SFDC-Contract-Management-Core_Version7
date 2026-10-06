@@ -1,5 +1,6 @@
 import {
   resolveLineAmount,
+  normalizeDateInput,
   deriveUnitPriceFromAmount,
   calculateMonthlyBillingTotal,
   resolveAmountEntryRoundingDiff,
@@ -80,7 +81,7 @@ describe("resolveLineAmount amount entry mode", () => {
     typeLabel: "Remake"
   };
 
-  it("keeps the formula even when the typed amount does not divide evenly", () => {
+  it("keeps the confirmed yen when it does not divide evenly", () => {
     const manualAmount = 9657000;
     const row = {
       ...recurringRow,
@@ -90,7 +91,7 @@ describe("resolveLineAmount amount entry mode", () => {
 
     expect(deriveUnitPriceFromAmount(row, manualAmount)).toBe(742.85);
     expect(1300 * 742.85 * 10).toBe(9657050);
-    expect(resolveLineAmount({ ...row, unitPrice: 742.85 })).toBe(9657050);
+    expect(resolveLineAmount({ ...row, unitPrice: 742.85 })).toBe(9657000);
   });
 
   it("keeps calculated amount when not in amount entry mode", () => {
@@ -199,13 +200,22 @@ describe("resolveAmountEntryRoundingDiff", () => {
     typeLabel: "Remake"
   };
 
-  it("has no estimate gap once unit price is the formula source", () => {
+  it("shows the gap between the confirmed yen and monthly billing", () => {
     const diff = resolveAmountEntryRoundingDiff({
       ...recurringRow,
       amountEntryMode: true,
       manualAmount: 9657000
     });
-    expect(diff).toBeNull();
+    expect(diff).toEqual({
+      manualAmount: 9657000,
+      billingTotal: 9657050,
+      delta: 50
+    });
+  });
+
+  it("does not turn a partial year into the 1900s", () => {
+    expect(normalizeDateInput("0007-10-06")).toBe("0007-10-06");
+    expect(normalizeDateInput("2027-10-06")).toBe("2027-10-06");
   });
 
   it("returns null when estimate matches monthly billing regeneration", () => {

@@ -770,7 +770,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     this.invoiceUiState = next;
     const conflictInvoiceId = this._paymentAddVersionConflictInvoiceId;
     this._paymentAddVersionConflictInvoiceId = null;
-    invoiceIds.forEach((invoiceId) => this.loadOpsBundle(invoiceId));
+    invoiceIds.forEach((invoiceId) =>
+      this.loadOpsBundle(invoiceId, {
+        keepPaymentInput: invoiceId === conflictInvoiceId
+      })
+    );
     if (conflictInvoiceId) {
       Promise.resolve().then(() =>
         this.scrollPaymentFormErrorIntoView(conflictInvoiceId)
@@ -931,7 +935,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return this.ensureLineSplitState(invoiceId);
   }
 
-  async loadOpsBundle(invoiceId) {
+  async loadOpsBundle(invoiceId, options) {
     if (!invoiceId) {
       return;
     }
@@ -951,20 +955,23 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       const draft =
         current.paymentDraft ||
         this.newPaymentDraft(invoiceId, remaining, bundle?.paymentLines);
-      // 仕様: Core 第8.9節・第8.3節。初期金額は今の符号付き未処理Net。
-      // 仕様: Core 第7.7.0節。未保存の金額初期値は戻さない。サーバ反映後は今の未処理Netで作り直す。
-      let nextDraft = {
-        ...draft,
-        amount: String(remaining)
-      };
-      if (!nextDraft.paymentDate) {
+      // 仕様: Core 第4.3.12節、第7.7.0節。入金追加の版不一致は打った入力を残す。
+      const keepPaymentInput =
+        options?.keepPaymentInput === true && current.paymentDraft;
+      let nextDraft = keepPaymentInput
+        ? { ...current.paymentDraft }
+        : {
+            ...draft,
+            amount: String(remaining)
+          };
+      if (!keepPaymentInput && !nextDraft.paymentDate) {
         nextDraft = {
           ...nextDraft,
           paymentDate: this.todayLocalIso()
         };
       }
       // 仕様: Core 第8.6節・第8.9節。請求金額目的は明細別割当が必須。残額は今の明細税込。空割当のまま残さない。
-      if ((nextDraft.purpose || "Invoice") === "Invoice") {
+      if (!keepPaymentInput && (nextDraft.purpose || "Invoice") === "Invoice") {
         const lines = bundle?.paymentLines || [];
         if (lines.length > 0) {
           nextDraft = {
@@ -3342,6 +3349,22 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             paymentDraft?.paymentDate
               ? "処理中は他の編集へ進めません"
               : "") ||
+            (amountNotInteger &&
+            inputAmount &&
+            inputAmount !== 0 &&
+            purpose &&
+            paymentDraft?.paymentDate
+              ? "入出金金額は整数にしてください。"
+              : "") ||
+            (isInvoicePurpose &&
+            !paymentRegisterBusy &&
+            inputAmount &&
+            inputAmount !== 0 &&
+            purpose &&
+            paymentDraft?.paymentDate &&
+            paymentAllocationExceeds
+              ? "明細別割当は各明細の処理可能残額以内にしてください。"
+              : "") ||
             (isInvoicePurpose &&
             !paymentRegisterBusy &&
             inputAmount &&
@@ -3921,6 +3944,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       documentTemplateKey: this.defaultInvoiceDocumentTemplateKey,
       emailTemplateApiName: this.defaultInvoiceEmailTemplateApiName
     };
+    // 仕様: Core 第11.3.2節。有効な既定が1件でないときは未選択。空メールのプレビューは失敗にしない。
+    if (
+      !this.invoiceSendState.emailTemplateApiName &&
+      this.invoiceEmailTemplateOptions.length > 0
+    ) {
+      return;
+    }
     try {
       await this.reloadInvoiceSendPreview();
     } catch (error) {
