@@ -1173,6 +1173,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 - 見積は全期間を一括丸めし、契約期間明細はサイクルごとに丸めるため差が出ることがある。見込み差額を画面に表示し、受注後は請求ボードで調整する。
 - 税率は契約サービスに保持する。Newの見積ウィザードで必須入力し、初期値は10%とする。仮表示だけで保存しない、ということはしない。0%にする場合は0を明示する。Change・Renew・Cancelでは契約サービスの保存済み税率を参照専用で表示し、見積保存では契約サービス側を更新しない。保存値が空なら見積の税込表示、見積保存、受注および請求生成をエラーにし、0%として扱わない。「契約サービスを編集」でも空欄保存を拒否する。後から税率を変える場合は「契約サービスを編集」で行い、次に見積保存する版の初期値にする。ある版の受注と再生成は、その契約履歴の保存税率を請求へ使う。保存税率が空の過去履歴は、受注時に契約サービスの税率を履歴へ書いてから請求する。未受注で率を変えるときは、その見積を保存し直してから受注する。受注済みは、差し戻して見積を保存し直し、再受注する。違う率で請求を作るルートは置かない。この操作では既存の契約履歴を書き換えない。すでに存在する請求と、その分割・移動で増える請求は元請求の税率を引き継ぎ、契約サービスの新しい税率を見ない。
 - 見積保存で、その時点の契約サービスの税率を契約履歴`TaxPercent__c`へコピーする。0%は0を書く。既定値は空であり、空は0%ではない。税額は、その保存の見積商品の税抜合計へその税率を1回適用し、第11.9節の税額丸めで整数円にして`TaxAmount__c`へ書く。行ごとの税は足さない。税込は税抜合計にその税額を足し、既存の`DeltaTaxInclusiveSum__c`へ書く。受注では、保存税率がある履歴の3つを書き換えない。保存税率が空の過去履歴だけ、受注時に契約サービスの税率を履歴へ書いてから請求する。次の見積保存で3つを書き直す。Step 2は同じ計算の結果を出す。見積書は保存値を読む。保存値が空の過去履歴は、出すときだけ契約サービスの税率で同じ計算をし、次の見積保存から保存値を出す。過去履歴を現税率で一括では埋めない。請求書は1枚ごとに同じ設定で税を切る。見積税込と請求税込合計は一致しなくてよい。背景と確定条件は第7.9.1節。
+- 契約履歴の標準レイアウトは、税率、税額、発生金額（税込）、見積送付先を参照で出す。業務操作キー、更新商談を作成、更新商談作成要求回数、自動Renew見積は出さない。置き場所は仕様本文に書かない。顧客項目は出さない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
@@ -1180,7 +1181,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 ／ 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractHistory__c.DeltaTaxInclusiveSum__c</code>
 ／ 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateSaveService.saveNewEstimate</code> / <code>saveChangeEstimate</code> / <code>saveCancelEstimate</code> / <code>updateChangeEstimate</code>、<code>TaxCalculationUtil.calculateTaxAmount</code>、<code>estimateCreateModal3</code>
 ／ 画面の数量・単価・行の税抜・税額・税込と保存する値が違えば見積全体を保存しない。エラーは「保存値が不正です」。
-／ 契約サービスを編集は3項目を書かない。受注は、保存税率がある履歴の3項目を書かない。保存税率が空の過去履歴だけ、受注時に契約サービスの税率を履歴へ書く。受注と再生成の請求は契約履歴の保存税率。入口は既存<code>InvoiceProductGenerationService</code>。
+／ 契約サービスを編集は3項目を書かない。受注は、保存税率がある履歴の3項目を書かない。保存税率が空の過去履歴だけ、受注時に契約サービスの税率を履歴へ書く。受注と再生成の請求は契約履歴の保存税率。入口は既存<code>InvoiceProductGenerationService</code>。レイアウト<code>ContractHistory__c-契約履歴レイアウト</code>は税率、税額、発生金額（税込）、見積送付先を参照で出す。置き場所は書かない。
 </div>
 
 **実装仕様（開発者向け）:** 数量・単価の四捨五入（HALF_UP）は十進文字列または整数スケールで行い、LWCで`Math.round(n×100)`を使わない。`estimateLineItemUtils.roundHalfUp` / `yenFromQuantityUnitPrice`とApexを一致させる。見積金額は全期間を一括で丸め、請求見込みは継続課金なら`roundYen(数量×単価)×サイクル数`とする。
@@ -1816,12 +1817,13 @@ Versionフィルタは請求書の`ContractHistory__c.Version__c`で判定する
 - 「差額あり／なし」フィルタは出さない。算法と回収・返金判定は変えない。第8.7節・第8.8節。カードに差額は出さない。第8.10節。横断の版差額は対象外。
 - 請求書の`ContractHistory__c`は必須とし、配下請求明細の見積商品および生成元期間明細も同じ契約履歴に属さなければならない。請求分割では元の契約履歴を引き継ぎ、明細移動は同一契約履歴の請求書間だけを許可する。
 - 請求ボード取得時に請求書と配下明細の契約履歴不一致をサーバ側で検出した場合は、異Version明細を除外したり表示行だけで再集計したりせず、データ不整合エラーとしてボードの表示・編集を停止する。
+- 請求ボードを開いた取得で、取消済みを除く請求書の税率と、その契約履歴の保存税率を比べる。1件でも違えばカードも版フィルタも出さず、「見積の税率と請求の税率が違うため、請求ボードを表示できません。」だけ出す。確定、入金、未確定の修正、取消は、請求ボードと契約横断のどちらからでも、同じ不一致でサーバが拒否する。税額の端数は比べない。空の保存税率は、受注時に埋めたあとの値で比べる。直す操作はボードに置かない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewIntegrityService.assertSameHistory</code>
 ／ <code>OrderCreateController.getInvoicePreview</code>の取得直後。不一致なら表示・編集・確定を止める。同一取得リクエストで対象請求・明細・定義を取り直さない。返すカードは本節どおり。
-／ 3入口は<code>OrderCreateController.resolvePreviewScope</code>。<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code> / <code>orderInvoicePreviewTable</code>。部品は枠に載せない。「差額あり／なし」フィルタは出さない。明細表の Version 列セルは番号のみ。版フィルタの親候補は「全Version」と請求書がある Version の <code>VersionN</code>。<code>loadOrderedVersionOptions</code> / <code>orderInvoicePreviewTable.versionOptions</code>。保存成功・版不一致の読み直し・処理中の取り直しのあと、同じ請求の同じタブへ戻す。タブが無ければ明細。編集パネル・行トグル・スクロール・未保存ドラフトは戻さない。入金追加の版不一致は、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。金額、入出金日、目的、メモ、割当、追加項目は残す。入口は既存<code>orderInvoicePreviewTable</code>。カードで押した操作の失敗と成功は、そのボタンの直下。開いた瞬間のプレビュー失敗は第7.10節のパネルの中だけ。灰色のあいだの理由はボタンのホバーだけ。直下には出さない。入出金の追加の失敗はフォーム。契約履歴<code>FlexiPage122</code>の案内は、編集や操作は請求ボードから。
+／ 3入口は<code>OrderCreateController.resolvePreviewScope</code>。<code>orderInvoicePreviewRecordAction</code> / <code>orderInvoicePreviewWizard</code> / <code>orderInvoicePreviewTable</code>。部品は枠に載せない。「差額あり／なし」フィルタは出さない。明細表の Version 列セルは番号のみ。版フィルタの親候補は「全Version」と請求書がある Version の <code>VersionN</code>。<code>loadOrderedVersionOptions</code> / <code>orderInvoicePreviewTable.versionOptions</code>。保存成功・版不一致の読み直し・処理中の取り直しのあと、同じ請求の同じタブへ戻す。タブが無ければ明細。編集パネル・行トグル・スクロール・未保存ドラフトは戻さない。入金追加の版不一致は、その請求の入金フォームに拒否文を残し、その文が見える位置へ動かす。金額、入出金日、目的、メモ、割当、追加項目は残す。入口は既存<code>orderInvoicePreviewTable</code>。カードで押した操作の失敗と成功は、そのボタンの直下。開いた瞬間のプレビュー失敗は第7.10節のパネルの中だけ。灰色のあいだの理由はボタンのホバーだけ。直下には出さない。入出金の追加の失敗はフォーム。契約履歴<code>FlexiPage122</code>の案内は、編集や操作は請求ボードから。取消済みを除く請求書の税率と契約履歴の保存税率が1件でも違えば、カードと版フィルタは返さない。文は「見積の税率と請求の税率が違うため、請求ボードを表示できません。」確定、入金、未確定の修正、取消は同じ不一致で拒否する。税額の端数は比べない。空の保存税率は受注時に埋めたあとの値。直す操作は置かない。入口は既存<code>OrderCreateController.getInvoicePreview</code>。
 </div>
 
 - ボード自身がビューポート実測値から高さを決めた縦スクローラを1本だけ持つ。カード、表、タブに入れ子スクローラを作らない。combobox等ポインタ直下の小スクローラだけを優先する。
@@ -2035,18 +2037,19 @@ Latest Orderedに限り、当該Versionに有効な確定済み請求が1件も�
 1. **税抜。** 当該Versionの契約履歴`DeltaAmountSum__c`（受注時点の見積税抜合計）と、そのVersionに属する取消済みを除く全請求書の税抜合計が一致している。分割・移動・端数調整では`DeltaAmountSum__c`を動かさない。不一致の場合は請求ボードで請求明細を調整する。フッタも同じ合計を正とする。第7.8.5節。
 2. **請求書ごとの税。** 各請求書の税額が、その請求書の税抜合計と税率から第11.9節の税額丸め設定で計算した値と一致している。1枚の税を他請求や見積税込に合わせて書き換えてはならない。確定ではヘッダ税を書き換えない。付け直しは第7.4節の保存時である。
 3. **届け方。** 組織の請求書3択が`PDFとメール送付`のとき、確定する請求書の届け方スナップショットが空なら拒否する。空をメールとみなさない。`使わない`と`PDFのみ`は空でよい。判定はApexである。項目定義の必須にはしない。第3.3.7節。
+4. **税率。** 取消済みを除く請求書の税率が、その契約履歴の保存税率と一致している。違えば確定できない。税額の端数は比べない。空の保存税率は、受注時に埋めたあとの値で比べる。同じ不一致は、入金、未確定の修正、取消も、請求ボードと契約横断のどちらからでもサーバが拒否する。直す操作は請求ボードに置かない。第7.7.0節。
 
 **見積税込と、取消済みを除く全請求書の税込合計は、確定条件にしない。一致しなくても確定できる。**
 
 見積税込は、見積保存時に税抜合計へ税率を1回適用して端数を切った保存値である。見積書はその保存値を読む。この時点では請求が何枚に分かるか分からないため、請求書1枚の前提で計算するしかない。適格請求書は分かれた1枚ごとに税を切る。切る回数が違うので、税込は端数分ずれる。率そのものが違う受注はしない。ずれてよいのは、見積が1回切り、請求が1枚ごとに切る端数だけである。第4.6節・第7.4節。この過程は正しく、防ぎようがない。見積税込に合わせて1枚へ税を寄せると、その請求書単体の税額計算が誤って見える。端数調整は税抜だけであり、税込差を±で消そうとすると税抜一致が壊れる。したがって税額の端数分は見積時と請求時でずれていてよい。請求の枚ごとの税は変えない。
 
-**請求書の確定に順番は求めない。** 前Versionの請求が未確定でも、次Versionの作成、請求生成および確定を許す。同じVersionの中でも、請求日の若い順や採番順は見ない。確定取消は請求書単位であり、後続Versionに確定済みがあっても前Versionの取消を止めない。確定順を守らせると取消と衝突するため、バリデーションも画面の注意も置かない。止めるのは本節の税抜合計と請求書ごとの税と届け方、第7.9.2節の確定後ロック、第7.9.3節の取消前提だけである。
+**請求書の確定に順番は求めない。** 前Versionの請求が未確定でも、次Versionの作成、請求生成および確定を許す。同じVersionの中でも、請求日の若い順や採番順は見ない。確定取消は請求書単位であり、後続Versionに確定済みがあっても前Versionの取消を止めない。確定順を守らせると取消と衝突するため、バリデーションも画面の注意も置かない。止めるのは本節の税抜合計と請求書ごとの税と届け方と税率、第7.9.2節の確定後ロック、第7.9.3節の取消前提だけである。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoiceOpsController.assertEstimateTotalsMatch</code>
 ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoiceDeliveryMethodService.assertRequiredOnConfirm</code>
-／ 税抜の左項は契約履歴<code>DeltaAmountSum__c</code>。取消済みを除くVersion全体。税込合計は見ない。各請求の<code>Invoice__c.TaxAmount__c</code>は<code>TaxCalculationUtil.calculateTaxAmount</code>と一致。確定ではヘッダ税を書かない。確定日は<code>InvoiceTransactionStatusService.organizationToday</code>。入口は<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>。フッタは第7.8.5節。届け方の空拒否は第3.3.7節。
+／ 税抜の左項は契約履歴<code>DeltaAmountSum__c</code>。取消済みを除くVersion全体。税込合計は見ない。各請求の<code>Invoice__c.TaxAmount__c</code>は<code>TaxCalculationUtil.calculateTaxAmount</code>と一致。確定ではヘッダ税を書かない。確定日は<code>InvoiceTransactionStatusService.organizationToday</code>。入口は<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>。フッタは第7.8.5節。届け方の空拒否は第3.3.7節。取消済みを除く請求書の税率が契約履歴の保存税率と違う確定・入金・未確定の修正・取消は拒否する。税額の端数は比べない。空の保存税率は受注時に埋めたあとの値。直す操作は置かない。新設する識別子は無い。
 </div>
 
 #### 7.9.2 確定後の制約
