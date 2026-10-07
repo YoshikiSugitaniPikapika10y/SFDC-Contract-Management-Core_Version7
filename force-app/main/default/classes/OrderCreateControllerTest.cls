@@ -419,6 +419,39 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_readsInvoicesOnceForTaxAndCards() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      OrderCreateController.previewInvoiceSelectCount = 0;
+      InvoiceCanonicalService.savedTaxInvoiceSelectCount = 0;
+
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        1,
+        OrderCreateController.previewInvoiceSelectCount,
+        'Core 第12.4節: 開く取得で請求は1回'
+      );
+      System.assertEquals(
+        0,
+        InvoiceCanonicalService.savedTaxInvoiceSelectCount,
+        'Core 第12.4節: 税率確認は同じ請求を取り直さない'
+      );
+      System.assertEquals(
+        null,
+        preview.blockReason,
+        'Core 第7.7.0節: カードと文は変えない'
+      );
+      System.assert(preview.invoiceCount > 0, 'Core 第7.7.0節: カードは返す');
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_loadsBillingAccountsWithoutSecondHistorySelect() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();
