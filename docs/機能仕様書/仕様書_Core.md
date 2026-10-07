@@ -1158,7 +1158,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>Product2.DocumentSortOrder__c</code>、<code>ContractProduct__c.DocumentSortOrder__c</code>、<code>InvoiceLine__c.DocumentSortOrder__c</code>（表示名 帳票表示順。任意。整数）。
 手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>DocumentSortOrderService.fillContractProducts</code> / <code>fillInvoiceLines</code> / <code>sortContractProducts</code> / <code>sortInvoiceLines</code>。
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractProductTrigger</code> の before insert だけが <code>fillContractProducts</code> を呼ぶ。before update では呼ばない。<code>InvoiceLineTrigger</code> の before insert だけが <code>fillInvoiceLines</code> を呼ぶ。
-並びの適用は <code>EstimateQueryService.queryCopyProducts</code>、<code>estimateCreateModal3</code>、<code>EstimateDocumentService</code>、<code>InvoiceDocumentService</code>、<code>ContractCrossQueryService</code>、<code>OrderCreateController.getInvoicePreview</code>。税の配分、入金の配分、仕訳の並びは対象外。Step2は明細へ最初に入ったときだけ <code>estimateCreateModal3</code> が並べる。保存では画面を並べ直さない。確認も文も出さない。並びは保存側の既存 <code>EstimateSaveService</code> がこの順にする。
+並びの適用は <code>EstimateQueryService.queryCopyProducts</code>、<code>estimateCreateModal3</code>、<code>EstimateDocumentService</code>、<code>InvoiceDocumentService</code>、<code>ContractCrossQueryService</code>、<code>OrderCreateController.getInvoicePreview</code>。税の配分、入金の配分、仕訳の並びは対象外。Step2は明細へ最初に入ったときだけ <code>estimateCreateModal3</code> が並べる。保存では画面を並べ直さない。確認も文も出さない。並びは保存側の既存 <code>EstimateSaveService</code> がこの順にする。次にウィザード Step2 を開いたとき、その順が出る。
 </div>
 
 ### 4.6 金額・税率・端数
