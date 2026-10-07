@@ -20,7 +20,8 @@ export function refreshEstimateRelatedRecords(
   component.dispatchEvent(new RefreshEvent());
 }
 
-// 仕様: Core 第4.3.2節・第4.3.6節
+// 仕様: Core 第4.3.2節・第4.3.6節。保存成功後は確認せず閉じる。
+// 開いたまま再読込すると Quick Action が作り直され、初期状態の Step 1 が残る。
 export function closeEstimateWizard(
   component,
   {
@@ -31,10 +32,11 @@ export function closeEstimateWizard(
   } = {}
 ) {
   if (refresh) {
-    refreshEstimateRelatedRecords(component, {
-      opportunityId,
-      contractHistoryId
-    });
+    markEstimateRecordForRefresh(
+      component,
+      contractHistoryId || opportunityId || component.recordId
+    );
+    component.pendingRelatedRefresh = { opportunityId, contractHistoryId };
   }
   component.dispatchEvent(new CloseActionScreenEvent());
   scheduleOpenSavedContractHistory(navigateToContractHistoryId);
@@ -66,6 +68,13 @@ export function markEstimateRecordForRefresh(host, recordId) {
 }
 
 export function refreshOnEstimateRecordActionUnmount(host) {
+  if (host.pendingRelatedRefresh) {
+    const related = host.pendingRelatedRefresh;
+    host.pendingRelatedRefresh = null;
+    host.pendingRecordRefresh = null;
+    refreshEstimateRelatedRecords(host, related);
+    return;
+  }
   if (!host.pendingRecordRefresh) {
     return;
   }

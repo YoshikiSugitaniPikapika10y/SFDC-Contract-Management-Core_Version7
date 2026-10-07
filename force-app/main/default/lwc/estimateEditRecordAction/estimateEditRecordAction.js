@@ -59,12 +59,14 @@ export default class EstimateEditRecordAction extends NavigationMixin(
     resizeQuickActionPanel(this);
   }
 
+  // 仕様: Core 第4.3.2節・第4.3.6節
   handleRequestClose(event) {
     const detail = event.detail || {};
     closeEstimateWizard(this, {
       refresh: detail.refresh !== false,
       opportunityId: detail.opportunityId,
-      contractHistoryId: detail.contractHistoryId || this.recordId
+      contractHistoryId: detail.contractHistoryId || this.recordId,
+      navigateToContractHistoryId: detail.navigateToContractHistoryId
     });
 
     const navigateToId = detail.navigateToContractHistoryId;

@@ -99,7 +99,8 @@ describe("estimateCreateRecordAction uncovered (Core 4.3.1)", () => {
     expect(closeEstimateWizard).toHaveBeenCalledWith(ctx, {
       refresh: true,
       opportunityId: "006000000000001AAA",
-      contractHistoryId: undefined
+      contractHistoryId: undefined,
+      navigateToContractHistoryId: undefined
     });
     expect(ctx.__navigate).not.toHaveBeenCalled();
   });
@@ -117,7 +118,8 @@ describe("estimateCreateRecordAction uncovered (Core 4.3.1)", () => {
     expect(closeEstimateWizard).toHaveBeenCalledWith(ctx, {
       refresh: false,
       opportunityId: "006BBB",
-      contractHistoryId: "a01000000000002AAA"
+      contractHistoryId: "a01000000000002AAA",
+      navigateToContractHistoryId: "a01000000000003AAA"
     });
     expect(ctx.__navigate).toHaveBeenCalledWith({
       type: "standard__recordPage",
