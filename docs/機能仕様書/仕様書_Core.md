@@ -1153,11 +1153,11 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 
 契約商品と請求明細は、挿入の直前に、番号が空の行だけ書く。更新では書かない。すでに番号がある行は上書きしない。契約商品は商品の帳票表示順を書く。請求明細は元の契約商品の番号をコピーする。請求明細は見積明細の番号を引き継ぎ、請求側の並べ替えは持たない。分割と移動で増える行も同じ挿入である。すでに保存されている契約商品と請求明細は埋め戻さない。空のまま並べる。
 
-画面と標準帳票の明細順は次である。帳票表示順。同じなら、変更前の次が変更後。この段は、その区分がある契約商品だけ使う。請求明細と、Type=New および Renew の契約商品はこの段を飛ばし、番号の次が開始日である。同じなら開始日が古いほう。開始日が空の行は、日付がある行の下。請求明細の開始日は、その行自身の期間開始である。開始日まで同じときは、その明細自身の番号が小さいほうを上にする。
+画面と標準帳票の明細順は次である。帳票表示順。同じなら、変更前が変更後より上。変更後をその変更前の直下にまとめる順にはしない。この段は、その区分がある契約商品だけ使う。請求明細と、Type=New および Renew の契約商品はこの段を飛ばし、番号の次が開始日である。同じなら開始日が古いほう。開始日が空の行は、日付がある行の下。請求明細の開始日は、その行自身の期間開始である。開始日まで同じときは、その明細自身の番号が小さいほうを上にする。
 
 この順を出すのは、見積ウィザード Step2、契約横断の見積書タイルの見積商品テーブル、契約横断の請求書タイル、請求ボードの明細、標準の見積書、標準の請求書である。税の配分、入金の配分、仕訳の並びは変えない。
 
-見積ウィザード Step2 は、明細へ最初に入ったときだけこの順に並べる。商品の選び直し、提供開始日の変更、行の追加では、すでに出している行を動かさない。足した行は足した位置のまま。前の画面へ戻って再び明細へ進んでも、保存するまではその順のまま。保存を押したとき、画面では並べ直さない。確認も文も出さない。並びは保存側でこの順にする。次にウィザード Step2 を開いたとき、その順が明細に出る。見積書、請求書、請求ボード、横断の見積書タイルと請求書タイルは、出すたびにこの順のまま。帳票表示順の写しと、手動の並べ替えは持たない。
+見積ウィザード Step2 は、明細へ最初に入ったときだけこの順に並べる。変更見積の Step2 も、見積書と同じこの段順である。変更後をその変更前の直下にまとめる順は正にしない。商品の選び直し、提供開始日の変更、行の追加では、すでに出している行を動かさない。足した行は足した位置のまま。前の画面へ戻って再び明細へ進んでも、保存するまではその順のまま。保存を押したとき、画面では並べ直さない。確認も文も出さない。並びは保存側でこの順にする。次にウィザード Step2 を開いたとき、その順が明細に出る。保存と見積書の順は変えない。見積書、請求書、請求ボード、横断の見積書タイルと請求書タイルは、出すたびにこの順のまま。帳票表示順の写しと、手動の並べ替えは持たない。
 
 帳票単位で番号を切り替えることはパッケージの範囲外である。契約商品へカスタム項目を足し、自分で入力し、VFコントローラでそちらを優先するのは導入先のカスタマイズであり、パッケージは保証しない。
 
@@ -1166,7 +1166,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>Product2.DocumentSortOrder__c</code>、<code>ContractProduct__c.DocumentSortOrder__c</code>、<code>InvoiceLine__c.DocumentSortOrder__c</code>（表示名 帳票表示順。任意。整数）。
 手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>DocumentSortOrderService.fillContractProducts</code> / <code>fillInvoiceLines</code> / <code>sortContractProducts</code> / <code>sortInvoiceLines</code>。
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractProductTrigger</code> の before insert だけが <code>fillContractProducts</code> を呼ぶ。before update では呼ばない。<code>InvoiceLineTrigger</code> の before insert だけが <code>fillInvoiceLines</code> を呼ぶ。
-並びの適用は <code>EstimateQueryService.queryCopyProducts</code>、<code>estimateCreateModal3</code>、<code>EstimateDocumentService</code>、<code>InvoiceDocumentService</code>、<code>ContractCrossQueryService</code>、<code>OrderCreateController.getInvoicePreview</code>。税の配分、入金の配分、仕訳の並びは対象外。Step2は明細へ最初に入ったときだけ <code>estimateCreateModal3</code> が並べる。保存では画面を並べ直さない。確認も文も出さない。並びは保存側の既存 <code>EstimateSaveService</code> がこの順にする。次にウィザード Step2 を開いたとき、その順が出る。
+並びの適用は <code>EstimateQueryService.queryCopyProducts</code>、<code>estimateCreateModal3</code>、<code>EstimateDocumentService</code>、<code>InvoiceDocumentService</code>、<code>ContractCrossQueryService</code>、<code>OrderCreateController.getInvoicePreview</code>。税の配分、入金の配分、仕訳の並びは対象外。Step2は明細へ最初に入ったときだけ <code>estimateCreateModal3</code> が並べる。変更見積の Step2 も <code>estimateCreateModal3</code> がこの段順に並べる。変更後をその変更前の直下にまとめる順にはしない。保存では画面を並べ直さない。確認も文も出さない。並びは保存側の既存 <code>EstimateSaveService</code> がこの順にする。見積書は既存 <code>EstimateDocumentService</code> のこの順のまま。次にウィザード Step2 を開いたとき、その順が出る。
 </div>
 
 ### 4.6 金額・税率・端数
