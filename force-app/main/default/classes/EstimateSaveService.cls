@@ -981,8 +981,12 @@ public without sharing class EstimateSaveService {
       ? null
       : EstimateCreateSupport.parseDate(request.effectiveDate);
     String selectedType = request == null ? null : request.selectedType;
-    if (request != null && request.products != null) {
-      for (EstimateCreateController.ProductLineItem line : request.products) {
+    // 仕様: Core 第4.5.3節。並びは保存側で帳票表示順にする。画面は並べ直さない。
+    List<EstimateCreateController.ProductLineItem> orderedLines = sortLinesForDocumentOrder(
+      request == null ? null : request.products,
+      selectedType
+    );
+    for (EstimateCreateController.ProductLineItem line : orderedLines) {
         if (line == null || line.productId == null) {
           continue;
         }
@@ -1004,7 +1008,6 @@ public without sharing class EstimateSaveService {
         } else {
           toInsert.add(built);
         }
-      }
     }
 
     List<ContractProduct__c> toDelete = new List<ContractProduct__c>();
@@ -1386,6 +1389,44 @@ public without sharing class EstimateSaveService {
     return ContractHistoryVersionUtil.getNextHistoryVersion(contractServiceId);
   }
 
+  /** 仕様: Core 第4.5.3節。保存する明細を帳票表示順にする。画面の並びは変えない。 */
+  private static List<EstimateCreateController.ProductLineItem> sortLinesForDocumentOrder(
+    List<EstimateCreateController.ProductLineItem> lines,
+    String selectedType
+  ) {
+    if (lines == null || lines.size() < 2) {
+      return lines == null
+        ? new List<EstimateCreateController.ProductLineItem>()
+        : lines;
+    }
+    List<ContractProduct__c> keys = new List<ContractProduct__c>();
+    for (Integer index = 0; index < lines.size(); index++) {
+      EstimateCreateController.ProductLineItem line = lines[index];
+      ContractProduct__c key = new ContractProduct__c();
+      if (line != null && String.isNotBlank(line.lineName)) {
+        key = (ContractProduct__c) JSON.deserialize(
+          '{"attributes":{"type":"ContractProduct__c"},"Name":' +
+            JSON.serialize(line.lineName) +
+            '}',
+          ContractProduct__c.class
+        );
+      }
+      key.Quantity__c = index;
+      if (line != null) {
+        key.DocumentSortOrder__c = line.documentSortOrder;
+        key.Type__c = resolveProductType(line, selectedType);
+        key.StartDate__c = EstimateCreateSupport.parseDate(line.startDate);
+      }
+      keys.add(key);
+    }
+    DocumentSortOrderService.sortContractProducts(keys);
+    List<EstimateCreateController.ProductLineItem> ordered = new List<EstimateCreateController.ProductLineItem>();
+    for (ContractProduct__c key : keys) {
+      ordered.add(lines[Integer.valueOf(key.Quantity__c)]);
+    }
+    return ordered;
+  }
+
   public static List<ContractProduct__c> buildContractProducts(
     Id contractHistoryId,
     Id accountId,
@@ -1393,7 +1434,11 @@ public without sharing class EstimateSaveService {
   ) {
     Map<Id, Product2> productById = loadProductBillingTypes(request.products);
     List<ContractProduct__c> contractProducts = new List<ContractProduct__c>();
-    for (EstimateCreateController.ProductLineItem line : request.products) {
+    // 仕様: Core 第4.5.3節。並びは保存側で帳票表示順にする。画面は並べ直さない。
+    for (EstimateCreateController.ProductLineItem line : sortLinesForDocumentOrder(
+      request.products,
+      request.selectedType
+    )) {
       if (line == null || line.productId == null) {
         continue;
       }

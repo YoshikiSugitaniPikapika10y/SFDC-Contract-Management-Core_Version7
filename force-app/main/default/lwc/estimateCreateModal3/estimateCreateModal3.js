@@ -279,6 +279,8 @@ export default class EstimateCreateModal3 extends LightningElement {
 
   /** 初期化中フラグ。再入防止・表示同期抑止・commitItemList の emit 抑止。 */
   _bootstrapInFlight = false;
+  /** 仕様: Core 第4.5.3節。明細へ最初に入ったときだけ並べ、その後は保存まで行を動かさない。 */
+  _detailOrderApplied = false;
   _bootstrapQueued = false;
   /**
    * Change 前回明細カタログのローカル正本。
@@ -848,7 +850,11 @@ export default class EstimateCreateModal3 extends LightningElement {
   get displayItemList() {
     let rows;
     if (!this.isChangeType) {
-      rows = [...this.itemList].sort(compareDocumentSortLines);
+      // 仕様: Core 第4.5.3節。最初の並びのあと、画面では並べ直さない。
+      rows =
+        this._detailOrderApplied === true
+          ? this.itemList
+          : [...this.itemList].sort(compareDocumentSortLines);
     } else {
       rows = this.buildChangeDisplayRows();
     }
@@ -886,6 +892,50 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   buildChangeDisplayRows() {
+    if (this._detailOrderApplied === true) {
+      return this.buildChangeDisplayRowsInListOrder();
+    }
+    return this.buildChangeDisplayRowsSorted();
+  }
+
+  /** 仕様: Core 第4.5.3節。明細へ最初に入ったときだけ、帳票表示順で itemList を固定する。 */
+  applyDocumentOrderOnce() {
+    if (this._detailOrderApplied === true) {
+      return;
+    }
+    if (this.itemList && this.itemList.length > 1) {
+      if (this.isChangeType) {
+        const display = this.buildChangeDisplayRowsSorted();
+        const byId = new Map(this.itemList.map((row) => [row.id, row]));
+        const ordered = [];
+        const seen = new Set();
+        display.forEach((row) => {
+          if (
+            !row ||
+            row.isGroupHeader ||
+            row.id == null ||
+            !byId.has(row.id) ||
+            seen.has(row.id)
+          ) {
+            return;
+          }
+          ordered.push(byId.get(row.id));
+          seen.add(row.id);
+        });
+        this.itemList.forEach((row) => {
+          if (row && !seen.has(row.id)) {
+            ordered.push(row);
+          }
+        });
+        this.itemList = ordered;
+      } else {
+        this.itemList = [...this.itemList].sort(compareDocumentSortLines);
+      }
+    }
+    this._detailOrderApplied = true;
+  }
+
+  buildChangeDisplayRowsSorted() {
     const rows = [];
     const groups = this.changeProductGroups
       .map((group) => ({
@@ -964,6 +1014,83 @@ export default class EstimateCreateModal3 extends LightningElement {
       });
     }
 
+    return rows.map((row) => this.applyChangeGroupBoundaryClass(row));
+  }
+
+  /** 仕様: Core 第4.5.3節。最初の並びのあと、itemList の位置のまま出す。 */
+  buildChangeDisplayRowsInListOrder() {
+    const rows = [];
+    const groupsByPair = new Map(
+      this.changeProductGroups.map((group) => [group.pairId, group])
+    );
+    const emittedPairs = new Set();
+    let newHeaderInserted = false;
+    this.itemList.forEach((row) => {
+      if (isChangeOriginalLine(row)) {
+        if (emittedPairs.has(row.pairId)) {
+          return;
+        }
+        emittedPairs.add(row.pairId);
+        const group = groupsByPair.get(row.pairId);
+        if (!group) {
+          return;
+        }
+        rows.push({
+          id: `group-header-${group.pairId}`,
+          isGroupHeader: true,
+          isSectionHeader: false,
+          groupHeaderTitle: group.productName || "（商品未選択）",
+          groupHeaderClass: "est-change-group-card__header",
+          groupHeaderRowClass: "est-change-group-header-row"
+        });
+        rows.push({
+          ...group.original,
+          rowContext: "changeOriginal",
+          changeGroupBoundary: group.remakeRows.length === 0 ? "end" : "start"
+        });
+        group.remakeRows.forEach((remake, index) => {
+          rows.push({
+            ...remake,
+            rowContext: "changeRemake",
+            canDelete:
+              this.orderedCustomFieldsOnly !== true &&
+              group.remakeRows.length > 1,
+            showAddRemakeButton:
+              this.orderedCustomFieldsOnly !== true &&
+              index === group.remakeRows.length - 1,
+            groupPairId: group.pairId,
+            changeGroupBoundary:
+              index === group.remakeRows.length - 1 ? "end" : "middle"
+          });
+        });
+        return;
+      }
+      if (!isChangeContinuationLine(row)) {
+        return;
+      }
+      if (!newHeaderInserted) {
+        rows.push(this.changeNewSectionHeader());
+        newHeaderInserted = true;
+      }
+      rows.push({
+        ...row,
+        rowContext: "changeNew",
+        canDelete: this.orderedCustomFieldsOnly !== true,
+        changeGroupBoundary: "middle",
+        changeGroupTone: "new"
+      });
+    });
+    if (!newHeaderInserted) {
+      const header = this.changeNewSectionHeader();
+      header.changeGroupBoundary = "end";
+      rows.push(header);
+    } else {
+      const newDisplays = rows.filter((row) => row.rowContext === "changeNew");
+      newDisplays.forEach((row, index) => {
+        row.changeGroupBoundary =
+          index === newDisplays.length - 1 ? "end" : "middle";
+      });
+    }
     return rows.map((row) => this.applyChangeGroupBoundaryClass(row));
   }
 
@@ -2102,6 +2229,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     }
 
     const generation = ++this._bootstrapGeneration;
+    this._detailOrderApplied = false;
     this._bootstrapInFlight = true;
     this._bootstrapQueued = false;
     this._lastEmittedProductsFingerprint = "";
@@ -2153,7 +2281,8 @@ export default class EstimateCreateModal3 extends LightningElement {
       return;
     }
 
-    // ブートストラップ中に emit:false で積んだ明細を親へ確定する
+    // 仕様: Core 第4.5.3節。明細へ最初に入ったときだけ並べ、保存では画面を並べ直さない。
+    this.applyDocumentOrderOnce();
     this.emitProductsFromItemList();
 
     if (this._bootstrapQueued) {

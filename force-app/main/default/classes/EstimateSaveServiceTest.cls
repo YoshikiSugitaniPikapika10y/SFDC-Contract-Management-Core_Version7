@@ -766,6 +766,55 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void buildContractProducts_ordersByDocumentSortOrder() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct('Sort Products');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem later = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 6, 1),
+        Date.newInstance(2026, 6, 1)
+      );
+      later.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      later.documentSortOrder = 20;
+      later.lineName = 'CP-000020';
+      EstimateCreateController.ProductLineItem earlier = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2026, 4, 1)
+      );
+      earlier.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      earlier.documentSortOrder = 5;
+      earlier.lineName = 'CP-000005';
+
+      EstimateCreateController.EstimateSaveRequest request = new EstimateCreateController.EstimateSaveRequest();
+      request.selectedType = 'New';
+      request.effectiveDate = '2026-04-01';
+      request.products = new List<EstimateCreateController.ProductLineItem>{
+        later,
+        earlier
+      };
+
+      List<ContractProduct__c> products = EstimateSaveService.buildContractProducts(
+        null,
+        null,
+        request
+      );
+
+      System.assertEquals(2, products.size());
+      System.assertEquals(Date.newInstance(2026, 4, 1), products[0].StartDate__c);
+      System.assertEquals(Date.newInstance(2026, 6, 1), products[1].StartDate__c);
+      System.assertEquals(20, request.products[0].documentSortOrder);
+    }
+  }
+
+  @IsTest
   static void applyRemarksAndCancelRemarks_updateHistoryNotes() {
     ContractHistory__c history = new ContractHistory__c();
     EstimateSaveService.applyRemarks(history, 'テスト備考');
