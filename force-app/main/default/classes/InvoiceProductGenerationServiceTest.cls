@@ -445,6 +445,77 @@ private class InvoiceProductGenerationServiceTest {
   }
 
   @IsTest
+  static void emptyHistoryTaxOnOrder_writesDisplayPercent() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Display Percent Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Display Percent Service',
+        account
+      );
+      service.TaxPercent__c = 0.1;
+      update service;
+      Opportunity opportunity = ContractTestDataFactory.insertOpportunity(
+        account.Id,
+        'Display Percent Opp'
+      );
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2027, 5, 31);
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Display Percent History',
+        ContractService__c = service.Id,
+        Opportunity__c = opportunity.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insertHistory(history);
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Display Percent Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+      insert new ContractProduct__c(
+        ContractHistory__c = history.Id,
+        Product__c = product.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 8000,
+        Amount__c = 8000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+
+      Test.startTest();
+      orderHistory(history);
+      Test.stopTest();
+
+      ContractHistory__c stored = [
+        SELECT TaxPercent__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      System.assertEquals(
+        10,
+        stored.TaxPercent__c,
+        'Core 第4.6節・第7.4節: 空の履歴へ書く税率は表示のパーセント'
+      );
+      System.assertEquals(
+        10,
+        TaxCalculationUtil.fromPercentFieldStorage(0.1),
+        'Core 第4.6節: 計算は0.1を10%と読む'
+      );
+    }
+  }
+
+  @IsTest
   static void estimateToOrdered_createsMonthlyInvoiceProducts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       TestData data = createHistoryWithProducts(false);
@@ -4647,7 +4718,10 @@ private class InvoiceProductGenerationServiceTest {
       ContractTestDataFactory.applyRequiredFields(service);
       insert service;
       Date termStart = Date.newInstance(2026, 6, 1);
-      Date termEnd = MonthlyBillingPeriodUtil.endDateForMonthlyCycles(termStart, 6);
+      Date termEnd = MonthlyBillingPeriodUtil.endDateForMonthlyCycles(
+        termStart,
+        6
+      );
       ContractHistory__c history = new ContractHistory__c(
         Name = 'Business Day Adjust History',
         ContractService__c = service.Id,
@@ -4733,7 +4807,10 @@ private class InvoiceProductGenerationServiceTest {
           BillingScheduleService.ADJUST_PREVIOUS,
           businessHoursId
         );
-        String key = String.valueOf(invoiceDate) + '|' + String.valueOf(paymentDate);
+        String key =
+          String.valueOf(invoiceDate) +
+          '|' +
+          String.valueOf(paymentDate);
         Integer count = expectedInvoices.containsKey(key)
           ? expectedInvoices.get(key)
           : 0;
@@ -4789,8 +4866,15 @@ private class InvoiceProductGenerationServiceTest {
     }
   }
 
-  static Date adjustGeneratedDate(Date value, String adjust, Id businessHoursId) {
-    Datetime midday = Datetime.newInstance(value, Time.newInstance(12, 0, 0, 0));
+  static Date adjustGeneratedDate(
+    Date value,
+    String adjust,
+    Id businessHoursId
+  ) {
+    Datetime midday = Datetime.newInstance(
+      value,
+      Time.newInstance(12, 0, 0, 0)
+    );
     if (BusinessHours.isWithin(businessHoursId, midday)) {
       return value;
     }

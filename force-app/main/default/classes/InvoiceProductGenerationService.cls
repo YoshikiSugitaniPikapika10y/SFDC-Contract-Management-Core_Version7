@@ -172,7 +172,9 @@ public without sharing class InvoiceProductGenerationService {
       cachedContractProductsByHistoryId.containsKey(historyId);
   }
 
-  public static List<ContractProduct__c> productsCachedForHistory(Id historyId) {
+  public static List<ContractProduct__c> productsCachedForHistory(
+    Id historyId
+  ) {
     List<ContractProduct__c> cached = cachedContractProductsByHistoryId.get(
       historyId
     );
@@ -372,7 +374,11 @@ public without sharing class InvoiceProductGenerationService {
       return contextByHistoryId;
     }
     historyContextSelectCount++;
-    for (ContractHistory__c history : queryContractHistoriesForFieldCopy(missingIds)) {
+    for (
+      ContractHistory__c history : queryContractHistoriesForFieldCopy(
+        missingIds
+      )
+    ) {
       HistoryGenerationContext context = new HistoryGenerationContext();
       context.historyId = history.Id;
       context.contractServiceId = history.ContractService__c;
@@ -875,7 +881,11 @@ public without sharing class InvoiceProductGenerationService {
       if (
         pastAmount != 0 &&
         !isOneTimeBillingForPeriod(historyProducts, productId, pastSample) &&
-        !isPastPeriodOutsideOriginalWindow(historyProducts, productId, periodKey)
+        !isPastPeriodOutsideOriginalWindow(
+          historyProducts,
+          productId,
+          periodKey
+        )
       ) {
         if (pastSample == null) {
           throw new InvoiceProductGenerationException(
@@ -1076,7 +1086,11 @@ public without sharing class InvoiceProductGenerationService {
     Id productId,
     String periodKey
   ) {
-    if (historyProducts == null || productId == null || String.isBlank(periodKey)) {
+    if (
+      historyProducts == null ||
+      productId == null ||
+      String.isBlank(periodKey)
+    ) {
       return false;
     }
     Date periodStart = extractPeriodDate(periodKey, 2);
@@ -1361,7 +1375,7 @@ public without sharing class InvoiceProductGenerationService {
   /**
    * 仕様: Core 第4.6節・第7.4節。
    * 保存税率がある履歴の税率・税額・税込は書き換えない。
-   * 空の過去履歴は受注時だけ、契約サービスの税率を履歴へ書いてから請求する。
+   * 空の過去履歴は受注時だけ、契約サービスの税率を表示のパーセントで履歴へ書いてから請求する。
    */
   private static void fillEmptyHistoryTaxOnOrder(
     Map<Id, HistoryBillingContext> billingContextByHistoryId,
@@ -1373,7 +1387,9 @@ public without sharing class InvoiceProductGenerationService {
       return;
     }
     List<ContractHistory__c> toFill = new List<ContractHistory__c>();
-    for (HistoryBillingContext billingContext : billingContextByHistoryId.values()) {
+    for (
+      HistoryBillingContext billingContext : billingContextByHistoryId.values()
+    ) {
       if (billingContext == null || billingContext.contractHistory == null) {
         continue;
       }
@@ -1390,12 +1406,13 @@ public without sharing class InvoiceProductGenerationService {
       if (fillEmptyFromService != true || serviceStored == null) {
         throw new TaxCalculationUtil.TaxPercentException('消費税率が空です。');
       }
-      history.TaxPercent__c = serviceStored;
-      billingContext.taxPercent = TaxCalculationUtil.fromPercentFieldStorage(
+      Decimal displayPercent = TaxCalculationUtil.fromPercentFieldStorage(
         serviceStored
       );
+      history.TaxPercent__c = displayPercent;
+      billingContext.taxPercent = displayPercent;
       toFill.add(
-        new ContractHistory__c(Id = history.Id, TaxPercent__c = serviceStored)
+        new ContractHistory__c(Id = history.Id, TaxPercent__c = displayPercent)
       );
     }
     if (!toFill.isEmpty()) {
@@ -1567,14 +1584,18 @@ public without sharing class InvoiceProductGenerationService {
       }
     }
     if (!missingHistoryIds.isEmpty()) {
-    String soql =
-      'SELECT ' +
-      String.join(selectList, ',') +
-      ' FROM ContractHistory__c' +
-      ' WHERE Id IN :missingHistoryIds WITH SYSTEM_MODE';
-    for (ContractHistory__c history : (List<ContractHistory__c>) Database.query(soql)) {
-      cachedHistoriesForFieldCopy.put(history.Id, history);
-    }
+      String soql =
+        'SELECT ' +
+        String.join(selectList, ',') +
+        ' FROM ContractHistory__c' +
+        ' WHERE Id IN :missingHistoryIds WITH SYSTEM_MODE';
+      for (
+        ContractHistory__c history : (List<ContractHistory__c>) Database.query(
+          soql
+        )
+      ) {
+        cachedHistoriesForFieldCopy.put(history.Id, history);
+      }
     }
     List<ContractHistory__c> loaded = new List<ContractHistory__c>();
     for (Id historyId : contractHistoryIds) {
@@ -1645,7 +1666,11 @@ public without sharing class InvoiceProductGenerationService {
       ' FROM BillingAccount__c' +
       ' WHERE Id IN :missingBillingAccountIds WITH SYSTEM_MODE';
     if (!missingBillingAccountIds.isEmpty()) {
-      for (BillingAccount__c account : (List<BillingAccount__c>) Database.query(soql)) {
+      for (
+        BillingAccount__c account : (List<BillingAccount__c>) Database.query(
+          soql
+        )
+      ) {
         cachedBillingAccountsById.put(account.Id, account);
       }
     }
@@ -1800,9 +1825,11 @@ public without sharing class InvoiceProductGenerationService {
         String.join(selectList, ',') +
         ' FROM ContractProduct__c' +
         ' WHERE ContractHistory__c IN :missingHistoryIds WITH SYSTEM_MODE';
-      for (ContractProduct__c contractProduct : (List<ContractProduct__c>) Database.query(
-        soql
-      )) {
+      for (
+        ContractProduct__c contractProduct : (List<ContractProduct__c>) Database.query(
+          soql
+        )
+      ) {
         List<ContractProduct__c> bucket = cachedContractProductsByHistoryId.get(
           contractProduct.ContractHistory__c
         );
@@ -1904,8 +1931,7 @@ public without sharing class InvoiceProductGenerationService {
       soql += ' AND ContractHistory__c != :currentHistoryId';
     }
     if (currentVersion != null) {
-      soql +=
-        ' AND (ContractHistory__r.Version__c = null OR ContractHistory__r.Version__c < :currentVersion)';
+      soql += ' AND (ContractHistory__r.Version__c = null OR ContractHistory__r.Version__c < :currentVersion)';
     }
     soql +=
       ' WITH SYSTEM_MODE' +
