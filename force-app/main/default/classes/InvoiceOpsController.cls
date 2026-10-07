@@ -141,6 +141,18 @@ public without sharing class InvoiceOpsController {
     Id contractHistoryId,
     List<Id> invoiceIds
   ) {
+    assertSendSameContractService(contractHistoryId, invoiceIds, null);
+  }
+
+  /**
+   * 仕様: Core 第7.7.3節、第12.4節、第7.10節。
+   * ロック済み請求があれば、同じ請求の件数照会を足さない。送付の可否は変えない。
+   */
+  public static void assertSendSameContractService(
+    Id contractHistoryId,
+    List<Id> invoiceIds,
+    Invoice__c knownLockedInvoice
+  ) {
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return;
     }
@@ -151,6 +163,28 @@ public without sharing class InvoiceOpsController {
       }
     }
     if (targetIds.isEmpty()) {
+      return;
+    }
+    if (
+      knownLockedInvoice != null &&
+      knownLockedInvoice.Id != null &&
+      targetIds.size() == 1 &&
+      targetIds.contains(knownLockedInvoice.Id)
+    ) {
+      if (
+        contractHistoryId != null &&
+        knownLockedInvoice.ContractHistory__c == contractHistoryId &&
+        knownLockedInvoice.ContractService__c != null
+      ) {
+        return;
+      }
+      Id lockedServiceId = resolveContractServiceId(contractHistoryId);
+      if (
+        lockedServiceId == null ||
+        knownLockedInvoice.ContractService__c != lockedServiceId
+      ) {
+        throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
+      }
       return;
     }
     Id serviceId = resolveContractServiceId(contractHistoryId);

@@ -276,9 +276,11 @@ public without sharing class InvoiceBoardDocumentService {
     try {
       Invoice__c invoice = loadInvoice(invoiceId, true);
       if (checkScope == true) {
+        // 仕様: Core 第12.4節、第7.10節。行ロックした請求を範囲確認に使い、同じ請求を照会し直さない。
         InvoiceOpsController.assertSendSameContractService(
           contractHistoryId,
-          new List<Id>{ invoiceId }
+          new List<Id>{ invoiceId },
+          invoice
         );
       }
       assertIssuable(invoice, true);
