@@ -48,7 +48,38 @@ private class InvoiceProductGenerationServiceTest {
 
   private static void generateInvoiceProducts(Set<Id> historyIds) {
     stampRevenueRecognitionBasis(historyIds);
+    stampBlankHistoryTaxFromService(historyIds);
     InvoiceProductGenerationService.generateForHistories(historyIds);
+  }
+
+  /** 再生成のテストは、受注時に書いた保存税率がある前提で呼ぶ。 */
+  private static void stampBlankHistoryTaxFromService(Set<Id> historyIds) {
+    if (historyIds == null || historyIds.isEmpty()) {
+      return;
+    }
+    List<ContractHistory__c> histories = [
+      SELECT Id, TaxPercent__c, ContractService__r.TaxPercent__c
+      FROM ContractHistory__c
+      WHERE Id IN :historyIds
+    ];
+    List<ContractHistory__c> toFill = new List<ContractHistory__c>();
+    for (ContractHistory__c history : histories) {
+      if (
+        history.TaxPercent__c == null &&
+        history.ContractService__r != null &&
+        history.ContractService__r.TaxPercent__c != null
+      ) {
+        toFill.add(
+          new ContractHistory__c(
+            Id = history.Id,
+            TaxPercent__c = history.ContractService__r.TaxPercent__c
+          )
+        );
+      }
+    }
+    if (!toFill.isEmpty()) {
+      update toFill;
+    }
   }
 
   private static void prepareHistoryForOrder(ContractHistory__c history) {
@@ -515,6 +546,48 @@ private class InvoiceProductGenerationServiceTest {
       );
     }
   }
+
+  @IsTest
+  static void estimateToOrdered_usesHistoryTaxNotServiceTax() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      TestData data = createHistoryWithProducts(false);
+      update new ContractHistory__c(
+        Id = data.history.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      update new ContractService__c(
+        Id = data.history.ContractService__c,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(8)
+      );
+      Test.startTest();
+      orderHistory(data.history);
+      Test.stopTest();
+      Invoice__c invoice = [
+        SELECT TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :data.history.Id
+        LIMIT 1
+      ];
+      System.assertEquals(
+        10,
+        TaxCalculationUtil.resolveTaxPercent(
+          TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
+        )
+      );
+      ContractHistory__c stored = [
+        SELECT TaxPercent__c, TaxAmount__c, DeltaTaxInclusiveSum__c
+        FROM ContractHistory__c
+        WHERE Id = :data.history.Id
+      ];
+      System.assertEquals(
+        TaxCalculationUtil.toPercentFieldStorage(10),
+        stored.TaxPercent__c
+      );
+      System.assertEquals(null, stored.TaxAmount__c);
+      System.assertEquals(null, stored.DeltaTaxInclusiveSum__c);
+    }
+  }
+
   @IsTest
   static void estimateToOrdered_createsPositiveInvoiceProductsOnly() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {

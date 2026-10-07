@@ -51,6 +51,9 @@
               filter={billingAccountFilter}
               onchange={handleBillingAccountChange}
             ></lightning-record-picker>
+            <template if:true={showBillingAccountNotice}>
+              <p class="alert" role="status">{billingAccountNotice}</p>
+            </template>
             <lightning-input
               type="checkbox"
               label="他の取引先の請求アカウントも検索する"
@@ -66,6 +69,16 @@
               disabled={saving}
               onchange={handleTaxChange}
             ></lightning-input>
+            <template if:true={showTaxNotice}>
+              <p class="alert" role="status">{taxNotice}</p>
+              <lightning-input
+                type="checkbox"
+                label="未確定を含め、既存の請求書や受注済みの見積には反映できないことを確認した"
+                checked={taxChangeAcknowledged}
+                disabled={saving}
+                onchange={handleTaxAcknowledgeChange}
+              ></lightning-input>
+            </template>
             <lightning-textarea
               label="備考"
               value={customerMemo}

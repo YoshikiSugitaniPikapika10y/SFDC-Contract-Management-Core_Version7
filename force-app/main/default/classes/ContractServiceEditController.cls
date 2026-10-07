@@ -33,6 +33,14 @@ public without sharing class ContractServiceEditController {
 
     @AuraEnabled
     public String lastModifiedToken;
+
+    /** 仕様: Core 第3.4.1節。空の保存税率は含めない。表示％。 */
+    @AuraEnabled
+    public List<Decimal> unorderedSavedTaxPercents;
+
+    /** 仕様: Core 第3.4.1節。空の保存税率は含めない。表示％。 */
+    @AuraEnabled
+    public List<Decimal> orderedSavedTaxPercents;
   }
 
   public class SaveResult {
@@ -102,6 +110,29 @@ public without sharing class ContractServiceEditController {
     dto.lastModifiedToken = ContractOptimisticLockUtil.toToken(
       service.LastModifiedDate
     );
+    dto.unorderedSavedTaxPercents = new List<Decimal>();
+    dto.orderedSavedTaxPercents = new List<Decimal>();
+    for (ContractHistory__c history : [
+      SELECT historystatus__c, TaxPercent__c
+      FROM ContractHistory__c
+      WHERE
+        ContractService__c = :service.Id
+        AND historystatus__c != :ContractDomainConstants.HISTORY_STATUS_ARCHIVE
+    ]) {
+      if (history.TaxPercent__c == null) {
+        continue;
+      }
+      Decimal displayTax = TaxCalculationUtil.fromPercentFieldStorage(
+        history.TaxPercent__c
+      );
+      if (
+        history.historystatus__c == ContractDomainConstants.HISTORY_STATUS_ORDERED
+      ) {
+        dto.orderedSavedTaxPercents.add(displayTax);
+      } else {
+        dto.unorderedSavedTaxPercents.add(displayTax);
+      }
+    }
     return dto;
   }
 

@@ -236,19 +236,16 @@ public without sharing class InvoiceProductMergeService {
     return invoice;
   }
 
+  /** 仕様: Core 第7.4節。請求の税率は契約履歴の保存税率。空なら受注時に埋めたあとの値。 */
   private static Decimal resolveTaxPercent(List<InvoiceProduct__c> products) {
     if (products == null || products.isEmpty()) {
       throw new TaxCalculationUtil.TaxPercentException('消費税率が空です。');
     }
     for (InvoiceProduct__c product : products) {
-      if (
-        product == null ||
-        product.ContractHistory__r == null ||
-        product.ContractHistory__r.ContractService__r == null
-      ) {
+      if (product == null || product.ContractHistory__r == null) {
         continue;
       }
-      Decimal stored = product.ContractHistory__r.ContractService__r.TaxPercent__c;
+      Decimal stored = product.ContractHistory__r.TaxPercent__c;
       if (stored != null) {
         return TaxCalculationUtil.resolveTaxPercent(
           TaxCalculationUtil.fromPercentFieldStorage(stored)

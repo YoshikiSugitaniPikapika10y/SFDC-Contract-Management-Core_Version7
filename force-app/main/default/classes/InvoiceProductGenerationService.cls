@@ -236,6 +236,11 @@ public without sharing class InvoiceProductGenerationService {
     Map<Id, HistoryBillingContext> billingContextByHistoryId = loadHistoryBillingContextByHistoryId(
       generateHistoryIds
     );
+    // 仕様: Core 第4.6節・第7.4節。空の過去履歴は受注時だけ契約サービスの税率を履歴へ書く。
+    fillEmptyHistoryTaxOnOrder(
+      billingContextByHistoryId,
+      replaceExistingPeriodLines != true
+    );
 
     List<ContractProduct__c> contractProducts = queryContractProductsForGeneration(
       generateHistoryIds
@@ -1353,6 +1358,51 @@ public without sharing class InvoiceProductGenerationService {
     );
   }
 
+  /**
+   * 仕様: Core 第4.6節・第7.4節。
+   * 保存税率がある履歴の税率・税額・税込は書き換えない。
+   * 空の過去履歴は受注時だけ、契約サービスの税率を履歴へ書いてから請求する。
+   */
+  private static void fillEmptyHistoryTaxOnOrder(
+    Map<Id, HistoryBillingContext> billingContextByHistoryId,
+    Boolean fillEmptyFromService
+  ) {
+    if (
+      billingContextByHistoryId == null || billingContextByHistoryId.isEmpty()
+    ) {
+      return;
+    }
+    List<ContractHistory__c> toFill = new List<ContractHistory__c>();
+    for (HistoryBillingContext billingContext : billingContextByHistoryId.values()) {
+      if (billingContext == null || billingContext.contractHistory == null) {
+        continue;
+      }
+      ContractHistory__c history = billingContext.contractHistory;
+      if (history.TaxPercent__c != null) {
+        billingContext.taxPercent = TaxCalculationUtil.fromPercentFieldStorage(
+          history.TaxPercent__c
+        );
+        continue;
+      }
+      Decimal serviceStored = history.ContractService__r == null
+        ? null
+        : history.ContractService__r.TaxPercent__c;
+      if (fillEmptyFromService != true || serviceStored == null) {
+        throw new TaxCalculationUtil.TaxPercentException('消費税率が空です。');
+      }
+      history.TaxPercent__c = serviceStored;
+      billingContext.taxPercent = TaxCalculationUtil.fromPercentFieldStorage(
+        serviceStored
+      );
+      toFill.add(
+        new ContractHistory__c(Id = history.Id, TaxPercent__c = serviceStored)
+      );
+    }
+    if (!toFill.isEmpty()) {
+      update toFill;
+    }
+  }
+
   private static Map<Id, HistoryBillingContext> loadHistoryBillingContextByHistoryId(
     Set<Id> contractHistoryIds
   ) {
@@ -1394,10 +1444,11 @@ public without sharing class InvoiceProductGenerationService {
       HistoryBillingContext billingContext = new HistoryBillingContext();
       billingContext.contractHistory = history;
       if (history.ContractService__r != null) {
-        // Percent 項目の Apex 値（0.1＝10%）を表示％へ戻す。
+        // 仕様: Core 第4.6節・第7.4節。請求へ使うのは契約履歴の保存税率。
         billingContext.taxPercent = TaxCalculationUtil.fromPercentFieldStorage(
-          history.ContractService__r.TaxPercent__c
+          history.TaxPercent__c
         );
+      }
       }
       Id billingAccountId = history.ContractService__r == null
         ? null
@@ -1479,6 +1530,7 @@ public without sharing class InvoiceProductGenerationService {
     uniqueSelect.add('EffectiveDate__c');
     uniqueSelect.add('Version__c');
     uniqueSelect.add('ContractService__c');
+    uniqueSelect.add('TaxPercent__c');
     uniqueSelect.add('ContractService__r.TaxPercent__c');
     uniqueSelect.add('ContractService__r.BiilingAcccount__c');
     uniqueSelect.add('ContractService__r.Account__c');

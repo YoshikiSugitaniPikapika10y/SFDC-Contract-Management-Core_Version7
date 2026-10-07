@@ -25,6 +25,10 @@ export default class ContractServiceEdit extends LightningElement {
   taxPercent = null;
   customerMemo = "";
   originalTaxPercent = null;
+  originalBillingAccountId = "";
+  unorderedSavedTaxPercents = [];
+  orderedSavedTaxPercents = [];
+  taxChangeAcknowledged = false;
   customFields = {};
   fieldDefinitions = [];
   loading = true;
@@ -111,8 +115,12 @@ export default class ContractServiceEdit extends LightningElement {
         this.accountId = dto.accountId || "";
         this.relatedBillingAccounts = dto.relatedBillingAccounts || [];
         this.billingAccountId = dto.billingAccountId || "";
+        this.originalBillingAccountId = dto.billingAccountId || "";
         this.taxPercent = dto.taxPercent;
         this.originalTaxPercent = dto.taxPercent;
+        this.unorderedSavedTaxPercents = dto.unorderedSavedTaxPercents || [];
+        this.orderedSavedTaxPercents = dto.orderedSavedTaxPercents || [];
+        this.taxChangeAcknowledged = false;
         this.customerMemo = dto.customerMemo || "";
         this.customFields = dto.customFields || {};
         this.fieldDefinitions = definitions || [];
@@ -177,6 +185,73 @@ export default class ContractServiceEdit extends LightningElement {
     }
     const raw = event.target.value;
     this.taxPercent = raw === "" || raw == null ? null : Number(raw);
+    if (!this.taxNotice) {
+      this.taxChangeAcknowledged = false;
+    }
+  }
+
+  handleTaxAcknowledgeChange(event) {
+    this.taxChangeAcknowledged = event.target.checked === true;
+  }
+
+  /** 仕様: Core 第3.4.1節。違う保存税率があるときだけ、税率欄の直下に帯を出す。 */
+  get taxNotice() {
+    const counts = this.differentSavedTaxCounts();
+    if (!counts) {
+      return "";
+    }
+    const parts = [];
+    if (counts.unordered > 0) {
+      parts.push(`未受注${counts.unordered}件`);
+    }
+    if (counts.ordered > 0) {
+      parts.push(`受注済み${counts.ordered}件`);
+    }
+    return `次に見積を保存するときから、この税率になります。未確定を含め、既存の請求書や受注済みの見積には反映できません。${parts.join("、")}`;
+  }
+
+  get showTaxNotice() {
+    return this.taxNotice !== "";
+  }
+
+  /** 仕様: Core 第3.4.1節。選び直したときだけ、請求アカウント欄の直下に帯を出す。 */
+  get billingAccountNotice() {
+    const current = this.billingAccountId || "";
+    const saved = this.originalBillingAccountId || "";
+    if (current === saved) {
+      return "";
+    }
+    return "次の受注と再生成では、この請求先になります。未確定の請求書へ反映するときは、請求ボードから操作してください。";
+  }
+
+  get showBillingAccountNotice() {
+    return this.billingAccountNotice !== "";
+  }
+
+  differentSavedTaxCounts() {
+    if (this.taxPercent === "" || this.taxPercent == null) {
+      return null;
+    }
+    const current = Number(this.taxPercent);
+    if (!Number.isFinite(current)) {
+      return null;
+    }
+    let unordered = 0;
+    let ordered = 0;
+    (this.unorderedSavedTaxPercents || []).forEach((rate) => {
+      if (rate != null && Number(rate) !== current) {
+        unordered += 1;
+      }
+    });
+    (this.orderedSavedTaxPercents || []).forEach((rate) => {
+      if (rate != null && Number(rate) !== current) {
+        ordered += 1;
+      }
+    });
+    if (unordered === 0 && ordered === 0) {
+      return null;
+    }
+    return { unordered, ordered };
   }
 
   handleMemoChange(event) {
@@ -269,6 +344,10 @@ export default class ContractServiceEdit extends LightningElement {
     const taxError = this.validateDisplayTaxPercent(this.taxPercent);
     if (taxError) {
       this.setSurfaceError(taxError);
+      return;
+    }
+    // 仕様: Core 第3.4.1節。帯が出ているあいだは確認するまで保存できない。
+    if (this.showTaxNotice && this.taxChangeAcknowledged !== true) {
       return;
     }
     // 仕様: Core 第0.2節・第3.4節。税率変更の実行前確認は出さない。

@@ -4374,6 +4374,7 @@ public without sharing class InvoiceCanonicalService {
       'StartDate__c',
       'Enddate__c',
       'Amount__c',
+      'ContractHistory__r.TaxPercent__c',
       'ContractHistory__r.ContractService__r.TaxPercent__c',
       'ContractProduct__c',
       'ContractProduct__r.Product__c',

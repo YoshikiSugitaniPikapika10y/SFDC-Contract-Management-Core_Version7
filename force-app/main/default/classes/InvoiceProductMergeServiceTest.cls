@@ -294,6 +294,7 @@ private class InvoiceProductMergeServiceTest {
         Type__c = 'New',
         historystatus__c = 'Ordered',
         Version__c = 1,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
         CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
         CurrentTermEndDate__c = Date.newInstance(2026, 8, 31)
       );
@@ -398,6 +399,7 @@ private class InvoiceProductMergeServiceTest {
           ContractProduct__r.BillingType__c,
           ContractProduct__r.RevenueRecognitionBasis__c,
           ContractHistory__r.Version__c,
+          ContractHistory__r.TaxPercent__c,
           ContractHistory__r.ContractService__r.Name,
           ContractHistory__r.ContractService__r.TaxPercent__c,
           ContractHistory__r.ContractService__r.BiilingAcccount__r.Name
@@ -500,6 +502,7 @@ private class InvoiceProductMergeServiceTest {
     Decimal taxPercent
   ) {
     ContractHistory__c history = new ContractHistory__c();
+    history.TaxPercent__c = taxPercent;
     history.ContractService__r = new ContractService__c(
       TaxPercent__c = taxPercent
     );
