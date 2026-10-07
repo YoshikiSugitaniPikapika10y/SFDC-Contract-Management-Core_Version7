@@ -1149,6 +1149,8 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 
 この順を出すのは、見積ウィザード Step2、契約横断の見積書タイルの見積商品テーブル、契約横断の請求書タイル、請求ボードの明細、標準の見積書、標準の請求書である。税の配分、入金の配分、仕訳の並びは変えない。
 
+見積ウィザード Step2 は、明細へ最初に入ったときだけこの順に並べる。商品の選び直し、提供開始日の変更、行の追加では、すでに出している行を動かさない。足した行は足した位置のまま。前の画面へ戻って再び明細へ進んでも、保存するまではその順のまま。保存を押したとき、順が変わるなら、閉じる前にこの順へ並べ直し、明細の上に「保存すると見積書の順に並びます。」を出してから保存して閉じる。順が変わらないときは文を出さず、行も動かさず保存して閉じる。次に開いた明細は、その保存で見た順。見積書、請求書、請求ボード、横断の見積書タイルと請求書タイルは、出すたびにこの順のまま。帳票表示順の写しと、手動の並べ替えは持たない。
+
 帳票単位で番号を切り替えることはパッケージの範囲外である。契約商品へカスタム項目を足し、自分で入力し、VFコントローラでそちらを優先するのは導入先のカスタマイズであり、パッケージは保証しない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
@@ -1156,7 +1158,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>Product2.DocumentSortOrder__c</code>、<code>ContractProduct__c.DocumentSortOrder__c</code>、<code>InvoiceLine__c.DocumentSortOrder__c</code>（表示名 帳票表示順。任意。整数）。
 手続き <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>DocumentSortOrderService.fillContractProducts</code> / <code>fillInvoiceLines</code> / <code>sortContractProducts</code> / <code>sortInvoiceLines</code>。
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractProductTrigger</code> の before insert だけが <code>fillContractProducts</code> を呼ぶ。before update では呼ばない。<code>InvoiceLineTrigger</code> の before insert だけが <code>fillInvoiceLines</code> を呼ぶ。
-並びの適用は <code>EstimateQueryService.queryCopyProducts</code>、<code>estimateCreateModal3</code>、<code>EstimateDocumentService</code>、<code>InvoiceDocumentService</code>、<code>ContractCrossQueryService</code>、<code>OrderCreateController.getInvoicePreview</code>。税の配分、入金の配分、仕訳の並びは対象外。
+並びの適用は <code>EstimateQueryService.queryCopyProducts</code>、<code>estimateCreateModal3</code>、<code>EstimateDocumentService</code>、<code>InvoiceDocumentService</code>、<code>ContractCrossQueryService</code>、<code>OrderCreateController.getInvoicePreview</code>。税の配分、入金の配分、仕訳の並びは対象外。Step2は明細へ最初に入ったときと、保存で順が変わるときだけ <code>estimateCreateModal3</code> が並べる。
 </div>
 
 ### 4.6 金額・税率・端数
