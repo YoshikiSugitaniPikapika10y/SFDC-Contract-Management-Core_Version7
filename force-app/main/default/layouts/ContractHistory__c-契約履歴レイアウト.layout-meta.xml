@@ -115,6 +115,18 @@
                 <behavior>Readonly</behavior>
                 <field>DeltaAmountSum__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>TaxPercent__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>TaxAmount__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>DeltaTaxInclusiveSum__c</field>
+            </layoutItems>
         </layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>
@@ -143,6 +155,10 @@
             <layoutItems>
                 <behavior>Readonly</behavior>
                 <field>EstimateSentAt__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>EstimateSendContact__c</field>
             </layoutItems>
         </layoutColumns>
         <layoutColumns>
