@@ -495,7 +495,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 
 作成時に入れるものは、名前、取引先、宛名、To、届け方、支払条件、請求日ルールおよびキーである。支払条件と請求日ルールの項目は第7.2節・第7.5節。届け方は第3.3.7節。To・Cc・Bccは文字255である。カンマ区切りで複数アドレスを入れてよい。詳細は第7.10節。Cc と Bcc は空でよい。Toは必須。届け方の項目定義の必須にはしない。キーが空なら第3.3.1節どおり Id を入れる。
 
-正規画面は専用 LWC 1つ（New／Edit／View）で出す。取引先の関連リスト新規、オブジェクトタブ／リストの新規、Lookup の新規、レコードの編集と詳細を含む。標準のページレイアウトと Dynamic Forms では出さない。見積ウィザード、受注および請求ボードには埋め込まない。見積 Step1 と受注の必須不足は、本 LWC の Edit へ遷移する。権限は 19 のままである。カスタム権限は新設しない。01／02 は View だけとする。19 が無ければ New／Edit と、見積・受注からの Edit 遷移は出さない。削除は標準のままである。第3.3.3節。共通基盤第3章・第10.4節。
+正規画面は専用 LWC 1つ（New／Edit／View）で出す。取引先の関連リスト新規、オブジェクトタブ／リストの新規、Lookup の新規、レコードの編集と詳細を含む。標準のページレイアウトと Dynamic Forms では出さない。見積ウィザード、受注および請求ボードには埋め込まない。見積 Step1 と受注の必須不足は、本 LWC の Edit へ遷移する。権限は 19 のままである。カスタム権限は新設しない。01／02 は View だけとする。19 が無ければ New／Edit と、見積・受注からの Edit 遷移は出さない。削除は標準のままである。第3.3.3節。共通基盤第3章・第10.4節。取引先の関連リストから新規を開いたとき、クリック元の取引先を初期値にする。
 
 正規画面は次の4束ねで出す。計算と保存検証は第7.2節・第7.5節のままである。方式に入らない項目は出さない。空欄のまま並べない。方式を切り替えたら、入らない項目は空にする。請求日ルールと支払条件の各方式に短い説明を出す。請求日・入金予定の日付例は出さない。保存を止める確認ゲートは置かない。
 
@@ -511,7 +511,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> LWC <code>billingAccountForm</code>
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> Aura <code>billingAccountFormOverride</code>（New／Edit。<code>lightning:actionOverride</code>）
 ／ <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> View は <code>BillingAccount_RecordPage</code>。<code>orderCreateStepBilling</code>
-／ 見積・受注からの戻りは <code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>。<code>billingAccountReturnNavigation</code> の戻り先キーで呼び出し元の Quick Action を開き直す。埋め込みはしない。計算 Apex は新設しない。削除は標準。
+／ 見積・受注からの戻りは <code>billingAccountForm.handleSuccess</code> / <code>handleCancel</code>。<code>billingAccountReturnNavigation</code> の戻り先キーで呼び出し元の Quick Action を開き直す。埋め込みはしない。計算 Apex は新設しない。削除は標準。関連リスト新規はクリック元の取引先を初期値にする。
 </div>
 
 #### 3.3.3 編集
