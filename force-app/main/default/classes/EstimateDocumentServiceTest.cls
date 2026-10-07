@@ -143,6 +143,66 @@ private class EstimateDocumentServiceTest {
   }
 
   @IsTest
+  static void loadContext_rateOnly_calculatesTaxAtOutputWithoutWritingHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      ContractService__c service = [
+        SELECT TaxPercent__c
+        FROM ContractService__c
+        WHERE
+          Id IN (
+            SELECT ContractService__c
+            FROM ContractHistory__c
+            WHERE Id = :fixture.history.Id
+          )
+      ];
+      update new ContractHistory__c(
+        Id = fixture.history.Id,
+        TaxPercent__c = service.TaxPercent__c,
+        TaxAmount__c = null,
+        DeltaTaxInclusiveSum__c = null
+      );
+
+      EstimateDocumentService.DocumentContext context = EstimateDocumentService.loadContext(
+        fixture.history.Id
+      );
+
+      System.assertEquals(
+        10,
+        context.taxPercent,
+        'Core 第4.6節: 税率だけ入った見積書は、その保存税率を使う'
+      );
+      System.assertEquals(
+        14400,
+        context.taxAmount,
+        'Core 第4.6節: 空の税額は0円にせず、税抜合計へ保存税率を1回かける'
+      );
+      System.assertEquals(158400, context.lineTotalInclTax);
+      System.assertEquals(
+        158400,
+        context.totalAmount,
+        'Core 第4.8節: 御見積金額は、出すときに計算した税込'
+      );
+      System.assertEquals(1, context.otherGroups.size());
+      System.assertEquals(14400, context.otherGroups[0].taxAmount);
+      System.assertEquals(158400, context.otherGroups[0].totalAmountIncTax);
+
+      ContractHistory__c stored = [
+        SELECT TaxPercent__c, TaxAmount__c, DeltaTaxInclusiveSum__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
+      System.assertEquals(service.TaxPercent__c, stored.TaxPercent__c);
+      System.assertEquals(
+        null,
+        stored.TaxAmount__c,
+        'Core 第4.6節: 出すときの計算は履歴の税額へ書かない'
+      );
+      System.assertEquals(null, stored.DeltaTaxInclusiveSum__c);
+    }
+  }
+
+  @IsTest
   static void loadContext_nullTaxPercent_isZeroPercent() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();

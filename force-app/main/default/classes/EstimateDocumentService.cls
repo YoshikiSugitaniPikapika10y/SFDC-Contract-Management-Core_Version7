@@ -212,7 +212,7 @@ public without sharing class EstimateDocumentService {
     context.companyRegistrationNumber = '';
     context.lines = loadLines(contractHistoryId, context.history.Type__c);
     context.lineTotal = resolveLineTotal(context.history, context.lines);
-    // 仕様: Core 第4.6節、第4.8節。保存値を読む。3つが空の過去履歴だけ、出すときに契約サービスの税率で1回計算する。
+    // 仕様: Core 第4.6節、第4.8節。保存値を読む。3つが空なら契約サービスの税率で、税率だけ入っているならその保存税率で、出すときだけ1回計算する。履歴へは書かない。
     applyDocumentTax(context);
     context.addresseeName = resolveAddresseeName(context.history);
     context.accountName = resolveAccountName(context.history);
@@ -781,7 +781,7 @@ public without sharing class EstimateDocumentService {
     return calculatedAmount == null ? 0 : calculatedAmount;
   }
 
-  /** 仕様: Core 第4.6節、第4.8節。保存済みの税率・税額・税込を読む。3つが空のときだけ契約サービスの税率で1回計算する。 */
+  /** 仕様: Core 第4.6節、第4.8節。保存済みの税率・税額・税込を読む。3つが空のときは契約サービスの税率で1回計算する。税率だけ入り税額と税込が空のときは、その保存税率で出すときだけ1回計算し、履歴へは書かない。 */
   private static void applyDocumentTax(DocumentContext context) {
     ContractHistory__c history = context.history;
     Boolean savedEmpty =
@@ -808,8 +808,23 @@ public without sharing class EstimateDocumentService {
       context.taxPercent = TaxCalculationUtil.resolveTaxPercent(
         TaxCalculationUtil.fromPercentFieldStorage(history.TaxPercent__c)
       );
-      context.taxAmount = history.TaxAmount__c;
-      context.lineTotalInclTax = history.DeltaTaxInclusiveSum__c;
+      // 仕様: Core 第4.6節。税額と税込が両方空のときだけ、保存税率で出すとき計算する。どちらかが保存済みならその値のまま。
+      if (
+        history.TaxAmount__c == null &&
+        history.DeltaTaxInclusiveSum__c == null
+      ) {
+        context.taxAmount = TaxCalculationUtil.calculateTaxAmount(
+          context.lineTotal,
+          context.taxPercent
+        );
+        context.lineTotalInclTax = TaxCalculationUtil.calculateAmountInclTax(
+          context.lineTotal,
+          context.taxPercent
+        );
+      } else {
+        context.taxAmount = history.TaxAmount__c;
+        context.lineTotalInclTax = history.DeltaTaxInclusiveSum__c;
+      }
     }
     context.taxPercentLabel = TaxCalculationUtil.formatTaxPercentLabel(
       context.taxPercent
