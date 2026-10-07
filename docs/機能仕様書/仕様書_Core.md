@@ -1173,15 +1173,13 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 - 見積は全期間を一括丸めし、契約期間明細はサイクルごとに丸めるため差が出ることがある。見込み差額を画面に表示し、受注後は請求ボードで調整する。
 - 税率は契約サービスに保持する。Newの見積ウィザードで必須入力し、初期値は10%とする。仮表示だけで保存しない、ということはしない。0%にする場合は0を明示する。Change・Renew・Cancelでは契約サービスの保存済み税率を参照専用で表示し、見積保存では契約サービス側を更新しない。保存値が空なら見積の税込表示、見積保存、受注および請求生成をエラーにし、0%として扱わない。「契約サービスを編集」でも空欄保存を拒否する。後から税率を変える場合は「契約サービスを編集」で行い、次に見積保存する版の初期値にする。ある版の受注と再生成は、その契約履歴の保存税率を請求へ使う。保存税率が空の過去履歴は、受注時に契約サービスの税率を履歴へ書いてから請求する。未受注で率を変えるときは、その見積を保存し直してから受注する。受注済みは、差し戻して見積を保存し直し、再受注する。違う率で請求を作るルートは置かない。この操作では既存の契約履歴を書き換えない。すでに存在する請求と、その分割・移動で増える請求は元請求の税率を引き継ぎ、契約サービスの新しい税率を見ない。
 - 見積保存で、その時点の契約サービスの税率を契約履歴`TaxPercent__c`へコピーする。0%は0を書く。既定値は空であり、空は0%ではない。税額は、その保存の見積商品の税抜合計へその税率を1回適用し、第11.9節の税額丸めで整数円にして`TaxAmount__c`へ書く。行ごとの税は足さない。税込は税抜合計にその税額を足し、既存の`DeltaTaxInclusiveSum__c`へ書く。受注では、保存税率がある履歴の3つを書き換えない。保存税率が空の過去履歴だけ、受注時に契約サービスの税率を履歴へ書いてから請求する。次の見積保存で3つを書き直す。Step 2は同じ計算の結果を出す。見積書は保存値を読む。保存値が空の過去履歴は、出すときだけ契約サービスの税率で同じ計算をし、次の見積保存から保存値を出す。過去履歴を現税率で一括では埋めない。請求書は1枚ごとに同じ設定で税を切る。見積税込と請求税込合計は一致しなくてよい。背景と確定条件は第7.9.1節。
-- 契約履歴の標準レイアウトは、税率、税額、発生金額（税込）、見積送付先を参照で出す。業務操作キー、更新商談を作成、更新商談作成要求回数、自動Renew見積は出さない。置き場所は仕様本文に書かない。顧客項目は出さない。
-
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractHistory__c.TaxPercent__c</code>（Percent。既定値は空）、<code>ContractHistory__c.TaxAmount__c</code>（Currency、scale 0）
 ／ 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractHistory__c.DeltaTaxInclusiveSum__c</code>
 ／ 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateSaveService.saveNewEstimate</code> / <code>saveChangeEstimate</code> / <code>saveCancelEstimate</code> / <code>updateChangeEstimate</code>、<code>TaxCalculationUtil.calculateTaxAmount</code>、<code>estimateCreateModal3</code>
 ／ 画面の数量・単価・行の税抜・税額・税込と保存する値が違えば見積全体を保存しない。エラーは「保存値が不正です」。
-／ 契約サービスを編集は3項目を書かない。受注は、保存税率がある履歴の3項目を書かない。保存税率が空の過去履歴だけ、受注時に契約サービスの税率を履歴へ書く。受注と再生成の請求は契約履歴の保存税率。入口は既存<code>InvoiceProductGenerationService</code>。レイアウト<code>ContractHistory__c-契約履歴レイアウト</code>は税率、税額、発生金額（税込）、見積送付先を参照で出す。置き場所は書かない。
+／ 契約サービスを編集は3項目を書かない。受注は、保存税率がある履歴の3項目を書かない。保存税率が空の過去履歴だけ、受注時に契約サービスの税率を履歴へ書く。受注と再生成の請求は契約履歴の保存税率。入口は既存<code>InvoiceProductGenerationService</code>。
 </div>
 
 **実装仕様（開発者向け）:** 数量・単価の四捨五入（HALF_UP）は十進文字列または整数スケールで行い、LWCで`Math.round(n×100)`を使わない。`estimateLineItemUtils.roundHalfUp` / `yenFromQuantityUnitPrice`とApexを一致させる。見積金額は全期間を一括で丸め、請求見込みは継続課金なら`roundYen(数量×単価)×サイクル数`とする。
