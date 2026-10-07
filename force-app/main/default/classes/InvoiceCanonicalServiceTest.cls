@@ -405,11 +405,7 @@ private class InvoiceCanonicalServiceTest {
         updated.IsSplitMoved__c,
         '??????E?E?E??????E?E? IsSplitMoved ?????E'
       );
-      System.assertEquals(
-        null,
-        updated.MergeKey__c,
-        '????????????'
-      );
+      System.assertEquals(null, updated.MergeKey__c, '????????????');
       System.assertEquals(invoice.Amount__c, updated.Amount__c);
       System.assertEquals(invoice.TaxAmount__c, updated.TaxAmount__c);
       System.assertEquals(invoice.TaxPercent__c, updated.TaxPercent__c);
@@ -648,7 +644,11 @@ private class InvoiceCanonicalServiceTest {
         new Set<Id>{ fixture.history.Id }
       );
       Invoice__c source = [
-        SELECT Id, BillingAccountSnapShot__c, ContractService__r.Account__c, InvoiceDate__c
+        SELECT
+          Id,
+          BillingAccountSnapShot__c,
+          ContractService__r.Account__c,
+          InvoiceDate__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
@@ -773,7 +773,11 @@ private class InvoiceCanonicalServiceTest {
       );
       Test.stopTest();
 
-      Invoice__c created = [SELECT Memo__c FROM Invoice__c WHERE Id = :createdId];
+      Invoice__c created = [
+        SELECT Memo__c
+        FROM Invoice__c
+        WHERE Id = :createdId
+      ];
       System.assertEquals(
         history.Opportunity__r.Name,
         created.Memo__c,
@@ -830,7 +834,11 @@ private class InvoiceCanonicalServiceTest {
       );
       Test.stopTest();
 
-      Invoice__c created = [SELECT Memo__c FROM Invoice__c WHERE Id = :createdId];
+      Invoice__c created = [
+        SELECT Memo__c
+        FROM Invoice__c
+        WHERE Id = :createdId
+      ];
       System.assertEquals(
         contractProduct.Unit__c,
         created.Memo__c,
@@ -1352,22 +1360,14 @@ private class InvoiceCanonicalServiceTest {
         FROM Invoice__c
         WHERE Id = :createdId
       ];
-      System.assertEquals(
-        -4000,
-        created.Amount__c,
-        '?????????????????'
-      );
+      System.assertEquals(-4000, created.Amount__c, '?????????????????');
 
       Invoice__c remain = [
         SELECT Amount__c
         FROM Invoice__c
         WHERE Id = :line.Invoice__c
       ];
-      System.assertEquals(
-        -6000,
-        remain.Amount__c,
-        '?????E??????????'
-      );
+      System.assertEquals(-6000, remain.Amount__c, '?????E??????????');
     }
   }
 
@@ -1421,11 +1421,7 @@ private class InvoiceCanonicalServiceTest {
         FROM Invoice__c
         WHERE Id = :createdId
       ];
-      System.assertEquals(
-        0,
-        remainCreated.size(),
-        '???????E???E??????????'
-      );
+      System.assertEquals(0, remainCreated.size(), '???????E???E??????????');
 
       Invoice__c target = [
         SELECT
@@ -1906,7 +1902,8 @@ private class InvoiceCanonicalServiceTest {
         WHERE Invoice__c = :invoice.Id
         LIMIT 1
       ];
-      Decimal keptTax = (invoice.TaxAmount__c == null ? 0 : invoice.TaxAmount__c) + 7;
+      Decimal keptTax =
+        (invoice.TaxAmount__c == null ? 0 : invoice.TaxAmount__c) + 7;
       invoice.TaxAmount__c = keptTax;
       update invoice;
 
@@ -2506,11 +2503,7 @@ private class InvoiceCanonicalServiceTest {
       ];
       System.assertEquals(-30000, invoice.Amount__c);
       System.assertEquals(-30000, invoice.PeriodLineAmountTotal__c);
-      System.assertEquals(
-        0,
-        preview.amountDifference,
-        '??????????E?E????0'
-      );
+      System.assertEquals(0, preview.amountDifference, '??????????E?E????0');
       for (OrderCreateController.InvoiceGroupDto groupRow : preview.invoices) {
         for (OrderCreateController.InvoiceMergedLineDto row : groupRow.lines) {
           System.assertEquals(
@@ -3129,7 +3122,6 @@ private class InvoiceCanonicalServiceTest {
     }
   }
 
-
   @IsTest
   static void updateInvoiceHeaderAndDates_updatesDatesAndHeaderInOneCall() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -3258,8 +3250,8 @@ private class InvoiceCanonicalServiceTest {
           Id,
           BillingAddressee__c,
           BillingEmailTo__c,
-        PaymentTermMethod__c,
-        InvoiceDateDayOfMonth__c
+          PaymentTermMethod__c,
+          InvoiceDateDayOfMonth__c
         FROM BillingAccount__c
         WHERE Id = :invoice.BillingAccountSnapShot__c
       ];
@@ -3328,8 +3320,8 @@ private class InvoiceCanonicalServiceTest {
         SELECT
           BillingAddressee__c,
           BillingEmailTo__c,
-        PaymentTermMethod__c,
-        InvoiceDateDayOfMonth__c
+          PaymentTermMethod__c,
+          InvoiceDateDayOfMonth__c
         FROM BillingAccount__c
         WHERE Id = :baBefore.Id
       ];
@@ -3341,7 +3333,10 @@ private class InvoiceCanonicalServiceTest {
         baBefore.BillingEmailTo__c,
         baAfter.BillingEmailTo__c
       );
-      System.assertEquals(baBefore.PaymentTermMethod__c, baAfter.PaymentTermMethod__c);
+      System.assertEquals(
+        baBefore.PaymentTermMethod__c,
+        baAfter.PaymentTermMethod__c
+      );
       System.assertEquals(
         baBefore.InvoiceDateDayOfMonth__c,
         baAfter.InvoiceDateDayOfMonth__c
@@ -3393,7 +3388,11 @@ private class InvoiceCanonicalServiceTest {
         new Set<Id>{ fixture.history.Id }
       );
       Invoice__c source = [
-        SELECT Id, BillingAccountSnapShot__c, ContractService__r.Account__c, InvoiceDate__c
+        SELECT
+          Id,
+          BillingAccountSnapShot__c,
+          ContractService__r.Account__c,
+          InvoiceDate__c
         FROM Invoice__c
         WHERE ContractHistory__c = :fixture.history.Id
         LIMIT 1
@@ -3409,14 +3408,15 @@ private class InvoiceCanonicalServiceTest {
         BillingAddressee__c = '????E ??',
         BillingEmailTo__c = 'other@example.com',
         InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST,
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 15,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 15,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
         PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
         PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
       ContractTestDataFactory.applyRequiredFields(otherBa);
       insert otherBa;
 
@@ -3654,11 +3654,7 @@ private class InvoiceCanonicalServiceTest {
           ex.getDmlMessage(0)
         );
       }
-      System.assertEquals(
-        true,
-        reverted,
-        '??E????????? Version ???????'
-      );
+      System.assertEquals(true, reverted, '??E????????? Version ???????');
 
       ContractHistory__c stillHistory = [
         SELECT historystatus__c
@@ -3805,11 +3801,7 @@ private class InvoiceCanonicalServiceTest {
         lockedStill.InvoiceDate__c,
         '??E?????????????E'
       );
-      System.assertEquals(
-        20000,
-        lockedStill.Amount__c,
-        '??E????????E????E??'
-      );
+      System.assertEquals(20000, lockedStill.Amount__c, '??E????????E????E??');
     }
   }
 
@@ -4161,7 +4153,9 @@ private class InvoiceCanonicalServiceTest {
       Amount__c = 1000000,
       AllocatedTaxAmount__c = 0
     );
-    InvoiceCanonicalService.applyYenCommaTexts(new List<InvoiceLine__c>{ million });
+    InvoiceCanonicalService.applyYenCommaTexts(
+      new List<InvoiceLine__c>{ million }
+    );
     System.assertEquals(
       '1,000,000',
       million.AmountCommaText__c,
@@ -4176,7 +4170,9 @@ private class InvoiceCanonicalServiceTest {
       Amount__c = -50000,
       AllocatedTaxAmount__c = 0
     );
-    InvoiceCanonicalService.applyYenCommaTexts(new List<InvoiceLine__c>{ discount });
+    InvoiceCanonicalService.applyYenCommaTexts(
+      new List<InvoiceLine__c>{ discount }
+    );
     System.assertEquals(
       '-50,000',
       discount.AmountCommaText__c,
@@ -4782,6 +4778,67 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void savedTax_emptyHistoryMatchesServiceDisplayPercent() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Empty Saved Tax Account'
+      );
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Empty Saved Tax Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = 0.1
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Empty Saved Tax History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30)
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      insert history;
+      Invoice__c invoice = new Invoice__c(
+        ContractHistory__c = history.Id,
+        ContractService__c = service.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 1000,
+        TaxAmount__c = 100,
+        TaxPercent__c = 10,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+      );
+      insert invoice;
+      history.TaxPercent__c = null;
+      update history;
+
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.savedTaxDiffersFromInvoices(service.Id),
+        'Core 第7.7.0節: 空の保存税率は受注時に埋める契約サービスの税率で通す'
+      );
+
+      invoice.TaxPercent__c = 8;
+      update invoice;
+      System.assertEquals(
+        true,
+        InvoiceCanonicalService.savedTaxDiffersFromInvoices(service.Id),
+        'Core 第7.7.0節: 埋めた税率と違う請求は止める'
+      );
+    }
+  }
+
+  @IsTest
   static void yenCommaText_groupsAccountingFormat() {
     System.assertEquals(
       '1,000,000',
@@ -4935,7 +4992,8 @@ private class InvoiceCanonicalServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(billingAccount);
     insert billingAccount;
 

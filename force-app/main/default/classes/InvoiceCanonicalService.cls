@@ -60,35 +60,75 @@ public without sharing class InvoiceCanonicalService {
   /** 仕様: Core 第7.7.0節、共通基盤第3.3節。税額は比べない。 */
   public static final String BOARD_TAX_MISMATCH_MESSAGE = '見積の税率と請求の税率が違うため、請求ボードを表示できません。';
 
+  /** 仕様: Core 第12.4節。請求ボードを開く取得がこの照会を使った回数。 */
+  @TestVisible
+  public static Integer savedTaxInvoiceSelectCount = 0;
+
   /**
-   * 仕様: Core 第7.7.0節。取消済みを除き、請求の税率とその契約履歴の保存税率が違えば真。
-   * 空の保存税率はそのまま比べる。税額は比べない。
+   * 仕様: Core 第7.7.0節。取消済みを除き、請求の税率と契約履歴の保存税率が違えば真。
+   * 空の保存税率は、受注時に埋める契約サービスの表示パーセントで比べる。税額は比べない。
    */
   public static Boolean savedTaxDiffersFromInvoices(Id contractServiceId) {
     if (contractServiceId == null) {
       return false;
     }
-    for (Invoice__c invoice : [
-      SELECT TaxPercent__c, ContractHistory__r.TaxPercent__c
-      FROM Invoice__c
-      WHERE
-        ContractHistory__r.ContractService__c = :contractServiceId
-        AND InvoiceTransactionStatus__c != :InvoiceTransactionStatusService.TX_CANCELLED
-      WITH SYSTEM_MODE
-    ]) {
+    savedTaxInvoiceSelectCount++;
+    return savedTaxDiffersFromInvoices(
+      [
+        SELECT
+          TaxPercent__c,
+          InvoiceTransactionStatus__c,
+          ContractHistory__r.TaxPercent__c,
+          ContractHistory__r.ContractService__r.TaxPercent__c
+        FROM Invoice__c
+        WHERE
+          ContractHistory__r.ContractService__c = :contractServiceId
+          AND InvoiceTransactionStatus__c != :InvoiceTransactionStatusService.TX_CANCELLED
+        WITH SYSTEM_MODE
+      ]
+    );
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第7.7.0節。
+   * すでに持っている請求で税率を比べる。取り直さない。
+   */
+  public static Boolean savedTaxDiffersFromInvoices(List<Invoice__c> invoices) {
+    if (invoices == null || invoices.isEmpty()) {
+      return false;
+    }
+    for (Invoice__c invoice : invoices) {
+      if (
+        invoice == null || InvoiceTransactionStatusService.isCancelled(invoice)
+      ) {
+        continue;
+      }
       Decimal invoiceTax = TaxCalculationUtil.fromPercentFieldStorage(
         invoice.TaxPercent__c
       );
-      Decimal historyTax = invoice.ContractHistory__r == null
-        ? null
-        : TaxCalculationUtil.fromPercentFieldStorage(
-            invoice.ContractHistory__r.TaxPercent__c
-          );
+      Decimal historyTax = savedHistoryTaxForCompare(invoice);
       if (invoiceTax != historyTax) {
         return true;
       }
     }
     return false;
+  }
+
+  private static Decimal savedHistoryTaxForCompare(Invoice__c invoice) {
+    if (invoice == null || invoice.ContractHistory__r == null) {
+      return null;
+    }
+    if (invoice.ContractHistory__r.TaxPercent__c != null) {
+      return TaxCalculationUtil.fromPercentFieldStorage(
+        invoice.ContractHistory__r.TaxPercent__c
+      );
+    }
+    if (invoice.ContractHistory__r.ContractService__r == null) {
+      return null;
+    }
+    return TaxCalculationUtil.fromPercentFieldStorage(
+      invoice.ContractHistory__r.ContractService__r.TaxPercent__c
+    );
   }
 
   /**
@@ -396,7 +436,10 @@ public without sharing class InvoiceCanonicalService {
   }
 
   /** 仕様: Core 第12.4節・第7.8節。SELECTに無い請求書参照は使わず取り直す。 */
-  private static Boolean lineBelongsToInvoice(InvoiceLine__c line, Id invoiceId) {
+  private static Boolean lineBelongsToInvoice(
+    InvoiceLine__c line,
+    Id invoiceId
+  ) {
     if (line == null || invoiceId == null) {
       return false;
     }
@@ -1626,20 +1669,20 @@ public without sharing class InvoiceCanonicalService {
     }
     beginExclusiveHeaderOrSplit(invoiceId);
     try {
-    updateInvoiceHeaderAndDatesBody(
-      invoiceId,
-      invoiceDate,
-      paymentScheduledDate,
-      billingAccountId,
-      billingAddressee,
-      billingEmailTo,
-      billingEmailCc,
-      billingEmailBcc,
-      paymentTerm,
-      taxPercent,
-      extraFieldValues,
-      knownLockedInvoice
-    );
+      updateInvoiceHeaderAndDatesBody(
+        invoiceId,
+        invoiceDate,
+        paymentScheduledDate,
+        billingAccountId,
+        billingAddressee,
+        billingEmailTo,
+        billingEmailCc,
+        billingEmailBcc,
+        paymentTerm,
+        taxPercent,
+        extraFieldValues,
+        knownLockedInvoice
+      );
     } finally {
       endExclusiveHeaderOrSplit(invoiceId);
     }
@@ -1759,7 +1802,7 @@ public without sharing class InvoiceCanonicalService {
     }
     applyingBillingAccountInvoiceIds.add(invoiceId);
     try {
-    applyBillingAccountContentBody(invoiceId, knownLockedInvoice);
+      applyBillingAccountContentBody(invoiceId, knownLockedInvoice);
     } finally {
       applyingBillingAccountInvoiceIds.remove(invoiceId);
     }
@@ -3603,8 +3646,7 @@ public without sharing class InvoiceCanonicalService {
     Decimal previousAmount = invoice.Amount__c == null ? 0 : invoice.Amount__c;
     Map<String, Object> populated = invoice.getPopulatedFieldsAsMap();
     Boolean keepTax =
-      previousAmount == amountTotal &&
-      populated.containsKey('TaxAmount__c');
+      previousAmount == amountTotal && populated.containsKey('TaxAmount__c');
     invoice.Amount__c = amountTotal;
     // 仕様: Core 第7.4節・第7.8節。税抜合計が同じならヘッダ税は据え置く。
     if (!keepTax) {
