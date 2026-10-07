@@ -1847,10 +1847,18 @@ export default class ContractCrossWork extends NavigationMixin(
     this.highlightJournalId = journalId || null;
     this.invoiceTileNonce += 1;
     try {
-      this.invoicePreview = await getInvoicePreview({
+      const preview = await getInvoicePreview({
         contractHistoryId: historyId
       });
-      this.billingAccountOptions = this.invoicePreview?.billingAccountOptions || [];
+      // 仕様: Core 第7.7.0節、共通基盤第3.3節。税率不一致は文だけ。
+      if (preview?.blockReason) {
+        this.invoicePreview = null;
+        this.invoiceError = preview.blockReason;
+        this.billingAccountOptions = [];
+        return;
+      }
+      this.invoicePreview = preview;
+      this.billingAccountOptions = preview?.billingAccountOptions || [];
     } catch (error) {
       this.invoiceError = this.reduceError(error);
     } finally {
@@ -1867,10 +1875,18 @@ export default class ContractCrossWork extends NavigationMixin(
     this.invoiceError = "";
     this.invoiceLoading = true;
     try {
-      this.invoicePreview = await getInvoicePreview({
+      const preview = await getInvoicePreview({
         contractHistoryId: this.previewHistoryId
       });
-      this.billingAccountOptions = this.invoicePreview?.billingAccountOptions || [];
+      // 仕様: Core 第7.7.0節。税率不一致は文だけ。カードは出さない。
+      if (preview?.blockReason) {
+        this.invoicePreview = null;
+        this.invoiceError = preview.blockReason;
+        this.billingAccountOptions = [];
+        return;
+      }
+      this.invoicePreview = preview;
+      this.billingAccountOptions = preview?.billingAccountOptions || [];
     } catch (error) {
       this.invoiceError = this.reduceError(error);
     } finally {

@@ -137,10 +137,6 @@
         onsuccess={handleSuccess}
         onerror={handleError}
       >
-        <lightning-messages></lightning-messages>
-        <template if:true={errorMessage}>
-          <div class="ba-alert" role="alert">{errorMessage}</div>
-        </template>
         <section class="ba-section">
           <h2 class="ba-section-title">識別</h2>
           <div class="ba-grid">
@@ -279,6 +275,9 @@
             ></lightning-input-field>
           </div>
         </section>
+        <template if:true={errorMessage}>
+          <div class="ba-alert" role="alert">{errorMessage}</div>
+        </template>
         <div class="ba-toolbar">
           <template if:true={isSaving}>
             <p class="ba-help" role="status">

@@ -389,6 +389,36 @@ private class OrderCreateControllerTest {
   }
 
   @IsTest
+  static void getInvoicePreview_hidesBoardWhenInvoiceTaxDiffersFromHistory() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c invoice = [
+        SELECT Id, TaxPercent__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        LIMIT 1
+      ];
+      invoice.TaxPercent__c = invoice.TaxPercent__c == 8 ? 10 : 8;
+      update invoice;
+
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.getInvoicePreview(
+        context.history.Id
+      );
+      Test.stopTest();
+
+      System.assertEquals(
+        InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE,
+        preview.blockReason,
+        'Core 第7.7.0節: 税率が違うときはその文だけ'
+      );
+      System.assertEquals(0, preview.invoices.size());
+      System.assertEquals(0, preview.versionOptions.size());
+    }
+  }
+
+  @IsTest
   static void getInvoicePreview_loadsBillingAccountsWithoutSecondHistorySelect() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       OrderTestContext context = createEstimateContext();

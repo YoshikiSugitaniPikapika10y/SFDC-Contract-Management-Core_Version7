@@ -520,6 +520,14 @@ export default class EstimateCreateWizard extends LightningElement {
     this.handleSave();
   }
 
+  /** 仕様: Core 第4.3.6節。明細の拒否は保存前の検証と同じヘッダー直下の帯。 */
+  handleStep3HeaderRefusal(event) {
+    const message = event.detail && event.detail.message;
+    if (message) {
+      this.showValidationAlert(message);
+    }
+  }
+
   handleConfirmRequest(event) {
     const detail = event.detail || {};
     const requestId = detail.requestId || null;

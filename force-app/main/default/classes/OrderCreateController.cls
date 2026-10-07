@@ -265,6 +265,10 @@ public without sharing class OrderCreateController {
     @AuraEnabled
     public Boolean canView;
 
+    /** 仕様: Core 第7.7.0節。税率不一致のとき、カードと版フィルタは空でこの文だけ。 */
+    @AuraEnabled
+    public String blockReason;
+
     @AuraEnabled
     public Boolean canEdit;
 
@@ -1230,6 +1234,13 @@ public without sharing class OrderCreateController {
       return emptyPreview();
     }
     Id contractServiceId = sourceHistory.ContractService__c;
+
+    // 仕様: Core 第7.7.0節。1件でも違えばカードも版フィルタも返さない。
+    if (InvoiceCanonicalService.savedTaxDiffersFromInvoices(contractServiceId)) {
+      InvoicePreviewDto blocked = emptyPreview();
+      blocked.blockReason = InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE;
+      return blocked;
+    }
 
     // 請求正本の作成は受注時のみ。プレビュー open では作らない（欠けていれば空表示）。
     ScopedEstimateSummary estimateSummary = buildScopedEstimateSummary(
@@ -2733,6 +2744,14 @@ public without sharing class OrderCreateController {
     if (contractHistoryId == null || invoiceId == null) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
+    // 仕様: Core 第7.7.0節。取消は、税率不一致なら拒否する。
+    if (
+      InvoiceCanonicalService.savedTaxDiffersFromInvoices(
+        resolveContractServiceId(contractHistoryId)
+      )
+    ) {
+      throw toAuraHandled(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);
+    }
     Invoice__c lockedInvoice;
     try {
       lockedInvoice = AccountingCauseLockService.lockInvoice(invoiceId);
@@ -3321,6 +3340,10 @@ public without sharing class OrderCreateController {
   ) {
     ContractPermissionUtil.assertEditDraftInvoice();
     Id contractServiceId = resolveContractServiceId(contractHistoryId);
+    // 仕様: Core 第7.7.0節。未確定の修正は、税率不一致なら拒否する。
+    if (InvoiceCanonicalService.savedTaxDiffersFromInvoices(contractServiceId)) {
+      throw toAuraHandled(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);
+    }
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
     );

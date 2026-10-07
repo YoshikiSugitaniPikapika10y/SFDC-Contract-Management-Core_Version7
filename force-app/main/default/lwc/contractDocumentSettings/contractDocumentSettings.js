@@ -134,6 +134,8 @@ export default class ContractDocumentSettings extends LightningElement {
   loading = true;
   isSaving = false;
   completionNote = "";
+  /** 仕様: Core 第11.6節。保存の直下に残す拒否。 */
+  saveRefusal = "";
   _pendingOperationKey = "";
 
   // 仕様: Core 第11.6節
@@ -323,7 +325,10 @@ export default class ContractDocumentSettings extends LightningElement {
       });
       this.links = nextLinks;
     } catch (error) {
-      this.toast("読込エラー", this.message(error), "error");
+      // 仕様: Core 第11.6節。読込失敗はトーストにせず、保存の直下に残す。版不一致の文は消さない。
+      if (!this.saveRefusal) {
+        this.saveRefusal = this.message(error);
+      }
     } finally {
       this.loading = false;
     }
@@ -385,10 +390,11 @@ export default class ContractDocumentSettings extends LightningElement {
       return;
     }
     this.applyNamedFieldValues();
+    this.saveRefusal = "";
     try {
       this.assertStoredSendModes();
     } catch (error) {
-      this.toast("保存エラー", this.message(error), "error");
+      this.saveRefusal = this.message(error);
       return;
     }
     if (!this.reportValidity()) {
@@ -410,13 +416,15 @@ export default class ContractDocumentSettings extends LightningElement {
       this._pendingOperationKey = "";
       this.settings = { ...saved, businessOperationKey: null };
       this.completionNote = this.saveSuccessMessage;
+      this.saveRefusal = "";
     } catch (error) {
       const msg = this.message(error);
-      this.toast("保存エラー", msg, "error");
-      // 仕様: Core 第11.6節・第4.3.12節。版比較失敗時は画面を読み直す。
+      // 仕様: Core 第11.6節。保存拒否はトーストにせず、保存の直下に残す。画面は動かさない。
+      this.saveRefusal = msg;
       if (msg === VERSION_CONFLICT_MESSAGE) {
         this._pendingOperationKey = "";
         await this.load();
+        this.saveRefusal = msg;
       }
     } finally {
       this.isSaving = false;
@@ -492,14 +500,31 @@ export default class ContractDocumentSettings extends LightningElement {
   /** 仕様: Core 第11.3.1節、第11.3.2節、第1.1.10節。必須空は画面で止める。空白のみは空。 */
   reportValidity() {
     this.applyRequiredFieldValidity();
-    return [
+    const components = [
       ...this.template.querySelectorAll(
         "lightning-input, lightning-textarea, lightning-combobox"
       )
-    ].reduce((valid, component) => {
+    ];
+    let firstInvalid = null;
+    const valid = components.reduce((ok, component) => {
       component.reportValidity();
-      return valid && component.checkValidity();
+      const componentValid = component.checkValidity();
+      if (!componentValid && !firstInvalid) {
+        firstInvalid = component;
+      }
+      return ok && componentValid;
     }, true);
+    // 仕様: Core 第11.6節。複数なら直下は最初の1文。欄の表示は全部残す。最初の空欄が見える位置へ動かす。
+    if (firstInvalid) {
+      this.saveRefusal =
+        firstInvalid.validationMessage ||
+        firstInvalid.messageWhenValueMissing ||
+        "入力を確認してください。";
+      if (typeof firstInvalid.scrollIntoView === "function") {
+        firstInvalid.scrollIntoView();
+      }
+    }
+    return valid;
   }
 
   applyRequiredFieldValidity() {

@@ -143,6 +143,12 @@ section {
   color: #1b4332;
 }
 
+.surface-error {
+  margin: 0.5rem 1rem 0;
+  font-size: 0.875rem;
+  color: #991b1b;
+}
+
 .surface-wait {
   display: inline-flex;
   align-items: center;

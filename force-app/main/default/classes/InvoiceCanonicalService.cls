@@ -57,6 +57,40 @@ public without sharing class InvoiceCanonicalService {
   @TestVisible
   static Set<Id> applyingBillingAccountInvoiceIds = new Set<Id>();
 
+  /** 仕様: Core 第7.7.0節、共通基盤第3.3節。税額は比べない。 */
+  public static final String BOARD_TAX_MISMATCH_MESSAGE = '見積の税率と請求の税率が違うため、請求ボードを表示できません。';
+
+  /**
+   * 仕様: Core 第7.7.0節。取消済みを除き、請求の税率とその契約履歴の保存税率が違えば真。
+   * 空の保存税率はそのまま比べる。税額は比べない。
+   */
+  public static Boolean savedTaxDiffersFromInvoices(Id contractServiceId) {
+    if (contractServiceId == null) {
+      return false;
+    }
+    for (Invoice__c invoice : [
+      SELECT TaxPercent__c, ContractHistory__r.TaxPercent__c
+      FROM Invoice__c
+      WHERE
+        ContractHistory__r.ContractService__c = :contractServiceId
+        AND InvoiceTransactionStatus__c != :InvoiceTransactionStatusService.TX_CANCELLED
+      WITH SYSTEM_MODE
+    ]) {
+      Decimal invoiceTax = TaxCalculationUtil.fromPercentFieldStorage(
+        invoice.TaxPercent__c
+      );
+      Decimal historyTax = invoice.ContractHistory__r == null
+        ? null
+        : TaxCalculationUtil.fromPercentFieldStorage(
+            invoice.ContractHistory__r.TaxPercent__c
+          );
+      if (invoiceTax != historyTax) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * 仕様: Core 第12.4節・第7.8節。
    * 行ロックした請求と読み済み明細。Canonical は取り直さない。

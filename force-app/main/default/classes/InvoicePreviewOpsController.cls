@@ -760,6 +760,8 @@ public without sharing class InvoicePreviewOpsController {
     Invoice__c knownLockedInvoice
   ) {
     ContractPermissionUtil.assertInvoicePayment();
+    // 仕様: Core 第7.7.0節。入金は、税率不一致なら拒否する。
+    assertBoardTaxMatch(invoiceId);
     if (paymentId != null) {
       throw handled('入金は直接更新できません。取消して再登録してください。');
     }
@@ -1154,6 +1156,8 @@ public without sharing class InvoicePreviewOpsController {
     Invoice__c knownLockedInvoice
   ) {
     ContractPermissionUtil.assertInvoicePayment();
+    // 仕様: Core 第7.7.0節。入金取消は、税率不一致なら拒否する。
+    assertBoardTaxMatch(invoiceId);
     InvoicePayment__c existing = [
       SELECT
         Id,
@@ -1660,6 +1664,28 @@ public without sharing class InvoicePreviewOpsController {
   }
 
   /** 仕様: Core 第0章。人が見る文字は日本語。Aura 拒否は setMessage して本文をテストで取れるようにする */
+  /** 仕様: Core 第7.7.0節。対象請求の契約サービスに税率不一致があれば拒否する。 */
+  private static void assertBoardTaxMatch(Id invoiceId) {
+    if (invoiceId == null) {
+      return;
+    }
+    List<Invoice__c> taxScope = [
+      SELECT ContractService__c
+      FROM Invoice__c
+      WHERE Id = :invoiceId
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (
+      !taxScope.isEmpty() &&
+      InvoiceCanonicalService.savedTaxDiffersFromInvoices(
+        taxScope[0].ContractService__c
+      )
+    ) {
+      throw handled(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);
+    }
+  }
+
   private static AuraHandledException handled(String message) {
     String resolved = String.isBlank(message)
       ? '処理に失敗しました。'

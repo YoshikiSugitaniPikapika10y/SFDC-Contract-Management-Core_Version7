@@ -171,9 +171,16 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
         return;
       }
 
-      this.invoicePreview = await getInvoicePreview({
+      const preview = await getInvoicePreview({
         contractHistoryId: scope.contractHistoryId
       });
+      // 仕様: Core 第7.7.0節。税率不一致は文だけ。カードと版フィルタは出さない。
+      if (preview?.blockReason) {
+        this.invoicePreview = undefined;
+        this.errorMessage = preview.blockReason;
+        return;
+      }
+      this.invoicePreview = preview;
       this.billingAccountOptions = await getBillingAccountOptionsForPreview({
         contractHistoryId: scope.contractHistoryId
       });

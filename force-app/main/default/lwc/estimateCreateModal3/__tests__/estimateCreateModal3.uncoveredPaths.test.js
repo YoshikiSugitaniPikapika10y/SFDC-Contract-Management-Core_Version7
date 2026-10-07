@@ -1660,7 +1660,11 @@ describe("estimateCreateModal3 uncovered Core 4.3 / 4.4.3 / 4.10 paths", () => {
     ctx.addRow(false);
     const id = ctx.itemList[0].id;
     await ctx.applyProductSelection(id, "01tMISSING");
-    expect(ctx.surfaceError).toBe(
+    expect(ctx.surfaceError).toBe("");
+    const refusal = ctx.dispatchEvent.mock.calls.find(
+      (call) => call[0].type === "headerrefusal"
+    );
+    expect(refusal[0].detail.message).toBe(
       "選択した商品の情報を取得できませんでした。契約管理で利用可能な商品を選択してください。"
     );
   });
@@ -1847,7 +1851,11 @@ describe("estimateCreateModal3 uncovered Core 4.3 / 4.4.3 / 4.10 paths", () => {
       target
     });
     expect(target.value).toBe(INVOICE_SETTING_PREPAID_START);
-    expect(ctx.surfaceError).toBe(
+    expect(ctx.surfaceError).toBe("");
+    const refusal = ctx.dispatchEvent.mock.calls.find(
+      (call) => call[0].type === "headerrefusal"
+    );
+    expect(refusal[0].detail.message).toBe(
       "変更後の行の請求設定は前回の版と同じにしてください。"
     );
   });

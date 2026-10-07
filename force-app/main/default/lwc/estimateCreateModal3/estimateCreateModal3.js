@@ -3777,10 +3777,8 @@ export default class EstimateCreateModal3 extends LightningElement {
         return;
       }
       if (!defaults) {
-        this.showToast(
-          "商品を選択できません",
-          "選択した商品の情報を取得できませんでした。契約管理で利用可能な商品を選択してください。",
-          "error"
+        this.reportHeaderRefusal(
+          "選択した商品の情報を取得できませんでした。契約管理で利用可能な商品を選択してください。"
         );
         return;
       }
@@ -3793,7 +3791,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         rawInvoiceType
       );
       if (invoiceSettingError) {
-        this.showToast("商品を選択できません", invoiceSettingError, "error");
+        this.reportHeaderRefusal(invoiceSettingError);
         return;
       }
       const invoiceType = this.resolveRowInvoiceType(
@@ -3852,11 +3850,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         return;
       }
       // 取得に失敗した場合は行を書き換えず、直前の選択状態を保つ
-      this.showToast(
-        "商品を選択できません",
-        this.reduceErrorMessage(error),
-        "error"
-      );
+      this.reportHeaderRefusal(this.reduceErrorMessage(error));
     } finally {
       this._productDefaultsInFlight = Math.max(
         0,
@@ -4012,7 +4006,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     const resolved = resolveAmountInputDraft(event.target.value);
     if (!resolved.ok || resolved.kind !== "commit") {
       if (resolved && resolved.message) {
-        this.showToast("金額を確定できません", resolved.message, "error");
+        this.reportHeaderRefusal(resolved.message);
       }
       return;
     }
@@ -4067,10 +4061,8 @@ export default class EstimateCreateModal3 extends LightningElement {
     // 仕様: Core 第4.5.2節、第4.4.3節
     if (isChangeRemakeLine(row)) {
       event.target.value = row.invoiceType;
-      this.showToast(
-        "請求設定を変更できません",
-        "変更後の行の請求設定は前回の版と同じにしてください。",
-        "error"
+      this.reportHeaderRefusal(
+        "変更後の行の請求設定は前回の版と同じにしてください。"
       );
       return;
     }
@@ -4082,7 +4074,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     if (validationError) {
       // 不正な選択は元の値に戻しつつ、理由を通知する（無言リバートを避ける）。
       event.target.value = row.invoiceType;
-      this.showToast("請求設定を変更できません", validationError, "error");
+      this.reportHeaderRefusal(validationError);
       return;
     }
     this.updateRow(rowId, {
@@ -4132,11 +4124,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     const masterBillingType =
       row.productMasterBillingType || BILLING_TYPE_RECURRING;
     if (masterBillingType !== BILLING_TYPE_RECURRING) {
-      this.showToast(
-        "課金種別を変更できません",
-        "この商品の課金種別は変更できません。",
-        "error"
-      );
+      this.reportHeaderRefusal("この商品の課金種別は変更できません。");
       return;
     }
     if (value !== BILLING_TYPE_RECURRING && value !== BILLING_TYPE_ONE_TIME) {
@@ -4289,6 +4277,16 @@ export default class EstimateCreateModal3 extends LightningElement {
       const head = String(title || "").trim();
       this.surfaceError = body || head;
     }
+  }
+
+  /** 仕様: Core 第4.3.6節。保存前の検証と同じく、ヘッダー直下の帯に1文残す。 */
+  reportHeaderRefusal(message) {
+    this.surfaceError = "";
+    this.dispatchEvent(
+      new CustomEvent("headerrefusal", {
+        detail: { message: String(message || "") }
+      })
+    );
   }
 
   handleRemarksChange(event) {

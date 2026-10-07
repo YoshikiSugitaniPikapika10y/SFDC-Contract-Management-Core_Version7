@@ -6,6 +6,9 @@
         <lightning-button variant="brand" label="保存" onclick={handleSave} disabled={waitBusy}></lightning-button>
       </template>
     </div>
+    <template lwc:if={saveRefusal}>
+      <p class="surface-error" role="alert">{saveRefusal}</p>
+    </template>
 
     <template lwc:if={completionNote}>
       <p class="surface-complete" role="status">{completionNote}</p>

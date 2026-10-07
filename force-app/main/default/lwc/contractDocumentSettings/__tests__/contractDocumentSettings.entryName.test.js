@@ -735,6 +735,24 @@ describe("contractDocumentSettings send mode change (Core 11.3)", () => {
       "請求書の3択が無い、空、または不正です。"
     );
   });
+
+  it("leaves the save refusal under the button and does not toast (Core 11.6)", async () => {
+    const instance = {
+      settings: { estimateSendMode: "", invoiceSendMode: "PdfOnly" },
+      template: { querySelectorAll: () => [] },
+      toast: jest.fn(),
+      saveRefusal: "",
+      applyNamedFieldValues: proto.applyNamedFieldValues,
+      assertStoredSendModes: proto.assertStoredSendModes,
+      storedSendMode: proto.storedSendMode,
+      message: proto.message
+    };
+    await proto.handleSave.call(instance);
+    expect(instance.toast).not.toHaveBeenCalled();
+    expect(instance.saveRefusal).toBe(
+      "見積書の3択が無い、空、または不正です。"
+    );
+  });
 });
 
 describe("contractDocumentSettings save busy (Core 11.6 / 4.3.12)", () => {
