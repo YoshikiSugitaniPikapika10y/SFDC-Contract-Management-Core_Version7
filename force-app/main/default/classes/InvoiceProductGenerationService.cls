@@ -1449,7 +1449,6 @@ public without sharing class InvoiceProductGenerationService {
           history.TaxPercent__c
         );
       }
-      }
       Id billingAccountId = history.ContractService__r == null
         ? null
         : history.ContractService__r.BiilingAcccount__c;
