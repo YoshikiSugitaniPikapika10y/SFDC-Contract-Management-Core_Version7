@@ -73,7 +73,7 @@ public without sharing class InvoiceSendBoardController {
           option(definition.label, definition.apiName)
         );
       }
-      result.defaultDocumentTemplateKey = ContractDocumentTemplateService.initialSelectionKey(
+      result.defaultDocumentTemplateKey = ContractDocumentTemplateService.sendSelectionKey(
         ContractDocumentTemplateService.TYPE_INVOICE
       );
       result.defaultEmailTemplateApiName = ContractEmailTemplateService.initialSelectionApiName(

@@ -70,6 +70,18 @@ private class ContractDocumentTemplateServiceTest {
 
   @IsTest
   static void initialSelectionKey_bundledRowIsExactlyOneDefault() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      packageTemplate(
+        ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
+        ContractDocumentTemplateService.TYPE_ESTIMATE,
+        'EstimateDocumentPdf'
+      ),
+      packageTemplate(
+        ContractDocumentTemplateService.DEFAULT_INVOICE_KEY,
+        ContractDocumentTemplateService.TYPE_INVOICE,
+        'InvoiceDocumentPdf'
+      )
+    };
     System.assertEquals(
       ContractDocumentTemplateService.DEFAULT_ESTIMATE_KEY,
       ContractDocumentTemplateService.initialSelectionKey(
@@ -83,6 +95,7 @@ private class ContractDocumentTemplateServiceTest {
         ContractDocumentTemplateService.TYPE_INVOICE
       )
     );
+    ContractDocumentTemplateService.clearTestState();
   }
 
   @IsTest
@@ -127,6 +140,100 @@ private class ContractDocumentTemplateServiceTest {
       'Core 第11.3.2節: 有効な既定2件以上なら未選択'
     );
     ContractDocumentTemplateService.clearTestState();
+  }
+
+  @IsTest
+  static void sendSelectionKey_oneDefault_returnsThatKey() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      templateRow('Only', true)
+    };
+    System.assertEquals(
+      'Only',
+      ContractDocumentTemplateService.sendSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 送付は有効な既定1件を最初に選ぶ'
+    );
+    ContractDocumentTemplateService.clearTestState();
+  }
+
+  @IsTest
+  static void sendSelectionKey_zeroDefaults_returnsNull() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      templateRow('A', false)
+    };
+    System.assertEquals(
+      null,
+      ContractDocumentTemplateService.sendSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 送付も既定0件は未選択'
+    );
+    ContractDocumentTemplateService.clearTestState();
+  }
+
+  @IsTest
+  static void sendSelectionKey_manyDefaults_picksLatestSaved() {
+    ContractDocumentTemplateService.testRecords = new List<ContractDocumentTemplate__mdt>{
+      stampedRow('Older', true, Datetime.newInstance(2026, 1, 1, 0, 0, 0)),
+      stampedRow('Newer', true, Datetime.newInstance(2026, 6, 1, 0, 0, 0))
+    };
+    System.assertEquals(
+      'Newer',
+      ContractDocumentTemplateService.sendSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 送付は既定が複数なら最後に保存した行'
+    );
+    System.assertEquals(
+      null,
+      ContractDocumentTemplateService.initialSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      ),
+      'Core 第11.3.2節: 発行は既定2件以上なら未選択のまま'
+    );
+    ContractDocumentTemplateService.clearTestState();
+  }
+
+  private static ContractDocumentTemplate__mdt stampedRow(
+    String key,
+    Boolean isDefault,
+    Datetime stamp
+  ) {
+    Map<String, Object> payload = new Map<String, Object>{
+      'attributes' => new Map<String, Object>{
+        'type' => 'ContractDocumentTemplate__mdt'
+      },
+      'MasterLabel' => key,
+      'TemplateKey__c' => key,
+      'DocumentType__c' => ContractDocumentTemplateService.TYPE_ESTIMATE,
+      'IsActive__c' => true,
+      'IsDefault__c' => isDefault,
+      'VisualforcePage__c' => 'EstimateDocumentPdf',
+      'SortOrder__c' => 1,
+      'SystemModstamp' => stamp
+    };
+    return (ContractDocumentTemplate__mdt) JSON.deserialize(
+      JSON.serialize(payload),
+      ContractDocumentTemplate__mdt.class
+    );
+  }
+
+  private static ContractDocumentTemplate__mdt packageTemplate(
+    String key,
+    String documentType,
+    String visualforcePage
+  ) {
+    return new ContractDocumentTemplate__mdt(
+      MasterLabel = key,
+      TemplateKey__c = key,
+      DocumentType__c = documentType,
+      IsActive__c = true,
+      IsDefault__c = true,
+      VisualforcePage__c = visualforcePage,
+      SortOrder__c = 1,
+      FileNamePattern__c = '{TemplateKey}_{Title}_{yyyyMMdd}.pdf'
+    );
   }
 
   private static ContractDocumentTemplate__mdt templateRow(

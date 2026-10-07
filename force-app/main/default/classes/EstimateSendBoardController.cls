@@ -138,18 +138,12 @@ public without sharing class EstimateSendBoardController {
           ContractDocumentTemplateService.TYPE_ESTIMATE
         );
       result.documentTemplateOptions = new List<SelectOptionDto>();
-      String documentDefault = null;
-      Integer documentDefaults = 0;
       for (
         ContractDocumentTemplateService.TemplateDefinition definition : documentTemplates
       ) {
         result.documentTemplateOptions.add(
           option(definition.label, definition.templateKey)
         );
-        if (definition.isDefault == true) {
-          documentDefaults++;
-          documentDefault = definition.templateKey;
-        }
       }
       List<ContractEmailTemplateService.EmailTemplateDefinition> emailTemplates =
         ContractEmailTemplateService.getActiveTemplates(
@@ -169,9 +163,9 @@ public without sharing class EstimateSendBoardController {
           emailDefault = definition.apiName;
         }
       }
-      result.defaultDocumentTemplateKey = documentDefaults == 1
-        ? documentDefault
-        : null;
+      result.defaultDocumentTemplateKey = ContractDocumentTemplateService.sendSelectionKey(
+        ContractDocumentTemplateService.TYPE_ESTIMATE
+      );
       result.defaultEmailTemplateApiName = emailDefaults == 1
         ? emailDefault
         : null;
@@ -891,7 +885,7 @@ public without sharing class EstimateSendBoardController {
       return requestedKey.trim();
     }
     return fillInitial == true
-      ? ContractDocumentTemplateService.initialSelectionKey(
+      ? ContractDocumentTemplateService.sendSelectionKey(
           ContractDocumentTemplateService.TYPE_ESTIMATE
         )
       : null;

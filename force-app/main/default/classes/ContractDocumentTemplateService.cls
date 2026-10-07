@@ -29,6 +29,7 @@ public without sharing class ContractDocumentTemplateService {
     public Decimal sortOrder;
     @AuraEnabled
     public Boolean isDefault;
+    private Datetime systemModstamp;
 
     private TemplateDefinition(ContractDocumentTemplate__mdt record) {
       templateKey = record.TemplateKey__c;
@@ -39,6 +40,7 @@ public without sharing class ContractDocumentTemplateService {
       description = record.Description__c;
       sortOrder = record.SortOrder__c;
       isDefault = record.IsDefault__c == true;
+      systemModstamp = record.SystemModstamp;
     }
   }
 
@@ -74,6 +76,50 @@ public without sharing class ContractDocumentTemplateService {
       }
     }
     return defaults == 1 ? found : null;
+  }
+
+  /**
+   * 仕様: Core 第11.3.2節。送付画面の初期選択。
+   * 有効な既定が1件ならそのキー。2件以上なら最後に保存した既定。
+   * 保存時刻が同じなら SortOrder が大きい方、それも同じなら TemplateKey の辞書順で後。
+   * 0件は null。発行の初期選択と、空キーの発行・送付には使わない。
+   */
+  public static String sendSelectionKey(String documentType) {
+    TemplateDefinition chosen = null;
+    for (TemplateDefinition definition : getActiveTemplates(documentType)) {
+      if (definition.isDefault != true) {
+        continue;
+      }
+      if (chosen == null || isLaterSendDefault(definition, chosen)) {
+        chosen = definition;
+      }
+    }
+    return chosen == null ? null : chosen.templateKey;
+  }
+
+  private static Boolean isLaterSendDefault(
+    TemplateDefinition candidate,
+    TemplateDefinition current
+  ) {
+    if (candidate.systemModstamp != current.systemModstamp) {
+      if (candidate.systemModstamp == null) {
+        return false;
+      }
+      if (current.systemModstamp == null) {
+        return true;
+      }
+      return candidate.systemModstamp > current.systemModstamp;
+    }
+    Decimal candidateSort = candidate.sortOrder == null ? 0 : candidate.sortOrder;
+    Decimal currentSort = current.sortOrder == null ? 0 : current.sortOrder;
+    if (candidateSort != currentSort) {
+      return candidateSort > currentSort;
+    }
+    String candidateKey = candidate.templateKey == null
+      ? ''
+      : candidate.templateKey;
+    String currentKey = current.templateKey == null ? '' : current.templateKey;
+    return candidateKey.compareTo(currentKey) > 0;
   }
 
   public static TemplateDefinition resolveTemplate(
@@ -164,6 +210,7 @@ public without sharing class ContractDocumentTemplateService {
         TemplateKey__c,
         IsActive__c,
         IsDefault__c,
+        SystemModstamp,
         SortOrder__c,
         VisualforcePage__c,
         FileNamePattern__c,
