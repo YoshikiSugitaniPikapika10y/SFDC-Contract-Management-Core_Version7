@@ -904,165 +904,72 @@ export default class EstimateCreateModal3 extends LightningElement {
       return;
     }
     if (this.itemList && this.itemList.length > 1) {
-      if (this.isChangeType) {
-        const display = this.buildChangeDisplayRowsSorted();
-        const byId = new Map(this.itemList.map((row) => [row.id, row]));
-        const ordered = [];
-        const seen = new Set();
-        display.forEach((row) => {
-          if (
-            !row ||
-            row.isGroupHeader ||
-            row.id == null ||
-            !byId.has(row.id) ||
-            seen.has(row.id)
-          ) {
-            return;
-          }
-          ordered.push(byId.get(row.id));
-          seen.add(row.id);
-        });
-        this.itemList.forEach((row) => {
-          if (row && !seen.has(row.id)) {
-            ordered.push(row);
-          }
-        });
-        this.itemList = ordered;
-      } else {
-        this.itemList = [...this.itemList].sort(compareDocumentSortLines);
-      }
+      // 仕様: Core 第4.5.3節。変更見積も同じ段順。変更後をその変更前の直下にまとめない。
+      this.itemList = [...this.itemList].sort(compareDocumentSortLines);
     }
     this._detailOrderApplied = true;
   }
 
   buildChangeDisplayRowsSorted() {
-    const rows = [];
-    const groups = this.changeProductGroups
-      .map((group) => ({
-        ...group,
-        remakeRows: [...group.remakeRows].sort(compareDocumentSortLines)
-      }))
-      .sort((left, right) =>
-        compareDocumentSortLines(left.original, right.original)
-      );
-    const newRows = [...this.changeNewProductRows].sort(
-      compareDocumentSortLines
-    );
-    const blocks = [
-      ...groups.map((group) => ({
-        kind: "group",
-        row: group.original,
-        group
-      })),
-      ...newRows.map((row) => ({ kind: "new", row }))
-    ].sort((left, right) => compareDocumentSortLines(left.row, right.row));
-    let newHeaderInserted = false;
-    blocks.forEach((block) => {
-      if (block.kind === "new") {
-        if (!newHeaderInserted) {
-          rows.push(this.changeNewSectionHeader());
-          newHeaderInserted = true;
-        }
-        rows.push({
-          ...block.row,
-          rowContext: "changeNew",
-          canDelete: this.orderedCustomFieldsOnly !== true,
-          changeGroupBoundary: "middle",
-          changeGroupTone: "new"
-        });
-        return;
-      }
-      const group = block.group;
-      rows.push({
-        id: `group-header-${group.pairId}`,
-        isGroupHeader: true,
-        isSectionHeader: false,
-        groupHeaderTitle: group.productName || "（商品未選択）",
-        groupHeaderClass: "est-change-group-card__header",
-        groupHeaderRowClass: "est-change-group-header-row"
-      });
-      rows.push({
-        ...group.original,
-        rowContext: "changeOriginal",
-        changeGroupBoundary: group.remakeRows.length === 0 ? "end" : "start"
-      });
-      group.remakeRows.forEach((remake, index) => {
-        rows.push({
-          ...remake,
-          rowContext: "changeRemake",
-          canDelete:
-            this.orderedCustomFieldsOnly !== true &&
-            group.remakeRows.length > 1,
-          showAddRemakeButton:
-            this.orderedCustomFieldsOnly !== true &&
-            index === group.remakeRows.length - 1,
-          groupPairId: group.pairId,
-          changeGroupBoundary:
-            index === group.remakeRows.length - 1 ? "end" : "middle"
-        });
-      });
-    });
-    if (!newHeaderInserted) {
-      const header = this.changeNewSectionHeader();
-      header.changeGroupBoundary = "end";
-      rows.push(header);
-    } else {
-      const newDisplays = rows.filter((row) => row.rowContext === "changeNew");
-      newDisplays.forEach((row, index) => {
-        row.changeGroupBoundary =
-          index === newDisplays.length - 1 ? "end" : "middle";
-      });
-    }
-
-    return rows.map((row) => this.applyChangeGroupBoundaryClass(row));
+    const ordered = [...(this.itemList || [])].sort(compareDocumentSortLines);
+    return this.appendChangeLinesInDocumentOrder(ordered);
   }
 
   /** 仕様: Core 第4.5.3節。最初の並びのあと、itemList の位置のまま出す。 */
   buildChangeDisplayRowsInListOrder() {
+    return this.appendChangeLinesInDocumentOrder(this.itemList || []);
+  }
+
+  /**
+   * 仕様: Core 第4.5.3節。
+   * 渡された順のまま出す。変更後をその変更前の直下へ寄せない。
+   */
+  appendChangeLinesInDocumentOrder(orderedLines) {
+    const lines = orderedLines || [];
+    const lastRemakeIdByPair = new Map();
+    const remakeCountByPair = new Map();
+    lines.forEach((row) => {
+      if (!isChangeRemakeLine(row) || !row.pairId) {
+        return;
+      }
+      remakeCountByPair.set(
+        row.pairId,
+        (remakeCountByPair.get(row.pairId) || 0) + 1
+      );
+      lastRemakeIdByPair.set(row.pairId, row.id);
+    });
     const rows = [];
-    const groupsByPair = new Map(
-      this.changeProductGroups.map((group) => [group.pairId, group])
-    );
-    const emittedPairs = new Set();
     let newHeaderInserted = false;
-    this.itemList.forEach((row) => {
+    let previousPairId = null;
+    lines.forEach((row) => {
       if (isChangeOriginalLine(row)) {
-        if (emittedPairs.has(row.pairId)) {
-          return;
-        }
-        emittedPairs.add(row.pairId);
-        const group = groupsByPair.get(row.pairId);
-        if (!group) {
-          return;
-        }
+        rows.push(this.changePairHeader(row));
+        const remakeCount = remakeCountByPair.get(row.pairId) || 0;
         rows.push({
-          id: `group-header-${group.pairId}`,
-          isGroupHeader: true,
-          isSectionHeader: false,
-          groupHeaderTitle: group.productName || "（商品未選択）",
-          groupHeaderClass: "est-change-group-card__header",
-          groupHeaderRowClass: "est-change-group-header-row"
-        });
-        rows.push({
-          ...group.original,
+          ...row,
           rowContext: "changeOriginal",
-          changeGroupBoundary: group.remakeRows.length === 0 ? "end" : "start"
+          changeGroupBoundary: remakeCount === 0 ? "end" : "start"
         });
-        group.remakeRows.forEach((remake, index) => {
-          rows.push({
-            ...remake,
-            rowContext: "changeRemake",
-            canDelete:
-              this.orderedCustomFieldsOnly !== true &&
-              group.remakeRows.length > 1,
-            showAddRemakeButton:
-              this.orderedCustomFieldsOnly !== true &&
-              index === group.remakeRows.length - 1,
-            groupPairId: group.pairId,
-            changeGroupBoundary:
-              index === group.remakeRows.length - 1 ? "end" : "middle"
-          });
+        previousPairId = row.pairId;
+        return;
+      }
+      if (isChangeRemakeLine(row)) {
+        if (previousPairId !== row.pairId) {
+          rows.push(this.changePairHeader(row));
+        }
+        const remakeCount = remakeCountByPair.get(row.pairId) || 1;
+        const isLast = lastRemakeIdByPair.get(row.pairId) === row.id;
+        rows.push({
+          ...row,
+          rowContext: "changeRemake",
+          canDelete:
+            this.orderedCustomFieldsOnly !== true && remakeCount > 1,
+          showAddRemakeButton:
+            this.orderedCustomFieldsOnly !== true && isLast,
+          groupPairId: row.pairId,
+          changeGroupBoundary: isLast ? "end" : "middle"
         });
+        previousPairId = row.pairId;
         return;
       }
       if (!isChangeContinuationLine(row)) {
@@ -1079,6 +986,7 @@ export default class EstimateCreateModal3 extends LightningElement {
         changeGroupBoundary: "middle",
         changeGroupTone: "new"
       });
+      previousPairId = null;
     });
     if (!newHeaderInserted) {
       const header = this.changeNewSectionHeader();
@@ -1092,6 +1000,17 @@ export default class EstimateCreateModal3 extends LightningElement {
       });
     }
     return rows.map((row) => this.applyChangeGroupBoundaryClass(row));
+  }
+
+  changePairHeader(row) {
+    return {
+      id: `group-header-${(row && row.pairId) || (row && row.id) || "pair"}`,
+      isGroupHeader: true,
+      isSectionHeader: false,
+      groupHeaderTitle: (row && row.productName) || "（商品未選択）",
+      groupHeaderClass: "est-change-group-card__header",
+      groupHeaderRowClass: "est-change-group-header-row"
+    };
   }
 
   changeNewSectionHeader() {

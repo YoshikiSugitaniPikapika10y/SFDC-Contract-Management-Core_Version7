@@ -110,4 +110,56 @@ describe("estimateCreateModal3 document order once (Core 4.5.3)", () => {
       "added"
     ]);
   });
+
+  it("does not glue a remake under its original when another original sorts between them (Core 4.5.3)", () => {
+    const ctx = createContext([
+      changeLine("a-remake", "Remake", 1, "2026-03-01", "pair-a"),
+      changeLine("b-original", "Original", 1, "2026-02-01", "pair-b"),
+      changeLine("a-original", "Original", 1, "2026-01-01", "pair-a")
+    ]);
+    ctx._wizardData = { selectedType: "Change" };
+
+    const productIds = (rows) =>
+      rows.filter((row) => !row.isGroupHeader).map((row) => row.id);
+
+    expect(productIds(ctx.displayItemList)).toEqual([
+      "a-original",
+      "b-original",
+      "a-remake"
+    ]);
+
+    ctx.applyDocumentOrderOnce();
+    expect(ctx.itemList.map((row) => row.id)).toEqual([
+      "a-original",
+      "b-original",
+      "a-remake"
+    ]);
+    expect(productIds(ctx.displayItemList)).toEqual([
+      "a-original",
+      "b-original",
+      "a-remake"
+    ]);
+
+    ctx.itemList = ctx.itemList.map((row) =>
+      row.id === "a-remake" ? { ...row, startDate: "2026-01-15" } : row
+    );
+    expect(ctx.itemList.map((row) => row.id)).toEqual([
+      "a-original",
+      "b-original",
+      "a-remake"
+    ]);
+  });
 });
+
+function changeLine(id, recordType, documentSortOrder, startDate, pairId) {
+  return {
+    id,
+    recordType,
+    documentSortOrder,
+    startDate,
+    pairId,
+    sourceContractProductId: `${pairId}-source`,
+    productName: pairId,
+    lineName: id
+  };
+}
