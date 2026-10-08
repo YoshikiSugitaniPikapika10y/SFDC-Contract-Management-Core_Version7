@@ -3145,7 +3145,7 @@ Accountingの利用有無、売上計上方針、税認識方針および月次�
 
 受注、差し戻し、請求再生成、請求確定・取消、請求分割・移動、請求入出金、送付に伴うデータベース更新およびAccounting境界処理は、必要な結果がすべて成立した場合だけ保存する。設定不正、権限不足、状態不正、ロック、同時編集の競合、入力不整合または関連処理失敗があれば、その対象行のデータベース更新全体を取り消す。メール送信の外部副作用は第7.10節に従う。
 
-**同一処理で対象レコードと設定定義を取り直さない。**保存する結果は本節および各操作の本文どおりであり、照会回数のために変えない。画面を開くたびにサーバから読むこと（第4.3.11節）は維持する。1回の取得リクエストの内部で同じ対象と定義を重ねて照会しない。非同期へ逃がさない。件数上限は設けない。
+**同一処理で対象レコードと設定定義を取り直さない。**保存する結果は本節および各操作の本文どおりであり、照会回数のために変えない。画面を開くたびにサーバから読むこと（第4.3.11節）は維持する。1回の取得リクエストの内部で同じ対象と定義を重ねて照会しない。非同期へ逃がさない。件数上限は設けない。確定、入金、入金取消、未確定の修正、取消は、許否が変わらなくても、同一処理で税率確認の請求を取り直さない。すでに持っている請求を使う。通すか拒むかと保存する結果は変えない。比べる範囲は取消済み以外のままであり、縮めない。
 
 エラーは利用者が修正できる対象と理由を示す。例えば、請求アカウントまたは請求先情報の不足、商品不足、数量0、金額未確定、古いベースVersion、期間境界不一致、請求設定不整合、Original・Remake不整合、確定済み請求、他利用者の先行更新、および追加項目コピー設定不正を区別する。Changeで正しい打消しを作れない場合は、静かに行を省略せずChange全体を失敗させる。
 
@@ -3154,6 +3154,7 @@ Accountingの利用有無、売上計上方針、税認識方針および月次�
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> 保存 <code>OrderCreateController.confirmOrder</code> / <code>revertOrder</code>、<code>InvoiceProductGenerationService.generateForHistories</code>、<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>、<code>InvoiceCancelService</code>、<code>InvoicePaymentService.register</code> / <code>cancel</code>、<code>ManualJournalService</code>、<code>AccountingDiffService.applyForInvoice</code>
 ／ 開く <code>OrderCreateController.getInvoicePreview</code> / <code>getOrderContext</code>、<code>InvoiceSendBoardController.getBoardContext</code>、<code>EstimateSendBoardController.getBoardContext</code>、<code>ContractCrossQueryService</code>
 ／ 同一処理・同一取得リクエストで対象と定義を取り直さない。結果は変えない。
+／ 確定・入金・入金取消・未確定の修正・取消は、持っている請求で税率を比べ、その請求を取り直さない。入口は既存<code>InvoiceSendBoardController.confirmInvoiceFromPreview</code>、<code>InvoicePaymentService.register</code>／<code>cancel</code>、<code>InvoicePreviewOpsController.savePaymentFromPreview</code>／<code>cancelPaymentFromPreview</code>、<code>OrderCreateController.prepareDraftInvoiceEdit</code>／<code>cancelConfirmedFromPreview</code>、<code>InvoiceCancelService</code>。通すか拒むかと保存結果は変えない。比べる範囲は取消済み以外のまま。
 </div>
 
 ## 13. 導入時の代表要件
