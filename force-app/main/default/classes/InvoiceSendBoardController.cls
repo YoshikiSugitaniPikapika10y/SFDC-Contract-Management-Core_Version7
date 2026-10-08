@@ -167,10 +167,11 @@ public without sharing class InvoiceSendBoardController {
         businessOperationKey
       );
       Invoice__c invoice = AccountingCauseLockService.lockInvoice(invoiceId);
-      // 仕様: Core 第7.7.0節。確定は、税率不一致なら拒否する。
+      // 仕様: Core 第7.7.0節・第12.4節。確定は、持っている請求で税率を比べ、その請求を取り直さない。
       if (
         InvoiceCanonicalService.savedTaxDiffersFromInvoices(
-          invoice.ContractService__c
+          invoice.ContractService__c,
+          new List<Invoice__c>{ invoice }
         )
       ) {
         throw handledMessage(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);

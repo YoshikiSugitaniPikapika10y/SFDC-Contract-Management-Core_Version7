@@ -2733,20 +2733,18 @@ public without sharing class OrderCreateController {
     if (contractHistoryId == null || invoiceId == null) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
-    // 仕様: Core 第7.7.0節。取消は、税率不一致なら拒否する。
-    if (
-      InvoiceCanonicalService.savedTaxDiffersFromInvoices(
-        resolveContractServiceId(contractHistoryId)
-      )
-    ) {
-      throw toAuraHandled(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);
-    }
+    Id contractServiceId = resolveContractServiceId(contractHistoryId);
     Invoice__c lockedInvoice;
     try {
       lockedInvoice = AccountingCauseLockService.lockInvoice(invoiceId);
     } catch (AccountingCauseLockService.LockException ex) {
       throw toAuraHandled(PREVIEW_SCOPE_MISMATCH_MESSAGE);
     }
+    // 仕様: Core 第7.7.0節・第12.4節。取消は、持っている請求で税率を比べ、その請求を取り直さない。
+    assertHeldBoardTax(
+      contractServiceId,
+      new List<Invoice__c>{ lockedInvoice }
+    );
     try {
       InvoiceOpsController.assertInvoicesInScope(
         contractHistoryId,
@@ -3351,12 +3349,6 @@ public without sharing class OrderCreateController {
   ) {
     ContractPermissionUtil.assertEditDraftInvoice();
     Id contractServiceId = resolveContractServiceId(contractHistoryId);
-    // 仕様: Core 第7.7.0節。未確定の修正は、税率不一致なら拒否する。
-    if (
-      InvoiceCanonicalService.savedTaxDiffersFromInvoices(contractServiceId)
-    ) {
-      throw toAuraHandled(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);
-    }
     String operationKey = AccountingCauseLockService.resolveOrIssueOperationKey(
       businessOperationKey
     );
@@ -3384,6 +3376,8 @@ public without sharing class OrderCreateController {
         Map<Id, Invoice__c> locked = AccountingCauseLockService.lockInvoices(
           targetInvoiceIds
         );
+        // 仕様: Core 第7.7.0節・第12.4節。未確定の修正は、持っている請求で税率を比べ、その請求を取り直さない。
+        assertHeldBoardTax(contractServiceId, locked.values());
         assertPreviewScopeFromLoaded(
           contractServiceId,
           locked,
@@ -3408,6 +3402,8 @@ public without sharing class OrderCreateController {
     Map<Id, Invoice__c> locked = AccountingCauseLockService.lockInvoices(
       targetInvoiceIds
     );
+    // 仕様: Core 第7.7.0節・第12.4節。未確定の修正は、持っている請求で税率を比べ、その請求を取り直さない。
+    assertHeldBoardTax(contractServiceId, locked.values());
     assertPreviewScopeFromLoaded(
       contractServiceId,
       locked,
@@ -3434,6 +3430,24 @@ public without sharing class OrderCreateController {
     prep.lockedInvoices = locked;
     prep.knownLines = loadedDraftLines;
     return prep;
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第7.7.0節。
+   * 同じ契約サービスの請求だけを、持っている行で比べる。取消済み以外は縮めない。
+   */
+  private static void assertHeldBoardTax(
+    Id contractServiceId,
+    List<Invoice__c> heldInvoices
+  ) {
+    if (
+      InvoiceCanonicalService.savedTaxDiffersFromInvoices(
+        contractServiceId,
+        heldInvoices
+      )
+    ) {
+      throw toAuraHandled(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);
+    }
   }
 
   /** 仕様: Core 第12.4節。ロック済み請求と読み済み明細で範囲を見る。 */

@@ -5092,4 +5092,384 @@ private class InvoiceCanonicalServiceTest {
     fixture.history = history;
     return fixture;
   }
+
+  /**
+   * 仕様: Core 第12.4節。確定、入金、入金取消、未確定の修正、取消は持っている請求を取り直さない。
+   * 比べる範囲は取消済み以外のまま。
+   */
+  @IsTest
+  static void operations_reuseHeldInvoicesAndKeepNonCancelledScope() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Held Tax Account'
+      );
+      BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
+        account.Id
+      );
+      ContractService__c service = new ContractService__c(
+        Name = 'Held Tax Service',
+        Account__c = account.Id,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = 10
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Held Tax History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = Date.newInstance(2026, 6, 1),
+        CurrentTermEndDate__c = Date.newInstance(2026, 6, 30),
+        TaxPercent__c = 10
+      );
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      insert history;
+      Invoice__c target = insertHeldTaxInvoice(
+        history,
+        service.Id,
+        10,
+        InvoiceTransactionStatusService.TX_DRAFT
+      );
+      Invoice__c sibling = insertHeldTaxInvoice(
+        history,
+        service.Id,
+        8,
+        InvoiceTransactionStatusService.TX_DRAFT
+      );
+      Invoice__c cancelled = insertHeldTaxInvoice(
+        history,
+        service.Id,
+        3,
+        InvoiceTransactionStatusService.TX_CANCELLED
+      );
+      Invoice__c soqlTarget = [
+        SELECT
+          TaxPercent__c,
+          InvoiceTransactionStatus__c,
+          ContractService__c,
+          ContractHistory__r.TaxPercent__c,
+          ContractHistory__r.ContractService__r.TaxPercent__c
+        FROM Invoice__c
+        WHERE Id = :target.Id
+      ];
+      System.assertEquals(
+        true,
+        InvoiceCanonicalService.savedTaxDiffersFromInvoices(
+          service.Id,
+          new List<Invoice__c>{ soqlTarget }
+        ),
+        'Core 第12.4節: 取消済み以外の兄弟が違えば拒む'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(target.Id),
+        'Core 第12.4節: 持っている請求を取り直さない'
+      );
+      System.assertEquals(
+        true,
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(sibling.Id),
+        'Core 第12.4節: 比べる範囲は取消済み以外を縮めない'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(
+          cancelled.Id
+        ),
+        'Core 第7.7.0節: 取消済みは比べない'
+      );
+
+      assertEntryRejectsWithoutReselect(
+        target,
+        sibling,
+        service.Id,
+        history.Id
+      );
+
+      sibling.TaxPercent__c = 10;
+      update sibling;
+      soqlTarget = [
+        SELECT
+          TaxPercent__c,
+          InvoiceTransactionStatus__c,
+          ContractService__c,
+          ContractHistory__r.TaxPercent__c,
+          ContractHistory__r.ContractService__r.TaxPercent__c
+        FROM Invoice__c
+        WHERE Id = :target.Id
+      ];
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.savedTaxDiffersFromInvoices(
+          service.Id,
+          new List<Invoice__c>{ soqlTarget }
+        ),
+        'Core 第12.4節: 取消済み以外が同じなら通す'
+      );
+      System.assertEquals(
+        false,
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(target.Id)
+      );
+      System.assertEquals(
+        true,
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(sibling.Id)
+      );
+      assertEntryAllowsTax(target, sibling, history.Id);
+    }
+  }
+
+  private static void assertEntryRejectsWithoutReselect(
+    Invoice__c target,
+    Invoice__c sibling,
+    Id serviceId,
+    Id historyId
+  ) {
+    assertTaxRejects(
+      target.Id,
+      sibling.Id,
+      new ConfirmCaller(target.Id, historyId)
+    );
+    assertTaxRejects(
+      target.Id,
+      sibling.Id,
+      new PaymentSaveCaller(target.Id)
+    );
+    assertTaxRejects(
+      target.Id,
+      sibling.Id,
+      new PaymentCancelCaller(target.Id, historyId)
+    );
+    assertTaxRejects(
+      target.Id,
+      sibling.Id,
+      new CancelInvoiceCaller(target.Id, historyId)
+    );
+    ContractTestDataFactory.ensureOrgAccountingPolicy();
+    InvoiceLine__c line = new InvoiceLine__c(
+      Invoice__c = target.Id,
+      ProductName__c = '税率確認',
+      Amount__c = 1000,
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ServicePeriodStartDate__c = Date.newInstance(2026, 6, 1),
+      ServicePeriodEndDate__c = Date.newInstance(2026, 6, 30)
+    );
+    insert line;
+    assertTaxRejects(
+      target.Id,
+      sibling.Id,
+      new DraftEditCaller(historyId, line.Id)
+    );
+    System.assertNotEquals(null, serviceId);
+  }
+
+  private static void assertEntryAllowsTax(
+    Invoice__c target,
+    Invoice__c sibling,
+    Id historyId
+  ) {
+    String confirmMessage = callConfirm(target.Id, historyId);
+    System.assertNotEquals(
+      InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE,
+      confirmMessage,
+      'Core 第12.4節: 同じ税率の確定は税率では拒まない'
+    );
+    System.assertEquals(
+      false,
+      InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(target.Id),
+      'Core 第12.4節: 通すときも持っている請求を取り直さない'
+    );
+    System.assertEquals(
+      true,
+      InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(sibling.Id),
+      'Core 第12.4節: 通すときも取消済み以外は縮めない'
+    );
+  }
+
+  private static void assertTaxRejects(
+    Id targetId,
+    Id siblingId,
+    EntryCaller caller
+  ) {
+    InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds = new Set<Id>();
+    String message = caller.call();
+    System.assertEquals(
+      InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE,
+      message,
+      'Core 第7.7.0節: 取消済み以外が違えば拒む'
+    );
+    System.assertEquals(
+      false,
+      InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(targetId),
+      'Core 第12.4節: 持っている請求を取り直さない'
+    );
+    System.assertEquals(
+      true,
+      InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(siblingId),
+      'Core 第12.4節: 比べる範囲は取消済み以外を縮めない'
+    );
+  }
+
+  private interface EntryCaller {
+    String call();
+  }
+
+  private class ConfirmCaller implements EntryCaller {
+    Id invoiceId;
+    Id historyId;
+    ConfirmCaller(Id invoiceId, Id historyId) {
+      this.invoiceId = invoiceId;
+      this.historyId = historyId;
+    }
+    public String call() {
+      return callConfirm(invoiceId, historyId);
+    }
+  }
+
+  private class PaymentSaveCaller implements EntryCaller {
+    Id invoiceId;
+    PaymentSaveCaller(Id invoiceId) {
+      this.invoiceId = invoiceId;
+    }
+    public String call() {
+      try {
+        InvoicePreviewOpsController.savePaymentFromPreview(
+          null,
+          invoiceId,
+          100,
+          InvoicePaymentService.PURPOSE_NON_INVOICE,
+          Date.today(),
+          null,
+          null,
+          null,
+          null,
+          null
+        );
+        return null;
+      } catch (AuraHandledException ex) {
+        return ex.getMessage();
+      }
+    }
+  }
+
+  private class PaymentCancelCaller implements EntryCaller {
+    Id invoiceId;
+    Id historyId;
+    PaymentCancelCaller(Id invoiceId, Id historyId) {
+      this.invoiceId = invoiceId;
+      this.historyId = historyId;
+    }
+    public String call() {
+      try {
+        InvoicePreviewOpsController.cancelPaymentFromPreview(
+          invoiceId,
+          invoiceId,
+          Date.today(),
+          'Duplicate',
+          null,
+          null,
+          null,
+          historyId
+        );
+        return null;
+      } catch (AuraHandledException ex) {
+        return ex.getMessage();
+      }
+    }
+  }
+
+  private class CancelInvoiceCaller implements EntryCaller {
+    Id invoiceId;
+    Id historyId;
+    CancelInvoiceCaller(Id invoiceId, Id historyId) {
+      this.invoiceId = invoiceId;
+      this.historyId = historyId;
+    }
+    public String call() {
+      try {
+        OrderCreateController.cancelConfirmedFromPreview(
+          historyId,
+          invoiceId,
+          'Duplicate',
+          null,
+          null,
+          null
+        );
+        return null;
+      } catch (AuraHandledException ex) {
+        return ex.getMessage();
+      }
+    }
+  }
+
+  private class DraftEditCaller implements EntryCaller {
+    Id historyId;
+    Id lineId;
+    DraftEditCaller(Id historyId, Id lineId) {
+      this.historyId = historyId;
+      this.lineId = lineId;
+    }
+    public String call() {
+      InvoiceCanonicalService.LineAmountEdit edit = new InvoiceCanonicalService.LineAmountEdit();
+      edit.lineId = lineId;
+      edit.amount = 1000;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      try {
+        OrderCreateController.updateInvoiceLineAmounts(
+          historyId,
+          new List<InvoiceCanonicalService.LineAmountEdit>{ edit },
+          (String) null
+        );
+        return null;
+      } catch (AuraHandledException ex) {
+        return ex.getMessage();
+      } finally {
+        InvoiceCanonicalService.testHasEditPreviewPermission = null;
+      }
+    }
+  }
+
+  private static String callConfirm(Id invoiceId, Id historyId) {
+    try {
+      InvoiceSendBoardController.confirmInvoiceFromPreview(
+        invoiceId,
+        Date.today(),
+        null,
+        null,
+        historyId
+      );
+      return null;
+    } catch (AuraHandledException ex) {
+      return ex.getMessage();
+    }
+  }
+
+  private static Invoice__c insertHeldTaxInvoice(
+    ContractHistory__c history,
+    Id serviceId,
+    Decimal taxPercent,
+    String status
+  ) {
+    Invoice__c invoice = new Invoice__c(
+      ContractHistory__c = history.Id,
+      ContractService__c = serviceId,
+      InvoiceDate__c = Date.newInstance(2026, 6, 1),
+      Amount__c = 1000,
+      TaxAmount__c = 100,
+      TaxPercent__c = taxPercent,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+    );
+    insert invoice;
+    if (status != InvoiceTransactionStatusService.TX_DRAFT) {
+      invoice.InvoiceTransactionStatus__c = status;
+      InvoiceTransactionStatusService.allowStatusWrite = true;
+      update invoice;
+      InvoiceTransactionStatusService.allowStatusWrite = false;
+    }
+    return invoice;
+  }
 }

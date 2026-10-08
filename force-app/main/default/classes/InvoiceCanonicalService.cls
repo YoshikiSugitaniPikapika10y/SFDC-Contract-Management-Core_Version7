@@ -60,33 +60,67 @@ public without sharing class InvoiceCanonicalService {
   /** 仕様: Core 第7.7.0節、共通基盤第3.3節。税額は比べない。 */
   public static final String BOARD_TAX_MISMATCH_MESSAGE = '見積の税率と請求の税率が違うため、請求ボードを表示できません。';
 
-  /** 仕様: Core 第12.4節。請求ボードを開く取得がこの照会を使った回数。 */
+  /** 仕様: Core 第12.4節。税率確認が、まだ持っていない請求を照会した回数。 */
   @TestVisible
   public static Integer savedTaxInvoiceSelectCount = 0;
+
+  /** 仕様: Core 第12.4節。税率確認が照会した請求。すでに持っている請求は含めない。 */
+  @TestVisible
+  public static Set<Id> lastSavedTaxInvoiceSelectIds = new Set<Id>();
 
   /**
    * 仕様: Core 第7.7.0節。取消済みを除き、請求の税率と契約履歴の保存税率が違えば真。
    * 空の保存税率は、受注時に埋める契約サービスの表示パーセントで比べる。税額は比べない。
    */
   public static Boolean savedTaxDiffersFromInvoices(Id contractServiceId) {
+    return savedTaxDiffersFromInvoices(contractServiceId, null);
+  }
+
+  /**
+   * 仕様: Core 第12.4節・第7.7.0節。
+   * すでに持っている請求は取り直さない。取消済み以外で持っていない請求だけ照会して比べる。
+   */
+  public static Boolean savedTaxDiffersFromInvoices(
+    Id contractServiceId,
+    List<Invoice__c> heldInvoices
+  ) {
+    lastSavedTaxInvoiceSelectIds = new Set<Id>();
     if (contractServiceId == null) {
       return false;
     }
+    List<Invoice__c> rows = new List<Invoice__c>();
+    Set<Id> heldIds = new Set<Id>();
+    if (heldInvoices != null) {
+      for (Invoice__c invoice : heldInvoices) {
+        if (
+          invoice == null ||
+          invoice.Id == null ||
+          invoice.ContractService__c != contractServiceId
+        ) {
+          continue;
+        }
+        heldIds.add(invoice.Id);
+        rows.add(invoice);
+      }
+    }
     savedTaxInvoiceSelectCount++;
-    return savedTaxDiffersFromInvoices(
-      [
-        SELECT
-          TaxPercent__c,
-          InvoiceTransactionStatus__c,
-          ContractHistory__r.TaxPercent__c,
-          ContractHistory__r.ContractService__r.TaxPercent__c
-        FROM Invoice__c
-        WHERE
-          ContractHistory__r.ContractService__c = :contractServiceId
-          AND InvoiceTransactionStatus__c != :InvoiceTransactionStatusService.TX_CANCELLED
-        WITH SYSTEM_MODE
-      ]
-    );
+    for (Invoice__c invoice : [
+      SELECT
+        TaxPercent__c,
+        InvoiceTransactionStatus__c,
+        ContractHistory__r.TaxPercent__c,
+        ContractHistory__r.ContractService__r.TaxPercent__c
+      FROM Invoice__c
+      WHERE
+        ContractHistory__r.ContractService__c = :contractServiceId
+        AND InvoiceTransactionStatus__c != :InvoiceTransactionStatusService.TX_CANCELLED
+        AND Id NOT IN :heldIds
+      WITH SYSTEM_MODE
+    ]) {
+      lastSavedTaxInvoiceSelectIds.add(invoice.Id);
+      rows.add(invoice);
+    }
+    return savedTaxDiffersFromInvoices(rows);
   }
 
   /**

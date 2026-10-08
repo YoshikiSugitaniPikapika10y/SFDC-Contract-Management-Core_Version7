@@ -142,6 +142,7 @@ public without sharing class AccountingCauseLockService {
       'PaymentTermMethodSnapShot__c',
       'ContractHistory__r.Version__c',
       'ContractHistory__r.ContractService__c',
+      'ContractHistory__r.TaxPercent__c',
       'ContractHistory__r.ContractService__r.TaxPercent__c',
       'ContractService__r.TaxPercent__c',
       'ContractService__r.Name',

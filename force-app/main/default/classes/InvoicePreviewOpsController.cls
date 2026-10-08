@@ -760,8 +760,10 @@ public without sharing class InvoicePreviewOpsController {
     Invoice__c knownLockedInvoice
   ) {
     ContractPermissionUtil.assertInvoicePayment();
-    // 仕様: Core 第7.7.0節。入金は、税率不一致なら拒否する。
-    assertBoardTaxMatch(invoiceId);
+    // 仕様: Core 第7.7.0節・第12.4節。入金は、持っている請求で税率を比べ、その請求を取り直さない。
+    Invoice__c heldForTax = heldInvoiceForTax(invoiceId, knownLockedInvoice);
+    assertBoardTaxMatch(invoiceId, heldForTax);
+    knownLockedInvoice = heldForTax;
     if (paymentId != null) {
       throw handled('入金は直接更新できません。取消して再登録してください。');
     }
@@ -1156,8 +1158,10 @@ public without sharing class InvoicePreviewOpsController {
     Invoice__c knownLockedInvoice
   ) {
     ContractPermissionUtil.assertInvoicePayment();
-    // 仕様: Core 第7.7.0節。入金取消は、税率不一致なら拒否する。
-    assertBoardTaxMatch(invoiceId);
+    // 仕様: Core 第7.7.0節・第12.4節。入金取消は、持っている請求で税率を比べ、その請求を取り直さない。
+    Invoice__c heldForTax = heldInvoiceForTax(invoiceId, knownLockedInvoice);
+    assertBoardTaxMatch(invoiceId, heldForTax);
+    knownLockedInvoice = heldForTax;
     InvoicePayment__c existing = [
       SELECT
         Id,
@@ -1664,23 +1668,58 @@ public without sharing class InvoicePreviewOpsController {
   }
 
   /** 仕様: Core 第0章。人が見る文字は日本語。Aura 拒否は setMessage して本文をテストで取れるようにする */
-  /** 仕様: Core 第7.7.0節。対象請求の契約サービスに税率不一致があれば拒否する。 */
-  private static void assertBoardTaxMatch(Id invoiceId) {
+  /**
+   * 仕様: Core 第12.4節。税率確認の前に、同じ処理でロックした請求を使う。
+   * 無い請求はここでは拒否しない。
+   */
+  private static Invoice__c heldInvoiceForTax(Id invoiceId, Invoice__c knownLockedInvoice) {
+    if (invoiceId == null) {
+      return knownLockedInvoice;
+    }
+    if (knownLockedInvoice != null && knownLockedInvoice.Id == invoiceId) {
+      return knownLockedInvoice;
+    }
+    try {
+      return AccountingCauseLockService.lockInvoice(invoiceId);
+    } catch (AccountingCauseLockService.LockException ex) {
+      return knownLockedInvoice;
+    }
+  }
+
+  /**
+   * 仕様: Core 第7.7.0節・第12.4節。
+   * 持っている請求は取り直さない。取消済み以外の残りだけ照会する。
+   */
+  private static void assertBoardTaxMatch(Id invoiceId, Invoice__c heldInvoice) {
     if (invoiceId == null) {
       return;
     }
-    List<Invoice__c> taxScope = [
-      SELECT ContractService__c
-      FROM Invoice__c
-      WHERE Id = :invoiceId
-      WITH SYSTEM_MODE
-      LIMIT 1
-    ];
+    List<Invoice__c> held = new List<Invoice__c>();
+    Id serviceId;
+    if (heldInvoice != null && heldInvoice.Id == invoiceId) {
+      serviceId = heldInvoice.ContractService__c;
+      held.add(heldInvoice);
+    } else {
+      List<Invoice__c> seed = [
+        SELECT
+          TaxPercent__c,
+          InvoiceTransactionStatus__c,
+          ContractService__c,
+          ContractHistory__r.TaxPercent__c,
+          ContractHistory__r.ContractService__r.TaxPercent__c
+        FROM Invoice__c
+        WHERE Id = :invoiceId
+        WITH SYSTEM_MODE
+        LIMIT 1
+      ];
+      if (seed.isEmpty()) {
+        return;
+      }
+      serviceId = seed[0].ContractService__c;
+      held.add(seed[0]);
+    }
     if (
-      !taxScope.isEmpty() &&
-      InvoiceCanonicalService.savedTaxDiffersFromInvoices(
-        taxScope[0].ContractService__c
-      )
+      InvoiceCanonicalService.savedTaxDiffersFromInvoices(serviceId, held)
     ) {
       throw handled(InvoiceCanonicalService.BOARD_TAX_MISMATCH_MESSAGE);
     }
