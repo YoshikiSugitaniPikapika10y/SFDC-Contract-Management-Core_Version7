@@ -988,7 +988,7 @@ private class AccountingTagEvaluationServiceTest {
         invoice.Id,
         AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
         'TEST_TAG_DIFF_SWAP_REV',
-        Date.newInstance(2026, 6, 15)
+        InvoiceTransactionStatusService.organizationToday()
       );
       leftover = [
         SELECT
