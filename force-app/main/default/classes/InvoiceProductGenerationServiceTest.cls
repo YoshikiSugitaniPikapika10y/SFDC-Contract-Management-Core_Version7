@@ -2454,6 +2454,99 @@ private class InvoiceProductGenerationServiceTest {
       assertNoReversalInvoiceProducts(changeHistory.Id);
     }
   }
+
+  @IsTest
+  static void changeSameOneTimeAmount_billsAddedLineWithoutReversal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Same One Time Amount Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Same One Time Amount Service',
+        account
+      );
+      Date termStart = Date.newInstance(2026, 4, 1);
+      Date termEnd = Date.newInstance(2026, 4, 30);
+      ContractHistory__c priorHistory = new ContractHistory__c(
+        Name = 'Same One Time Amount Prior',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insertHistory(priorHistory);
+      Product2 oneTimeProduct = ContractTestDataFactory.buildProduct(
+        'Same One Time Amount Product'
+      );
+      oneTimeProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(oneTimeProduct);
+      insert new ContractProduct__c(
+        ContractHistory__c = priorHistory.Id,
+        Product__c = oneTimeProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 100000,
+        Amount__c = 100000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        Type__c = 'New'
+      );
+      orderHistory(priorHistory);
+      Test.startTest();
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Same One Time Amount Change',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = null,
+        PreviousHistory__c = priorHistory.Id
+      );
+      insertHistory(changeHistory);
+      insert new ContractProduct__c(
+        ContractHistory__c = changeHistory.Id,
+        Product__c = oneTimeProduct.Id,
+        Quantity__c = 1,
+        UnitPrice__c = 100000,
+        Amount__c = 100000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        Type__c = 'New'
+      );
+      orderHistory(changeHistory);
+      Test.stopTest();
+
+      List<InvoiceProduct__c> priorLines = [
+        SELECT Amount__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :priorHistory.Id
+      ];
+      System.assertEquals(1, priorLines.size(), '1回目の一回課金は残る');
+      System.assertEquals(100000, priorLines[0].Amount__c);
+
+      List<InvoiceProduct__c> addedLines = [
+        SELECT Amount__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :changeHistory.Id
+      ];
+      System.assertEquals(
+        1,
+        addedLines.size(),
+        'Core 第1.1.3節・第6.3節: 同じ金額の一回課金追加は全額請求する'
+      );
+      System.assertEquals(100000, addedLines[0].Amount__c);
+      assertNoReversalInvoiceProducts(changeHistory.Id);
+    }
+  }
+
   @IsTest
   static void changeReversalUnmatchedOriginal_failsClosedOnOrder() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {

@@ -843,12 +843,16 @@ public without sharing class InvoiceProductGenerationService {
       Decimal pastAmount = pastCumulativeByPeriodKey.containsKey(periodKey)
         ? pastCumulativeByPeriodKey.get(periodKey)
         : 0;
-      if (shouldHaveAmount == pastAmount) {
+      Id productId = extractProductIdFromPeriodKey(periodKey);
+      InvoiceProduct__c pastSample = pastSampleByPeriodKey.get(periodKey);
+      // 仕様: Core 第1.1.3節・第6.3節。一回課金は過去と同じ金額でも今回追加分を全額請求し、過去は打ち消さない。
+      if (
+        shouldHaveAmount == pastAmount &&
+        !isOneTimeBillingForPeriod(historyProducts, productId, pastSample)
+      ) {
         continue;
       }
 
-      Id productId = extractProductIdFromPeriodKey(periodKey);
-      InvoiceProduct__c pastSample = pastSampleByPeriodKey.get(periodKey);
       InvoiceProduct__c chargeLine = null;
 
       if (shouldHaveAmount != 0) {
