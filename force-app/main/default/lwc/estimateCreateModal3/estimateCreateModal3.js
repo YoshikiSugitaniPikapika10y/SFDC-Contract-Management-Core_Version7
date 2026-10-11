@@ -3263,8 +3263,9 @@ export default class EstimateCreateModal3 extends LightningElement {
     const numericUpdates = { ...updates };
     if ("quantity" in numericUpdates) {
       const parsedQty = parseQuantityInput(numericUpdates.quantity);
+      // 仕様: Core 第1.1.10節。数量の空欄は0で埋めない。
       if (parsedQty == null) {
-        numericUpdates.quantity = 0;
+        numericUpdates.quantity = null;
       } else if (Number.isNaN(parsedQty)) {
         numericUpdates.quantity = Number.NaN;
       } else {

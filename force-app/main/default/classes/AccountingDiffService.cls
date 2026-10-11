@@ -296,6 +296,19 @@ public without sharing class AccountingDiffService {
       if (!inDiffLineScope(next, restrictLineIds)) {
         continue;
       }
+      // 仕様: Accounting 第8.7節・第10.4節。できた手動仕訳は登録時のままにし、同じ冪等キーで作り直さない。
+      if (
+        goal.isManual == true &&
+        next.GlManualJournalHeader__c != null &&
+        hasActiveManualJournal(activeByLine, next.GlManualJournalHeader__c)
+      ) {
+        for (GlJournal__c posted : activeByLine.values()) {
+          if (posted.GlManualJournalHeader__c == next.GlManualJournalHeader__c) {
+            goalKeys.add(posted.JournalLineKey__c);
+          }
+        }
+        continue;
+      }
       next.AccountingEventKey__c = eventKey;
       next.BusinessOperationKey__c = operationKey;
       applyJournalCopy(next, copySources);
@@ -1218,6 +1231,21 @@ public without sharing class AccountingDiffService {
   }
 
   /** 仕様: Accounting 第8.2節・第8.8節。明細限定のCurrentだけをDiffする。 */
+  private static Boolean hasActiveManualJournal(
+    Map<String, GlJournal__c> activeByLine,
+    Id headerId
+  ) {
+    if (activeByLine == null || headerId == null) {
+      return false;
+    }
+    for (GlJournal__c posted : activeByLine.values()) {
+      if (posted.GlManualJournalHeader__c == headerId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private static Boolean inDiffLineScope(
     GlJournal__c journal,
     Set<Id> restrictLineIds

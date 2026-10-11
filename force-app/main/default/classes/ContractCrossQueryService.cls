@@ -124,10 +124,19 @@ public with sharing class ContractCrossQueryService {
     } else if (filter.sent == false) {
       soql += ' AND EstimateSentAt__c = null';
     }
-    if (filter.issued == true) {
-      soql += ' AND EstimateIssueDate__c != null';
-    } else if (filter.issued == false) {
-      soql += ' AND EstimateIssueDate__c = null';
+    // 仕様: 共通基盤の見積一覧。発行ありは見積書PDFがあるとき。発行日では見ない。Core 第4.8節。
+    Set<Id> issuedHistoryIds = null;
+    Boolean issuedFilterOn = filter.issued == true || filter.issued == false;
+    if (issuedFilterOn) {
+      issuedHistoryIds = issuedEstimateHistoryIds(null);
+      if (filter.issued == true) {
+        if (issuedHistoryIds.isEmpty()) {
+          return newListResult(0);
+        }
+        soql += ' AND Id IN :issuedHistoryIds';
+      } else if (!issuedHistoryIds.isEmpty()) {
+        soql += ' AND Id NOT IN :issuedHistoryIds';
+      }
     }
     if (filter.autoRenew == true) {
       soql += ' AND RenewEstimateAutoCreated__c = true';
@@ -178,8 +187,18 @@ public with sharing class ContractCrossQueryService {
       dto.amount = history.DeltaAmountSum__c;
       dto.validDate = history.EstimateValidDate__c;
       dto.sent = history.EstimateSentAt__c != null;
-      dto.issued = history.EstimateIssueDate__c != null;
+      dto.issued = issuedFilterOn && issuedHistoryIds.contains(history.Id);
       result.estimates.add(dto);
+    }
+    if (!issuedFilterOn) {
+      Set<Id> pageIds = new Set<Id>();
+      for (ContractCrossController.EstimateRowDto dto : result.estimates) {
+        pageIds.add(dto.id);
+      }
+      Set<Id> issuedOnPage = issuedEstimateHistoryIds(pageIds);
+      for (ContractCrossController.EstimateRowDto dto : result.estimates) {
+        dto.issued = issuedOnPage.contains(dto.id);
+      }
     }
     applyTypeLabels(result.estimates, rows, take);
     return result;
@@ -922,6 +941,85 @@ public with sharing class ContractCrossQueryService {
       loaded.invoiceIds.add(invoiceId);
     }
     return loaded;
+  }
+
+  /**
+   * 仕様: 共通基盤の見積一覧、Core 第4.8節。
+   * 発行ありは印付きの見積書PDFがある契約履歴。historyIds が null のときは発行フィルタ用に全件。
+   */
+  private static Set<Id> issuedEstimateHistoryIds(Set<Id> historyIds) {
+    Set<Id> issued = new Set<Id>();
+    if (historyIds != null && historyIds.isEmpty()) {
+      return issued;
+    }
+    if (historyIds == null) {
+      List<ContentVersion> versions = [
+        SELECT ContentDocumentId
+        FROM ContentVersion
+        WHERE ContractDocumentIssued__c = TRUE
+        WITH SYSTEM_MODE
+      ];
+      if (versions.isEmpty()) {
+        return issued;
+      }
+      Set<Id> documentIds = new Set<Id>();
+      for (ContentVersion version : versions) {
+        documentIds.add(version.ContentDocumentId);
+      }
+      for (ContentDocumentLink link : [
+        SELECT LinkedEntityId
+        FROM ContentDocumentLink
+        WHERE ContentDocumentId IN :documentIds
+        WITH SYSTEM_MODE
+      ]) {
+        if (
+          link.LinkedEntityId != null &&
+          link.LinkedEntityId.getSObjectType() == ContractHistory__c.SObjectType
+        ) {
+          issued.add(link.LinkedEntityId);
+        }
+      }
+      return issued;
+    }
+    List<ContentDocumentLink> links = [
+      SELECT LinkedEntityId, ContentDocumentId
+      FROM ContentDocumentLink
+      WHERE LinkedEntityId IN :historyIds
+      WITH SYSTEM_MODE
+    ];
+    if (links.isEmpty()) {
+      return issued;
+    }
+    Set<Id> documentIds = new Set<Id>();
+    Map<Id, List<Id>> documentToHistories = new Map<Id, List<Id>>();
+    for (ContentDocumentLink link : links) {
+      if (link.ContentDocumentId == null || link.LinkedEntityId == null) {
+        continue;
+      }
+      documentIds.add(link.ContentDocumentId);
+      if (!documentToHistories.containsKey(link.ContentDocumentId)) {
+        documentToHistories.put(link.ContentDocumentId, new List<Id>());
+      }
+      documentToHistories.get(link.ContentDocumentId).add(link.LinkedEntityId);
+    }
+    if (documentIds.isEmpty()) {
+      return issued;
+    }
+    for (ContentVersion version : [
+      SELECT ContentDocumentId
+      FROM ContentVersion
+      WHERE
+        ContentDocumentId IN :documentIds
+        AND ContractDocumentIssued__c = TRUE
+      WITH SYSTEM_MODE
+    ]) {
+      List<Id> linked = documentToHistories.get(version.ContentDocumentId);
+      if (linked == null) {
+        continue;
+      }
+      issued.addAll(linked);
+    }
+    return issued;
   }
 
   /**

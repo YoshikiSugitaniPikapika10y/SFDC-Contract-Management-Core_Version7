@@ -74,6 +74,31 @@ describe("estimateCreateModal3 unitPrice null (BUG-076 / BUG-077)", () => {
     expect(result.amount).toBeNull();
   });
 
+  it("updateRow keeps a cleared quantity blank and does not zero the amount (BUG-1357)", () => {
+    const ctx = {
+      canEditProducts: true,
+      itemList: [
+        {
+          id: "row1",
+          quantity: 1,
+          unitPrice: 10000,
+          billingType: BILLING_TYPE_RECURRING,
+          startDate: "2026-04-01",
+          endDate: "2026-04-30",
+          amount: 10000,
+          amountEntryMode: false
+        }
+      ],
+      applyAmount: proto.applyAmount,
+      commitItemList(next) {
+        this.itemList = next;
+      }
+    };
+    proto.updateRow.call(ctx, "row1", { quantity: null });
+    expect(ctx.itemList[0].quantity).toBeNull();
+    expect(ctx.itemList[0].amount).toBeNull();
+  });
+
   it("applyAmount preserves null quantity instead of coercing to 0 (BUG-093)", () => {
     const result = proto.applyAmount.call(
       {},

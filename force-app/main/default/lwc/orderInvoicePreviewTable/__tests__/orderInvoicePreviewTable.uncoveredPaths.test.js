@@ -1234,6 +1234,24 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     expect(ctx.formatJournalAmount(1234)).toMatch(/1,234|¥/);
     expect(ctx.formatJournalAmount(null)).toBe("");
     expect(ctx.selectedJournalIds(CONFIRMED)).toEqual(["j2"]);
+    const filtered = bind({
+      invoiceUiState: {
+        [CONFIRMED]: { bundle: journalBundle() }
+      },
+      journalLockSelected: { [CONFIRMED]: { j1: true, j2: true } }
+    });
+    filtered.handleJournalViewFilterToggle({
+      currentTarget: {
+        dataset: {
+          invoiceId: CONFIRMED,
+          filter: "postingMonth",
+          value: "2026-07"
+        }
+      },
+      detail: { checked: true }
+    });
+    expect(filtered.journalLockSelected[CONFIRMED]).toEqual({ j2: true });
+    expect(filtered.selectedJournalIds(CONFIRMED)).toEqual(["j2"]);
     await ctx.unlockSelectedFromBar(CONFIRMED, ["j2"]);
     expect(unlockJournalsForInvoice).toHaveBeenCalled();
 

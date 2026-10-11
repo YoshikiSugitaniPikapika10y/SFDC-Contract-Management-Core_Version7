@@ -73,6 +73,7 @@ public without sharing class AccountingGoalService {
   @TestVisible
   static Integer paymentLoadSelectCount = 0;
   private static Map<String, List<GlJournal__c>> activeJournalsByGeneration;
+  private static Map<Id, GlJournal__c> activeManualByHeader;
 
   private class RelatedRecords {
     Map<Id, ContractProduct__c> contractProducts = new Map<Id, ContractProduct__c>();
@@ -346,6 +347,7 @@ public without sharing class AccountingGoalService {
     }
     sortCandidates(candidates);
     activeJournalsByGeneration = indexActiveJournals(currentJournals);
+    activeManualByHeader = indexActiveManualHeaders(currentJournals);
     Map<Id, LineBook> books = new Map<Id, LineBook>();
     LineBook invoiceBook = new LineBook();
     seedInvoiceBookFromOutsideLines(
@@ -365,6 +367,8 @@ public without sharing class AccountingGoalService {
     Set<String> lineKeys = new Set<String>();
     for (Candidate candidate : candidates) {
       if (candidate.isManual) {
+        // 仕様: Accounting 第8.7節・第10.4節。できた手動仕訳は登録時の科目・金額・計上日のまま。
+        keepPostedManualJournal(candidate);
         // 仕様: Accounting 第4.6節・第8.2節手順6～7。手動も実行残高へ載せ、B／C／Pは増やさない。
         applySlotBalance(candidate, books, invoiceBook);
         addGoal(
@@ -2030,6 +2034,55 @@ public without sharing class AccountingGoalService {
       rows.add(journal);
     }
     return indexed;
+  }
+
+  /** 仕様: Accounting 第8.7節・第10.4節。有効な手動仕訳はヘッダーごとに登録時の1本。 */
+  private static Map<Id, GlJournal__c> indexActiveManualHeaders(
+    List<GlJournal__c> currentJournals
+  ) {
+    Map<Id, GlJournal__c> indexed = new Map<Id, GlJournal__c>();
+    if (currentJournals == null) {
+      return indexed;
+    }
+    for (GlJournal__c journal : currentJournals) {
+      if (
+        journal == null ||
+        journal.TransactionStatus__c != 'Active' ||
+        journal.GlManualJournalHeader__c == null ||
+        journal.OriginalJournal__c != null
+      ) {
+        continue;
+      }
+      if (!indexed.containsKey(journal.GlManualJournalHeader__c)) {
+        indexed.put(journal.GlManualJournalHeader__c, journal);
+      }
+    }
+    return indexed;
+  }
+
+  /** 仕様: Accounting 第8.7節・第10.4節。設定やヘッダーを直しても、できた仕訳の科目・金額・計上日は変えない。 */
+  private static void keepPostedManualJournal(Candidate candidate) {
+    if (
+      candidate == null ||
+      candidate.header == null ||
+      activeManualByHeader == null
+    ) {
+      return;
+    }
+    GlJournal__c posted = activeManualByHeader.get(candidate.header.Id);
+    if (
+      posted == null ||
+      posted.Amount__c == null ||
+      posted.PostingDate__c == null
+    ) {
+      return;
+    }
+    candidate.postingDate = posted.PostingDate__c;
+    candidate.amount = posted.Amount__c;
+    candidate.debitSlotKey = posted.DebitSlotKey__c;
+    candidate.creditSlotKey = posted.CreditSlotKey__c;
+    candidate.debitAccountId = posted.DebitAccount__c;
+    candidate.creditAccountId = posted.CreditAccount__c;
   }
 
   private static String allocatedSlot(Candidate candidate) {

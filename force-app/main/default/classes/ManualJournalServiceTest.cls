@@ -762,6 +762,86 @@ private class ManualJournalServiceTest {
     }
   }
 
+  @IsTest
+  static void laterRebuild_keepsPostedManualJournal() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice(true);
+      GlManualJournalSetting__c setting = insertActiveSetting();
+      Date postedDate = Date.newInstance(2026, 6, 20);
+      ManualJournalService.RegisterRequest request = new ManualJournalService.RegisterRequest();
+      request.invoiceId = invoice.Id;
+      request.settingId = setting.Id;
+      request.postingDate = postedDate;
+      request.amount = 330;
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Id headerId = ManualJournalService.register(request);
+      GlJournal__c posted = [
+        SELECT Amount__c, PostingDate__c, DebitAccount__c
+        FROM GlJournal__c
+        WHERE
+          GlManualJournalHeader__c = :headerId
+          AND TransactionStatus__c = 'Active'
+      ];
+      GlAccount__c replaced = new GlAccount__c(
+        Name = 'MJ Replaced Debit',
+        AccountType__c = 'Expense',
+        IsActive__c = true
+      );
+      insert replaced;
+      setting.DebitAccount__c = replaced.Id;
+      update setting;
+      update new GlManualJournalHeader__c(
+        Id = headerId,
+        Amount__c = 440,
+        PostingDate__c = postedDate.addDays(1)
+      );
+      AccountingGoalService.invalidateCauseCache(invoice.Id);
+      AccountingDiffService.applyForInvoice(
+        invoice.Id,
+        AccountingEventFixedCatalog.PAYMENT_RECORDED.key,
+        'BUG1356',
+        null
+      );
+      GlJournal__c kept = [
+        SELECT Amount__c, PostingDate__c, DebitAccount__c, TransactionStatus__c
+        FROM GlJournal__c
+        WHERE Id = :posted.Id
+      ];
+      System.assertEquals(
+        330,
+        kept.Amount__c.intValue(),
+        'Accounting 第8.7節・第10.4節: できた手動仕訳の金額は登録時のまま'
+      );
+      System.assertEquals(
+        postedDate,
+        kept.PostingDate__c,
+        'Accounting 第8.7節・第10.4節: できた手動仕訳の計上日は登録時のまま'
+      );
+      System.assertEquals(
+        posted.DebitAccount__c,
+        kept.DebitAccount__c,
+        'Accounting 第8.7節・第10.4節: できた手動仕訳の科目は登録時のまま'
+      );
+      System.assertEquals('Active', kept.TransactionStatus__c);
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM GlJournal__c
+          WHERE
+            GlManualJournalHeader__c = :headerId
+            AND TransactionStatus__c = 'Active'
+        ],
+        'Accounting 第8.7節: 同じ手動仕訳を作り直さない'
+      );
+    }
+  }
+
   private static Invoice__c insertInvoice(Boolean confirmed) {
     Account account = ContractTestDataFactory.insertAccount(
       'MJSvc ' + String.valueOf(Crypto.getRandomInteger())

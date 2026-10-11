@@ -113,6 +113,71 @@ private class ContractCrossQueryServiceTest {
   }
 
   @IsTest
+  static void queryEstimates_issuedMeansPdfNotIssueDate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Date today = ContractCrossQueryService.organizationToday();
+      HistoryFixture inRange = insertHistory('Estimate', today, 'QEst Pdf');
+      inRange.history.EstimateIssueDate__c = today;
+      update inRange.history;
+
+      ContractCrossController.EstimateFilterDto filter = new ContractCrossController.EstimateFilterDto();
+      ContractCrossQueryService.DateRange range = ContractCrossQueryService.defaultEstimateCloseDates();
+      filter.closeDateFrom = range.dateFrom;
+      filter.closeDateTo = range.dateTo;
+      filter.accountId = inRange.opportunity.AccountId;
+      filter.issued = true;
+      System.assertEquals(
+        0,
+        ContractCrossQueryService.queryEstimates(filter).estimates.size(),
+        '共通基盤: 発行日だけでは発行ありにしない'
+      );
+
+      filter.issued = null;
+      ContractCrossController.ListResultDto listed = ContractCrossQueryService.queryEstimates(
+        filter
+      );
+      System.assertEquals(1, listed.estimates.size());
+      System.assertEquals(
+        false,
+        listed.estimates[0].issued,
+        '共通基盤: 見積書PDFが無い見積は発行ありではない'
+      );
+
+      ContentVersion version = new ContentVersion(
+        Title = 'estimate',
+        PathOnClient = 'estimate.pdf',
+        VersionData = Blob.valueOf('pdf'),
+        ContractDocumentIssued__c = true
+      );
+      insert version;
+      Id documentId = [
+        SELECT ContentDocumentId
+        FROM ContentVersion
+        WHERE Id = :version.Id
+      ]
+      .ContentDocumentId;
+      insert new ContentDocumentLink(
+        ContentDocumentId = documentId,
+        LinkedEntityId = inRange.history.Id,
+        ShareType = 'V',
+        Visibility = 'AllUsers'
+      );
+
+      filter.issued = true;
+      ContractCrossController.ListResultDto withPdf = ContractCrossQueryService.queryEstimates(
+        filter
+      );
+      System.assertEquals(
+        1,
+        withPdf.estimates.size(),
+        '共通基盤: 見積書PDFがある見積だけ発行あり'
+      );
+      System.assertEquals(true, withPdf.estimates[0].issued);
+      System.assertEquals(inRange.history.Id, withPdf.estimates[0].id);
+    }
+  }
+
+  @IsTest
   static void queryInvoices_rejectsBlankStatusAndKeepsBlankInvoiceDate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Boolean blankThrown = false;

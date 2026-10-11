@@ -6728,17 +6728,46 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
 
   selectedJournalIds(invoiceId) {
     const selected = this.journalLockSelected?.[invoiceId] || {};
+    const visibleIds = new Set(this.visibleSelectableJournalIds(invoiceId));
+    return Object.keys(selected).filter(
+      (journalId) => selected[journalId] === true && visibleIds.has(journalId)
+    );
+  }
+
+  // 仕様: Core 第7.7.3節、共通基盤の請求ボード仕訳。NもLock／Unlockも、今見えている選択だけ。
+  visibleSelectableJournalIds(invoiceId) {
     const journals =
       this.invoiceUiState?.[invoiceId]?.bundle?.journals || [];
-    const selectableIds = new Set(
-      journals
-        .filter((journal) => isJournalLockSelectable(journal))
-        .map((journal) => journal.journalId)
-    );
-    return Object.keys(selected).filter(
-      (journalId) =>
-        selected[journalId] === true && selectableIds.has(journalId)
-    );
+    const viewFilter = this.journalViewFilterByInvoice[invoiceId] || {};
+    return journalDisplayRows(journals)
+      .filter(
+        (journal) =>
+          journalMatchesViewFilter(
+            journal,
+            viewFilter.postingMonth,
+            viewFilter.eventName,
+            viewFilter.lineKey
+          ) && isJournalLockSelectable(journal)
+      )
+      .map((journal) => journal.journalId);
+  }
+
+  dropHiddenJournalLockSelection(invoiceId) {
+    const selected = this.journalLockSelected?.[invoiceId];
+    if (!selected) {
+      return;
+    }
+    const visibleIds = new Set(this.visibleSelectableJournalIds(invoiceId));
+    const next = {};
+    Object.keys(selected).forEach((journalId) => {
+      if (selected[journalId] === true && visibleIds.has(journalId)) {
+        next[journalId] = true;
+      }
+    });
+    this.journalLockSelected = {
+      ...this.journalLockSelected,
+      [invoiceId]: next
+    };
   }
 
   // 仕様: Core 第7.7.3節、Accounting 第9.5節。Shift＋クリックは間の選べる行だけ同じON／OFF。
@@ -6913,6 +6942,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         [field]: next
       }
     };
+    this.dropHiddenJournalLockSelection(invoiceId);
   }
 
   handleJournalViewFilterToggle(event) {
@@ -6943,6 +6973,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         [field]: next
       }
     };
+    this.dropHiddenJournalLockSelection(invoiceId);
   }
 
   handleJournalBarUnlockReasonChange(event) {
