@@ -1238,12 +1238,13 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 - From は組織（見積用組織送信元）か自分（操作者）の2択である。初期値は自分。組織を選んだときだけ見積用組織送信元で検証済みOWEを1件引き、そのアドレスを From にする。0件・2件以上・未設定はエラー。自分を選んだときは操作者のメールを From にする。操作者のメールが空なら送れない。To が空のときと同じ。定数では埋めない。`PDFとメール送付` でも見積用組織送信元は空でよい。第11.3.2節。
 - URLから発行画面を直接開いた場合も、受注済み・Archiveからの発行を拒否する。
 - カテゴリ・商品グループごとの税込表示は、第11.9節の帳票グループ税込設定に従う。シードは総額の税を税抜金額の比率で配分し、最後のグループで端数を調整する。
+- 見積書PDFの宛名に「御中」が含まれるときは、別の「御中」を出さない。含まれないときは「御中」を出す。宛名の保存値は書き換えない。見積の送付先は変えない。請求書PDFは変えない。
 - 会社名、住所およびプライバシーポリシーURLは、発行時点の組織設定を使用する。登録番号と振込先は見積PDFに出さない。必須の空欄は定数で埋めず、発行と「新しく発行する」を止める。既存ファイルを送るだけなら止めない。項目と検証は第11.3節。
 - 発行の画面は、その種別の有効カタログ行のうち既定（`IsDefault__c`）がちょうど1つならそれを最初に選び、その操作のあいだだけ同じ種別の別行へ変えられる。有効な既定が0件または2件以上なら未選択のまま開く。送付の画面は、有効な既定が1件ならそれを、2件以上なら最後に保存した既定を最初に選ぶ。保存時刻が同じなら`SortOrder__c`が大きい方、それも同じならテンプレートキーの辞書順で後の行である。有効な既定が0件なら未選択のまま開く。カタログ先頭では埋めない。キーが空のまま発行・送付はできない。システムが既定帳票を自動発行することはない。
 - 見積の発行も請求の発行も、ファイル名は第11.3.2節のパターンの参照である。発行するときに見せる。この画面では直さない。帳票を変えたら、見せる名前もパターンでやり直す。直せるのは送る直前の添付名だけである。第7.10節。
 - 旧見積送付一覧は持たない。個別の再送は本節および第7.10節の送付画面である。一括発行・一括送付は持たない。個別の発行・送付は契約横断にも置く（`docs/横断画面.md`。第9章）。確定後に請求レコードの宛先だけを直す正式画面は持たない。
 
-**実装仕様（開発者向け）:** `EstimateDocumentService.assertEstimateStatusForDocument`でもEstimateだけを許可する。合計は保存済みの`DeltaAmountSum__c`・`TaxAmount__c`・`DeltaTaxInclusiveSum__c`・`TaxPercent__c`を読む。3つの保存値が空のときだけ、出す処理で契約サービス`TaxPercent__c`から`TaxCalculationUtil.calculateTaxAmount`を1回呼ぶ。PDFは`ContentVersion.Visibility = 'AllUsers'`で保存し、組織文言は`ContractDocumentSetting__c`から発行時に取得する。一覧は契約履歴`FlexiPage122`の標準Files関連リスト。
+**実装仕様（開発者向け）:** `EstimateDocumentService.assertEstimateStatusForDocument`でもEstimateだけを許可する。合計は保存済みの`DeltaAmountSum__c`・`TaxAmount__c`・`DeltaTaxInclusiveSum__c`・`TaxPercent__c`を読む。3つの保存値が空のときだけ、出す処理で契約サービス`TaxPercent__c`から`TaxCalculationUtil.calculateTaxAmount`を1回呼ぶ。PDFは`ContentVersion.Visibility = 'AllUsers'`で保存し、組織文言は`ContractDocumentSetting__c`から発行時に取得する。一覧は契約履歴`FlexiPage122`の標準Files関連リスト。見積書PDFの宛名に「御中」が含まれるときは別の「御中」を出さない。含まれないときは「御中」を出す。宛名の保存値は書き換えない。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
@@ -1254,6 +1255,7 @@ Remakeは請求設定と売上計上基準を参照専用とする。画面、AP
 ／ 項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractHistory__c.EstimateSentAt__c</code>（見積送付日時。送付状態の選択リストは持たない）。
 ／ 専用の送付履歴オブジェクトは持たない。<code>EstimateSendHistory__c</code>は持たない。操作ログは第2.5節。旧<code>EmailTemplateId__c</code> / <code>OrgWideEmailAddressId__c</code>は持たない。
 ／ 見積書の税は<code>EstimateDocumentService</code>が契約履歴の<code>TaxPercent__c</code>・<code>TaxAmount__c</code>・<code>DeltaTaxInclusiveSum__c</code>を読む。空のときだけ契約サービスの税率で出す。
+／ 見積書PDFの宛名に「御中」が含まれるときは、別の「御中」を出さない。含まれないときは「御中」を出す。入口は既存<code>EstimateDocumentService</code>と<code>EstimateDocumentPdf</code>。宛名の保存値、見積送付先、請求書PDFは変えない。
 </div>
 
 ### 4.9 Renewの自動生成
