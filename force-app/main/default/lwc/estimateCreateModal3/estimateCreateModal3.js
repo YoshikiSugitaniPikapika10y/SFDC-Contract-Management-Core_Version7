@@ -3323,7 +3323,23 @@ export default class EstimateCreateModal3 extends LightningElement {
         delete rowUpdates.billingType;
         delete rowUpdates.billingCycle;
       }
-      const merged = { ...item, ...rowUpdates };
+      let merged = { ...item, ...rowUpdates };
+      // 仕様: Core 第4.3.9節、第4.6節。課金形態の切替は数量・月数・単価と同じ再計算。
+      // 単価入力は単価を残して金額を式にする。金額入力は確定円を残して単価だけ出し直す。
+      // 境界に乗らない終了日は、ここでは保存金額を守ったままにし、下の日付処理か切替後の印で止める。
+      const billingTypeChanged =
+        "billingType" in rowUpdates &&
+        rowUpdates.billingType !== item.billingType;
+      if (billingTypeChanged) {
+        const marked = markRecurringEndBoundary(merged);
+        if (!marked.endDateBoundaryError) {
+          merged = {
+            ...marked,
+            endDateBoundaryError: "",
+            preserveSavedAmount: false
+          };
+        }
+      }
       // 仕様: Core 第4.4節。終了日は寄せない。空の終了日を埋めたあと、境界でなければ単価を空にする。
       let updated = this.applyAmount(merged);
       if (
@@ -3358,6 +3374,20 @@ export default class EstimateCreateModal3 extends LightningElement {
             ...updated,
             endDateBoundaryError: "",
             preserveSavedAmount: false
+          });
+        }
+      } else if (billingTypeChanged) {
+        // 仕様: Core 第4.4節。継続へ切り替えて境界に乗らない終了日は、単価を空のまま、確定した金額を残す。
+        const marked = markRecurringEndBoundary(updated);
+        if (marked.endDateBoundaryError) {
+          updated = this.applyAmount({
+            ...marked,
+            unitPrice: null,
+            amount:
+              merged.amountEntryMode === true
+                ? merged.manualAmount
+                : merged.amount,
+            preserveSavedAmount: true
           });
         }
       }
@@ -4030,7 +4060,7 @@ export default class EstimateCreateModal3 extends LightningElement {
     });
   }
 
-  // 仕様: Core 第4.5.2節、第4.4.1節、第1.1.10節。New／Renew は継続マスタの一回切替可。Renew継承の単位は継承元。
+  // 仕様: Core 第4.5.2節、第4.4.1節、第1.1.10節、第4.3.9節、第4.6節。New／Renew は継続マスタの一回切替可。Renew継承の単位は継承元。切替は金額の再計算のきっかけ。
   handleBillingTypeFlip(event) {
     if (!this.isNewType && !this.isRenewType) {
       return;

@@ -1130,6 +1130,107 @@ describe("estimateCreateModal3 uncovered paths remaining (Core 4.3 / 4.3.4 / 4.3
     expect(ctx.itemList[0].billingType).toBe(BILLING_TYPE_ONE_TIME);
   });
 
+  it("saved renew flip to 一回課金 rebuilds amount as quantity times unit price (Core 4.3.9)", () => {
+    const ctx = bind({
+      _wizardData: {
+        selectedType: "Renew",
+        defaultMonthlyCycles: 12,
+        contractStartDate: "2026-04-01",
+        contractEndDate: "2027-03-31"
+      }
+    });
+    ctx.itemList = [
+      {
+        id: "r1",
+        recordType: "Renew",
+        sourceContractProductId: "a00CP000000001",
+        billingType: BILLING_TYPE_RECURRING,
+        productMasterBillingType: BILLING_TYPE_RECURRING,
+        billingCycle: "月",
+        quantity: 1,
+        unitPrice: 10000,
+        amount: 120000,
+        amountEntryMode: false,
+        preserveSavedAmount: true,
+        manualAmount: null,
+        startDate: "2026-04-01",
+        endDate: "2027-03-31",
+        invoiceType: INVOICE_SETTING_PREPAID_START,
+        unit: "ライセンス",
+        unitName: "式"
+      }
+    ];
+    ctx.handleBillingTypeFlip({
+      currentTarget: {
+        dataset: { rowId: "r1", nextBillingType: BILLING_TYPE_ONE_TIME }
+      }
+    });
+    expect(ctx.itemList[0].billingType).toBe(BILLING_TYPE_ONE_TIME);
+    expect(ctx.itemList[0].unitPrice).toBe(10000);
+    expect(ctx.itemList[0].amount).toBe(10000);
+    expect(ctx.itemList[0].unit).toBe("ライセンス");
+  });
+
+  it("saved amount entry flip to 一回課金 keeps yen and rebuilds unit price (Core 4.6)", () => {
+    const ctx = bind();
+    ctx.itemList = [
+      {
+        id: "n1",
+        recordType: "New",
+        contractProductId: "a00CP000000002",
+        billingType: BILLING_TYPE_RECURRING,
+        productMasterBillingType: BILLING_TYPE_RECURRING,
+        billingCycle: "月",
+        quantity: 1,
+        unitPrice: 10000,
+        amount: 120000,
+        amountEntryMode: true,
+        preserveSavedAmount: true,
+        manualAmount: 120000,
+        startDate: "2026-04-01",
+        endDate: "2027-03-31",
+        invoiceType: INVOICE_SETTING_PREPAID_START
+      }
+    ];
+    ctx.handleBillingTypeFlip({
+      currentTarget: {
+        dataset: { rowId: "n1", nextBillingType: BILLING_TYPE_ONE_TIME }
+      }
+    });
+    expect(ctx.itemList[0].amount).toBe(120000);
+    expect(ctx.itemList[0].unitPrice).toBe(120000);
+    expect(ctx.itemList[0].amountEntryMode).toBe(true);
+  });
+
+  it("unit price flip back to 継続課金 restores quantity times unit price times cycles (Core 4.6)", () => {
+    const ctx = bind();
+    ctx.itemList = [
+      {
+        id: "n2",
+        recordType: "New",
+        contractProductId: "a00CP000000003",
+        billingType: BILLING_TYPE_ONE_TIME,
+        productMasterBillingType: BILLING_TYPE_RECURRING,
+        quantity: 1,
+        unitPrice: 10000,
+        amount: 10000,
+        amountEntryMode: false,
+        preserveSavedAmount: true,
+        startDate: "2026-04-01",
+        endDate: "2027-03-31",
+        invoiceType: INVOICE_SETTING_PREPAID_START
+      }
+    ];
+    ctx.handleBillingTypeFlip({
+      currentTarget: {
+        dataset: { rowId: "n2", nextBillingType: BILLING_TYPE_RECURRING }
+      }
+    });
+    expect(ctx.itemList[0].billingType).toBe(BILLING_TYPE_RECURRING);
+    expect(ctx.itemList[0].unitPrice).toBe(10000);
+    expect(ctx.itemList[0].amount).toBe(120000);
+  });
+
   it("handleRevenueRecognitionBasisChange writes 一括計上", () => {
     const ctx = bind({
       accountingEnabled: true,
