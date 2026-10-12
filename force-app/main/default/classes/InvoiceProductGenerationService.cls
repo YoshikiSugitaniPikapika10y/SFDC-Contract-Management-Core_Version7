@@ -465,6 +465,9 @@ public without sharing class InvoiceProductGenerationService {
           '請求商品の見積商品を特定できません。見積商品Idがありません。'
         );
       }
+      // 仕様: Core 第4.5.1節・第7.3節。一回課金の別行は保存を拒まない。集約は見積商品ごと。
+      // 見積商品Idは末尾だけに足す。期間キー（先頭4区切り）は過去の打消し照合のまま。
+      mergeKey = mergeKey + '_' + String.valueOf(draftLine.contractProduct.Id);
 
       Decimal draftAmount = draftLine.invoiceProduct.Amount__c == null
         ? 0
@@ -810,7 +813,7 @@ public without sharing class InvoiceProductGenerationService {
   ) {
     List<InvoiceProduct__c> invoiceProducts = new List<InvoiceProduct__c>();
     Map<String, Decimal> shouldHaveAmountByPeriodKey = new Map<String, Decimal>();
-    Map<String, MergeKeyDraft> chargeDraftByPeriodKey = new Map<String, MergeKeyDraft>();
+    Map<String, List<MergeKeyDraft>> chargeDraftsByPeriodKey = new Map<String, List<MergeKeyDraft>>();
 
     for (String mergeKey : shouldHaveByMergeKey.keySet()) {
       String periodKey = InvoiceProductMergeKeyUtil.extractPeriodKey(mergeKey);
@@ -824,10 +827,11 @@ public without sharing class InvoiceProductGenerationService {
         ? shouldHaveAmountByPeriodKey.get(periodKey)
         : 0;
       shouldHaveAmountByPeriodKey.put(periodKey, existingAmount + draft.amount);
-      MergeKeyDraft existingDraft = chargeDraftByPeriodKey.get(periodKey);
-      if (existingDraft == null || draft.amount > existingDraft.amount) {
-        chargeDraftByPeriodKey.put(periodKey, draft);
+      // 仕様: Core 第7.3節。見積商品が違えば請求明細は分ける。期間の合計を1行の数量・単価へ載せない。
+      if (!chargeDraftsByPeriodKey.containsKey(periodKey)) {
+        chargeDraftsByPeriodKey.put(periodKey, new List<MergeKeyDraft>());
       }
+      chargeDraftsByPeriodKey.get(periodKey).add(draft);
     }
 
     Set<String> allPeriodKeys = new Set<String>();
@@ -853,29 +857,42 @@ public without sharing class InvoiceProductGenerationService {
         continue;
       }
 
-      InvoiceProduct__c chargeLine = null;
+      List<InvoiceProduct__c> chargeLines = new List<InvoiceProduct__c>();
 
       if (shouldHaveAmount != 0) {
-        MergeKeyDraft chargeDraft = chargeDraftByPeriodKey.get(periodKey);
-        if (chargeDraft != null && chargeDraft.template != null) {
-          Id chargeContractProductId = requireContractProductId(chargeDraft);
-          ContractProduct__c chargeContractProduct = findContractProductById(
-            historyProducts,
-            chargeContractProductId
-          );
-          if (chargeContractProduct == null) {
-            throw new InvoiceProductGenerationException(
-              '請求商品の見積商品が見つかりません: ' +
-              String.valueOf(chargeContractProductId)
+        List<MergeKeyDraft> chargeDrafts = chargeDraftsByPeriodKey.get(
+          periodKey
+        );
+        if (chargeDrafts != null) {
+          for (MergeKeyDraft chargeDraft : chargeDrafts) {
+            if (
+              chargeDraft == null ||
+              chargeDraft.template == null ||
+              chargeDraft.amount == 0
+            ) {
+              continue;
+            }
+            Id chargeContractProductId = requireContractProductId(chargeDraft);
+            ContractProduct__c chargeContractProduct = findContractProductById(
+              historyProducts,
+              chargeContractProductId
+            );
+            if (chargeContractProduct == null) {
+              throw new InvoiceProductGenerationException(
+                '請求商品の見積商品が見つかりません: ' +
+                String.valueOf(chargeContractProductId)
+              );
+            }
+            chargeLines.add(
+              buildExplicitInvoiceProduct(
+                chargeDraft.template,
+                historyId,
+                chargeContractProduct,
+                chargeDraft.amount,
+                billingContext
+              )
             );
           }
-          chargeLine = buildExplicitInvoiceProduct(
-            chargeDraft.template,
-            historyId,
-            chargeContractProduct,
-            shouldHaveAmount,
-            billingContext
-          );
         }
       }
 
@@ -930,9 +947,7 @@ public without sharing class InvoiceProductGenerationService {
         invoiceProducts.add(reversalLine);
       }
 
-      if (chargeLine != null) {
-        invoiceProducts.add(chargeLine);
-      }
+      invoiceProducts.addAll(chargeLines);
     }
     return invoiceProducts;
   }

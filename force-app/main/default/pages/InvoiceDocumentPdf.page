@@ -292,7 +292,8 @@
                   </apex:outputText>
                 </td>
                 <td class="price">
-                  <apex:outputText value="{0, number, ###,###,##0}">
+                  <!-- 仕様: Core 第7.1節・第7.10節・第11.9節。単価は保存した小数第2位まで印字する。整数はそのまま。 -->
+                  <apex:outputText value="{0, number, ###,###,##0.##}">
                     <apex:param value="{!line.UnitPrice__c}" />
                   </apex:outputText>
                 </td>

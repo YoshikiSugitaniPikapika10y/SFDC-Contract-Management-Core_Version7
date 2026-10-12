@@ -2547,6 +2547,211 @@ private class InvoiceProductGenerationServiceTest {
     }
   }
 
+  /** 仕様: Core 第4.5.1節・第7.3節。同じ一回課金が2行でも受注し、見積商品ごとに1,000円を請求する。 */
+  @IsTest
+  static void newIdenticalOneTimeLines_ordersTwoFullLines() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Identical One Time Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Identical One Time Service',
+        account
+      );
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2026, 6, 30);
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Identical One Time History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insertHistory(history);
+      Product2 oneTimeProduct = ContractTestDataFactory.buildProduct(
+        'Identical One Time Product'
+      );
+      oneTimeProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(oneTimeProduct);
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Product__c = oneTimeProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 1000,
+          Amount__c = 1000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+          Type__c = 'New'
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = history.Id,
+          Product__c = oneTimeProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 1000,
+          Amount__c = 1000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+          Type__c = 'New'
+        )
+      };
+      Test.startTest();
+      orderHistory(history);
+      Test.stopTest();
+
+      List<InvoiceProduct__c> periodLines = [
+        SELECT Amount__c, Quantity__c, UnitPrice__c, ContractProduct__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :history.Id
+        ORDER BY Amount__c ASC
+      ];
+      System.assertEquals(
+        2,
+        periodLines.size(),
+        'Core 第4.5.1節・第7.3節: 同じ一回課金2行は受注でき、期間明細も2本'
+      );
+      System.assertEquals(1000, periodLines[0].Amount__c);
+      System.assertEquals(1000, periodLines[1].Amount__c);
+      System.assertEquals(1, periodLines[0].Quantity__c);
+      System.assertEquals(1000, periodLines[0].UnitPrice__c);
+      System.assertNotEquals(
+        periodLines[0].ContractProduct__c,
+        periodLines[1].ContractProduct__c
+      );
+
+      List<InvoiceLine__c> invoiceLines = [
+        SELECT Amount__c, Quantity__c, UnitPrice__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :history.Id
+        ORDER BY Amount__c ASC
+      ];
+      System.assertEquals(
+        2,
+        invoiceLines.size(),
+        'Core 第7.3節: 見積商品が違えば請求明細は1行にまとめない'
+      );
+      System.assertEquals(1000, invoiceLines[0].Amount__c);
+      System.assertEquals(1000, invoiceLines[1].Amount__c);
+      System.assertEquals(1, invoiceLines[0].Quantity__c);
+      System.assertEquals(1000, invoiceLines[0].UnitPrice__c);
+    }
+  }
+
+  /** 仕様: Core 第7.3節。数量だけ違う一回課金は、合計を大きい行の数量・単価へ載せない。 */
+  @IsTest
+  static void changeOneTimeDifferentQuantity_keepsEachLineAmount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'One Time Qty Split Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'One Time Qty Split Service',
+        account
+      );
+      Date termStart = Date.newInstance(2026, 6, 1);
+      Date termEnd = Date.newInstance(2027, 5, 31);
+      ContractHistory__c priorHistory = new ContractHistory__c(
+        Name = 'One Time Qty Split Prior',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insertHistory(priorHistory);
+      orderHistory(priorHistory);
+      Test.startTest();
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'One Time Qty Split Change',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = Date.newInstance(2026, 10, 1),
+        PreviousHistory__c = priorHistory.Id
+      );
+      insertHistory(changeHistory);
+      Product2 oneTimeProduct = ContractTestDataFactory.buildProduct(
+        'One Time Qty Split Product'
+      );
+      oneTimeProduct.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      ContractTestDataFactory.insertProduct(oneTimeProduct);
+      Date lineStart = Date.newInstance(2026, 10, 1);
+      Date lineEnd = Date.newInstance(2026, 10, 31);
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = oneTimeProduct.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 1000,
+          Amount__c = 1000,
+          StartDate__c = lineStart,
+          Enddate__c = lineEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+          Type__c = 'New'
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = oneTimeProduct.Id,
+          Quantity__c = 2,
+          UnitPrice__c = 1000,
+          Amount__c = 2000,
+          StartDate__c = lineStart,
+          Enddate__c = lineEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+          Type__c = 'New'
+        )
+      };
+      orderHistory(changeHistory);
+      Test.stopTest();
+
+      List<InvoiceProduct__c> periodLines = [
+        SELECT Amount__c, Quantity__c, UnitPrice__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :changeHistory.Id
+        ORDER BY Amount__c ASC
+      ];
+      System.assertEquals(
+        2,
+        periodLines.size(),
+        'Core 第7.3節: 数量が違う一回課金は期間明細を足さない'
+      );
+      System.assertEquals(1000, periodLines[0].Amount__c);
+      System.assertEquals(1, periodLines[0].Quantity__c);
+      System.assertEquals(1000, periodLines[0].UnitPrice__c);
+      System.assertEquals(2000, periodLines[1].Amount__c);
+      System.assertEquals(2, periodLines[1].Quantity__c);
+      System.assertEquals(1000, periodLines[1].UnitPrice__c);
+      assertNoReversalInvoiceProducts(changeHistory.Id);
+
+      List<InvoiceLine__c> invoiceLines = [
+        SELECT Amount__c, Quantity__c, UnitPrice__c
+        FROM InvoiceLine__c
+        WHERE Invoice__r.ContractHistory__c = :changeHistory.Id
+        ORDER BY Amount__c ASC
+      ];
+      System.assertEquals(2, invoiceLines.size());
+      System.assertEquals(1000, invoiceLines[0].Amount__c);
+      System.assertEquals(1, invoiceLines[0].Quantity__c);
+      System.assertEquals(2000, invoiceLines[1].Amount__c);
+      System.assertEquals(2, invoiceLines[1].Quantity__c);
+      System.assertEquals(1000, invoiceLines[1].UnitPrice__c);
+    }
+  }
+
   @IsTest
   static void changeReversalUnmatchedOriginal_failsClosedOnOrder() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
