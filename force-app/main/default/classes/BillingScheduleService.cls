@@ -289,6 +289,7 @@ public without sharing class BillingScheduleService {
     return Date.newInstance(year, month, dayOfMonth);
   }
 
+  /** 仕様: Core 第7.2節、第7.5節、日付仕様 第8章。補正の日付境界は組織タイムゾーン。実行ユーザーでは変えない。 */
   static Date applyAdjust(Date value, String adjust) {
     if (value == null || adjust == ADJUST_NONE) {
       return value;
@@ -297,21 +298,19 @@ public without sharing class BillingScheduleService {
     if (businessHoursId == null) {
       throw new ScheduleException('営業日補正には組織の既定営業時間が必要です。');
     }
-    Datetime midday = Datetime.newInstance(value, Time.newInstance(12, 0, 0, 0));
+    Datetime midday = middayInOrganization(value);
     if (BusinessHours.isWithin(businessHoursId, midday)) {
       return value;
     }
     if (adjust == ADJUST_NEXT) {
-      return BusinessHours.nextStartDate(businessHoursId, midday).date();
+      return dateInOrganization(
+        BusinessHours.nextStartDate(businessHoursId, midday)
+      );
     }
     if (adjust == ADJUST_PREVIOUS) {
       Date cursor = value.addDays(-1);
       for (Integer i = 0; i < 366; i++) {
-        Datetime cursorMidday = Datetime.newInstance(
-          cursor,
-          Time.newInstance(12, 0, 0, 0)
-        );
-        if (BusinessHours.isWithin(businessHoursId, cursorMidday)) {
+        if (BusinessHours.isWithin(businessHoursId, middayInOrganization(cursor))) {
           return cursor;
         }
         cursor = cursor.addDays(-1);
@@ -319,6 +318,41 @@ public without sharing class BillingScheduleService {
       throw new ScheduleException('前営業日を決定できません。');
     }
     throw new ScheduleException('補正が不正です。');
+  }
+
+  static Datetime middayInOrganization(Date value) {
+    TimeZone zone = organizationTimeZone();
+    Datetime noonGmt = Datetime.newInstanceGmt(value, Time.newInstance(12, 0, 0, 0));
+    Integer offsetSeconds = zone.getOffset(noonGmt) / 1000;
+    Datetime midday = noonGmt.addSeconds(-offsetSeconds);
+    Integer refinedSeconds = zone.getOffset(midday) / 1000;
+    if (refinedSeconds != offsetSeconds) {
+      midday = noonGmt.addSeconds(-refinedSeconds);
+    }
+    return midday;
+  }
+
+  static Date dateInOrganization(Datetime instant) {
+    TimeZone zone = organizationTimeZone();
+    return instant.addSeconds(zone.getOffset(instant) / 1000).dateGmt();
+  }
+
+  static TimeZone cachedOrganizationTimeZone;
+  static Boolean organizationTimeZoneLoaded = false;
+
+  static TimeZone organizationTimeZone() {
+    if (organizationTimeZoneLoaded) {
+      return cachedOrganizationTimeZone;
+    }
+    String timeZoneSid = [
+      SELECT TimeZoneSidKey
+      FROM Organization
+      LIMIT 1
+    ]
+    .TimeZoneSidKey;
+    cachedOrganizationTimeZone = TimeZone.getTimeZone(timeZoneSid);
+    organizationTimeZoneLoaded = true;
+    return cachedOrganizationTimeZone;
   }
 
   static Id cachedDefaultBusinessHoursId;
@@ -330,6 +364,8 @@ public without sharing class BillingScheduleService {
   static void clearDefaultBusinessHoursCache() {
     cachedDefaultBusinessHoursId = null;
     defaultBusinessHoursLoaded = false;
+    cachedOrganizationTimeZone = null;
+    organizationTimeZoneLoaded = false;
   }
 
   static Id defaultBusinessHoursId() {

@@ -481,9 +481,9 @@ private class BillingScheduleServiceTest {
       );
     }
     System.assertEquals(
-      1,
+      2,
       Limits.getQueries() - before,
-      'Core 第7.2節・第7.5節: 同一処理の営業時間は1回だけ取る'
+      'Core 第7.2節・第7.5節、日付仕様 第8章: 同一処理の営業時間と組織タイムゾーンは1回ずつ取る'
     );
     Id businessHoursId = [
       SELECT Id
@@ -492,18 +492,107 @@ private class BillingScheduleServiceTest {
       LIMIT 1
     ]
     .Id;
+    TimeZone orgZone = TimeZone.getTimeZone(
+      [
+        SELECT TimeZoneSidKey
+        FROM Organization
+        LIMIT 1
+      ]
+      .TimeZoneSidKey
+    );
     for (Integer i = 0; i < anchors.size(); i++) {
       System.assertEquals(
-        adjustByFreshBusinessHours(anchors[i], adjust, businessHoursId),
+        adjustByFreshBusinessHours(anchors[i], adjust, businessHoursId, orgZone),
         invoiceDates[i],
         'Core 第7.2節: 補正後の請求日は既定営業時間で決めた日と同じ'
       );
       System.assertEquals(
-        adjustByFreshBusinessHours(invoiceDates[i], adjust, businessHoursId),
+        adjustByFreshBusinessHours(
+          invoiceDates[i],
+          adjust,
+          businessHoursId,
+          orgZone
+        ),
         paymentDates[i],
         'Core 第7.5節: 補正後の入金予定日は既定営業時間で決めた日と同じ'
       );
     }
+  }
+
+  @IsTest
+  static void applyAdjust_keepsTheSameDateForAUserOutsideTheOrganizationTimeZone() {
+    BillingScheduleService.clearDefaultBusinessHoursCache();
+    Date sunday = Date.newInstance(2026, 1, 4);
+    Id businessHoursId = [
+      SELECT Id
+      FROM BusinessHours
+      WHERE IsDefault = TRUE
+      LIMIT 1
+    ]
+    .Id;
+    TimeZone orgZone = TimeZone.getTimeZone(
+      [
+        SELECT TimeZoneSidKey
+        FROM Organization
+        LIMIT 1
+      ]
+      .TimeZoneSidKey
+    );
+    Date expectedNext = adjustByFreshBusinessHours(
+      sunday,
+      BillingScheduleService.ADJUST_NEXT,
+      businessHoursId,
+      orgZone
+    );
+    Date expectedPrevious = adjustByFreshBusinessHours(
+      sunday,
+      BillingScheduleService.ADJUST_PREVIOUS,
+      businessHoursId,
+      orgZone
+    );
+    String otherTimeZone = timeZoneThatSeesAnotherDate(
+      sunday,
+      businessHoursId,
+      orgZone,
+      expectedNext
+    );
+    User other = userInTimeZone(otherTimeZone);
+    Date nextAsOther;
+    Date previousAsOther;
+    Date paymentAsOther;
+    System.runAs(other) {
+      nextAsOther = BillingScheduleService.computeInvoiceDateFromAnchor(
+        sameDayAccount(BillingScheduleService.ADJUST_NEXT),
+        sunday
+      );
+      previousAsOther = BillingScheduleService.computeInvoiceDateFromAnchor(
+        sameDayAccount(BillingScheduleService.ADJUST_PREVIOUS),
+        sunday
+      );
+      BillingAccount__c paymentAccount = new BillingAccount__c();
+      paymentAccount.PaymentTermMethod__c = BillingScheduleService.METHOD_DAY_OFFSET;
+      paymentAccount.PaymentTermDayOffset__c = 0;
+      paymentAccount.PaymentTermAdjust__c = BillingScheduleService.ADJUST_NEXT;
+      paymentAsOther = BillingScheduleService.computePaymentScheduledDate(
+        paymentAccount,
+        sunday
+      );
+    }
+    System.assertEquals(
+      expectedNext,
+      nextAsOther,
+      '日付仕様 第8章、Core 第7.2節: 営業日補正の請求日は実行ユーザーのタイムゾーンで変えない'
+    );
+    System.assertEquals(
+      expectedPrevious,
+      previousAsOther,
+      '日付仕様 第8章、Core 第7.2節: 前営業日への補正も実行ユーザーのタイムゾーンで変えない'
+    );
+    System.assertEquals(
+      expectedNext,
+      paymentAsOther,
+      '日付仕様 第8章、Core 第7.5節: 営業日補正の入金予定日は実行ユーザーのタイムゾーンで変えない'
+    );
   }
 
   static BillingAccount__c sameDayAccount(String adjust) {
@@ -516,26 +605,83 @@ private class BillingScheduleServiceTest {
   static Date adjustByFreshBusinessHours(
     Date value,
     String adjust,
-    Id businessHoursId
+    Id businessHoursId,
+    TimeZone orgZone
   ) {
-    Datetime midday = Datetime.newInstance(value, Time.newInstance(12, 0, 0, 0));
+    Datetime midday = middayInZone(value, orgZone);
     if (BusinessHours.isWithin(businessHoursId, midday)) {
       return value;
     }
     if (adjust == BillingScheduleService.ADJUST_NEXT) {
-      return BusinessHours.nextStartDate(businessHoursId, midday).date();
+      return dateInZone(
+        BusinessHours.nextStartDate(businessHoursId, midday),
+        orgZone
+      );
     }
     Date previous = value.addDays(-1);
     for (Integer i = 0; i < 366; i++) {
-      Datetime previousMidday = Datetime.newInstance(
-        previous,
-        Time.newInstance(12, 0, 0, 0)
-      );
-      if (BusinessHours.isWithin(businessHoursId, previousMidday)) {
+      if (BusinessHours.isWithin(businessHoursId, middayInZone(previous, orgZone))) {
         return previous;
       }
       previous = previous.addDays(-1);
     }
     return null;
+  }
+
+  static Datetime middayInZone(Date value, TimeZone zone) {
+    Datetime noonGmt = Datetime.newInstanceGmt(value, Time.newInstance(12, 0, 0, 0));
+    Integer offsetSeconds = zone.getOffset(noonGmt) / 1000;
+    Datetime midday = noonGmt.addSeconds(-offsetSeconds);
+    Integer refinedSeconds = zone.getOffset(midday) / 1000;
+    if (refinedSeconds != offsetSeconds) {
+      midday = noonGmt.addSeconds(-refinedSeconds);
+    }
+    return midday;
+  }
+
+  static Date dateInZone(Datetime instant, TimeZone zone) {
+    return instant.addSeconds(zone.getOffset(instant) / 1000).dateGmt();
+  }
+
+  static String timeZoneThatSeesAnotherDate(
+    Date value,
+    Id businessHoursId,
+    TimeZone orgZone,
+    Date orgDay
+  ) {
+    Datetime midday = middayInZone(value, orgZone);
+    Datetime instant = BusinessHours.isWithin(businessHoursId, midday)
+      ? midday
+      : BusinessHours.nextStartDate(businessHoursId, midday);
+    List<String> candidates = new List<String>{
+      'Pacific/Honolulu',
+      'America/Los_Angeles',
+      'Asia/Tokyo',
+      'Pacific/Kiritimati'
+    };
+    for (String sid : candidates) {
+      Date localDay = dateInZone(instant, TimeZone.getTimeZone(sid));
+      if (localDay != orgDay) {
+        return sid;
+      }
+    }
+    return 'Pacific/Honolulu';
+  }
+
+  static User userInTimeZone(String timeZoneSid) {
+    String unique = String.valueOf(DateTime.now().getTime());
+    User created = new User(
+      Alias = 'tzadj',
+      Email = 'tzadj' + unique + '@example.com',
+      EmailEncodingKey = 'UTF-8',
+      LastName = 'TzAdjust',
+      LanguageLocaleKey = 'en_US',
+      LocaleSidKey = 'en_US',
+      ProfileId = UserInfo.getProfileId(),
+      TimeZoneSidKey = timeZoneSid,
+      Username = 'tzadj' + unique + '@example.com'
+    );
+    insert created;
+    return created;
   }
 }
