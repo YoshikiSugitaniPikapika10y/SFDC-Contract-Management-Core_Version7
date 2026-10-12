@@ -482,6 +482,14 @@ private class InvoiceSendBoardControllerTest {
       invoice.TaxAmount__c = 0;
       invoice.TaxPercent__c = null;
       update invoice;
+      update new ContractHistory__c(
+        Id = invoice.ContractHistory__c,
+        TaxPercent__c = null
+      );
+      update new ContractService__c(
+        Id = invoice.ContractService__c,
+        TaxPercent__c = null
+      );
       Boolean rejected = false;
       Test.startTest();
       try {

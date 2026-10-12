@@ -302,6 +302,7 @@ private class InvoicePreviewIntegrityServiceTest {
     productOnA.Amount__c = 1000;
     insert productOnA;
     historyA.historystatus__c = 'Ordered';
+    historyA.TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10);
     update historyA;
 
     ContractHistory__c historyB = new ContractHistory__c(
@@ -354,6 +355,7 @@ private class InvoicePreviewIntegrityServiceTest {
       InvoiceDate__c = termStart,
       Amount__c = 1000,
       TaxAmount__c = 100,
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
       BillingAccountSnapShot__c = billedService.BiilingAcccount__c
     );
     ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);

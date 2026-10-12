@@ -522,8 +522,9 @@ private class AmountAccuracyAuditTest {
       Enddate__c = Date.newInstance(2026, 2, 28),
       Amount__c = 15
     );
-    ContractHistory__c taxHistory = new ContractHistory__c();
-    taxHistory.ContractService__r = new ContractService__c(TaxPercent__c = 0.1);
+    ContractHistory__c taxHistory = new ContractHistory__c(
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+    );
     a.ContractHistory__r = taxHistory;
     b.ContractHistory__r = taxHistory;
     // ?????E????E???E

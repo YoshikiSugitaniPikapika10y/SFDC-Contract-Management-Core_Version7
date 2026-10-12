@@ -2501,6 +2501,7 @@ private class InvoicePreviewOpsControllerTest {
     contractProduct.Amount__c = 1000;
     insert contractProduct;
     history.historystatus__c = 'Ordered';
+    history.TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10);
     update history;
     Invoice__c invoice = new Invoice__c(
       ContractService__c = service.Id,
@@ -2508,6 +2509,7 @@ private class InvoicePreviewOpsControllerTest {
       InvoiceDate__c = Date.newInstance(2026, 6, 1),
       Amount__c = 1000,
       TaxAmount__c = 100,
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
       BillingAccountSnapShot__c = billingAccount.Id
     );
     ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);

@@ -703,9 +703,14 @@ private class AccountingDiffServiceTest {
       );
       Test.stopTest();
       System.assertEquals(
-        false,
-        preview.logicalDeleteCount == 0,
-        'Accounting 第8.7節: Goalと内容が違う未ロックCurrentは差し替え対象になる'
+        0,
+        preview.logicalDeleteCount,
+        'Accounting 第8.7節・第10.4節: できた手動仕訳は金額を変えても差し替えない'
+      );
+      System.assertEquals(
+        0,
+        preview.reverseCount,
+        'Accounting 第8.7節・第10.4節: できた手動仕訳は金額を変えても逆仕訳しない'
       );
     }
   }
@@ -767,9 +772,14 @@ private class AccountingDiffServiceTest {
       );
       Test.stopTest();
       System.assertEquals(
-        false,
-        preview.reverseCount == 0,
-        'Accounting 第1.8.1節: Goalと内容が違うロックCurrentは逆仕訳対象になる'
+        0,
+        preview.logicalDeleteCount,
+        'Accounting 第8.7節・第10.4節: できた手動仕訳は金額を変えても差し替えない'
+      );
+      System.assertEquals(
+        0,
+        preview.reverseCount,
+        'Accounting 第8.7節・第10.4節: できた手動仕訳は金額を変えても逆仕訳しない'
       );
     }
   }
