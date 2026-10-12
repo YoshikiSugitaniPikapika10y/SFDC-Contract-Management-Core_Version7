@@ -1307,7 +1307,53 @@ private class EstimateDocumentServiceTest {
       System.assertEquals(1, context.otherGroups.size());
       System.assertEquals(158400, context.totalAmount);
       System.assertEquals('テスト取引先', context.documentText.toCompanyName);
+      System.assertEquals(
+        '御中',
+        context.documentText.honorificTitle,
+        'Core 第4.8節: 宛名に御中が無いときは御中を出す'
+      );
       System.assertEquals(1, context.otherGroups[0].items.size());
+    }
+  }
+
+  @IsTest
+  static void loadContext_omitsSecondHonorificWhenAddresseeAlreadyHasIt() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      EstimateFixture fixture = createEstimateFixture();
+      ContractService__c service = [
+        SELECT BiilingAcccount__c
+        FROM ContractService__c
+        WHERE Id = :fixture.history.ContractService__c
+      ];
+      BillingAccount__c billing = [
+        SELECT BillingAddressee__c
+        FROM BillingAccount__c
+        WHERE Id = :service.BiilingAcccount__c
+      ];
+      billing.BillingAddressee__c = 'テスト取引先 御中';
+      update billing;
+
+      EstimateDocumentService.DocumentContext context = EstimateDocumentService.loadContext(
+        fixture.history.Id
+      );
+
+      System.assertEquals(
+        '',
+        context.documentText.honorificTitle,
+        'Core 第4.8節: 宛名に御中があるときは別の御中を出さない'
+      );
+      System.assertEquals('テスト取引先 御中', context.toCompanyNameDisplay);
+      System.assertEquals('テスト取引先 御中', context.documentText.toCompanyName);
+      BillingAccount__c saved = [
+        SELECT BillingAddressee__c
+        FROM BillingAccount__c
+        WHERE Id = :billing.Id
+      ];
+      System.assertEquals(
+        'テスト取引先 御中',
+        saved.BillingAddressee__c,
+        'Core 第4.8節: 宛名の保存値は書き換えない'
+      );
     }
   }
 

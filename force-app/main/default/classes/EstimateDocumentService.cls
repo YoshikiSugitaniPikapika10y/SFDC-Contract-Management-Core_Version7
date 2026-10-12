@@ -1235,7 +1235,11 @@ public without sharing class EstimateDocumentService {
     text.postalNumber = '';
     text.addressFirstHalf = orgDocumentText(orgSetting.Address__c);
     text.addressLastHalf = '';
-    text.honorificTitle = '御中';
+    // 仕様: Core 第4.8節。宛名に「御中」が含まれるときは別の「御中」を出さない。含まれないときは出す。保存値は書き換えない。
+    text.honorificTitle = String.isNotBlank(text.toCompanyName) &&
+      text.toCompanyName.contains('御中')
+      ? ''
+      : '御中';
     text.estimateSentence = '下記の通り、お見積り申し上げます。';
     text.basicTermPeriodLabel = '基本契約期間';
     text.basicTermPeriod = buildTermLabel(
