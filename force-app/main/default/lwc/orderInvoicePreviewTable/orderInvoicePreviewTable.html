@@ -2606,8 +2606,8 @@
                 </template>
               </template>
 
-              <div class="table-wrap">
-                <table class="preview-table">
+              <div class={invoice.linesTableWrapClass}>
+                <table class={invoice.linesTableClass}>
                   <colgroup>
                     <template if:true={invoice.showSplitSelectCol}>
                       <col class="col-split-select" />
@@ -2619,6 +2619,9 @@
                     <col class="col-qty" />
                     <col class="col-period" />
                     <col class="col-cycle" />
+                    <template if:true={invoice.showRevenueBasisColumn}>
+                      <col class="col-revenue-basis" />
+                    </template>
                     <template if:true={invoice.showAcceptanceEndDateColumn}>
                       <col class="col-acceptance" />
                     </template>
@@ -2636,6 +2639,11 @@
                       <th class="num-col qty-col" scope="col">数量</th>
                       <th class="period-col" scope="col">期間</th>
                       <th class="cycle-col" scope="col">サイクル数</th>
+                      <template if:true={invoice.showRevenueBasisColumn}>
+                        <th class="revenue-basis-col" scope="col">
+                          売上計上基準
+                        </th>
+                      </template>
                       <template if:true={invoice.showAcceptanceEndDateColumn}>
                         <th
                           class="acceptance-col"
@@ -2703,6 +2711,11 @@
                         </td>
                         <td class="period-col muted">{row.periodLabel}</td>
                         <td class="cycle-col muted">{row.cycleCountLabel}</td>
+                        <template if:true={invoice.showRevenueBasisColumn}>
+                          <td class="revenue-basis-col muted">
+                            {row.revenueBasisLabel}
+                          </td>
+                        </template>
                         <template if:true={invoice.showAcceptanceEndDateColumn}>
                           <td class="acceptance-col">
                             <template if:true={row.showAcceptanceEndDateInput}>

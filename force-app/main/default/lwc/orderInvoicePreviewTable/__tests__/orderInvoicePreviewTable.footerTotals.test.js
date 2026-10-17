@@ -995,20 +995,30 @@ describe("orderInvoicePreviewTable footer totals", () => {
       ]
     };
     document.body.appendChild(element);
-    const dateInputs = await waitUntil(() => {
-      const node = element.shadowRoot.querySelector(
-        'lightning-input[data-line-id="a01LINE00000002"]'
-      );
-      return node || null;
-    });
+    await waitUntil(() =>
+      element.shadowRoot.querySelector("th.revenue-basis-col")
+    );
+    const dateInputs = element.shadowRoot.querySelector(
+      'lightning-input[data-line-id="a01LINE00000002"]'
+    );
     expect(dateInputs).toBeTruthy();
     expect(dateInputs.dataset.lineId).toBe("a01LINE00000002");
     const cells = element.shadowRoot.querySelectorAll("td.acceptance-col");
     expect(cells).toHaveLength(2);
     expect(cells[0].textContent).toContain("—");
+    const headers = Array.from(
+      element.shadowRoot.querySelectorAll("thead th")
+    ).map((header) => header.textContent.trim());
+    const basisIndex = headers.indexOf("売上計上基準");
+    const acceptanceIndex = headers.indexOf("検収終了日");
+    expect(basisIndex).toBeGreaterThan(-1);
+    expect(acceptanceIndex).toBe(basisIndex + 1);
+    expect(
+      element.shadowRoot.querySelector("td.revenue-basis-col").textContent
+    ).toContain("月次計上");
   });
 
-  it("hides 検収終了日 when Accounting is OFF (Core 7.6)", async () => {
+  it("shows 検収終了日 and hides 売上計上基準 when Accounting is OFF (Core 7.6)", async () => {
     getOpsBundle.mockResolvedValue({ accountingEnabled: false });
     const element = createElement("c-order-invoice-preview-table", {
       is: OrderInvoicePreviewTable
@@ -1050,15 +1060,18 @@ describe("orderInvoicePreviewTable footer totals", () => {
 
     expect(
       element.shadowRoot.querySelectorAll("th.acceptance-col")
-    ).toHaveLength(0);
+    ).toHaveLength(1);
     expect(
       element.shadowRoot.querySelectorAll("td.acceptance-col")
+    ).toHaveLength(1);
+    expect(
+      element.shadowRoot.querySelectorAll("th.revenue-basis-col")
     ).toHaveLength(0);
     expect(
-      element.shadowRoot.querySelectorAll(
-        'td.acceptance-col lightning-input[type="date"]'
+      element.shadowRoot.querySelector(
+        'td.acceptance-col lightning-input[data-line-id="a01LINE00000002"]'
       )
-    ).toHaveLength(0);
+    ).toBeTruthy();
   });
 
   it("does not show DueStatus or OverdueDays on the card footer (Core 7.11 / 8.10)", async () => {

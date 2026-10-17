@@ -332,26 +332,11 @@ describe("orderInvoicePreviewTable confirm gate (Core 7.9.1 / 7.6 / 11.9)", () =
     expect(Number.isNaN(proto.calculateTaxAmount.call(ctx, 15, 10))).toBe(true);
   });
 
-  it("boardがOFFでもbundleがONなら確認に検収終了日を出す (Core 7.7.2 / 6.6)", () => {
+  it("差し戻し確認はAccounting ON/OFFとも検収終了日を名指しする (Core 7.7.2 / 6.6)", () => {
     const ctx = {
-      accountingEnabledOnBoard: false,
-      invoiceUiState: {
-        a00INV000000001: { bundle: { accountingEnabled: true } }
-      },
-      isAccountingEnabledForBoard: proto.isAccountingEnabledForBoard
+      resetPostOrderConfirmMessage: proto.resetPostOrderConfirmMessage
     };
     expect(proto.resetPostOrderConfirmMessage.call(ctx)).toContain(
-      "検収終了日"
-    );
-  });
-
-  it("Accounting OFFの確認に検収終了日を出さない (Core 7.7.2 / 6.6)", () => {
-    const ctx = {
-      accountingEnabledOnBoard: false,
-      invoiceUiState: {},
-      isAccountingEnabledForBoard: proto.isAccountingEnabledForBoard
-    };
-    expect(proto.resetPostOrderConfirmMessage.call(ctx)).not.toContain(
       "検収終了日"
     );
   });

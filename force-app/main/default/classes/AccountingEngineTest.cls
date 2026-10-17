@@ -1551,7 +1551,7 @@ private class AccountingEngineTest {
   }
 
   @IsTest
-  static void acceptance_offRejectsActiveCurrent() {
+  static void acceptance_offSavesDateWhenActiveCurrentRemains() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('OffAct');
       ensureAccountingOffPolicy();
@@ -1578,17 +1578,27 @@ private class AccountingEngineTest {
           null,
           AccountingCauseLockService.resolveInvoiceOperationToken(fixture.invoice.Id)
         );
-      } catch (InvoiceCanonicalService.InvoiceEditException ex) {
+      } catch (Exception ex) {
         thrown = true;
-        System.assert(
-          ex.getMessage().contains('過去の関連仕訳'),
-          ex.getMessage()
-        );
       }
       System.assertEquals(
-        true,
+        false,
         thrown,
-        'Accounting 第1.1節: Currentが1件以上ならOFFの検収日変更を拒否する'
+        'Core 第7.6節: OFFは過去の関連仕訳があっても検収終了日を保存する'
+      );
+      InvoiceLine__c stored = [
+        SELECT AcceptanceEndDate__c
+        FROM InvoiceLine__c
+        WHERE Id = :fixture.line.Id
+      ];
+      System.assertEquals(
+        Date.newInstance(2026, 7, 31),
+        stored.AcceptanceEndDate__c
+      );
+      System.assertEquals(
+        1,
+        [SELECT COUNT() FROM GlJournal__c WHERE Invoice__c = :fixture.invoice.Id],
+        'Accounting 第1.1節・第3.2節: OFFの検収終了日変更は仕訳を切らない'
       );
     }
   }

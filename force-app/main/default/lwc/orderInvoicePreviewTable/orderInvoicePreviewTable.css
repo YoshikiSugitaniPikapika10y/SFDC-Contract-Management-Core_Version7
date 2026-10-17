@@ -1615,6 +1615,11 @@
   min-width: 108rem;
 }
 
+/* 仕様: Core 第7.6節。売上計上基準は既存列を縮めず、表の最小幅だけ足す */
+.preview-table.preview-table_with-basis {
+  min-width: 114.5rem;
+}
+
 .split-table th,
 .split-table td,
 .preview-table th,
@@ -1691,6 +1696,10 @@
   /* ネスト overflow 禁止（x:auto でも y が auto 化しホイールを奪う）。横は親スクローラ */
   overflow: visible;
   max-height: none;
+}
+
+.table-wrap.table-wrap_with-basis {
+  min-width: 114.5rem;
 }
 
 /* % 配分（合計100%）。金額列はチップ縦置き前提で抑えめ */
@@ -2013,6 +2022,11 @@
   width: 4.5rem;
 }
 
+/* 「売上計上基準」が改行されない最小。既存列の%とremは変えない */
+.preview-table col.col-revenue-basis {
+  width: 6.5rem;
+}
+
 /* yyyy/mm/dd の日付入力が省略されない最小幅 */
 .preview-table col.col-acceptance {
   width: 8.5rem;
@@ -2021,6 +2035,17 @@
 /* 残りを金額列へ。中身は右端へ寄せて分割右の空洞を消す */
 .preview-table col.col-amount {
   width: auto;
+}
+
+.preview-table th.revenue-basis-col,
+.preview-table td.revenue-basis-col {
+  box-sizing: border-box;
+  min-width: 6.5rem;
+  max-width: 6.5rem;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .preview-table th.acceptance-col,

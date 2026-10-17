@@ -1334,7 +1334,7 @@ public without sharing class InvoiceCanonicalService {
     return preview;
   }
 
-  /** 仕様: Core 第1.1.10節、第7.6節、Accounting 第8.2節、第1.1節、第1.8.1節、第8.5節、第8.8節 */
+  /** 仕様: Core 第7.6節、Accounting 第1.1節・第3.2節・第8.5節。OFFは仕訳を切らない */
   private static void applyAcceptanceAccounting(
     List<InvoiceLine__c> lines,
     Set<Id> invoiceIds,
@@ -1407,22 +1407,13 @@ public without sharing class InvoiceCanonicalService {
     }
   }
 
+  /** 仕様: Core 第7.6節、Accounting 第1.1節・第3.2節。OFFは仕訳イベントを起動しない。過去の関連仕訳があっても日付の保存は拒否しない。 */
   private static Boolean isAccountingEnabledForAcceptance(Set<Id> invoiceIds) {
     if (invoiceIds == null || invoiceIds.isEmpty()) {
       return false;
     }
     GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
-    if (policy.AccountingEnabled__c == true) {
-      return true;
-    }
-    for (Id invoiceId : invoiceIds) {
-      if (hasActiveCurrent(invoiceId)) {
-        throw new InvoiceEditException(
-          'Accounting OFFで過去の関連仕訳があるため検収終了日を変更できません。'
-        );
-      }
-    }
-    return false;
+    return policy.AccountingEnabled__c == true;
   }
 
   private static List<InvoiceLine__c> loadAcceptanceLines(
@@ -1561,16 +1552,6 @@ public without sharing class InvoiceCanonicalService {
       }
     }
     return confirmedInvoiceIds;
-  }
-
-  /** 仕様: Accounting 第1.1節、第1.8.1節。Currentは論理削除・取消済元・取消仕訳を数えない。 */
-  private static Boolean hasActiveCurrent(Id invoiceId) {
-    for (GlJournal__c journal : AccountingCurrentService.load(invoiceId)) {
-      if (journal.TransactionStatus__c == 'Active') {
-        return true;
-      }
-    }
-    return false;
   }
 
   /** 仕様: Accounting 第8.2節。入口で読んだ明細を検収保存が取り直さない。 */

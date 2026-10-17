@@ -724,7 +724,7 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     expect(ctx.isSplitOrMoveUiOpen).toBe(true);
   });
 
-  it("受注直後に戻す確認は Accounting ON だけ検収終了日を名指しする (Core 7.7.2 / 0.2)", async () => {
+  it("受注直後に戻す確認は Accounting ON/OFF とも検収終了日を名指しする (Core 7.7.2 / 0.2)", async () => {
     const data = preview();
     data.invoices[1].invoiceTransactionStatus = "Draft";
     const ctx = bind({
@@ -739,7 +739,7 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
       accountingEnabledOnBoard: false,
       invoiceUiState: {}
     });
-    expect(off.resetPostOrderConfirmMessage()).not.toContain("検収終了日");
+    expect(off.resetPostOrderConfirmMessage()).toContain("検収終了日");
     expect(off.resetPostOrderConfirmMessage()).toContain(
       "受注直後の状態に作り直します"
     );

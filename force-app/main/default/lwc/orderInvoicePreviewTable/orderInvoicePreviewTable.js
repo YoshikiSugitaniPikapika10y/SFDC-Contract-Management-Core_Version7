@@ -2296,12 +2296,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
                   ? this.invoiceUiState[invoiceId].acceptanceDraft.nextDate ||
                     ""
                   : line.acceptanceEndDate || "",
+              // 仕様: Core 第7.6節。売上計上基準は参照だけ。請求ボードでは変えない。
+              revenueBasisLabel: line.revenueRecognitionBasis || "—",
               // 仕様: Core 第7.6節・第1.1.5節・第12.2節。取消済みは参照だけ。
               showAcceptanceCancelForm:
                 this.invoiceUiState[invoiceId]?.acceptanceDraft?.lineId ===
                 lineId,
+              // 仕様: Core 第7.6節・第7.7.3節。検収終了日はON/OFFとも一括計上だけ変更できる。
               showAcceptanceEndDateInput:
-                accountingEnabled &&
                 this.canEdit &&
                 !isCancelled &&
                 line.revenueRecognitionBasis === REVENUE_BASIS_POINT_IN_TIME,
@@ -3126,8 +3128,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           isLineSplitOpen,
           showSplitSelectCol,
           showLineSplitActionBar: isLineSplitOpen && hasLineSplitSelection,
-          // V〜金額の9列（選択列があるときは+1）。行操作列は廃止済み。
-          splitControlsColspan: showSplitSelectCol ? 10 : 9,
+          // 仕様: Core 第7.6節。ONは売上計上基準を検収終了日の左に足す。V〜金額は9列、選択列と基準列は各+1。
+          splitControlsColspan:
+            (showSplitSelectCol ? 10 : 9) + (accountingEnabled ? 1 : 0),
           lineSplitLoading: isLineSplitOpen && splitLoading,
           lineSplitError: isLineSplitOpen ? splitError : "",
           lineSplitConfirmDisabled:
@@ -3487,8 +3490,15 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           // 仕様: Accounting 第1.1節。OFFは仕訳タブも停止中注記も出さない。
           showAccountingOffNote: false,
           accountingEnabled,
-          // 仕様: Core 第7.6節、Accounting 第3.2節
-          showAcceptanceEndDateColumn: accountingEnabled,
+          // 仕様: Core 第7.6節・第7.8.2節、Accounting 第3.2節。検収終了日はON/OFFとも出す。基準列はONだけ、左に参照で出す。
+          showAcceptanceEndDateColumn: true,
+          showRevenueBasisColumn: accountingEnabled,
+          linesTableWrapClass: accountingEnabled
+            ? "table-wrap table-wrap_with-basis"
+            : "table-wrap",
+          linesTableClass: accountingEnabled
+            ? "preview-table preview-table_with-basis"
+            : "preview-table",
           // 仕様: Accounting 第11.4節・第10.3節・第10.4節、Core 第12.2節。
           // 確定済み・未取消・請求入出金操作権限（13）。表示もサーバと同じ。
           showManualJournalEntry:
@@ -3700,23 +3710,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return this.deliveryStatusLabel(deliveryStatus);
   }
 
-  // 仕様: Core 第7.7.2節・第6.6節。ONの確認だけ検収終了日を名指しする。
-  isAccountingEnabledForBoard() {
-    if (this.accountingEnabledOnBoard === true) {
-      return true;
-    }
-    const states = this.invoiceUiState || {};
-    return Object.keys(states).some(
-      (invoiceId) => states[invoiceId]?.bundle?.accountingEnabled === true
-    );
-  }
-
-  // 仕様: Core 第7.7.2節。Accounting ONの確認だけ検収終了日を名指しする。
+  // 仕様: Core 第7.7.2節・第6.6節。確認文はAccounting ON/OFFとも検収終了日を名指しする。
   resetPostOrderConfirmMessage() {
-    if (this.isAccountingEnabledForBoard()) {
-      return "このVersionの請求書・請求明細を、受注直後の状態に作り直します。分割や端数・請求日・検収終了日などの手直しはすべて消えます。よろしいですか？";
-    }
-    return "このVersionの請求書・請求明細を、受注直後の状態に作り直します。分割や端数・請求日などの手直しはすべて消えます。よろしいですか？";
+    return "このVersionの請求書・請求明細を、受注直後の状態に作り直します。分割や端数・請求日・検収終了日などの手直しはすべて消えます。よろしいですか？";
   }
 
   async handleResetPostOrderClick() {
@@ -4927,9 +4923,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
   }
 
   /**
-   * 検収終了日は金額と違いドラフトを溜めない。Accounting ON では確認のあと保存する。
-   * 取消基準日はプレビューのDiff逆仕訳、または保存時のplan.reversals未入力エラーのときだけ取る。
-   * 仕様: Core 第7.6節、第7.7.3節、第7.9.6節、Accounting 第8.5節、第8.8節、第1.1.10節。空欄へは変えない。
+   * 検収終了日は金額と違いドラフトを溜めない。ON/OFFとも保存する。OFFは仕訳を切らない。
+   * 取消基準日はAccounting ONで、プレビューのDiff逆仕訳、または保存時のplan.reversals未入力エラーのときだけ取る。
+   * 仕様: Core 第7.6節、第7.7.3節、第7.9.6節、Accounting 第8.5節、第8.8節、第1.1節、第1.1.10節。空欄へは変えない。
    */
   async handleAcceptanceEndDateChange(event) {
     // 仕様: Core 第7.6節・第7.8.2節。入力無効でも既に開いた保存は止めないので、ここでも止める。
@@ -4952,11 +4948,6 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     const invoiceId = (this.preview?.invoices || []).find((invoice) =>
       (invoice.lines || []).some((row) => row.lineId === lineId)
     )?.invoiceId;
-    if (
-      this.invoiceUiState[invoiceId]?.bundle?.accountingEnabled !== true
-    ) {
-      return;
-    }
     const raw = event.detail?.value ?? event.currentTarget.value ?? "";
     const trimmed = String(raw).trim();
     const next = trimmed ? trimmed.slice(0, 10) : null;
