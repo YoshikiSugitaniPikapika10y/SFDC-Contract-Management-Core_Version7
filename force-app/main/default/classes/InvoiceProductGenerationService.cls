@@ -591,7 +591,7 @@ public without sharing class InvoiceProductGenerationService {
 
   /**
    * Change 系統で生成されるべき請求明細（期待行）。
-   * Remake 本数に依存せず、単一 Remake と同じ思想で組む。
+   * 仕様: Core 第6.3節、第6.5節、日付仕様 第2.3節
    */
   private static List<DraftInvoiceLine> buildChangeOriginalAndRemakeDraftLines(
     ContractProduct__c originalRow,
@@ -606,6 +606,22 @@ public without sharing class InvoiceProductGenerationService {
 
     if (originalRow != null && effectiveDate != null) {
       Date preEffectiveEndDate = effectiveDate.addDays(-1);
+      // 仕様: Core 第6.3節、第6.5節。切替日がサイクル途中なら、そのサイクルは切らず末日まで残す。
+      if (
+        originalRow.StartDate__c != null &&
+        !MonthlyBillingPeriodUtil.isMonthlyPeriodStartDate(
+          originalRow.StartDate__c,
+          effectiveDate
+        )
+      ) {
+        Date cycleEnd = endOfCycleContaining(
+          originalRow.StartDate__c,
+          effectiveDate
+        );
+        if (cycleEnd != null && cycleEnd > preEffectiveEndDate) {
+          preEffectiveEndDate = cycleEnd;
+        }
+      }
       if (
         originalRow.StartDate__c != null &&
         preEffectiveEndDate >= originalRow.StartDate__c
@@ -1024,6 +1040,29 @@ public without sharing class InvoiceProductGenerationService {
       if (contractProduct.Id == contractProductId) {
         return contractProduct;
       }
+    }
+    return null;
+  }
+
+  /** 仕様: Core 第6.3節、日付仕様 第1.1節 */
+  private static Date endOfCycleContaining(
+    Date anchorStartDate,
+    Date candidateDate
+  ) {
+    if (
+      anchorStartDate == null ||
+      candidateDate == null ||
+      candidateDate < anchorStartDate
+    ) {
+      return null;
+    }
+    Date periodStart = anchorStartDate;
+    while (periodStart <= candidateDate) {
+      Date periodEnd = MonthlyBillingPeriodUtil.endOfMonthlyPeriod(periodStart);
+      if (candidateDate <= periodEnd) {
+        return periodEnd;
+      }
+      periodStart = periodEnd.addDays(1);
     }
     return null;
   }

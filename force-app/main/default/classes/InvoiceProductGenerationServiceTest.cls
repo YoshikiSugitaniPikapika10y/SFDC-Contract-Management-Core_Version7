@@ -5351,6 +5351,286 @@ private class InvoiceProductGenerationServiceTest {
     System.assertEquals(1000, charge.Amount__c, message);
   }
 
+  /** 仕様: Core 第6.3節、第6.5節、日付仕様 第2.3節。切替日がサイクル途中の同条件の月は赤伝にしない。境界上の変更は打消しと新条件を残す。 */
+  @IsTest
+  static void changeDifferentAnchors_keepsStraddlingCycleWithoutCredit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Split Anchor Change Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Split Anchor Change Service',
+        account
+      );
+      Date licenseStart = Date.newInstance(2026, 4, 1);
+      Date licenseEnd = Date.newInstance(2026, 8, 31);
+      Date supportStart = Date.newInstance(2026, 4, 15);
+      Date supportEnd = Date.newInstance(2026, 8, 14);
+      Date effectiveDate = Date.newInstance(2026, 7, 1);
+      Date supportChange = Date.newInstance(2026, 7, 15);
+
+      ContractHistory__c priorHistory = new ContractHistory__c(
+        Name = 'Split Anchor Change Prior',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = licenseStart,
+        CurrentTermEndDate__c = licenseEnd,
+        EffectiveDate__c = licenseStart
+      );
+      insertHistory(priorHistory);
+      Product2 license = ContractTestDataFactory.buildProduct(
+        'Split Anchor License'
+      );
+      license.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      license.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
+      license.UnitPrice__c = 10000;
+      Product2 support = ContractTestDataFactory.buildProduct(
+        'Split Anchor Support'
+      );
+      support.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      support.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
+      support.UnitPrice__c = 20000;
+      ContractTestDataFactory.insertProducts(
+        new List<Product2>{ license, support }
+      );
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = priorHistory.Id,
+          Product__c = license.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = 50000,
+          StartDate__c = licenseStart,
+          Enddate__c = licenseEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'New'
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = priorHistory.Id,
+          Product__c = support.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 20000,
+          Amount__c = 80000,
+          StartDate__c = supportStart,
+          Enddate__c = supportEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'New'
+        )
+      };
+      orderHistory(priorHistory);
+
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Split Anchor Change History',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        CurrentTermStartDate__c = licenseStart,
+        CurrentTermEndDate__c = licenseEnd,
+        EffectiveDate__c = effectiveDate,
+        PreviousHistory__c = priorHistory.Id
+      );
+      insertHistory(changeHistory);
+      Map<Id, ContractProduct__c> priorByProduct = new Map<Id, ContractProduct__c>();
+      for (ContractProduct__c priorProduct : [
+        SELECT Id, Product__c
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :priorHistory.Id
+      ]) {
+        priorByProduct.put(priorProduct.Product__c, priorProduct);
+      }
+      Id licensePriorId = priorByProduct.get(license.Id).Id;
+      Id supportPriorId = priorByProduct.get(support.Id).Id;
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = license.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = -50000,
+          StartDate__c = licenseStart,
+          Enddate__c = licenseEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = licensePriorId
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = license.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 10000,
+          Amount__c = 30000,
+          StartDate__c = licenseStart,
+          Enddate__c = Date.newInstance(2026, 6, 30),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = licensePriorId
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = license.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 12000,
+          Amount__c = 24000,
+          StartDate__c = effectiveDate,
+          Enddate__c = licenseEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = licensePriorId
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = support.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 20000,
+          Amount__c = -80000,
+          StartDate__c = supportStart,
+          Enddate__c = supportEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = supportPriorId
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = support.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 20000,
+          Amount__c = 60000,
+          StartDate__c = supportStart,
+          Enddate__c = Date.newInstance(2026, 7, 14),
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = supportPriorId
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = support.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 25000,
+          Amount__c = 25000,
+          StartDate__c = supportChange,
+          Enddate__c = supportEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = supportPriorId
+        )
+      };
+      Test.startTest();
+      orderHistory(changeHistory);
+      Test.stopTest();
+
+      List<InvoiceProduct__c> changeLines = [
+        SELECT
+          StartDate__c,
+          Amount__c,
+          Quantity__c,
+          UnitPrice__c,
+          ContractProduct__r.Product__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :changeHistory.Id
+      ];
+      System.assertEquals(
+        0,
+        countProductLinesStarting(
+          changeLines,
+          support.Id,
+          Date.newInstance(2026, 6, 15)
+        ),
+        'Core 第6.3節・第6.5節: 切替日が途中の同条件サイクルは赤伝にしない'
+      );
+      System.assertEquals(
+        0,
+        countProductLinesStarting(
+          changeLines,
+          license.Id,
+          Date.newInstance(2026, 6, 1)
+        ),
+        'Core 第6.3節: 境界が揃う切替日前の月は作らない'
+      );
+      assertSignedPair(
+        changeLines,
+        support.Id,
+        supportChange,
+        -20000,
+        20000,
+        25000,
+        25000,
+        'Core 第6.3節: サポートの次サイクルは打消しと新条件'
+      );
+      assertSignedPair(
+        changeLines,
+        license.Id,
+        effectiveDate,
+        -10000,
+        10000,
+        12000,
+        12000,
+        'Core 第6.3節: 境界上の変更は打消しと新条件を残す'
+      );
+    }
+  }
+
+  private static Integer countProductLinesStarting(
+    List<InvoiceProduct__c> lines,
+    Id productId,
+    Date startDate
+  ) {
+    Integer count = 0;
+    for (InvoiceProduct__c line : lines) {
+      if (
+        line.StartDate__c == startDate &&
+        line.ContractProduct__r.Product__c == productId
+      ) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private static void assertSignedPair(
+    List<InvoiceProduct__c> lines,
+    Id productId,
+    Date startDate,
+    Decimal reversalAmount,
+    Decimal reversalUnitPrice,
+    Decimal chargeAmount,
+    Decimal chargeUnitPrice,
+    String message
+  ) {
+    InvoiceProduct__c reversal;
+    InvoiceProduct__c charge;
+    Integer matched = 0;
+    for (InvoiceProduct__c line : lines) {
+      if (
+        line.StartDate__c != startDate ||
+        line.ContractProduct__r.Product__c != productId
+      ) {
+        continue;
+      }
+      matched++;
+      if (line.Amount__c < 0) {
+        reversal = line;
+      } else if (line.Amount__c > 0) {
+        charge = line;
+      }
+    }
+    System.assertEquals(2, matched, message);
+    System.assertEquals(reversalAmount, reversal.Amount__c, message);
+    System.assertEquals(reversalUnitPrice, reversal.UnitPrice__c, message);
+    System.assertEquals(chargeAmount, charge.Amount__c, message);
+    System.assertEquals(chargeUnitPrice, charge.UnitPrice__c, message);
+  }
+
   static Date adjustGeneratedDate(
     Date value,
     String adjust,
