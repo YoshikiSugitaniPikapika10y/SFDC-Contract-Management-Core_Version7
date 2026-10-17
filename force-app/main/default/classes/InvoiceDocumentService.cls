@@ -13,9 +13,23 @@ public without sharing class InvoiceDocumentService {
     public String addressee { get; set; }
     public String invoiceDateLabel { get; set; }
     public String paymentDueDateLabel { get; set; }
+    public String invoiceDatePrint { get; set; }
+    public String paymentDueDatePrint { get; set; }
+    public String taxBaseLabel { get; set; }
+    public String taxRateLabel { get; set; }
+    public List<LinePrint> linePrints { get; set; }
     public Decimal amountExcludingTax { get; set; }
     public Decimal taxAmount { get; set; }
     public Decimal amountIncludingTax { get; set; }
+  }
+
+  public class LinePrint {
+    public String content { get; set; }
+    public String period { get; set; }
+    public Decimal quantity { get; set; }
+    public String unit { get; set; }
+    public Decimal unitPrice { get; set; }
+    public Decimal amount { get; set; }
   }
 
   public class IssueResult {
@@ -52,6 +66,7 @@ public without sharing class InvoiceDocumentService {
     ) {
       invoice = knownInvoice;
     } else {
+      // 仕様: Core 第7.1節・第7.10節。備考位置は Memo__c。Name、日付、金額、宛名、支払条件もこの行を読む。
       List<Invoice__c> invoices = [
         SELECT
           Id,
@@ -64,7 +79,9 @@ public without sharing class InvoiceDocumentService {
           PaymentTermMethodSnapShot__c,
           Amount__c,
           TaxAmount__c,
-          TaxInclusiveAmount__c
+          TaxInclusiveAmount__c,
+          TaxPercent__c,
+          Memo__c
         FROM Invoice__c
         WHERE Id = :invoiceId
         WITH SYSTEM_MODE
@@ -93,7 +110,8 @@ public without sharing class InvoiceDocumentService {
         UnitPrice__c,
         Amount__c,
         DocumentSortOrder__c,
-        ServicePeriodStartDate__c
+        ServicePeriodStartDate__c,
+        ServicePeriodEndDate__c
       FROM InvoiceLine__c
       WHERE Invoice__c = :invoiceId
       WITH SYSTEM_MODE
@@ -107,6 +125,13 @@ public without sharing class InvoiceDocumentService {
     context.paymentDueDateLabel = formatDisplayDate(
       invoice.PaymentScheduledDate__c
     );
+    // 仕様: Core 第7.1節。印字は yyyy年M月d日。空は空。今日で埋めない。
+    context.invoiceDatePrint = formatLooseDate(invoice.InvoiceDate__c);
+    context.paymentDueDatePrint = formatLooseDate(
+      invoice.PaymentScheduledDate__c
+    );
+    applyTaxPrintLabels(context, invoice);
+    context.linePrints = toLinePrints(context.lines);
     context.amountExcludingTax = nvl(invoice.Amount__c);
     context.taxAmount = nvl(invoice.TaxAmount__c);
     context.amountIncludingTax = invoice.TaxInclusiveAmount__c == null
@@ -353,6 +378,79 @@ public without sharing class InvoiceDocumentService {
     String sanitized = value.trim().replaceAll('[\\\\/:*?"<>|]', '_');
     sanitized = sanitized.replaceAll('\\s+', '_');
     return String.isBlank(sanitized) ? '請求書' : sanitized;
+  }
+
+  private static void applyTaxPrintLabels(
+    DocumentContext context,
+    Invoice__c invoice
+  ) {
+    context.taxBaseLabel = '';
+    context.taxRateLabel = '';
+    if (
+      invoice == null ||
+      invoice.isSet(Invoice__c.TaxPercent__c) != true ||
+      invoice.TaxPercent__c == null
+    ) {
+      return;
+    }
+    // 仕様: Core 第7.1節。内訳の率は請求の保存税率。空なら率ラベルは空。
+    String rateText = TaxCalculationUtil.formatTaxPercentLabel(
+      TaxCalculationUtil.fromPercentFieldStorage(invoice.TaxPercent__c)
+    );
+    context.taxBaseLabel = rateText + '%対象(税抜)';
+    context.taxRateLabel = rateText + '%消費税';
+  }
+
+  private static List<LinePrint> toLinePrints(List<InvoiceLine__c> lines) {
+    List<LinePrint> prints = new List<LinePrint>();
+    if (lines == null) {
+      return prints;
+    }
+    for (InvoiceLine__c line : lines) {
+      LinePrint printLine = new LinePrint();
+      // 仕様: Core 第7.1節。内容は商品名。有料期間は開始日と終了日。両方空なら -。単位が空なら -。
+      printLine.content = line.ProductName__c;
+      printLine.period = formatInvoicePeriod(
+        line.ServicePeriodStartDate__c,
+        line.ServicePeriodEndDate__c
+      );
+      printLine.quantity = line.Quantity__c;
+      printLine.unit = String.isBlank(line.Unit__c) ? '-' : line.Unit__c;
+      printLine.unitPrice = line.UnitPrice__c;
+      printLine.amount = line.Amount__c;
+      prints.add(printLine);
+    }
+    return prints;
+  }
+
+  private static String formatInvoicePeriod(Date startDate, Date endDate) {
+    if (startDate == null && endDate == null) {
+      return '-';
+    }
+    return formatSlashDate(startDate) + ' - ' + formatSlashDate(endDate);
+  }
+
+  private static String formatSlashDate(Date value) {
+    if (value == null) {
+      return '';
+    }
+    return String.valueOf(value.year()) +
+      '/' +
+      String.valueOf(value.month()).leftPad(2, '0') +
+      '/' +
+      String.valueOf(value.day()).leftPad(2, '0');
+  }
+
+  private static String formatLooseDate(Date value) {
+    if (value == null) {
+      return '';
+    }
+    return String.valueOf(value.year()) +
+      '年' +
+      String.valueOf(value.month()) +
+      '月' +
+      String.valueOf(value.day()) +
+      '日';
   }
 
   public static String formatDisplayDate(Date value) {

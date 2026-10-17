@@ -786,9 +786,15 @@ private class EstimateDocumentServiceTest {
         'Core 第4.8節・第1.1.10節: 郵便番号を定数で埋めない'
       );
       System.assertEquals(
-        '',
+        ContractTestDataFactory.ensureOrgDocumentSetting()
+          .InvoiceRegistrationNumber__c,
         context.companyRegistrationNumber,
-        'Core 第11.3.1節: 登録番号を見積PDFに出さない'
+        'Core 第4.8節・第11.3.1節: 見積PDFに登録番号を出す。定数では埋めない'
+      );
+      System.assertEquals(
+        context.companyRegistrationNumber,
+        context.documentText.registrationNumber,
+        'Core 第4.8節: 見積PDF本文の登録番号は組織設定'
       );
       System.assertEquals(
         '',
@@ -1480,6 +1486,7 @@ private class EstimateDocumentServiceTest {
       setting.CompanyName__c = '発行時会社';
       setting.Address__c = '発行時住所1-2-3';
       setting.DocumentFooter__c = '見積フッタ本文';
+      setting.InvoiceRegistrationNumber__c = 'T1234567890123';
       setting.PrivacyPolicyUrl__c = 'https://example.com/privacy';
       update setting;
       ContractDocumentSettingService.clearCache();
@@ -1511,9 +1518,44 @@ private class EstimateDocumentServiceTest {
         'Core 第11.3.1節: 帳票フッターは空でなければ見積PDFへ出す'
       );
       System.assertEquals(
-        'https://example.com/privacy',
+        '',
         context.documentText.privacyPolicyUrl,
-        'Core 第4.8節・第11.3.1節: プライバシーポリシーURLは空でなければ見積PDFへ出す'
+        'Core 第4.8節・第11.3.1節: プライバシーポリシーURLは見積PDFに出さない'
+      );
+      System.assertEquals(
+        '備考',
+        context.documentText.noteSentenceLabel,
+        'Core 第4.8節: 見積PDFの備考見出し'
+      );
+      System.assertEquals(
+        'T1234567890123',
+        context.documentText.registrationNumber,
+        'Core 第4.8節・第11.3.1節: 見積PDFに登録番号を出す。空は空'
+      );
+      System.assertEquals(
+        '',
+        context.issueDatePrint,
+        'Core 第4.8節: 発行日が空なら空。今日で埋めない'
+      );
+      System.assertEquals(
+        '2026年7月31日',
+        context.validDatePrint,
+        'Core 第4.8節: 有効期限は yyyy年M月d日'
+      );
+      System.assertEquals(
+        'Test Product',
+        context.lines[0].productName,
+        'Core 第4.8節: 明細は商品名'
+      );
+      System.assertEquals(
+        '2026/04/01～2027/03/31',
+        context.lines[0].periodRangeLabel,
+        'Core 第4.8節: 有料期間は開始日と終了日'
+      );
+      System.assertEquals(
+        '個別備考',
+        context.documentText.noteSentence,
+        'Core 第4.8節: 見積PDFの備考は Note__c。空なら空'
       );
     }
   }
@@ -1538,7 +1580,58 @@ private class EstimateDocumentServiceTest {
         'Test Product',
         controller.otherGroups[0].items[0].breakdown
       );
+      System.assertEquals(
+        1,
+        controller.documentLines.size(),
+        'Core 第4.8節: 見積PDFの明細は金額がある行'
+      );
+      System.assertEquals(
+        'Test Product',
+        controller.documentLines[0].content,
+        'Core 第4.8節: 内容は商品名'
+      );
+      System.assertEquals(
+        '2026/04/01～2027/03/31',
+        controller.documentLines[0].period,
+        'Core 第4.8節: 有料期間は開始日と終了日'
+      );
+      System.assertEquals(
+        '',
+        controller.documentContext.issueDatePrint,
+        'Core 第4.8節: 発行日が空なら空。今日で埋めない'
+      );
+      System.assertEquals(
+        '個別備考',
+        controller.documentText.noteSentence,
+        'Core 第4.8節: 見積PDFの備考は Note__c'
+      );
+      System.assertEquals(
+        '',
+        controller.documentText.privacyPolicyUrl,
+        'Core 第4.8節・第11.3.1節: プライバシーポリシーURLは見積PDFに出さない'
+      );
     }
+  }
+
+  @IsTest
+  static void documentLines_omitsZeroAmount() {
+    EstimateDocumentService.LineDto priced = new EstimateDocumentService.LineDto();
+    priced.productName = '有料商品';
+    priced.amount = 100;
+    priced.periodRangeLabel = '2026/04/01～2026/04/30';
+    EstimateDocumentService.LineDto zero = new EstimateDocumentService.LineDto();
+    zero.productName = '金額0';
+    zero.amount = 0;
+    List<EstimateDocumentPdfController.DocumentLineView> views = EstimateDocumentPdfController.toDocumentLines(
+      new List<EstimateDocumentService.LineDto>{ priced, zero }
+    );
+    System.assertEquals(
+      1,
+      views.size(),
+      'Core 第4.8節: 金額0の行は見積PDFに出さない'
+    );
+    System.assertEquals('有料商品', views[0].content);
+    System.assertEquals('2026/04/01～2026/04/30', views[0].period);
   }
 
   @IsTest

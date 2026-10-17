@@ -7,809 +7,160 @@
   language="ja"
   cache="false"
 >
+  <!-- 仕様: Core 第4.8節・第11.3.1節。登録番号と Note__c を出す。振込先とプライバシーポリシーURLは出さない。ロゴと角印は同梱しない。パッケージ項目だけ。 -->
   <html>
     <head>
       <meta charset="UTF-8" />
       <style type="text/css">
-        @page {
-          size: A4;
-          margin: 10mm;
-        }
-        * {
-          font-family: "Arial Unicode MS", sans-serif;
-        }
-        html,
-        body {
-          margin: 0;
-          padding: 0;
-          font-family: "Arial Unicode MS", sans-serif;
-          font-size: 10pt;
-          color: #333;
-          line-height: 1.4;
-        }
-        .page {
-          width: 100%;
-        }
-        .title-row {
-          text-align: center;
-          margin-bottom: 10mm;
-        }
-        .title {
-          font-size: 22pt;
-          letter-spacing: 2px;
-          font-weight: bold;
-          color: #004d99;
-          border-bottom: 3px solid #004d99;
-          padding-bottom: 5px;
-          display: inline-block;
-        }
-        .header {
-          width: 100%;
-          margin-bottom: 8mm;
-          overflow: hidden;
-        }
-        .header::after {
-          content: "";
-          display: block;
-          clear: both;
-        }
-        .header-left {
-          float: left;
-          width: 55%;
-        }
-        .header-right {
-          float: right;
-          width: 42%;
-          text-align: left;
-        }
-        .to-company {
-          border-bottom: 2px solid #000;
-          padding-bottom: 5px;
-          margin-bottom: 8px;
-          width: 100%;
-          display: block;
-        }
-        .honorificleft {
-          font-size: 14pt;
-          font-weight: bold;
-          margin-right: 10px;
-        }
-        .honorificright {
-          font-size: 14pt;
-          font-weight: bold;
-          float: right;
-        }
-        .meta-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 10px;
-        }
-        .meta-table th,
-        .meta-table td {
-          padding: 3px 0;
-          border-bottom: 1px solid #ccc;
-          text-align: left;
-          vertical-align: top;
-          font-size: 9pt;
-        }
-        .meta-table th {
-          width: 100px;
-          font-weight: normal;
-          color: #666;
-        }
-        .company-logo-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 5px;
-        }
-        .company-logo-table td {
-          vertical-align: middle;
-          padding: 0;
-        }
-        .company-logo {
-          width: 80px;
-          height: auto;
-        }
-        .company-name {
-          font-size: 11pt;
-          font-weight: bold;
-          color: #004d99;
-          margin: 0 0 2px 0;
-        }
-        .header-line {
-          border-top: 1px solid #000;
-          margin: 5px 0;
-          clear: both;
-        }
-        .header-right p {
-          margin: 0;
-          font-size: 9pt;
-        }
-        .amount-block {
-          margin: 15px 0 25px 0;
-          padding: 8px;
-          border: 2px solid #004d99;
-          background-color: #e6f2ff;
-          text-align: center;
-        }
-        .amount-label {
-          font-weight: bold;
-          font-size: 12pt;
-          color: #004d99;
-          margin-right: 20px;
-        }
-        .amount-value {
-          font-weight: bold;
-          font-size: 18pt;
-          color: #000000;
-          margin-right: 5px;
-        }
-        .amount-unit {
-          font-weight: bold;
-          font-size: 12pt;
-        }
-        .section {
-          margin-bottom: 25px;
-        }
-        .section-title {
-          font-size: 13pt;
-          font-weight: bold;
-          color: #004d99;
-          border-left: 6px solid #004d99;
-          padding-left: 10px;
-          margin-bottom: 10px;
-          line-height: 1.5;
-          background-color: #f9f9f9;
-          border-bottom: 1px solid #ddd;
-          page-break-inside: avoid;
-          page-break-after: avoid;
-        }
-        .section-total {
-          float: right;
-          font-size: 12pt;
-          color: #333;
-          font-weight: bold;
-          margin-right: 5px;
-        }
-        .product-name-header {
-          background-color: #ddd;
-          font-weight: bold;
-          font-size: 10pt;
-          padding: 4px 8px;
-          margin-top: 15px;
-          border: 1px solid #000;
-          border-bottom: none;
-          color: #000;
-          page-break-inside: avoid;
-          page-break-after: avoid;
-        }
-        .line-item-table {
-          width: 100%;
-          table-layout: fixed;
-          border-collapse: collapse;
-          border: 1px solid #000;
-          margin-bottom: 5px;
-        }
-        .line-item-table th {
-          background-color: #f2f2f2;
-          color: #000;
-          border: 1px solid #000;
-          padding: 5px;
-          font-size: 10pt;
-          text-align: center;
-          font-weight: bold;
-        }
-        .line-item-table td {
-          border: 1px solid #000;
-          padding: 6px 5px;
-          font-size: 10pt;
-          vertical-align: middle;
-          word-wrap: break-word;
-        }
-        .line-item-table tr {
-          page-break-inside: avoid;
-        }
-        .col-desc {
-          width: 35%;
-          text-align: left;
-        }
-        .col-period {
-          width: 25%;
-          text-align: center;
-          font-size: 9pt;
-        }
-        .col-unit {
-          width: 10%;
-          text-align: center;
-        }
-        .col-qty {
-          width: 12%;
-          text-align: right;
-        }
-        .col-amount {
-          width: 18%;
-          text-align: right;
-        }
-        .document-footer {
-          border-top: 1px solid #999;
-          margin-top: 7mm;
-          padding-top: 3mm;
-          font-size: 8.5pt;
-          white-space: pre-line;
-          page-break-inside: avoid;
-        }
-        .group-total-row {
-          page-break-inside: avoid;
-        }
-        .group-total-row td {
-          background-color: #fff;
-          border-top: 1px solid #000;
-          border-bottom: 1px solid #000;
-          font-weight: bold;
-        }
-        .group-total-empty {
-          border-right: 1px solid #000;
-        }
-        .group-total-label {
-          text-align: center;
-          border-right: none;
-        }
-        .group-total-amount {
-          text-align: right;
-          border-left: none;
-        }
-        .notes {
-          margin-top: 30px;
-          border-top: 1px solid #000;
-          padding-top: 10px;
-          page-break-inside: avoid;
-        }
-        .note-text {
-          white-space: pre-wrap;
-        }
+        @page { size: A4; margin: 10mm 15mm 10mm 15mm; }
+        * { font-family: "Arial Unicode MS", sans-serif; }
+        html, body { margin: 0; padding: 0; font-family: "Arial Unicode MS", sans-serif; font-size: 12px; }
+        p { margin: 0; }
+        .title { font-size: 22px; text-align: center; margin: 2mm 0 4mm 0; }
+        .head { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .head td { vertical-align: top; padding: 0; }
+        .addressee { font-size: 16px; line-height: 140%; }
+        .meta { font-size: 12px; line-height: 160%; }
+        .issuer { font-size: 12px; line-height: 150%; }
+        .notice { font-size: 11px; white-space: pre-line; }
+        .sentence { font-size: 12px; margin: 3mm 0; }
+        .amount { font-size: 18px; font-weight: bold; margin: 2mm 0 4mm 0; }
+        .amount table { border-collapse: collapse; }
+        .amount th { font-weight: normal; border: 1px solid #000; padding: 2px 8px; background-color: #d3d3d3; }
+        .amount td { border: 1px solid #000; padding: 2px 8px; text-align: right; font-size: 18px; }
+        .detail { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
+        .detail th { font-weight: normal; border: 1px solid #000; padding: 2px 6px; background-color: #d3d3d3; text-align: center; }
+        .detail td { border: 1px solid #000; padding: 2px 6px; height: 14px; }
+        .clip { overflow: hidden; white-space: nowrap; }
+        .summary { width: 220px; border-collapse: collapse; font-size: 12px; margin-top: 2mm; margin-left: auto; page-break-inside: avoid; }
+        .summary th { font-weight: normal; border: 1px solid #000; padding: 2px 6px; background-color: #d3d3d3; text-align: center; width: 40%; }
+        .summary td { border: 1px solid #000; padding: 2px 6px; text-align: right; }
+        .note { width: 100%; border-collapse: collapse; border: 1px solid #000; margin-top: 5mm; page-break-inside: avoid; }
+        .note th { font-weight: normal; border: 1px solid #000; padding: 2px 6px; background-color: #d3d3d3; text-align: left; }
+        .note td { border: 1px solid #000; height: 28mm; padding: 5px; font-size: 12px; vertical-align: top; white-space: pre-line; word-wrap: break-word; }
+        .left { text-align: left; }
+        .center { text-align: center; }
+        .right { text-align: right; }
+        .bold { font-weight: bold; }
       </style>
     </head>
-
     <body>
-      <apex:outputPanel layout="none" rendered="{!hasContext}">
-        <div class="page">
-          <div class="title-row">
-            <h1 class="title">
-              <apex:outputText value="{!documentText.estimateTitle}" />
-            </h1>
-          </div>
+      <apex:outputPanel rendered="{!hasContext}">
+        <table class="head">
+          <tr>
+            <td style="width: 70%;"></td>
+            <td style="width: 30%;" class="right">
+              <p class="meta">発行日　<apex:outputText value="{!documentContext.issueDatePrint}" /></p>
+            </td>
+          </tr>
+        </table>
 
-          <div class="header">
-            <div class="header-left">
-              <div class="to-company">
-                <span class="honorificleft">
-                  <apex:outputText value="{!toCompanyNameDisplay}" />
-                </span>
-                <span class="honorificright">
-                  <apex:outputText
-                    value="{!documentText.honorificTitle}"
-                  />
-                </span>
-                <div style="clear: both"></div>
+        <p class="title">御見積書</p>
+
+        <table class="head">
+          <tr>
+            <td style="width: 60%;">
+              <p class="addressee">
+                <apex:outputText value="{!documentText.toCompanyName}" />
+                <apex:outputPanel rendered="{!NOT(ISBLANK(documentText.honorificTitle))}">
+                  &#160;&#160;<apex:outputText value="{!documentText.honorificTitle}" />
+                </apex:outputPanel>
+              </p>
+              <p class="sentence"><apex:outputText value="{!documentText.estimateSentence}" /></p>
+              <div class="amount">
+                <table>
+                  <tr>
+                    <th>合計金額</th>
+                    <td>
+                      &#165;<apex:outputText value="{0, number, ###,###,###,##0}" rendered="{!NOT(ISBLANK(documentContext.lineTotalInclTax))}">
+                        <apex:param value="{!documentContext.lineTotalInclTax}" />
+                      </apex:outputText>
+                    </td>
+                  </tr>
+                </table>
               </div>
+              <p class="meta">有効期限　<apex:outputText value="{!documentContext.validDatePrint}" /></p>
+              <apex:outputPanel rendered="{!NOT(ISBLANK(documentText.documentFooter))}">
+                <p class="notice"><apex:outputText value="{!documentText.documentFooter}" /></p>
+              </apex:outputPanel>
+            </td>
+            <td style="width: 40%;">
+              <p class="issuer bold"><apex:outputText value="{!documentContext.companyName}" /></p>
+              <p class="issuer notice"><apex:outputText value="{!documentContext.companyAddressLine1}" /></p>
+              <p class="issuer">登録番号　<apex:outputText value="{!documentText.registrationNumber}" /></p>
+            </td>
+          </tr>
+        </table>
 
-              <p style="margin-bottom: 10px">
-                <apex:outputText
-                  value="{!documentText.estimateSentence}"
-                />
-              </p>
+        <table class="detail">
+          <tr>
+            <th style="width: 38%;">内容</th>
+            <th style="width: 22%;">有料期間</th>
+            <th style="width: 8%;">数量</th>
+            <th style="width: 8%;">単位</th>
+            <th style="width: 12%;">単価（税抜）</th>
+            <th style="width: 12%;">金額（税抜）</th>
+          </tr>
+          <apex:repeat value="{!documentLines}" var="line">
+            <tr>
+              <td class="left clip"><apex:outputText value="{!line.content}" />&#160;</td>
+              <td class="center clip"><apex:outputText value="{!line.period}" /></td>
+              <td class="right clip">
+                <apex:outputText value="{0, number, ###,##0.##}">
+                  <apex:param value="{!line.quantity}" />
+                </apex:outputText>
+              </td>
+              <td class="center clip"><apex:outputText value="{!line.unit}" /></td>
+              <td class="right clip">
+                <apex:outputText value="{0, number, ###,###,##0.##}">
+                  <apex:param value="{!line.unitPrice}" />
+                </apex:outputText>
+              </td>
+              <td class="right clip">
+                <apex:outputText value="{0, number, ###,###,##0}">
+                  <apex:param value="{!line.amount}" />
+                </apex:outputText>
+              </td>
+            </tr>
+          </apex:repeat>
+        </table>
 
-              <table class="meta-table">
-                <tr>
-                  <th>
-                    <apex:outputText
-                      value="{!documentText.basicTermPeriodLabel}"
-                    />
-                  </th>
-                  <td>
-                    <apex:outputText
-                      value="{!documentText.basicTermPeriod}"
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <th>
-                    <apex:outputText
-                      value="{!documentText.paymentTermLabel}"
-                    />
-                  </th>
-                  <td>
-                    <apex:outputText
-                      value="{!documentText.paymentTermSentence}"
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <th>
-                    <apex:outputText
-                      value="{!documentText.termFeeStartDateLabel}"
-                    />
-                  </th>
-                  <td>
-                    <apex:outputText value="{!termFeeStartDateDisplay}" />
-                  </td>
-                </tr>
-                <tr>
-                  <th>
-                    <apex:outputText
-                      value="{!documentText.termDueDateLabel}"
-                    />
-                  </th>
-                  <td>
-                    <apex:outputText
-                      value="{!documentText.estimateDueDateSentence}"
-                    />
-                  </td>
-                </tr>
-              </table>
-            </div>
-
-            <div class="header-right">
-              <table class="company-logo-table">
-                <tr>
-                  <td>
-                    <p class="company-name">
-                      <apex:outputText
-                        value="{!documentText.companyName}"
-                      />
-                    </p>
-                    <p>No : <apex:outputText value="{!estimateNumber}" /></p>
-                    <p>
-                      Date : <apex:outputText value="{!estimateDateDisplay}" />
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              <div class="header-line"></div>
-              <p>
-                <apex:outputText
-                  rendered="{!NOT(ISBLANK(documentText.postalNumber))}"
-                  value="{!documentText.postalNumber}"
-                />
-              </p>
-              <p>
-                <apex:outputText
-                  value="{!documentText.addressFirstHalf}"
-                />
-              </p>
-              <p>
-                <apex:outputText
-                  value="{!documentText.addressLastHalf}"
-                />
-              </p>
-              <p>
-                <apex:outputText value="{!documentText.telLabel}" />
-                <apex:outputText value="{!documentText.telValue}" />
-              </p>
-              <p>
-                <apex:outputText value="{!documentText.faxLabel}" />
-                <apex:outputText value="{!documentText.faxSentence}" />
-              </p>
-              <p>
-                <apex:outputText
-                  value="{!documentText.ownerLabel}"
-                /><apex:outputText value="{!ownerNameDisplay}" />
-              </p>
-            </div>
-          </div>
-
-          <div class="amount-block">
-            <span class="amount-label"
-              ><apex:outputText value="{!documentText.estimateSumLabel}"
-            /></span>
-            <span class="amount-value">
-              <apex:outputText value="{0, number, ###,###,###,###}">
-                <apex:param value="{!totalAmount}" />
+        <table class="summary">
+          <tr>
+            <th>小計</th>
+            <td>
+              <apex:outputText value="{0, number, ###,###,###,##0}" rendered="{!NOT(ISBLANK(documentContext.lineTotal))}">
+                <apex:param value="{!documentContext.lineTotal}" />
               </apex:outputText>
-            </span>
-            <span class="amount-unit"
-              ><apex:outputText value="{!documentText.unitSentence}"
-            /></span>
-          </div>
+            </td>
+          </tr>
+          <tr>
+            <th>
+              消費税
+              <apex:outputPanel rendered="{!NOT(ISBLANK(documentContext.taxPercentLabel))}">
+                （<apex:outputText value="{!documentContext.taxPercentLabel}" />%）
+              </apex:outputPanel>
+            </th>
+            <td>
+              <apex:outputText value="{0, number, ###,###,###,##0}" rendered="{!NOT(ISBLANK(documentContext.taxAmount))}">
+                <apex:param value="{!documentContext.taxAmount}" />
+              </apex:outputText>
+            </td>
+          </tr>
+          <tr>
+            <th class="bold">合計</th>
+            <td class="bold">
+              <apex:outputText value="{0, number, ###,###,###,##0}" rendered="{!NOT(ISBLANK(documentContext.lineTotalInclTax))}">
+                <apex:param value="{!documentContext.lineTotalInclTax}" />
+              </apex:outputText>
+            </td>
+          </tr>
+        </table>
 
-          <apex:outputPanel rendered="{!NOT(digitalGroups.empty)}">
-            <div class="section">
-              <h2 class="section-title">
-                <apex:outputText
-                  value="{!documentText.digitalLicenceFeeLabel}"
-                />
-                <span class="section-total">
-                  合計:
-                  <apex:outputText value="{0, number, ###,###,###}"
-                    ><apex:param value="{!digitalTotalIncTax}"
-                  /></apex:outputText>
-                  <apex:outputText value="{!documentText.unitSentence}" />
-                </span>
-              </h2>
-
-              <apex:repeat value="{!digitalGroups}" var="group">
-                <div class="product-name-header">
-                  <apex:outputText value="{!group.productName}" />
-                </div>
-
-                <table class="line-item-table">
-                  <thead>
-                    <tr>
-                      <th class="col-desc">内訳</th>
-                      <th class="col-period">提供期間</th>
-                      <th class="col-unit">単位</th>
-                      <th class="col-qty">数量</th>
-                      <th class="col-amount">金額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <apex:repeat value="{!group.items}" var="item">
-                      <tr style="page-break-inside: avoid">
-                        <td class="col-desc">
-                          <apex:outputText value="{!item.breakdown}" />
-                        </td>
-                        <td class="col-period">
-                          <apex:outputText value="{!item.period}" />
-                        </td>
-                        <td class="col-unit">
-                          <apex:outputText value="{!item.unit}" />
-                        </td>
-                        <td class="col-qty">
-                          <apex:outputText value="{0, number, ###,##0.##}"
-                            ><apex:param value="{!item.quantity}"
-                          /></apex:outputText>
-                        </td>
-                        <td class="col-amount">
-                          <apex:outputText value="{0, number, ###,###,###}"
-                            ><apex:param value="{!item.amount}"
-                          /></apex:outputText>
-                        </td>
-                      </tr>
-                    </apex:repeat>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">小計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.groupTotal}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">税額</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.taxAmount}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">合計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.totalAmountIncTax}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </apex:repeat>
-            </div>
-          </apex:outputPanel>
-
-          <apex:outputPanel rendered="{!NOT(consultingGroups.empty)}">
-            <div class="section">
-              <h2 class="section-title">
-                <apex:outputText
-                  value="{!documentText.consultingFeeLabel}"
-                />
-                <span class="section-total">
-                  合計:
-                  <apex:outputText value="{0, number, ###,###,###}"
-                    ><apex:param value="{!consultingTotalIncTax}"
-                  /></apex:outputText>
-                  <apex:outputText value="{!documentText.unitSentence}" />
-                </span>
-              </h2>
-
-              <apex:repeat value="{!consultingGroups}" var="group">
-                <div class="product-name-header">
-                  <apex:outputText value="{!group.productName}" />
-                </div>
-                <table class="line-item-table">
-                  <thead>
-                    <tr>
-                      <th class="col-desc">内訳</th>
-                      <th class="col-period">提供期間</th>
-                      <th class="col-unit">単位</th>
-                      <th class="col-qty">数量</th>
-                      <th class="col-amount">金額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <apex:repeat value="{!group.items}" var="item">
-                      <tr style="page-break-inside: avoid">
-                        <td class="col-desc">
-                          <apex:outputText value="{!item.breakdown}" />
-                        </td>
-                        <td class="col-period">
-                          <apex:outputText value="{!item.period}" />
-                        </td>
-                        <td class="col-unit">
-                          <apex:outputText value="{!item.unit}" />
-                        </td>
-                        <td class="col-qty">
-                          <apex:outputText value="{0, number, ###,##0.##}"
-                            ><apex:param value="{!item.quantity}"
-                          /></apex:outputText>
-                        </td>
-                        <td class="col-amount">
-                          <apex:outputText value="{0, number, ###,###,###}"
-                            ><apex:param value="{!item.amount}"
-                          /></apex:outputText>
-                        </td>
-                      </tr>
-                    </apex:repeat>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">小計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.groupTotal}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">税額</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.taxAmount}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">合計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.totalAmountIncTax}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </apex:repeat>
-            </div>
-          </apex:outputPanel>
-
-          <apex:outputPanel rendered="{!NOT(trainingGroups.empty)}">
-            <div class="section">
-              <h2 class="section-title">
-                <apex:outputText
-                  value="{!documentText.feedbackCoachingFeeLabel}"
-                />
-                <span class="section-total">
-                  合計:
-                  <apex:outputText value="{0, number, ###,###,###}"
-                    ><apex:param value="{!trainingTotalIncTax}"
-                  /></apex:outputText>
-                  <apex:outputText value="{!documentText.unitSentence}" />
-                </span>
-              </h2>
-
-              <apex:repeat value="{!trainingGroups}" var="group">
-                <div class="product-name-header">
-                  <apex:outputText value="{!group.productName}" />
-                </div>
-                <table class="line-item-table">
-                  <thead>
-                    <tr>
-                      <th class="col-desc">内訳</th>
-                      <th class="col-period">提供期間</th>
-                      <th class="col-unit">単位</th>
-                      <th class="col-qty">数量</th>
-                      <th class="col-amount">金額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <apex:repeat value="{!group.items}" var="item">
-                      <tr style="page-break-inside: avoid">
-                        <td class="col-desc">
-                          <apex:outputText value="{!item.breakdown}" />
-                        </td>
-                        <td class="col-period">
-                          <apex:outputText value="{!item.period}" />
-                        </td>
-                        <td class="col-unit">
-                          <apex:outputText value="{!item.unit}" />
-                        </td>
-                        <td class="col-qty">
-                          <apex:outputText value="{0, number, ###,##0.##}"
-                            ><apex:param value="{!item.quantity}"
-                          /></apex:outputText>
-                        </td>
-                        <td class="col-amount">
-                          <apex:outputText value="{0, number, ###,###,###}"
-                            ><apex:param value="{!item.amount}"
-                          /></apex:outputText>
-                        </td>
-                      </tr>
-                    </apex:repeat>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">小計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.groupTotal}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">税額</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.taxAmount}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">合計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.totalAmountIncTax}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </apex:repeat>
-            </div>
-          </apex:outputPanel>
-
-          <apex:outputPanel rendered="{!NOT(otherGroups.empty)}">
-            <div class="section">
-              <apex:repeat value="{!otherGroups}" var="group">
-                <div class="product-name-header">
-                  <apex:outputText value="{!group.productName}" />
-                </div>
-                <table class="line-item-table">
-                  <thead>
-                    <tr>
-                      <th class="col-desc">内訳</th>
-                      <th class="col-period">提供期間</th>
-                      <th class="col-unit">単位</th>
-                      <th class="col-qty">数量</th>
-                      <th class="col-amount">金額</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <apex:repeat value="{!group.items}" var="item">
-                      <tr style="page-break-inside: avoid">
-                        <td class="col-desc">
-                          <apex:outputText value="{!item.breakdown}" />
-                        </td>
-                        <td class="col-period">
-                          <apex:outputText value="{!item.period}" />
-                        </td>
-                        <td class="col-unit">
-                          <apex:outputText value="{!item.unit}" />
-                        </td>
-                        <td class="col-qty">
-                          <apex:outputText value="{0, number, ###,##0.##}"
-                            ><apex:param value="{!item.quantity}"
-                          /></apex:outputText>
-                        </td>
-                        <td class="col-amount">
-                          <apex:outputText value="{0, number, ###,###,###}"
-                            ><apex:param value="{!item.amount}"
-                          /></apex:outputText>
-                        </td>
-                      </tr>
-                    </apex:repeat>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">小計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.groupTotal}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">税額</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.taxAmount}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                    <tr
-                      class="group-total-row"
-                      style="page-break-inside: avoid"
-                    >
-                      <td colspan="3" class="group-total-empty"></td>
-                      <td class="group-total-label">合計</td>
-                      <td class="group-total-amount">
-                        <apex:outputText value="{0, number, ###,###,###}"
-                          ><apex:param value="{!group.totalAmountIncTax}"
-                        /></apex:outputText>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </apex:repeat>
-            </div>
-          </apex:outputPanel>
-
-          <div class="notes">
-            <p style="font-weight: bold; margin-bottom: 5px">
-              <apex:outputText
-                value="{!documentText.noteSentenceLabel}"
-              />
-            </p>
-            <div
-              style="width: 100%; word-wrap: break-word; word-break: break-all"
-            >
-              <apex:outputText
-                value="{!SUBSTITUTE(SUBSTITUTE(documentText.noteSentence, '\r\n', '<br/>'), '\n', '<br/>')}"
-                escape="false"
-              />
-            </div>
-          </div>
-          <apex:outputPanel
-            layout="block"
-            styleClass="document-footer"
-            rendered="{!NOT(ISBLANK(documentText.documentFooter))}"
-          >
-            <apex:outputText value="{!documentText.documentFooter}" />
-          </apex:outputPanel>
-          <apex:outputPanel
-            layout="block"
-            styleClass="document-footer"
-            rendered="{!NOT(ISBLANK(documentText.privacyPolicyUrl))}"
-          >
-            <apex:outputText value="{!documentText.privacyPolicyUrl}" />
-          </apex:outputPanel>
-        </div>
+        <table class="note">
+          <tr><th>備考</th></tr>
+          <tr><td><apex:outputText value="{!documentText.noteSentence}" /></td></tr>
+        </table>
       </apex:outputPanel>
     </body>
   </html>

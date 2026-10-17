@@ -72,9 +72,49 @@ private class InvoiceDocumentServiceTest {
         'Core 第11.3.1節: 帳票フッターは空でなければ請求PDFへ出す'
       );
       System.assertEquals(
+        '請求メモ',
+        context.invoice.Memo__c,
+        'Core 第7.1節: 請求PDFの備考位置はメモ。空なら空'
+      );
+      System.assertEquals(
         'https://example.com/privacy',
         context.documentSetting.PrivacyPolicyUrl__c,
-        'Core 第11.3.1節: プライバシーポリシーURLは空でなければ請求PDFへ出す'
+        'Core 第11.3.1節: プライバシーポリシーURLは組織設定に残る。請求PDFには出さない'
+      );
+      System.assertEquals(
+        '2026年6月30日',
+        context.invoiceDatePrint,
+        'Core 第7.1節: 請求日の印字は yyyy年M月d日。空は空'
+      );
+      System.assertEquals(
+        '2026年7月31日',
+        context.paymentDueDatePrint,
+        'Core 第7.1節: 入金期日の印字は yyyy年M月d日。空は空'
+      );
+      System.assertEquals(
+        'スナップショット商品',
+        context.linePrints[0].content,
+        'Core 第7.1節: 請求PDFの内容は商品名'
+      );
+      System.assertEquals(
+        '2026/06/01 - 2026/06/30',
+        context.linePrints[0].period,
+        'Core 第7.1節: 有料期間は開始日と終了日'
+      );
+      System.assertEquals(
+        '式',
+        context.linePrints[0].unit,
+        'Core 第7.1節: 単位は保存値'
+      );
+      System.assertEquals(
+        '10%対象(税抜)',
+        context.taxBaseLabel,
+        'Core 第7.1節: 内訳の率は請求の保存税率'
+      );
+      System.assertEquals(
+        '10%消費税',
+        context.taxRateLabel,
+        'Core 第7.1節: 内訳の消費税ラベルは保存税率'
       );
     }
   }
@@ -351,6 +391,48 @@ private class InvoiceDocumentServiceTest {
         controller.context.addressee,
         'Core 第7.10節: PDF宛名は請求書スナップショット'
       );
+      System.assertEquals(
+        'スナップショット商品',
+        controller.context.linePrints[0].content,
+        'Core 第7.1節: 請求PDFの内容は商品名'
+      );
+      System.assertEquals(
+        '請求メモ',
+        controller.context.invoice.Memo__c,
+        'Core 第7.1節: 請求PDFの備考位置はメモ'
+      );
+    }
+  }
+
+  @IsTest
+  static void loadContext_blankPeriodAndUnit_printsDash() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createFixture('Confirmed');
+      InvoiceLine__c line = [
+        SELECT Id
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :fixture.invoice.Id
+        LIMIT 1
+      ];
+      line.Unit__c = null;
+      line.ServicePeriodStartDate__c = null;
+      line.ServicePeriodEndDate__c = null;
+      update line;
+
+      InvoiceDocumentService.DocumentContext context = InvoiceDocumentService.loadContext(
+        fixture.invoice.Id
+      );
+
+      System.assertEquals(
+        '-',
+        context.linePrints[0].period,
+        'Core 第7.1節: 有料期間が両方空なら -'
+      );
+      System.assertEquals(
+        '-',
+        context.linePrints[0].unit,
+        'Core 第7.1節: 単位が空なら -'
+      );
     }
   }
 
@@ -594,7 +676,9 @@ private class InvoiceDocumentServiceTest {
       BillingAddresseeSnapShot__c = '帳票取引先 請求担当',
       PaymentTermMethodSnapShot__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       Amount__c = 10000,
-      TaxAmount__c = 1000
+      TaxAmount__c = 1000,
+      TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10),
+      Memo__c = '請求メモ'
     );
     ContractTestDataFactory.applyRequiredFields(invoice);
     ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
@@ -611,6 +695,8 @@ private class InvoiceDocumentServiceTest {
       ProductName__c = 'スナップショット商品',
       ProductCodeSnapShot__c = 'SKU-001',
       PeriodLabel__c = '2026年6月分',
+      ServicePeriodStartDate__c = Date.newInstance(2026, 6, 1),
+      ServicePeriodEndDate__c = Date.newInstance(2026, 6, 30),
       Unit__c = '式',
       Quantity__c = 2,
       UnitPrice__c = 5000,

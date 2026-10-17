@@ -1,7 +1,6 @@
 /**
  * 見積書 Visualforce（EstimateDocumentPdf）用コントローラ。
- * 商談の EstimatePdfController と同じレイアウト向けに、
- * EstimateDocumentService.loadContext からグループ化済み表示値を供給する。
+ * 発行画面と PDF の両方に、EstimateDocumentService.loadContext の表示値を供給する。
  */
 public with sharing class EstimateDocumentPdfController {
   public EstimateDocumentService.EstimateDocumentTextDto documentText {
@@ -22,6 +21,11 @@ public with sharing class EstimateDocumentPdfController {
   public Decimal trainingTotalIncTax { get; private set; }
   public Decimal otherTotalIncTax { get; private set; }
   public Decimal totalAmount { get; private set; }
+  public EstimateDocumentService.DocumentContext documentContext {
+    get;
+    private set;
+  }
+  public List<DocumentLineView> documentLines { get; private set; }
   public Boolean hasContext { get; private set; }
   public String companyBlockedReason { get; private set; }
   public String sendModeBlockedReason { get; private set; }
@@ -69,6 +73,15 @@ public with sharing class EstimateDocumentPdfController {
     public Decimal quantity { get; set; }
     public Decimal amount { get; set; }
     public String period { get; set; }
+  }
+
+  public class DocumentLineView {
+    public String content { get; set; }
+    public String period { get; set; }
+    public Decimal quantity { get; set; }
+    public String unit { get; set; }
+    public Decimal unitPrice { get; set; }
+    public Decimal amount { get; set; }
   }
 
   public String issueFileName { get; private set; }
@@ -175,6 +188,8 @@ public with sharing class EstimateDocumentPdfController {
     }
 
     documentText = context.documentText;
+    documentContext = context;
+    documentLines = toDocumentLines(context.lines);
     toCompanyNameDisplay = context.toCompanyNameDisplay;
     ownerNameDisplay = context.ownerNameDisplay;
     estimateDateDisplay = context.estimateDateDisplay;
@@ -214,6 +229,31 @@ public with sharing class EstimateDocumentPdfController {
       issueFileName = '';
     }
     return null;
+  }
+
+  /** 仕様: Core 第4.8節。内容は商品名。金額0の行は出さない。有料期間は開始日～終了日。 */
+  @TestVisible
+  private static List<DocumentLineView> toDocumentLines(
+    List<EstimateDocumentService.LineDto> lines
+  ) {
+    List<DocumentLineView> views = new List<DocumentLineView>();
+    if (lines == null) {
+      return views;
+    }
+    for (EstimateDocumentService.LineDto line : lines) {
+      if (line == null || line.amount == null || line.amount == 0) {
+        continue;
+      }
+      DocumentLineView view = new DocumentLineView();
+      view.content = line.productName;
+      view.period = line.periodRangeLabel;
+      view.quantity = line.quantity;
+      view.unit = line.unit;
+      view.unitPrice = line.unitPrice;
+      view.amount = line.amount;
+      views.add(view);
+    }
+    return views;
   }
 
   /** 仕様: Core 第4.8節、第11.9節。数量・金額は OrgDefault。HALF_UP 直書きしない。 */
@@ -258,6 +298,8 @@ public with sharing class EstimateDocumentPdfController {
   private void initEmpty() {
     hasContext = false;
     documentText = null;
+    documentContext = null;
+    documentLines = new List<DocumentLineView>();
     toCompanyNameDisplay = '';
     ownerNameDisplay = '';
     estimateDateDisplay = '';

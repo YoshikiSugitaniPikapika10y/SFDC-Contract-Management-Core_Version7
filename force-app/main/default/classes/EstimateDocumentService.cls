@@ -15,6 +15,7 @@ public without sharing class EstimateDocumentService {
     public Decimal unitPrice;
     public Decimal amount;
     public String periodLabel;
+    public String periodRangeLabel;
     public String billingType;
     public String invoiceSetting;
     public String typeLabel;
@@ -86,6 +87,7 @@ public without sharing class EstimateDocumentService {
     public String noteSentenceLabel { get; set; }
     public String noteSentence { get; set; }
     public String documentFooter { get; set; }
+    public String registrationNumber { get; set; }
     public String privacyPolicyUrl { get; set; }
     public String estimateNumberLabel { get; set; }
     public String estimateSentence { get; set; }
@@ -111,6 +113,8 @@ public without sharing class EstimateDocumentService {
     public String estimateDateLabel;
     public String validDateLabel;
     public String issueDateLabel;
+    public String issueDatePrint;
+    public String validDatePrint;
     public String termLabel;
     public String typeLabel;
     public EstimateDocumentTextDto documentText;
@@ -209,7 +213,10 @@ public without sharing class EstimateDocumentService {
     context.companyPostalCode = '';
     context.companyAddressLine1 = orgDocumentText(orgSetting.Address__c);
     context.companyAddressLine2 = '';
-    context.companyRegistrationNumber = '';
+    // 仕様: Core 第4.8節・第11.3.1節。見積PDFに登録番号を出す。空は空。定数で埋めない。
+    context.companyRegistrationNumber = orgDocumentText(
+      orgSetting.InvoiceRegistrationNumber__c
+    );
     context.lines = loadLines(contractHistoryId, context.history.Type__c);
     context.lineTotal = resolveLineTotal(context.history, context.lines);
     // 仕様: Core 第4.6節、第4.8節。保存値を読む。3つが空なら契約サービスの税率で、税率だけ入っているならその保存税率で、出すときだけ1回計算する。履歴へは書かない。
@@ -227,6 +234,13 @@ public without sharing class EstimateDocumentService {
       context.history.EstimateValidDate__c
     );
     context.issueDateLabel = formatDisplayDate(
+      context.history.EstimateIssueDate__c
+    );
+    // 仕様: Core 第4.8節。印字は yyyy年M月d日。空は空。今日で埋めない。
+    context.validDatePrint = formatLooseDate(
+      context.history.EstimateValidDate__c
+    );
+    context.issueDatePrint = formatLooseDate(
       context.history.EstimateIssueDate__c
     );
     context.termLabel = buildTermLabel(
@@ -296,6 +310,7 @@ public without sharing class EstimateDocumentService {
     Date issueDate = ensureIssueDate(context.history);
     context.history.EstimateIssueDate__c = issueDate;
     context.issueDateLabel = formatDisplayDate(issueDate);
+    context.issueDatePrint = formatLooseDate(issueDate);
 
     String fileName = String.isNotBlank(attachmentFileName)
       ? attachmentFileName.trim()
@@ -761,6 +776,11 @@ public without sharing class EstimateDocumentService {
         product.StartDate__c,
         product.Enddate__c
       );
+      // 仕様: Core 第4.8節。有料期間は開始日と終了日。両方空なら空。
+      line.periodRangeLabel = formatSlashRange(
+        product.StartDate__c,
+        product.Enddate__c
+      );
       line.typeLabel = resolveProductTypeLabel(product.Type__c);
       lines.add(line);
     }
@@ -936,6 +956,36 @@ public without sharing class EstimateDocumentService {
       return '式';
     }
     return unitName;
+  }
+
+  private static String formatLooseDate(Date value) {
+    if (value == null) {
+      return '';
+    }
+    return String.valueOf(value.year()) +
+      '年' +
+      String.valueOf(value.month()) +
+      '月' +
+      String.valueOf(value.day()) +
+      '日';
+  }
+
+  private static String formatSlashDate(Date value) {
+    if (value == null) {
+      return '';
+    }
+    return String.valueOf(value.year()) +
+      '/' +
+      String.valueOf(value.month()).leftPad(2, '0') +
+      '/' +
+      String.valueOf(value.day()).leftPad(2, '0');
+  }
+
+  private static String formatSlashRange(Date startDate, Date endDate) {
+    if (startDate == null && endDate == null) {
+      return '';
+    }
+    return formatSlashDate(startDate) + '～' + formatSlashDate(endDate);
   }
 
   private static String buildPeriodLabel(Date startDate, Date endDate) {
@@ -1255,17 +1305,21 @@ public without sharing class EstimateDocumentService {
       : formatDisplayDate(history.EstimateValidDate__c);
     text.estimateSumLabel = '御見積金額';
     text.unitSentence = '円';
-    text.digitalLicenceFeeLabel = 'デジタルライセンス料';
-    text.consultingFeeLabel = 'コンサルティング料';
-    text.feedbackCoachingFeeLabel = 'フィードバックコーチング料';
+    // 仕様: Core 第4.8節。顧客固有の分類見出しは持たない。
+    text.digitalLicenceFeeLabel = '';
+    text.consultingFeeLabel = '';
+    text.feedbackCoachingFeeLabel = '';
     text.otherFeeLabel = 'その他';
-    text.noteSentenceLabel = '特記事項';
-    // 仕様: Core 第4.10節、第4.8節、第1.1.10節。備考空はマスタ本文で埋めない。
+    text.noteSentenceLabel = '備考';
+    // 仕様: Core 第4.10節、第4.8節、第1.1.10節。備考はNote__c。空は空。マスタ本文で埋めない。
     text.noteSentence = resolveFallbackNoteText(history);
     text.ownerLabel = '担当：';
-    // 仕様: Core 第11.3.1節・第4.8節。帳票フッターとプライバシーポリシーURLは空でなければ出す。定数で埋めない。
+    // 仕様: Core 第11.3.1節・第4.8節。帳票フッターは空でなければ出す。登録番号は出す。プライバシーポリシーURLは出さない。定数で埋めない。
     text.documentFooter = orgDocumentText(orgSetting.DocumentFooter__c);
-    text.privacyPolicyUrl = orgDocumentText(orgSetting.PrivacyPolicyUrl__c);
+    text.registrationNumber = orgDocumentText(
+      orgSetting.InvoiceRegistrationNumber__c
+    );
+    text.privacyPolicyUrl = '';
     Decimal rateForText = history == null ? null : history.TaxPercent__c;
     if (
       rateForText == null &&
