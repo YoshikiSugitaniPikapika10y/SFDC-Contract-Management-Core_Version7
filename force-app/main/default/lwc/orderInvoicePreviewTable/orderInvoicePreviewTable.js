@@ -824,7 +824,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     return draft;
   }
 
-  // 仕様: Core 第11.9節。未処理税込の比例と符号付き最大剰余。最終決済は残をそのまま載せる。
+  // 仕様: Core 第8.6節、第11.9節。未処理税込の比例と符号付き最大剰余。余りは処理可能残額の内側。最終決済は残をそのまま載せる。
   proposePaymentAllocations(lines, parentAmount, headerRemaining) {
     const rows = Array.isArray(lines) ? lines : [];
     const amount = Number(parentAmount);
@@ -869,11 +869,20 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
     const amounts = truncated.slice();
     const step = diff > 0 ? 1 : -1;
-    let guard = 0;
-    while (diff !== 0 && order.length > 0 && guard < 100000) {
-      amounts[order[guard % order.length].index] += step;
-      diff -= step;
-      guard += 1;
+    let cursor = 0;
+    let skipped = 0;
+    // 仕様: Core 第8.6節、第11.9節。余りは処理可能残額の内側の行だけに載せる。
+    while (diff !== 0 && order.length > 0 && skipped < order.length) {
+      const index = order[cursor % order.length].index;
+      cursor += 1;
+      const next = amounts[index] + step;
+      if (this.isWithinLineRemaining(next, mapped[index].remainingInclusive)) {
+        amounts[index] = next;
+        diff -= step;
+        skipped = 0;
+      } else {
+        skipped += 1;
+      }
     }
     return mapped.map((row, index) => ({
       ...row,

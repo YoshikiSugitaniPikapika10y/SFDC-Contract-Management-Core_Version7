@@ -185,6 +185,71 @@ private class InvoicePaymentAllocationServiceTest {
     }
   }
 
+  /** 仕様: Core 第8.6節、第11.9節。正負が混ざる一部返金の初期配分は、各明細の残の内側に収める。 */
+  @IsTest
+  static void proposeLines_mixedSignPartialRefund_staysWithinRemaining() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertInvoiceWithoutLine(-349900, 0, -349900);
+      InvoiceLine__c creditLarge = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        ProductName__c = 'Credit Large',
+        Amount__c = -200000,
+        AllocatedTaxAmount__c = 0,
+        Quantity__c = 1,
+        UnitPrice__c = -200000
+      );
+      InvoiceLine__c creditSmall = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        ProductName__c = 'Credit Small',
+        Amount__c = -150000,
+        AllocatedTaxAmount__c = 0,
+        Quantity__c = 1,
+        UnitPrice__c = -150000
+      );
+      InvoiceLine__c charge = new InvoiceLine__c(
+        Invoice__c = invoice.Id,
+        ProductName__c = 'Small Charge',
+        Amount__c = 100,
+        AllocatedTaxAmount__c = 0,
+        Quantity__c = 1,
+        UnitPrice__c = 100
+      );
+      ContractTestDataFactory.applyRequiredFields(creditLarge);
+      ContractTestDataFactory.applyRequiredFields(creditSmall);
+      ContractTestDataFactory.applyRequiredFields(charge);
+      insert new List<InvoiceLine__c>{ creditLarge, creditSmall, charge };
+
+      List<InvoicePaymentAllocationService.AllocationLine> proposed =
+        InvoicePaymentAllocationService.proposeLines(invoice.Id, -3492);
+      Map<Id, Decimal> byLine = new Map<Id, Decimal>();
+      Decimal total = 0;
+      for (InvoicePaymentAllocationService.AllocationLine row : proposed) {
+        byLine.put(row.invoiceLineId, row.amount);
+        total += row.amount;
+      }
+      System.assertEquals(
+        -3492,
+        total,
+        'Core 第11.9節: 初期配分の合計は一部返金と一致する'
+      );
+      System.assertEquals(
+        0,
+        byLine.get(charge.Id),
+        'Core 第8.6節: 100円の明細へ負の割当を載せない'
+      );
+      System.assertEquals(
+        -1996,
+        byLine.get(creditLarge.Id),
+        'Core 第11.9節: 残の内側で小数剰余の大きい行へ1円を載せる'
+      );
+      System.assertEquals(
+        -1496,
+        byLine.get(creditSmall.Id),
+        'Core 第11.9節: 残る負の明細は切り捨て額のまま'
+      );
+    }
+  }
+
   @IsTest
   static void proposeLines_finalAssignsEachRemaining() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {

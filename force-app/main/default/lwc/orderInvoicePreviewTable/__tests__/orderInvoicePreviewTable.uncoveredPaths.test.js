@@ -988,6 +988,16 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     expect(ctx.truncTowardZero(1.9)).toBe(1);
     expect(ctx.truncTowardZero(-1.9)).toBe(-1);
     expect(ctx.isWithinLineRemaining(10, 10)).toBe(true);
+    const mixed = ctx.proposePaymentAllocations(
+      [
+        { lineId: "a", remainingInclusive: -200000 },
+        { lineId: "b", remainingInclusive: -150000 },
+        { lineId: "c", remainingInclusive: 100 }
+      ],
+      -3492,
+      -349900
+    );
+    expect(mixed.map((row) => row.amount)).toEqual([-1996, -1496, 0]);
     expect(ctx.hasInvalidEmailList("bad")).toBe(true);
     expect(ctx.hasInvalidEmailList("ok@example.com")).toBe(false);
     expect(ctx.isBlankReasonText("")).toBe(true);

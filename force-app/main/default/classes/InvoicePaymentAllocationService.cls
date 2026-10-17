@@ -107,10 +107,23 @@ public without sharing class InvoicePaymentAllocationService {
     Integer step = remainder >= 0 ? 1 : -1;
     Integer left = remainder.abs().intValue();
     Integer index = 0;
-    while (left > 0 && !order.isEmpty()) {
+    Integer skipped = 0;
+    // 仕様: Core 第8.6節、第11.9節。余りは処理可能残額の内側の行だけに載せる。
+    while (left > 0 && !order.isEmpty() && skipped < order.size()) {
       Integer lineIndex = order[Math.mod(index, order.size())];
-      truncated[lineIndex] = truncated[lineIndex] + step;
-      left--;
+      Integer nextAmount = truncated[lineIndex] + step;
+      if (
+        !exceedsRemaining(
+          Decimal.valueOf(nextAmount),
+          openLines[lineIndex].remainingInclusive
+        )
+      ) {
+        truncated[lineIndex] = nextAmount;
+        left--;
+        skipped = 0;
+      } else {
+        skipped++;
+      }
       index++;
     }
     List<AllocationLine> proposed = new List<AllocationLine>();
