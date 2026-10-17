@@ -849,10 +849,15 @@ public without sharing class InvoiceProductGenerationService {
         : 0;
       Id productId = extractProductIdFromPeriodKey(periodKey);
       InvoiceProduct__c pastSample = pastSampleByPeriodKey.get(periodKey);
-      // 仕様: Core 第1.1.3節・第6.3節。一回課金は過去と同じ金額でも今回追加分を全額請求し、過去は打ち消さない。
+      // 仕様: Core 第1.1.3節、第1.3節、第6.3節。一回課金は同額でも今回分を請求する。継続の同条件の月は作らない。
       if (
         shouldHaveAmount == pastAmount &&
-        !isOneTimeBillingForPeriod(historyProducts, productId, pastSample)
+        !isOneTimeBillingForPeriod(historyProducts, productId, pastSample) &&
+        !periodChargeDiffersInQuantityOrUnitPrice(
+          chargeDraftsByPeriodKey.get(periodKey),
+          historyProducts,
+          pastSample
+        )
       ) {
         continue;
       }
@@ -1021,6 +1026,45 @@ public without sharing class InvoiceProductGenerationService {
       }
     }
     return null;
+  }
+
+  /** 仕様: Core 第1.3節、第6.3節 */
+  private static Boolean periodChargeDiffersInQuantityOrUnitPrice(
+    List<MergeKeyDraft> chargeDrafts,
+    List<ContractProduct__c> historyProducts,
+    InvoiceProduct__c pastSample
+  ) {
+    if (
+      pastSample == null ||
+      chargeDrafts == null ||
+      chargeDrafts.isEmpty()
+    ) {
+      return false;
+    }
+    Decimal pastQuantity = resolvePastQuantity(pastSample);
+    Decimal pastUnitPrice = resolvePastUnitPrice(pastSample);
+    for (MergeKeyDraft chargeDraft : chargeDrafts) {
+      if (chargeDraft == null || chargeDraft.amount == 0) {
+        continue;
+      }
+      ContractProduct__c chargeContractProduct = findContractProductById(
+        historyProducts,
+        chargeDraft.contractProductId
+      );
+      if (chargeContractProduct == null) {
+        continue;
+      }
+      Decimal quantity = chargeContractProduct.Quantity__c == null
+        ? 0
+        : chargeContractProduct.Quantity__c;
+      Decimal unitPrice = chargeContractProduct.UnitPrice__c == null
+        ? 0
+        : chargeContractProduct.UnitPrice__c;
+      if (quantity != pastQuantity || unitPrice != pastUnitPrice) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static Decimal resolvePastQuantity(InvoiceProduct__c pastSample) {

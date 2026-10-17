@@ -5164,6 +5164,193 @@ private class InvoiceProductGenerationServiceTest {
     }
   }
 
+  /** 仕様: Core 第1.3節、第6.3節。切替日以降は税抜が同じでも数量と単価の打消しと新条件を残す。切替日前の同条件は作らない。 */
+  @IsTest
+  static void changeSameYenDifferentQuantity_keepsReversalAndNewCharge() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Account account = ContractTestDataFactory.insertAccount(
+        'Same Yen Change Account'
+      );
+      ContractService__c service = insertServiceWithBillingAccount(
+        'Same Yen Change Service',
+        account
+      );
+      Date termStart = Date.newInstance(2026, 4, 1);
+      Date aprilEnd = Date.newInstance(2026, 4, 30);
+      Date mayStart = Date.newInstance(2026, 5, 1);
+      Date termEnd = Date.newInstance(2026, 6, 30);
+      Date effectiveDate = mayStart;
+
+      ContractHistory__c priorHistory = new ContractHistory__c(
+        Name = 'Same Yen Change Prior',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Estimate',
+        Version__c = 1,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = termStart
+      );
+      insertHistory(priorHistory);
+      Product2 product = ContractTestDataFactory.buildProduct(
+        'Same Yen Change Product'
+      );
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY;
+      product.UnitPrice__c = 500;
+      ContractTestDataFactory.insertProduct(product);
+      insert new ContractProduct__c(
+        ContractHistory__c = priorHistory.Id,
+        Product__c = product.Id,
+        Quantity__c = 2,
+        UnitPrice__c = 500,
+        Amount__c = 3000,
+        StartDate__c = termStart,
+        Enddate__c = termEnd,
+        InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+        BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+        Type__c = 'New'
+      );
+      orderHistory(priorHistory);
+
+      ContractHistory__c changeHistory = new ContractHistory__c(
+        Name = 'Same Yen Change History',
+        ContractService__c = service.Id,
+        Type__c = 'Change',
+        historystatus__c = 'Estimate',
+        Version__c = 2,
+        CurrentTermStartDate__c = termStart,
+        CurrentTermEndDate__c = termEnd,
+        EffectiveDate__c = effectiveDate,
+        PreviousHistory__c = priorHistory.Id
+      );
+      insertHistory(changeHistory);
+      ContractProduct__c priorProduct = [
+        SELECT Id
+        FROM ContractProduct__c
+        WHERE ContractHistory__c = :priorHistory.Id
+        LIMIT 1
+      ];
+      insert new List<ContractProduct__c>{
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 2,
+          UnitPrice__c = 500,
+          Amount__c = -3000,
+          StartDate__c = termStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Original',
+          PreviousContractProduct__c = priorProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 2,
+          UnitPrice__c = 500,
+          Amount__c = 1000,
+          StartDate__c = termStart,
+          Enddate__c = aprilEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = priorProduct.Id
+        ),
+        new ContractProduct__c(
+          ContractHistory__c = changeHistory.Id,
+          Product__c = product.Id,
+          Quantity__c = 1,
+          UnitPrice__c = 1000,
+          Amount__c = 2000,
+          StartDate__c = mayStart,
+          Enddate__c = termEnd,
+          InvoiceSetting__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_MONTHLY,
+          BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING,
+          Type__c = 'Remake',
+          PreviousContractProduct__c = priorProduct.Id
+        )
+      };
+      Test.startTest();
+      orderHistory(changeHistory);
+      Test.stopTest();
+
+      List<InvoiceProduct__c> changeLines = [
+        SELECT StartDate__c, Enddate__c, Amount__c, Quantity__c, UnitPrice__c
+        FROM InvoiceProduct__c
+        WHERE ContractHistory__c = :changeHistory.Id
+      ];
+      System.assertEquals(
+        0,
+        countLinesStarting(changeLines, termStart),
+        'Core 第6.3節: 切替日前の同条件の月は作らない'
+      );
+      assertReversalAndCharge(
+        changeLines,
+        mayStart,
+        2,
+        500,
+        1,
+        1000,
+        'Core 第1.3節・第6.3節: 5月は税抜が同じでも打消しと新条件を残す'
+      );
+      assertReversalAndCharge(
+        changeLines,
+        Date.newInstance(2026, 6, 1),
+        2,
+        500,
+        1,
+        1000,
+        'Core 第1.3節・第6.3節: 6月は税抜が同じでも打消しと新条件を残す'
+      );
+    }
+  }
+
+  private static Integer countLinesStarting(
+    List<InvoiceProduct__c> lines,
+    Date startDate
+  ) {
+    Integer count = 0;
+    for (InvoiceProduct__c line : lines) {
+      if (line.StartDate__c == startDate) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private static void assertReversalAndCharge(
+    List<InvoiceProduct__c> lines,
+    Date startDate,
+    Decimal reversalQuantity,
+    Decimal reversalUnitPrice,
+    Decimal chargeQuantity,
+    Decimal chargeUnitPrice,
+    String message
+  ) {
+    InvoiceProduct__c reversal;
+    InvoiceProduct__c charge;
+    for (InvoiceProduct__c line : lines) {
+      if (line.StartDate__c != startDate) {
+        continue;
+      }
+      if (line.Amount__c < 0) {
+        reversal = line;
+      } else if (line.Amount__c > 0) {
+        charge = line;
+      }
+    }
+    System.assertNotEquals(null, reversal, message);
+    System.assertNotEquals(null, charge, message);
+    System.assertEquals(reversalQuantity, reversal.Quantity__c, message);
+    System.assertEquals(reversalUnitPrice, reversal.UnitPrice__c, message);
+    System.assertEquals(-1000, reversal.Amount__c, message);
+    System.assertEquals(chargeQuantity, charge.Quantity__c, message);
+    System.assertEquals(chargeUnitPrice, charge.UnitPrice__c, message);
+    System.assertEquals(1000, charge.Amount__c, message);
+  }
+
   static Date adjustGeneratedDate(
     Date value,
     String adjust,
