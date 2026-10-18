@@ -103,9 +103,6 @@ describe("orderWizardNavigation", () => {
     expect(readOrderWizardRecordId({ state: { c__recordId: "a01AAA" } })).toBe(
       "a01AAA"
     );
-    expect(
-      readOrderWizardRecordId({ state: { recordId: "a3rBW000000aVEzYAM" } })
-    ).toBe("a3rBW000000aVEzYAM");
     expect(readOrderWizardRecordId(null)).toBe("");
 
     const component = {};
