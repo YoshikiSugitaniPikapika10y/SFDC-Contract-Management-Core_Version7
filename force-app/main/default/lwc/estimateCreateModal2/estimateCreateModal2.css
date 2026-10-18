@@ -119,19 +119,6 @@
   align-items: start;
 }
 
-@media (max-width: 900px) {
-  .est-field-grid_continuation {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 720px) {
-  .est-field-grid_new,
-  .est-field-grid_lookup {
-    grid-template-columns: 1fr;
-  }
-}
-
 .est-field {
   display: flex;
   flex-direction: column;

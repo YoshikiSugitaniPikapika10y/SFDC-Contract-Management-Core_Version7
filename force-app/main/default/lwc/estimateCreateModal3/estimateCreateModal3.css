@@ -433,15 +433,6 @@
   color: var(--est-accent);
 }
 
-@media (max-width: 1100px) {
-  .est-field-grid_period {
-    grid-template-columns: 1fr;
-  }
-
-  .est-period-dates {
-    grid-template-columns: 1fr;
-  }
-}
 
 .est-field {
   display: flex;
@@ -522,8 +513,8 @@
 
 .est-table-wrap {
   width: 100%;
-  /* 縦は親 .est-body に任せ、テーブル上でもウィザード全体がスクロールできるようにする */
-  overflow-x: auto;
+  min-width: 0;
+  overflow-x: hidden;
   overflow-y: visible;
 }
 
@@ -544,7 +535,6 @@
   /* 横罫線: --est-border よりわずかに濃く（極端にしない） */
   --est-row-rule: #b6c2d1;
   width: 100%;
-  min-width: 74rem;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -555,40 +545,37 @@
 }
 
 .est-col-no {
-  width: 3%;
+  width: 2.5%;
 }
 .est-col-type {
-  width: 6%;
+  width: 5%;
 }
 .est-col-product {
-  width: 18%;
+  width: 15%;
 }
 .est-col-price {
-  width: 9%;
+  width: 7.5%;
 }
 .est-col-qty {
-  width: 5%;
+  width: 4%;
 }
 .est-col-date {
-  width: 12%;
+  width: 10%;
 }
 .est-col-cycle {
-  width: 6%;
+  width: 5%;
 }
 .est-col-amount {
-  width: 12%;
-  min-width: 8rem;
+  width: 10%;
 }
-/* 仕様: Core 第4.6節 */
 .est-col-invoice {
-  width: 22rem;
+  width: 30%;
 }
 .est-col-revenue {
-  width: 8%;
-  min-width: 5.75rem;
+  width: 7%;
 }
 .est-col-actions {
-  width: 5%;
+  width: 4%;
 }
 
 .est-table thead th,
@@ -876,8 +863,8 @@
 
 /* 仕様: Core 第4.6節 */
 .est-td-invoice {
-  min-width: 22rem;
-  overflow: visible;
+  min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
 }
 
@@ -1567,15 +1554,9 @@
 /* Remarks & total */
 .est-remarks-body {
   display: grid;
-  grid-template-columns: minmax(12rem, 18rem) minmax(12rem, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   gap: 0.875rem;
   align-items: start;
-}
-
-@media (max-width: 900px) {
-  .est-remarks-body {
-    grid-template-columns: 1fr;
-  }
 }
 
 .est-field_remark-master,

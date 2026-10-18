@@ -111,7 +111,7 @@
 /* 左タイトル｜中央パス｜右操作 */
 .est-header-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1.1fr);
   align-items: center;
   gap: 0.4rem 0.75rem;
 }
@@ -125,11 +125,12 @@
 
 .est-header-title {
   margin: 0;
+  min-width: 0;
   font-size: 0.875rem;
   font-weight: 700;
   line-height: 1.2;
   color: #0f172a;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .est-type-chip {
@@ -147,6 +148,7 @@
 
 .est-header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
@@ -236,10 +238,13 @@
 /* Stepper — ステップ間のパス間隔 */
 .est-stepper {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0;
-  width: fit-content;
+  justify-content: center;
+  gap: 0.25rem 0;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
 }
 
 .est-stepper-item {
