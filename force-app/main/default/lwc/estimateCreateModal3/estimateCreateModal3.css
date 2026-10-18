@@ -545,37 +545,37 @@
 }
 
 .est-col-no {
-  width: 2.5%;
+  width: 2.4%;
 }
 .est-col-type {
-  width: 5%;
+  width: 4.9%;
 }
 .est-col-product {
-  width: 15%;
+  width: 14.6%;
 }
 .est-col-price {
-  width: 7.5%;
+  width: 7.3%;
 }
 .est-col-qty {
-  width: 4%;
+  width: 3.9%;
 }
 .est-col-date {
-  width: 10%;
+  width: auto;
 }
 .est-col-cycle {
-  width: 5%;
+  width: 4.9%;
 }
 .est-col-amount {
-  width: 10%;
+  width: 9.7%;
 }
 .est-col-invoice {
-  width: 30%;
+  width: 19rem;
 }
 .est-col-revenue {
-  width: 7%;
+  width: 6.8%;
 }
 .est-col-actions {
-  width: 4%;
+  width: 3.9%;
 }
 
 .est-table thead th,
@@ -863,8 +863,8 @@
 
 /* 仕様: Core 第4.6節 */
 .est-td-invoice {
-  min-width: 0;
-  overflow: hidden;
+  min-width: 19rem;
+  overflow: visible;
   white-space: nowrap;
 }
 
