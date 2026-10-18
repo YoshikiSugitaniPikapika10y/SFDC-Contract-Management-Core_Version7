@@ -48,10 +48,12 @@
             受注直後の請求に戻す
           </button>
           <template if:true={showResetNotice}>
-            <p class={boardNoticeClass} role={boardNoticeRole}>{boardNoticeText}</p>
+            <div class="action-float">
+<p class={boardNoticeClass} role={boardNoticeRole}>{boardNoticeText}</p>
             <template if:true={boardNoticeReload}>
               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
             </template>
+</div>
           </template>
         </div>
       </template>
@@ -115,7 +117,7 @@
       <template if:true={showAmountDraftActions}>
         <div class="amount-compare-actions">
           <template if:true={showAmountDraftWait}>
-            <p class="surface-wait" role="status">
+            <p class="surface-wait action-float" role="status">
               <span class="surface-wait-spin">
                 <lightning-spinner
                   alternative-text="処理中"
@@ -142,10 +144,12 @@
             調整を保存
           </button>
           <template if:true={showAmountNotice}>
-            <p class={boardNoticeClass} role={boardNoticeRole}>{boardNoticeText}</p>
+            <div class="action-float">
+<p class={boardNoticeClass} role={boardNoticeRole}>{boardNoticeText}</p>
             <template if:true={boardNoticeReload}>
               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
             </template>
+</div>
           </template>
         </div>
       </template>
@@ -215,10 +219,11 @@
                       請求書情報
                     </button>
                     <template if:true={invoice.showBillingNotice}>
-                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                      <template if:true={invoice.actionNoticeReload}>
+                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                      </template>
+                      </template></div>
                     </template>
                   </template>
                 </template>
@@ -236,26 +241,29 @@
                     </button>
                     <template if:true={invoice.showSplitNotice}>
                       <template if:false={invoice.isInvoiceSplitOpen}>
-                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                        <template if:true={invoice.actionNoticeReload}>
+                        <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                           <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                        </template>
+                        </template></div>
                       </template>
                     </template>
                     <template if:true={invoice.showMoveNotice}>
                       <template if:false={invoice.isInvoiceMoveOpen}>
-                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                        <template if:true={invoice.actionNoticeReload}>
+                        <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                           <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                        </template>
+                        </template></div>
                       </template>
                     </template>
                     <template if:true={invoice.showLineSplitNotice}>
                       <template if:false={invoice.isLineSplitOpen}>
-                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                        <template if:true={invoice.actionNoticeReload}>
+                        <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                           <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                        </template>
+                        </template></div>
                       </template>
                     </template>
                   </template>
@@ -272,10 +280,11 @@
                     確定する
                   </button>
                   <template if:true={invoice.showConfirmNotice}>
-                    <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                    <template if:true={invoice.actionNoticeReload}>
+                    <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                       <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                    </template>
+                    </template></div>
                   </template>
                 </template>
                 <template if:true={invoice.showViewPdfAction}>
@@ -301,10 +310,11 @@
                       PDF発行
                     </button>
                     <template if:true={invoice.showIssueNotice}>
-                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                      <template if:true={invoice.actionNoticeReload}>
+                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                      </template>
+                      </template></div>
                     </template>
                   </template>
                 </template>
@@ -336,9 +346,13 @@
                     </template>
                   </template>
                   <template if:true={invoice.showSendNotice}>
-                    <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                    <template if:true={invoice.actionNoticeReload}>
-                      <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                    <template if:false={invoice.isInvoiceSendOpen}>
+                      <div class="action-float">
+                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+                        <template if:true={invoice.actionNoticeReload}>
+                          <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                        </template>
+                      </div>
                     </template>
                   </template>
                 </template>
@@ -355,23 +369,26 @@
                       取消
                     </button>
                     <template if:true={invoice.showCancelNotice}>
-                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                      <template if:true={invoice.actionNoticeReload}>
+                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                      </template>
+                      </template></div>
                     </template>
                   </template>
                 </template>
               </div>
             </div>
             <template if:true={invoice.showEditProcessing}>
-              <p class="edit-note edit-note_wait" role="status">
+              <template if:false={invoice.isCardWorkOpen}>
+              <p class="edit-note edit-note_wait action-float" role="status">
                 <lightning-spinner
                   alternative-text="処理中"
                   size="small"
                 ></lightning-spinner>
                 処理中
               </p>
+              </template>
             </template>
             <div class="invoice-meta-row" aria-label="請求の補助情報">
               <span class="invoice-date-item">
@@ -455,7 +472,7 @@
               </div>
               <div class="edit-actions">
                 <template if:true={invoice.showEditProcessing}>
-                  <p class="surface-wait" role="status">
+                  <p class="surface-wait action-float" role="status">
                     <span class="surface-wait-spin">
                       <lightning-spinner
                         alternative-text="処理中"
@@ -482,13 +499,14 @@
                   発行する
                 </button>
                 <template if:true={invoice.invoiceIssueConfirmReason}>
-                  <p class="edit-note">{invoice.invoiceIssueConfirmReason}</p>
+                  <p class="edit-note action-float">{invoice.invoiceIssueConfirmReason}</p>
                 </template>
                 <template if:true={invoice.showIssueNotice}>
-                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                  <template if:true={invoice.actionNoticeReload}>
+                  <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                  </template>
+                  </template></div>
                 </template>
               </div>
               </template>
@@ -588,7 +606,7 @@
               </div>
               <div class="edit-actions">
                 <template if:true={invoice.showEditProcessing}>
-                  <p class="surface-wait" role="status">
+                  <p class="surface-wait action-float" role="status">
                     <span class="surface-wait-spin">
                       <lightning-spinner
                         alternative-text="処理中"
@@ -615,13 +633,14 @@
                   {invoice.sendActionLabel}する
                 </button>
                 <template if:true={invoice.invoiceSendConfirmReason}>
-                  <p class="edit-note">{invoice.invoiceSendConfirmReason}</p>
+                  <p class="edit-note action-float">{invoice.invoiceSendConfirmReason}</p>
                 </template>
                 <template if:true={invoice.showSendNotice}>
-                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                  <template if:true={invoice.actionNoticeReload}>
+                  <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                  </template>
+                  </template></div>
                 </template>
               </div>
               </template>
@@ -670,7 +689,7 @@
               </div>
               <div class="edit-actions">
                 <template if:true={invoice.showEditProcessing}>
-                  <p class="surface-wait" role="status">
+                  <p class="surface-wait action-float" role="status">
                     <span class="surface-wait-spin">
                       <lightning-spinner
                         alternative-text="処理中"
@@ -697,13 +716,14 @@
                   取り消す
                 </button>
                 <template if:true={invoice.invoiceCancelConfirmReason}>
-                  <p class="edit-note">{invoice.invoiceCancelConfirmReason}</p>
+                  <p class="edit-note action-float">{invoice.invoiceCancelConfirmReason}</p>
                 </template>
                 <template if:true={invoice.showCancelNotice}>
-                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                  <template if:true={invoice.actionNoticeReload}>
+                  <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                  </template>
+                  </template></div>
                 </template>
               </div>
             </div>
@@ -865,7 +885,7 @@
               </template>
               <div class="panel-actions">
                 <template if:true={invoice.showEditProcessing}>
-                  <p class="surface-wait" role="status">
+                  <p class="surface-wait action-float" role="status">
                     <span class="surface-wait-spin">
                       <lightning-spinner
                         alternative-text="処理中"
@@ -892,10 +912,11 @@
                   保存
                 </button>
                 <template if:true={invoice.showBillingNotice}>
-                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                  <template if:true={invoice.actionNoticeReload}>
+                  <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                  </template>
+                  </template></div>
                 </template>
               </div>
               <section class="billing-edit-section billing-edit-section_memo">
@@ -910,7 +931,7 @@
                   ></lightning-textarea>
                   <div class="panel-actions">
                     <template if:true={invoice.showEditProcessing}>
-                      <p class="surface-wait" role="status">
+                      <p class="surface-wait action-float" role="status">
                         <span class="surface-wait-spin">
                           <lightning-spinner
                             alternative-text="処理中"
@@ -930,10 +951,11 @@
                       メモを保存
                     </button>
                     <template if:true={invoice.showMemoNotice}>
-                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                      <template if:true={invoice.actionNoticeReload}>
+                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                      </template>
+                      </template></div>
                     </template>
                   </div>
                 </template>
@@ -1190,7 +1212,7 @@
                                   </div>
                                   <div class="panel-actions">
                                     <template if:true={invoice.paymentEditBusy}>
-                                      <p class="surface-wait" role="status">
+                                      <p class="surface-wait action-float" role="status">
                                         <span class="surface-wait-spin">
                                           <lightning-spinner
                                             alternative-text="処理中"
@@ -1217,10 +1239,11 @@
                                       保存
                                     </button>
                                     <template if:true={invoice.showPaymentEditNotice}>
-                                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                                      <template if:true={invoice.actionNoticeReload}>
+                                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                                      </template>
+                                      </template></div>
                                     </template>
                                   </div>
                                 </div>
@@ -1311,7 +1334,7 @@
                                     <template
                                       if:true={invoice.paymentCancelBusy}
                                     >
-                                      <p class="surface-wait" role="status">
+                                      <p class="surface-wait action-float" role="status">
                                         <span class="surface-wait-spin">
                                           <lightning-spinner
                                             alternative-text="処理中"
@@ -1340,10 +1363,11 @@
                                       取消する
                                     </button>
                                     <template if:true={invoice.showPaymentCancelNotice}>
-                                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                                      <template if:true={invoice.actionNoticeReload}>
+                                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                                      </template>
+                                      </template></div>
                                     </template>
                                   </div>
                                 </div>
@@ -1634,7 +1658,7 @@
                     </template>
                     <div class="panel-actions">
                       <template if:true={invoice.paymentRegisterBusy}>
-                        <p class="surface-wait" role="status">
+                        <p class="surface-wait action-float" role="status">
                           <span class="surface-wait-spin">
                             <lightning-spinner
                               alternative-text="処理中"
@@ -1654,8 +1678,9 @@
                         {invoice.paymentSaveLabel}
                       </button>
                       <template if:true={invoice.showPaymentAddNotice}>
-                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                      </template>
+                        <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+</div></template>
                     </div>
                   </div>
                 </template>
@@ -1711,7 +1736,7 @@
                     <template if:true={invoice.showJournalLockBar}>
                       <div class="journal-lock-bar">
                         <template if:true={invoice.showEditProcessing}>
-                          <p class="surface-wait" role="status">
+                          <p class="surface-wait action-float" role="status">
                             <span class="surface-wait-spin">
                               <lightning-spinner
                                 alternative-text="処理中"
@@ -1731,10 +1756,11 @@
                             {invoice.journalLockBarLabel}
                           </button>
                           <template if:true={invoice.showLockNotice}>
-                            <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                            <template if:true={invoice.actionNoticeReload}>
+                            <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                            </template>
+                            </template></div>
                           </template>
                         </template>
                         <template if:true={invoice.showJournalBarUnlock}>
@@ -1755,13 +1781,14 @@
                             {invoice.journalUnlockBarLabel}
                           </button>
                           <template if:true={invoice.journalBarUnlockReason}>
-                            <p class="edit-note">{invoice.journalBarUnlockReason}</p>
+                            <p class="edit-note action-float">{invoice.journalBarUnlockReason}</p>
                           </template>
                           <template if:true={invoice.showUnlockNotice}>
-                            <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                            <template if:true={invoice.actionNoticeReload}>
+                            <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                               <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                            </template>
+                            </template></div>
                           </template>
                         </template>
                       </div>
@@ -2209,7 +2236,7 @@
                                         <template
                                           if:true={invoice.showEditProcessing}
                                         >
-                                          <p class="surface-wait" role="status">
+                                          <p class="surface-wait action-float" role="status">
                                             <span class="surface-wait-spin">
                                               <lightning-spinner
                                                 alternative-text="処理中"
@@ -2230,10 +2257,11 @@
                                           保存
                                         </button>
                                         <template if:true={invoice.showJournalMemoNotice}>
-                                          <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                                          <template if:true={invoice.actionNoticeReload}>
+                                          <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                                             <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                                          </template>
+                                          </template></div>
                                         </template>
                                       </div>
                                     </template>
@@ -2372,7 +2400,7 @@
                   </div>
                   <div class="panel-actions">
                     <template if:true={invoice.showEditProcessing}>
-                      <p class="surface-wait" role="status">
+                      <p class="surface-wait action-float" role="status">
                         <span class="surface-wait-spin">
                           <lightning-spinner
                             alternative-text="処理中"
@@ -2399,13 +2427,14 @@
                       保存
                     </button>
                     <template if:true={invoice.invoiceMoveConfirmReason}>
-                      <p class="edit-note">{invoice.invoiceMoveConfirmReason}</p>
+                      <p class="edit-note action-float">{invoice.invoiceMoveConfirmReason}</p>
                     </template>
                     <template if:true={invoice.showMoveNotice}>
-                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                      <template if:true={invoice.actionNoticeReload}>
+                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                      </template>
+                      </template></div>
                     </template>
                   </div>
                 </div>
@@ -2548,7 +2577,7 @@
                   </div>
                   <div class="panel-actions">
                     <template if:true={invoice.showEditProcessing}>
-                      <p class="surface-wait" role="status">
+                      <p class="surface-wait action-float" role="status">
                         <span class="surface-wait-spin">
                           <lightning-spinner
                             alternative-text="処理中"
@@ -2575,13 +2604,14 @@
                       保存
                     </button>
                     <template if:true={invoice.invoiceSplitConfirmReason}>
-                      <p class="edit-note">{invoice.invoiceSplitConfirmReason}</p>
+                      <p class="edit-note action-float">{invoice.invoiceSplitConfirmReason}</p>
                     </template>
                     <template if:true={invoice.showSplitNotice}>
-                      <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                      <template if:true={invoice.actionNoticeReload}>
+                      <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                         <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                      </template>
+                      </template></div>
                     </template>
                   </div>
                 </div>
@@ -3014,7 +3044,7 @@
 
                               <div class="split-row-actions">
                                 <template if:true={invoice.showEditProcessing}>
-                                  <p class="surface-wait" role="status">
+                                  <p class="surface-wait action-float" role="status">
                                     <span class="surface-wait-spin">
                                       <lightning-spinner
                                         alternative-text="処理中"
@@ -3043,13 +3073,14 @@
                                   保存
                                 </button>
                                 <template if:true={invoice.lineSplitConfirmReason}>
-                                  <p class="edit-note">{invoice.lineSplitConfirmReason}</p>
+                                  <p class="edit-note action-float">{invoice.lineSplitConfirmReason}</p>
                                 </template>
                                 <template if:true={invoice.showLineSplitNotice}>
-                                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                                  <template if:true={invoice.actionNoticeReload}>
+                                  <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                                  </template>
+                                  </template></div>
                                 </template>
                               </div>
                             </div>
@@ -3075,7 +3106,7 @@
                               </p>
                               <div class="panel-actions">
                                 <template if:true={invoice.showEditProcessing}>
-                                  <p class="surface-wait" role="status">
+                                  <p class="surface-wait action-float" role="status">
                                     <span class="surface-wait-spin">
                                       <lightning-spinner
                                         alternative-text="処理中"
@@ -3104,13 +3135,14 @@
                                   変更する
                                 </button>
                                 <template if:true={invoice.acceptanceCancelReason}>
-                                  <p class="edit-note">{invoice.acceptanceCancelReason}</p>
+                                  <p class="edit-note action-float">{invoice.acceptanceCancelReason}</p>
                                 </template>
                                 <template if:true={invoice.showAcceptanceNotice}>
-                                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
-                                  <template if:true={invoice.actionNoticeReload}>
+                                  <div class="action-float">
+<p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+<template if:true={invoice.actionNoticeReload}>
                                     <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
-                                  </template>
+                                  </template></div>
                                 </template>
                               </div>
                             </div>
