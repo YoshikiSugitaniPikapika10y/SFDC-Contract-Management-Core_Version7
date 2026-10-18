@@ -98,26 +98,6 @@
   line-height: 1.45;
 }
 
-@media (max-width: 960px) {
-  .est-field-grid_identity,
-  .est-field-grid_other {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .est-field-grid_address {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 720px) {
-  .est-field-grid_other,
-  .est-field-grid_address,
-  .est-field-grid_identity {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-}
-
 .est-field {
   display: flex;
   flex-direction: column;
