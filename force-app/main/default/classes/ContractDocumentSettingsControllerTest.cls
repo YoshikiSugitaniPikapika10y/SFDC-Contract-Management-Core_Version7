@@ -1115,7 +1115,28 @@ private class ContractDocumentSettingsControllerTest {
     applyPdfOnlyRequired(input);
     input.estimateSendMode = 'PdfAndEmail';
     input.invoiceSendMode = 'PdfAndEmail';
-    String orgSender = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+    String orgSender = ContractTestDataFactory.verifiedOrgWideAddressOrNull();
+    if (orgSender == null) {
+      input.estimateOrgWideEmailAddress = 'not-verified@example.com';
+      input.invoiceOrgWideEmailAddress = 'not-verified@example.com';
+      Boolean thrown = false;
+      Test.startTest();
+      try {
+        saveWithFreshTokens(input);
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage()
+            .contains(
+              ContractDocumentSettingService.ORG_SENDER_NOT_FOUND_MESSAGE
+            ),
+          ex.getMessage()
+        );
+      }
+      Test.stopTest();
+      System.assertEquals(true, thrown);
+      return;
+    }
     input.estimateOrgWideEmailAddress = orgSender;
     input.invoiceOrgWideEmailAddress = orgSender;
 
@@ -1153,7 +1174,10 @@ private class ContractDocumentSettingsControllerTest {
     ContractDocumentSettingsController.SettingsDto input = new ContractDocumentSettingsController.SettingsDto();
     applyPdfOnlyRequired(input);
     input.invoiceSendMode = 'PdfAndEmail';
-    input.estimateOrgWideEmailAddress = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+    String orgSender = ContractTestDataFactory.verifiedOrgWideAddressOrNull();
+    if (orgSender != null) {
+      input.estimateOrgWideEmailAddress = orgSender;
+    }
     input.invoiceOrgWideEmailAddress = null;
 
     Boolean thrown = false;

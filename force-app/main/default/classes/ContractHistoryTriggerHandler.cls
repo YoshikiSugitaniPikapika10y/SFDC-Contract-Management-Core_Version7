@@ -139,6 +139,7 @@ public without sharing class ContractHistoryTriggerHandler {
   }
 
   public static void handleAfterInsert(List<ContractHistory__c> newHistories) {
+    RenewOpportunityCreateService.applyCancelNames(newHistories, null);
     List<ContractHistory__c> insertedAsOrderedHistories = new List<ContractHistory__c>();
     Set<Id> insertedAsOrderedHistoryIds = new Set<Id>();
 
@@ -193,6 +194,7 @@ public without sharing class ContractHistoryTriggerHandler {
     List<ContractHistory__c> newHistories,
     Map<Id, ContractHistory__c> oldMap
   ) {
+    RenewOpportunityCreateService.applyCancelNames(newHistories, oldMap);
     Set<Id> orderedHistoryIds = new Set<Id>();
     Set<Id> revertToEstimateHistoryIds = new Set<Id>();
     List<ContractHistory__c> orderedTransitionHistories = new List<ContractHistory__c>();

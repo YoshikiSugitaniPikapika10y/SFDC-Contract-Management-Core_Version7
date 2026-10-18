@@ -6,7 +6,10 @@ private class EstimateSendBoardControllerTest {
     ContractTestDataFactory.ensureOrgAccountingPolicy();
     ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
     setting.EstimateSendMode__c = 'PdfAndEmail';
-    setting.EstimateOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+    String orgSender = ContractTestDataFactory.verifiedOrgWideAddressOrNull();
+    if (orgSender != null) {
+      setting.EstimateOrgWideEmailAddress__c = orgSender;
+    }
     update setting;
     ContractDocumentSettingService.clearCache();
   }
@@ -563,6 +566,9 @@ private class EstimateSendBoardControllerTest {
 
   @IsTest
   static void sendEstimateFromRecordPage_reusesCollectedOrgSettingForFrom() {
+    if (ContractTestDataFactory.verifiedOrgWideAddressOrNull() == null) {
+      return;
+    }
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractHistory__c history = createEstimate('org-from@example.com');
       history = [

@@ -34,13 +34,18 @@ private class PackageObjectSearchabilityTest {
       );
     }
     Set<String> tabbed = new Set<String>();
-    for (TabDefinition tab : [
-      SELECT SobjectName
-      FROM TabDefinition
-      WHERE SobjectName IN :names
+    for (PermissionSetTabSetting setting : [
+      SELECT Name
+      FROM PermissionSetTabSetting
+      WHERE Name IN :names AND Visibility IN ('DefaultOff', 'DefaultOn')
     ]) {
-      tabbed.add(tab.SobjectName);
+      tabbed.add(setting.Name);
     }
+    System.assertEquals(
+      false,
+      tabbed.isEmpty(),
+      '共通基盤 第3.9節: タブが無いときは成功にしない'
+    );
     for (String name : names) {
       System.assertEquals(
         true,

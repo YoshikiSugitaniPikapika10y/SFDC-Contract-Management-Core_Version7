@@ -406,7 +406,7 @@ public class ContractTestDataFactory {
   /**
    * Core 第11.3.2節。検証済み組織ワイドメールのアドレス文字列。レコード Id は返さない。
    */
-  public static String requireVerifiedOrgWideAddress() {
+  public static String verifiedOrgWideAddressOrNull() {
     List<OrgWideEmailAddress> rows = [
       SELECT Address
       FROM OrgWideEmailAddress
@@ -416,11 +416,19 @@ public class ContractTestDataFactory {
       LIMIT 1
     ];
     if (rows.isEmpty() || String.isBlank(rows[0].Address)) {
+      return null;
+    }
+    return rows[0].Address.trim();
+  }
+
+  public static String requireVerifiedOrgWideAddress() {
+    String address = verifiedOrgWideAddressOrNull();
+    if (address == null) {
       throw new IllegalArgumentException(
         '検証済みの組織ワイドメールがありません。'
       );
     }
-    return rows[0].Address.trim();
+    return address;
   }
 
   /** 顧客 VR 強制を OFF。組織既定だけを書く（第11.6節。ユーザー階層は使わない）。 */
@@ -900,10 +908,14 @@ public class ContractTestDataFactory {
     if (opportunity == null) {
       return;
     }
-    if (opportunity.RecordTypeId == null) {
+    Map<String, Schema.SObjectField> opportunityFields = Schema.sObjectType.Opportunity.fields.getMap();
+    if (
+      opportunityFields.containsKey('recordtypeid') &&
+      opportunity.get('RecordTypeId') == null
+    ) {
       Id recordTypeId = resolveOpportunityRecordTypeId();
       if (recordTypeId != null) {
-        opportunity.RecordTypeId = recordTypeId;
+        opportunity.put('RecordTypeId', recordTypeId);
       }
     }
     opportunity.StageName = resolveDefaultStageName();

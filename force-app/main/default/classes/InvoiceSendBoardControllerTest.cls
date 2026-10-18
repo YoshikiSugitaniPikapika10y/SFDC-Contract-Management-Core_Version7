@@ -5,7 +5,10 @@ private class InvoiceSendBoardControllerTest {
     ContractTestDataFactory.initTestContext();
     ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
     setting.InvoiceSendMode__c = 'PdfAndEmail';
-    setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
+    String orgSender = ContractTestDataFactory.verifiedOrgWideAddressOrNull();
+    if (orgSender != null) {
+      setting.InvoiceOrgWideEmailAddress__c = orgSender;
+    }
     update setting;
     ContractDocumentSettingService.clearCache();
     insert GlAccountingPolicyService.newOrgDefault();

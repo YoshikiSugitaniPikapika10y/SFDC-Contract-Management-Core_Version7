@@ -151,9 +151,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -194,9 +192,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -324,9 +320,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.clearTestState();
 
       Invoice__c invoice = createConfirmedInvoice();
@@ -355,9 +349,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -411,9 +403,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -518,9 +508,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -559,9 +547,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -739,10 +725,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      String orgSender = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      setting.InvoiceOrgWideEmailAddress__c = orgSender;
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      String orgSender = applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -783,9 +766,7 @@ private class InvoiceBoardDocumentServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.InvoiceSendMode__c = 'PdfAndEmail';
-      setting.InvoiceOrgWideEmailAddress__c = ContractTestDataFactory.requireVerifiedOrgWideAddress();
-      update setting;
-      ContractDocumentSettingService.clearCache();
+      applyVerifiedInvoiceSender(setting);
       ContractEmailTemplateService.seedActiveRowForTest(
         ContractEmailTemplateService.TYPE_INVOICE,
         'InvoiceMail'
@@ -943,6 +924,62 @@ private class InvoiceBoardDocumentServiceTest {
       );
       Test.stopTest();
     }
+  }
+
+  @IsTest
+  static void sendFromPreview_unverifiedOrgSender_rejects() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.InvoiceSendMode__c = 'PdfAndEmail';
+      InvoiceBoardDocumentService.testSender = null;
+      setting.InvoiceOrgWideEmailAddress__c = 'not-verified@example.com';
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractEmailTemplateService.seedActiveRowForTest(
+        ContractEmailTemplateService.TYPE_INVOICE,
+        'InvoiceMail'
+      );
+      Invoice__c invoice = createConfirmedInvoice();
+      Boolean thrown = false;
+      try {
+        InvoiceBoardDocumentService.sendFromPreview(
+          invoice.Id,
+          'StandardInvoice',
+          'InvoiceMail',
+          token(invoice.Id),
+          null
+        );
+      } catch (AuraHandledException ex) {
+        thrown = true;
+        System.assert(
+          ex.getMessage()
+            .contains(
+              ContractDocumentSettingService.ORG_SENDER_NOT_FOUND_MESSAGE
+            ),
+          ex.getMessage()
+        );
+      }
+      System.assertEquals(true, thrown, 'Core 第11.3.2節: 検証済みが0件なら送らない');
+    }
+  }
+
+  private static String applyVerifiedInvoiceSender(
+    ContractDocumentSetting__c setting
+  ) {
+    String address = ContractTestDataFactory.verifiedOrgWideAddressOrNull();
+    if (address == null) {
+      ContractEmailTemplateService.OrgWideResolved stub = new ContractEmailTemplateService.OrgWideResolved();
+      stub.address = 'sender@example.com';
+      stub.orgWideId =
+        OrgWideEmailAddress.SObjectType.getDescribe().getKeyPrefix() +
+        '000000000000';
+      InvoiceBoardDocumentService.testSender = stub;
+      address = stub.address;
+    }
+    setting.InvoiceOrgWideEmailAddress__c = address;
+    update setting;
+    ContractDocumentSettingService.clearCache();
+    return address;
   }
 
   private static Invoice__c createConfirmedInvoice() {

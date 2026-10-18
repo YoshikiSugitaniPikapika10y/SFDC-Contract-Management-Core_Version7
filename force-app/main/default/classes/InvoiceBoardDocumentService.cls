@@ -13,6 +13,10 @@ public without sharing class InvoiceBoardDocumentService {
   @TestVisible
   private static Boolean skipEmailSend = false;
 
+  /** 検証済み組織ワイドが無い組織でも、送付本体のテストがFrom解決の先を通す。本番の解決は変えない。 */
+  @TestVisible
+  private static ContractEmailTemplateService.OrgWideResolved testSender;
+
   public class SendDraftDto {
     @AuraEnabled
     public String toAddresses { get; set; }
@@ -369,9 +373,7 @@ public without sharing class InvoiceBoardDocumentService {
           null,
           invoice.Id
         );
-        sender = ContractEmailTemplateService.resolveOrgWide(
-          setting.InvoiceOrgWideEmailAddress__c
-        );
+        sender = resolveInvoiceSender(setting.InvoiceOrgWideEmailAddress__c);
       } catch (ContractEmailTemplateService.EmailTemplateException ex) {
         throw handledMessage(ex.getMessage());
       }
@@ -425,6 +427,15 @@ public without sharing class InvoiceBoardDocumentService {
     }
   }
 
+  private static ContractEmailTemplateService.OrgWideResolved resolveInvoiceSender(
+    String savedAddress
+  ) {
+    if (Test.isRunningTest() && testSender != null) {
+      return testSender;
+    }
+    return ContractEmailTemplateService.resolveOrgWide(savedAddress);
+  }
+
   private static DocumentResultDto sendConfirmedInvoice(
     Invoice__c invoice,
     String documentTemplateKey,
@@ -451,9 +462,7 @@ public without sharing class InvoiceBoardDocumentService {
         emailTemplateApiName,
         null
       );
-      sender = ContractEmailTemplateService.resolveOrgWide(
-        setting.InvoiceOrgWideEmailAddress__c
-      );
+      sender = resolveInvoiceSender(setting.InvoiceOrgWideEmailAddress__c);
     } catch (ContractEmailTemplateService.EmailTemplateException ex) {
       throw handledMessage(ex.getMessage());
     }
