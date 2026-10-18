@@ -2058,7 +2058,7 @@ p.surface-wait.action-float {
 }
 
 .preview-table col.col-product {
-  width: 21%;
+  width: 16.8%;
 }
 
 .preview-table col.col-price {
@@ -2074,19 +2074,19 @@ p.surface-wait.action-float {
 }
 
 .preview-table col.col-period {
-  width: 17.5%;
+  width: 10.25rem;
 }
 
 .preview-table col.col-cycle {
-  width: 5%;
+  width: 6.5%;
 }
 
 .preview-table col.col-revenue-basis {
-  width: 7%;
+  width: 8.5%;
 }
 
 .preview-table col.col-acceptance {
-  width: 8%;
+  width: 9.5%;
 }
 
 /* 残りを金額列へ。中身は右端へ寄せて分割右の空洞を消す */
@@ -2151,11 +2151,10 @@ p.surface-wait.action-float {
 .preview-table td.period-col {
   text-align: left;
   min-width: 0;
-  overflow: visible;
+  overflow: hidden;
   text-overflow: unset;
-  white-space: normal;
+  white-space: nowrap;
   line-height: 1.3;
-  word-break: keep-all;
 }
 
 .preview-table th.unit-col,
@@ -2252,9 +2251,13 @@ p.surface-wait.action-float {
  */
 .amount-with-adjust {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 6.5fr) minmax(0, 8.75fr) minmax(0, 9.1fr);
+  grid-template-columns:
+    minmax(0, 0.2fr)
+    minmax(5.75rem, 0.85fr)
+    minmax(8.25rem, 1.35fr)
+    minmax(9.5rem, 1.5fr);
   align-items: center;
-  column-gap: 0.35rem;
+  column-gap: 0.4rem;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -2275,7 +2278,7 @@ p.surface-wait.action-float {
   text-align: left;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .amount-yen-slot lightning-formatted-number {
@@ -2286,7 +2289,7 @@ p.surface-wait.action-float {
 
 .amount-meta-slot {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   align-content: center;
   justify-content: flex-start;
@@ -2296,8 +2299,8 @@ p.surface-wait.action-float {
   width: 100%;
   min-width: 0;
   max-width: none;
-  white-space: normal;
-  overflow: visible;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .adjusted-pill {
@@ -2313,9 +2316,8 @@ p.surface-wait.action-float {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0;
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .line-drift_ok {
