@@ -183,9 +183,6 @@ private class EstimateDocumentServiceTest {
         context.totalAmount,
         'Core 第4.8節: 御見積金額は、出すときに計算した税込'
       );
-      System.assertEquals(1, context.otherGroups.size());
-      System.assertEquals(14400, context.otherGroups[0].taxAmount);
-      System.assertEquals(158400, context.otherGroups[0].totalAmountIncTax);
 
       ContractHistory__c stored = [
         SELECT TaxPercent__c, TaxAmount__c, DeltaTaxInclusiveSum__c
@@ -239,7 +236,6 @@ private class EstimateDocumentServiceTest {
   static void loadContext_groupedTotal_usesOneShotGrandTaxLikeWizard() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       // 税抜15×2・税率10%: ウィザードと同じく総額30に1回切り捨てで税3→税込33。
-      // グループ税込は総額税の按分（合計は御見積と一致）。
       EstimateFixture fixture = createTwoGroupSmallAmountFixture();
 
       EstimateDocumentService.DocumentContext context = EstimateDocumentService.loadContext(
@@ -247,7 +243,7 @@ private class EstimateDocumentServiceTest {
       );
 
       System.assertEquals(10, context.taxPercent);
-      System.assertEquals(2, context.otherGroups.size());
+      System.assertEquals(2, context.lines.size());
       System.assertEquals(3, context.taxAmount, '総額税は1回切り捨て');
       System.assertEquals(
         33,
@@ -258,24 +254,6 @@ private class EstimateDocumentServiceTest {
         33,
         context.lineTotalInclTax,
         'lineTotalInclTax も御見積と一致'
-      );
-      System.assertEquals(
-        33,
-        context.otherTotalIncTax,
-        'セクション税込合計も御見積と一致（按分）'
-      );
-      System.assertEquals(
-        33,
-        context.otherGroups[0].totalAmountIncTax +
-        context.otherGroups[1].totalAmountIncTax,
-        'グループ税込の合計＝御見積'
-      );
-      System.assertEquals(
-        context.digitalTotalIncTax +
-          context.consultingTotalIncTax +
-          context.trainingTotalIncTax +
-          context.otherTotalIncTax,
-        context.totalAmount
       );
     }
   }
@@ -805,37 +783,6 @@ private class EstimateDocumentServiceTest {
   }
 
   @IsTest
-  static void allocateGrandTaxToGroups_lastGroupAbsorbsRemainder() {
-    System.runAs(ContractTestDataFactory.getAdminUser()) {
-      EstimateDocumentService.GroupDto first = new EstimateDocumentService.GroupDto(
-        'SaaS'
-      );
-      first.groupTotal = 7;
-      EstimateDocumentService.GroupDto last = new EstimateDocumentService.GroupDto(
-        'Consulting'
-      );
-      last.groupTotal = 3;
-      EstimateDocumentService.allocateGrandTaxToGroups(
-        new List<EstimateDocumentService.GroupDto>{ first, last },
-        10,
-        1
-      );
-      System.assertEquals(
-        0,
-        first.taxAmount,
-        'Core 第11.9節: 税抜比の非最終は0方向切捨て。7/10の税1は0'
-      );
-      System.assertEquals(
-        1,
-        last.taxAmount,
-        'Core 第4.8節・第11.9節: 最後のグループで端数を吸収する'
-      );
-      System.assertEquals(7, first.totalAmountIncTax);
-      System.assertEquals(4, last.totalAmountIncTax);
-    }
-  }
-
-  @IsTest
   static void loadContext_nullId_throwsException() {
     Boolean thrown = false;
     try {
@@ -1029,34 +976,6 @@ private class EstimateDocumentServiceTest {
       System.assertEquals(1.5, context.lines[0].quantity);
       System.assertEquals(10000, context.lines[0].unitPrice);
       System.assertEquals(180000, context.lines[0].amount);
-
-      Boolean foundInGroups = false;
-      List<List<EstimateDocumentService.GroupDto>> allGroups = new List<List<EstimateDocumentService.GroupDto>>{
-        context.digitalGroups,
-        context.consultingGroups,
-        context.trainingGroups,
-        context.otherGroups
-      };
-      for (List<EstimateDocumentService.GroupDto> groups : allGroups) {
-        if (groups == null) {
-          continue;
-        }
-        for (EstimateDocumentService.GroupDto groupDto : groups) {
-          if (groupDto == null || groupDto.items == null) {
-            continue;
-          }
-          for (EstimateDocumentService.GroupedLineDto item : groupDto.items) {
-            if (item != null && item.quantity == 1.5) {
-              foundInGroups = true;
-            }
-          }
-        }
-      }
-      System.assertEquals(
-        true,
-        foundInGroups,
-        '見積PDFグループ明細に小数数量 1.5 が載ること'
-      );
     }
   }
 
@@ -1310,7 +1229,6 @@ private class EstimateDocumentServiceTest {
         ),
         context.termFeeStartDateDisplay
       );
-      System.assertEquals(1, context.otherGroups.size());
       System.assertEquals(158400, context.totalAmount);
       System.assertEquals('テスト取引先', context.documentText.toCompanyName);
       System.assertEquals(
@@ -1318,7 +1236,6 @@ private class EstimateDocumentServiceTest {
         context.documentText.honorificTitle,
         'Core 第4.8節: 宛名に御中が無いときは御中を出す'
       );
-      System.assertEquals(1, context.otherGroups[0].items.size());
     }
   }
 
@@ -1574,12 +1491,6 @@ private class EstimateDocumentServiceTest {
       System.assertEquals(true, controller.hasContext);
       System.assertEquals('EST-001', controller.estimateNumber);
       System.assertEquals(158400, controller.totalAmount);
-      System.assertEquals(1, controller.otherGroups.size());
-      System.assertEquals(1, controller.otherGroups[0].items.size());
-      System.assertEquals(
-        'Test Product',
-        controller.otherGroups[0].items[0].breakdown
-      );
       System.assertEquals(
         1,
         controller.documentLines.size(),
@@ -2430,21 +2341,6 @@ private class EstimateDocumentServiceTest {
         patterned.toLowerCase().endsWith('.pdf'),
         'Core 第11.3.2節: パターンに拡張子が無くても pdf を付ける'
       );
-
-      EstimateDocumentService.allocateGrandTaxToGroups(
-        new List<EstimateDocumentService.GroupDto>(),
-        0,
-        0
-      );
-      EstimateDocumentService.GroupDto blankGroup = new EstimateDocumentService.GroupDto(
-        'Empty'
-      );
-      EstimateDocumentService.allocateGrandTaxToGroups(
-        new List<EstimateDocumentService.GroupDto>{ null, blankGroup },
-        0,
-        1
-      );
-      System.assertEquals(0, blankGroup.taxAmount);
     }
   }
 }

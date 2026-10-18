@@ -21,32 +21,6 @@ public without sharing class EstimateDocumentService {
     public String typeLabel;
   }
 
-  /** 商談 EstimatePdf と同じ明細行 DTO */
-  public class GroupedLineDto {
-    public String breakdown;
-    public String unit;
-    public Decimal quantity;
-    public Decimal amount;
-    public String period;
-  }
-
-  /** 商談 EstimatePdf と同じ商品名グループ DTO */
-  public class GroupDto {
-    public String productName;
-    public List<GroupedLineDto> items;
-    public Decimal groupTotal;
-    public Decimal taxAmount;
-    public Decimal totalAmountIncTax;
-
-    public GroupDto(String name) {
-      productName = String.isBlank(name) ? '' : name;
-      items = new List<GroupedLineDto>();
-      groupTotal = 0;
-      taxAmount = 0;
-      totalAmountIncTax = 0;
-    }
-  }
-
   /**
    * 見積帳票の表示文言。
    * 発行元情報は請求書と共通の ContractDocumentSetting__c を正とし、
@@ -55,7 +29,6 @@ public without sharing class EstimateDocumentService {
   public class EstimateDocumentTextDto {
     public String toCompanyName { get; set; }
     public String estimateTitle { get; set; }
-    public String otherFeeLabel { get; set; }
     public Decimal tax { get; set; }
     public String termFeeStartDateLabel { get; set; }
     public String termFeeStartDateSentence { get; set; }
@@ -81,9 +54,6 @@ public without sharing class EstimateDocumentService {
     public String unitLabel { get; set; }
     public String unitSentence { get; set; }
     public String honorificTitle { get; set; }
-    public String digitalLicenceFeeLabel { get; set; }
-    public String consultingFeeLabel { get; set; }
-    public String feedbackCoachingFeeLabel { get; set; }
     public String noteSentenceLabel { get; set; }
     public String noteSentence { get; set; }
     public String documentFooter { get; set; }
@@ -96,14 +66,14 @@ public without sharing class EstimateDocumentService {
   public class DocumentContext {
     public ContractHistory__c history;
     public List<LineDto> lines;
-    public Decimal lineTotal;
+    public Decimal lineTotal { get; set; }
     public Decimal taxPercent;
-    public Decimal taxAmount;
-    public Decimal lineTotalInclTax;
-    public String taxPercentLabel;
-    public String companyName;
+    public Decimal taxAmount { get; set; }
+    public Decimal lineTotalInclTax { get; set; }
+    public String taxPercentLabel { get; set; }
+    public String companyName { get; set; }
     public String companyPostalCode;
-    public String companyAddressLine1;
+    public String companyAddressLine1 { get; set; }
     public String companyAddressLine2;
     public String companyRegistrationNumber;
     public String addresseeName;
@@ -113,8 +83,8 @@ public without sharing class EstimateDocumentService {
     public String estimateDateLabel;
     public String validDateLabel;
     public String issueDateLabel;
-    public String issueDatePrint;
-    public String validDatePrint;
+    public String issueDatePrint { get; set; }
+    public String validDatePrint { get; set; }
     public String termLabel;
     public String typeLabel;
     public EstimateDocumentTextDto documentText;
@@ -123,14 +93,6 @@ public without sharing class EstimateDocumentService {
     public String estimateDateDisplay;
     public String termFeeStartDateDisplay;
     public String estimateNumber;
-    public List<GroupDto> digitalGroups;
-    public List<GroupDto> consultingGroups;
-    public List<GroupDto> trainingGroups;
-    public List<GroupDto> otherGroups;
-    public Decimal digitalTotalIncTax;
-    public Decimal consultingTotalIncTax;
-    public Decimal trainingTotalIncTax;
-    public Decimal otherTotalIncTax;
     public Decimal totalAmount;
   }
 
@@ -248,7 +210,7 @@ public without sharing class EstimateDocumentService {
       context.history.CurrentTermEndDate__c
     );
     context.typeLabel = resolveHistoryTypeLabel(context.history.Type__c);
-    buildGroupedPdfContext(context);
+    applyDocumentPresentation(context);
     return context;
   }
 
@@ -1047,230 +1009,13 @@ public without sharing class EstimateDocumentService {
     return String.isBlank(sanitized) ? '見積書' : sanitized;
   }
 
-  /**
-   * カテゴリ別グループを組み立て、税込を付与する。
-   * 税の正はウィザード／請求ヘッダと同じく「PDF 掲載明細の税抜合計 × 税率を1回切り捨て」。
-   * グループ／カテゴリ税込は金額計算設定の帳票グループ税込に従う。
-   */
-  @TestVisible
-  private static void buildGroupedPdfContext(DocumentContext context) {
+  /** 仕様: Core 第4.8節。標準見積書は明細行と保存合計。分類見出しは持たない。 */
+  private static void applyDocumentPresentation(DocumentContext context) {
     context.documentText = buildEstimateDocumentText(context.history);
     context.estimateNumber = generateEstimateNumber(context.history);
     buildDisplayValues(context);
-
-    context.digitalGroups = new List<GroupDto>();
-    context.consultingGroups = new List<GroupDto>();
-    context.trainingGroups = new List<GroupDto>();
-    context.otherGroups = new List<GroupDto>();
-    context.digitalTotalIncTax = 0;
-    context.consultingTotalIncTax = 0;
-    context.trainingTotalIncTax = 0;
-    context.otherTotalIncTax = 0;
-    context.totalAmount = 0;
-
-    List<ContractProduct__c> products = queryProductsForGroupedPdf(
-      context.history.Id,
-      context.history.Type__c
-    );
-
-    for (ContractProduct__c product : products) {
-      GroupedLineDto item = toGroupedLine(product);
-      addToGroup(
-        context.otherGroups,
-        resolveGroupingProductName(product),
-        item
-      );
-    }
-
-    List<GroupDto> allGroups = new List<GroupDto>();
-    allGroups.addAll(context.digitalGroups);
-    allGroups.addAll(context.consultingGroups);
-    allGroups.addAll(context.trainingGroups);
-    allGroups.addAll(context.otherGroups);
-
-    Decimal grandExcl = sumGroupExcl(allGroups);
-    // 仕様: Core 第4.8節。グループへ配る総額の税は、見出しと同じ保存税額。
-    Decimal grandTax = context.taxAmount;
-    allocateGrandTaxToGroups(allGroups, grandExcl, grandTax);
-
-    context.digitalTotalIncTax = sumGroupTotalIncTax(context.digitalGroups);
-    context.consultingTotalIncTax = sumGroupTotalIncTax(
-      context.consultingGroups
-    );
-    context.trainingTotalIncTax = sumGroupTotalIncTax(context.trainingGroups);
-    context.otherTotalIncTax = sumGroupTotalIncTax(context.otherGroups);
     // 仕様: Core 第4.8節。御見積の合計は保存した税込。掲載明細の再計算では置き換えない。
     context.totalAmount = context.lineTotalInclTax;
-  }
-
-  private static Decimal sumGroupExcl(List<GroupDto> groups) {
-    Decimal total = 0;
-    if (groups == null) {
-      return total;
-    }
-    for (GroupDto groupDto : groups) {
-      if (groupDto != null && groupDto.groupTotal != null) {
-        total += groupDto.groupTotal;
-      }
-    }
-    return total;
-  }
-
-  private static Decimal sumGroupTotalIncTax(List<GroupDto> groups) {
-    Decimal total = 0;
-    if (groups == null) {
-      return total;
-    }
-    for (GroupDto groupDto : groups) {
-      if (groupDto != null && groupDto.totalAmountIncTax != null) {
-        total += groupDto.totalAmountIncTax;
-      }
-    }
-    return total;
-  }
-
-  /**
-   * 総額税を帳票グループ税込設定で按分する。
-   * 仕様: Core 第4.8節・第11.9節。税抜比。非最終は0方向切捨て。最後のグループで端数を吸収する。
-   */
-  @TestVisible
-  private static void allocateGrandTaxToGroups(
-    List<GroupDto> groups,
-    Decimal grandExcl,
-    Decimal grandTax
-  ) {
-    AmountCalculationSettingService.requireOrgDefault();
-    if (groups == null || groups.isEmpty()) {
-      return;
-    }
-    Decimal taxTotal = grandTax == null ? 0 : grandTax;
-    Decimal exclTotal = grandExcl == null ? 0 : grandExcl;
-    if (exclTotal == 0 || taxTotal == 0) {
-      for (GroupDto groupDto : groups) {
-        if (groupDto == null) {
-          continue;
-        }
-        groupDto.taxAmount = 0;
-        groupDto.totalAmountIncTax = groupDto.groupTotal == null
-          ? 0
-          : groupDto.groupTotal;
-      }
-      return;
-    }
-
-    Decimal remainingTax = taxTotal;
-    for (Integer i = 0; i < groups.size(); i++) {
-      GroupDto groupDto = groups[i];
-      if (groupDto == null) {
-        continue;
-      }
-      Decimal groupExcl = groupDto.groupTotal == null ? 0 : groupDto.groupTotal;
-      Decimal groupTax;
-      if (i == groups.size() - 1) {
-        groupTax = remainingTax;
-      } else {
-        groupTax = (taxTotal *
-          groupExcl /
-          exclTotal)
-          .setScale(0, RoundingMode.DOWN);
-        remainingTax -= groupTax;
-      }
-      groupDto.taxAmount = groupTax;
-      groupDto.totalAmountIncTax = groupExcl + groupTax;
-    }
-  }
-
-  private static List<ContractProduct__c> queryProductsForGroupedPdf(
-    Id contractHistoryId,
-    String historyType
-  ) {
-    List<ContractProduct__c> products = [
-      SELECT
-        Id,
-        Product__c,
-        Product__r.Name,
-        Product__r.UnitName__c,
-        Product__r.BillingType__c,
-        Name,
-        DocumentSortOrder__c,
-        Unit__c,
-        UnitPrice__c,
-        Quantity__c,
-        StartDate__c,
-        Enddate__c,
-        InvoiceSetting__c,
-        BillingType__c,
-        Type__c,
-        Amount__c,
-        PreviousContractProduct__c
-      FROM ContractProduct__c
-      WHERE ContractHistory__c = :contractHistoryId
-      WITH SYSTEM_MODE
-    ];
-    DocumentSortOrderService.sortContractProducts(products);
-    return ChangeBillingEventUtil.filterProductsForEstimateDocument(
-      historyType,
-      products
-    );
-  }
-
-  /** 仕様: Core 第4.8節、第11.9節。数量は OrgDefault。HALF_UP 直書きしない。明細の呼び方は商品名。 */
-  private static GroupedLineDto toGroupedLine(ContractProduct__c product) {
-    String billingType = ContractMetadataService.resolveLineBillingType(
-      product
-    );
-
-    GroupedLineDto item = new GroupedLineDto();
-    item.breakdown = product.Product__r == null ? '' : product.Product__r.Name;
-    item.unit = String.isNotBlank(product.Unit__c)
-      ? product.Unit__c
-      : buildDisplayUnit(
-          product.Product__r == null ? null : product.Product__r.UnitName__c,
-          billingType
-        );
-    item.quantity = product.Quantity__c == null
-      ? 0
-      : AmountCalculationSettingService.roundQuantityUnitPrice(
-          product.Quantity__c
-        );
-    item.amount = resolveLineAmount(product, billingType);
-    item.period = buildPeriodLabel(product.StartDate__c, product.Enddate__c);
-    return item;
-  }
-
-  private static String resolveGroupingProductName(ContractProduct__c product) {
-    if (
-      product.Product__r != null && String.isNotBlank(product.Product__r.Name)
-    ) {
-      return product.Product__r.Name;
-    }
-    return itemFallbackName(product);
-  }
-
-  private static String itemFallbackName(ContractProduct__c product) {
-    return product == null || String.isBlank(product.Name) ? '' : product.Name;
-  }
-
-  private static void addToGroup(
-    List<GroupDto> targetList,
-    String productName,
-    GroupedLineDto item
-  ) {
-    GroupDto foundGroup = null;
-    for (GroupDto existingGroup : targetList) {
-      if (existingGroup.productName == productName) {
-        foundGroup = existingGroup;
-        break;
-      }
-    }
-    if (foundGroup == null) {
-      foundGroup = new GroupDto(productName);
-      targetList.add(foundGroup);
-    }
-    foundGroup.items.add(item);
-    if (item.amount != null) {
-      foundGroup.groupTotal += item.amount;
-    }
   }
 
   @TestVisible
@@ -1305,11 +1050,6 @@ public without sharing class EstimateDocumentService {
       : formatDisplayDate(history.EstimateValidDate__c);
     text.estimateSumLabel = '御見積金額';
     text.unitSentence = '円';
-    // 仕様: Core 第4.8節。顧客固有の分類見出しは持たない。
-    text.digitalLicenceFeeLabel = '';
-    text.consultingFeeLabel = '';
-    text.feedbackCoachingFeeLabel = '';
-    text.otherFeeLabel = 'その他';
     text.noteSentenceLabel = '備考';
     // 仕様: Core 第4.10節、第4.8節、第1.1.10節。備考はNote__c。空は空。マスタ本文で埋めない。
     text.noteSentence = resolveFallbackNoteText(history);

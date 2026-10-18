@@ -1105,7 +1105,7 @@ public class ContractTestDataFactory {
     return cachedDefaultStageName;
   }
 
-  /** U-ZERO 本番向け: Sample CMDT に依存せずウィザード項目をテストする。 */
+  /** Sample CMDT に依存せず、ウィザード項目の定義をテストに渡す。 */
   public static final String WIZARD_TEST_PRODUCT_FAMILY = 'TestFamily';
 
   public static void applyStandardWizardFieldDefinitionsForTest() {

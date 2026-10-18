@@ -12,14 +12,6 @@ public with sharing class EstimateDocumentPdfController {
   public String estimateDateDisplay { get; private set; }
   public String termFeeStartDateDisplay { get; private set; }
   public String estimateNumber { get; private set; }
-  public List<GroupView> digitalGroups { get; private set; }
-  public List<GroupView> consultingGroups { get; private set; }
-  public List<GroupView> trainingGroups { get; private set; }
-  public List<GroupView> otherGroups { get; private set; }
-  public Decimal digitalTotalIncTax { get; private set; }
-  public Decimal consultingTotalIncTax { get; private set; }
-  public Decimal trainingTotalIncTax { get; private set; }
-  public Decimal otherTotalIncTax { get; private set; }
   public Decimal totalAmount { get; private set; }
   public EstimateDocumentService.DocumentContext documentContext {
     get;
@@ -58,22 +50,6 @@ public with sharing class EstimateDocumentPdfController {
   }
   public String filesPreviewUrl { get; private set; }
   public Id historyId { get; private set; }
-
-  public class GroupView {
-    public String productName { get; set; }
-    public List<LineItemView> items { get; set; }
-    public Decimal groupTotal { get; set; }
-    public Decimal taxAmount { get; set; }
-    public Decimal totalAmountIncTax { get; set; }
-  }
-
-  public class LineItemView {
-    public String breakdown { get; set; }
-    public String unit { get; set; }
-    public Decimal quantity { get; set; }
-    public Decimal amount { get; set; }
-    public String period { get; set; }
-  }
 
   public class DocumentLineView {
     public String content { get; set; }
@@ -195,14 +171,6 @@ public with sharing class EstimateDocumentPdfController {
     estimateDateDisplay = context.estimateDateDisplay;
     termFeeStartDateDisplay = context.termFeeStartDateDisplay;
     estimateNumber = context.estimateNumber;
-    digitalGroups = toGroupViews(context.digitalGroups);
-    consultingGroups = toGroupViews(context.consultingGroups);
-    trainingGroups = toGroupViews(context.trainingGroups);
-    otherGroups = toGroupViews(context.otherGroups);
-    digitalTotalIncTax = context.digitalTotalIncTax;
-    consultingTotalIncTax = context.consultingTotalIncTax;
-    trainingTotalIncTax = context.trainingTotalIncTax;
-    otherTotalIncTax = context.otherTotalIncTax;
     totalAmount = context.totalAmount;
     issueHistory = context.history;
     refreshIssueFileName();
@@ -256,45 +224,6 @@ public with sharing class EstimateDocumentPdfController {
     return views;
   }
 
-  /** 仕様: Core 第4.8節、第11.9節。数量・金額は OrgDefault。HALF_UP 直書きしない。 */
-  private List<GroupView> toGroupViews(
-    List<EstimateDocumentService.GroupDto> sourceGroups
-  ) {
-    List<GroupView> views = new List<GroupView>();
-    if (sourceGroups == null) {
-      return views;
-    }
-    for (EstimateDocumentService.GroupDto sourceGroup : sourceGroups) {
-      GroupView view = new GroupView();
-      view.productName = sourceGroup.productName;
-      view.groupTotal = sourceGroup.groupTotal;
-      view.taxAmount = sourceGroup.taxAmount;
-      view.totalAmountIncTax = sourceGroup.totalAmountIncTax;
-      view.items = new List<LineItemView>();
-      if (sourceGroup.items != null) {
-        for (
-          EstimateDocumentService.GroupedLineDto sourceItem : sourceGroup.items
-        ) {
-          LineItemView itemView = new LineItemView();
-          itemView.breakdown = sourceItem.breakdown;
-          itemView.unit = sourceItem.unit;
-          itemView.quantity = sourceItem.quantity == null
-            ? 0
-            : AmountCalculationSettingService.roundQuantityUnitPrice(
-                sourceItem.quantity
-              );
-          itemView.amount = sourceItem.amount == null
-            ? 0
-            : AmountCalculationSettingService.roundAmount(sourceItem.amount);
-          itemView.period = sourceItem.period;
-          view.items.add(itemView);
-        }
-      }
-      views.add(view);
-    }
-    return views;
-  }
-
   private void initEmpty() {
     hasContext = false;
     documentText = null;
@@ -305,14 +234,6 @@ public with sharing class EstimateDocumentPdfController {
     estimateDateDisplay = '';
     termFeeStartDateDisplay = '';
     estimateNumber = '';
-    digitalGroups = new List<GroupView>();
-    consultingGroups = new List<GroupView>();
-    trainingGroups = new List<GroupView>();
-    otherGroups = new List<GroupView>();
-    digitalTotalIncTax = 0;
-    consultingTotalIncTax = 0;
-    trainingTotalIncTax = 0;
-    otherTotalIncTax = 0;
     totalAmount = 0;
     issueSucceeded = false;
     showSendThisFile = false;
