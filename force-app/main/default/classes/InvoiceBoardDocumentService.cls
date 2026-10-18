@@ -549,11 +549,15 @@ public without sharing class InvoiceBoardDocumentService {
       InvoiceTransactionStatusService.organizationToday()
     );
     Boolean previousStatus = InvoiceTransactionStatusService.allowStatusWrite;
+    Boolean previousLock = InvoiceLockUtil.allowLockedStatusWrite;
     InvoiceTransactionStatusService.allowStatusWrite = true;
+    // 仕様: Core 第11.6節。確定後の送付更新はロック除外一覧を見ない。
+    InvoiceLockUtil.allowLockedStatusWrite = true;
     try {
       SystemContextAccess.updateRecords(new List<SObject>{ sentInvoice });
     } finally {
       InvoiceTransactionStatusService.allowStatusWrite = previousStatus;
+      InvoiceLockUtil.allowLockedStatusWrite = previousLock;
     }
 
     DocumentResultDto result = new DocumentResultDto();
