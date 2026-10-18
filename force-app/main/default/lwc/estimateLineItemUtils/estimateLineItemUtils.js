@@ -1052,9 +1052,13 @@ export function resolveChangePairAmountsFromSource(sourceAmount) {
 export const CYCLE_BOUNDARY_ERROR =
   "終了日が開始日起点のサイクル境界ではありません。";
 
+/** 仕様: 共通基盤第2.5節。継続1行は120サイクルまで。 */
+export const RECURRING_PERIOD_CYCLE_LIMIT = 120;
+export const RECURRING_PERIOD_LIMIT_ERROR = "提供期間は10年以内です。";
+
 /**
- * 仕様: Core 第4.4節。継続の終了日が境界に乗らなければ日付は変えず、単価は捨てない。
- * 空に見せるのは画面側。一回課金はサイクル境界を要求しない。
+ * 仕様: Core 第4.4節、共通基盤第2.5節。継続の終了日が境界に乗らなければ日付は変えず、単価は捨てない。
+ * 121サイクル以上は「提供期間は10年以内です。」で止める。一回課金はこの上限でも境界でも止めない。
  */
 export function markRecurringEndBoundary(row) {
   if (!row) {
@@ -1065,9 +1069,19 @@ export function markRecurringEndBoundary(row) {
     !row.startDate ||
     !row.endDate ||
     !isValidIsoDate(row.startDate) ||
-    !isValidIsoDate(row.endDate) ||
-    countMonthlyCycles(row.startDate, row.endDate) >= 1
+    !isValidIsoDate(row.endDate)
   ) {
+    return { ...row, endDateBoundaryError: "" };
+  }
+  const cycles = countMonthlyCycles(row.startDate, row.endDate);
+  if (cycles > RECURRING_PERIOD_CYCLE_LIMIT) {
+    return {
+      ...row,
+      preserveSavedAmount: true,
+      endDateBoundaryError: RECURRING_PERIOD_LIMIT_ERROR
+    };
+  }
+  if (cycles >= 1) {
     return { ...row, endDateBoundaryError: "" };
   }
   return {
@@ -1849,6 +1863,10 @@ export function validateBillingPeriod(row) {
 
   if (cycles == null || cycles < 1) {
     return "開始日・終了日は明細開始日起点の月次分割である必要があります（カレンダー月分割は使えません）。";
+  }
+  // 仕様: 共通基盤第2.5節。120サイクルちょうどは保存する。121以上は保存しない。
+  if (cycles > RECURRING_PERIOD_CYCLE_LIMIT) {
+    return RECURRING_PERIOD_LIMIT_ERROR;
   }
 
   return null;

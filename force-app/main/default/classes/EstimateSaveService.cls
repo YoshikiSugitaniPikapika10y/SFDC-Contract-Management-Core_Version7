@@ -1522,18 +1522,24 @@ public without sharing class EstimateSaveService {
       PreviousContractProduct__c = line.sourceContractProductId
     );
     // 仕様: Core 第4.4節、共通基盤第2.1節。継続の終了日が境界に乗らなければ寄せず、保存を止める。
+    // 仕様: 共通基盤第2.5節。継続は120サイクルまで保存する。121以上はその行を保存しない。
     if (
       billingType == BILLING_TYPE_RECURRING &&
       contractProduct.StartDate__c != null &&
-      contractProduct.Enddate__c != null &&
-      MonthlyBillingPeriodUtil.countMonthlyCycles(
+      contractProduct.Enddate__c != null
+    ) {
+      Integer cycles = MonthlyBillingPeriodUtil.countMonthlyCycles(
         contractProduct.StartDate__c,
         contractProduct.Enddate__c
-      ) < 1
-    ) {
-      throw EstimateValidationService.wrapAura(
-        '終了日が開始日起点のサイクル境界ではありません。'
       );
+      if (cycles < 1) {
+        throw EstimateValidationService.wrapAura(
+          '終了日が開始日起点のサイクル境界ではありません。'
+        );
+      }
+      if (cycles > 120) {
+        throw EstimateValidationService.wrapAura('提供期間は10年以内です。');
+      }
     }
     // 仕様: Core 第4.3.9節。Original には金額入力モードを出さない。
     contractProduct.AmountEntryMode__c =

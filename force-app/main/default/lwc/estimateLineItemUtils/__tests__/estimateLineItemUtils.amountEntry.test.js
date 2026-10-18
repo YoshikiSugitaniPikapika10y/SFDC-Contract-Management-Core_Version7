@@ -8,7 +8,9 @@ import {
   lineageHasChangeBillingEvent,
   restoreAmountEntryFromSavedAmount,
   markRecurringEndBoundary,
+  validateBillingPeriod,
   CYCLE_BOUNDARY_ERROR,
+  RECURRING_PERIOD_LIMIT_ERROR,
   resolveChangePairAmountsFromSource,
   parseUnitPriceInput,
   parseQuantityInput,
@@ -186,6 +188,40 @@ describe("markRecurringEndBoundary", () => {
     });
     expect(marked.endDateBoundaryError).toBe("");
     expect(marked.unitPrice).toBe(1000);
+  });
+
+  it("saves a recurring line of exactly 120 cycles", () => {
+    const marked = markRecurringEndBoundary({
+      billingType: BILLING_TYPE_RECURRING,
+      startDate: "2026-04-01",
+      endDate: "2036-03-31",
+      unitPrice: 1000
+    });
+    expect(marked.endDateBoundaryError).toBe("");
+    expect(validateBillingPeriod(marked)).toBe(null);
+  });
+
+  it("stops a recurring line of 121 cycles with the ten-year message", () => {
+    const marked = markRecurringEndBoundary({
+      billingType: BILLING_TYPE_RECURRING,
+      startDate: "2026-04-01",
+      endDate: "2036-04-30",
+      unitPrice: 1000
+    });
+    expect(marked.endDate).toBe("2036-04-30");
+    expect(marked.endDateBoundaryError).toBe(RECURRING_PERIOD_LIMIT_ERROR);
+    expect(validateBillingPeriod(marked)).toBe(RECURRING_PERIOD_LIMIT_ERROR);
+  });
+
+  it("does not apply the ten-year limit to one-time billing", () => {
+    const marked = markRecurringEndBoundary({
+      billingType: BILLING_TYPE_ONE_TIME,
+      startDate: "2026-04-01",
+      endDate: "2046-03-31",
+      unitPrice: 1000
+    });
+    expect(marked.endDateBoundaryError).toBe("");
+    expect(validateBillingPeriod(marked)).toBe(null);
   });
 });
 

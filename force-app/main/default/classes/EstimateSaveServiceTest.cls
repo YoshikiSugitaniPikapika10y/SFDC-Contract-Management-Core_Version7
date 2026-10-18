@@ -78,6 +78,99 @@ private class EstimateSaveServiceTest {
   }
 
   @IsTest
+  static void buildContractProduct_savesRecurringLineOf120Cycles() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct('Save 120 Cycles');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2036, 3, 31)
+      );
+
+      ContractProduct__c contractProduct = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        line,
+        product,
+        'New',
+        Date.newInstance(2026, 4, 1)
+      );
+
+      System.assertEquals(Date.newInstance(2036, 3, 31), contractProduct.Enddate__c);
+    }
+  }
+
+  @IsTest
+  static void buildContractProduct_rejectsRecurringLineOver120Cycles() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct('Save 121 Cycles');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2036, 4, 30)
+      );
+
+      Exception overTenYears = null;
+      try {
+        EstimateSaveService.buildContractProduct(
+          null,
+          null,
+          line,
+          product,
+          'New',
+          Date.newInstance(2026, 4, 1)
+        );
+      } catch (Exception ex) {
+        overTenYears = ex;
+      }
+      System.assertNotEquals(null, overTenYears);
+      System.assertEquals('提供期間は10年以内です。', overTenYears.getMessage());
+    }
+  }
+
+  @IsTest
+  static void buildContractProduct_savesOneTimeLineLongerThanTenYears() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 product = ContractTestDataFactory.buildProduct('Save One Time Long');
+      product.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      product.invoicetype__c = ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID;
+      ContractTestDataFactory.insertProduct(product);
+
+      EstimateCreateController.ProductLineItem line = buildLine(
+        product.Id,
+        ContractTestDataFactory.TENANT_INVOICE_TYPE_PREPAID,
+        'New',
+        Date.newInstance(2026, 4, 1),
+        Date.newInstance(2046, 3, 31)
+      );
+      line.billingType = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+
+      ContractProduct__c contractProduct = EstimateSaveService.buildContractProduct(
+        null,
+        null,
+        line,
+        product,
+        'New',
+        Date.newInstance(2026, 4, 1)
+      );
+
+      System.assertEquals(Date.newInstance(2046, 3, 31), contractProduct.Enddate__c);
+    }
+  }
+
+  @IsTest
   static void buildContractProduct_storesAmountEntryMode() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Product2 product = ContractTestDataFactory.buildProduct(
