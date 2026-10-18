@@ -30,7 +30,8 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
 }
 

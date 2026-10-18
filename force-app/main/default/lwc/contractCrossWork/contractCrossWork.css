@@ -139,7 +139,7 @@
 
 .split {
   display: grid;
-  grid-template-columns: minmax(20rem, var(--cross-left, 60%)) minmax(12rem, 1fr);
+  grid-template-columns: minmax(0, var(--cross-left, 60%)) minmax(0, 1fr);
   gap: 0;
   flex: 1 1 auto;
   min-height: 0;
@@ -147,7 +147,7 @@
 }
 
 .split.has-handle {
-  grid-template-columns: minmax(20rem, var(--cross-left, 60%)) 0.4rem minmax(12rem, 1fr);
+  grid-template-columns: minmax(0, var(--cross-left, 60%)) 0.4rem minmax(0, 1fr);
 }
 
 .split.split_column-mode {
@@ -184,7 +184,8 @@
 .pane-right {
   position: relative;
   padding: 0.75rem 1rem 1rem;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .filters,
@@ -346,12 +347,15 @@
 .table-wrap {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
 }
 
 .cross-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
@@ -359,8 +363,8 @@
 .table-wrap.lock-unlocked .cross-table,
 .table-wrap.lock-locked .cross-table {
   font-size: 0.75rem;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
+  min-width: 0;
 }
 
 .cross-table th,
@@ -399,41 +403,42 @@
 }
 
 .confirm-cell {
-  white-space: nowrap;
-  overflow: visible;
-  min-width: 16rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
   max-width: none;
 }
 
 .cross-table td.confirm-cell {
-  white-space: nowrap;
-  overflow: visible;
+  white-space: normal;
+  overflow: hidden;
   text-overflow: unset;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
 }
 
 .memo-cell {
-  white-space: nowrap;
-  min-width: 12rem;
-  max-width: 22rem;
+  white-space: normal;
+  min-width: 0;
+  max-width: none;
 }
 
 .memo-cell lightning-input {
-  min-width: 12rem;
+  min-width: 0;
   width: 100%;
 }
 
 .slot-cell {
-  white-space: nowrap;
-  min-width: 18rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
   max-width: none;
 }
 
 .cross-table td.slot-cell {
-  white-space: nowrap;
-  overflow: visible;
+  white-space: normal;
+  overflow: hidden;
   text-overflow: unset;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
 }
 
 .lock-cell {
@@ -549,20 +554,3 @@
   cursor: pointer;
 }
 
-@media (max-width: 64rem) {
-  .split,
-  .split.has-handle,
-  .split.split_column-mode {
-    grid-template-columns: 1fr;
-  }
-
-  .split-handle {
-    display: none;
-  }
-
-  .pane-left {
-    border-right: 0;
-    border-bottom: 1px solid #e2e8f0;
-    max-height: 55vh;
-  }
-}

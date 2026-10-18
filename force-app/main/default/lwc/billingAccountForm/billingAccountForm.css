@@ -86,8 +86,3 @@
   font-size: 0.875rem;
 }
 
-@media (max-width: 720px) {
-  .ba-grid {
-    grid-template-columns: 1fr;
-  }
-}
