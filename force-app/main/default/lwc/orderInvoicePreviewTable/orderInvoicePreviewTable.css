@@ -390,35 +390,35 @@
 }
 
 .ops-table_journals col.col-journal-select {
-  width: 3.6%;
+  width: 3.5%;
 }
 
 .ops-table_journals col.col-journal-lock {
-  width: 3.4%;
+  width: 3.3%;
 }
 
 .ops-table_journals col.col-journal-status {
-  width: 5.4%;
+  width: 5.3%;
 }
 
 .ops-table_journals col.col-journal-posting {
-  width: 13.6%;
+  width: 11.2%;
 }
 
 .ops-table_journals col.col-journal-event {
-  width: 14%;
+  width: 10.7%;
 }
 
 .ops-table_journals col.col-journal-slot {
-  width: 24%;
+  width: 21.8%;
 }
 
 .ops-table_journals col.col-journal-amount {
-  width: 7.1%;
+  width: 6.3%;
 }
 
 .ops-table_journals col.col-journal-confirmation {
-  width: 22.5%;
+  width: 31.5%;
 }
 
 .ops-table_journals col.col-journal-toggle {
@@ -466,8 +466,12 @@
   overflow-wrap: anywhere;
 }
 
+.ops-table_journals tbody td.journal-confirmation-cell {
+  font-size: 0.6875rem;
+}
+
 .journal-slot-col {
-  width: 24%;
+  width: 21.8%;
 }
 
 .ops-table_journals .journal-slot-col .journal-slot-abbr {
