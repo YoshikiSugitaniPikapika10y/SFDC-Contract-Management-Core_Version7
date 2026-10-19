@@ -14,8 +14,7 @@ public without sharing class ContractHistoryTriggerHandler {
   public static final String ARCHIVE_LEAVE_BLOCK_MESSAGE = 'Archive からのステータス変更はできません。';
   public static final String ORDER_PERMISSION_BLOCK_MESSAGE = '受注を実行する権限がありません。';
   public static final String REVERT_PERMISSION_BLOCK_MESSAGE = '差し戻しを実行する権限がありません。';
-  public static final String RENEW_REQUEST_NOT_ALLOWED_MESSAGE =
-    '更新商談の作成要求は、更新商談機能がONのTermのNew・Change・Renewだけにできます。';
+  public static final String RENEW_REQUEST_NOT_ALLOWED_MESSAGE = '更新商談の作成要求は、更新商談機能がONのTermのNew・Change・Renewだけにできます。';
 
   /** 仕様: Core 第3.2節、第4.9節、第5.2節、第11.5節 */
   public static void handleBeforeInsert(List<ContractHistory__c> newHistories) {
@@ -38,7 +37,9 @@ public without sharing class ContractHistoryTriggerHandler {
       if (history == null) {
         continue;
       }
-      history.addError('契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。');
+      history.addError(
+        '契約履歴は物理削除できません。見積を閉じる場合はArchiveしてください。'
+      );
     }
   }
 
@@ -139,7 +140,6 @@ public without sharing class ContractHistoryTriggerHandler {
   }
 
   public static void handleAfterInsert(List<ContractHistory__c> newHistories) {
-    RenewOpportunityCreateService.applyCancelNames(newHistories, null);
     List<ContractHistory__c> insertedAsOrderedHistories = new List<ContractHistory__c>();
     Set<Id> insertedAsOrderedHistoryIds = new Set<Id>();
 
@@ -194,7 +194,6 @@ public without sharing class ContractHistoryTriggerHandler {
     List<ContractHistory__c> newHistories,
     Map<Id, ContractHistory__c> oldMap
   ) {
-    RenewOpportunityCreateService.applyCancelNames(newHistories, oldMap);
     Set<Id> orderedHistoryIds = new Set<Id>();
     Set<Id> revertToEstimateHistoryIds = new Set<Id>();
     List<ContractHistory__c> orderedTransitionHistories = new List<ContractHistory__c>();
@@ -473,9 +472,7 @@ public without sharing class ContractHistoryTriggerHandler {
       Boolean lifecycleUnset =
         service == null || String.isBlank(service.Lifecycle__c);
       if (history.Id == null && lifecycleUnset) {
-        if (
-          history.Type__c == ContractDomainConstants.HISTORY_TYPE_CANCEL
-        ) {
+        if (history.Type__c == ContractDomainConstants.HISTORY_TYPE_CANCEL) {
           history.addError(RENEW_REQUEST_NOT_ALLOWED_MESSAGE);
         }
         continue;

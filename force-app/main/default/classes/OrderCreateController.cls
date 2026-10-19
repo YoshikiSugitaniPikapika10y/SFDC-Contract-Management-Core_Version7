@@ -1114,7 +1114,6 @@ public without sharing class OrderCreateController {
         new List<ContractHistory__c>{ history }
       );
       if (requestRenew) {
-        RenewOpportunityCreateService.ensureForOrderedHistory(history.Id);
         ContractHistory__c reloaded = [
           SELECT
             Id,
