@@ -2302,6 +2302,13 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
               showAcceptanceCancelForm:
                 this.invoiceUiState[invoiceId]?.acceptanceDraft?.lineId ===
                 lineId,
+              // 仕様: Core 第7.7.0節。空欄と変更プレビューの失敗は、押した検収終了日のそば。
+              showAcceptanceOpenNotice:
+                this.cardNotice?.invoiceId === invoiceId &&
+                this.cardNotice?.anchor === "acceptance" &&
+                this.cardNotice?.rowId === lineId &&
+                this.invoiceUiState[invoiceId]?.acceptanceDraft?.lineId !==
+                  lineId,
               // 仕様: Core 第7.6節・第7.7.3節。検収終了日はON/OFFとも一括計上だけ変更できる。
               showAcceptanceEndDateInput:
                 this.canEdit &&
@@ -2645,6 +2652,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             showPaymentCancelForm:
               Boolean(cancelDraft) &&
               cancelDraft.paymentId === payment.paymentId,
+            // 仕様: Core 第7.7.0節。開く前の失敗は押した取消のそば。パネルが開いたあとはパネル内。
+            showPaymentCancelOpenNotice:
+              this.cardNotice?.invoiceId === invoiceId &&
+              this.cardNotice?.anchor === "paymentCancel" &&
+              this.cardNotice?.rowId === payment.paymentId &&
+              !(
+                cancelDraft && cancelDraft.paymentId === payment.paymentId
+              ),
             editRowKey: `${payment.paymentId}-edit`,
             cancelRowKey: `${payment.paymentId}-cancel`
           }));
@@ -3916,6 +3931,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
   }
 
+  // 仕様: Core 第7.10節・第7.7.0節。帳票変更のプレビュー失敗はパネルの中だけ。最上部には出さない。
   async handleInvoiceIssueTemplateChange(event) {
     if (!this.invoiceIssueState) {
       return;
@@ -3927,7 +3943,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     try {
       await this.reloadInvoiceIssuePreview();
     } catch (error) {
-      this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
+      this.invoiceIssueState = {
+        ...this.invoiceIssueState,
+        previewFailed: true,
+        previewError: this.reduceInvoiceOpsError(error)
+      };
     }
   }
 
@@ -4599,6 +4619,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }, { noticeAnchor: "paymentEdit" });
   }
 
+  // 仕様: Core 第7.7.0節。開く前のプレビュー失敗は、押した入出金の取消の直下。最上部には出さない。
   async handlePaymentCancel(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
     const paymentId = event.currentTarget.dataset.paymentId;
@@ -4639,6 +4660,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       });
       return;
     } catch (error) {
+      this.beginCardNotice(invoiceId, "paymentCancel", paymentId);
       this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
     }
   }
@@ -4956,6 +4978,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       return;
     }
     if (!next) {
+      this.beginCardNotice(invoiceId, "acceptance", lineId);
       this.setSurfaceError("請求操作エラー", "検収終了日は空にできません。");
       return;
     }
@@ -4980,6 +5003,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         return;
       }
     } catch (error) {
+      this.beginCardNotice(invoiceId, "acceptance", lineId);
       this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
       return;
     }
@@ -6491,7 +6515,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     }
   }
 
-  // 仕様: Core 第7.9.3節・第7.7.3節・第7.9.6節・第1.1.10節、日付仕様 第7.3節、第8節
+  // 仕様: Core 第7.9.3節・第7.7.0節・第7.7.3節・第7.9.6節・第1.1.10節、日付仕様 第7.3節、第8節
   async handleOpenInvoiceCancel(event) {
     const invoiceId = event.currentTarget.dataset.invoiceId;
     if (!invoiceId) {
@@ -6504,6 +6528,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       this.invoiceUiState[invoiceId]?.bundle
     );
     if (blocked) {
+      this.beginCardNotice(invoiceId, "cancel");
       this.setSurfaceError("請求操作エラー", blocked);
       return;
     }
@@ -6520,6 +6545,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         });
         floor = cancellationDateFloorIso(preview, floor);
       } catch (error) {
+        this.beginCardNotice(invoiceId, "cancel");
         this.setSurfaceError("請求操作エラー", this.reduceInvoiceOpsError(error));
         return;
       }
@@ -7106,12 +7132,14 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
     );
   }
 
-  beginCardNotice(invoiceId, anchor) {
+  beginCardNotice(invoiceId, anchor, rowId) {
     this.cardNotice = null;
     this.surfaceError = "";
     this.completionNote = "";
     this._noticeTarget =
-      invoiceId && anchor ? { invoiceId, anchor } : null;
+      invoiceId && anchor
+        ? { invoiceId, anchor, rowId: rowId || null }
+        : null;
   }
 
   @api
@@ -7311,6 +7339,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         text,
         reload: true
       };
+      if (target.rowId) {
+        this.cardNotice.rowId = target.rowId;
+      }
       this.surfaceError = "";
       return;
     }

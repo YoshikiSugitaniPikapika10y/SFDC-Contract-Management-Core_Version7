@@ -778,6 +778,7 @@
 }
 
 .ops-row-actions {
+  position: relative;
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.25rem;
@@ -2107,6 +2108,7 @@ p.surface-wait.action-float {
 
 .preview-table th.acceptance-col,
 .preview-table td.acceptance-col {
+  position: relative;
   box-sizing: border-box;
   min-width: 0;
   max-width: none;

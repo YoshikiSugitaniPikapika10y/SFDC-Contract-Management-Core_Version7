@@ -358,43 +358,46 @@ describe("orderInvoicePreviewTable confirm gate (Core 7.9.1 / 7.6 / 11.9)", () =
     expect(proto.isBlankReasonText("監査のため")).toBe(false);
   });
 
-  it("検収終了日の空欄は画面で止める (Core 7.6 / 7.7.3 / 1.1.10)", async () => {
+  it("検収終了日の空欄は画面で止める (Core 7.6 / 7.7.0 / 7.7.3 / 1.1.10)", async () => {
     const dispatchEvent = jest.fn();
-    await proto.handleAcceptanceEndDateChange.call(
-      {
-        canEdit: true,
-        isSaving: false,
-        findLine: () => ({
-          revenueRecognitionBasis: "一括計上",
-          acceptanceEndDate: "2027-03-31"
-        }),
-        preview: {
-          invoices: [
-            {
-              invoiceId: "a00INV000000001",
-              lines: [{ lineId: "a01LINE00000001" }]
-            }
-          ]
-        },
-        invoiceUiState: {
-          a00INV000000001: { bundle: { accountingEnabled: true } }
-        },
-        dispatchEvent,
-        setSurfaceError(title, message) {
-          dispatchEvent(
-            new CustomEvent("error", { detail: { message: message || title } })
-          );
-        }
+    const ctx = {
+      canEdit: true,
+      isSaving: false,
+      findLine: () => ({
+        revenueRecognitionBasis: "一括計上",
+        acceptanceEndDate: "2027-03-31"
+      }),
+      preview: {
+        invoices: [
+          {
+            invoiceId: "a00INV000000001",
+            lines: [{ lineId: "a01LINE00000001" }]
+          }
+        ]
       },
-      {
-        currentTarget: { dataset: { lineId: "a01LINE00000001" } },
-        detail: { value: "" }
-      }
-    );
-    expect(dispatchEvent).toHaveBeenCalled();
-    const event = dispatchEvent.mock.calls[0][0];
-    expect(event.detail.message).toBe("検収終了日は空にできません。");
-    expect(event.type).not.toBe("saveacceptanceenddate");
+      invoiceUiState: {
+        a00INV000000001: { bundle: { accountingEnabled: true } }
+      },
+      surfaceError: "",
+      cardNotice: null,
+      completionNote: "",
+      dispatchEvent,
+      beginCardNotice: proto.beginCardNotice,
+      setSurfaceError: proto.setSurfaceError
+    };
+    await proto.handleAcceptanceEndDateChange.call(ctx, {
+      currentTarget: { dataset: { lineId: "a01LINE00000001" } },
+      detail: { value: "" }
+    });
+    expect(dispatchEvent).not.toHaveBeenCalled();
+    expect(ctx.surfaceError).toBe("");
+    expect(ctx.cardNotice).toMatchObject({
+      invoiceId: "a00INV000000001",
+      anchor: "acceptance",
+      rowId: "a01LINE00000001",
+      text: "検収終了日は空にできません。",
+      reload: true
+    });
   });
 
   it("請求情報編集の表示中は検収終了日の保存ダイアログを止める (Core 7.6 / 7.8.2)", async () => {

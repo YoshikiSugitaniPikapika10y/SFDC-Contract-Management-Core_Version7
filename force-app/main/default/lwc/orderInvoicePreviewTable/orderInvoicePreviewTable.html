@@ -1080,6 +1080,14 @@
                                     >
                                       取消
                                     </button>
+                                    <template if:true={payment.showPaymentCancelOpenNotice}>
+                                      <div class="action-float">
+                                        <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+                                        <template if:true={invoice.actionNoticeReload}>
+                                          <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                                        </template>
+                                      </div>
+                                    </template>
                                   </template>
                                 </template>
                                 <template if:true={payment.canEditPayment}>
@@ -2759,6 +2767,14 @@
                                 data-line-id={row.lineId}
                                 onchange={handleAcceptanceEndDateChange}
                               ></lightning-input>
+                              <template if:true={row.showAcceptanceOpenNotice}>
+                                <div class="action-float">
+                                  <p class={invoice.actionNoticeClass} role={invoice.actionNoticeRole}>{invoice.actionNoticeText}</p>
+                                  <template if:true={invoice.actionNoticeReload}>
+                                    <button type="button" class="ghost-btn" onclick={handleCardNoticeReload}>再読み込み</button>
+                                  </template>
+                                </div>
+                              </template>
                             </template>
                             <template if:false={row.showAcceptanceEndDateInput}>
                               <span class="muted">—</span>
