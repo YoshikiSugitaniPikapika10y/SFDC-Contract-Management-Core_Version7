@@ -5564,6 +5564,134 @@ private class OrderCreateControllerTest {
     }
   }
 
+  // 仕様: Core 第7.4節、第7.8節。移した直後の返却税抜は、保存した明細合計。移動額を足さない。
+  @IsTest
+  static void moveLinesToExistingInvoice_returnedAmountMatchesSavedHeader() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      OrderTestContext context = createEstimateContext();
+      OrderCreateController.confirmOrder(context.history.Id, null, false);
+      Invoice__c source = [
+        SELECT Id
+        FROM Invoice__c
+        WHERE ContractHistory__c = :context.history.Id
+        ORDER BY InvoiceDate__c ASC
+        LIMIT 1
+      ];
+      InvoiceLine__c line = [
+        SELECT Id, Amount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :source.Id
+        LIMIT 1
+      ];
+      System.assert(line.Amount__c > 1, '移動できる明細金額が要る');
+
+      InvoiceCanonicalService.SplitLineInput split = new InvoiceCanonicalService.SplitLineInput();
+      split.lineId = line.Id;
+      split.moveAmount = (line.Amount__c / 2)
+        .setScale(0, System.RoundingMode.DOWN);
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      String token = OrderCreateController.getInvoicePreview(context.history.Id)
+        .contentVersion;
+      OrderCreateController.InvoicePreviewDto afterSplit = OrderCreateController.splitInvoiceByDate(
+        context.history.Id,
+        source.Id,
+        Date.newInstance(2026, 9, 1),
+        Date.newInstance(2026, 9, 30),
+        new List<InvoiceCanonicalService.SplitLineInput>{ split },
+        token
+      );
+      Id createdId;
+      Id createdLineId;
+      String sourceToken;
+      String createdToken;
+      for (
+        OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices
+      ) {
+        if (groupRow.invoiceId == source.Id) {
+          sourceToken = groupRow.lastModifiedToken;
+          continue;
+        }
+        if (
+          groupRow.invoiceDate == '2026-09-01' ||
+          groupRow.invoiceDate == '2026/09/01'
+        ) {
+          createdId = groupRow.invoiceId;
+          createdLineId = groupRow.lines[0].lineId;
+          createdToken = groupRow.lastModifiedToken;
+        }
+      }
+      if (createdId == null) {
+        for (
+          OrderCreateController.InvoiceGroupDto groupRow : afterSplit.invoices
+        ) {
+          if (groupRow.invoiceId != source.Id) {
+            createdId = groupRow.invoiceId;
+            createdLineId = groupRow.lines[0].lineId;
+            createdToken = groupRow.lastModifiedToken;
+            break;
+          }
+        }
+      }
+      System.assertNotEquals(null, createdId, '分けた請求が要る');
+
+      Test.startTest();
+      OrderCreateController.InvoicePreviewDto preview = OrderCreateController.moveLinesToExistingInvoice(
+        context.history.Id,
+        createdId,
+        source.Id,
+        new List<Id>{ createdLineId },
+        createdToken,
+        sourceToken,
+        null
+      );
+      Test.stopTest();
+
+      Invoice__c stored = [
+        SELECT Amount__c, TaxAmount__c
+        FROM Invoice__c
+        WHERE Id = :source.Id
+      ];
+      OrderCreateController.InvoiceGroupDto targetCard;
+      Decimal boardExcl = 0;
+      for (OrderCreateController.InvoiceGroupDto invoice : preview.invoices) {
+        if (invoice.isCancelled == true) {
+          continue;
+        }
+        boardExcl += invoice.amountTotal == null ? 0 : invoice.amountTotal;
+        if (invoice.invoiceId == source.Id) {
+          targetCard = invoice;
+        }
+      }
+      System.assertNotEquals(null, targetCard, '移し先のカードが要る');
+      Decimal lineSum = 0;
+      for (
+        OrderCreateController.InvoiceMergedLineDto movedLine : targetCard.lines
+      ) {
+        lineSum += movedLine.amount == null ? 0 : movedLine.amount;
+      }
+      System.assertEquals(
+        stored.Amount__c,
+        targetCard.amountTotal,
+        'Core 第7.4節・第7.8節: 移した直後の税抜は保存した明細合計'
+      );
+      System.assertEquals(
+        lineSum,
+        targetCard.amountTotal,
+        'Core 第7.4節: カードの税抜は明細合計'
+      );
+      System.assertEquals(
+        stored.TaxAmount__c,
+        targetCard.taxTotal,
+        'Core 第7.4節: 税は保存した税抜へ1回'
+      );
+      System.assertEquals(
+        boardExcl,
+        preview.invoiceAmountTotal,
+        'Core 第7.8.5節: フッタの税抜は各請求の保存税抜の合計'
+      );
+    }
+  }
+
   @IsTest
   static void confirmOrder_sameKeyRetry_returnsOneOrdered() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {

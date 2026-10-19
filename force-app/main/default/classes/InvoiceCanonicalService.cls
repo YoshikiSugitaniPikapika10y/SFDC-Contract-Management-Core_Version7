@@ -2813,8 +2813,7 @@ public without sharing class InvoiceCanonicalService {
     target.PeriodLineAmountTotal__c =
       targetPeriodTotalBefore + movedPeriodTotal;
     target.MergeKey__c = null;
-    target.Amount__c =
-      (target.Amount__c == null ? 0 : target.Amount__c) + movedAmount;
+    // 仕様: Core 第7.4節、第7.8節。再計算が明細合計を税抜として保存済み。移動額はそこに含まれる。
     target.IsSplitMoved__c = true;
     rememberSplitPreviewInvoice(target);
     rememberSplitPreviewLines(targetInvoiceId, createdLines);
