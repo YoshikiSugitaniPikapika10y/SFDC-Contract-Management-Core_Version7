@@ -2552,6 +2552,429 @@ private class AccountingEngineTest {
   }
 
   @IsTest
+  static void goalBuild_historicalTransferReusesBothDrawdownAccounts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisRecognizedBeforeInvoice('HistBoth');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+
+      Test.startTest();
+      registerInvoiceAllocation(
+        fixture,
+        1100,
+        Date.newInstance(2026, 5, 1)
+      );
+      Test.stopTest();
+
+      Id billingArId = invoiceLineArAccountId();
+      Id paymentMapArId = paymentAllocationAccountId('AccountsReceivable');
+      Id uacId = paymentAllocationAccountId('UnappliedCash');
+      System.assertNotEquals(
+        billingArId,
+        paymentMapArId,
+        'Accounting 第6.2節: テスト前提として請求明細の売掛と入金用の売掛を分ける'
+      );
+      List<GlJournal__c> transfers = historicalTransfers(fixture.invoice.Id);
+      System.assertEquals(
+        1,
+        transfers.size(),
+        'Accounting 第5.2.15節: 請求日前に認識済みなら仮受金から売掛へ1本で振り替える'
+      );
+      System.assertEquals('AccountsReceivable', transfers[0].CreditSlotKey__c);
+      System.assertEquals(
+        billingArId,
+        transfers[0].CreditAccount__c,
+        'Accounting 第6.2節: 売掛の取り崩しは請求で使った科目を使う'
+      );
+      System.assertNotEquals(paymentMapArId, transfers[0].CreditAccount__c);
+      System.assertEquals(
+        uacId,
+        transfers[0].DebitAccount__c,
+        'Accounting 第6.2節: 仮受金の取り崩しは受け取った日に使った科目を使う'
+      );
+      System.assertEquals(1100, transfers[0].Amount__c);
+    }
+  }
+
+  @IsTest
+  static void goalBuild_historicalTransferSplitsBothDrawdownAccountsByRate() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisRecognizedBeforeInvoice('HistSplit');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+      Invoice__c invoice = reloadInvoice(fixture.invoice.Id);
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.requireOrgPolicy();
+      List<AccountingGoalService.GoalJournal> billingGoals = AccountingGoalService.build(
+        invoice,
+        policy,
+        new List<GlJournal__c>()
+      );
+      GlAccount__c secondAr = new GlAccount__c(
+        Name = 'Engine Hist AR2',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      insert secondAr;
+      List<GlJournal__c> current = new List<GlJournal__c>();
+      for (AccountingGoalService.GoalJournal goal : billingGoals) {
+        GlJournal__c row = goal.record;
+        if (
+          row.JournalPatternKey__c == 'CASH_BASIS_INVOICE_TAX_CTA_TRANSFER' &&
+          row.DebitSlotKey__c == 'AccountsReceivable'
+        ) {
+          row.DebitAccount__c = secondAr.Id;
+        }
+        current.add(row);
+      }
+      InvoicePayment__c payment = new InvoicePayment__c(
+        Invoice__c = invoice.Id,
+        Amount__c = 550,
+        PaymentPurpose__c = InvoicePaymentService.PURPOSE_INVOICE,
+        PaymentDate__c = Date.newInstance(2026, 5, 1)
+      );
+      insertInvoicePurpose(payment);
+      insert new InvoicePaymentAllocation__c(
+        InvoicePayment__c = payment.Id,
+        InvoiceLine__c = fixture.line.Id,
+        Amount__c = 550
+      );
+
+      Test.startTest();
+      List<AccountingGoalService.GoalJournal> goals = AccountingGoalService.build(
+        invoice,
+        policy,
+        current
+      );
+      Test.stopTest();
+
+      Id billingArId = invoiceLineArAccountId();
+      Id uacId = paymentAllocationAccountId('UnappliedCash');
+      Map<Id, Decimal> creditByAr = new Map<Id, Decimal>();
+      for (AccountingGoalService.GoalJournal goal : goals) {
+        if (goal.record.JournalPatternKey__c != 'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER') {
+          continue;
+        }
+        System.assertEquals(
+          uacId,
+          goal.record.DebitAccount__c,
+          'Accounting 第6.2節: 分かれた行も仮受金は元の科目'
+        );
+        creditByAr.put(goal.record.CreditAccount__c, goal.record.Amount__c);
+      }
+      System.assertEquals(
+        500,
+        creditByAr.get(billingArId),
+        'Accounting 第8.4節 / Core 第11.9節: 同じ率で本体の売掛へ配分する'
+      );
+      System.assertEquals(
+        50,
+        creditByAr.get(secondAr.Id),
+        'Accounting 第8.4節 / Core 第11.9節: 同じ率で税の売掛へ配分する'
+      );
+    }
+  }
+
+  @IsTest
+  static void goalBuild_historicalUacDrawdownReusesUacWhenDefIsNew() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisUnrecognized('HistUac');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+
+      Test.startTest();
+      registerInvoiceAllocation(fixture, 1100, Date.newInstance(2026, 5, 1));
+      Test.stopTest();
+
+      List<GlJournal__c> transfers = historicalTransfers(fixture.invoice.Id);
+      System.assertEquals(
+        1,
+        transfers.size(),
+        'Accounting 第5.2.15節: 未認識の過去日入金は仮受金から前受へ1本で振り替える'
+      );
+      System.assertEquals('DeferredRevenue', transfers[0].CreditSlotKey__c);
+      System.assertEquals(
+        paymentAllocationAccountId('UnappliedCash'),
+        transfers[0].DebitAccount__c,
+        'Accounting 第6.2節: 仮受金の取り崩しは受け取った日に使った科目を使う'
+      );
+      System.assertEquals(
+        paymentAllocationAccountId('DeferredRevenue'),
+        transfers[0].CreditAccount__c,
+        'Accounting 第6.1節: 新しく積む前受は入金の割当科目を使う'
+      );
+    }
+  }
+
+  @IsTest
+  static void goalBuild_cashBasisRevenueDrawsTheDefAccountFromPayment() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisUnrecognized('DefDraw');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+
+      Test.startTest();
+      registerInvoiceAllocation(fixture, 1100, Date.newInstance(2026, 6, 1));
+      Test.stopTest();
+
+      Id paidDef;
+      Id bodyDef;
+      Id taxDef;
+      for (GlJournal__c journal : [
+        SELECT JournalPatternKey__c, DebitAccount__c, CreditAccount__c, DebitSlotKey__c, CreditSlotKey__c
+        FROM GlJournal__c
+        WHERE Invoice__c = :fixture.invoice.Id AND TransactionStatus__c = 'Active'
+      ]) {
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_INVOICE_CURRENT' &&
+          journal.CreditSlotKey__c == 'DeferredRevenue'
+        ) {
+          paidDef = journal.CreditAccount__c;
+        }
+        if (
+          journal.JournalPatternKey__c == 'CASH_BASIS_REVENUE_BODY' &&
+          journal.DebitSlotKey__c == 'DeferredRevenue'
+        ) {
+          bodyDef = journal.DebitAccount__c;
+        }
+        if (
+          journal.JournalPatternKey__c == 'CASH_BASIS_REVENUE_TAX' &&
+          journal.DebitSlotKey__c == 'DeferredRevenue'
+        ) {
+          taxDef = journal.DebitAccount__c;
+        }
+      }
+      System.assertNotEquals(null, paidDef, 'Accounting 第4.6節: 未認識の入金は前受を積む');
+      System.assertEquals(
+        paidDef,
+        bodyDef,
+        'Accounting 第6.2節: 売上は入金で積んだ前受の科目を取り崩す'
+      );
+      System.assertEquals(
+        paidDef,
+        taxDef,
+        'Accounting 第4.6節・第6.2節: 税の売上も同じ前受科目を取り崩す'
+      );
+      System.assertNotEquals(
+        invoiceLineAccountId('DeferredRevenue'),
+        bodyDef,
+        'Accounting 第6.2節: 入金で積んだ前受は請求明細の前受割当へ取り替えない'
+      );
+    }
+  }
+
+  @IsTest
+  static void goalBuild_historicalSpAndDefReuseBothAccounts() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisUnrecognized('HistSpDef');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+
+      Test.startTest();
+      registerInvoiceAllocation(fixture, -400, Date.newInstance(2026, 5, 1));
+      registerInvoiceAllocation(fixture, 1100, Date.newInstance(2026, 5, 10));
+      Test.stopTest();
+
+      Id defFromUac;
+      Id spFromCash;
+      Id defOnSpTransfer;
+      Id spOnSpTransfer;
+      for (GlJournal__c journal : activeJournals(fixture.invoice.Id)) {
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER' &&
+          journal.CreditSlotKey__c == 'DeferredRevenue'
+        ) {
+          defFromUac = journal.CreditAccount__c;
+        }
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH' &&
+          journal.DebitSlotKey__c == 'SuspensePayment'
+        ) {
+          spFromCash = journal.DebitAccount__c;
+        }
+        if (journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER') {
+          defOnSpTransfer = journal.DebitAccount__c;
+          spOnSpTransfer = journal.CreditAccount__c;
+        }
+      }
+      System.assertNotEquals(null, defFromUac, 'Accounting 第5.2.15節: 未認識分は前受へ振り替える');
+      System.assertEquals(
+        defFromUac,
+        defOnSpTransfer,
+        'Accounting 第6.2節: 過去日の未解決支払は、積んだ前受の科目を取り崩す'
+      );
+      System.assertEquals(
+        spFromCash,
+        spOnSpTransfer,
+        'Accounting 第6.2節: 未解決支払の取り崩しは、立てたときの科目を使う'
+      );
+    }
+  }
+
+  @IsTest
+  static void goalBuild_historicalSpTransferNewArUsesInvoiceLineAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisRecognizedBeforeInvoice('HistSpAr');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+
+      Test.startTest();
+      registerInvoiceAllocation(fixture, -1100, Date.newInstance(2026, 5, 1));
+      Test.stopTest();
+
+      GlJournal__c transfer;
+      for (GlJournal__c journal : activeJournals(fixture.invoice.Id)) {
+        if (journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER') {
+          transfer = journal;
+        }
+      }
+      System.assertNotEquals(
+        null,
+        transfer,
+        'Accounting 第5.2.16節: 過去日の出金は請求日に未解決支払から振り替える'
+      );
+      System.assertEquals(
+        invoiceLineArAccountId(),
+        transfer.DebitAccount__c,
+        'Accounting 第6.1節: 新しく立てる売掛は請求明細の割当科目を使う'
+      );
+      System.assertNotEquals(
+        paymentAllocationAccountId('AccountsReceivable'),
+        transfer.DebitAccount__c
+      );
+      System.assertEquals(
+        paymentAllocationAccountId('SuspensePayment'),
+        transfer.CreditAccount__c,
+        'Accounting 第6.2節: 未解決支払の取り崩しは、立てたときの科目を使う'
+      );
+    }
+  }
+
+  @IsTest
+  static void goalBuild_positiveCashClearsExistingSpAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisUnrecognized('ClearSp');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+
+      Test.startTest();
+      registerNonInvoice(fixture, -500, Date.newInstance(2026, 4, 1));
+      registerInvoiceAllocation(fixture, 500, Date.newInstance(2026, 5, 1));
+      Test.stopTest();
+
+      Id spCreated;
+      Id spCleared;
+      for (GlJournal__c journal : activeJournals(fixture.invoice.Id)) {
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_NON_INVOICE_NEGATIVE' &&
+          journal.DebitSlotKey__c == 'SuspensePayment'
+        ) {
+          spCreated = journal.DebitAccount__c;
+        }
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH' &&
+          journal.CreditSlotKey__c == 'SuspensePayment'
+        ) {
+          spCleared = journal.CreditAccount__c;
+        }
+      }
+      System.assertNotEquals(null, spCreated, 'Accounting 第5.2.12節: 負額は未解決支払を積む');
+      System.assertEquals(
+        spCreated,
+        spCleared,
+        'Accounting 第6.2節: 入金は先に、立てた未解決支払の科目を回収する'
+      );
+    }
+  }
+
+  @IsTest
+  static void goalBuild_negativeCashDrawsExistingUacAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisUnrecognized('DrawUac');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+
+      Test.startTest();
+      registerNonInvoice(fixture, 500, Date.newInstance(2026, 4, 1));
+      registerNonInvoice(fixture, -500, Date.newInstance(2026, 4, 10));
+      Test.stopTest();
+
+      Id uacCreated;
+      Id uacDrawn;
+      for (GlJournal__c journal : activeJournals(fixture.invoice.Id)) {
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_NON_INVOICE_POSITIVE' &&
+          journal.CreditSlotKey__c == 'UnappliedCash'
+        ) {
+          uacCreated = journal.CreditAccount__c;
+        }
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_NON_INVOICE_NEGATIVE' &&
+          journal.DebitSlotKey__c == 'UnappliedCash'
+        ) {
+          uacDrawn = journal.DebitAccount__c;
+        }
+      }
+      System.assertNotEquals(null, uacCreated, 'Accounting 第5.2.11節: 正額は仮受金を積む');
+      System.assertEquals(
+        uacCreated,
+        uacDrawn,
+        'Accounting 第6.2節: 出金は先に、積んだ仮受金の科目を返す'
+      );
+    }
+  }
+
+  @IsTest
+  static void goalBuild_refundAfterInvoiceDrawsExistingDef() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = prepareCashBasisUnrecognized('RefundDef');
+      seedMaps();
+      seedPaymentMaps();
+      markConfirmed(fixture.invoice);
+      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
+
+      Test.startTest();
+      registerInvoiceAllocation(fixture, 1100, Date.newInstance(2026, 6, 1));
+      registerInvoiceAllocation(fixture, -1100, Date.newInstance(2026, 6, 20));
+      Test.stopTest();
+
+      Id defCreated;
+      Id defDrawn;
+      for (GlJournal__c journal : activeJournals(fixture.invoice.Id)) {
+        if (journal.JournalPatternKey__c != 'PAYMENT_INVOICE_CURRENT') {
+          continue;
+        }
+        if (journal.CreditSlotKey__c == 'DeferredRevenue') {
+          defCreated = journal.CreditAccount__c;
+        }
+        if (journal.DebitSlotKey__c == 'DeferredRevenue') {
+          defDrawn = journal.DebitAccount__c;
+        }
+      }
+      System.assertNotEquals(null, defCreated, 'Accounting 第4.6節: 未認識の入金は前受を積む');
+      System.assertEquals(
+        defCreated,
+        defDrawn,
+        'Accounting 第6.2節: 請求日以降の返金は、積んだ前受の科目を取り崩す'
+      );
+    }
+  }
+
+  @IsTest
   static void goalBuild_sameRateSplitsAllocationAcrossArAccounts() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createFixture('ArSplit');
@@ -3129,6 +3552,8 @@ private class AccountingEngineTest {
 
       Decimal bodyDefCreated = 0;
       Decimal taxDefCreated = 0;
+      Id bodyDefAccount;
+      Id taxDefAccount;
       AccountingGoalService.GoalJournal bodyRevenue;
       AccountingGoalService.GoalJournal taxRevenue;
       for (AccountingGoalService.GoalJournal goal : goals) {
@@ -3138,12 +3563,14 @@ private class AccountingEngineTest {
           goal.record.CreditSlotKey__c == AccountingSlotFixedCatalog.DeferredRevenue.key
         ) {
           bodyDefCreated += goal.record.Amount__c;
+          bodyDefAccount = goal.record.CreditAccount__c;
         }
         if (
           key == 'BILLING_BASIS_INVOICE_TAX_DEFERRED' &&
           goal.record.CreditSlotKey__c == AccountingSlotFixedCatalog.DeferredRevenue.key
         ) {
           taxDefCreated += goal.record.Amount__c;
+          taxDefAccount = goal.record.CreditAccount__c;
         }
         if (
           key == 'BILLING_BASIS_REVENUE_BODY' &&
@@ -3181,6 +3608,16 @@ private class AccountingEngineTest {
         taxDefCreated,
         taxRevenue.record.Amount__c,
         'Accounting 第4.6節: No.8は税DEFだけを取り崩し、本体DEFを混ぜない'
+      );
+      System.assertEquals(
+        bodyDefAccount,
+        bodyRevenue.record.DebitAccount__c,
+        'Accounting 第6.2節: 本体前受の取り崩しは請求時に積んだ科目を使う'
+      );
+      System.assertEquals(
+        taxDefAccount,
+        taxRevenue.record.DebitAccount__c,
+        'Accounting 第6.2節: 税前受の取り崩しは請求時に積んだ税の科目を使う'
       );
     }
   }
@@ -3236,6 +3673,8 @@ private class AccountingEngineTest {
 
       Id bodyCtaAccount;
       Id taxCtaAccount;
+      Id bodyInvoiceCtaAccount;
+      Id taxInvoiceCtaAccount;
       Decimal bodyRevenueCtaBeforeBill = 0;
       Decimal taxRevenueCtaBeforeBill = 0;
       Decimal bodyInvoiceCta = 0;
@@ -3268,12 +3707,14 @@ private class AccountingEngineTest {
           goal.record.CreditSlotKey__c == AccountingSlotFixedCatalog.ContractAsset.key
         ) {
           bodyInvoiceCta += goal.record.Amount__c;
+          bodyInvoiceCtaAccount = goal.record.CreditAccount__c;
         }
         if (
           key == 'BILLING_BASIS_INVOICE_TAX_DEFERRED' &&
           goal.record.CreditSlotKey__c == AccountingSlotFixedCatalog.ContractAsset.key
         ) {
           taxInvoiceCta += goal.record.Amount__c;
+          taxInvoiceCtaAccount = goal.record.CreditAccount__c;
         }
         if (
           key == 'BILLING_BASIS_INVOICE_BODY' &&
@@ -3321,6 +3762,16 @@ private class AccountingEngineTest {
         null,
         taxCtaAccount,
         'Accounting 第6.2節: 税CTAの作成元科目がある'
+      );
+      System.assertEquals(
+        bodyCtaAccount,
+        bodyInvoiceCtaAccount,
+        'Accounting 第6.2節: 請求時の本体契約資産の取り崩しは、売上で立てた科目を使う'
+      );
+      System.assertEquals(
+        taxCtaAccount,
+        taxInvoiceCtaAccount,
+        'Accounting 第6.2節: 請求時の税契約資産の取り崩しは、税の売上で立てた科目を使う'
       );
     }
   }
@@ -3563,6 +4014,143 @@ private class AccountingEngineTest {
       }
     }
     insert maps;
+  }
+
+  private static Fixture prepareCashBasisRecognizedBeforeInvoice(String suffix) {
+    Fixture fixture = createFixture(suffix);
+    fixture.line.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+    fixture.line.AcceptanceEndDate__c = Date.newInstance(2026, 5, 15);
+    update fixture.line;
+    fixture.invoice.InvoiceDate__c = Date.newInstance(2026, 6, 1);
+    update fixture.invoice;
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+    policy.AccountingEnabled__c = true;
+    policy.RevenueRecognitionBasis__c = 'CashBasis';
+    policy.TaxRecognitionTiming__c = 'AtRecognition';
+    policy.RoundingTargetBucket__c = 'Last';
+    saveOrgPolicy(policy);
+    return fixture;
+  }
+
+  private static Fixture prepareCashBasisUnrecognized(String suffix) {
+    Fixture fixture = createFixture(suffix);
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+    policy.AccountingEnabled__c = true;
+    policy.RevenueRecognitionBasis__c = 'CashBasis';
+    policy.TaxRecognitionTiming__c = 'AtRecognition';
+    policy.RoundingTargetBucket__c = 'Last';
+    saveOrgPolicy(policy);
+    return fixture;
+  }
+
+  private static void registerNonInvoice(
+    Fixture fixture,
+    Decimal amount,
+    Date paymentDate
+  ) {
+    InvoicePaymentService.RegisterRequest request = new InvoicePaymentService.RegisterRequest();
+    request.invoiceId = fixture.invoice.Id;
+    request.amount = amount;
+    request.purpose = InvoicePaymentService.PURPOSE_NON_INVOICE;
+    request.paymentDate = paymentDate;
+    request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+      fixture.invoice.Id
+    );
+    InvoicePaymentService.register(request);
+  }
+
+  private static List<GlJournal__c> activeJournals(Id invoiceId) {
+    return [
+      SELECT
+        JournalPatternKey__c,
+        DebitSlotKey__c,
+        CreditSlotKey__c,
+        DebitAccount__c,
+        CreditAccount__c,
+        Amount__c
+      FROM GlJournal__c
+      WHERE Invoice__c = :invoiceId AND TransactionStatus__c = 'Active'
+    ];
+  }
+
+  private static Id invoiceLineAccountId(String slotKey) {
+    return [
+      SELECT Account__c
+      FROM GlAccountMap__c
+      WHERE SlotKey__c = :slotKey AND EvaluationContext__c = 'InvoiceLine'
+      LIMIT 1
+    ]
+    .Account__c;
+  }
+
+  private static void registerInvoiceAllocation(
+    Fixture fixture,
+    Decimal amount,
+    Date paymentDate
+  ) {
+    InvoicePaymentAllocationService.AllocationLine allocationLine =
+      new InvoicePaymentAllocationService.AllocationLine();
+    allocationLine.invoiceLineId = fixture.line.Id;
+    allocationLine.amount = amount;
+    InvoicePaymentService.RegisterRequest invoicePayment = new InvoicePaymentService.RegisterRequest();
+    invoicePayment.invoiceId = fixture.invoice.Id;
+    invoicePayment.amount = amount;
+    invoicePayment.purpose = InvoicePaymentService.PURPOSE_INVOICE;
+    invoicePayment.paymentDate = paymentDate;
+    invoicePayment.allocations = new List<InvoicePaymentAllocationService.AllocationLine>{
+      allocationLine
+    };
+    invoicePayment.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+      fixture.invoice.Id
+    );
+    InvoicePaymentService.register(invoicePayment);
+  }
+
+  private static List<GlJournal__c> historicalTransfers(Id invoiceId) {
+    return [
+      SELECT DebitAccount__c, CreditAccount__c, CreditSlotKey__c, Amount__c
+      FROM GlJournal__c
+      WHERE
+        Invoice__c = :invoiceId
+        AND JournalPatternKey__c = 'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER'
+        AND TransactionStatus__c = 'Active'
+    ];
+  }
+
+  private static Id invoiceLineArAccountId() {
+    return [
+      SELECT Account__c
+      FROM GlAccountMap__c
+      WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+      LIMIT 1
+    ]
+    .Account__c;
+  }
+
+  private static Id paymentAllocationAccountId(String slotKey) {
+    return [
+      SELECT Account__c
+      FROM GlAccountMap__c
+      WHERE SlotKey__c = :slotKey AND EvaluationContext__c = 'InvoicePaymentAllocation'
+      LIMIT 1
+    ]
+    .Account__c;
+  }
+
+  private static Invoice__c reloadInvoice(Id invoiceId) {
+    return [
+      SELECT
+        Id,
+        InvoiceDate__c,
+        InvoiceTransactionStatus__c,
+        BillingAccountSnapShot__c,
+        BillingAccountKeySnapShot__c,
+        Amount__c,
+        TaxAmount__c,
+        TaxInclusiveAmount__c
+      FROM Invoice__c
+      WHERE Id = :invoiceId
+    ];
   }
 
   private static Fixture createFixture(String suffix) {

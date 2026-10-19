@@ -1547,6 +1547,10 @@ public without sharing class AccountingGoalService {
   ) {
     String targetSlot = accountSplitSlot(split);
     if (targetSlot == null) {
+      // 仕様: Accounting 第6.2節・第5.2.15節・第5.2.16節・第8.4節。両側とも既存残高の取り崩しなら、各側の元科目を写す。
+      if (bothSidesDrawExistingBalance(split)) {
+        return splitBothDrawdowns(split, books, invoiceBook, finalSettlement);
+      }
       return new List<Candidate>{ split };
     }
     // 仕様: Accounting 第6.2節。line==null（No.11／12）は請求書単位のUAC／SPスタンプで充当する。
@@ -1631,6 +1635,171 @@ public without sharing class AccountingGoalService {
       return 'Tax';
     }
     return null;
+  }
+
+  /**
+   * 仕様: Accounting 第6.2節・第5.2.15節・第5.2.16節・第8.4節。
+   * 借方と貸方がどちらも既存残高の取り崩しなら、各側の元科目を写して貸借が合う行に分ける。
+   * 新しい残高の初回生成には使わない。
+   */
+  private static Boolean bothSidesDrawExistingBalance(Candidate split) {
+    if (split == null) {
+      return false;
+    }
+    // 仕様: Accounting 第1.3節。負額は借貸反転後の正額で残高を動かす。取り崩しかは反転後で見る。
+    String debitSlot = split.debitSlotKey;
+    String creditSlot = split.creditSlotKey;
+    if (split.amount != null && split.amount < 0) {
+      debitSlot = split.creditSlotKey;
+      creditSlot = split.debitSlotKey;
+    }
+    if (!isAccountStampSlot(debitSlot) || !isAccountStampSlot(creditSlot)) {
+      return false;
+    }
+    Candidate oriented = copyCandidate(split);
+    oriented.debitSlotKey = debitSlot;
+    oriented.creditSlotKey = creditSlot;
+    return !increasesSlot(oriented, debitSlot) &&
+      !increasesSlot(oriented, creditSlot);
+  }
+
+  private static List<Candidate> splitBothDrawdowns(
+    Candidate split,
+    Map<Id, LineBook> books,
+    LineBook invoiceBook,
+    Boolean finalSettlement
+  ) {
+    LineBook stampBook = split.line == null
+      ? invoiceBook
+      : bookOf(books, split.line);
+    List<AccountStamp> debitBalances = drawdownBalances(
+      stampBook,
+      split.debitSlotKey,
+      bodyTaxDrawdownOrigin(split, split.debitSlotKey)
+    );
+    List<AccountStamp> creditBalances = drawdownBalances(
+      stampBook,
+      split.creditSlotKey,
+      bodyTaxDrawdownOrigin(split, split.creditSlotKey)
+    );
+    if (debitBalances.isEmpty() || creditBalances.isEmpty()) {
+      throw new GoalException('既存残高の実勘定科目を引き継げません。');
+    }
+    List<Integer> debitAmounts = amountsForDrawdownSide(
+      split,
+      true,
+      debitBalances,
+      split.amount,
+      finalSettlement
+    );
+    List<Integer> creditAmounts = amountsForDrawdownSide(
+      split,
+      false,
+      creditBalances,
+      split.amount,
+      finalSettlement
+    );
+    return pairDrawdownSides(split, debitBalances, debitAmounts, creditBalances, creditAmounts);
+  }
+
+  /** 仕様: Accounting 第8.4節・第6.2節。固定側は同じ率。空いていた側の最終決済は科目別残額を直接配る。 */
+  private static List<Integer> amountsForDrawdownSide(
+    Candidate split,
+    Boolean debitSide,
+    List<AccountStamp> balances,
+    Decimal parentAmount,
+    Boolean finalSettlement
+  ) {
+    Boolean direct = false;
+    if (finalSettlement == true) {
+      Boolean thisSideFixed = patternFixesSlot(split, debitSide);
+      Boolean otherSideFixed = patternFixesSlot(split, !debitSide);
+      if (!thisSideFixed && otherSideFixed) {
+        direct = true;
+      } else if (thisSideFixed == otherSideFixed) {
+        direct = stampCoversParent(balances, parentAmount);
+      }
+    }
+    return direct
+      ? directRemainings(balances, parentAmount)
+      : sameRateAmounts(balances, parentAmount);
+  }
+
+  private static Boolean patternFixesSlot(Candidate split, Boolean debitSide) {
+    if (split == null || split.pattern == null) {
+      return false;
+    }
+    AccountingSlotFixedCatalog.Definition fixed = debitSide
+      ? split.pattern.debitSlot
+      : split.pattern.creditSlot;
+    return fixed != null;
+  }
+
+  private static Boolean stampCoversParent(
+    List<AccountStamp> balances,
+    Decimal parentAmount
+  ) {
+    Decimal total = 0;
+    for (AccountStamp stamp : balances) {
+      total += nvl(stamp.signedAmount);
+    }
+    Decimal parent = parentAmount == null ? 0 : parentAmount.abs();
+    return total.abs() == parent;
+  }
+
+  private static List<Candidate> pairDrawdownSides(
+    Candidate split,
+    List<AccountStamp> debitBalances,
+    List<Integer> debitAmounts,
+    List<AccountStamp> creditBalances,
+    List<Integer> creditAmounts
+  ) {
+    List<Candidate> rows = new List<Candidate>();
+    Integer i = 0;
+    Integer j = 0;
+    Integer debitLeft = 0;
+    Integer creditLeft = 0;
+    while (i < debitBalances.size() && j < creditBalances.size()) {
+      if (debitLeft == 0) {
+        debitLeft = i < debitAmounts.size() ? debitAmounts[i] : 0;
+      }
+      if (creditLeft == 0) {
+        creditLeft = j < creditAmounts.size() ? creditAmounts[j] : 0;
+      }
+      if (debitLeft == 0) {
+        i++;
+        continue;
+      }
+      if (creditLeft == 0) {
+        j++;
+        continue;
+      }
+      Integer sign = debitLeft < 0 ? -1 : 1;
+      Integer take = Math.min(Math.abs(debitLeft), Math.abs(creditLeft));
+      Candidate row = copyCandidate(split);
+      row.amount = Decimal.valueOf(take * sign);
+      row.debitAccountId = debitBalances[i].accountId;
+      row.debitAssignmentId = debitBalances[i].assignmentId;
+      row.creditAccountId = creditBalances[j].accountId;
+      row.creditAssignmentId = creditBalances[j].assignmentId;
+      rows.add(row);
+      debitLeft -= take * sign;
+      creditLeft -= take * sign;
+      if (debitLeft == 0) {
+        i++;
+      }
+      if (creditLeft == 0) {
+        j++;
+      }
+    }
+    Decimal emitted = 0;
+    for (Candidate row : rows) {
+      emitted += nvl(row.amount);
+    }
+    if (emitted != nvl(split.amount)) {
+      throw new GoalException('既存残高の科目別配分が割当額と一致しません。');
+    }
+    return mergeSameAccountSplits(rows);
   }
 
   /**
