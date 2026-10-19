@@ -1592,6 +1592,46 @@
 }
 
 /* 成功・失敗・処理中はボタン列の外に重ねる。押した面に残し、隣のボタンや金額は動かさない。 */
+.action-float-stack {
+  position: absolute;
+  z-index: 6;
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 0.3rem);
+  left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: min(32rem, 70vw);
+  margin: 0;
+  pointer-events: auto;
+}
+
+.action-float-stack .action-float {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  max-width: 100%;
+}
+
+.header-actions .action-float-stack,
+.amount-compare-actions .action-float-stack,
+.board-filter-action .action-float-stack,
+.journal-lock-bar .action-float-stack {
+  top: calc(100% + 0.3rem);
+  bottom: auto;
+}
+
+.journal-lock-bar .action-float-stack {
+  right: auto;
+  left: 0;
+  align-items: flex-start;
+}
+
 .action-float {
   position: absolute;
   z-index: 6;
@@ -2462,7 +2502,6 @@ tr.journal-row_highlight td {
   background: #f1f5f9;
   box-shadow: inset 0 0 0 2px #64748b;
 }
-
 
 .surface-complete {
   margin: 0.5rem 0;

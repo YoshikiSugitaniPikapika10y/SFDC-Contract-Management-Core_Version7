@@ -12,9 +12,7 @@ import resetLatestVersionInvoicesToPostOrder from "@salesforce/apex/OrderCreateC
 import updateInvoiceHeaderAndDates from "@salesforce/apex/OrderCreateController.updateInvoiceHeaderAndDates";
 import applyBillingAccountContent from "@salesforce/apex/OrderCreateController.applyBillingAccountContent";
 import cancelConfirmedFromPreview from "@salesforce/apex/OrderCreateController.cancelConfirmedFromPreview";
-import {
-  requestOrderWizardClose
-} from "c/orderWizardClose";
+import { requestOrderWizardClose } from "c/orderWizardClose";
 import {
   closeOrderWizardTab,
   readOrderWizardRecordId,
@@ -44,36 +42,29 @@ jest.mock(
   () => ({ ShowToastEvent: class ShowToastEvent {} }),
   { virtual: true }
 );
-jest.mock(
-  "c/orderWizardNavigation",
-  () => ({
-    NavigationMixin: (Base) => class extends Base {},
-    closeOrderWizardTab: jest.fn(),
-    initializeOrderWizardFromUrl: jest.fn(),
-    isOrderWizardTabView: jest.fn(() => false),
-    readOrderWizardRecordId: jest.fn(() => "")
-  })
-);
-jest.mock(
-  "c/orderWizardClose",
-  () => ({
-    isOrderActionBootstrapping: jest.fn(() => false),
-    requestOrderWizardClose: jest.fn(),
-    scheduleRecordActionLoad: jest.fn((ctx, fn) =>
-      typeof fn === "function" ? fn() : undefined
-    ),
-    resetRecordActionLoadState: jest.fn(),
-    closeOrderWizardTab: jest.fn()
-  })
-);
+jest.mock("c/orderWizardNavigation", () => ({
+  NavigationMixin: (Base) => class extends Base {},
+  closeOrderWizardTab: jest.fn(),
+  initializeOrderWizardFromUrl: jest.fn(),
+  isOrderWizardTabView: jest.fn(() => false),
+  readOrderWizardRecordId: jest.fn(() => "")
+}));
+jest.mock("c/orderWizardClose", () => ({
+  isOrderActionBootstrapping: jest.fn(() => false),
+  requestOrderWizardClose: jest.fn(),
+  scheduleRecordActionLoad: jest.fn((ctx, fn) => {
+    return typeof fn === "function" ? fn() : undefined;
+  }),
+  resetRecordActionLoadState: jest.fn(),
+  closeOrderWizardTab: jest.fn()
+}));
 jest.mock(
   "c/estimateValidationAlertUtils",
   () => ({
     resolveSaveErrorAlert: jest.fn((error) => ({
       messages: [
         {
-          text:
-            error?.body?.message || error?.message || "処理に失敗しました。"
+          text: error?.body?.message || error?.message || "処理に失敗しました。"
         }
       ]
     }))
@@ -163,7 +154,10 @@ function bind(overrides = {}) {
     completionNote: "",
     billingAccountOptions: [],
     previewScope: { contractHistoryId: "a0H000000000001AAA", canOpen: true },
-    template: { querySelector: jest.fn(() => null), host: { style: { setProperty: jest.fn() } } },
+    template: {
+      querySelector: jest.fn(() => null),
+      host: { style: { setProperty: jest.fn() } }
+    },
     dispatchEvent: jest.fn(),
     ...overrides
   };
@@ -205,7 +199,9 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
       invoices: []
     });
     splitInvoiceByDate.mockReset().mockResolvedValue({ invoices: [] });
-    splitInvoiceByBillingAccount.mockReset().mockResolvedValue({ invoices: [] });
+    splitInvoiceByBillingAccount
+      .mockReset()
+      .mockResolvedValue({ invoices: [] });
     moveLinesToExistingInvoice.mockReset().mockResolvedValue({ invoices: [] });
     splitLinesInPlace.mockReset().mockResolvedValue({ invoices: [] });
     resetLatestVersionInvoicesToPostOrder.mockReset().mockResolvedValue({
@@ -260,7 +256,11 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
     expect(modal.hasPreview).toBe(true);
     const tab = bind({
       isTabView: true,
-      previewScope: { initialVersion: "2", initialInvoiceId: "inv", contractHistoryId: "h" }
+      previewScope: {
+        initialVersion: "2",
+        initialInvoiceId: "inv",
+        contractHistoryId: "h"
+      }
     });
     expect(tab.pageClass).toBe("preview-page preview-page_tab");
     expect(tab.tableInitialVersion).toBe("2");
@@ -268,18 +268,47 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
   });
 
   it("請求日と入金予定日は必須 (Core 7.9)", async () => {
-    const ctx = bind();
-    await ctx.handleSaveBillingHeader({ detail: { invoiceId: "inv" } });
-    expect(ctx.errorMessage).toBe("請求日は必須です。");
-    ctx.errorMessage = "";
-    await ctx.handleSaveBillingHeader({
-      detail: { invoiceId: "inv", invoiceDate: "2026-04-01" }
+    const table = { showCardNotice: jest.fn() };
+    const ctx = bind({
+      template: { querySelector: jest.fn(() => table) }
     });
-    expect(ctx.errorMessage).toBe("入金予定日は必須です。");
+    await ctx.handleSaveBillingHeader({
+      detail: {
+        invoiceId: "inv",
+        noticeInvoiceId: "inv",
+        noticeAnchor: "billing"
+      }
+    });
+    expect(ctx.errorMessage).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "billing",
+      "請求日は必須です。",
+      true
+    );
+    table.showCardNotice.mockClear();
+    await ctx.handleSaveBillingHeader({
+      detail: {
+        invoiceId: "inv",
+        invoiceDate: "2026-04-01",
+        noticeInvoiceId: "inv",
+        noticeAnchor: "billing"
+      }
+    });
+    expect(ctx.errorMessage).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "billing",
+      "入金予定日は必須です。",
+      true
+    );
   });
 
   it("save billing header writes 請求情報を保存しました。", async () => {
-    const table = { clearBillingEditState: jest.fn() };
+    const table = {
+      clearBillingEditState: jest.fn(),
+      showCardNotice: jest.fn()
+    };
     const ctx = bind({
       template: { querySelector: jest.fn(() => table) }
     });
@@ -288,28 +317,59 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
         invoiceId: "inv",
         invoiceDate: "2026-04-01",
         paymentScheduledDate: "2026-04-30",
-        expectedContentVersion: "v1"
+        expectedContentVersion: "v1",
+        noticeInvoiceId: "inv",
+        noticeAnchor: "billing"
       }
     });
-    expect(ctx.completionNote).toBe("請求情報を保存しました。");
+    expect(ctx.completionNote).toBe("");
+    expect(ctx.errorMessage).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "billing",
+      "請求情報を保存しました。",
+      false
+    );
     expect(table.clearBillingEditState).toHaveBeenCalled();
   });
 
   it("split requires 分割先の請求日／入金予定日", async () => {
-    const ctx = bind();
-    await ctx.handleSplitInvoice({
-      detail: { sourceInvoiceId: "inv", splitLines: [{}] }
+    const table = { showCardNotice: jest.fn() };
+    const ctx = bind({
+      template: { querySelector: jest.fn(() => table) }
     });
-    expect(ctx.errorMessage).toBe("分割先の請求日は必須です。");
-    ctx.errorMessage = "";
     await ctx.handleSplitInvoice({
       detail: {
         sourceInvoiceId: "inv",
         splitLines: [{}],
-        newInvoiceDate: "2026-05-01"
+        noticeInvoiceId: "inv",
+        noticeAnchor: "split"
       }
     });
-    expect(ctx.errorMessage).toBe("分割先の入金予定日は必須です。");
+    expect(ctx.errorMessage).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "split",
+      "分割先の請求日は必須です。",
+      true
+    );
+    table.showCardNotice.mockClear();
+    await ctx.handleSplitInvoice({
+      detail: {
+        sourceInvoiceId: "inv",
+        splitLines: [{}],
+        newInvoiceDate: "2026-05-01",
+        noticeInvoiceId: "inv",
+        noticeAnchor: "split"
+      }
+    });
+    expect(ctx.errorMessage).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "split",
+      "分割先の入金予定日は必須です。",
+      true
+    );
   });
 
   it("split by billing account vs date (Core 7.9)", async () => {
@@ -356,7 +416,9 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
     expect(splitLinesInPlace).toHaveBeenCalled();
     await ctx.handleResetPostOrder({ detail: { versionValue: "1" } });
     expect(resetLatestVersionInvoicesToPostOrder).toHaveBeenCalled();
-    await ctx.handleApplyBillingAccountContent({ detail: { invoiceId: "inv" } });
+    await ctx.handleApplyBillingAccountContent({
+      detail: { invoiceId: "inv" }
+    });
     expect(applyBillingAccountContent).toHaveBeenCalled();
     await ctx.handleCancelConfirmed({
       detail: {
@@ -389,14 +451,27 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
     updateInvoiceLineAmounts.mockRejectedValue({
       body: { message: VERSION_CONFLICT }
     });
-    const ctx = bind();
+    const table = { showCardNotice: jest.fn() };
+    const ctx = bind({
+      template: { querySelector: jest.fn(() => table) }
+    });
     await ctx.handleSaveLineAmounts({
-      detail: { edits: [{ lineId: "1" }] }
+      detail: {
+        edits: [{ lineId: "1" }],
+        noticeInvoiceId: "inv",
+        noticeAnchor: "amount"
+      }
     });
     expect(resolvePreviewScope).toHaveBeenCalled();
     expect(getInvoicePreview).toHaveBeenCalled();
     expect(ctx.contentLoadFailed).toBe(false);
-    expect(ctx.errorMessage).toBe(VERSION_CONFLICT);
+    expect(ctx.errorMessage).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "amount",
+      VERSION_CONFLICT,
+      true
+    );
   });
 
   it("closes modal vs tab", () => {
@@ -443,18 +518,15 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
     const ctx = bind();
     ctx.handlePreviewWheel(null);
     ctx.handlePreviewWheel({ ctrlKey: true });
-    const root = {
-      nodeType: 1,
-      scrollTop: 0,
-      clientHeight: 500,
-      scrollHeight: 2000,
-      style: {}
-    };
     const listbox = document.createElement("div");
     listbox.setAttribute("role", "listbox");
     expect(ctx.isSmallScroller(listbox)).toBe(true);
-    expect(ctx.resolveWheelDeltaY({ deltaY: 0, deltaX: 0, shiftKey: false })).toBe(0);
-    expect(ctx.resolveWheelDeltaY({ deltaY: 2, deltaMode: 1, shiftKey: false })).toBe(32);
+    expect(
+      ctx.resolveWheelDeltaY({ deltaY: 0, deltaX: 0, shiftKey: false })
+    ).toBe(0);
+    expect(
+      ctx.resolveWheelDeltaY({ deltaY: 2, deltaMode: 1, shiftKey: false })
+    ).toBe(32);
     expect(ctx.canScrollY(null)).toBe(false);
   });
 

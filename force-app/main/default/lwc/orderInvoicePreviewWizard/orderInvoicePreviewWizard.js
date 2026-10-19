@@ -68,6 +68,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
 
   renderedCallback() {
     this.applyScrollSizing();
+    // eslint-disable-next-line @lwc/lwc/no-async-operation
     requestAnimationFrame(() => this.applyScrollSizing());
     scheduleRecordActionLoad(this, () => this.loadPreview());
   }
@@ -114,9 +115,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       (document.scrollingElement || document.documentElement).clientHeight ||
       0;
     const bottomGap = this.isTabView ? 8 : 24;
-    return viewportHeight
-      ? Math.max(viewportHeight - top - bottomGap, 240)
-      : 0;
+    return viewportHeight ? Math.max(viewportHeight - top - bottomGap, 240) : 0;
   }
 
   @wire(CurrentPageReference)
@@ -166,8 +165,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       });
       this.previewScope = scope;
       if (!scope?.canOpen) {
-        this.errorMessage =
-          scope?.blockReason || "請求ボードを開けません。";
+        this.errorMessage = scope?.blockReason || "請求ボードを開けません。";
         return;
       }
 
@@ -259,11 +257,21 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       (editError.includes("取消基準日が必要") ||
         editError.includes("初期値より前の日付は指定できません"))
     ) {
-      const table = this.template.querySelector("c-order-invoice-preview-table");
-      if (table && typeof table.showAcceptanceCancelDateRequired === "function") {
-        const floor = (editError.match(/初期値は(\d{4}-\d{2}-\d{2})です/) || [])[1];
+      const table = this.template.querySelector(
+        "c-order-invoice-preview-table"
+      );
+      if (
+        table &&
+        typeof table.showAcceptanceCancelDateRequired === "function"
+      ) {
+        const floor = (editError.match(/初期値は(\d{4}-\d{2}-\d{2})です/) ||
+          [])[1];
         if (floor) {
-          table.showAcceptanceCancelDateRequired(lineId, acceptanceEndDate, floor);
+          table.showAcceptanceCancelDateRequired(
+            lineId,
+            acceptanceEndDate,
+            floor
+          );
         } else {
           table.showAcceptanceCancelDateRequired(lineId, acceptanceEndDate);
         }
@@ -277,10 +285,6 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       invoiceId,
       invoiceDate,
       paymentScheduledDate,
-      billingAddressee,
-      billingEmailTo,
-      billingEmailCc,
-      billingEmailBcc,
       expectedContentVersion,
       businessOperationKey,
       extraFieldValues
@@ -434,11 +438,8 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
 
   async handleResetPostOrder(event) {
     this._pendingCardNotice = this.cardNoticeFrom(event.detail);
-    const {
-      versionValue,
-      expectedTokenByInvoiceId,
-      businessOperationKey
-    } = event.detail || {};
+    const { versionValue, expectedTokenByInvoiceId, businessOperationKey } =
+      event.detail || {};
     if (!versionValue) {
       return;
     }
@@ -518,35 +519,47 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
   placeCardError(detail, message) {
     const card = this.cardNoticeFrom(detail);
     const table = this.template.querySelector("c-order-invoice-preview-table");
-    if (card && table?.showCardNotice) {
+    if (card && typeof table?.showCardNotice === "function") {
       this.errorMessage = "";
+      this.contentLoadFailed = false;
       table.showCardNotice(card.invoiceId, card.anchor, message, true);
+      return;
+    }
+    if (this.hasPreview) {
+      this.errorMessage = "";
+      this.contentLoadFailed = false;
       return;
     }
     this.errorMessage = message;
   }
 
-  async runEdit(action, successMessage) {
+  async runEdit(action) {
     if (this.isSaving) {
       return false;
     }
     const card = this._pendingCardNotice;
     this._pendingCardNotice = null;
+    this._noticeDuringSave = card;
     this.isSaving = true;
     this.errorMessage = "";
     this._lastEditError = "";
     try {
       this.invoicePreview = await action();
-      if (card) {
+      const table = this.template.querySelector(
+        "c-order-invoice-preview-table"
+      );
+      if (card && typeof table?.showCardNotice === "function") {
         this.completionNote = "";
-        this.template
-          .querySelector("c-order-invoice-preview-table")
-          ?.showCardNotice(
-            card.invoiceId,
-            card.anchor,
-            "請求情報を保存しました。",
-            false
-          );
+        this.errorMessage = "";
+        table.showCardNotice(
+          card.invoiceId,
+          card.anchor,
+          "請求情報を保存しました。",
+          false
+        );
+      } else if (this.hasPreview) {
+        this.completionNote = "";
+        this.errorMessage = "";
       } else {
         this.completionNote = "請求情報を保存しました。";
       }
@@ -554,15 +567,24 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     } catch (error) {
       const message = this.reduceError(error);
       this._lastEditError = message;
-      if (card) {
+      const table = this.template.querySelector(
+        "c-order-invoice-preview-table"
+      );
+      if (card && typeof table?.showCardNotice === "function") {
         this.errorMessage = "";
         this.contentLoadFailed = false;
         if (message === VERSION_CONFLICT_MESSAGE) {
           await this.loadPreview();
         }
-        this.template
-          .querySelector("c-order-invoice-preview-table")
-          ?.showCardNotice(card.invoiceId, card.anchor, message, true);
+        table.showCardNotice(card.invoiceId, card.anchor, message, true);
+        return false;
+      }
+      if (this.hasPreview) {
+        this.errorMessage = "";
+        this.contentLoadFailed = false;
+        if (message === VERSION_CONFLICT_MESSAGE) {
+          await this.loadPreview();
+        }
         return false;
       }
       this.errorMessage = message;
@@ -577,6 +599,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       return false;
     } finally {
       this.isSaving = false;
+      this._noticeDuringSave = null;
     }
   }
 
@@ -654,8 +677,8 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     }
     return Boolean(
       el.classList &&
-        (el.classList.contains("slds-listbox") ||
-          el.classList.contains("slds-dropdown"))
+      (el.classList.contains("slds-listbox") ||
+        el.classList.contains("slds-dropdown"))
     );
   }
 
@@ -704,14 +727,28 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     if (
       event &&
       (event.type === "lightning__showtoast" ||
+        event instanceof ShowToastEvent ||
         event.constructor?.name === "ShowToastEvent")
     ) {
       const detail = event.detail || {};
       if (detail.variant === "error" || !detail.variant) {
-        this.errorMessage = String(detail.message || detail.title || "").replace(
+        const message = String(detail.message || detail.title || "").replace(
           /Version/g,
           "版"
         );
+        const card = this._noticeDuringSave || this._pendingCardNotice;
+        const table = this.template.querySelector(
+          "c-order-invoice-preview-table"
+        );
+        if (this.hasPreview) {
+          this.errorMessage = "";
+          this.contentLoadFailed = false;
+          if (card && typeof table?.showCardNotice === "function") {
+            table.showCardNotice(card.invoiceId, card.anchor, message, true);
+          }
+          return true;
+        }
+        this.errorMessage = message;
         this.contentLoadFailed = true;
         return true;
       }
