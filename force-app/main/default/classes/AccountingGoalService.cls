@@ -2101,7 +2101,7 @@ public without sharing class AccountingGoalService {
     ) {
       GlAccountMapResolveService.ResolvedAccount debit = GlAccountMapResolveService.resolve(
         candidate.debitSlotKey,
-        contextName,
+        accountContext(candidate, candidate.debitSlotKey, contextName),
         context
       );
       candidate.debitAssignmentId = debit.assignmentId;
@@ -2113,7 +2113,7 @@ public without sharing class AccountingGoalService {
     ) {
       GlAccountMapResolveService.ResolvedAccount credit = GlAccountMapResolveService.resolve(
         candidate.creditSlotKey,
-        contextName,
+        accountContext(candidate, candidate.creditSlotKey, contextName),
         context
       );
       candidate.creditAssignmentId = credit.assignmentId;
@@ -2129,6 +2129,26 @@ public without sharing class AccountingGoalService {
       return 'InvoicePayment';
     }
     return 'InvoiceLine';
+  }
+
+  /**
+   * 仕様: Accounting 第6.1節・第6.2節。
+   * Invoice目的で新しく立てる売掛は請求明細を評価起点にする。入金割当の売掛へ取り替えない。
+   * 既存売掛の取り崩しは、ここへ来る前に元科目が写っている。
+   */
+  private static String accountContext(
+    Candidate candidate,
+    String slotKey,
+    String defaultContext
+  ) {
+    if (
+      candidate != null &&
+      candidate.line != null &&
+      slotKey == AccountingSlotFixedCatalog.AccountsReceivable.key
+    ) {
+      return 'InvoiceLine';
+    }
+    return defaultContext;
   }
 
   /** 仕様: Accounting 第1.8.1節・第6.2節・第8.2節手順6・第8.6節・第8.8節。Current上の有効元仕訳（Active）だけから割当・実勘定を再利用する。 */
