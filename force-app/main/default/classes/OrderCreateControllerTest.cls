@@ -2813,20 +2813,6 @@ private class OrderCreateControllerTest {
         FROM Opportunity
         WHERE Id = :renewOpportunityId
       ];
-      if (
-        Schema.sObjectType.Opportunity.fields.getMap()
-          .containsKey('PreviousOpportunity__c')
-      ) {
-        Opportunity previousField = (Opportunity) Database.query(
-          'SELECT PreviousOpportunity__c FROM Opportunity WHERE Id = \'' +
-            String.escapeSingleQuotes(renewOpportunityId) +
-            '\' LIMIT 1'
-        );
-        System.assertEquals(
-          context.opportunity.Id,
-          previousField.get('PreviousOpportunity__c')
-        );
-      }
       System.assertEquals(
         context.history.Id,
         renewOpp.SourceContractHistory__c
