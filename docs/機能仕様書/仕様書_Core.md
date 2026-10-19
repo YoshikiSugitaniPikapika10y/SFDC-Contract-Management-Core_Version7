@@ -2500,7 +2500,7 @@ Term契約サービスのサービス開始日はFirst Orderedの継続課金期
 - 見積ウィザード追加項目は、対象、表示する見積種別、必須、商品条件、並び順および初期値を設定できる。無効な定義は無視し、有効な不正定義は設定エラーとして表示・保存を止める。
 - 受注ウィザード追加項目は契約履歴だけを対象とし、表示する見積種別、必須、並び順および初期値を設定できる。商品条件は持たない。無効な定義は無視し、有効な不正定義は受注・Ordered見積編集・差し戻しを止める。第11.4.3節。
 - 見積日、有効期限、発行日、見積件名は見積書セクションで扱う。ウィザードの初期値は第4.10節。発行日が空のウィザード保存は組織の今日を書く。発行ボタンは書かない。
-- 顧客寄りのValidation Ruleを後からONにするための組織単位の旗を持つ。一括スキップではない。標準初期値はOFF。導入途中からONにしてよい。式に`$Setup.ContractValidationEnforce__c.Enforce__c`を書いた規則だけが旗の対象。書いていない規則は常に有効。Coreの状態遷移、受注、ロック等の整合性ガードおよび 101〜103 とは別物で、旗では解除しない。詳細は第11.6節・第11.7節。
+- 顧客寄りのValidation Ruleと、見積・受注・請求操作の追加項目必須を後からONにするための組織単位の旗を持つ。一括スキップではない。標準初期値はOFF。導入途中からONにしてよい。式に`$Setup.ContractValidationEnforce__c.Enforce__c`を書いた規則と、追加項目の`Required__c`を読むときだけが旗の対象である。追加項目はOFFの読み取りでは必須にしない。定義行は更新しない。書いていない規則は常に有効。請求アカウントの直書き必須、定義不正の停止、Coreの状態遷移、受注、ロック等の整合性ガードおよび 101〜103 は旗では解除しない。詳細は第11.6節・第11.7節。
 - 見積書セクションの備考は備考マスタまたは自由文を使用できる。既存自由文へのマスタ上書きとマスタ解除時の本文クリアは確認する。ウィザードへの表示は第4.10節の見積書3択に従う。`使わない`以外ならCancelにも出す。
 
 設定の正本は、請求設定が`ContractMetadataService`、請求日ルールと支払条件が請求アカウント、見積追加項目が`EstimateWizardField__mdt`、受注追加項目が`OrderWizardField__mdt`、コピー定義が`FieldCopyDefinition__c`である。発行日の空欄を組織の今日にするのは第4.10節のウィザード保存である。`SetEstimateRelateFields`はテナント自動化で、標準必須ではない。見積日、有効期限、発行日のウィザード初期値は標準である。自動RenewへのApex直書きはしない。
@@ -2624,7 +2624,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 | 設定             | 動作                                                                         |
 | ---------------- | ---------------------------------------------------------------------------- |
 | 表示する見積種別 | New・Change・Renew・Cancelごとに表示可否を指定する。指定がなければ表示しない |
-| 必須             | 画面に表示されている場合だけ必須とする                                       |
+| 必須             | 画面に表示されている場合だけ必須とする。旗がOFFの読み取りでは必須にしない。ONのときは`Required__c`を使う。定義行は更新しない |
 | 商品条件         | 見積商品では、選択商品の項目値に応じて表示可否を切り替えられる               |
 | 初期値           | 固定値、または商談・取引先・商品から取得した値を設定できる                   |
 
@@ -2791,7 +2791,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 | 設定             | 動作                                                                                                                                                       |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 表示する見積種別 | New・Change・Renew・Cancelごとに表示可否を指定する。指定がなければ表示しない                                                                               |
-| 必須             | 受注画面とOrdered見積編集で画面に表示されている場合だけ必須とする。画面外のOrdered化では見ない。入力強制の旗とは別。申込日だけの専用画面ロジックは持たない |
+| 必須             | 受注画面とOrdered見積編集で画面に表示されている場合だけ必須とする。旗がOFFの読み取りでは必須にしない。ONのときは`Required__c`を使う。定義行は更新しない。画面外のOrdered化では見ない。差し戻しでは見ない。申込日だけの専用画面ロジックは持たない。同梱の申込日もOFFのあいだは必須にならない |
 | 初期値           | 固定値、操作日、商談、取引先。商品は選べない                                                                                                               |
 
 - 受注画面に契約履歴の追加項目セクションを出す。請求アカウント確認の必須項目は本定義に含めない。
@@ -2828,7 +2828,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 
 | DeveloperName           | 項目                 | 表示   | 必須         | 初期値                            | 並び |
 | ----------------------- | -------------------- | ------ | ------------ | --------------------------------- | ---- |
-| `Order_ApplicationDate` | `ApplicationDate__c` | 全種別 | 表示中は必須 | なし。前Versionからもコピーしない | 10   |
+| `Order_ApplicationDate` | `ApplicationDate__c` | 全種別 | 表示中かつ旗ON | なし。前Versionからもコピーしない | 10   |
 | `Order_OrderDate`       | `OrderDate__c`       | 全種別 | 任意         | `Today`                           | 20   |
 
 見積ウィザードの`History_ApplicationDate` / `History_OrderDate`は廃止する。既存組織は移行で外す。実装は`CHANGE-016`。
@@ -2838,7 +2838,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 その他 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardField__mdt</code> シード <code>Order_ApplicationDate</code> / <code>Order_OrderDate</code>（同梱CMDT。Apexのpost-installでは作らない）
 一覧 表示ラベル、有効、出す版、並び順、DeveloperName（後ろ）。対象列は置かない。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
-手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。必須は画面に出している受注・Ordered見積編集だけ。画面外のOrdered化では見ない。
+手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。必須は画面に出している受注・Ordered見積編集で、旗ONの読み取りだけ。画面外のOrdered化では見ない。差し戻しでは見ない。
 ／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。保存しない表示行は同じ <code>OrderWizardField__mdt</code>。読む先は商談と取引先。商品は設定エラー。見積商品の表示行は受注と差し戻しに出さない。見積ウィザードの商品明細に残す。
 </div>
 
@@ -2857,7 +2857,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 | 設定         | 動作                                                                                             |
 | ------------ | ------------------------------------------------------------------------------------------------ |
 | 対象         | `Invoice__c` / `InvoicePayment__c` / `GlJournal__c`                                              |
-| 必須         | 画面に表示されている場合だけ必須とする。条件付き必須はテナントの入力規則と第11.6節の`Enforce__c` |
+| 必須         | 画面に表示されている場合だけ必須とする。旗がOFFの読み取りでは必須にしない。ONのときは`Required__c`を使う。定義行は更新しない。条件付き必須の入力規則は第11.6節のまま |
 | 初期値       | 固定値だけ。商談・取引先・操作日は持たない                                                       |
 | 入出金の表示 | Purposeごとに表示ON/OFF。請求書・仕訳の行にPurpose旗を立てたら設定エラー                         |
 
@@ -3029,7 +3029,7 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 
 画面のラベルは「カスタム入力規則をON」。旗`ContractValidationEnforce__c.Enforce__c`は、汎用納品のまま顧客寄りのValidation Ruleを後からONにするための組織単位のON/OFFである。一括スキップではない。インストール直後の既定はOFF。導入途中からONにしてよい。ユーザー単位の階層切替は持たない（保持体がHierarchyでも、製品は組織既定だけを読み書きする。Hierarchy型そのものの差し替えはしない）。API名と保持体は変えない。
 
-パッケージ同梱の`Ordered_Requires_ApplicationDate`は見本として残す。顧客がSetupで足した規則は、式に`$Setup.ContractValidationEnforce__c.Enforce__c`を書いたものだけが旗の対象。書いていない規則は常に有効。画面必須はウィザード追加項目の設定に従う。申込日だけの専用画面ロジックは書かない。第11.4.3節・第11.7節。Core整合性ガードと 101〜103 とは別物で、旗では外さない。パッケージ同梱テストはEnforce OFF前提とし、実行時点でONなら落ちてよい。
+パッケージ同梱の`Ordered_Requires_ApplicationDate`は見本として残す。顧客がSetupで足した規則は、式に`$Setup.ContractValidationEnforce__c.Enforce__c`を書いたものだけが旗の対象。書いていない規則は常に有効。見積・受注・請求操作の追加項目必須は、旗がOFFの読み取りでは必須にしない。ONのときは各定義の`Required__c`を使う。定義行は更新しない。同梱申込日の画面必須もOFFでは休む。差し戻しは必須を見ない。請求アカウントの直書き必須と定義不正の停止は旗では外さない。申込日だけの専用画面ロジックは書かない。第11.4.1節・第11.4.3節・第11.4.4節・第11.7節。Core整合性ガードと 101〜103 とは別物で、旗では外さない。パッケージ同梱テストはEnforce OFF前提とし、実行時点でONなら落ちてよい。
 
 `InvoiceLockExemptFields__c.FieldApiNames__c`はカンマ区切りText(255)である。人が確定後に直せるカスタム項目の一覧である。製品が確定後に書く状態項目は載せない。製品の確定後更新はこの一覧を見ない。有効な会計タグルールが参照する請求書チェックボックスもAccountingの内部更新に限り動的な除外とし、この一覧には載せない。標準メモ`Memo__c`は製品固定で確定後も直せる。一覧に無くてよい。設定レコードが無い、または一覧が空なら、人が直せる追加は無い。シード文字列へ落とさない。インストールでも組織設定の保存でもこの組織既定を作らない。人が消したあとも戻さない。
 
@@ -3058,7 +3058,7 @@ CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を�
 
 どちらも契約履歴に保存し、受注ウィザードの標準追加項目として扱う。定義は第11.4.3節。見積ウィザードの追加項目シードには置かない。+見積と見積候補の見積編集では出さない。Orderedの見積編集では第11.4.3節どおり見積用とは別見出しで出す。見積必須と受注必須は別定義のまま同期しない。
 
-Ordered遷移時のDB必須は画面必須と別系統である。画面必須は第11.4.3節の追加項目定義（表示中だけ必須）に従う。DB側の見本は同梱`Ordered_Requires_ApplicationDate`が`$Setup.ContractValidationEnforce__c.Enforce__c`を参照する形である。見本入力規則はパッケージ同梱である。Apexのpost-installでは作らない。標準提供はEnforce OFF。旗の対象・効き方は第11.6節。
+Ordered遷移時のDB必須は画面必須と別系統である。画面必須は第11.4.3節に従い、表示中かつ旗ONのときだけ必須とする。旗OFFの読み取りでは同梱申込日も必須にしない。DB側の見本は同梱`Ordered_Requires_ApplicationDate`が`$Setup.ContractValidationEnforce__c.Enforce__c`を参照する形である。見本入力規則はパッケージ同梱である。Apexのpost-installでは作らない。標準提供はEnforce OFF。旗の対象・効き方は第11.6節。
 
 ### 11.8 Accounting・送付境界
 
