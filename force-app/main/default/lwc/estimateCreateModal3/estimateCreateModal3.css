@@ -1243,14 +1243,16 @@
   color: #1d4ed8;
 }
 
-/* 商品名: 長い商品時のサイズに統一 → 溢れは ellipsis */
+/* 商品名: 金額と同じ大きさと色。溢れは1行の省略。全文は title */
 .est-product-name {
   display: block;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  font-size: 0.75rem;
+  font-size: var(--est-font-control);
+  font-weight: 700;
+  color: var(--est-accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1357,7 +1359,7 @@
 
 .est-date-shortcuts_nowrap {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   gap: 0.2rem;
   width: 100%;
@@ -1391,8 +1393,9 @@
 }
 
 .est-table .est-date-chip {
-  height: 1.375rem;
-  min-height: 1.375rem;
+  height: 1.75rem;
+  min-height: 1.75rem;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 

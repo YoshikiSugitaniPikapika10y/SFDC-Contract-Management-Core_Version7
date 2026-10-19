@@ -38,11 +38,23 @@ describe("invoice anchor is fully visible (Core 4.6)", () => {
 
     expect(dateStack).toMatch(/auto/);
     expect(dateSub).toMatch(/overflow:\s*visible/);
-    expect(shortcuts).toMatch(/repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+    expect(shortcuts).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    expect(shortcuts).not.toMatch(/repeat\(2/);
     expect(shortcuts).toMatch(/gap:\s*0\.2rem/);
     expect(tableChip).toMatch(/white-space:\s*nowrap/);
-    expect(tableChip).toMatch(/height:\s*1\.375rem/);
+    expect(tableChip).toMatch(/font-size:\s*0\.875rem/);
+    expect(tableChip).toMatch(/height:\s*1\.75rem/);
     expect(tableChip).not.toMatch(/overflow:\s*hidden/);
+  });
+
+  it("shows the product name at the amount size, in the amount color, on one line", () => {
+    const name = ruleBody(".est-product-name");
+
+    expect(name).toMatch(/font-size:\s*var\(--est-font-control\)/);
+    expect(name).toMatch(/font-weight:\s*700/);
+    expect(name).toMatch(/color:\s*var\(--est-accent\)/);
+    expect(name).toMatch(/white-space:\s*nowrap/);
+    expect(name).toMatch(/text-overflow:\s*ellipsis/);
   });
 
   it("does not clip the amount meta or the revenue label (DESIGN-1101)", () => {
