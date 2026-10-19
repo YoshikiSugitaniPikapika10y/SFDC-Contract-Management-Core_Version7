@@ -1243,14 +1243,14 @@
   color: #1d4ed8;
 }
 
-/* 商品名: 金額と同じ大きさと色。溢れは1行の省略。全文は title */
+/* 商品名: 種別と同じ 0.75rem、金額の色。溢れは1行の省略。全文は title */
 .est-product-name {
   display: block;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  font-size: var(--est-font-control);
+  font-size: var(--est-font-label);
   font-weight: 700;
   color: var(--est-accent);
   white-space: nowrap;

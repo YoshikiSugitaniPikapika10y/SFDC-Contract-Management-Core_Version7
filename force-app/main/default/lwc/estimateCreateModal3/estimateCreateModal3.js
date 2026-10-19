@@ -102,8 +102,8 @@ export { stripUiFields, serializeBusinessProduct, UI_ONLY_PRODUCT_FIELDS };
 
 /** 契約サービス未作成時の見積総額（税込）表示用。保存・PDF の税率ロジックとは別。 */
 const DEFAULT_TAX_PERCENT_WHEN_NO_SERVICE = 10;
-/** 商品名: 長い商品時の下限サイズに統一（rem）。溢れは ellipsis。 */
-const PRODUCT_NAME_FONT_REM = 0.5625;
+/** 商品名: 継続課金・一回課金・更新・追加・新規と同じ 0.75rem。溢れは ellipsis。 */
+const PRODUCT_NAME_FONT_REM = 0.75;
 
 export default class EstimateCreateModal3 extends LightningElement {
   @api recordId;
@@ -3627,7 +3627,7 @@ export default class EstimateCreateModal3 extends LightningElement {
   }
 
   /**
-   * 商品名フォントを長い商品時のサイズに統一（「商品を検索」含む）。
+   * 商品名フォントを種別と同じ 0.75rem に統一（「商品を検索」含む）。
    * 溢れは CSS ellipsis（title で全文）。
    */
   fitProductNameFonts() {

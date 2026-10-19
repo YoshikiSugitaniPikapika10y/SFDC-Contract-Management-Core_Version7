@@ -46,10 +46,10 @@ describe("invoice anchor is fully visible (Core 4.6)", () => {
     expect(tableChip).not.toMatch(/overflow:\s*hidden/);
   });
 
-  it("shows the product name at the amount size, in the amount color, on one line", () => {
+  it("shows the product name at the type size, in the amount color, on one line", () => {
     const name = ruleBody(".est-product-name");
 
-    expect(name).toMatch(/font-size:\s*var\(--est-font-control\)/);
+    expect(name).toMatch(/font-size:\s*var\(--est-font-label\)/);
     expect(name).toMatch(/font-weight:\s*700/);
     expect(name).toMatch(/color:\s*var\(--est-accent\)/);
     expect(name).toMatch(/white-space:\s*nowrap/);
