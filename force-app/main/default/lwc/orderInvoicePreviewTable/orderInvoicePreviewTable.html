@@ -648,6 +648,7 @@
           </template>
           <template if:true={invoice.isInvoiceCancelOpen}>
             <div class="edit-panel">
+              <h3 class="ops-form-title">請求を取消</h3>
               <p class="edit-note" role="note">
                 確定済み請求を取消済みにし、同じ内容の未確定請求を作ります。未確定には戻しません。
               </p>
@@ -705,7 +706,7 @@
                   onclick={handleCloseInvoiceCancel}
                   disabled={invoice.showEditProcessing}
                 >
-                  キャンセル
+                  戻る
                 </button>
                 <button
                   type="button"
@@ -1266,37 +1267,6 @@
                               <td colspan="6">
                                 <div class="ops-form">
                                   <h3 class="ops-form-title">入出金を取消</h3>
-                                  <dl class="ops-readonly">
-                                    <div>
-                                      <dt>請求書</dt>
-                                      <dd>
-                                        {invoice.paymentCancelInvoiceName}
-                                      </dd>
-                                    </div>
-                                    <div>
-                                      <dt>目的</dt>
-                                      <dd>
-                                        {invoice.paymentCancelPurposeLabel}
-                                      </dd>
-                                    </div>
-                                    <div>
-                                      <dt>金額</dt>
-                                      <dd>
-                                        <lightning-formatted-number
-                                          value={invoice.paymentCancelAmount}
-                                          format-style="currency"
-                                          currency-code="JPY"
-                                          maximum-fraction-digits="0"
-                                        ></lightning-formatted-number>
-                                      </dd>
-                                    </div>
-                                    <div>
-                                      <dt>入出金日</dt>
-                                      <dd>
-                                        {invoice.paymentCancelDateDisplay}
-                                      </dd>
-                                    </div>
-                                  </dl>
                                   <div class="ops-form-grid">
                                     <lightning-combobox
                                       label="取消理由"
@@ -1368,7 +1338,7 @@
                                       onclick={handlePaymentCancelSave}
                                       disabled={invoice.paymentCancelSaveDisabled}
                                     >
-                                      取消する
+                                      取り消す
                                     </button>
                                     <template if:true={invoice.showPaymentCancelNotice}>
                                       <div class="action-float">

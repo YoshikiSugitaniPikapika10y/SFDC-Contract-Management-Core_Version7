@@ -334,6 +334,20 @@ export default class ManualJournalEntry extends LightningElement {
     }
   }
 
+  // 仕様: Accounting 第10.4節。戻るは取消しない。
+  handleCloseCancel() {
+    if (this.busy) {
+      return;
+    }
+    this.cancelHeaderId = "";
+    if (this.noticePlace === "cancel") {
+      this.completionNote = "";
+      this.surfaceError = "";
+      this.noticePlace = "";
+      this.noticeHeaderId = "";
+    }
+  }
+
   // 仕様: Core 第7.9.6節、Accounting 第10.4節、第8.5節、日付仕様 第7.3節
   // 仕様: Accounting 第2.4節・第10.4節、Core 第1.1.10節。「その他」だけ理由テキスト必須。
   async handleCancel() {

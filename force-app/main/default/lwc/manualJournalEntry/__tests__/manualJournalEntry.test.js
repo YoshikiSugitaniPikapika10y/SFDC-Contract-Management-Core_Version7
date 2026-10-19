@@ -235,6 +235,50 @@ describe("manualJournalEntry", () => {
     ).toBeNull();
   });
 
+  it("closes manual journal cancel with 戻る and does not cancel (Accounting 10.4)", async () => {
+    previewCancelManualJournal.mockResolvedValue({
+      reverseCount: 0,
+      displayText: ""
+    });
+    const element = createElement("c-manual-journal-entry", {
+      is: ManualJournalEntry
+    });
+    element.invoiceId = "a00INV000000001";
+    element.headers = [
+      {
+        headerId: "a05MJH000000001",
+        settingName: "為替差損",
+        postingDate: "2026-06-01",
+        amount: 100,
+        transactionStatus: "Active",
+        canCancel: true,
+        hasLockedJournals: false
+      }
+    ];
+    document.body.appendChild(element);
+    await flush();
+
+    element.shadowRoot
+      .querySelector("button[data-header-id='a05MJH000000001']")
+      .click();
+    await flush();
+
+    expect(element.shadowRoot.textContent).toContain("手動仕訳を取消");
+    const back = Array.from(element.shadowRoot.querySelectorAll("button")).find(
+      (button) => button.textContent.trim() === "戻る"
+    );
+    expect(back.classList.contains("ghost-btn")).toBe(true);
+    back.click();
+    await flush();
+
+    expect(cancelManualJournal).not.toHaveBeenCalled();
+    expect(
+      element.shadowRoot.querySelector(
+        'lightning-combobox[data-field="cancelReason"]'
+      )
+    ).toBeNull();
+  });
+
   it("does not open cancel confirm and still cancels (Core 0.2)", async () => {
     previewCancelManualJournal.mockResolvedValue({
       reverseCount: 0,

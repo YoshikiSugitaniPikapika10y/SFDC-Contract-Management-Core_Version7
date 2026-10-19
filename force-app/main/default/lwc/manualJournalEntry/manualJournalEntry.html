@@ -157,7 +157,7 @@
                 <tr key={header.cancelRowKey} class="ops-inline-form-row">
                   <td colspan="5">
                     <div class="ops-form">
-                      <h3 class="ops-form-title">手動仕訳の取消</h3>
+                      <h3 class="ops-form-title">手動仕訳を取消</h3>
                       <div class="ops-form-grid">
                         <lightning-combobox
                           label="取消理由"
@@ -204,6 +204,14 @@
                             処理中
                           </p>
                         </template>
+                        <button
+                          type="button"
+                          class="ghost-btn"
+                          onclick={handleCloseCancel}
+                          disabled={busy}
+                        >
+                          戻る
+                        </button>
                         <button
                           type="button"
                           class="solid-btn"

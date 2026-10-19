@@ -540,7 +540,12 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
 
     expect(element.shadowRoot.textContent).toContain("入出金を取消");
-    expect(element.shadowRoot.textContent).toContain("INV-1");
+    const cancelForm = element.shadowRoot.querySelector(
+      ".ops-inline-form-row .ops-form"
+    );
+    expect(cancelForm.querySelector(".ops-readonly")).toBeNull();
+    expect(cancelForm.textContent).not.toContain("請求書");
+    expect(cancelForm.textContent).not.toContain("入出金日");
     expect(
       element.shadowRoot.querySelector(
         'lightning-input[data-field="cancelDate"]'
@@ -583,7 +588,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
 
     Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
-      .find((button) => button.textContent.trim() === "取消する")
+      .find((button) => button.textContent.trim() === "取り消す")
       .click();
     await flush();
     await flush();
@@ -1349,7 +1354,7 @@ describe("orderInvoicePreviewTable payment form", () => {
     await flush();
 
     Array.from(element.shadowRoot.querySelectorAll("button.solid-btn"))
-      .find((button) => button.textContent.trim() === "取消する")
+      .find((button) => button.textContent.trim() === "取り消す")
       .click();
     await flush();
     await flush();
@@ -1747,7 +1752,7 @@ describe("orderInvoicePreviewTable payment form", () => {
 
     const saveButton = Array.from(
       element.shadowRoot.querySelectorAll("button.solid-btn")
-    ).find((button) => button.textContent.trim() === "取消する");
+    ).find((button) => button.textContent.trim() === "取り消す");
     expect(saveButton.disabled).toBe(true);
     previewCancelPaymentFromPreview.mockClear();
     saveButton.click();
