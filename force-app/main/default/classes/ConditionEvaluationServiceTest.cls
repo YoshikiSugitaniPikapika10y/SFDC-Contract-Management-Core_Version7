@@ -751,4 +751,253 @@ private class ConditionEvaluationServiceTest {
       'Accounting 第8.2節: 条件項目用のルール照会のあと評価で取り直さない'
     );
   }
+
+  @IsTest
+  static void evaluateTenant_notEqualsLessOrEqualAndNotContainsSplit() {
+    Id notEqualsId = insertFixedRule(
+      'Eval Not Equals',
+      'Invoice',
+      'Invoice__c',
+      'Amount__c',
+      'NotEquals',
+      '1000',
+      null
+    );
+    Id lessOrEqualId = insertFixedRule(
+      'Eval Less Or Equal',
+      'Invoice',
+      'Invoice__c',
+      'Amount__c',
+      'LessOrEqual',
+      '100',
+      null
+    );
+    Id notContainsId = insertFixedRule(
+      'Eval Not Contains',
+      'Invoice',
+      'Invoice__c',
+      'Memo__c',
+      'NotContains',
+      '税',
+      null
+    );
+    ConditionEvaluationService.Context same = new ConditionEvaluationService.Context();
+    same.invoice = new Invoice__c(Amount__c = 1000, Memo__c = '消費税');
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(notEqualsId, same),
+      'Accounting 第4.7節: 等しくないは同じ値で不成立'
+    );
+    ConditionEvaluationService.Context other = new ConditionEvaluationService.Context();
+    other.invoice = new Invoice__c(Amount__c = 1);
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(notEqualsId, other),
+      'Accounting 第4.7節: 等しくないは違う値で成立'
+    );
+
+    ConditionEvaluationService.Context atMost = new ConditionEvaluationService.Context();
+    atMost.invoice = new Invoice__c(Amount__c = 100);
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(lessOrEqualId, atMost),
+      'Accounting 第4.7節: 以下は同じ値で成立'
+    );
+    atMost.invoice.Amount__c = 99;
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(lessOrEqualId, atMost),
+      'Accounting 第4.7節: 以下は小さい値で成立'
+    );
+    atMost.invoice.Amount__c = 101;
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(lessOrEqualId, atMost),
+      'Accounting 第4.7節: 以下は大きい値で不成立'
+    );
+
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(notContainsId, same),
+      'Accounting 第4.7節: 含まないは含まれていれば不成立'
+    );
+    same.invoice.Memo__c = '摘要なし';
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(notContainsId, same),
+      'Accounting 第4.7節: 含まないは含まれていなければ成立'
+    );
+  }
+
+  @IsTest
+  static void evaluateTenant_notInvertsMatch() {
+    GlConditionSet__c conditionSet = new GlConditionSet__c(
+      Name = 'Eval Not Logic',
+      EvaluationContext__c = 'Invoice',
+      Description__c = '否定'
+    );
+    insert conditionSet;
+    insert new GlConditionRule__c(
+      ConditionSet__c = conditionSet.Id,
+      Sequence__c = 1,
+      TargetObject__c = 'Invoice__c',
+      TargetField__c = 'Amount__c',
+      Operator__c = 'Equals',
+      CompareType__c = 'FixedValue',
+      CompareValue__c = '1000'
+    );
+    conditionSet.ConditionLogic__c = 'NOT 1';
+    update conditionSet;
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.invoice = new Invoice__c(Amount__c = 1000);
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第4.7節: 否定は元の成立を不成立にする'
+    );
+    context.invoice.Amount__c = 1;
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(conditionSet.Id, context),
+      'Accounting 第4.7節: 否定は元の不成立を成立にする'
+    );
+  }
+
+  @IsTest
+  static void evaluateTenant_relatedMastersMatchAndMismatch() {
+    Id productId = insertFixedRule(
+      '対象商品',
+      'InvoiceLine',
+      'Product2',
+      'Name',
+      'Equals',
+      '対象商品',
+      null
+    );
+    Id opportunityId = insertFixedRule(
+      '対象商談',
+      'InvoiceLine',
+      'Opportunity',
+      'Name',
+      'Equals',
+      '対象商談',
+      null
+    );
+    Id historyId = insertFixedRule(
+      '対象履歴',
+      'InvoiceLine',
+      'ContractHistory__c',
+      'Name',
+      'Equals',
+      '対象履歴',
+      null
+    );
+    Id serviceId = insertFixedRule(
+      '対象サービス',
+      'InvoiceLine',
+      'ContractService__c',
+      'Name',
+      'Equals',
+      '対象サービス',
+      null
+    );
+    Id billingAccountId = insertFixedRule(
+      '対象請求先',
+      'InvoiceLine',
+      'BillingAccount__c',
+      'Name',
+      'Equals',
+      '対象請求先',
+      null
+    );
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.product = new Product2(Name = '対象商品');
+    context.opportunity = new Opportunity(Name = '対象商談');
+    context.contractHistory = new ContractHistory__c(Name = '対象履歴');
+    context.contractService = new ContractService__c(Name = '対象サービス');
+    context.billingAccount = new BillingAccount__c(Name = '対象請求先');
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(productId, context),
+      'Accounting 第4.7節: 商品の項目が一致すれば成立'
+    );
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(opportunityId, context),
+      'Accounting 第4.7節: 商談の項目が一致すれば成立'
+    );
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(historyId, context),
+      'Accounting 第4.7節: 契約履歴の項目が一致すれば成立'
+    );
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(serviceId, context),
+      'Accounting 第4.7節: 契約サービスの項目が一致すれば成立'
+    );
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(billingAccountId, context),
+      'Accounting 第4.7節: 請求アカウントの項目が一致すれば成立'
+    );
+    context.product.Name = '別商品';
+    context.opportunity.Name = '別商談';
+    context.contractHistory.Name = '別履歴';
+    context.contractService.Name = '別サービス';
+    context.billingAccount.Name = '別請求先';
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(productId, context),
+      'Accounting 第4.7節: 商品の項目が不一致なら不成立'
+    );
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(opportunityId, context),
+      'Accounting 第4.7節: 商談の項目が不一致なら不成立'
+    );
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(historyId, context),
+      'Accounting 第4.7節: 契約履歴の項目が不一致なら不成立'
+    );
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(serviceId, context),
+      'Accounting 第4.7節: 契約サービスの項目が不一致なら不成立'
+    );
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(billingAccountId, context),
+      'Accounting 第4.7節: 請求アカウントの項目が不一致なら不成立'
+    );
+  }
+
+  private static Id insertFixedRule(
+    String label,
+    String evaluationContext,
+    String targetObject,
+    String targetField,
+    String operatorName,
+    String compareValue,
+    String aggregateName
+  ) {
+    GlConditionSet__c conditionSet = new GlConditionSet__c(
+      Name = label,
+      EvaluationContext__c = evaluationContext,
+      Description__c = label
+    );
+    insert conditionSet;
+    insert new GlConditionRule__c(
+      ConditionSet__c = conditionSet.Id,
+      Sequence__c = 1,
+      Aggregate__c = aggregateName,
+      TargetObject__c = targetObject,
+      TargetField__c = targetField,
+      Operator__c = operatorName,
+      CompareType__c = 'FixedValue',
+      CompareValue__c = compareValue
+    );
+    return conditionSet.Id;
+  }
 }

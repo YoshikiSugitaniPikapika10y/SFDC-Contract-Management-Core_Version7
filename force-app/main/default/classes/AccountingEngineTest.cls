@@ -3957,6 +3957,177 @@ private class AccountingEngineTest {
     }
   }
 
+  @IsTest
+  static void goalBuild_contractAnchorPeriods() {
+    assertMonthlyPostingDates(
+      'AnchorSpan',
+      Date.newInstance(2026, 5, 15),
+      Date.newInstance(2026, 9, 10),
+      'ContractAnchor',
+      'BucketEnd',
+      new Set<Date>{
+        Date.newInstance(2026, 6, 14),
+        Date.newInstance(2026, 7, 14),
+        Date.newInstance(2026, 8, 14),
+        Date.newInstance(2026, 9, 10)
+      },
+      'Accounting 第3.1節・第3.3節: 契約日アンカーの5/15～9/10は4期間。最終はサービス終了日'
+    );
+  }
+
+  @IsTest
+  static void goalBuild_autoMissUsesCalendarPeriods() {
+    assertMonthlyPostingDates(
+      'AutoMiss',
+      Date.newInstance(2026, 5, 15),
+      Date.newInstance(2026, 9, 10),
+      'Auto',
+      'BucketEnd',
+      new Set<Date>{
+        Date.newInstance(2026, 5, 31),
+        Date.newInstance(2026, 6, 30),
+        Date.newInstance(2026, 7, 31),
+        Date.newInstance(2026, 8, 31),
+        Date.newInstance(2026, 9, 10)
+      },
+      'Accounting 第3.3節: 自動が着地しない5/15～9/10は暦月の5期間'
+    );
+  }
+
+  @IsTest
+  static void goalBuild_nonFinalBucketDate_usesStart() {
+    assertMonthlyPostingDates(
+      'BucketStart',
+      Date.newInstance(2026, 4, 15),
+      Date.newInstance(2026, 6, 14),
+      'ContractAnchor',
+      'BucketStart',
+      new Set<Date>{
+        Date.newInstance(2026, 4, 15),
+        Date.newInstance(2026, 6, 14)
+      },
+      'Accounting 第3.1節: 最終以外はバケット開始日。最終はサービス終了日'
+    );
+  }
+
+  @IsTest
+  static void goalBuild_nonFinalBucketDate_usesEnd() {
+    assertMonthlyPostingDates(
+      'BucketEnd',
+      Date.newInstance(2026, 4, 15),
+      Date.newInstance(2026, 6, 14),
+      'ContractAnchor',
+      'BucketEnd',
+      new Set<Date>{
+        Date.newInstance(2026, 5, 14),
+        Date.newInstance(2026, 6, 14)
+      },
+      'Accounting 第3.1節: 最終以外はバケット終了日。最終はサービス終了日'
+    );
+  }
+
+  @IsTest
+  static void goalBuild_nonFinalBucketDate_usesMonthEnd() {
+    assertMonthlyPostingDates(
+      'MonthEnd',
+      Date.newInstance(2026, 4, 15),
+      Date.newInstance(2026, 6, 14),
+      'ContractAnchor',
+      'MonthEnd',
+      new Set<Date>{
+        Date.newInstance(2026, 5, 31),
+        Date.newInstance(2026, 6, 14)
+      },
+      'Accounting 第3.1節: 最終以外は終了日所属月の末日。最終はサービス終了日'
+    );
+  }
+
+  private static void assertMonthlyPostingDates(
+    String suffix,
+    Date startDate,
+    Date endDate,
+    String method,
+    String datePosition,
+    Set<Date> expected,
+    String specNote
+  ) {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccountingPolicy__c policy = monthlyPolicy(method, datePosition);
+      Fixture fixture = monthlyRevenueFixture(suffix, startDate, endDate);
+      seedMaps();
+      markConfirmed(fixture.invoice);
+      Invoice__c invoice = reloadGoalInvoice(fixture.invoice.Id);
+      Test.startTest();
+      Set<Date> actual = revenueBodyPostingDates(
+        AccountingGoalService.build(invoice, policy, new List<GlJournal__c>())
+      );
+      Test.stopTest();
+      System.assertEquals(expected, actual, specNote);
+    }
+  }
+
+  private static GlAccountingPolicy__c monthlyPolicy(
+    String method,
+    String datePosition
+  ) {
+    GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+    policy.AccountingEnabled__c = true;
+    policy.MonthlyBucketMethod__c = method;
+    policy.MonthlyRecognitionDatePosition__c = datePosition;
+    return saveOrgPolicy(policy);
+  }
+
+  private static Fixture monthlyRevenueFixture(
+    String suffix,
+    Date startDate,
+    Date endDate
+  ) {
+    Fixture fixture = createFixture(suffix);
+    InvoiceLine__c monthly = fixture.line.clone(false, false, false, false);
+    monthly.ProductName__c = suffix;
+    monthly.Amount__c = 3000;
+    monthly.AllocatedTaxAmount__c = 0;
+    monthly.Quantity__c = 1;
+    monthly.UnitPrice__c = 3000;
+    monthly.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+    monthly.AcceptanceEndDate__c = null;
+    monthly.ServicePeriodStartDate__c = startDate;
+    monthly.ServicePeriodEndDate__c = endDate;
+    insert monthly;
+    delete fixture.line;
+    fixture.line = monthly;
+    fixture.invoice.Amount__c = 3000;
+    fixture.invoice.TaxAmount__c = 0;
+    fixture.invoice.InvoiceDate__c = startDate;
+    update fixture.invoice;
+    return fixture;
+  }
+
+  private static Invoice__c reloadGoalInvoice(Id invoiceId) {
+    return [
+      SELECT
+        Id,
+        InvoiceDate__c,
+        InvoiceTransactionStatus__c,
+        BillingAccountSnapShot__c,
+        BillingAccountKeySnapShot__c
+      FROM Invoice__c
+      WHERE Id = :invoiceId
+    ];
+  }
+
+  private static Set<Date> revenueBodyPostingDates(
+    List<AccountingGoalService.GoalJournal> goals
+  ) {
+    Set<Date> dates = new Set<Date>();
+    for (AccountingGoalService.GoalJournal goal : goals) {
+      if (goal.record.JournalPatternKey__c == 'BILLING_BASIS_REVENUE_BODY') {
+        dates.add(goal.record.PostingDate__c);
+      }
+    }
+    return dates;
+  }
+
   private class Fixture {
     Invoice__c invoice;
     InvoiceLine__c line;

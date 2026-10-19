@@ -365,6 +365,74 @@ private class ManualJournalServiceTest {
   }
 
   @IsTest
+  static void cancel_otherReasonRequiresTextAndAcceptsText() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ManualJournalService.CancelRequest blank = new ManualJournalService.CancelRequest();
+      blank.headerId = UserInfo.getUserId();
+      blank.cancellationReason = 'Other';
+      Boolean rejected = false;
+      try {
+        ManualJournalService.cancel(blank);
+      } catch (Exception ex) {
+        rejected = true;
+        System.assertEquals(
+          '取消理由がその他のときは内容を入力してください。',
+          ex.getMessage(),
+          'Accounting 第10.3節・第2.4節: その他で内容が空なら拒否する'
+        );
+      }
+      System.assertEquals(true, rejected);
+
+      GlAccountingPolicy__c policy = GlAccountingPolicyService.newOrgDefault();
+      policy.AccountingEnabled__c = true;
+      insert policy;
+      Invoice__c invoice = insertInvoice(true);
+      ManualJournalService.RegisterRequest request = new ManualJournalService.RegisterRequest();
+      request.invoiceId = invoice.Id;
+      request.settingId = insertActiveSetting().Id;
+      request.postingDate = Date.today();
+      request.amount = 100;
+      request.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      Test.startTest();
+      Id headerId = ManualJournalService.register(request);
+      Test.stopTest();
+      ManualJournalService.CancelRequest cancelRequest = new ManualJournalService.CancelRequest();
+      cancelRequest.headerId = headerId;
+      cancelRequest.cancellationReason = 'Other';
+      cancelRequest.cancellationReasonText = '監査のための内容';
+      cancelRequest.expectedToken = AccountingCauseLockService.resolveInvoiceOperationToken(
+        invoice.Id
+      );
+      ManualJournalService.cancel(cancelRequest);
+      GlManualJournalHeader__c header = [
+        SELECT
+          TransactionStatus__c,
+          CancellationReason__c,
+          CancellationReasonText__c
+        FROM GlManualJournalHeader__c
+        WHERE Id = :headerId
+      ];
+      System.assertEquals(
+        'Cancelled',
+        header.TransactionStatus__c,
+        'Accounting 第10.3節: その他で内容があれば取消できる'
+      );
+      System.assertEquals(
+        'Other',
+        header.CancellationReason__c,
+        'Accounting 第2.4節: 取消理由はその他'
+      );
+      System.assertEquals(
+        '監査のための内容',
+        header.CancellationReasonText__c,
+        'Accounting 第10.3節: その他の内容を残す'
+      );
+    }
+  }
+
+  @IsTest
   static void register_withoutManageInvoiceOps_throws() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ManualJournalService.RegisterRequest request = new ManualJournalService.RegisterRequest();

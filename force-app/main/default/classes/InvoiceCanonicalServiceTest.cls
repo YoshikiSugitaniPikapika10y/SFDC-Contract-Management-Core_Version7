@@ -4003,6 +4003,73 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void applyRecognitionBucketCount_contractAnchorAndAutoMiss_splitCounts() {
+    GlAccountingPolicy__c policy = ContractTestDataFactory.ensureOrgAccountingPolicy();
+    policy.MonthlyBucketMethod__c = 'ContractAnchor';
+    update policy;
+    GlAccountingPolicyService.clearCachedOrgPolicy();
+
+    InvoiceLine__c anchorYear = monthlyCountLine(
+      Date.newInstance(2025, 4, 15),
+      Date.newInstance(2026, 4, 14)
+    );
+    System.assertEquals(
+      12,
+      anchorYear.RecognitionBucketCount__c,
+      'Accounting 第3.1節・第3.3節: 契約日アンカーを指定した4/15～翌4/14は12'
+    );
+    System.assertNotEquals(
+      12,
+      MonthlyBillingPeriodUtil.buildCalendarMonthPeriods(
+          Date.newInstance(2025, 4, 15),
+          Date.newInstance(2026, 4, 14)
+        )
+        .size(),
+      'Accounting 第3.3節: 同じ期間でも暦月の件数は契約日アンカーと違う'
+    );
+
+    InvoiceLine__c anchorSpan = monthlyCountLine(
+      Date.newInstance(2026, 5, 15),
+      Date.newInstance(2026, 9, 10)
+    );
+    System.assertEquals(
+      4,
+      anchorSpan.RecognitionBucketCount__c,
+      'Accounting 第3.3節: 契約日アンカーを指定した5/15～9/10は4'
+    );
+
+    policy.MonthlyBucketMethod__c = 'Auto';
+    update policy;
+    GlAccountingPolicyService.clearCachedOrgPolicy();
+    InvoiceLine__c autoSpan = monthlyCountLine(
+      Date.newInstance(2026, 5, 15),
+      Date.newInstance(2026, 9, 10)
+    );
+    System.assertEquals(
+      5,
+      autoSpan.RecognitionBucketCount__c,
+      'Accounting 第3.3節: 自動が9/11に着地しない5/15～9/10は暦月の5'
+    );
+    System.assertNotEquals(
+      anchorSpan.RecognitionBucketCount__c,
+      autoSpan.RecognitionBucketCount__c,
+      'Accounting 第3.3節: 件数が同じ期間だけでは契約日アンカーと暦月は分かれない'
+    );
+  }
+
+  private static InvoiceLine__c monthlyCountLine(Date startDate, Date endDate) {
+    InvoiceLine__c line = new InvoiceLine__c(
+      RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+      ServicePeriodStartDate__c = startDate,
+      ServicePeriodEndDate__c = endDate
+    );
+    InvoiceCanonicalService.applyRecognitionBucketCount(
+      new List<InvoiceLine__c>{ line }
+    );
+    return line;
+  }
+
+  @IsTest
   static void applyRecognitionBucketCount_missingPolicy_errors() {
     InvoiceLine__c line = new InvoiceLine__c(
       RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME,

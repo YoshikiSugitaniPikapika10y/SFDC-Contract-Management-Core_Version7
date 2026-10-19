@@ -274,6 +274,37 @@ private class InvoiceTaxAllocationServiceTest {
   }
 
   @IsTest
+  static void allocateOnConfirm_rejectsZeroNetWhenHeaderTaxRemains() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Invoice__c invoice = insertAllocationInvoice('Zero Net Tax', 10);
+      insertAllocationLines(invoice.Id, new List<Decimal>{ 100, -100 });
+      Boolean rejected = false;
+      try {
+        InvoiceTaxAllocationService.allocateOnConfirm(invoice);
+      } catch (InvoiceTaxAllocationService.TaxAllocationException ex) {
+        rejected = true;
+        System.assertEquals(
+          InvoiceTaxAllocationService.ZERO_WEIGHT_TAX_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.4節: 明細の税抜合計が0で請求の税額が0でないときは配分せず拒否する'
+        );
+      }
+      System.assertEquals(true, rejected);
+      for (InvoiceLine__c line : [
+        SELECT AllocatedTaxAmount__c
+        FROM InvoiceLine__c
+        WHERE Invoice__c = :invoice.Id
+      ]) {
+        System.assertEquals(
+          null,
+          line.AllocatedTaxAmount__c,
+          'Core 第7.4節: 拒否したときは明細へ税を配分しない'
+        );
+      }
+    }
+  }
+
+  @IsTest
   static void allocateOnConfirm_readsTaxWhenCallerDidNotQueryIt() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Invoice__c invoice = insertAllocationInvoice('Unqueried Tax', 100);

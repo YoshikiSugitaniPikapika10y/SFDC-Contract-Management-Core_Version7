@@ -450,6 +450,54 @@ private class GlAccountMapResolveServiceTest {
     }
   }
 
+  @IsTest
+  static void resolve_fixedConditionSelectsDifferentAccount() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccount__c fallback = insertAccount('Map Fixed Fallback');
+      GlAccount__c matched = insertAccount('Map Fixed Match');
+      GlAccountMap__c fallbackMap = insertMap(fallback.Id, 1, 'Fixed None');
+      fallbackMap.EvaluationContext__c = 'InvoicePaymentAllocation';
+      update fallbackMap;
+      GlAccountMap__c fixedMap = insertMap(matched.Id, 20, 'Fixed Current');
+      fixedMap.EvaluationContext__c = 'InvoicePaymentAllocation';
+      fixedMap.ConditionSourceType__c = 'Fixed';
+      fixedMap.FixedConditionSetKey__c = 'PAY_INVOICE_CURRENT';
+      update fixedMap;
+
+      ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+      context.invoice = new Invoice__c(
+        InvoiceDate__c = Date.newInstance(2026, 6, 1)
+      );
+      context.invoicePayment = new InvoicePayment__c(
+        PaymentPurpose__c = 'Invoice',
+        PaymentDate__c = Date.newInstance(2026, 6, 1)
+      );
+      GlAccountMapResolveService.ResolvedAccount onOrAfter = GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        'InvoicePaymentAllocation',
+        context
+      );
+      System.assertEquals(
+        matched.Id,
+        onOrAfter.accountId,
+        'Accounting 第6.3節・第4.7節: 固定条件が成立した割当を採用する'
+      );
+
+      context.invoicePayment.PaymentDate__c = Date.newInstance(2026, 5, 31);
+      GlAccountMapResolveService.ResolvedAccount before = GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        'InvoicePaymentAllocation',
+        context
+      );
+      System.assertEquals(
+        fallback.Id,
+        before.accountId,
+        'Accounting 第6.3節・第4.7節: 固定条件が不成立なら条件なしの割当を採用する'
+      );
+      System.assertNotEquals(onOrAfter.accountId, before.accountId);
+    }
+  }
+
   private static GlAccount__c insertAccount(String name) {
     return insertAccount(name, 'Asset');
   }
