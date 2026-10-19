@@ -531,4 +531,47 @@ describe("manualJournalEntry", () => {
       })
     );
   });
+
+  it("puts register failure under the register button (Core 7.7.0 / 0.3)", async () => {
+    previewRegisterManualJournal.mockRejectedValue({
+      body: { message: "登録できません。" }
+    });
+    const element = createElement("c-manual-journal-entry", {
+      is: ManualJournalEntry
+    });
+    element.invoiceId = "a00INV000000001";
+    element.operationDay = OPERATION_DAY;
+    element.settings = [{ settingId: "a06SET000000001", label: "為替差損" }];
+    document.body.appendChild(element);
+    await flush();
+
+    const setting = element.shadowRoot.querySelector(
+      'lightning-combobox[data-field="settingId"]'
+    );
+    setting.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "a06SET000000001" } })
+    );
+    const amount = element.shadowRoot.querySelector(
+      'lightning-input[data-field="amount"]'
+    );
+    amount.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "100" } })
+    );
+    await flush();
+
+    const register = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "登録");
+    register.click();
+    await flush();
+    await flush();
+
+    const root = element.shadowRoot.querySelector(".manual-entry");
+    expect(root.firstElementChild.textContent.trim()).toBe("手動仕訳を登録");
+    const notice = register.parentElement.querySelector(".notice-under");
+    expect(notice).not.toBeNull();
+    expect(notice.textContent).toContain("登録できません。");
+    expect(notice.textContent).toContain("再読み込み");
+    expect(root.querySelector(":scope > .surface-complete, :scope > .edit-note")).toBeNull();
+  });
 });

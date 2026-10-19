@@ -91,11 +91,35 @@
 }
 
 .panel-actions {
+  position: relative;
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 0.5rem;
   margin: 0.15rem 0 0.65rem;
+}
+
+.ops-op-cell {
+  position: relative;
+}
+
+.notice-under {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: min(32rem, 70vw);
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 
 .ghost-btn,

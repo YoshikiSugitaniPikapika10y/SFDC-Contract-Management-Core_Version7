@@ -14,6 +14,8 @@ export default class ManualJournalEntry extends LightningElement {
   @api expectedToken;
   completionNote = "";
   surfaceError = "";
+  noticePlace = "";
+  noticeHeaderId = "";
   /** 仕様: Accounting 第8.5節。登録の要否には使わない。親が渡す請求書Lock。 */
   @api hasLockedJournals = false;
   /** 仕様: 日付仕様 第8章。請求ボード `getInvoicePreview.operationDay`。 */
@@ -153,12 +155,33 @@ export default class ManualJournalEntry extends LightningElement {
         header.transactionStatusLabel ||
         this.manualJournalStatusLabel(header.transactionStatus),
       isCancelOpen: this.cancelHeaderId === header.headerId,
-      cancelRowKey: `${header.headerId}-cancel`
+      cancelRowKey: `${header.headerId}-cancel`,
+      showRowNotice:
+        this.noticePlace === "cancel" &&
+        this.cancelHeaderId !== header.headerId &&
+        this.noticeHeaderId === header.headerId &&
+        Boolean(this.completionNote || this.surfaceError)
     }));
   }
 
   get hasHeaders() {
     return (this.headers || []).length > 0;
+  }
+
+  // 仕様: Core 第7.7.0節・第0.3節。登録と取消の完了と失敗は押したボタンの直下。最上部には出さない。
+  get showRegisterNotice() {
+    return (
+      this.noticePlace === "register" &&
+      Boolean(this.completionNote || this.surfaceError)
+    );
+  }
+
+  get showCancelFormNotice() {
+    return (
+      this.noticePlace === "cancel" &&
+      Boolean(this.cancelHeaderId) &&
+      Boolean(this.completionNote || this.surfaceError)
+    );
   }
 
   // 仕様: Core 第0.1節、Accounting 第10.3節。保存値は変えない。
@@ -213,6 +236,10 @@ export default class ManualJournalEntry extends LightningElement {
     if (this.busy || this.registerDisabled) {
       return;
     }
+    this.noticePlace = "register";
+    this.noticeHeaderId = "";
+    this.completionNote = "";
+    this.surfaceError = "";
     const amount = Number(this.amount);
     // 仕様: Accounting 第10.3節。0より大きい整数円。入金画面と同じ検査。
     if (!Number.isFinite(amount) || amount <= 0 || amount !== Math.trunc(amount)) {
@@ -280,6 +307,10 @@ export default class ManualJournalEntry extends LightningElement {
       return;
     }
     this.cancelHeaderId = event.currentTarget.dataset.headerId;
+    this.noticePlace = "";
+    this.noticeHeaderId = "";
+    this.completionNote = "";
+    this.surfaceError = "";
     this.cancelReason = "";
     this.cancelReasonText = "";
     this.cancelRequiresDate = false;
@@ -297,6 +328,8 @@ export default class ManualJournalEntry extends LightningElement {
       this.cancelDate = this.cancelRequiresDate ? floor : "";
       this.cancelDateMin = this.cancelRequiresDate ? floor : "";
     } catch (error) {
+      this.noticePlace = "cancel";
+      this.noticeHeaderId = this.cancelHeaderId;
       this.setSurfaceError("手動仕訳エラー", this.reduceError(error));
     }
   }
@@ -307,6 +340,10 @@ export default class ManualJournalEntry extends LightningElement {
     if (!this.cancelHeaderId || !this.cancelReason || this.busy) {
       return;
     }
+    this.noticePlace = "cancel";
+    this.noticeHeaderId = this.cancelHeaderId;
+    this.completionNote = "";
+    this.surfaceError = "";
     if (
       this.cancelReason === "Other" &&
       this.isBlankReasonText(this.cancelReasonText)
@@ -359,6 +396,8 @@ export default class ManualJournalEntry extends LightningElement {
         contractHistoryId: this.contractHistoryId
       });
       this.pendingOperationKey = null;
+      this.noticePlace = "cancel";
+      this.noticeHeaderId = this.cancelHeaderId;
       this.completionNote = "手動仕訳を取り消しました。";
       this.surfaceError = "";
       this.cancelHeaderId = "";
@@ -382,6 +421,7 @@ export default class ManualJournalEntry extends LightningElement {
   }
 
   setSurfaceError(title, message) {
+    this.completionNote = "";
     this.surfaceError = String(message || title || "");
   }
 

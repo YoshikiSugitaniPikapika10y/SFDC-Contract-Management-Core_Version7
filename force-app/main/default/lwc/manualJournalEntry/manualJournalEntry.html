@@ -1,18 +1,5 @@
 <template>
   <div class="manual-entry">
-    <template if:true={completionNote}>
-      <p class="surface-complete" role="status">{completionNote}</p>
-    </template>
-    <template if:true={surfaceError}>
-      <p class="edit-note" role="alert">{surfaceError}</p>
-      <button
-        type="button"
-        class="ghost-btn"
-        onclick={handleSurfaceErrorReload}
-      >
-        再読み込み
-      </button>
-    </template>
     <h3 class="ops-form-title">手動仕訳を登録</h3>
     <div class="ops-form-grid ops-form-grid_register">
       <lightning-combobox
@@ -97,6 +84,23 @@
       >
         登録
       </button>
+      <template if:true={showRegisterNotice}>
+        <div class="notice-under">
+          <template if:true={completionNote}>
+            <p class="surface-complete" role="status">{completionNote}</p>
+          </template>
+          <template if:true={surfaceError}>
+            <p class="edit-note" role="alert">{surfaceError}</p>
+            <button
+              type="button"
+              class="ghost-btn"
+              onclick={handleSurfaceErrorReload}
+            >
+              再読み込み
+            </button>
+          </template>
+        </div>
+      </template>
     </div>
 
     <template if:true={hasHeaders}>
@@ -118,7 +122,7 @@
                 <td>{header.postingDate}</td>
                 <td class="num-col">{header.amount}</td>
                 <td>{header.transactionStatusLabel}</td>
-                <td>
+                <td class="ops-op-cell">
                   <template if:true={header.canCancel}>
                     <button
                       type="button"
@@ -129,6 +133,23 @@
                     >
                       取消
                     </button>
+                  </template>
+                  <template if:true={header.showRowNotice}>
+                    <div class="notice-under">
+                      <template if:true={completionNote}>
+                        <p class="surface-complete" role="status">{completionNote}</p>
+                      </template>
+                      <template if:true={surfaceError}>
+                        <p class="edit-note" role="alert">{surfaceError}</p>
+                        <button
+                          type="button"
+                          class="ghost-btn"
+                          onclick={handleSurfaceErrorReload}
+                        >
+                          再読み込み
+                        </button>
+                      </template>
+                    </div>
                   </template>
                 </td>
               </tr>
@@ -191,6 +212,23 @@
                         >
                           取り消す
                         </button>
+                        <template if:true={showCancelFormNotice}>
+                          <div class="notice-under">
+                            <template if:true={completionNote}>
+                              <p class="surface-complete" role="status">{completionNote}</p>
+                            </template>
+                            <template if:true={surfaceError}>
+                              <p class="edit-note" role="alert">{surfaceError}</p>
+                              <button
+                                type="button"
+                                class="ghost-btn"
+                                onclick={handleSurfaceErrorReload}
+                              >
+                                再読み込み
+                              </button>
+                            </template>
+                          </div>
+                        </template>
                       </div>
                     </div>
                   </td>
