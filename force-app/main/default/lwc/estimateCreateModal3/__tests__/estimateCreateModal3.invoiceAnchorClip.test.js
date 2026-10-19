@@ -38,12 +38,11 @@ describe("invoice anchor is fully visible (Core 4.6)", () => {
 
     expect(dateStack).toMatch(/auto/);
     expect(dateSub).toMatch(/overflow:\s*visible/);
-    expect(shortcuts).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-    expect(shortcuts).not.toMatch(/repeat\(2/);
-    expect(shortcuts).toMatch(/gap:\s*0\.2rem/);
+    expect(shortcuts).toMatch(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
+    expect(shortcuts).toMatch(/gap:\s*0\.1rem/);
     expect(tableChip).toMatch(/white-space:\s*nowrap/);
-    expect(tableChip).toMatch(/font-size:\s*0\.875rem/);
-    expect(tableChip).toMatch(/height:\s*1\.75rem/);
+    expect(tableChip).toMatch(/font-size:\s*0\.75rem/);
+    expect(tableChip).toMatch(/height:\s*1\.25rem/);
     expect(tableChip).not.toMatch(/overflow:\s*hidden/);
   });
 
