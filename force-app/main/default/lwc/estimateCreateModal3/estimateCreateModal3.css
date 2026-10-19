@@ -569,7 +569,7 @@
   width: 9.7%;
 }
 .est-col-invoice {
-  width: 19rem;
+  width: 18rem;
 }
 .est-col-revenue {
   width: 6.8%;
@@ -861,9 +861,8 @@
   white-space: nowrap;
 }
 
-/* 仕様: Core 第4.6節 */
 .est-td-invoice {
-  min-width: 19rem;
+  min-width: 0;
   overflow: visible;
   white-space: nowrap;
 }

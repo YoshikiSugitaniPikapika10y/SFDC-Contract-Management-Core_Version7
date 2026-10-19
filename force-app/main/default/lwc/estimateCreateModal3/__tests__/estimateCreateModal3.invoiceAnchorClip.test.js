@@ -20,8 +20,9 @@ describe("invoice anchor is fully visible (Core 4.6)", () => {
     const cell = ruleBody(".est-td-invoice");
     const anchor = ruleBody(".est-td-invoice .est-invoice-anchor-meta");
 
-    expect(column).toMatch(/width:\s*19rem/);
-    expect(cell).toMatch(/min-width:\s*19rem/);
+    expect(column).toMatch(/width:\s*18rem/);
+    expect(cell).toMatch(/min-width:\s*0/);
+    expect(cell).not.toMatch(/min-width:\s*19rem/);
     expect(cell).toMatch(/overflow:\s*visible/);
     expect(cell).not.toMatch(/overflow:\s*hidden/);
     expect(anchor).toMatch(/overflow:\s*visible/);
