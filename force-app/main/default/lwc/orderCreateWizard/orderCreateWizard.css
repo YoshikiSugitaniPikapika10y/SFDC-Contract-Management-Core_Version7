@@ -424,6 +424,10 @@
   background: #ffffff;
 }
 
+.ord-extra-grid {
+  --est-custom-cols: 5;
+}
+
 .confirm-history-fields {
   margin-top: 0.875rem;
   padding-top: 0.75rem;
