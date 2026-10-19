@@ -1156,6 +1156,12 @@ public without sharing class ContractWizardFieldService {
     return cleared;
   }
 
+  // 仕様: Core 第11.4.1節・第11.6節。組織既定の旗だけを見る。
+  private static Boolean additionalFieldRequiredEnforced() {
+    ContractValidationEnforce__c enforce = ContractValidationEnforce__c.getOrgDefaults();
+    return enforce != null && enforce.Enforce__c == true;
+  }
+
   private static List<FieldConfig> getFieldConfigs(WizardTarget target) {
     validateActiveDefinitions();
     String targetObjectApiName = toTargetObjectApiName(target);
@@ -1174,9 +1180,10 @@ public without sharing class ContractWizardFieldService {
         ? null
         : definition.FieldApiName__c.trim();
       config.label = definition.LabelOverride__c;
+      // 仕様: Core 第11.4.1節。旗 OFF の読み取りでは必須にしない。定義行は更新しない。
       config.required = String.isBlank(config.fieldApiName)
         ? false
-        : definition.Required__c == true;
+        : definition.Required__c == true && additionalFieldRequiredEnforced();
       config.sortOrder = definition.SortOrder__c == null
         ? 0
         : Integer.valueOf(definition.SortOrder__c);

@@ -159,6 +159,7 @@ private class InvoiceOpsFieldServiceTest {
 
   @IsTest
   static void getDefinitions_skipsInactiveAndKeepsFixedDefault() {
+    ContractTestDataFactory.ensureCustomerValidationEnforceOn();
     InvoiceOpsField__mdt inactive = new InvoiceOpsField__mdt(
       DeveloperName = 'InactiveMemo',
       Active__c = false,
@@ -285,7 +286,42 @@ private class InvoiceOpsFieldServiceTest {
   }
 
   @IsTest
+  static void applyDisplayedValues_enforceOffAllowsBlankRequired() {
+    ContractTestDataFactory.ensureCustomerValidationEnforceOff();
+    InvoiceOpsField__mdt requiredMemo = new InvoiceOpsField__mdt(
+      DeveloperName = 'RequiredMemo',
+      Active__c = true,
+      TargetObject__c = 'Invoice__c',
+      FieldApiName__c = 'Memo__c',
+      LabelOverride__c = '必須メモ',
+      Required__c = true
+    );
+    InvoiceOpsFieldService.setCachedRowsForTest(
+      new List<InvoiceOpsField__mdt>{ requiredMemo }
+    );
+    Invoice__c invoice = new Invoice__c();
+    InvoiceOpsFieldService.applyDisplayedValues(
+      invoice,
+      'Invoice__c',
+      new Map<String, Object>(),
+      new Set<String>{ 'Memo__c' }
+    );
+    System.assertEquals(
+      null,
+      invoice.Memo__c,
+      'Core 第11.4.4節: 旗 OFF の読み取りでは表示中の必須を止めない'
+    );
+    System.assertEquals(
+      false,
+      InvoiceOpsFieldService.getDefinitions()[0].required,
+      'Core 第11.4.4節: 旗 OFF の読み取りでは required を false にする'
+    );
+    InvoiceOpsFieldService.resetCache();
+  }
+
+  @IsTest
   static void applyDisplayedValues_requiredDisplayedRejectsBlank() {
+    ContractTestDataFactory.ensureCustomerValidationEnforceOn();
     InvoiceOpsField__mdt requiredMemo = new InvoiceOpsField__mdt(
       DeveloperName = 'RequiredMemo',
       Active__c = true,

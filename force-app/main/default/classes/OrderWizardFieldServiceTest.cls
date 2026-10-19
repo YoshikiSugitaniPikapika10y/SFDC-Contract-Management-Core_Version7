@@ -7,6 +7,7 @@ private class OrderWizardFieldServiceTest {
 
   @IsTest
   static void getDefinitions_standardDefinitionsMatchSpec() {
+    ContractTestDataFactory.ensureCustomerValidationEnforceOn();
     OrderWizardFieldService.resetCache();
     List<ContractWizardFieldService.WizardFieldDefinition> definitions = OrderWizardFieldService.getDefinitions(
       'New'
@@ -131,7 +132,32 @@ private class OrderWizardFieldServiceTest {
   }
 
   @IsTest
+  static void validateRequiredHistoryFields_enforceOffSkipsApplicationDate() {
+    OrderWizardFieldService.resetCache();
+    System.assertEquals(
+      null,
+      OrderWizardFieldService.validateRequiredHistoryFields(null, 'New'),
+      'Core 第11.4.3節: 旗 OFF の読み取りでは申込日を必須にしない'
+    );
+    for (
+      ContractWizardFieldService.WizardFieldDefinition definition : OrderWizardFieldService.getDefinitions(
+        'New'
+      )
+    ) {
+      if (definition.apiName == 'ApplicationDate__c') {
+        System.assertEquals(
+          false,
+          definition.required,
+          'Core 第11.4.3節: 旗 OFF の読み取りでは同梱申込日を必須にしない'
+        );
+      }
+    }
+    OrderWizardFieldService.resetCache();
+  }
+
+  @IsTest
   static void validateRequiredHistoryFields_onlyRequiresShownApplicationDate() {
+    ContractTestDataFactory.ensureCustomerValidationEnforceOn();
     OrderWizardFieldService.resetCache();
     System.assertEquals(
       '必須のカスタム項目を入力してください: 申込日',
@@ -158,6 +184,7 @@ private class OrderWizardFieldServiceTest {
 
   @IsTest
   static void getDefinitions_respectsDisplayFlagsOrderingAndStaticDefault() {
+    ContractTestDataFactory.ensureCustomerValidationEnforceOn();
     OrderWizardFieldService.setCachedDefinitionsForTest(
       new List<OrderWizardField__mdt>{
         new OrderWizardField__mdt(

@@ -836,7 +836,37 @@ private class ContractWizardFieldServiceTest {
   }
 
   @IsTest
+  static void validateRequiredCustomFields_enforceOffSkipsShownRequired() {
+    ContractWizardFieldService.setCachedDefinitionsForTest(
+      new List<EstimateWizardField__mdt>{
+        new EstimateWizardField__mdt(
+          DeveloperName = 'Test_Cancel_Required_Service',
+          MasterLabel = 'Cancel Required Memo',
+          Active__c = true,
+          TargetObject__c = 'ContractService__c',
+          FieldApiName__c = 'CustomerMemo__c',
+          Required__c = true,
+          SortOrder__c = 1,
+          ShowOnCancel__c = true
+        )
+      }
+    );
+    System.assertEquals(
+      null,
+      ContractWizardFieldService.validateRequiredCustomFields(
+        ContractWizardFieldService.WizardTarget.ContractService,
+        new Map<String, Object>(),
+        null,
+        'Cancel'
+      ),
+      'Core 第11.4.1節: 旗 OFF の読み取りでは表示中の必須を止めない'
+    );
+    ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+  }
+
+  @IsTest
   static void validateRequiredCustomFields_cancelTypeEnforcesRequired() {
+    ContractTestDataFactory.ensureCustomerValidationEnforceOn();
     ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
     ContractWizardFieldService.setCachedDefinitionsForTest(
       new List<EstimateWizardField__mdt>{

@@ -186,6 +186,12 @@ public without sharing class InvoiceOpsFieldService {
     }
   }
 
+  // 仕様: Core 第11.4.4節・第11.6節。組織既定の旗だけを見る。
+  private static Boolean additionalFieldRequiredEnforced() {
+    ContractValidationEnforce__c enforce = ContractValidationEnforce__c.getOrgDefaults();
+    return enforce != null && enforce.Enforce__c == true;
+  }
+
   private static FieldDefinition toDefinition(InvoiceOpsField__mdt row) {
     Schema.SObjectType sobjectType = toSObjectType(row.TargetObject__c);
     Map<String, Schema.SObjectField> fieldMap = sobjectType.getDescribe()
@@ -201,7 +207,8 @@ public without sharing class InvoiceOpsFieldService {
       ? describe.getLabel()
       : row.LabelOverride__c;
     dto.fieldType = String.valueOf(describe.getType());
-    dto.required = row.Required__c == true;
+    // 仕様: Core 第11.4.4節。旗 OFF の読み取りでは必須にしない。定義行は更新しない。
+    dto.required = row.Required__c == true && additionalFieldRequiredEnforced();
     dto.sortOrder = row.SortOrder__c == null
       ? null
       : Integer.valueOf(row.SortOrder__c);

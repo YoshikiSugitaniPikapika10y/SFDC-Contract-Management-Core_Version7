@@ -431,6 +431,27 @@ public class ContractTestDataFactory {
     return address;
   }
 
+  /** 追加項目必須と顧客 VR を ON。必須を確かめるテストだけが呼ぶ。 */
+  public static void ensureCustomerValidationEnforceOn() {
+    Id organizationId = UserInfo.getOrganizationId();
+    validationEnforceOffOwnerIds.remove(organizationId);
+    List<ContractValidationEnforce__c> existing = [
+      SELECT Id, Enforce__c
+      FROM ContractValidationEnforce__c
+      WHERE SetupOwnerId = :organizationId
+      LIMIT 1
+    ];
+    if (existing.isEmpty()) {
+      insert new ContractValidationEnforce__c(
+        SetupOwnerId = organizationId,
+        Enforce__c = true
+      );
+    } else if (existing[0].Enforce__c != true) {
+      existing[0].Enforce__c = true;
+      update existing[0];
+    }
+  }
+
   /** 顧客 VR 強制を OFF。組織既定だけを書く（第11.6節。ユーザー階層は使わない）。 */
   public static void ensureCustomerValidationEnforceOff() {
     ensureCustomerValidationEnforceOff(UserInfo.getOrganizationId());
