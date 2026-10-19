@@ -2780,42 +2780,80 @@ private class AccountingEngineTest {
       InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
 
       Test.startTest();
-      registerInvoiceAllocation(fixture, -400, Date.newInstance(2026, 5, 1));
+      // Core 第8.3節: 請求目的は未処理残額と同符号。未解決支払は請求以外の出金で立てる。
+      registerNonInvoice(fixture, -400, Date.newInstance(2026, 5, 1));
       registerInvoiceAllocation(fixture, 1100, Date.newInstance(2026, 5, 10));
       Test.stopTest();
 
+      Id spCreated;
+      Id spClearedOnCash;
+      Id uacOnCash;
+      Id uacOnTransfer;
       Id defFromUac;
-      Id spFromCash;
+      Id spOnTransfer;
       Id defOnSpTransfer;
-      Id spOnSpTransfer;
       for (GlJournal__c journal : activeJournals(fixture.invoice.Id)) {
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_NON_INVOICE_NEGATIVE' &&
+          journal.DebitSlotKey__c == 'SuspensePayment'
+        ) {
+          spCreated = journal.DebitAccount__c;
+        }
+        if (journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_POSITIVE_CASH') {
+          if (journal.CreditSlotKey__c == 'SuspensePayment') {
+            spClearedOnCash = journal.CreditAccount__c;
+          }
+          if (journal.CreditSlotKey__c == 'UnappliedCash') {
+            uacOnCash = journal.CreditAccount__c;
+          }
+        }
         if (
           journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_UAC_TRANSFER' &&
           journal.CreditSlotKey__c == 'DeferredRevenue'
         ) {
+          uacOnTransfer = journal.DebitAccount__c;
           defFromUac = journal.CreditAccount__c;
         }
-        if (
-          journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_NEGATIVE_CASH' &&
-          journal.DebitSlotKey__c == 'SuspensePayment'
-        ) {
-          spFromCash = journal.DebitAccount__c;
-        }
         if (journal.JournalPatternKey__c == 'PAYMENT_INVOICE_HISTORICAL_SP_TRANSFER') {
-          defOnSpTransfer = journal.DebitAccount__c;
-          spOnSpTransfer = journal.CreditAccount__c;
+          // Accounting 第5.2.16節: HistoricalSp が負なら借貸を反転し、解消した未解決支払を戻す。
+          spOnTransfer = journal.DebitSlotKey__c == 'SuspensePayment'
+            ? journal.DebitAccount__c
+            : journal.CreditAccount__c;
+          defOnSpTransfer = journal.CreditSlotKey__c == 'DeferredRevenue'
+            ? journal.CreditAccount__c
+            : journal.DebitAccount__c;
         }
       }
-      System.assertNotEquals(null, defFromUac, 'Accounting 第5.2.15節: 未認識分は前受へ振り替える');
+      System.assertNotEquals(null, spCreated, 'Accounting 第5.2.12節: 請求以外の負額は未解決支払を積む');
+      System.assertEquals(
+        spCreated,
+        spClearedOnCash,
+        'Accounting 第5.2.13節・第6.2節: 過去日の正額入金は、先に立てた未解決支払の科目を回収する'
+      );
+      System.assertEquals(
+        uacOnCash,
+        uacOnTransfer,
+        'Accounting 第6.2節: 仮受の振替は、受け取った日の科目を取り崩す'
+      );
+      System.assertEquals(
+        paymentAllocationAccountId('DeferredRevenue'),
+        defFromUac,
+        'Accounting 第6.1節: 新しく積む前受は入金の割当科目を使う'
+      );
+      System.assertEquals(
+        spCreated,
+        spOnTransfer,
+        'Accounting 第5.2.16節・第6.2節: 負の未解決支払振替は、回収したときの科目へ戻す'
+      );
       System.assertEquals(
         defFromUac,
         defOnSpTransfer,
-        'Accounting 第6.2節: 過去日の未解決支払は、積んだ前受の科目を取り崩す'
+        'Accounting 第6.2節: 未解決支払の振替は、同じ入金で積んだ前受の科目を使う'
       );
-      System.assertEquals(
-        spFromCash,
-        spOnSpTransfer,
-        'Accounting 第6.2節: 未解決支払の取り崩しは、立てたときの科目を使う'
+      System.assertNotEquals(
+        invoiceLineAccountId('DeferredRevenue'),
+        defOnSpTransfer,
+        'Accounting 第6.2節: 入金で積んだ前受を請求明細の前受割当へ取り替えない'
       );
     }
   }
@@ -2824,13 +2862,14 @@ private class AccountingEngineTest {
   static void goalBuild_historicalSpTransferNewArUsesInvoiceLineAccount() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = prepareCashBasisRecognizedBeforeInvoice('HistSpAr');
+      // Core 第8.3節・第1.1節: 返金は未処理残額が負の請求に対する、同符号の請求目的入金。
+      makeNegativeInvoice(fixture);
       seedMaps();
       seedPaymentMaps();
       markConfirmed(fixture.invoice);
-      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
 
       Test.startTest();
-      registerInvoiceAllocation(fixture, -1100, Date.newInstance(2026, 5, 1));
+      registerInvoiceAllocation(fixture, -1000, Date.newInstance(2026, 5, 1));
       Test.stopTest();
 
       GlJournal__c transfer;
@@ -2942,34 +2981,52 @@ private class AccountingEngineTest {
   static void goalBuild_refundAfterInvoiceDrawsExistingDef() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = prepareCashBasisUnrecognized('RefundDef');
+      // Core 第8.3節・第1.1節: 返金は負額請求への請求目的入金。プラス請求へマイナスを重ねない。
+      makeNegativeInvoice(fixture);
       seedMaps();
       seedPaymentMaps();
       markConfirmed(fixture.invoice);
-      InvoiceTaxAllocationService.allocateOnConfirm(fixture.invoice);
 
       Test.startTest();
-      registerInvoiceAllocation(fixture, 1100, Date.newInstance(2026, 6, 1));
-      registerInvoiceAllocation(fixture, -1100, Date.newInstance(2026, 6, 20));
+      registerInvoiceAllocation(fixture, -1000, Date.newInstance(2026, 6, 1));
       Test.stopTest();
 
-      Id defCreated;
-      Id defDrawn;
+      Id paidDef;
+      Id drawnDef;
       for (GlJournal__c journal : activeJournals(fixture.invoice.Id)) {
-        if (journal.JournalPatternKey__c != 'PAYMENT_INVOICE_CURRENT') {
-          continue;
+        if (
+          journal.JournalPatternKey__c == 'PAYMENT_INVOICE_CURRENT' &&
+          (journal.DebitSlotKey__c == 'DeferredRevenue' ||
+          journal.CreditSlotKey__c == 'DeferredRevenue')
+        ) {
+          paidDef = journal.DebitSlotKey__c == 'DeferredRevenue'
+            ? journal.DebitAccount__c
+            : journal.CreditAccount__c;
         }
-        if (journal.CreditSlotKey__c == 'DeferredRevenue') {
-          defCreated = journal.CreditAccount__c;
-        }
-        if (journal.DebitSlotKey__c == 'DeferredRevenue') {
-          defDrawn = journal.DebitAccount__c;
+        if (journal.JournalPatternKey__c == 'CASH_BASIS_REVENUE_BODY') {
+          // Accounting 第1.3節: 負額の売上は借貸反転後の正額で保存する。前受は借方か貸方のどちらか。
+          if (journal.DebitSlotKey__c == 'DeferredRevenue') {
+            drawnDef = journal.DebitAccount__c;
+          } else if (journal.CreditSlotKey__c == 'DeferredRevenue') {
+            drawnDef = journal.CreditAccount__c;
+          }
         }
       }
-      System.assertNotEquals(null, defCreated, 'Accounting 第4.6節: 未認識の入金は前受を積む');
+      System.assertNotEquals(
+        null,
+        paidDef,
+        'Accounting 第5.2.10節・第1.3節: 未認識の返金は前受を相手にし、負額は借貸を反転して保存する'
+      );
       System.assertEquals(
-        defCreated,
-        defDrawn,
-        'Accounting 第6.2節: 請求日以降の返金は、積んだ前受の科目を取り崩す'
+        paymentAllocationAccountId('DeferredRevenue'),
+        paidDef,
+        'Accounting 第6.1節: 返金で新しく積む前受は入金の割当科目を使う'
+      );
+      System.assertNotEquals(invoiceLineAccountId('DeferredRevenue'), paidDef);
+      System.assertEquals(
+        paidDef,
+        drawnDef,
+        'Accounting 第6.2節: 返金で積んだ前受は、売上でその科目を取り崩す'
       );
     }
   }
@@ -4030,6 +4087,16 @@ private class AccountingEngineTest {
     policy.RoundingTargetBucket__c = 'Last';
     saveOrgPolicy(policy);
     return fixture;
+  }
+
+  private static void makeNegativeInvoice(Fixture fixture) {
+    fixture.invoice.Amount__c = -1000;
+    fixture.invoice.TaxAmount__c = 0;
+    update fixture.invoice;
+    fixture.line.Amount__c = -1000;
+    fixture.line.UnitPrice__c = -1000;
+    fixture.line.AllocatedTaxAmount__c = 0;
+    update fixture.line;
   }
 
   private static Fixture prepareCashBasisUnrecognized(String suffix) {
