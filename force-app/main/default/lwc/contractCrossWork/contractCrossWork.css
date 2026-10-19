@@ -243,7 +243,7 @@
 .filter-grid,
 .filter-primary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.35rem 0.6rem;
 }
 

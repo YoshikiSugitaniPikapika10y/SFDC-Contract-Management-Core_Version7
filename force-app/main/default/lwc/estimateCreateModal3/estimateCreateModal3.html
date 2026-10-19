@@ -217,8 +217,14 @@
                 <col class="est-col-product" />
                 <col class="est-col-price" />
                 <col class="est-col-qty" />
-                <col class="est-col-date" />
-                <col class="est-col-date" />
+                <template if:true={showRevenueRecognitionColumn}>
+                  <col class="est-col-date" />
+                  <col class="est-col-date" />
+                </template>
+                <template if:false={showRevenueRecognitionColumn}>
+                  <col class="est-col-date est-col-date_share" />
+                  <col class="est-col-date est-col-date_share" />
+                </template>
                 <col class="est-col-cycle" />
                 <col class="est-col-amount" />
                 <col class="est-col-invoice" />

@@ -538,17 +538,7 @@ lightning-input.est-billing-other-toggle {
 }
 
 .est-ops-grid_single {
-  grid-template-columns: minmax(0, 20rem);
-}
-
-@media (max-width: 720px) {
-  .est-ops-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .est-ops-grid_single {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .est-ops-card {

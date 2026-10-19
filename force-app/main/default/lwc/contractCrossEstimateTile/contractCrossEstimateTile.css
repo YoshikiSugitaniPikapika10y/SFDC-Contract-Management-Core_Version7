@@ -59,7 +59,7 @@
 
 .meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.5rem 1rem;
   margin: 0.75rem 0 0;
 }

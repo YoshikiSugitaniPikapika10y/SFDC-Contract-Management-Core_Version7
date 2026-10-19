@@ -390,19 +390,19 @@
 }
 
 .ops-table_journals col.col-journal-select {
-  width: 2.5rem;
+  width: 3.6%;
 }
 
 .ops-table_journals col.col-journal-lock {
-  width: 2.35rem;
+  width: 3.4%;
 }
 
 .ops-table_journals col.col-journal-status {
-  width: 3.75rem;
+  width: 5.4%;
 }
 
 .ops-table_journals col.col-journal-posting {
-  width: 9.5rem;
+  width: 13.6%;
 }
 
 .ops-table_journals col.col-journal-event {
@@ -414,19 +414,19 @@
 }
 
 .ops-table_journals col.col-journal-amount {
-  width: 5rem;
+  width: 7.1%;
 }
 
 .ops-table_journals col.col-journal-confirmation {
-  width: auto;
+  width: 22.5%;
 }
 
 .ops-table_journals col.col-journal-toggle {
-  width: 1.75rem;
+  width: 2.5%;
 }
 
 .ops-table_journals col.col-journal-memo {
-  width: 2.75rem;
+  width: 3.9%;
 }
 
 .journal-confirmation-col {
@@ -438,8 +438,8 @@
 }
 
 .journal-status-col {
-  width: 3.75rem;
-  max-width: 3.75rem;
+  width: auto;
+  max-width: none;
   padding-left: 0.2rem;
   padding-right: 0.2rem;
   white-space: nowrap;
@@ -479,7 +479,7 @@
 }
 
 .ops-table_journals .num-col {
-  width: 5rem;
+  width: auto;
 }
 
 .journal-confirmation-col lightning-combobox {
@@ -510,16 +510,16 @@
 }
 
 .journal-lock-cell {
-  width: 2.35rem;
-  max-width: 2.35rem;
+  width: auto;
+  max-width: none;
   text-align: center;
   padding-left: 0.2rem;
   padding-right: 0.2rem;
 }
 
 .journal-toggle-col {
-  width: 1.75rem;
-  max-width: 1.75rem;
+  width: auto;
+  max-width: none;
   text-align: center;
   padding-left: 0.2rem;
   padding-right: 0.2rem;
@@ -689,8 +689,8 @@
 }
 
 .ops-table_journals .split-select-col {
-  width: 2.5rem;
-  max-width: 2.5rem;
+  width: auto;
+  max-width: none;
 }
 
 .ops-table_journals .split-select-col lightning-input {
@@ -702,9 +702,9 @@
 }
 
 .journal-memo-cell {
-  width: 2.75rem;
-  min-width: 2.25rem;
-  max-width: 3rem;
+  width: auto;
+  min-width: 0;
+  max-width: none;
   text-align: center;
   white-space: nowrap;
 }
@@ -1767,12 +1767,13 @@ p.surface-wait.action-float {
 }
 
 .split-move-cell {
-  min-width: 7.5rem;
+  min-width: 0;
   background: var(--preview-accent-soft);
 }
 
 .split-move-cell lightning-input {
-  max-width: 8.5rem;
+  width: 100%;
+  max-width: none;
   margin-left: auto;
 }
 
@@ -1812,7 +1813,7 @@ p.surface-wait.action-float {
 }
 
 .split-select-col {
-  width: 2.75rem;
+  width: auto;
   text-align: center;
   vertical-align: middle;
 }
@@ -1862,7 +1863,7 @@ p.surface-wait.action-float {
 
 .split-editor-body {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
   gap: 0.75rem 1.1rem;
   padding: 0.55rem 0.75rem;
@@ -1935,8 +1936,9 @@ p.surface-wait.action-float {
 
 .split-factor-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(7.5rem, 9.5rem));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem 0.75rem;
+  flex: 2 1 0;
   min-width: 0;
 }
 
@@ -2094,8 +2096,9 @@ p.surface-wait.action-float {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  min-width: 9rem;
-  max-width: 12rem;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
 }
 
 .preview-table col.col-product {
@@ -2115,7 +2118,7 @@ p.surface-wait.action-float {
 }
 
 .preview-table col.col-period {
-  width: 10.25rem;
+  width: 14.6%;
 }
 
 .preview-table col.col-cycle {
@@ -2130,9 +2133,8 @@ p.surface-wait.action-float {
   width: 9.5%;
 }
 
-/* 残りを金額列へ。中身は右端へ寄せて分割右の空洞を消す */
 .preview-table col.col-amount {
-  width: auto;
+  width: 19.6%;
 }
 
 .preview-table th.revenue-basis-col,
@@ -2289,15 +2291,15 @@ p.surface-wait.action-float {
 
 /*
  * ヘッダ・行とも同じ4列: [余白][金額][メタ][±/分割]
- * 余白が余りを取り、メタは「端数あり +¥」が±へ重ならない幅にする
+ * 割合は金額列の中だけ。最小幅で隣の列を押し出さない
  */
 .amount-with-adjust {
   display: grid;
   grid-template-columns:
     minmax(0, 0.2fr)
-    minmax(5.75rem, 0.85fr)
-    minmax(8.25rem, 1.35fr)
-    minmax(9.5rem, 1.5fr);
+    minmax(0, 0.85fr)
+    minmax(0, 1.35fr)
+    minmax(0, 1.5fr);
   align-items: center;
   column-gap: 0.4rem;
   box-sizing: border-box;
