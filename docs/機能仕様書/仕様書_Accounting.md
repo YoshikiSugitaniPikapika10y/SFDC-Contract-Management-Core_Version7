@@ -1904,6 +1904,8 @@ Unlock後も金額、科目、日付、借貸は直せない。以降の原因�
 
 手動仕訳ヘッダーを物理削除せず、取消してGoalから除外し、第1.8.1節の共通処理でCurrentとの差分を反映する。関連仕訳がすべて未ロックなら元ヘッダーを`Cancelled`として保持し、仕訳を論理削除する。1件でもロック済みなら第2.4節の取消理由を指定して元ヘッダーを`Cancelled`とし、ロック済み仕訳に逆仕訳、未ロック仕訳に論理削除を適用する。この取消のDiffで逆仕訳になる仕訳にActive Lockがある場合はON/OFFを問わず取消基準日を入力する。未入力はエラーにする。逆仕訳が無いなら日付を設定しない。請求書の他原因Lockだけでは取らない。手動ヘッダーLookupだけでも足りない。
 
+取消フォームの見出しは「手動仕訳を取消」とする。閉じるは「戻る」。押しても取消しない。実行は「取り消す」。押した行の直下に置く。
+
 取消後のヘッダーを再有効化・編集せず、正しい内容は新しい手動仕訳ヘッダーとして登録する。取消ヘッダーと新規ヘッダーを自動で1対1に紐づけず、同じ請求書の独立した原因として扱う。取消理由、操作情報、論理削除または逆仕訳の結果を同じ業務操作キーで監査できるようにする。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
@@ -1911,6 +1913,7 @@ Unlock後も金額、科目、日付、借貸は直せない。以降の原因�
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ManualJournalService.cancel</code>、<code>ManualJournalController.cancel</code>
 ／ 権限は <code>Loop_14_Can_ManualJournal</code>（<code>共通基盤.md</code>第3章）
 ／ 仕訳は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>AccountingDiffService.applyForInvoice</code>
+／ フォームは見出し「手動仕訳を取消」、閉じる「戻る」、実行「取り消す」。入口は既存<code>manualJournalEntry</code>。
 </div>
 
 ## 11. Accounting画面
