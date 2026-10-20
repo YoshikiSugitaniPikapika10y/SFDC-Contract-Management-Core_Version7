@@ -438,6 +438,40 @@ private class ContractCrossQueryServiceTest {
     return filter;
   }
 
+  private static Invoice__c invoiceOn(
+    HistoryFixture historyFixture,
+    String deliveryStatus,
+    String collectionStatus,
+    Date paymentScheduledDate
+  ) {
+    return new Invoice__c(
+      ContractService__c = historyFixture.history.ContractService__c,
+      ContractHistory__c = historyFixture.history.Id,
+      InvoiceDate__c = Date.newInstance(2026, 6, 1),
+      Amount__c = 1000,
+      TaxAmount__c = 100,
+      BillingAccountSnapShot__c = historyFixture.billingAccount.Id,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      SystemIntegrationDate__c = ContractCrossQueryService.organizationToday(),
+      DeliveryStatus__c = deliveryStatus,
+      CollectionRefundStatus__c = collectionStatus,
+      PaymentScheduledDate__c = paymentScheduledDate
+    );
+  }
+
+  private static Set<Id> journalIds(
+    ContractCrossController.ListResultDto result
+  ) {
+    Set<Id> ids = new Set<Id>();
+    if (result == null || result.journals == null) {
+      return ids;
+    }
+    for (ContractCrossController.JournalRowDto row : result.journals) {
+      ids.add(row.id);
+    }
+    return ids;
+  }
+
   private static Set<Id> invoiceIds(
     ContractCrossController.ListResultDto result
   ) {
@@ -494,6 +528,213 @@ private class ContractCrossQueryServiceTest {
       );
       System.assertEquals(1, result.journals.size());
       System.assertEquals(false, result.journals[0].isLocked);
+    }
+  }
+
+  @IsTest
+  static void queryInvoices_sentOverdueAndCollectionSplit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      HistoryFixture historyFixture = insertHistory(
+        'Ordered',
+        ContractCrossQueryService.organizationToday(),
+        'QInv Split'
+      );
+      Date today = ContractCrossQueryService.organizationToday();
+      Invoice__c sentLate = invoiceOn(
+        historyFixture,
+        InvoiceTransactionStatusService.DELIVERY_SENT,
+        InvoiceTransactionStatusService.COLLECTION_NOT_STARTED,
+        today.addDays(-1)
+      );
+      Invoice__c unsentOpen = invoiceOn(
+        historyFixture,
+        InvoiceTransactionStatusService.DELIVERY_UNSENT,
+        InvoiceTransactionStatusService.COLLECTION_IN_PROGRESS,
+        today.addDays(30)
+      );
+      Invoice__c unsentDone = invoiceOn(
+        historyFixture,
+        InvoiceTransactionStatusService.DELIVERY_UNSENT,
+        InvoiceTransactionStatusService.COLLECTION_COMPLETED,
+        today.addDays(30)
+      );
+      ContractTestDataFactory.insertAllowingInvoiceStatus(
+        new List<Invoice__c>{ sentLate, unsentOpen, unsentDone }
+      );
+
+      ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
+      filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_CONFIRMED;
+      filter.accountId = historyFixture.opportunity.AccountId;
+      filter.sent = true;
+      Set<Id> sentIds = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      System.assertEquals(
+        true,
+        sentIds.contains(sentLate.Id) &&
+          !sentIds.contains(unsentOpen.Id) &&
+          !sentIds.contains(unsentDone.Id),
+        '共通基盤契約横断: 送付ありは送付済みだけ残す'
+      );
+      filter.sent = false;
+      Set<Id> unsentIds = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      System.assertEquals(
+        true,
+        unsentIds.contains(unsentOpen.Id) &&
+          unsentIds.contains(unsentDone.Id) &&
+          !unsentIds.contains(sentLate.Id),
+        '共通基盤契約横断: 送付なしは未送付だけ残す'
+      );
+
+      filter.sent = null;
+      filter.overdue = true;
+      Set<Id> lateIds = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      System.assertEquals(
+        true,
+        lateIds.contains(sentLate.Id) &&
+          !lateIds.contains(unsentOpen.Id) &&
+          !lateIds.contains(unsentDone.Id),
+        '共通基盤契約横断: 遅延ありは遅延の請求だけ残す'
+      );
+      filter.overdue = false;
+      Set<Id> openIds = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      System.assertEquals(
+        true,
+        openIds.contains(unsentOpen.Id) &&
+          openIds.contains(unsentDone.Id) &&
+          !openIds.contains(sentLate.Id),
+        '共通基盤契約横断: 遅延なしは遅延以外を残す'
+      );
+
+      filter.overdue = null;
+      filter.collectionStatus = InvoiceTransactionStatusService.COLLECTION_NOT_STARTED;
+      Set<Id> notStarted = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      filter.collectionStatus = InvoiceTransactionStatusService.COLLECTION_IN_PROGRESS;
+      Set<Id> inProgress = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      filter.collectionStatus = InvoiceTransactionStatusService.COLLECTION_COMPLETED;
+      Set<Id> completed = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      System.assertEquals(
+        true,
+        notStarted.contains(sentLate.Id) &&
+          !notStarted.contains(unsentOpen.Id) &&
+          inProgress.contains(unsentOpen.Id) &&
+          !inProgress.contains(unsentDone.Id) &&
+          completed.contains(unsentDone.Id) &&
+          !completed.contains(sentLate.Id),
+        '共通基盤契約横断: 未対応、対応中、完了で残る請求が分かれる'
+      );
+    }
+  }
+
+  @IsTest
+  static void queryJournals_patternUnsetSpecifiedAndManualSplit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      GlAccountingPolicyService.clearCachedOrgPolicy();
+      InvoiceFixture invoiceFixture = insertInvoice('Confirmed');
+      Date postingDate = Date.newInstance(2026, 6, 15);
+      GlAccount__c debit = new GlAccount__c(
+        Name = 'QJnl Pattern Debit',
+        AccountType__c = 'Expense',
+        IsActive__c = true
+      );
+      GlAccount__c credit = new GlAccount__c(
+        Name = 'QJnl Pattern Credit',
+        AccountType__c = 'Asset',
+        IsActive__c = true
+      );
+      insert new List<GlAccount__c>{ debit, credit };
+      GlManualJournalSetting__c setting = new GlManualJournalSetting__c(
+        Name = '横断の手動設定',
+        DebitSlotKey__c = 'FxLoss',
+        DebitAccount__c = debit.Id,
+        CreditSlotKey__c = 'AccountsReceivable',
+        CreditAccount__c = credit.Id,
+        Description__c = '検証',
+        IsActive__c = true
+      );
+      insert setting;
+      GlJournal__c patterned = new GlJournal__c(
+        Invoice__c = invoiceFixture.invoice.Id,
+        Amount__c = 1,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{
+            'pattern',
+            String.valueOf(invoiceFixture.invoice.Id)
+          }
+        ),
+        DebitSlotKey__c = 'Cash',
+        CreditSlotKey__c = 'UnappliedCash',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = postingDate,
+        TransactionStatus__c = 'Active',
+        IsLocked__c = false,
+        JournalPatternKey__c = JournalPatternFixedCatalog.BILLING_BASIS_INVOICE_BODY.key
+      );
+      GlJournal__c manual = new GlJournal__c(
+        Invoice__c = invoiceFixture.invoice.Id,
+        Amount__c = 2,
+        IdempotencyKey__c = AccountingDiffService.hashKey(
+          new List<String>{
+            'manual',
+            String.valueOf(invoiceFixture.invoice.Id)
+          }
+        ),
+        DebitSlotKey__c = 'Cash',
+        CreditSlotKey__c = 'UnappliedCash',
+        DebitAccount__c = debit.Id,
+        CreditAccount__c = credit.Id,
+        PostingDate__c = postingDate,
+        TransactionStatus__c = 'Active',
+        IsLocked__c = false,
+        GlManualJournalSetting__c = setting.Id
+      );
+      insert new List<GlJournal__c>{ patterned, manual };
+
+      ContractCrossController.JournalFilterDto filter = new ContractCrossController.JournalFilterDto();
+      filter.postingDateFrom = postingDate;
+      filter.postingDateTo = postingDate;
+      filter.lockState = ContractCrossQueryService.LOCK_UNLOCKED;
+      filter.invoiceId = invoiceFixture.invoice.Id;
+      Set<Id> unsetIds = journalIds(
+        ContractCrossQueryService.queryJournals(filter)
+      );
+      System.assertEquals(
+        true,
+        unsetIds.contains(patterned.Id) && unsetIds.contains(manual.Id),
+        '共通基盤契約横断: パターン未指定ではパターン仕訳も手動設定も残す'
+      );
+      filter.eventKey = JournalPatternFixedCatalog.BILLING_BASIS_INVOICE_BODY.key;
+      Set<Id> patternIds = journalIds(
+        ContractCrossQueryService.queryJournals(filter)
+      );
+      System.assertEquals(
+        true,
+        patternIds.contains(patterned.Id) && !patternIds.contains(manual.Id),
+        '共通基盤契約横断: 指定したパターンの仕訳だけ残す'
+      );
+      filter.eventKey = String.valueOf(setting.Id);
+      Set<Id> manualIds = journalIds(
+        ContractCrossQueryService.queryJournals(filter)
+      );
+      System.assertEquals(
+        true,
+        manualIds.contains(manual.Id) && !manualIds.contains(patterned.Id),
+        '共通基盤契約横断: 指定した手動設定の仕訳だけ残す'
+      );
     }
   }
 

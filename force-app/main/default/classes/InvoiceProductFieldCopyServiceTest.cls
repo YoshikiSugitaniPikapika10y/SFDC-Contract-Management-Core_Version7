@@ -150,9 +150,7 @@ private class InvoiceProductFieldCopyServiceTest {
       )
     };
 
-    Invoice__c invoice = new Invoice__c(
-      Memo__c = 'DataLoader取引先'
-    );
+    Invoice__c invoice = new Invoice__c(Memo__c = 'DataLoader取引先');
     InvoiceProductFieldCopyService.applyCopies(
       invoice,
       InvoiceProductFieldCopyService.TARGET_INVOICE,
@@ -319,7 +317,8 @@ private class InvoiceProductFieldCopyServiceTest {
     );
     System.assertEquals(
       true,
-      InvoiceProductFieldCopyService.getTargetFieldApiNames().contains('Memo__c'),
+      InvoiceProductFieldCopyService.getTargetFieldApiNames()
+        .contains('Memo__c'),
       '仕様: Core 第11.4.2節 請求の見本は取引先名をメモへ'
     );
     System.assertEquals(
@@ -342,7 +341,8 @@ private class InvoiceProductFieldCopyServiceTest {
       PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
       PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
       PaymentTermMonthOffset__c = 0,
-      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+      PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyRequiredFields(ba);
     insert ba;
 
@@ -640,7 +640,9 @@ private class InvoiceProductFieldCopyServiceTest {
       System.assertEquals(true, missingTarget);
       InvoiceProductFieldCopyService.resetCache();
 
-      Account account = ContractTestDataFactory.insertAccount('copy-insert-src');
+      Account account = ContractTestDataFactory.insertAccount(
+        'copy-insert-src'
+      );
       BillingAccount__c billingAccount = ContractTestDataFactory.insertBillingAccount(
         account.Id
       );
@@ -790,6 +792,48 @@ private class InvoiceProductFieldCopyServiceTest {
   }
 
   @IsTest
+  static void snapshot_copiesBlankDeliveryAndEmailAndKeepsExisting() {
+    BillingAccount__c billing = new BillingAccount__c(
+      BillingEmailTo__c = 'new@example.com',
+      InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST
+    );
+    Invoice__c blank = new Invoice__c();
+    InvoiceProductFieldCopyService.applyHardcodedInvoiceBillingAccountSnapshot(
+      blank,
+      billing
+    );
+    System.assertEquals(
+      InvoiceDeliveryMethodService.POST,
+      blank.InvoiceDeliveryMethodSnapShot__c,
+      'Core 第3.3.7節: 届け方が空の請求だけ請求アカウントから写す'
+    );
+    System.assertEquals(
+      'new@example.com',
+      blank.BillingEmailToSnapShot__c,
+      'Core 第3.3.5節: メールが空の請求だけ請求アカウントから写す'
+    );
+
+    Invoice__c kept = new Invoice__c(
+      InvoiceDeliveryMethodSnapShot__c = InvoiceDeliveryMethodService.EMAIL,
+      BillingEmailToSnapShot__c = 'kept@example.com'
+    );
+    InvoiceProductFieldCopyService.applyHardcodedInvoiceBillingAccountSnapshot(
+      kept,
+      billing
+    );
+    System.assertEquals(
+      InvoiceDeliveryMethodService.EMAIL,
+      kept.InvoiceDeliveryMethodSnapShot__c,
+      'Core 第3.3.7節: 既にある届け方は残す'
+    );
+    System.assertEquals(
+      'kept@example.com',
+      kept.BillingEmailToSnapShot__c,
+      'Core 第3.3.5節: 既にあるメールは残す'
+    );
+  }
+
+  @IsTest
   static void rememberRecords_nullQueriedFields_coverInsertSourceWithoutReselect() {
     ContractTestDataFactory.initTestContext();
     System.runAs(ContractTestDataFactory.getAdminUser()) {
@@ -838,7 +882,9 @@ private class InvoiceProductFieldCopyServiceTest {
   static void querySourceRecord_contractHistory_selectsContractServiceRelation() {
     ContractTestDataFactory.initTestContext();
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Copy History Acc');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Copy History Acc'
+      );
       BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
         account.Id
       );
@@ -861,7 +907,10 @@ private class InvoiceProductFieldCopyServiceTest {
         EffectiveDate__c = Date.newInstance(2026, 6, 1)
       );
       ContractTestDataFactory.applyRequiredFields(history);
-      ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
       insert history;
       InvoiceProductFieldCopyService.resetCache();
       SObject loaded = InvoiceProductFieldCopyService.querySourceRecord(
@@ -883,7 +932,9 @@ private class InvoiceProductFieldCopyServiceTest {
   static void querySourceRecord_contractService_doesNotReuseThinCache() {
     ContractTestDataFactory.initTestContext();
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('Thin Service Acc');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Thin Service Acc'
+      );
       BillingAccount__c billing = ContractTestDataFactory.insertBillingAccount(
         account.Id
       );
@@ -909,9 +960,7 @@ private class InvoiceProductFieldCopyServiceTest {
         FROM ContractService__c
         WHERE Id = :service.Id
       ];
-      InvoiceProductFieldCopyService.rememberRecords(
-        new List<SObject>{ thin }
-      );
+      InvoiceProductFieldCopyService.rememberRecords(new List<SObject>{ thin });
       SObject loaded = InvoiceProductFieldCopyService.querySourceRecord(
         InvoiceProductFieldCopyService.OBJECT_CONTRACT_SERVICE,
         service.Id

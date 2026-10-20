@@ -116,6 +116,11 @@ private class InvoiceDocumentServiceTest {
         context.taxRateLabel,
         'Core 第7.1節: 内訳の消費税ラベルは保存税率'
       );
+      System.assertEquals(
+        'テスト銀行 本店 普通 1234567',
+        context.documentSetting.BankTransferInfo__c,
+        'Core 第11.3.1節・第7.10節: 請求書の帳票データは組織の振込先を載せる'
+      );
     }
   }
 

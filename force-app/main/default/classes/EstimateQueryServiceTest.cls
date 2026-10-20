@@ -1032,6 +1032,66 @@ private class EstimateQueryServiceTest {
   }
 
   @IsTest
+  static void getProductDefaults_splitsBillingInvoiceAndRevenue() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Product2 oneTime = ContractTestDataFactory.buildProduct('Query One Time');
+      oneTime.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME;
+      oneTime.invoicetype__c = ContractMetadataService.INVOICE_SETTING_POSTPAID_NEXT_DAY;
+      oneTime.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME;
+      ContractTestDataFactory.insertProduct(oneTime);
+      EstimateCreateController.ProductDefaultDto oneTimeDefaults = EstimateQueryService.getProductDefaults(
+        oneTime.Id
+      );
+      System.assertEquals(
+        ContractTestDataFactory.TENANT_BILLING_TYPE_ONE_TIME,
+        oneTimeDefaults.billingType,
+        'Core 第3.1節: 一回課金の初期値は一回課金'
+      );
+      System.assertEquals(
+        ContractMetadataService.INVOICE_SETTING_POSTPAID_NEXT_DAY,
+        oneTimeDefaults.invoiceType,
+        'Core 第4.3.6節: 一括後払の初期値は一括後払'
+      );
+      System.assertEquals(
+        ContractMetadataService.REVENUE_BASIS_POINT_IN_TIME,
+        oneTimeDefaults.revenueRecognitionBasis,
+        'Core 第4.3.8節: 一括計上の初期値は一括計上'
+      );
+      System.assertEquals(
+        null,
+        oneTimeDefaults.billingCycle,
+        'Core 第3.1節: 一回課金の請求サイクルは空'
+      );
+
+      Product2 recurring = ContractTestDataFactory.buildProduct(
+        'Query Monthly Split'
+      );
+      recurring.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
+      recurring.invoicetype__c = ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY;
+      recurring.RevenueRecognitionBasis__c = ContractMetadataService.REVENUE_BASIS_OVER_TIME;
+      ContractTestDataFactory.insertProduct(recurring);
+      EstimateCreateController.ProductDefaultDto recurringDefaults = EstimateQueryService.getProductDefaults(
+        recurring.Id
+      );
+      System.assertEquals(
+        ContractMetadataService.INVOICE_SETTING_SPLIT_MONTHLY,
+        recurringDefaults.invoiceType,
+        'Core 第4.3.6節: 月次分割の初期値は月次分割'
+      );
+      System.assertEquals(
+        ContractMetadataService.REVENUE_BASIS_OVER_TIME,
+        recurringDefaults.revenueRecognitionBasis,
+        'Core 第4.3.8節: 月次計上の初期値は月次計上'
+      );
+      System.assertEquals(
+        ContractDomainConstants.MONTHLY_BILLING_CYCLE,
+        recurringDefaults.billingCycle,
+        'Core 第3.1節: 継続課金の請求サイクルは月'
+      );
+    }
+  }
+
+  @IsTest
   static void getActiveContractServicesByAccount_skipsBlankLifecycle() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       System.assertEquals(

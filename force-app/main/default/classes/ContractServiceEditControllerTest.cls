@@ -9,7 +9,9 @@ private class ContractServiceEditControllerTest {
   static void save_updatesAllowedFieldsAndCreatesNoHistory() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
-      Account account = ContractTestDataFactory.insertAccount('Edit Service Acct');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Edit Service Acct'
+      );
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Before Name'
@@ -51,11 +53,7 @@ private class ContractServiceEditControllerTest {
 
       System.assertEquals(service.Id, saved.recordId);
       ContractService__c loaded = [
-        SELECT
-          Name,
-          BiilingAcccount__c,
-          TaxPercent__c,
-          CustomerMemo__c
+        SELECT Name, BiilingAcccount__c, TaxPercent__c, CustomerMemo__c
         FROM ContractService__c
         WHERE Id = :service.Id
       ];
@@ -137,7 +135,8 @@ private class ContractServiceEditControllerTest {
           '{}'
         );
       } catch (AuraHandledException ex) {
-        accountThrown = ex.getMessage().contains('請求アカウントを入力してください。');
+        accountThrown = ex.getMessage()
+          .contains('請求アカウントを入力してください。');
       }
       System.assertEquals(
         true,
@@ -188,7 +187,11 @@ private class ContractServiceEditControllerTest {
 
       System.assertEquals(service.Id, dto.recordId);
       System.assertEquals('Context Name', dto.name);
-      System.assertEquals(account.Id, dto.accountId, 'Core 第3.4.1節: 取引先を返す');
+      System.assertEquals(
+        account.Id,
+        dto.accountId,
+        'Core 第3.4.1節: 取引先を返す'
+      );
       System.assertEquals(service.BiilingAcccount__c, dto.billingAccountId);
       System.assertNotEquals(
         null,
@@ -202,7 +205,10 @@ private class ContractServiceEditControllerTest {
       );
       System.assertEquals(10, dto.taxPercent);
       System.assertEquals('context memo', dto.customerMemo);
-      System.assertEquals('context memo', dto.customFields.get('CustomerMemo__c'));
+      System.assertEquals(
+        'context memo',
+        dto.customFields.get('CustomerMemo__c')
+      );
       System.assertNotEquals(
         null,
         dto.lastModifiedToken,
@@ -264,7 +270,9 @@ private class ContractServiceEditControllerTest {
   static void save_blankToken_throwsConflict() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
-      Account account = ContractTestDataFactory.insertAccount('Blank Token Acct');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Blank Token Acct'
+      );
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Blank Token Name'
@@ -301,7 +309,9 @@ private class ContractServiceEditControllerTest {
   static void save_staleToken_throwsConflict() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
-      Account account = ContractTestDataFactory.insertAccount('Stale Token Acct');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Stale Token Acct'
+      );
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Stale Token Name'
@@ -396,6 +406,102 @@ private class ContractServiceEditControllerTest {
   }
 
   @IsTest
+  static void save_taxChangeLeavesExistingHistoryAndInvoice() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
+      Account account = ContractTestDataFactory.insertAccount('Tax Stay Acct');
+      ContractService__c service = ContractTestDataFactory.insertContractService(
+        account.Id,
+        'Tax Stay Service'
+      );
+      BillingAccount__c billing = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :service.BiilingAcccount__c
+      ];
+      Decimal storedTen = TaxCalculationUtil.toPercentFieldStorage(10);
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Tax Stay History',
+        ContractService__c = service.Id,
+        Type__c = 'New',
+        historystatus__c = 'Ordered',
+        Version__c = 1,
+        TaxPercent__c = storedTen,
+        TaxAmount__c = 100,
+        DeltaTaxInclusiveSum__c = 1100
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        account.Id
+      );
+      insert history;
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = service.Id,
+        ContractHistory__c = history.Id,
+        BillingAccountSnapShot__c = billing.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 1000,
+        TaxAmount__c = 100,
+        TaxPercent__c = storedTen,
+        InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_DRAFT
+      );
+      ContractTestDataFactory.insertAllowingInvoiceStatus(invoice);
+
+      ContractServiceEditController.ContextDto context = ContractServiceEditController.getContext(
+        service.Id
+      );
+      ContractServiceEditController.save(
+        service.Id,
+        'Tax Stay Service',
+        billing.Id,
+        8,
+        null,
+        '{}',
+        context.lastModifiedToken,
+        'service-tax-stay'
+      );
+
+      ContractHistory__c stayedHistory = [
+        SELECT TaxPercent__c, TaxAmount__c, DeltaTaxInclusiveSum__c
+        FROM ContractHistory__c
+        WHERE Id = :history.Id
+      ];
+      Invoice__c stayedInvoice = [
+        SELECT TaxPercent__c, TaxAmount__c, Amount__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        storedTen,
+        stayedHistory.TaxPercent__c,
+        'Core 第3.4節: 契約サービスの税率を変えても既存履歴の税率は残る'
+      );
+      System.assertEquals(
+        100,
+        stayedHistory.TaxAmount__c,
+        'Core 第3.4節: 契約サービスの税率を変えても既存履歴の税額は残る'
+      );
+      System.assertEquals(
+        1100,
+        stayedHistory.DeltaTaxInclusiveSum__c,
+        'Core 第3.4節: 契約サービスの税率を変えても既存履歴の税込は残る'
+      );
+      System.assertEquals(
+        storedTen,
+        stayedInvoice.TaxPercent__c,
+        'Core 第7.4節: 契約サービスの税率を変えても既存請求の税率は残る'
+      );
+      System.assertEquals(
+        100,
+        stayedInvoice.TaxAmount__c,
+        'Core 第7.4節: 契約サービスの税率を変えても既存請求の税額は残る'
+      );
+      System.assertEquals(1000, stayedInvoice.Amount__c);
+    }
+  }
+
+  @IsTest
   static void getContext_rejectsWithout08() {
     ContractPermissionUtil.testOverrides = new Map<String, Boolean>{
       ContractPermissionUtil.EDIT_SERVICE => false
@@ -436,7 +542,9 @@ private class ContractServiceEditControllerTest {
   static void save_rejectsMissingBillingAccountRow() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.applyStandardWizardFieldDefinitionsForTest();
-      Account account = ContractTestDataFactory.insertAccount('Missing BA Acct');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Missing BA Acct'
+      );
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Missing BA Name'

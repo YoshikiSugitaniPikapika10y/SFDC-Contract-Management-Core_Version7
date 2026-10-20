@@ -170,7 +170,9 @@ private class InvoiceLockUtilTest {
 
       thrown = false;
       try {
-        InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ fixture.history.Id });
+        InvoiceLockUtil.assertNoLockedInvoices(
+          new Set<Id>{ fixture.history.Id }
+        );
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
       }
@@ -327,6 +329,60 @@ private class InvoiceLockUtilTest {
   }
 
   @IsTest
+  static void blockLockedRowDml_allowsListedFieldAndRejectsUnlisted() {
+    Id fakeInvoiceId =
+      Invoice__c.SObjectType.getDescribe().getKeyPrefix() + '000000000014AAA';
+    Invoice__c prior = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      SystemIntegrationDate__c = Date.today(),
+      BillingAddresseeSnapShot__c = '元の宛名',
+      BillingEmailToSnapShot__c = 'kept@example.com'
+    );
+    Invoice__c listed = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      SystemIntegrationDate__c = Date.today(),
+      BillingAddresseeSnapShot__c = '直した宛名',
+      BillingEmailToSnapShot__c = 'kept@example.com'
+    );
+    InvoiceLockUtil.testCanBypassLockedDml = false;
+    InvoiceLockUtil.testLockExemptFieldApiNames = 'BillingAddresseeSnapShot__c';
+    InvoiceLockUtil.blockLockedRowDml(
+      new List<Invoice__c>{ listed },
+      new Map<Id, Invoice__c>{ fakeInvoiceId => prior }
+    );
+    System.assertEquals(
+      false,
+      listed.hasErrors(),
+      'Core 第11.6節: 確定後、除外一覧にある項目は書ける'
+    );
+
+    Invoice__c unlisted = new Invoice__c(
+      Id = fakeInvoiceId,
+      InvoiceTransactionStatus__c = InvoiceTransactionStatusService.TX_CONFIRMED,
+      SystemIntegrationDate__c = Date.today(),
+      BillingAddresseeSnapShot__c = '元の宛名',
+      BillingEmailToSnapShot__c = 'other@example.com'
+    );
+    InvoiceLockUtil.blockLockedRowDml(
+      new List<Invoice__c>{ unlisted },
+      new Map<Id, Invoice__c>{ fakeInvoiceId => prior }
+    );
+    System.assertEquals(
+      true,
+      unlisted.hasErrors(),
+      'Core 第11.6節: 確定後、除外一覧に無い項目は拒否する'
+    );
+    System.assertEquals(
+      InvoiceLockUtil.LOCKED_ROW_DML_BLOCK_MESSAGE,
+      unlisted.getErrors()[0].getMessage()
+    );
+    InvoiceLockUtil.testLockExemptFieldApiNames = null;
+    InvoiceLockUtil.testCanBypassLockedDml = null;
+  }
+
+  @IsTest
   static void resolveLockExemptFieldNames_honorsTestOverride() {
     InvoiceLockUtil.testLockExemptFieldApiNames = 'Amount__c, TaxAmount__c';
     Set<String> names = InvoiceLockUtil.resolveLockExemptFieldNames();
@@ -410,9 +466,7 @@ private class InvoiceLockUtilTest {
         InvoiceLockUtil.hasLockedInvoices(new Set<Id>{ fixture.history.Id }),
         'Core 第1.1.5節・第7.9.2節: 取消済みだけではVersion再生成を止めない'
       );
-      InvoiceLockUtil.assertNoLockedInvoices(
-        new Set<Id>{ fixture.history.Id }
-      );
+      InvoiceLockUtil.assertNoLockedInvoices(new Set<Id>{ fixture.history.Id });
       InvoiceLockUtil.assertVersionEditable(fixture.history.Id);
 
       Boolean thrown = false;
@@ -429,9 +483,7 @@ private class InvoiceLockUtilTest {
 
       thrown = false;
       try {
-        InvoiceLockUtil.assertInvoicesEditable(
-          new List<Invoice__c>{ invoice }
-        );
+        InvoiceLockUtil.assertInvoicesEditable(new List<Invoice__c>{ invoice });
       } catch (InvoiceLockUtil.InvoiceLockException ex) {
         thrown = true;
       }
