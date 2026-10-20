@@ -242,6 +242,216 @@ private class ContractCrossQueryServiceTest {
   }
 
   @IsTest
+  static void queryInvoices_tagUnsetTrueAndFalseSplit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableAccounting();
+      insert new GlAccountingTagRule__c(
+        Name = '手動調整タグ',
+        TagKey__c = 'amount-adjusted',
+        TagLabel__c = '手動調整',
+        Expression__c = 'AR',
+        ComparisonOperator__c = 'NE',
+        ComparisonValue__c = 0,
+        TargetFieldApiName__c = 'IsAmountAdjusted__c',
+        IsEnabled__c = true
+      );
+      HistoryFixture historyFixture = insertHistory(
+        'Ordered',
+        ContractCrossQueryService.organizationToday(),
+        'QInv Tag'
+      );
+      Invoice__c tagged = new Invoice__c(
+        ContractService__c = historyFixture.history.ContractService__c,
+        ContractHistory__c = historyFixture.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        Amount__c = 1000,
+        TaxAmount__c = 100,
+        BillingAccountSnapShot__c = historyFixture.billingAccount.Id,
+        InvoiceTransactionStatus__c = 'Draft',
+        IsAmountAdjusted__c = true
+      );
+      Invoice__c untagged = new Invoice__c(
+        ContractService__c = historyFixture.history.ContractService__c,
+        ContractHistory__c = historyFixture.history.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 2),
+        Amount__c = 1000,
+        TaxAmount__c = 100,
+        BillingAccountSnapShot__c = historyFixture.billingAccount.Id,
+        InvoiceTransactionStatus__c = 'Draft',
+        IsAmountAdjusted__c = false
+      );
+      ContractTestDataFactory.insertAllowingInvoiceStatus(tagged);
+      ContractTestDataFactory.insertAllowingInvoiceStatus(untagged);
+
+      ContractCrossController.InvoiceFilterDto filter = new ContractCrossController.InvoiceFilterDto();
+      filter.invoiceStatus = ContractCrossQueryService.INVOICE_STATUS_DRAFT;
+      filter.invoiceDateFrom = Date.newInstance(2026, 6, 1);
+      filter.invoiceDateTo = Date.newInstance(2026, 6, 2);
+      filter.accountId = historyFixture.opportunity.AccountId;
+      ContractCrossController.ListResultDto unset = ContractCrossQueryService.queryInvoices(
+        filter
+      );
+      Set<Id> unsetIds = invoiceIds(unset);
+      System.assertEquals(
+        true,
+        unsetIds.contains(tagged.Id) && unsetIds.contains(untagged.Id),
+        '共通基盤契約横断: 会計タグ未指定では真も偽も残す'
+      );
+
+      ContractCrossController.TagFilterDto trueFilter = new ContractCrossController.TagFilterDto();
+      trueFilter.fieldApiName = 'IsAmountAdjusted__c';
+      trueFilter.state = 'True';
+      filter.tagFilters = new List<ContractCrossController.TagFilterDto>{
+        trueFilter
+      };
+      Set<Id> trueIds = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      System.assertEquals(
+        true,
+        trueIds.contains(tagged.Id) && !trueIds.contains(untagged.Id),
+        '共通基盤契約横断: 会計タグが真の請求だけ残す'
+      );
+
+      filter.tagFilters[0].state = 'False';
+      Set<Id> falseIds = invoiceIds(
+        ContractCrossQueryService.queryInvoices(filter)
+      );
+      System.assertEquals(
+        true,
+        falseIds.contains(untagged.Id) && !falseIds.contains(tagged.Id),
+        '共通基盤契約横断: 会計タグが偽の請求だけ残す'
+      );
+
+      ContractCrossController.InvoiceRowDto trueRow;
+      for (ContractCrossController.InvoiceRowDto row : unset.invoices) {
+        if (row.id == tagged.Id) {
+          trueRow = row;
+        }
+      }
+      System.assertEquals(
+        true,
+        trueRow != null && trueRow.trueTagLabels.contains('手動調整'),
+        '共通基盤契約横断: 真の会計タグ名を請求行に載せる'
+      );
+      System.assertEquals(
+        true,
+        ContractCrossQueryService.loadEnabledTagRules().size() > 0,
+        '共通基盤契約横断: 有効な会計タグは同じ処理で取り直さない'
+      );
+    }
+  }
+
+  @IsTest
+  static void queryEstimates_sentAutoRenewAndTypeSplit() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Date today = ContractCrossQueryService.organizationToday();
+      HistoryFixture sent = insertHistory('Estimate', today, 'QEst Sent Side');
+      HistoryFixture plain = insertHistory(
+        'Estimate',
+        today,
+        'QEst Plain Side'
+      );
+      sent.history.EstimateSentAt__c = Datetime.newInstance(
+        2026,
+        6,
+        1,
+        9,
+        0,
+        0
+      );
+      sent.history.Type__c = 'Change';
+      update sent.history;
+      Boolean previousAllow = ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite;
+      ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite = true;
+      try {
+        plain.history.RenewEstimateAutoCreated__c = true;
+        update plain.history;
+      } finally {
+        ContractHistoryTriggerHandler.allowRenewEstimateAutoCreatedWrite = previousAllow;
+      }
+
+      ContractCrossQueryService.DateRange range = ContractCrossQueryService.defaultEstimateCloseDates();
+      ContractCrossController.EstimateFilterDto sentFilter = estimateFilter(
+        range
+      );
+      sentFilter.accountId = sent.opportunity.AccountId;
+      sentFilter.sent = true;
+      System.assertEquals(
+        1,
+        ContractCrossQueryService.queryEstimates(sentFilter).estimates.size(),
+        '共通基盤契約横断: 送付ありだけ残す'
+      );
+      sentFilter.sent = false;
+      System.assertEquals(
+        0,
+        ContractCrossQueryService.queryEstimates(sentFilter).estimates.size(),
+        '共通基盤契約横断: 送付なしでは送付ありを消す'
+      );
+
+      ContractCrossController.EstimateFilterDto plainFilter = estimateFilter(
+        range
+      );
+      plainFilter.accountId = plain.opportunity.AccountId;
+      plainFilter.sent = false;
+      System.assertEquals(
+        1,
+        ContractCrossQueryService.queryEstimates(plainFilter).estimates.size(),
+        '共通基盤契約横断: 送付なしだけ残す'
+      );
+
+      plainFilter.autoRenew = true;
+      System.assertEquals(
+        1,
+        ContractCrossQueryService.queryEstimates(plainFilter).estimates.size(),
+        '共通基盤契約横断: 自動更新ありだけ残す'
+      );
+      plainFilter.autoRenew = false;
+      System.assertEquals(
+        0,
+        ContractCrossQueryService.queryEstimates(plainFilter).estimates.size(),
+        '共通基盤契約横断: 自動更新なしでは自動更新ありを消す'
+      );
+
+      sentFilter.sent = null;
+      sentFilter.estimateType = 'Change';
+      System.assertEquals(
+        1,
+        ContractCrossQueryService.queryEstimates(sentFilter).estimates.size(),
+        '共通基盤契約横断: 種別が変更の見積だけ残す'
+      );
+      sentFilter.estimateType = 'New';
+      System.assertEquals(
+        0,
+        ContractCrossQueryService.queryEstimates(sentFilter).estimates.size(),
+        '共通基盤契約横断: 種別が新規では変更を消す'
+      );
+    }
+  }
+
+  private static ContractCrossController.EstimateFilterDto estimateFilter(
+    ContractCrossQueryService.DateRange range
+  ) {
+    ContractCrossController.EstimateFilterDto filter = new ContractCrossController.EstimateFilterDto();
+    filter.closeDateFrom = range.dateFrom;
+    filter.closeDateTo = range.dateTo;
+    return filter;
+  }
+
+  private static Set<Id> invoiceIds(
+    ContractCrossController.ListResultDto result
+  ) {
+    Set<Id> ids = new Set<Id>();
+    if (result == null || result.invoices == null) {
+      return ids;
+    }
+    for (ContractCrossController.InvoiceRowDto row : result.invoices) {
+      ids.add(row.id);
+    }
+    return ids;
+  }
+
+  @IsTest
   static void queryJournals_accountingOffAndUnlockedLastMonth() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractCrossController.JournalFilterDto filter = new ContractCrossController.JournalFilterDto();
@@ -274,11 +484,11 @@ private class ContractCrossQueryServiceTest {
       );
       filter.invoiceId = invoiceFixture.invoice.Id;
       filter.billingAccountId = [
-          SELECT BillingAccountSnapShot__c
-          FROM Invoice__c
-          WHERE Id = :invoiceFixture.invoice.Id
-        ]
-        .BillingAccountSnapShot__c;
+        SELECT BillingAccountSnapShot__c
+        FROM Invoice__c
+        WHERE Id = :invoiceFixture.invoice.Id
+      ]
+      .BillingAccountSnapShot__c;
       ContractCrossController.ListResultDto result = ContractCrossQueryService.queryJournals(
         filter
       );
@@ -382,11 +592,11 @@ private class ContractCrossQueryServiceTest {
         estimate.history.Id
       );
       Decimal excl = [
-          SELECT DeltaAmountSum__c
-          FROM ContractHistory__c
-          WHERE Id = :estimate.history.Id
-        ]
-        .DeltaAmountSum__c;
+        SELECT DeltaAmountSum__c
+        FROM ContractHistory__c
+        WHERE Id = :estimate.history.Id
+      ]
+      .DeltaAmountSum__c;
       System.assertEquals(
         TaxCalculationUtil.calculateAmountInclTax(excl, 10),
         tile.taxInclusiveAmount,
@@ -401,10 +611,7 @@ private class ContractCrossQueryServiceTest {
         byName.get('Tile Recurring').cycleCount,
         '横断画面.md 第5節: 継続のサイクル数は期間から。Core 第4.6節'
       );
-      System.assertEquals(
-        '12',
-        byName.get('Tile Recurring').cycleCountLabel
-      );
+      System.assertEquals('12', byName.get('Tile Recurring').cycleCountLabel);
       System.assertEquals(
         '-',
         byName.get('Tile OneTime').cycleCountLabel,
@@ -451,7 +658,10 @@ private class ContractCrossQueryServiceTest {
       Version__c = 1
     );
     ContractTestDataFactory.applyRequiredFields(history);
-    ContractTestDataFactory.applyEstimateOrderedOpportunity(history, account.Id);
+    ContractTestDataFactory.applyEstimateOrderedOpportunity(
+      history,
+      account.Id
+    );
     insert history;
     Opportunity opportunity = [
       SELECT Id, Name, AccountId, CloseDate

@@ -322,8 +322,7 @@ private class RenewEstimateAutoCreateServiceTest {
   @IsTest
   static void switchOff_doesNotCreateRenewEstimate() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      ContractDocumentSetting__c setting =
-        ContractTestDataFactory.ensureOrgDocumentSetting();
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
       setting.RenewOpportunityEnabled__c = false;
       update setting;
       ContractDocumentSettingService.clearCache();
@@ -385,10 +384,7 @@ private class RenewEstimateAutoCreateServiceTest {
 
       Database.SaveResult result = Database.insert(renewal, false);
 
-      System.assertEquals(
-        false,
-        result.isSuccess()
-      );
+      System.assertEquals(false, result.isSuccess());
       System.assertEquals(
         RenewEstimateAutoCreateService.CONTRACT_SERVICE_MISMATCH_MESSAGE,
         result.getErrors()[0].getMessage(),
@@ -469,7 +465,134 @@ private class RenewEstimateAutoCreateServiceTest {
     ContractDocumentSettingService.clearCache();
   }
 
+  @IsTest
+  static void renewalOpportunity_rejectsBlankServiceUnorderedAndSpot() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      enableRenewOpportunity();
+      TestData ordered = createSourceData(true);
+
+      Opportunity blankService = buildRenewalOpportunity(ordered);
+      blankService.ContractService__c = null;
+      Database.SaveResult blankResult = Database.insert(blankService, false);
+      System.assertEquals(false, blankResult.isSuccess());
+      System.assertEquals(
+        RenewEstimateAutoCreateService.CONTRACT_SERVICE_REQUIRED_MESSAGE,
+        blankResult.getErrors()[0].getMessage(),
+        'Core 第4.9節: 契約サービスが空の更新商談は更新見積を作らず拒否する'
+      );
+
+      TestData unordered = createSourceData(true, false);
+      Database.SaveResult unorderedResult = Database.insert(
+        buildRenewalOpportunity(unordered),
+        false
+      );
+      System.assertEquals(false, unorderedResult.isSuccess());
+      System.assertEquals(
+        RenewEstimateAutoCreateService.ORDERED_REQUIRED_MESSAGE,
+        unorderedResult.getErrors()[0].getMessage(),
+        'Core 第4.9節: 元が未受注の更新商談は更新見積を作らず拒否する'
+      );
+
+      TestData spot = createSourceData(
+        true,
+        true,
+        ContractDomainConstants.LIFECYCLE_SPOT
+      );
+      Database.SaveResult spotResult = Database.insert(
+        buildRenewalOpportunity(spot),
+        false
+      );
+      System.assertEquals(false, spotResult.isSuccess());
+      System.assertEquals(
+        RenewEstimateAutoCreateService.SPOT_NOT_ALLOWED_MESSAGE,
+        spotResult.getErrors()[0].getMessage(),
+        'Core 第4.9節: 都度契約では更新見積を作らず拒否する'
+      );
+    }
+  }
+
+  @IsTest
+  static void autoRenew_endDate_oneDefaultCycle() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Date endForOne = insertAutoRenewEnd(1);
+      Date endForTwelve = MonthlyBillingPeriodUtil.endDateForMonthlyCycles(
+        Date.newInstance(2026, 6, 1),
+        12
+      );
+      System.assertEquals(
+        MonthlyBillingPeriodUtil.endDateForMonthlyCycles(
+          Date.newInstance(2026, 6, 1),
+          1
+        ),
+        endForOne,
+        'Core 第4.9節・共通基盤日付部第2.5節: 既定サイクル数1の自動更新見積の終了日'
+      );
+      System.assertNotEquals(
+        endForTwelve,
+        endForOne,
+        'Core 第4.9節・共通基盤日付部第2.5節: サイクル数1の終了日は12と分かれる'
+      );
+    }
+  }
+
+  @IsTest
+  static void autoRenew_endDate_twelveDefaultCycles() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Date endForTwelve = insertAutoRenewEnd(12);
+      Date endForOne = MonthlyBillingPeriodUtil.endDateForMonthlyCycles(
+        Date.newInstance(2026, 6, 1),
+        1
+      );
+      System.assertEquals(
+        MonthlyBillingPeriodUtil.endDateForMonthlyCycles(
+          Date.newInstance(2026, 6, 1),
+          12
+        ),
+        endForTwelve,
+        'Core 第4.9節・共通基盤日付部第2.5節: 既定サイクル数12の自動更新見積の終了日'
+      );
+      System.assertNotEquals(
+        endForOne,
+        endForTwelve,
+        'Core 第4.9節・共通基盤日付部第2.5節: サイクル数12の終了日は1と分かれる'
+      );
+    }
+  }
+
+  private static Date insertAutoRenewEnd(Integer cycles) {
+    ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+    setting.RenewOpportunityEnabled__c = true;
+    setting.DefaultMonthlyCycles__c = cycles;
+    update setting;
+    ContractDocumentSettingService.clearCache();
+    TestData data = createSourceData(true);
+    insertRenewalOpportunity(data);
+    ContractHistory__c renew = [
+      SELECT CurrentTermEndDate__c
+      FROM ContractHistory__c
+      WHERE
+        ContractService__c = :data.service.Id
+        AND RenewEstimateAutoCreated__c = TRUE
+    ];
+    return renew.CurrentTermEndDate__c;
+  }
+
   private static TestData createSourceData(Boolean withRecurringProduct) {
+    return createSourceData(withRecurringProduct, true, null);
+  }
+
+  private static TestData createSourceData(
+    Boolean withRecurringProduct,
+    Boolean orderSource
+  ) {
+    return createSourceData(withRecurringProduct, orderSource, null);
+  }
+
+  private static TestData createSourceData(
+    Boolean withRecurringProduct,
+    Boolean orderSource,
+    String lifecycle
+  ) {
     TestData data = new TestData();
     data.account = ContractTestDataFactory.insertAccount('Auto Renew Account');
     data.previousOpportunity = ContractTestDataFactory.insertOpportunity(
@@ -478,7 +601,10 @@ private class RenewEstimateAutoCreateServiceTest {
     );
     data.service = ContractTestDataFactory.insertContractService(
       data.account.Id,
-      'Auto Renew Service'
+      'Auto Renew Service',
+      String.isBlank(lifecycle)
+        ? ContractDomainConstants.LIFECYCLE_TERM
+        : lifecycle
     );
 
     Date termStart = Date.newInstance(2025, 6, 1);
@@ -523,8 +649,10 @@ private class RenewEstimateAutoCreateServiceTest {
     ContractTestDataFactory.applyRequiredFields(data.sourceProduct);
     insert data.sourceProduct;
 
-    data.sourceHistory.historystatus__c = 'Ordered';
-    update data.sourceHistory;
+    if (orderSource) {
+      data.sourceHistory.historystatus__c = 'Ordered';
+      update data.sourceHistory;
+    }
     data.sourceHistory = [
       SELECT Id, CurrentTermStartDate__c, CurrentTermEndDate__c
       FROM ContractHistory__c

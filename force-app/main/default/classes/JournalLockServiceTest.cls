@@ -160,7 +160,7 @@ private class JournalLockServiceTest {
           FROM GlJournal__c
           WHERE Id = :journal.Id
         ]
-          .IsLocked__c,
+        .IsLocked__c,
         'Core 第7.7.3節・Accounting 第9.5節: 取消済み請求でも対象は有効だけ'
       );
       System.assertEquals(
@@ -170,7 +170,7 @@ private class JournalLockServiceTest {
           FROM Invoice__c
           WHERE Id = :invoice.Id
         ]
-          .InvoiceTransactionStatus__c,
+        .InvoiceTransactionStatus__c,
         'Accounting 第9.5節: 請求書の取引状態は変えない'
       );
     }
@@ -697,7 +697,7 @@ private class JournalLockServiceTest {
           FROM GlJournal__c
           WHERE Id = :reversal.Id
         ]
-          .IsLocked__c,
+        .IsLocked__c,
         'Accounting 第9.5節: 既存の未Lock逆仕訳はLockしない'
       );
     }
@@ -920,6 +920,47 @@ private class JournalLockServiceTest {
         JournalLockService.NEVER_EXEMPT_MESSAGE,
         ex.getMessage(),
         'Core 第11.6節・Accounting 第9.5節: 金額・科目・日付はリストに書いても不可'
+      );
+    }
+    System.assertEquals(true, thrown);
+    JournalLockService.testLockExemptFieldApiNames = null;
+  }
+
+  @IsTest
+  static void assertExemptUpdate_lockedAllowsListedFieldAndRejectsUnlisted() {
+    GlJournal__c prior = new GlJournal__c(
+      Amount__c = 100,
+      Memo__c = 'same',
+      ProductCodeSnapShot__c = 'before',
+      UnlockReason__c = 'before',
+      IsLocked__c = true
+    );
+    GlJournal__c listed = new GlJournal__c(
+      Amount__c = 100,
+      Memo__c = 'same',
+      ProductCodeSnapShot__c = 'after',
+      UnlockReason__c = 'before',
+      IsLocked__c = true
+    );
+    JournalLockService.testLockExemptFieldApiNames = 'ProductCodeSnapShot__c';
+    JournalLockService.assertExemptUpdate(prior, listed);
+
+    GlJournal__c unlisted = new GlJournal__c(
+      Amount__c = 100,
+      Memo__c = 'same',
+      ProductCodeSnapShot__c = 'before',
+      UnlockReason__c = 'after',
+      IsLocked__c = true
+    );
+    Boolean thrown = false;
+    try {
+      JournalLockService.assertExemptUpdate(prior, unlisted);
+    } catch (JournalLockService.LockException ex) {
+      thrown = true;
+      System.assertEquals(
+        JournalLockService.LOCKED_NOT_EXEMPT_MESSAGE,
+        ex.getMessage(),
+        'Core 第11.6節・Accounting 第9.5節: 除外一覧に無い項目はLock後に拒否する'
       );
     }
     System.assertEquals(true, thrown);

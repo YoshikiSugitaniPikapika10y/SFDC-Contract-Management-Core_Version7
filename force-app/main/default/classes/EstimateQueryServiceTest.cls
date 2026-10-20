@@ -109,7 +109,9 @@ private class EstimateQueryServiceTest {
         EstimateQueryService.getRenewContractProducts(null).size(),
         'Core 第4.3節: 契約サービスIdが無いRenew照会は空'
       );
-      Account account = ContractTestDataFactory.insertAccount('Query Renew Acc');
+      Account account = ContractTestDataFactory.insertAccount(
+        'Query Renew Acc'
+      );
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Query Renew Service'
@@ -125,7 +127,10 @@ private class EstimateQueryServiceTest {
         CurrentTermStartDate__c = termStart,
         CurrentTermEndDate__c = termEnd
       );
-      ContractTestDataFactory.applyEstimateOrderedOpportunity(cancel, account.Id);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        cancel,
+        account.Id
+      );
       insert cancel;
       System.assertEquals(
         0,
@@ -222,7 +227,7 @@ private class EstimateQueryServiceTest {
       try {
         EstimateQueryService.getEstimateCopyPreset(
           ContractHistory__c.SObjectType.getDescribe().getKeyPrefix() +
-            '000000000001'
+          '000000000001'
         );
       } catch (AuraHandledException ex) {
         missingThrown = true;
@@ -293,9 +298,7 @@ private class EstimateQueryServiceTest {
   @IsTest
   static void getEstimateCopyPreset_changeNameEmpty_cancelNameIsCopyWithoutChurnSuffix() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Query Name Acc'
-      );
+      Account account = ContractTestDataFactory.insertAccount('Query Name Acc');
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Query Name Service'
@@ -428,9 +431,7 @@ private class EstimateQueryServiceTest {
   @IsTest
   static void getEstimateEditPreset_rejectsArchive() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount(
-        'Query Edit Acc'
-      );
+      Account account = ContractTestDataFactory.insertAccount('Query Edit Acc');
       ContractService__c service = ContractTestDataFactory.insertContractService(
         account.Id,
         'Query Edit Service'
@@ -1166,7 +1167,7 @@ private class EstimateQueryServiceTest {
       System.assertEquals(
         true,
         empty.billingCustomFields.isEmpty() ||
-          empty.billingCustomFields.get('BillingAddressee__c') == null,
+        empty.billingCustomFields.get('BillingAddressee__c') == null,
         'Core 第5.2節: 請求アカウントIdが無い確認は空'
       );
       Account account = ContractTestDataFactory.insertAccount(
@@ -1277,9 +1278,7 @@ private class EstimateQueryServiceTest {
         'Core 第3.3節: 自取引先の請求アカウント候補は1件'
       );
       Boolean found = false;
-      for (
-        EstimateCreateController.BillingAccountOptionDto option : options
-      ) {
+      for (EstimateCreateController.BillingAccountOptionDto option : options) {
         if (option.id == billing.Id) {
           found = true;
         }
@@ -1484,12 +1483,55 @@ private class EstimateQueryServiceTest {
     );
   }
 
+  @IsTest
+  static void reopen_keepsSavedAmountEntry_andOriginalIsNotAmountEntry() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractProduct__c saved = blankUnitInMemoryProduct('New');
+      saved.AmountEntryMode__c = true;
+      saved.Amount__c = 12000;
+      saved.UnitPrice__c = 1000;
+      List<EstimateCreateController.ContractProductLineDto> reopened = EstimateQueryService.toContractProductLineDtos(
+        new List<ContractProduct__c>{ saved }
+      );
+      System.assertEquals(1, reopened.size());
+      System.assertEquals(
+        true,
+        reopened[0].amountEntryMode,
+        'Core 第4.3.9節: 同じ見積の開き直しは保存した金額入力のまま返す'
+      );
+      System.assertEquals(
+        12000,
+        reopened[0].amount,
+        'Core 第4.3.9節: 開き直しは保存した金額を返す'
+      );
+      System.assertEquals(1000, reopened[0].unitPrice);
+
+      ContractProduct__c original = blankUnitInMemoryProduct('Original');
+      original.AmountEntryMode__c = true;
+      original.Amount__c = 12000;
+      EstimateCreateController.ProductLineItem copied = EstimateQueryService.toCopyProductLineItem(
+        original,
+        'Change',
+        new Map<Id, String>()
+      );
+      System.assertEquals(
+        false,
+        copied.amountEntryMode,
+        'Core 第4.3.9節: Originalは金額入力にしない'
+      );
+    }
+  }
+
   private class ContractProductFixture {
     ContractHistory__c history;
   }
 
-  private static ContractProductFixture insertBlankUnitProduct(String typeValue) {
-    Account account = ContractTestDataFactory.insertAccount('Query Unit Account');
+  private static ContractProductFixture insertBlankUnitProduct(
+    String typeValue
+  ) {
+    Account account = ContractTestDataFactory.insertAccount(
+      'Query Unit Account'
+    );
     ContractService__c service = ContractTestDataFactory.insertContractService(
       account.Id,
       'Query Unit Service'
@@ -1507,7 +1549,9 @@ private class EstimateQueryServiceTest {
     );
     insert history;
 
-    Product2 catalog = ContractTestDataFactory.buildProduct('Query Unit Product');
+    Product2 catalog = ContractTestDataFactory.buildProduct(
+      'Query Unit Product'
+    );
     catalog.BillingType__c = ContractTestDataFactory.TENANT_BILLING_TYPE_RECURRING;
     catalog.UnitName__c = 'ライセンス';
     catalog.UnitPrice__c = 5000;

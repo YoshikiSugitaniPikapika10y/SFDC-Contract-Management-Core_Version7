@@ -973,6 +973,79 @@ private class ConditionEvaluationServiceTest {
     );
   }
 
+  @IsTest
+  static void evaluateTenant_parenthesesChangeAndOrGrouping() {
+    GlConditionSet__c groupedAnd = new GlConditionSet__c(
+      Name = 'Eval Paren And',
+      EvaluationContext__c = 'Invoice',
+      Description__c = '括弧AND'
+    );
+    GlConditionSet__c groupedOr = new GlConditionSet__c(
+      Name = 'Eval Paren Or',
+      EvaluationContext__c = 'Invoice',
+      Description__c = '括弧OR'
+    );
+    insert new List<GlConditionSet__c>{ groupedAnd, groupedOr };
+    List<GlConditionRule__c> rules = new List<GlConditionRule__c>();
+    for (
+      GlConditionSet__c conditionSet : new List<GlConditionSet__c>{
+        groupedAnd,
+        groupedOr
+      }
+    ) {
+      rules.add(
+        new GlConditionRule__c(
+          ConditionSet__c = conditionSet.Id,
+          Sequence__c = 1,
+          TargetObject__c = 'Invoice__c',
+          TargetField__c = 'Memo__c',
+          Operator__c = 'Equals',
+          CompareType__c = 'FixedValue',
+          CompareValue__c = 'A'
+        )
+      );
+      rules.add(
+        new GlConditionRule__c(
+          ConditionSet__c = conditionSet.Id,
+          Sequence__c = 2,
+          TargetObject__c = 'Invoice__c',
+          TargetField__c = 'Memo__c',
+          Operator__c = 'Equals',
+          CompareType__c = 'FixedValue',
+          CompareValue__c = 'B'
+        )
+      );
+      rules.add(
+        new GlConditionRule__c(
+          ConditionSet__c = conditionSet.Id,
+          Sequence__c = 3,
+          TargetObject__c = 'Invoice__c',
+          TargetField__c = 'Memo__c',
+          Operator__c = 'Equals',
+          CompareType__c = 'FixedValue',
+          CompareValue__c = 'C'
+        )
+      );
+    }
+    insert rules;
+    groupedAnd.ConditionLogic__c = '(1 OR 2) AND 3';
+    groupedOr.ConditionLogic__c = '1 OR (2 AND 3)';
+    update new List<GlConditionSet__c>{ groupedAnd, groupedOr };
+
+    ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+    context.invoice = new Invoice__c(Memo__c = 'A');
+    System.assertEquals(
+      false,
+      ConditionEvaluationService.evaluateTenant(groupedAnd.Id, context),
+      'Accounting 第4.7節: (1 OR 2) AND 3 は3が不成立なら不成立'
+    );
+    System.assertEquals(
+      true,
+      ConditionEvaluationService.evaluateTenant(groupedOr.Id, context),
+      'Accounting 第4.7節: 1 OR (2 AND 3) は1が成立なら成立'
+    );
+  }
+
   private static Id insertFixedRule(
     String label,
     String evaluationContext,
