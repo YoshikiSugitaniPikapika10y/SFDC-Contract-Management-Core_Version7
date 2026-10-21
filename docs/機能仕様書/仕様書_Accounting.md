@@ -211,7 +211,7 @@ Core仕様第1.1.10節と同じである。**空欄や不正な値を、フォ�
 
 仕訳パターン定義は、各FixedCatalogの不変インスタンスを型付き参照する。Custom ObjectからFixedCatalogを参照する場合はSalesforce IDではなく安定キーを保存し、Apexの`require(key)`で解決する。固定定義同士は文字列直書きでなく、参照先Catalogの固定インスタンスを使用する。生成時はスロットキーを勘定科目割当で実勘定科目へ解決する。手動仕訳設定だけはスロットキーと実勘定科目を直接保持し、仕訳パターン、優先ルールおよび勘定科目割当を使用しない。会計タグルールは条件セットを参照せず、ルール自身のスロット残高式、比較演算子、比較値および保存先項目だけで完結する。
 
-すべての仕訳は確定済みの請求書1枚を原因範囲とする。自動仕訳は請求書、請求明細、請求入出金または請求入出金明細別割当を原因とし、手動仕訳は手動登録自体を原因とする。Invoice目的は明細別割当を生成単位とし、その請求明細を商品条件と勘定科目割当の評価起点にする。NonInvoice目的は請求入出金を生成単位・評価起点とする。
+すべての仕訳は確定済みの請求書1枚を原因範囲とする。自動仕訳は請求書、請求明細、請求入出金または請求入出金明細別割当を原因とし、手動仕訳は手動登録自体を原因とする。Invoice目的は明細別割当を生成単位とする。NonInvoice目的は請求入出金を生成単位とする。勘定科目割当は評価コンテキストを持たない。条件なしの割当はスロット、実勘定科目、優先度だけで、操作では科目を分けない。
 
 ### 2.3 固定定義と利用者設定
 
@@ -855,7 +855,7 @@ FixedCatalogの不変条件は、キー、種別・起点・相手の組およ�
 | 請求入出金           | `InvoicePayment`           | NonInvoice目的パターン                                 |
 | 請求入出金明細別割当 | `InvoicePaymentAllocation` | Invoice目的パターン                                    |
 
-テナント条件の評価コンテキストは条件セット作成時に先に選択し、子条件または参照元が存在する間は変更できない。参照元画面の条件セット候補には同じ評価コンテキストだけを表示し、画面外のDMLでも不一致を拒否する。固定条件の評価コンテキストはCatalog定義として変更しない。
+テナント条件の評価コンテキストは条件セット作成時に先に選択し、子条件または参照元が存在する間は変更できない。固定条件の評価コンテキストはCatalog定義として変更しない。起動は請求明細、請求書、請求入出金、明細別割当の4つのままとする。
 
 ```text
 1 AND 2
@@ -975,13 +975,13 @@ Invoice目的の4種の過去日条件と`PAY_INVOICE_CURRENT`の評価コンテ
 
 選択リスト比較はラベルではなくAPI値を使う。`PaymentPurpose__c`は請求代金=`Invoice`、請求代金以外=`NonInvoice`とする。現預金の方向は符号付き`Amount__c`と0の比較で決め、目的と方向を1つの選択リストへ重複保持しない。
 
-比較方法に応じた値・項目の排他、空演算子時の比較欄空欄、子対象時の集約必須、項目実在、型と演算子の一致、番号のセット内一意、評価コンテキストからの到達可能性、および条件ロジックの構文を保存時に検証する。参照元の評価起点と条件セットの評価コンテキストが一致しない保存は拒否する。
+比較方法に応じた値・項目の排他、空演算子時の比較欄空欄、子対象時の集約必須、項目実在、型と演算子の一致、番号のセット内一意、評価コンテキストからの到達可能性、および条件ロジックの構文を保存時に検証する。
 
 固定値比較では`CompareValue__c`だけを必須、項目比較では`CompareObject__c`と`CompareField__c`だけを必須とする。空判定では比較関連項目をすべて空にする。条件ロジック内の番号実在、括弧対応、AND/OR混在時の括弧、条件0件セットの参照禁止も検証する。
 
 上記7セットと16ルールはFixedCatalogの不変インスタンスであり、DML対象にしない。公開中のキーとルール番号の意味は変更しない。変更が必要な場合は新しい条件セットキーを追加し、参照する仕訳パターンも新しいキーへ移してから旧キーを外す。旧宣言メタデータの`PREPAID`、`POSTPAID`および`TAX_NOT_ZERO`は現行FixedCatalogへ収録しない。
 
-評価コンテキストは、請求・売上・税の明細単位パターンが請求明細、Invoice目的の入出金パターンが請求入出金明細別割当、NonInvoice目的の入出金パターンが請求入出金である。勘定科目割当では先に評価コンテキストを指定し、条件種別を`Fixed`または`Tenant`から選び、同じコンテキストの固定条件セットキーまたはテナント条件セットLookupの片方だけを指定する。NonInvoice目的の科目割当は`InvoicePayment`だけを使用し、請求明細、商品または契約商品を参照する条件セットを画面・API・Apex・Data Loaderの全経路で拒否する。
+評価コンテキストは条件セットだけが持つ。請求・売上・税の明細単位パターンは請求明細、Invoice目的の入出金パターンは請求入出金明細別割当、NonInvoice目的の入出金パターンは請求入出金である。勘定科目割当は評価コンテキストを持たない。第6.2節。
 
 ## 5. 仕訳パターンと会計方針
 
@@ -1125,7 +1125,7 @@ No.1～9の採用可否は第3.1節の売上計上方針と税認識方針から
 
 Purposeが`Invoice`かつ入出金日が請求日以後の場合に、符号付き明細別割当ごとに適用する。正額は借方CASH、貸方をAR→DEFで解決し、負額は借貸反転する。請求基準ではDEF作成容量が0のため実質ARだけ、入金連動前受基準では未認識予定額までDEFへ積める。
 
-AR・DEFは対象明細を評価起点にし、既存残高へ充当する場合は元仕訳の実勘定科目を使う。同じ請求書の業務容量で全額を説明できなければ操作全体を失敗させ、SP・UACへ自動退避しない。超過分は利用者がNonInvoice目的の別レコードとして手動登録し、システムはPurpose変更、分割または別レコード生成を行わない。
+AR・DEFの条件なしの割当は操作で科目を分けない。既存残高へ充当する場合は元仕訳の実勘定科目を使う。同じ請求書の業務容量で全額を説明できなければ操作全体を失敗させ、SP・UACへ自動退避しない。超過分は利用者がNonInvoice目的の別レコードとして手動登録し、システムはPurpose変更、分割または別レコード生成を行わない。
 
 #### 5.2.11 No.11 請求入出金：NonInvoice正額
 
@@ -1294,7 +1294,7 @@ No.1～9の利用集合は第5.6節の4組合せのいずれかと完全一致�
 
 ### 6.1 割当の単位
 
-仕訳パターンが指す勘定スロットをテナントの実勘定科目へ解決する。請求・売上・税およびInvoice目的の入出金は請求明細を評価起点とし、商品等に応じて科目を変えられる。NonInvoice目的の入出金は請求入出金を評価起点とし、明細・商品条件を使用しない。
+仕訳パターンが指す勘定スロットをテナントの実勘定科目へ解決する。条件なしの割当はスロット、実勘定科目、優先度だけで、操作では科目を分けない。条件がある割当は、その条件セットの起動レコードが無いとき不一致とし、項目が空とは比較しない。
 
 ### 6.2 割当ルール
 
@@ -1305,7 +1305,6 @@ No.1～9の利用集合は第5.6節の4組合せのいずれかと完全一致�
 | 名称               | `Name`                    | ○          | 管理用名称                                                            |
 | スロットキー       | `SlotKey__c`              | ○          | `GlSlotKey`グローバル値セット。`AccountingSlotFixedCatalog`と完全一致 |
 | 実勘定科目         | `Account__c`              | ○          | 勘定科目Lookup                                                        |
-| 評価コンテキスト   | `EvaluationContext__c`    | ○          | `EvaluationContext` enumと一致する制限付き選択リスト                  |
 | 条件種別           | `ConditionSourceType__c`  | ○          | `None`／`Fixed`／`Tenant`                                             |
 | 固定条件セットキー | `FixedConditionSetKey__c` | 条件による | `GlFixedConditionSetKey`グローバル値セットを使う制限付き選択リスト    |
 | テナント条件セット | `TenantConditionSet__c`   | 条件による | テナント条件セットLookup                                              |
@@ -1315,11 +1314,11 @@ No.1～9の利用集合は第5.6節の4組合せのいずれかと完全一致�
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
 一覧 All は表示ラベル、有効、スロット、条件、実勘定。DeveloperName列は置かない。LWC編集器は持たない。
-項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountMap__c.SlotKey__c</code>、<code>Account__c</code>、<code>EvaluationContext__c</code>（<code>InvoiceLine</code>／<code>Invoice</code>／<code>InvoicePayment</code>／<code>InvoicePaymentAllocation</code>）、<code>ConditionSourceType__c</code>（<code>None</code>／<code>Fixed</code>／<code>Tenant</code>）、<code>FixedConditionSetKey__c</code>、<code>TenantConditionSet__c</code>、<code>Priority__c</code>、<code>IsActive__c</code>
-入力規則 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ConditionSource_None</code>／<code>ConditionSource_Fixed</code>／<code>ConditionSource_Tenant</code>／<code>Priority_AtLeastOne</code>／<code>TenantContext_MustMatch</code>
+項目 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>GlAccountMap__c.SlotKey__c</code>、<code>Account__c</code>、<code>ConditionSourceType__c</code>（<code>None</code>／<code>Fixed</code>／<code>Tenant</code>）、<code>FixedConditionSetKey__c</code>、<code>TenantConditionSet__c</code>、<code>Priority__c</code>、<code>IsActive__c</code>
+入力規則 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ConditionSource_None</code>／<code>ConditionSource_Fixed</code>／<code>ConditionSource_Tenant</code>／<code>Priority_AtLeastOne</code>
 </div>
 
-`ConditionSourceType__c=None`では条件2項目を空、`Fixed`では固定条件セットキーだけ、`Tenant`ではテナント条件セットLookupだけを必須とし、それ以外を保存時に拒否する。固定・テナントのどちらも評価コンテキストを一致させる。スロットと実勘定科目の勘定区分を一致させ、無効な勘定科目を新しく割り当てない。実勘定科目の区分に純資産は無い（第4.1節）。既存データに`Equity`が残っていても新規割当には使えない。明細単位の仕訳では請求明細とその商品・契約商品・親請求を条件に使用でき、NonInvoice目的の入出金単位では請求入出金とその親請求だけを使用できる。
+`ConditionSourceType__c=None`では条件2項目を空、`Fixed`では固定条件セットキーだけ、`Tenant`ではテナント条件セットLookupだけを必須とし、それ以外を保存時に拒否する。評価コンテキストは持たない。条件セットの起動は請求明細、請求書、請求入出金、明細別割当の4つのままとする。同じスロットで評価コンテキストだけが違う割当は1行に畳む。スロットと実勘定科目の勘定区分を一致させ、無効な勘定科目を新しく割り当てない。実勘定科目の区分に純資産は無い（第4.1節）。既存データに`Equity`が残っていても新規割当には使えない。
 
 AR・DEF・REV・TAX等は明細ごとに異なる実勘定科目へ解決してよい。同じ請求書内でARが複数科目へ分かる場合、請求確定・Invoice決済・過去日振替はいずれも科目別に複数仕訳を生成し、ヘッダ単位の単一AR科目へ統合しない。
 
@@ -1331,7 +1330,7 @@ No.2・5の請求時CTA振替も既存残高への充当に含む。CTA側は本
 
 ### 6.3 優先順位
 
-生成単位ごとに、対象スロットキー、評価コンテキストおよび固定またはテナント条件が一致する有効な勘定科目割当を抽出する。条件種別`None`は常に一致とする。一致候補のうち`Priority__c`が最大のレコードだけを最優先候補とする。
+生成単位ごとに、対象スロットキー、および固定またはテナント条件が一致する有効な勘定科目割当を抽出する。条件種別`None`は常に一致とする。起動レコードが無い条件は不一致とし、項目が空とは比較しない。一致候補のうち`Priority__c`が最大のレコードだけを最優先候補とする。
 
 一致候補が0件なら科目未設定、最優先候補が複数件なら同一最高優先度の競合として設定エラーにする。最優先候補が1件ならその割当を採用し、それより低い優先度の一致候補は無視する。条件数、条件の具体性、作成日時またはレコードIDから優先度を推測しない。エラー時は仕訳と請求確定・請求入出金等の原因操作全体を同一トランザクションでロールバックする。
 
@@ -1540,7 +1539,7 @@ Accounting ONでは、すべての請求入出金は現預金が動いた事実�
 
 ### 8.6 勘定科目決定
 
-仕訳パターンはスロットまでを決め、実勘定科目は勘定科目割当で決定する。請求・売上・税およびInvoice目的の入出金は請求明細を起点に実勘定科目を解決する。NonInvoice目的は請求入出金を起点に解決し、明細・商品条件を使わない。手動仕訳だけは設定が科目を直接指定する。既存残高への充当は第6.2節に従って元仕訳の実勘定科目を使用する。
+仕訳パターンはスロットまでを決め、実勘定科目は勘定科目割当で決定する。条件なしの割当は操作で科目を分けない。起動レコードが無い条件は不一致とし、項目が空とは比較しない。手動仕訳だけは設定が科目を直接指定する。既存残高への充当は第6.2節に従って元仕訳の実勘定科目を使用する。
 
 <div style="border:1px solid #5dade2;border-left:6px solid #1a5276;background:#eaf2f8;padding:8px 12px;margin:10px 0;font-size:0.92em;line-height:1.55;">
 <strong style="color:#1a5276;">ToBe</strong>
