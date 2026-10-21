@@ -205,7 +205,17 @@ describe("estimateSendRecordAction uncovered (Core 7.10 / 4.8)", () => {
       historyName: "見積A"
     });
     previewEstimateCross.mockReset().mockResolvedValue(previewPayload());
+    if (!jest.isMockFunction(LightningConfirm.open)) {
+      LightningConfirm.open = jest.fn();
+    }
+    const confirmModule = jest.requireActual("lightning/confirm");
+    const confirmCtor = confirmModule.default || confirmModule;
+    confirmCtor.open = LightningConfirm.open;
     LightningConfirm.open.mockReset().mockResolvedValue(true);
+    const navActual = jest.requireActual("c/orderWizardNavigation");
+    if (navActual.openContentDocumentFilePreview !== openContentDocumentFilePreview) {
+      navActual.openContentDocumentFilePreview = openContentDocumentFilePreview;
+    }
     openContentDocumentFilePreview.mockClear();
     sessionStorage.clear();
   });

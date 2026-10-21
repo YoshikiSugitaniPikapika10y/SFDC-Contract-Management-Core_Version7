@@ -40,15 +40,31 @@ async function flushPromises() {
   await Promise.resolve();
 }
 
+let actualNavigate;
+function shareNavigateMock() {
+  const actual = jest.requireActual("c/orderWizardNavigation");
+  if (actualNavigate === undefined) {
+    actualNavigate = actual.navigateToContractHistoryRecord;
+  }
+  actual.navigateToContractHistoryRecord = (...args) =>
+    mockNavigateToContractHistoryRecord(...args);
+}
+
 describe("orderWizardClose", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     getRecordNotifyChange.mockReset();
     mockNavigateToContractHistoryRecord.mockReset();
+    shareNavigateMock();
   });
 
   afterEach(() => {
     jest.useRealTimers();
+    if (actualNavigate !== undefined) {
+      jest.requireActual(
+        "c/orderWizardNavigation"
+      ).navigateToContractHistoryRecord = actualNavigate;
+    }
   });
 
   test("Archive状態定数を業務値のまま公開する", () => {

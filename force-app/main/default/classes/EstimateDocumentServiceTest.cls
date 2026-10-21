@@ -1243,10 +1243,15 @@ private class EstimateDocumentServiceTest {
   static void loadContext_omitsSecondHonorificWhenAddresseeAlreadyHasIt() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       EstimateFixture fixture = createEstimateFixture();
+      ContractHistory__c history = [
+        SELECT ContractService__c
+        FROM ContractHistory__c
+        WHERE Id = :fixture.history.Id
+      ];
       ContractService__c service = [
         SELECT BiilingAcccount__c
         FROM ContractService__c
-        WHERE Id = :fixture.history.ContractService__c
+        WHERE Id = :history.ContractService__c
       ];
       BillingAccount__c billing = [
         SELECT BillingAddressee__c

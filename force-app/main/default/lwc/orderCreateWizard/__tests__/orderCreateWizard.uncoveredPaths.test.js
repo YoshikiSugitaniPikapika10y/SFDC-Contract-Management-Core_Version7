@@ -194,6 +194,14 @@ describe("orderCreateWizard uncovered paths (Core 5.1 / 5.2 / 4.3.12)", () => {
     isMissingRequiredCustomValue.mockReset().mockReturnValue(false);
     buildCustomFieldInputs.mockReset().mockReturnValue([]);
     isOrderActionBootstrapping.mockReturnValue(false);
+    const closeActual = jest.requireActual("c/orderWizardClose");
+    if (closeActual.requestOrderWizardClose !== requestOrderWizardClose) {
+      closeActual.requestOrderWizardClose = requestOrderWizardClose;
+    }
+    const navActual = jest.requireActual("c/orderWizardNavigation");
+    if (navActual.closeOrderWizardTab !== closeOrderWizardTab) {
+      navActual.closeOrderWizardTab = closeOrderWizardTab;
+    }
     requestOrderWizardClose.mockClear();
     closeOrderWizardTab.mockClear();
     notifyOrderRecordStatusChanged.mockClear();

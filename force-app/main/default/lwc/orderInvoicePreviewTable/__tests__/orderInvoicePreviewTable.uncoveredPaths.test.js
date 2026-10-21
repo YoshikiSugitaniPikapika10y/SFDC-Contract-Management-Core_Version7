@@ -506,7 +506,14 @@ describe("orderInvoicePreviewTable uncovered (Core 0.1 / 7.7.0 / 7.10)", () => {
     if (!jest.isMockFunction(LightningConfirm.open)) {
       jest.spyOn(LightningConfirm, "open");
     }
+    const confirmModule = jest.requireActual("lightning/confirm");
+    const confirmCtor = confirmModule.default || confirmModule;
+    confirmCtor.open = LightningConfirm.open;
     LightningConfirm.open.mockReset().mockResolvedValue(true);
+    const navActual = jest.requireActual("c/orderWizardNavigation");
+    if (navActual.openContentDocumentFilePreview !== openContentDocumentFilePreview) {
+      navActual.openContentDocumentFilePreview = openContentDocumentFilePreview;
+    }
     openContentDocumentFilePreview.mockReset();
   });
 
