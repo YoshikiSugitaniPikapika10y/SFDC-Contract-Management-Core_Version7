@@ -40,7 +40,10 @@ private class ContractDocumentSettingServiceTest {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       ContractTestDataFactory.ensureOrgDocumentSetting();
       ContractDocumentSettingService.clearCache();
-      System.assertEquals(12, ContractDocumentSettingService.requireDefaultCycles());
+      System.assertEquals(
+        12,
+        ContractDocumentSettingService.requireDefaultCycles()
+      );
     }
   }
 
@@ -205,6 +208,68 @@ private class ContractDocumentSettingServiceTest {
         );
       }
       System.assertEquals(true, thrown);
+    }
+  }
+
+  @IsTest
+  static void assertRequiredCompanyFields_estimateOnlyAllowsBlankRegistrationAndBank() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_PDF_ONLY;
+      setting.InvoiceSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      setting.CompanyName__c = '会社';
+      setting.Address__c = '住所';
+      setting.InvoiceRegistrationNumber__c = null;
+      setting.BankTransferInfo__c = null;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractDocumentSettingService.assertRequiredCompanyFields();
+      ContractDocumentSetting__c stored = [
+        SELECT InvoiceRegistrationNumber__c, BankTransferInfo__c
+        FROM ContractDocumentSetting__c
+        WHERE Id = :setting.Id
+      ];
+      System.assertEquals(
+        null,
+        stored.InvoiceRegistrationNumber__c,
+        'Core 第11.3.1節: 見積だけなら登録番号が空でも通る'
+      );
+      System.assertEquals(
+        null,
+        stored.BankTransferInfo__c,
+        'Core 第11.3.1節: 見積だけなら振込先が空でも通る'
+      );
+    }
+  }
+
+  @IsTest
+  static void assertRequiredCompanyFields_unusedModesAllowBlankCompanyAndAddress() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      ContractDocumentSetting__c setting = ContractTestDataFactory.ensureOrgDocumentSetting();
+      setting.EstimateSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      setting.InvoiceSendMode__c = ContractDocumentSettingService.MODE_UNUSED;
+      setting.CompanyName__c = null;
+      setting.Address__c = null;
+      setting.InvoiceRegistrationNumber__c = null;
+      setting.BankTransferInfo__c = null;
+      update setting;
+      ContractDocumentSettingService.clearCache();
+      ContractDocumentSettingService.assertRequiredCompanyFields();
+      ContractDocumentSetting__c stored = [
+        SELECT CompanyName__c, Address__c
+        FROM ContractDocumentSetting__c
+        WHERE Id = :setting.Id
+      ];
+      System.assertEquals(
+        null,
+        stored.CompanyName__c,
+        'Core 第11.3.1節: 見積も請求も使わないときは会社名が空でも通る'
+      );
+      System.assertEquals(
+        null,
+        stored.Address__c,
+        'Core 第11.3.1節: 見積も請求も使わないときは住所が空でも通る'
+      );
     }
   }
 

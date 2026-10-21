@@ -9,11 +9,7 @@ private class InvoicePaymentLockUtilTest {
   static void resolveLockExemptFieldNames_blankIsEmpty() {
     InvoicePaymentLockUtil.testLockExemptFieldApiNames = '  ';
     Set<String> names = InvoicePaymentLockUtil.resolveLockExemptFieldNames();
-    System.assertEquals(
-      true,
-      names.isEmpty(),
-      'Core 第11.6節: 空は追加なし'
-    );
+    System.assertEquals(true, names.isEmpty(), 'Core 第11.6節: 空は追加なし');
     InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
   }
 
@@ -117,6 +113,48 @@ private class InvoicePaymentLockUtilTest {
       );
     }
     System.assertEquals(true, nullThrown);
+    InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
+  }
+
+  @IsTest
+  static void assertExemptUpdate_allowsListedFieldAndRejectsUnlisted() {
+    InvoicePaymentLockUtil.testLockExemptFieldApiNames = 'CancellationReasonText__c';
+    InvoicePayment__c prior = new InvoicePayment__c(
+      Amount__c = 100,
+      Memo__c = 'a',
+      CancellationReasonText__c = '元',
+      BillingAccountKeySnapShot__c = 'KEY-1'
+    );
+    InvoicePayment__c listed = new InvoicePayment__c(
+      Amount__c = 100,
+      Memo__c = 'a',
+      CancellationReasonText__c = '先',
+      BillingAccountKeySnapShot__c = 'KEY-1'
+    );
+    InvoicePaymentLockUtil.assertExemptUpdate(prior, listed);
+
+    InvoicePayment__c unlisted = new InvoicePayment__c(
+      Amount__c = 100,
+      Memo__c = 'a',
+      CancellationReasonText__c = '元',
+      BillingAccountKeySnapShot__c = 'KEY-2'
+    );
+    Boolean thrown = false;
+    try {
+      InvoicePaymentLockUtil.assertExemptUpdate(prior, unlisted);
+    } catch (InvoicePaymentLockUtil.LockExemptException ex) {
+      thrown = true;
+      System.assertEquals(
+        InvoicePaymentLockUtil.NOT_EXEMPT_MESSAGE,
+        ex.getMessage(),
+        'Core 第11.6節・第8.4節: 一覧に無い項目は拒否する'
+      );
+    }
+    System.assertEquals(
+      true,
+      thrown,
+      'Core 第8.4節: 除外一覧にある項目だけ書ける'
+    );
     InvoicePaymentLockUtil.testLockExemptFieldApiNames = null;
   }
 }

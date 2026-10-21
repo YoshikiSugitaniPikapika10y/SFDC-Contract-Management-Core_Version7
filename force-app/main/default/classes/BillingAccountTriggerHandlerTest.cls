@@ -55,14 +55,15 @@ private class BillingAccountTriggerHandlerTest {
         BillingAccountKey__c = '  BA-TRIM-1  ',
         BillingAddressee__c = ContractTestDataFactory.TENANT_BILLING_ADDRESSEE_DEFAULT,
         BillingEmailTo__c = ContractTestDataFactory.TENANT_BILLING_EMAIL_TO,
-              InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
-              InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
-              InvoiceDateDayOfMonth__c = 25,
-              InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
+        InvoiceDateMethod__c = BillingScheduleService.METHOD_ON_OR_AFTER,
+        InvoiceDateDayKind__c = BillingScheduleService.DAY_KIND_DAY,
+        InvoiceDateDayOfMonth__c = 25,
+        InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NONE,
         PaymentTermMethod__c = BillingScheduleService.METHOD_MONTH_OFFSET,
         PaymentTermDayKind__c = BillingScheduleService.DAY_KIND_MONTH_END,
         PaymentTermMonthOffset__c = 0,
-        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE);
+        PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE
+      );
       ContractTestDataFactory.applyRequiredFields(billingAccount);
       insert billingAccount;
 
@@ -97,7 +98,9 @@ private class BillingAccountTriggerHandlerTest {
   @IsTest
   static void update_rejectsHasReferenceChange() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      BillingAccount__c billingAccount = createBillingAccount('HasRef Change BA');
+      BillingAccount__c billingAccount = createBillingAccount(
+        'HasRef Change BA'
+      );
       billingAccount.HasReference__c = true;
       Boolean thrown = false;
       try {
@@ -117,7 +120,9 @@ private class BillingAccountTriggerHandlerTest {
   @IsTest
   static void serviceInsert_setsHasReference() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      BillingAccount__c billingAccount = createBillingAccount('HasRef Service BA');
+      BillingAccount__c billingAccount = createBillingAccount(
+        'HasRef Service BA'
+      );
       insert new ContractService__c(
         Name = 'HasRef Service',
         Account__c = billingAccount.Account__c,
@@ -156,9 +161,127 @@ private class BillingAccountTriggerHandlerTest {
   }
 
   @IsTest
+  static void update_leavesExistingInvoiceSnapshot() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      BillingAccount__c billingAccount = createBillingAccount(
+        'Snapshot Stay BA'
+      );
+      billingAccount = [
+        SELECT
+          Id,
+          Account__c,
+          BillingAccountKey__c,
+          BillingAddressee__c,
+          BillingEmailTo__c,
+          BillingEmailCc__c,
+          BillingEmailBcc__c,
+          InvoiceDeliveryMethod__c
+        FROM BillingAccount__c
+        WHERE Id = :billingAccount.Id
+      ];
+      ContractService__c service = new ContractService__c(
+        Name = 'Snapshot Stay Service',
+        Account__c = billingAccount.Account__c,
+        BiilingAcccount__c = billingAccount.Id,
+        TaxPercent__c = TaxCalculationUtil.toPercentFieldStorage(10)
+      );
+      ContractTestDataFactory.applyRequiredFields(service);
+      insert service;
+      ContractHistory__c history = new ContractHistory__c(
+        Name = 'Snapshot Stay History',
+        ContractService__c = service.Id,
+        Type__c = ContractDomainConstants.HISTORY_TYPE_NEW,
+        historystatus__c = ContractDomainConstants.HISTORY_STATUS_ESTIMATE,
+        Version__c = 1
+      );
+      ContractTestDataFactory.applyRequiredFields(history);
+      ContractTestDataFactory.applyEstimateOrderedOpportunity(
+        history,
+        billingAccount.Account__c
+      );
+      insert history;
+
+      Invoice__c invoice = new Invoice__c(
+        ContractService__c = service.Id,
+        ContractHistory__c = history.Id,
+        BillingAccountSnapShot__c = billingAccount.Id,
+        InvoiceDate__c = Date.newInstance(2026, 6, 1),
+        PaymentScheduledDate__c = Date.newInstance(2026, 6, 30),
+        BillingAddresseeSnapShot__c = billingAccount.BillingAddressee__c,
+        BillingEmailToSnapShot__c = billingAccount.BillingEmailTo__c,
+        BillingEmailCcSnapShot__c = billingAccount.BillingEmailCc__c,
+        BillingEmailBccSnapShot__c = billingAccount.BillingEmailBcc__c,
+        InvoiceDeliveryMethodSnapShot__c = billingAccount.InvoiceDeliveryMethod__c,
+        BillingAccountKeySnapShot__c = billingAccount.BillingAccountKey__c
+      );
+      ContractTestDataFactory.applyRequiredFields(invoice);
+      ContractTestDataFactory.applyInvoiceInsertSeedStatuses(invoice);
+      insert invoice;
+
+      String addressee = billingAccount.BillingAddressee__c;
+      String emailTo = billingAccount.BillingEmailTo__c;
+      String emailCc = billingAccount.BillingEmailCc__c;
+      String emailBcc = billingAccount.BillingEmailBcc__c;
+      String delivery = billingAccount.InvoiceDeliveryMethod__c;
+      String key = billingAccount.BillingAccountKey__c;
+
+      billingAccount.BillingAddressee__c = '更新後の宛名';
+      billingAccount.BillingEmailTo__c = 'moved-to@example.com';
+      billingAccount.BillingEmailCc__c = 'moved-cc@example.com';
+      billingAccount.BillingEmailBcc__c = 'moved-bcc@example.com';
+      billingAccount.InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.POST;
+      update billingAccount;
+
+      BillingAccount__c master = [
+        SELECT BillingAddressee__c, BillingEmailTo__c, InvoiceDeliveryMethod__c
+        FROM BillingAccount__c
+        WHERE Id = :billingAccount.Id
+      ];
+      System.assertEquals('更新後の宛名', master.BillingAddressee__c);
+      System.assertEquals('moved-to@example.com', master.BillingEmailTo__c);
+      System.assertEquals(
+        InvoiceDeliveryMethodService.POST,
+        master.InvoiceDeliveryMethod__c
+      );
+
+      Invoice__c stored = [
+        SELECT
+          BillingAddresseeSnapShot__c,
+          BillingEmailToSnapShot__c,
+          BillingEmailCcSnapShot__c,
+          BillingEmailBccSnapShot__c,
+          InvoiceDeliveryMethodSnapShot__c,
+          BillingAccountKeySnapShot__c
+        FROM Invoice__c
+        WHERE Id = :invoice.Id
+      ];
+      System.assertEquals(
+        addressee,
+        stored.BillingAddresseeSnapShot__c,
+        'Core 第3.3.5節: 反映していない既存請求の宛名はマスタ更新後も残る'
+      );
+      System.assertEquals(
+        emailTo,
+        stored.BillingEmailToSnapShot__c,
+        'Core 第3.3.5節: 反映していない既存請求のToはマスタ更新後も残る'
+      );
+      System.assertEquals(emailCc, stored.BillingEmailCcSnapShot__c);
+      System.assertEquals(emailBcc, stored.BillingEmailBccSnapShot__c);
+      System.assertEquals(
+        delivery,
+        stored.InvoiceDeliveryMethodSnapShot__c,
+        'Core 第3.3.5節・第3.3.7節: 反映していない既存請求の届け方はマスタ更新後も残る'
+      );
+      System.assertEquals(key, stored.BillingAccountKeySnapShot__c);
+    }
+  }
+
+  @IsTest
   static void insert_rejectsExtraInvoiceDateFieldsForSameDay() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
-      Account account = ContractTestDataFactory.insertAccount('SameDay Extra Account');
+      Account account = ContractTestDataFactory.insertAccount(
+        'SameDay Extra Account'
+      );
       BillingAccount__c billingAccount = new BillingAccount__c(
         Name = 'SameDay Extra',
         Account__c = account.Id,
@@ -173,10 +296,7 @@ private class BillingAccountTriggerHandlerTest {
         insert billingAccount;
       } catch (DmlException ex) {
         rejected = true;
-        System.assert(
-          ex.getMessage().contains('指定日'),
-          ex.getMessage()
-        );
+        System.assert(ex.getMessage().contains('指定日'), ex.getMessage());
       }
       System.assertEquals(
         true,

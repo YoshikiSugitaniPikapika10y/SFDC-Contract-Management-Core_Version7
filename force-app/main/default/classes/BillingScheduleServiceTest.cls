@@ -69,7 +69,10 @@ private class BillingScheduleServiceTest {
     dayOffset.PaymentTermAdjust__c = BillingScheduleService.ADJUST_NONE;
     System.assertEquals(
       Date.newInstance(2026, 7, 1),
-      BillingScheduleService.computePaymentScheduledDate(dayOffset, invoiceDate),
+      BillingScheduleService.computePaymentScheduledDate(
+        dayOffset,
+        invoiceDate
+      ),
       '日付仕様 第5章: 請求日から30日後'
     );
   }
@@ -364,6 +367,48 @@ private class BillingScheduleServiceTest {
   }
 
   @IsTest
+  static void applySnapshots_keepsFilledScheduleWhenAccountChanges() {
+    BillingAccount__c original = new BillingAccount__c();
+    ContractTestDataFactory.applySameDayBilling(original);
+    ContractTestDataFactory.applyPaymentMonthEnd(original, 0);
+    Invoice__c invoice = new Invoice__c();
+    BillingScheduleService.applySnapshots(invoice, original);
+
+    BillingAccount__c changed = new BillingAccount__c();
+    ContractTestDataFactory.applyOnOrAfterBillingDay(changed, 15);
+    ContractTestDataFactory.applyPaymentMonthDay(changed, 1, 10);
+    changed.InvoiceDateAdjust__c = BillingScheduleService.ADJUST_NEXT;
+    changed.PaymentTermAdjust__c = BillingScheduleService.ADJUST_PREVIOUS;
+    BillingScheduleService.applySnapshots(invoice, changed);
+
+    System.assertEquals(
+      BillingScheduleService.METHOD_SAME_DAY,
+      invoice.InvoiceDateMethodSnapShot__c,
+      'Core 第7.2節・第7.5節: 既にある請求日ルールはマスタを変えても残る'
+    );
+    System.assertEquals(
+      BillingScheduleService.ADJUST_NONE,
+      invoice.InvoiceDateAdjustSnapShot__c,
+      'Core 第7.2節: 既にある請求日の補正はマスタを変えても残る'
+    );
+    System.assertEquals(
+      BillingScheduleService.METHOD_MONTH_OFFSET,
+      invoice.PaymentTermMethodSnapShot__c,
+      'Core 第7.5節: 既にある支払条件はマスタを変えても残る'
+    );
+    System.assertEquals(
+      BillingScheduleService.DAY_KIND_MONTH_END,
+      invoice.PaymentTermDayKindSnapShot__c
+    );
+    System.assertEquals(0, invoice.PaymentTermMonthOffsetSnapShot__c);
+    System.assertEquals(
+      BillingScheduleService.ADJUST_NONE,
+      invoice.PaymentTermAdjustSnapShot__c,
+      'Core 第7.5節: 既にある支払条件の補正はマスタを変えても残る'
+    );
+  }
+
+  @IsTest
   static void applySnapshots_nullArgumentsDoNotThrow() {
     BillingScheduleService.applySnapshots(null, new BillingAccount__c());
     BillingScheduleService.applySnapshots(new Invoice__c(), null);
@@ -371,7 +416,9 @@ private class BillingScheduleServiceTest {
 
   @IsTest
   static void applyAdjust_noneDoesNotQueryBusinessHoursAndKeepsTheDate() {
-    BillingAccount__c account = sameDayAccount(BillingScheduleService.ADJUST_NONE);
+    BillingAccount__c account = sameDayAccount(
+      BillingScheduleService.ADJUST_NONE
+    );
     ContractTestDataFactory.applyPaymentMonthEnd(account, 0);
     Date anchor = Date.newInstance(2026, 1, 31);
     Integer before = Limits.getQueries();
@@ -403,13 +450,17 @@ private class BillingScheduleServiceTest {
   @IsTest
   static void applyAdjust_nextAndPreviousMatchDefaultBusinessHoursOnce() {
     assertAdjustMatchesFreshBusinessHours(BillingScheduleService.ADJUST_NEXT);
-    assertAdjustMatchesFreshBusinessHours(BillingScheduleService.ADJUST_PREVIOUS);
+    assertAdjustMatchesFreshBusinessHours(
+      BillingScheduleService.ADJUST_PREVIOUS
+    );
   }
 
   @IsTest
   static void applyAdjust_missingDefaultBusinessHoursKeepsTheRefusal() {
     BillingScheduleService.treatDefaultBusinessHoursAsMissing = true;
-    BillingAccount__c account = sameDayAccount(BillingScheduleService.ADJUST_NEXT);
+    BillingAccount__c account = sameDayAccount(
+      BillingScheduleService.ADJUST_NEXT
+    );
     Integer before = Limits.getQueries();
     Boolean rejected = false;
     try {
@@ -442,7 +493,8 @@ private class BillingScheduleServiceTest {
         Date.newInstance(2026, 6, 2)
       );
     } catch (BillingScheduleService.ScheduleException ex) {
-      rejectedAgain = ex.getMessage() == '営業日補正には組織の既定営業時間が必要です。';
+      rejectedAgain =
+        ex.getMessage() == '営業日補正には組織の既定営業時間が必要です。';
     }
     System.assertEquals(
       true,
@@ -502,7 +554,12 @@ private class BillingScheduleServiceTest {
     );
     for (Integer i = 0; i < anchors.size(); i++) {
       System.assertEquals(
-        adjustByFreshBusinessHours(anchors[i], adjust, businessHoursId, orgZone),
+        adjustByFreshBusinessHours(
+          anchors[i],
+          adjust,
+          businessHoursId,
+          orgZone
+        ),
         invoiceDates[i],
         'Core 第7.2節: 補正後の請求日は既定営業時間で決めた日と同じ'
       );
@@ -620,7 +677,9 @@ private class BillingScheduleServiceTest {
     }
     Date previous = value.addDays(-1);
     for (Integer i = 0; i < 366; i++) {
-      if (BusinessHours.isWithin(businessHoursId, middayInZone(previous, orgZone))) {
+      if (
+        BusinessHours.isWithin(businessHoursId, middayInZone(previous, orgZone))
+      ) {
         return previous;
       }
       previous = previous.addDays(-1);
@@ -629,7 +688,10 @@ private class BillingScheduleServiceTest {
   }
 
   static Datetime middayInZone(Date value, TimeZone zone) {
-    Datetime noonGmt = Datetime.newInstanceGmt(value, Time.newInstance(12, 0, 0, 0));
+    Datetime noonGmt = Datetime.newInstanceGmt(
+      value,
+      Time.newInstance(12, 0, 0, 0)
+    );
     Integer offsetSeconds = zone.getOffset(noonGmt) / 1000;
     Datetime midday = noonGmt.addSeconds(-offsetSeconds);
     Integer refinedSeconds = zone.getOffset(midday) / 1000;

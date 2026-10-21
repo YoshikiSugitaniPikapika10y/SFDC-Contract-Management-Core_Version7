@@ -4413,6 +4413,111 @@ private class InvoiceCanonicalServiceTest {
   }
 
   @IsTest
+  static void applyBillingAccountContent_refreshesAddressAndKeepsDatesTaxAndKey() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      Fixture fixture = createOrderedFixture();
+      InvoiceCanonicalService.rebuildForHistories(
+        new Set<Id>{ fixture.history.Id }
+      );
+      Invoice__c before = [
+        SELECT
+          Id,
+          BillingAccountSnapShot__c,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          TaxPercent__c,
+          BillingAccountKeySnapShot__c,
+          BillingAddresseeSnapShot__c,
+          BillingEmailToSnapShot__c,
+          BillingEmailCcSnapShot__c,
+          BillingEmailBccSnapShot__c,
+          InvoiceDeliveryMethodSnapShot__c
+        FROM Invoice__c
+        WHERE ContractHistory__c = :fixture.history.Id
+        LIMIT 1
+      ];
+      BillingAccount__c account = [
+        SELECT Id
+        FROM BillingAccount__c
+        WHERE Id = :before.BillingAccountSnapShot__c
+      ];
+      account.BillingAddressee__c = '反映後の宛名';
+      account.BillingEmailTo__c = 'reflected-to@example.com';
+      account.BillingEmailCc__c = 'reflected-cc@example.com';
+      account.BillingEmailBcc__c = 'reflected-bcc@example.com';
+      account.InvoiceDeliveryMethod__c = InvoiceDeliveryMethodService.EMAIL;
+      update account;
+      InvoiceCanonicalService.testHasEditPreviewPermission = true;
+      Test.startTest();
+      InvoiceCanonicalService.applyBillingAccountContent(before.Id);
+      Test.stopTest();
+      Invoice__c updated = [
+        SELECT
+          BillingAccountSnapShot__c,
+          InvoiceDate__c,
+          PaymentScheduledDate__c,
+          TaxPercent__c,
+          BillingAccountKeySnapShot__c,
+          BillingAddresseeSnapShot__c,
+          BillingEmailToSnapShot__c,
+          BillingEmailCcSnapShot__c,
+          BillingEmailBccSnapShot__c,
+          InvoiceDeliveryMethodSnapShot__c
+        FROM Invoice__c
+        WHERE Id = :before.Id
+      ];
+      System.assertEquals(
+        '反映後の宛名',
+        updated.BillingAddresseeSnapShot__c,
+        'Core 第7.8節: 反映は宛名を最新にする'
+      );
+      System.assertEquals(
+        'reflected-to@example.com',
+        updated.BillingEmailToSnapShot__c,
+        'Core 第7.8節: 反映はToを最新にする'
+      );
+      System.assertEquals(
+        'reflected-cc@example.com',
+        updated.BillingEmailCcSnapShot__c
+      );
+      System.assertEquals(
+        'reflected-bcc@example.com',
+        updated.BillingEmailBccSnapShot__c
+      );
+      System.assertEquals(
+        InvoiceDeliveryMethodService.EMAIL,
+        updated.InvoiceDeliveryMethodSnapShot__c,
+        'Core 第7.8節・第3.3.7節: 反映は届け方を最新にする'
+      );
+      System.assertEquals(
+        before.BillingAccountSnapShot__c,
+        updated.BillingAccountSnapShot__c,
+        'Core 第7.8節: 反映は請求アカウントIDを変えない'
+      );
+      System.assertEquals(
+        before.InvoiceDate__c,
+        updated.InvoiceDate__c,
+        'Core 第7.8節: 反映は請求日を変えない'
+      );
+      System.assertEquals(
+        before.PaymentScheduledDate__c,
+        updated.PaymentScheduledDate__c,
+        'Core 第7.8節: 反映は入金予定日を変えない'
+      );
+      System.assertEquals(
+        before.TaxPercent__c,
+        updated.TaxPercent__c,
+        'Core 第7.8節: 反映は税率を変えない'
+      );
+      System.assertEquals(
+        before.BillingAccountKeySnapShot__c,
+        updated.BillingAccountKeySnapShot__c,
+        'Core 第7.8節・第3.3節: 反映はキーを変えない'
+      );
+    }
+  }
+
+  @IsTest
   static void updateInvoiceHeaderAndDates_rejectsWhileApplyInProgress() {
     System.runAs(ContractTestDataFactory.getAdminUser()) {
       Fixture fixture = createOrderedFixture();
@@ -5235,12 +5340,16 @@ private class InvoiceCanonicalServiceTest {
       );
       System.assertEquals(
         false,
-        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(target.Id),
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(
+          target.Id
+        ),
         'Core 第12.4節: 持っている請求を取り直さない'
       );
       System.assertEquals(
         true,
-        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(sibling.Id),
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(
+          sibling.Id
+        ),
         'Core 第12.4節: 比べる範囲は取消済み以外を縮めない'
       );
       System.assertEquals(
@@ -5284,7 +5393,9 @@ private class InvoiceCanonicalServiceTest {
       );
       System.assertEquals(
         true,
-        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(sibling.Id)
+        InvoiceCanonicalService.lastSavedTaxInvoiceSelectIds.contains(
+          sibling.Id
+        )
       );
       assertEntryAllowsTax(target, sibling, history.Id);
     }
@@ -5301,11 +5412,7 @@ private class InvoiceCanonicalServiceTest {
       sibling.Id,
       new ConfirmCaller(target.Id, historyId)
     );
-    assertTaxRejects(
-      target.Id,
-      sibling.Id,
-      new PaymentSaveCaller(target.Id)
-    );
+    assertTaxRejects(target.Id, sibling.Id, new PaymentSaveCaller(target.Id));
     assertTaxRejects(
       target.Id,
       sibling.Id,
