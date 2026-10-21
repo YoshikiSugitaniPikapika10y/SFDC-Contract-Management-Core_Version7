@@ -113,8 +113,9 @@ public without sharing class InvoicePaymentAllocationService {
       Integer lineIndex = order[Math.mod(index, order.size())];
       Integer nextAmount = truncated[lineIndex] + step;
       if (
-        !exceedsRemaining(
-          Decimal.valueOf(nextAmount),
+        !signedRemainderExceeds(
+          truncated[lineIndex],
+          nextAmount,
           openLines[lineIndex].remainingInclusive
         )
       ) {
@@ -389,6 +390,26 @@ public without sharing class InvoicePaymentAllocationService {
     } catch (SObjectException ex) {
       return false;
     }
+  }
+
+  /** 仕様: Core 第11.9節。差が負なら負方向へ配る。0円の行へ異符号の1円は載せない。 */
+  private static Boolean signedRemainderExceeds(
+    Integer current,
+    Integer nextAmount,
+    Decimal remaining
+  ) {
+    if (nextAmount == 0) {
+      return false;
+    }
+    if (remaining == null || remaining == 0) {
+      return true;
+    }
+    Boolean oppositeLine =
+      (nextAmount > 0 && remaining < 0) || (nextAmount < 0 && remaining > 0);
+    if (oppositeLine && current == 0) {
+      return true;
+    }
+    return Decimal.valueOf(Math.abs(nextAmount)) > remaining.abs();
   }
 
   private static Boolean exceedsRemaining(Decimal amount, Decimal remaining) {

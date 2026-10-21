@@ -1683,6 +1683,10 @@ public without sharing class AccountingGoalService {
       bodyTaxDrawdownOrigin(split, split.creditSlotKey)
     );
     if (debitBalances.isEmpty() || creditBalances.isEmpty()) {
+      // 仕様: Accounting 第1.3節・第6.2節。残高の記録が無い負額は取り崩しにせず、借貸を入れ替えた正額にする。
+      if (split.amount != null && split.amount < 0) {
+        return new List<Candidate>{ split };
+      }
       throw new GoalException('既存残高の実勘定科目を引き継げません。');
     }
     List<Integer> debitAmounts = amountsForDrawdownSide(
