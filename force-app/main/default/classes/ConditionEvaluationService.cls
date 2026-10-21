@@ -186,6 +186,36 @@ public without sharing class ConditionEvaluationService {
     tenantDefinitionsLoaded = true;
   }
 
+  /** 仕様: Accounting 第6.1節・第6.3節。起動は条件セットの評価コンテキスト。 */
+  public static String launchContext(Id conditionSetId) {
+    ensureTenantDefinitionsLoaded();
+    TenantSetDefinition loaded = tenantSetsById.get(conditionSetId);
+    return loaded == null ? null : loaded.evaluationContext;
+  }
+
+  /** 仕様: Accounting 第6.1節・第6.3節。起動レコードが無い条件は不一致。項目が空とは比較しない。 */
+  public static Boolean hasLaunchRecord(
+    String evaluationContext,
+    Context context
+  ) {
+    if (context == null || String.isBlank(evaluationContext)) {
+      return false;
+    }
+    if (evaluationContext == 'InvoiceLine') {
+      return context.invoiceLine != null;
+    }
+    if (evaluationContext == 'Invoice') {
+      return context.invoice != null;
+    }
+    if (evaluationContext == 'InvoicePayment') {
+      return context.invoicePayment != null;
+    }
+    if (evaluationContext == 'InvoicePaymentAllocation') {
+      return context.allocation != null;
+    }
+    return false;
+  }
+
   /** 仕様: Accounting 第4.7節。請求起点の請求明細はすべて／いずれかで集約する。 */
   private static Boolean evaluateTenantRule(
     GlConditionRule__c rule,

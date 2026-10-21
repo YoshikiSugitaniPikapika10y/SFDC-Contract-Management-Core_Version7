@@ -1679,7 +1679,6 @@ private class InvoicePaymentServiceTest {
           Name = 'PaySvc Bill ' + slot,
           Account__c = accountIds.get(slots.get(slot)),
           SlotKey__c = slot,
-          EvaluationContext__c = 'InvoiceLine',
           ConditionSourceType__c = 'None',
           Priority__c = 10,
           IsActive__c = true
@@ -1719,21 +1718,25 @@ private class InvoicePaymentServiceTest {
       'AccountsReceivable' => 'AR',
       'DeferredRevenue' => 'DEF'
     };
+    Set<String> existingSlots = new Set<String>();
+    for (GlAccountMap__c row : [SELECT SlotKey__c FROM GlAccountMap__c]) {
+      existingSlots.add(row.SlotKey__c);
+    }
     List<GlAccountMap__c> maps = new List<GlAccountMap__c>();
-    for (String context : new List<String>{ 'InvoicePaymentAllocation', 'InvoicePayment' }) {
-      for (String slot : slots.keySet()) {
-        maps.add(
-          new GlAccountMap__c(
-            Name = 'PaySvc Pay ' + context + ' ' + slot,
-            Account__c = accountIds.get(slots.get(slot)),
-            SlotKey__c = slot,
-            EvaluationContext__c = context,
-            ConditionSourceType__c = 'None',
-            Priority__c = 10,
-            IsActive__c = true
-          )
-        );
+    for (String slot : slots.keySet()) {
+      if (existingSlots.contains(slot)) {
+        continue;
       }
+      maps.add(
+        new GlAccountMap__c(
+          Name = 'PaySvc Pay ' + slot,
+          Account__c = accountIds.get(slots.get(slot)),
+          SlotKey__c = slot,
+          ConditionSourceType__c = 'None',
+          Priority__c = 10,
+          IsActive__c = true
+        )
+      );
     }
     insert maps;
   }

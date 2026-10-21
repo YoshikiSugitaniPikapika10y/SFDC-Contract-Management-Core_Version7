@@ -10,18 +10,15 @@ public without sharing class GlAccountMapResolveService {
   private static Map<String, List<GlAccountMap__c>> mapsBySlotContext;
   private static Map<String, ResolvedAccount> resolvedByContextKey;
 
-  /** 仕様: Accounting 第6.2節、第6.3節、第4.1節、第8.2節 */
+  /** 仕様: Accounting 第6.1節、第6.2節、第6.3節、第4.1節、第8.2節 */
   public static ResolvedAccount resolve(
     String slotKey,
-    String evaluationContext,
     ConditionEvaluationService.Context context
   ) {
-    if (String.isBlank(slotKey) || String.isBlank(evaluationContext)) {
-      throw new ResolveException(
-        '勘定科目割当のスロットまたは評価コンテキストがありません。'
-      );
+    if (String.isBlank(slotKey)) {
+      throw new ResolveException('勘定科目割当のスロットがありません。');
     }
-    String cacheKey = resolveCacheKey(slotKey, evaluationContext, context);
+    String cacheKey = resolveCacheKey(slotKey, context);
     if (
       cacheKey != null &&
       resolvedByContextKey != null &&
@@ -29,7 +26,7 @@ public without sharing class GlAccountMapResolveService {
     ) {
       return resolvedByContextKey.get(cacheKey);
     }
-    List<GlAccountMap__c> candidates = mapsOf(slotKey, evaluationContext);
+    List<GlAccountMap__c> candidates = mapsOf(slotKey);
     List<GlAccountMap__c> matched = new List<GlAccountMap__c>();
     for (GlAccountMap__c mapping : candidates) {
       if (matches(mapping, context)) {
@@ -79,11 +76,10 @@ public without sharing class GlAccountMapResolveService {
 
   /**
    * 仕様: Accounting 第8.2節手順2。
-   * 同じ評価コンテキストの解決結果は使い回す。保存済み原因の Id が無い呼び出しはキャッシュしない。
+   * 同じスロットの解決結果は使い回す。保存済み原因の Id が無い呼び出しはキャッシュしない。
    */
   private static String resolveCacheKey(
     String slotKey,
-    String evaluationContext,
     ConditionEvaluationService.Context context
   ) {
     if (context == null) {
@@ -111,8 +107,6 @@ public without sharing class GlAccountMapResolveService {
     }
     return slotKey +
       '\n' +
-      evaluationContext +
-      '\n' +
       invoiceId +
       '\n' +
       lineId +
@@ -123,15 +117,11 @@ public without sharing class GlAccountMapResolveService {
   }
 
   /**
-   * 仕様: Accounting 第4.7節、第6.1節、第6.3節、第8.2節。
-   * 同一操作内の有効割当照会は1回にまとめ、スロットと評価コンテキストで濾る。
-   * 請求明細起点では請求単位の割当も同じ生成単位へ含め、一致したうえで優先度最大の1件を取る。
+   * 仕様: Accounting 第6.1節、第6.3節、第8.2節。
+   * 同一操作内の有効割当照会は1回にまとめ、スロットで濾る。
    * 条件評価は収集済み定義のメモリ上で行う。
    */
-  private static List<GlAccountMap__c> mapsOf(
-    String slotKey,
-    String evaluationContext
-  ) {
+  private static List<GlAccountMap__c> mapsOf(String slotKey) {
     if (mapsBySlotContext == null) {
       mapsBySlotContext = new Map<String, List<GlAccountMap__c>>();
       for (GlAccountMap__c mapping : [
@@ -143,40 +133,22 @@ public without sharing class GlAccountMapResolveService {
           FixedConditionSetKey__c,
           TenantConditionSet__c,
           SlotKey__c,
-          EvaluationContext__c,
           Account__r.IsActive__c,
           Account__r.AccountType__c
         FROM GlAccountMap__c
         WHERE IsActive__c = TRUE
         WITH SYSTEM_MODE
       ]) {
-        String loadedKey =
-          mapping.SlotKey__c +
-          '\n' +
-          mapping.EvaluationContext__c;
-        if (!mapsBySlotContext.containsKey(loadedKey)) {
-          mapsBySlotContext.put(loadedKey, new List<GlAccountMap__c>());
+        if (!mapsBySlotContext.containsKey(mapping.SlotKey__c)) {
+          mapsBySlotContext.put(mapping.SlotKey__c, new List<GlAccountMap__c>());
         }
-        mapsBySlotContext.get(loadedKey).add(mapping);
+        mapsBySlotContext.get(mapping.SlotKey__c).add(mapping);
       }
     }
-    List<GlAccountMap__c> rows = new List<GlAccountMap__c>();
-    rows.addAll(cachedMaps(slotKey, evaluationContext));
-    if (evaluationContext == 'InvoiceLine') {
-      rows.addAll(cachedMaps(slotKey, 'Invoice'));
+    if (!mapsBySlotContext.containsKey(slotKey)) {
+      mapsBySlotContext.put(slotKey, new List<GlAccountMap__c>());
     }
-    return rows;
-  }
-
-  private static List<GlAccountMap__c> cachedMaps(
-    String slotKey,
-    String evaluationContext
-  ) {
-    String cacheKey = slotKey + '\n' + evaluationContext;
-    if (!mapsBySlotContext.containsKey(cacheKey)) {
-      mapsBySlotContext.put(cacheKey, new List<GlAccountMap__c>());
-    }
-    return mapsBySlotContext.get(cacheKey);
+    return mapsBySlotContext.get(slotKey);
   }
 
   private static Boolean matches(
@@ -193,12 +165,26 @@ public without sharing class GlAccountMapResolveService {
       if (String.isBlank(mapping.FixedConditionSetKey__c)) {
         return false;
       }
-      return ConditionEvaluationService.evaluate(
-        FixedConditionSetFixedCatalog.require(mapping.FixedConditionSetKey__c),
-        context
+      FixedConditionSetFixedCatalog.Definition fixedSet = FixedConditionSetFixedCatalog.require(
+        mapping.FixedConditionSetKey__c
       );
+      if (
+        !ConditionEvaluationService.hasLaunchRecord(
+          String.valueOf(fixedSet.evaluationContext),
+          context
+        )
+      ) {
+        return false;
+      }
+      return ConditionEvaluationService.evaluate(fixedSet, context);
     }
     if (mapping.ConditionSourceType__c == 'Tenant') {
+      String launch = ConditionEvaluationService.launchContext(
+        mapping.TenantConditionSet__c
+      );
+      if (!ConditionEvaluationService.hasLaunchRecord(launch, context)) {
+        return false;
+      }
       return ConditionEvaluationService.evaluateTenant(
         mapping.TenantConditionSet__c,
         context

@@ -181,7 +181,7 @@ private class AccountingEngineTest {
       Id arAccountId = [
         SELECT Account__c
         FROM GlAccountMap__c
-        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+        WHERE SlotKey__c = 'AccountsReceivable'
         LIMIT 1
       ]
       .Account__c;
@@ -189,7 +189,6 @@ private class AccountingEngineTest {
         Name = 'Engine AR Tenant Line',
         Account__c = arAccountId,
         SlotKey__c = 'AccountsReceivable',
-        EvaluationContext__c = 'InvoiceLine',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 20,
@@ -244,7 +243,7 @@ private class AccountingEngineTest {
       Id arAccountId = [
         SELECT Account__c
         FROM GlAccountMap__c
-        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+        WHERE SlotKey__c = 'AccountsReceivable'
         LIMIT 1
       ]
       .Account__c;
@@ -252,7 +251,6 @@ private class AccountingEngineTest {
         Name = 'Engine AR Tenant Invoice',
         Account__c = arAccountId,
         SlotKey__c = 'AccountsReceivable',
-        EvaluationContext__c = 'InvoiceLine',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 20,
@@ -358,7 +356,6 @@ private class AccountingEngineTest {
         Name = 'Engine AR Invoice Ctx Map',
         Account__c = invoiceAr.Id,
         SlotKey__c = 'AccountsReceivable',
-        EvaluationContext__c = 'Invoice',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 20,
@@ -427,7 +424,7 @@ private class AccountingEngineTest {
       Id cashAccountId = [
         SELECT Account__c
         FROM GlAccountMap__c
-        WHERE SlotKey__c = 'Cash' AND EvaluationContext__c = 'InvoicePayment'
+        WHERE SlotKey__c = 'Cash'
         LIMIT 1
       ]
       .Account__c;
@@ -435,7 +432,6 @@ private class AccountingEngineTest {
         Name = 'Engine Cash Tenant Payment',
         Account__c = cashAccountId,
         SlotKey__c = 'Cash',
-        EvaluationContext__c = 'InvoicePayment',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 20,
@@ -497,7 +493,7 @@ private class AccountingEngineTest {
       Id cashAccountId = [
         SELECT Account__c
         FROM GlAccountMap__c
-        WHERE SlotKey__c = 'Cash' AND EvaluationContext__c = 'InvoicePaymentAllocation'
+        WHERE SlotKey__c = 'Cash'
         LIMIT 1
       ]
       .Account__c;
@@ -505,7 +501,6 @@ private class AccountingEngineTest {
         Name = 'Engine Cash Tenant Allocation',
         Account__c = cashAccountId,
         SlotKey__c = 'Cash',
-        EvaluationContext__c = 'InvoicePaymentAllocation',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 20,
@@ -571,7 +566,7 @@ private class AccountingEngineTest {
       Id arAccountId = [
         SELECT Account__c
         FROM GlAccountMap__c
-        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+        WHERE SlotKey__c = 'AccountsReceivable'
         LIMIT 1
       ]
       .Account__c;
@@ -579,7 +574,6 @@ private class AccountingEngineTest {
         Name = 'Engine AR Tenant Related',
         Account__c = arAccountId,
         SlotKey__c = 'AccountsReceivable',
-        EvaluationContext__c = 'InvoiceLine',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 20,
@@ -2508,27 +2502,6 @@ private class AccountingEngineTest {
       InvoicePaymentService.register(invoicePayment);
       Test.stopTest();
 
-      Id billingArId = [
-        SELECT Account__c
-        FROM GlAccountMap__c
-        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
-        LIMIT 1
-      ]
-      .Account__c;
-      Id paymentMapArId = [
-        SELECT Account__c
-        FROM GlAccountMap__c
-        WHERE
-          SlotKey__c = 'AccountsReceivable'
-          AND EvaluationContext__c = 'InvoicePaymentAllocation'
-        LIMIT 1
-      ]
-      .Account__c;
-      System.assertNotEquals(
-        billingArId,
-        paymentMapArId,
-        'Accounting 第8.4節: テスト前提として請求明細割当と入金割当のAR科目を分ける'
-      );
       List<GlJournal__c> paymentJournals = [
         SELECT CreditAccount__c, Amount__c
         FROM GlJournal__c
@@ -2543,9 +2516,9 @@ private class AccountingEngineTest {
         'Accounting 第8.4節: 同一明細の単一AR残高は1本の入金仕訳にする'
       );
       System.assertEquals(
-        billingArId,
+        invoiceLineArAccountId(),
         paymentJournals[0].CreditAccount__c,
-        'Accounting 第8.4節: 既存残高への充当は元仕訳の実勘定科目を使う'
+        'Accounting 第6.1節: 条件なしの売掛は操作で科目を分けない'
       );
       System.assertEquals(1100, paymentJournals[0].Amount__c);
     }
@@ -2569,13 +2542,7 @@ private class AccountingEngineTest {
       Test.stopTest();
 
       Id billingArId = invoiceLineArAccountId();
-      Id paymentMapArId = paymentAllocationAccountId('AccountsReceivable');
       Id uacId = paymentAllocationAccountId('UnappliedCash');
-      System.assertNotEquals(
-        billingArId,
-        paymentMapArId,
-        'Accounting 第6.2節: テスト前提として請求明細の売掛と入金用の売掛を分ける'
-      );
       List<GlJournal__c> transfers = historicalTransfers(fixture.invoice.Id);
       System.assertEquals(
         1,
@@ -2588,7 +2555,6 @@ private class AccountingEngineTest {
         transfers[0].CreditAccount__c,
         'Accounting 第6.2節: 売掛の取り崩しは請求で使った科目を使う'
       );
-      System.assertNotEquals(paymentMapArId, transfers[0].CreditAccount__c);
       System.assertEquals(
         uacId,
         transfers[0].DebitAccount__c,
@@ -2704,9 +2670,9 @@ private class AccountingEngineTest {
         'Accounting 第6.2節: 仮受金の取り崩しは受け取った日に使った科目を使う'
       );
       System.assertEquals(
-        paymentAllocationAccountId('DeferredRevenue'),
+        invoiceLineAccountId('DeferredRevenue'),
         transfers[0].CreditAccount__c,
-        'Accounting 第6.1節: 新しく積む前受は入金の割当科目を使う'
+        'Accounting 第6.1節: 新しく積む前受は条件なしの割当科目を使う'
       );
     }
   }
@@ -2762,10 +2728,10 @@ private class AccountingEngineTest {
         taxDef,
         'Accounting 第4.6節・第6.2節: 税の売上も同じ前受科目を取り崩す'
       );
-      System.assertNotEquals(
+      System.assertEquals(
         invoiceLineAccountId('DeferredRevenue'),
         bodyDef,
-        'Accounting 第6.2節: 入金で積んだ前受は請求明細の前受割当へ取り替えない'
+        'Accounting 第6.1節: 新しく積む前受は条件なしの割当科目を使う'
       );
     }
   }
@@ -2836,9 +2802,9 @@ private class AccountingEngineTest {
         'Accounting 第6.2節: 仮受の振替は、受け取った日の科目を取り崩す'
       );
       System.assertEquals(
-        paymentAllocationAccountId('DeferredRevenue'),
+        invoiceLineAccountId('DeferredRevenue'),
         defFromUac,
-        'Accounting 第6.1節: 新しく積む前受は入金の割当科目を使う'
+        'Accounting 第6.1節: 新しく積む前受は条件なしの割当科目を使う'
       );
       System.assertEquals(
         spCreated,
@@ -2850,10 +2816,10 @@ private class AccountingEngineTest {
         defOnSpTransfer,
         'Accounting 第6.2節: 未解決支払の振替は、同じ入金で積んだ前受の科目を使う'
       );
-      System.assertNotEquals(
+      System.assertEquals(
         invoiceLineAccountId('DeferredRevenue'),
         defOnSpTransfer,
-        'Accounting 第6.2節: 入金で積んだ前受を請求明細の前受割当へ取り替えない'
+        'Accounting 第6.1節: 未解決支払の振替で新しく積む前受も条件なしの割当科目を使う'
       );
     }
   }
@@ -2886,11 +2852,7 @@ private class AccountingEngineTest {
       System.assertEquals(
         invoiceLineArAccountId(),
         transfer.DebitAccount__c,
-        'Accounting 第6.1節: 新しく立てる売掛は請求明細の割当科目を使う'
-      );
-      System.assertNotEquals(
-        paymentAllocationAccountId('AccountsReceivable'),
-        transfer.DebitAccount__c
+        'Accounting 第6.1節: 新しく立てる売掛は条件なしの割当科目を使う'
       );
       System.assertEquals(
         paymentAllocationAccountId('SuspensePayment'),
@@ -3018,11 +2980,10 @@ private class AccountingEngineTest {
         'Accounting 第5.2.10節・第1.3節: 未認識の返金は前受を相手にし、負額は借貸を反転して保存する'
       );
       System.assertEquals(
-        paymentAllocationAccountId('DeferredRevenue'),
+        invoiceLineAccountId('DeferredRevenue'),
         paidDef,
-        'Accounting 第6.1節: 返金で新しく積む前受は入金の割当科目を使う'
+        'Accounting 第6.1節: 返金で新しく積む前受は条件なしの割当科目を使う'
       );
-      System.assertNotEquals(invoiceLineAccountId('DeferredRevenue'), paidDef);
       System.assertEquals(
         paidDef,
         drawnDef,
@@ -3107,7 +3068,7 @@ private class AccountingEngineTest {
       Id billingArId = [
         SELECT Account__c
         FROM GlAccountMap__c
-        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+        WHERE SlotKey__c = 'AccountsReceivable'
         LIMIT 1
       ]
       .Account__c;
@@ -3200,7 +3161,7 @@ private class AccountingEngineTest {
       Id billingArId = [
         SELECT Account__c
         FROM GlAccountMap__c
-        WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+        WHERE SlotKey__c = 'AccountsReceivable'
         LIMIT 1
       ]
       .Account__c;
@@ -4225,21 +4186,25 @@ private class AccountingEngineTest {
       'AccountsReceivable' => 'AR',
       'DeferredRevenue' => 'DEF'
     };
+    Set<String> existingSlots = new Set<String>();
+    for (GlAccountMap__c row : [SELECT SlotKey__c FROM GlAccountMap__c]) {
+      existingSlots.add(row.SlotKey__c);
+    }
     List<GlAccountMap__c> maps = new List<GlAccountMap__c>();
-    for (String context : new List<String>{ 'InvoicePaymentAllocation', 'InvoicePayment' }) {
-      for (String slot : slots.keySet()) {
-        maps.add(
-          new GlAccountMap__c(
-            Name = 'Pay ' + context + ' ' + slot,
-            Account__c = accountIds.get(slots.get(slot)),
-            SlotKey__c = slot,
-            EvaluationContext__c = context,
-            ConditionSourceType__c = 'None',
-            Priority__c = 10,
-            IsActive__c = true
-          )
-        );
+    for (String slot : slots.keySet()) {
+      if (existingSlots.contains(slot)) {
+        continue;
       }
+      maps.add(
+        new GlAccountMap__c(
+          Name = 'Pay ' + slot,
+          Account__c = accountIds.get(slots.get(slot)),
+          SlotKey__c = slot,
+          ConditionSourceType__c = 'None',
+          Priority__c = 10,
+          IsActive__c = true
+        )
+      );
     }
     insert maps;
   }
@@ -4315,7 +4280,7 @@ private class AccountingEngineTest {
     return [
       SELECT Account__c
       FROM GlAccountMap__c
-      WHERE SlotKey__c = :slotKey AND EvaluationContext__c = 'InvoiceLine'
+      WHERE SlotKey__c = :slotKey
       LIMIT 1
     ]
     .Account__c;
@@ -4359,7 +4324,7 @@ private class AccountingEngineTest {
     return [
       SELECT Account__c
       FROM GlAccountMap__c
-      WHERE SlotKey__c = 'AccountsReceivable' AND EvaluationContext__c = 'InvoiceLine'
+      WHERE SlotKey__c = 'AccountsReceivable'
       LIMIT 1
     ]
     .Account__c;
@@ -4369,7 +4334,7 @@ private class AccountingEngineTest {
     return [
       SELECT Account__c
       FROM GlAccountMap__c
-      WHERE SlotKey__c = :slotKey AND EvaluationContext__c = 'InvoicePaymentAllocation'
+      WHERE SlotKey__c = :slotKey
       LIMIT 1
     ]
     .Account__c;
@@ -4578,7 +4543,6 @@ private class AccountingEngineTest {
           Name = 'Engine ' + slot,
           Account__c = accountIds.get(slots.get(slot)),
           SlotKey__c = slot,
-          EvaluationContext__c = 'InvoiceLine',
           ConditionSourceType__c = 'None',
           Priority__c = 10,
           IsActive__c = true

@@ -1804,7 +1804,6 @@ private class AccountingDiffServiceTest {
           Name = 'Diff ' + slot,
           Account__c = accountIds.get(slots.get(slot)),
           SlotKey__c = slot,
-          EvaluationContext__c = 'InvoiceLine',
           ConditionSourceType__c = 'None',
           Priority__c = 10,
           IsActive__c = true

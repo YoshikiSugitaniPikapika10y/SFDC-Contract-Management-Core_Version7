@@ -59,7 +59,6 @@ private class GlAccountTriggerHandlerTest {
         Name = 'Map Ref',
         Account__c = account.Id,
         SlotKey__c = 'AccountsReceivable',
-        EvaluationContext__c = 'InvoiceLine',
         ConditionSourceType__c = 'None',
         Priority__c = 1,
         IsActive__c = true

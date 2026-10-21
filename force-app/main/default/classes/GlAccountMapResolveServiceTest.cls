@@ -12,7 +12,6 @@ private class GlAccountMapResolveServiceTest {
       try {
         GlAccountMapResolveService.resolve(
           'AccountsReceivable',
-          'InvoiceLine',
           new ConditionEvaluationService.Context()
         );
       } catch (Exception ex) {
@@ -37,7 +36,6 @@ private class GlAccountMapResolveServiceTest {
       try {
         GlAccountMapResolveService.resolve(
           'AccountsReceivable',
-          'InvoiceLine',
           new ConditionEvaluationService.Context()
         );
       } catch (Exception ex) {
@@ -60,7 +58,6 @@ private class GlAccountMapResolveServiceTest {
       insertMap(low.Id, 10, 'Low');
       GlAccountMapResolveService.ResolvedAccount resolved = GlAccountMapResolveService.resolve(
         'AccountsReceivable',
-        'InvoiceLine',
         new ConditionEvaluationService.Context()
       );
       System.assertEquals(
@@ -86,7 +83,6 @@ private class GlAccountMapResolveServiceTest {
       try {
         GlAccountMapResolveService.resolve(
           'AccountsReceivable',
-          'InvoiceLine',
           new ConditionEvaluationService.Context()
         );
       } catch (Exception ex) {
@@ -249,14 +245,14 @@ private class GlAccountMapResolveServiceTest {
     try {
       GlAccountMapResolveService.resolve(
         null,
-        'InvoiceLine',
         new ConditionEvaluationService.Context()
       );
     } catch (GlAccountMapResolveService.ResolveException ex) {
       thrown = true;
-      System.assert(
-        ex.getMessage().contains('スロットまたは評価コンテキストがありません'),
-        'Accounting 第6.2節: スロットと評価コンテキストが要る'
+      System.assertEquals(
+        '勘定科目割当のスロットがありません。',
+        ex.getMessage(),
+        'Accounting 第6.2節: スロットが要る'
       );
     }
     System.assertEquals(true, thrown);
@@ -277,7 +273,6 @@ private class GlAccountMapResolveServiceTest {
       GlAccountMap__c chosen = insertMap(activeLow.Id, 10, 'Active Low');
       GlAccountMapResolveService.ResolvedAccount resolved = GlAccountMapResolveService.resolve(
         'AccountsReceivable',
-        'InvoiceLine',
         new ConditionEvaluationService.Context()
       );
       System.assertEquals(
@@ -289,20 +284,19 @@ private class GlAccountMapResolveServiceTest {
   }
 
   @IsTest
-  static void resolve_rejectsBlankEvaluationContext() {
+  static void resolve_rejectsBlankSlot() {
     Boolean thrown = false;
     try {
       GlAccountMapResolveService.resolve(
-        'AccountsReceivable',
         '',
         new ConditionEvaluationService.Context()
       );
     } catch (GlAccountMapResolveService.ResolveException ex) {
       thrown = true;
       System.assertEquals(
-        '勘定科目割当のスロットまたは評価コンテキストがありません。',
+        '勘定科目割当のスロットがありません。',
         ex.getMessage(),
-        'Accounting 第6.2節: スロットと評価コンテキストが要る'
+        'Accounting 第6.2節: スロットが要る'
       );
     }
     System.assertEquals(true, thrown);
@@ -335,7 +329,6 @@ private class GlAccountMapResolveServiceTest {
       try {
         GlAccountMapResolveService.resolve(
           'AccountsReceivable',
-          'InvoiceLine',
           new ConditionEvaluationService.Context()
         );
       } catch (Exception ex) {
@@ -375,7 +368,6 @@ private class GlAccountMapResolveServiceTest {
         Name = 'Invoice Ctx Tenant',
         Account__c = invoiceAccount.Id,
         SlotKey__c = 'AccountsReceivable',
-        EvaluationContext__c = 'Invoice',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 20,
@@ -390,7 +382,6 @@ private class GlAccountMapResolveServiceTest {
       };
       GlAccountMapResolveService.ResolvedAccount resolved = GlAccountMapResolveService.resolve(
         'AccountsReceivable',
-        'InvoiceLine',
         context
       );
       System.assertEquals(
@@ -428,13 +419,11 @@ private class GlAccountMapResolveServiceTest {
       context.invoiceLine = new InvoiceLine__c(Amount__c = 1000);
       GlAccountMapResolveService.ResolvedAccount first = GlAccountMapResolveService.resolve(
         'AccountsReceivable',
-        'InvoiceLine',
         context
       );
       Integer afterFirst = Limits.getQueries();
       GlAccountMapResolveService.ResolvedAccount second = GlAccountMapResolveService.resolve(
         'AccountsReceivable',
-        'InvoiceLine',
         context
       );
       System.assertEquals(
@@ -456,10 +445,8 @@ private class GlAccountMapResolveServiceTest {
       GlAccount__c fallback = insertAccount('Map Fixed Fallback');
       GlAccount__c matched = insertAccount('Map Fixed Match');
       GlAccountMap__c fallbackMap = insertMap(fallback.Id, 1, 'Fixed None');
-      fallbackMap.EvaluationContext__c = 'InvoicePaymentAllocation';
       update fallbackMap;
       GlAccountMap__c fixedMap = insertMap(matched.Id, 20, 'Fixed Current');
-      fixedMap.EvaluationContext__c = 'InvoicePaymentAllocation';
       fixedMap.ConditionSourceType__c = 'Fixed';
       fixedMap.FixedConditionSetKey__c = 'PAY_INVOICE_CURRENT';
       update fixedMap;
@@ -472,9 +459,9 @@ private class GlAccountMapResolveServiceTest {
         PaymentPurpose__c = 'Invoice',
         PaymentDate__c = Date.newInstance(2026, 6, 1)
       );
+      context.allocation = new InvoicePaymentAllocation__c();
       GlAccountMapResolveService.ResolvedAccount onOrAfter = GlAccountMapResolveService.resolve(
         'AccountsReceivable',
-        'InvoicePaymentAllocation',
         context
       );
       System.assertEquals(
@@ -486,7 +473,6 @@ private class GlAccountMapResolveServiceTest {
       context.invoicePayment.PaymentDate__c = Date.newInstance(2026, 5, 31);
       GlAccountMapResolveService.ResolvedAccount before = GlAccountMapResolveService.resolve(
         'AccountsReceivable',
-        'InvoicePaymentAllocation',
         context
       );
       System.assertEquals(
@@ -495,6 +481,45 @@ private class GlAccountMapResolveServiceTest {
         'Accounting 第6.3節・第4.7節: 固定条件が不成立なら条件なしの割当を採用する'
       );
       System.assertNotEquals(onOrAfter.accountId, before.accountId);
+    }
+  }
+
+  @IsTest
+  static void resolve_missingLaunchDoesNotTreatFieldAsEmpty() {
+    System.runAs(ContractTestDataFactory.getAdminUser()) {
+      GlAccount__c fallback = insertAccount('Map Launch Fallback');
+      GlAccount__c conditional = insertAccount('Map Launch Conditional');
+      insertMap(fallback.Id, 10, 'Launch None');
+      GlConditionSet__c conditionSet = new GlConditionSet__c(
+        Name = 'Payment Launch Set',
+        EvaluationContext__c = 'InvoicePayment',
+        Description__c = 'テスト条件'
+      );
+      insert conditionSet;
+      insert new GlConditionRule__c(
+        ConditionSet__c = conditionSet.Id,
+        Sequence__c = 1,
+        TargetObject__c = 'InvoicePayment__c',
+        TargetField__c = 'PaymentPurpose__c',
+        Operator__c = 'IsNull'
+      );
+      GlAccountMap__c conditionalMap = insertMap(conditional.Id, 20, 'Launch Tenant');
+      conditionalMap.ConditionSourceType__c = 'Tenant';
+      conditionalMap.TenantConditionSet__c = conditionSet.Id;
+      update conditionalMap;
+
+      ConditionEvaluationService.Context context = new ConditionEvaluationService.Context();
+      context.invoice = new Invoice__c();
+      context.invoiceLine = new InvoiceLine__c();
+      GlAccountMapResolveService.ResolvedAccount resolved = GlAccountMapResolveService.resolve(
+        'AccountsReceivable',
+        context
+      );
+      System.assertEquals(
+        fallback.Id,
+        resolved.accountId,
+        'Accounting 第6.1節: 起動レコードが無い条件は不一致とし、項目が空とは比較しない'
+      );
     }
   }
 
@@ -530,7 +555,6 @@ private class GlAccountMapResolveServiceTest {
       Name = name,
       Account__c = accountId,
       SlotKey__c = slotKey,
-      EvaluationContext__c = 'InvoiceLine',
       ConditionSourceType__c = 'None',
       Priority__c = priority,
       IsActive__c = true

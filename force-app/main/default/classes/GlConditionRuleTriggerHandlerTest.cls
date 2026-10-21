@@ -226,7 +226,6 @@ private class GlConditionRuleTriggerHandlerTest {
         Name = 'Tenant Ref',
         Account__c = account.Id,
         SlotKey__c = 'AccountsReceivable',
-        EvaluationContext__c = 'InvoiceLine',
         ConditionSourceType__c = 'Tenant',
         TenantConditionSet__c = conditionSet.Id,
         Priority__c = 10,

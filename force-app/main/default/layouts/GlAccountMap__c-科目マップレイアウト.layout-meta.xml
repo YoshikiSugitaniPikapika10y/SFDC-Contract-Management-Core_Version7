@@ -12,7 +12,6 @@
             <layoutItems><behavior>Required</behavior><field>Priority__c</field></layoutItems>
         </layoutColumns>
         <layoutColumns>
-            <layoutItems><behavior>Required</behavior><field>EvaluationContext__c</field></layoutItems>
             <layoutItems><behavior>Required</behavior><field>ConditionSourceType__c</field></layoutItems>
             <layoutItems><behavior>Edit</behavior><field>FixedConditionSetKey__c</field></layoutItems>
             <layoutItems><behavior>Edit</behavior><field>TenantConditionSet__c</field></layoutItems>

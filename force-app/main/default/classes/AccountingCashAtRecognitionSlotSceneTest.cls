@@ -877,26 +877,18 @@ private class AccountingCashAtRecognitionSlotSceneTest {
       'UnappliedCash' => 'UAC',
       'SuspensePayment' => 'SP'
     };
-    List<String> contexts = new List<String>{
-      'InvoiceLine',
-      'InvoicePaymentAllocation',
-      'InvoicePayment'
-    };
     List<GlAccountMap__c> maps = new List<GlAccountMap__c>();
-    for (String context : contexts) {
-      for (String slot : slots.keySet()) {
-        maps.add(
-          new GlAccountMap__c(
-            Name = 'Scene ' + context + ' ' + slot,
-            Account__c = accountIds.get(slots.get(slot)),
-            SlotKey__c = slot,
-            EvaluationContext__c = context,
-            ConditionSourceType__c = 'None',
-            Priority__c = 10,
-            IsActive__c = true
-          )
-        );
-      }
+    for (String slot : slots.keySet()) {
+      maps.add(
+        new GlAccountMap__c(
+          Name = 'Scene ' + slot,
+          Account__c = accountIds.get(slots.get(slot)),
+          SlotKey__c = slot,
+          ConditionSourceType__c = 'None',
+          Priority__c = 10,
+          IsActive__c = true
+        )
+      );
     }
     insert maps;
   }
