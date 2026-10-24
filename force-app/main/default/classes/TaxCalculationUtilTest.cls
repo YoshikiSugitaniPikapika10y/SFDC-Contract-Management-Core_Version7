@@ -289,54 +289,59 @@ private class TaxCalculationUtilTest {
       'Core 第7.4節・第11.9節: 負額も方式を渡さなければ組織の税額丸めのまま'
     );
 
-    Decimal towardZero = TaxCalculationUtil.calculateTaxAmount(
-      1005,
-      10,
-      AmountCalculationSettingService.TAX_ROUND_DOWN
+    System.assertEquals(
+      100,
+      TaxCalculationUtil.calculateTaxAmount(
+        1005,
+        10,
+        AmountCalculationSettingService.TAX_ROUND_DOWN
+      ),
+      'Core 第7.4節・第11.9節: 1005の10%は100.5。0方向切捨ては100'
     );
-    Decimal halfUp = TaxCalculationUtil.calculateTaxAmount(
-      1005,
-      10,
-      AmountCalculationSettingService.TAX_ROUND_HALF_UP
+    System.assertEquals(
+      101,
+      TaxCalculationUtil.calculateTaxAmount(
+        1005,
+        10,
+        AmountCalculationSettingService.TAX_ROUND_HALF_UP
+      ),
+      'Core 第7.4節・第11.9節: 四捨五入の税額は0方向切捨ての100と違い101'
     );
-    Decimal awayFromZero = TaxCalculationUtil.calculateTaxAmount(
-      1005,
-      10,
-      AmountCalculationSettingService.TAX_ROUND_UP
+    System.assertEquals(
+      101,
+      TaxCalculationUtil.calculateTaxAmount(
+        1005,
+        10,
+        AmountCalculationSettingService.TAX_ROUND_UP
+      ),
+      'Core 第7.4節・第11.9節: 0から離れる切上げの税額は0方向切捨ての100と違い101'
     );
-    System.assertNotEquals(
-      towardZero,
-      halfUp,
-      'Core 第11.9節: 四捨五入の税額は0方向切捨てと違う'
+    System.assertEquals(
+      -100,
+      TaxCalculationUtil.calculateTaxAmount(
+        -1005,
+        10,
+        AmountCalculationSettingService.TAX_ROUND_DOWN
+      ),
+      'Core 第7.4節・第11.9節: 負の100.5は0方向切捨てで-100'
     );
-    System.assertNotEquals(
-      towardZero,
-      awayFromZero,
-      'Core 第11.9節: 0から離れる切上げの税額は0方向切捨てと違う'
-    );
-
-    Decimal negativeTowardZero = TaxCalculationUtil.calculateTaxAmount(
-      -1005,
-      10,
-      AmountCalculationSettingService.TAX_ROUND_DOWN
-    );
-    System.assertNotEquals(
-      negativeTowardZero,
+    System.assertEquals(
+      -101,
       TaxCalculationUtil.calculateTaxAmount(
         -1005,
         10,
         AmountCalculationSettingService.TAX_ROUND_HALF_UP
       ),
-      'Core 第11.9節: 負額の四捨五入は0方向切捨てと違う'
+      'Core 第7.4節・第11.9節: 負額の四捨五入は0方向切捨ての-100と違い-101'
     );
-    System.assertNotEquals(
-      negativeTowardZero,
+    System.assertEquals(
+      -101,
       TaxCalculationUtil.calculateTaxAmount(
         -1005,
         10,
         AmountCalculationSettingService.TAX_ROUND_UP
       ),
-      'Core 第11.9節: 負額の0から離れる切上げは0方向切捨てと違う'
+      'Core 第7.4節・第11.9節: 負額の0から離れる切上げは0方向切捨ての-100と違い-101'
     );
 
     Boolean unknown = false;
