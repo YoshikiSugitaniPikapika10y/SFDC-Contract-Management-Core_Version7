@@ -454,11 +454,102 @@ describe("orderInvoicePreviewTable payment form", () => {
     expect(element.shadowRoot.textContent).toContain("登録可能額:");
     expect(element.shadowRoot.textContent).toContain("入力額:");
     expect(element.shadowRoot.textContent).not.toContain("超過額:");
+    expect(element.shadowRoot.textContent).not.toContain(
+      "明細別割当は各明細の処理可能残額以内にしてください。"
+    );
+    expect(element.shadowRoot.textContent).not.toContain(
+      "明細別割当額合計を親の符号付き金額と一致させてください。"
+    );
     const saveButton = Array.from(
       element.shadowRoot.querySelectorAll("button.solid-btn")
     ).find((button) => button.textContent.trim() === "追加");
     expect(saveButton.disabled).toBe(true);
     expect(saveButton.title).toBeFalsy();
+  });
+
+  it("keeps the sign sentence only when an opposite-sign amount does not divide evenly (Core 8.9)", async () => {
+    getOpsBundle.mockResolvedValue(
+      mockBundle({
+        taxInclusiveAmount: 2100,
+        invoicePaymentNet: 0,
+        paymentLines: [
+          {
+            lineId: "a01LINE00000001",
+            productName: "A",
+            remainingInclusive: 1000
+          },
+          {
+            lineId: "a01LINE00000002",
+            productName: "B",
+            remainingInclusive: 1100
+          }
+        ]
+      })
+    );
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+    element.shadowRoot
+      .querySelector('lightning-input[data-field="amount"]')
+      .dispatchEvent(new CustomEvent("change", { detail: { value: "-700" } }));
+    await flush();
+
+    const allocations = Array.from(
+      element.shadowRoot.querySelectorAll("lightning-input[data-line-id]")
+    ).map((input) => Number(input.value));
+    expect(allocations).toEqual([-333, -366]);
+    expect(element.shadowRoot.textContent).toContain(
+      "金額の符号が登録可能額と一致していません。目的を「請求金額以外」にするか、登録可能額と同符号の金額にしてください。"
+    );
+    expect(element.shadowRoot.textContent).not.toContain(
+      "明細別割当は各明細の処理可能残額以内にしてください。"
+    );
+    expect(element.shadowRoot.textContent).not.toContain(
+      "明細別割当額合計を親の符号付き金額と一致させてください。"
+    );
+    const saveButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "追加");
+    expect(saveButton.disabled).toBe(true);
+  });
+
+  it("still notes a same-sign allocation past the line remaining (Core 8.9)", async () => {
+    getOpsBundle.mockResolvedValue(mockBundle());
+    const element = createElement("c-order-invoice-preview-table", {
+      is: OrderInvoicePreviewTable
+    });
+    element.preview = buildPreview();
+    document.body.appendChild(element);
+    await flush();
+    await openPaymentsTab(element);
+    element.shadowRoot
+      .querySelector('lightning-input[data-field="amount"]')
+      .dispatchEvent(new CustomEvent("change", { detail: { value: "100" } }));
+    await flush();
+    element.shadowRoot
+      .querySelector('lightning-input[data-line-id="a01LINE00000001"]')
+      .dispatchEvent(
+        new CustomEvent("change", { detail: { value: "999999" } })
+      );
+    await flush();
+
+    expect(element.shadowRoot.textContent).toContain(
+      "明細別割当は各明細の処理可能残額以内にしてください。"
+    );
+    expect(element.shadowRoot.textContent).toContain(
+      "明細別割当額合計を親の符号付き金額と一致させてください。"
+    );
+    expect(element.shadowRoot.textContent).not.toContain(
+      "金額の符号が登録可能額と一致していません"
+    );
+    const saveButton = Array.from(
+      element.shadowRoot.querySelectorAll("button.solid-btn")
+    ).find((button) => button.textContent.trim() === "追加");
+    expect(saveButton.disabled).toBe(true);
   });
 
   it("does not note empty or zero payment amount", async () => {

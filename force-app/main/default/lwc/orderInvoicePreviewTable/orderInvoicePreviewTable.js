@@ -2699,6 +2699,11 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           (row) =>
             !this.isWithinLineRemaining(row.amount, row.remainingInclusive)
         );
+        // 仕様: Core 第8.9節
+        const showPaymentAllocationTotalMismatch =
+          paymentAllocationTotalMismatch && signMismatch !== true;
+        const showPaymentAllocationExceeds =
+          paymentAllocationExceeds && signMismatch !== true;
         const invoiceDateIso = String(
           bundle?.invoiceDate || invoice.invoiceDate || ""
         ).slice(0, 10);
@@ -3403,7 +3408,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             inputAmount !== 0 &&
             purpose &&
             paymentDraft?.paymentDate &&
-            paymentAllocationExceeds
+            showPaymentAllocationExceeds
               ? "明細別割当は各明細の処理可能残額以内にしてください。"
               : "") ||
             (isInvoicePurpose &&
@@ -3431,7 +3436,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
             isInvoicePurpose &&
             inputAmount === invoiceUnprocessedNet &&
             invoiceUnprocessedNet !== 0,
-          paymentAllocationTotalMismatch,
+          paymentAllocationTotalMismatch: showPaymentAllocationTotalMismatch,
           showPaymentOverflow: sameSignOverflow === true,
           // 仕様: Core 第8.9節。符号不一致と未処理0は超過と同じ入金フォーム上の注記。
           showPaymentSignMismatch,
