@@ -68,7 +68,8 @@ public without sharing class InvoiceOpsController {
 
   /**
    * 仕様: Core 第7.7.3節、第12.4節。
-   * ロック済み請求があれば契約サービス範囲を取り直さない。
+   * ロック済み請求の契約履歴が画面と同じなら、契約サービス範囲を取り直さない。
+   * 別Versionは、画面の契約履歴の契約サービスと請求の契約サービスが同じなら通す。
    */
   public static void assertInvoicesInScope(
     Id contractHistoryId,
@@ -125,9 +126,16 @@ public without sharing class InvoiceOpsController {
       return false;
     }
     if (
-      contractHistoryId == null ||
-      knownLockedInvoice.ContractHistory__c != contractHistoryId ||
-      knownLockedInvoice.ContractService__c == null
+      contractHistoryId != null &&
+      knownLockedInvoice.ContractHistory__c == contractHistoryId &&
+      knownLockedInvoice.ContractService__c != null
+    ) {
+      return true;
+    }
+    Id serviceId = resolveContractServiceId(contractHistoryId);
+    if (
+      serviceId == null ||
+      knownLockedInvoice.ContractService__c != serviceId
     ) {
       throw toAuraHandled(SCOPE_MISMATCH_MESSAGE);
     }

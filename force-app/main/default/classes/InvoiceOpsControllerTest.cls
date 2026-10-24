@@ -488,27 +488,71 @@ private class InvoiceOpsControllerTest {
       }
       System.assertEquals(true, missingHistory);
 
-      Invoice__c locked = new Invoice__c(
+      Invoice__c lockedSameService = new Invoice__c(
         Id = invoice.Id,
         ContractHistory__c = fakeHistoryId(),
         ContractService__c = invoice.ContractService__c
+      );
+      Integer beforeSameService = Limits.getQueries();
+      InvoiceOpsController.assertInvoicesInScope(
+        invoice.ContractHistory__c,
+        new List<Id>{ invoice.Id },
+        lockedSameService
+      );
+      System.assertEquals(
+        1,
+        Limits.getQueries() - beforeSameService,
+        'Core 第7.7.3節・第12.4節: 別Versionは画面の契約履歴の契約サービスだけを見る'
+      );
+
+      Invoice__c other = insertOpsInvoice(
+        'Ops Scope Locked Other',
+        null,
+        null,
+        null
+      );
+      Invoice__c lockedOtherService = new Invoice__c(
+        Id = invoice.Id,
+        ContractHistory__c = other.ContractHistory__c,
+        ContractService__c = other.ContractService__c
       );
       Boolean lockedMismatch = false;
       try {
         InvoiceOpsController.assertInvoicesInScope(
           invoice.ContractHistory__c,
           new List<Id>{ invoice.Id },
-          locked
+          lockedOtherService
         );
       } catch (AuraHandledException ex) {
         lockedMismatch = true;
         System.assertEquals(
           InvoiceOpsController.SCOPE_MISMATCH_MESSAGE,
           ex.getMessage(),
-          'Core 第12.4節: 先行ロック済みでも契約履歴が違えば拒否'
+          'Core 第7.7.3節: 別の契約サービスはロック済みでも拒否'
         );
       }
       System.assertEquals(true, lockedMismatch);
+
+      Invoice__c lockedNoService = new Invoice__c(
+        Id = invoice.Id,
+        ContractHistory__c = invoice.ContractHistory__c
+      );
+      Boolean missingService = false;
+      try {
+        InvoiceOpsController.assertInvoicesInScope(
+          invoice.ContractHistory__c,
+          new List<Id>{ invoice.Id },
+          lockedNoService
+        );
+      } catch (AuraHandledException ex) {
+        missingService = true;
+        System.assertEquals(
+          InvoiceOpsController.SCOPE_MISMATCH_MESSAGE,
+          ex.getMessage(),
+          'Core 第7.7.3節: 契約サービスが空のロック済み請求は拒否'
+        );
+      }
+      System.assertEquals(true, missingService);
 
       Boolean missingInvoice = false;
       try {
