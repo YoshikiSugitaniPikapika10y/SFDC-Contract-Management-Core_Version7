@@ -610,7 +610,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 
 入口は契約サービス画面のハイライトアクションである。請求ボードの隣に置く。表示名は「契約サービスを編集」とする。Latest Ordered の有無を問わず、レコードがあるときだけ出す。未受注でも出せる。商談、契約履歴、請求書および見積ウィザードには出さない。標準の編集ボタンは出さない。権限は`Loop_08_Can_EditService`（`共通基盤.md`第3章）。
 
-追加項目は見積ウィザードと同じ定義を使う。`Active__c=true`かつ対象が契約サービスの定義をすべて出す。ウィザード用の種別表示フラグは見ない。定義不備は見積ウィザードと同じく設定エラーとし、保存しない。税率を変えて保存するときの実行前確認は出さない。第0.2節。空欄の税率、空の名前、空の請求アカウントは拒否する。入力中の税率が、未受注（Archiveを除く）または受注済みの保存税率と違うときだけ、税率欄の直下に帯を出す。空の保存税率は数えない。名前と請求アカウントだけの変更では出さない。確認ダイアログは足さない。帯は「次に見積を保存するときから、この税率になります。未確定を含め、既存の請求書や受注済みの見積には反映できません。」件数は0件の側を出さず「未受注N件、受注済みM件」。名前は出さない。帯が出ているあいだは「未確定を含め、既存の請求書や受注済みの見積には反映できないことを確認した」まで保存できない。税率を元に戻すと帯とチェックは消える。トーストは出さない。
+追加項目は見積ウィザードと同じ定義を使う。数値の追加項目は第11.4.1節のとおり、その項目の小数点の位置まで入れる。税率は変えない。`Active__c=true`かつ対象が契約サービスの定義をすべて出す。ウィザード用の種別表示フラグは見ない。定義不備は見積ウィザードと同じく設定エラーとし、保存しない。税率を変えて保存するときの実行前確認は出さない。第0.2節。空欄の税率、空の名前、空の請求アカウントは拒否する。入力中の税率が、未受注（Archiveを除く）または受注済みの保存税率と違うときだけ、税率欄の直下に帯を出す。空の保存税率は数えない。名前と請求アカウントだけの変更では出さない。確認ダイアログは足さない。帯は「次に見積を保存するときから、この税率になります。未確定を含め、既存の請求書や受注済みの見積には反映できません。」件数は0件の側を出さず「未受注N件、受注済みM件」。名前は出さない。帯が出ているあいだは「未確定を含め、既存の請求書や受注済みの見積には反映できないことを確認した」まで保存できない。税率を元に戻すと帯とチェックは消える。トーストは出さない。
 
 請求アカウントの選び方は第4.3.3節のNewと同じである。「他の取引先の請求アカウントも検索する」を出す。OFFへ戻した時に自取引先候補外なら選択をクリアする。他取引先の請求アカウントへの付け替えを許す。サーバは、請求アカウントの取引先と契約サービスの取引先が一致しなくても拒否しない。契約サービスの取引先自体は変えない。既存請求は変更しない。次に受注または再生成する請求の初期値が新しい請求アカウントを見る。分割・移動で増える請求も元請求の請求アカウントを引き継ぐ。請求アカウントは契約履歴に持たない。契約サービスに保存済みの請求アカウントと選び直した値が違うときだけ、請求アカウント欄の直下に帯を出す。チェックでは止めない。確認ダイアログは出さない。帯は「次の受注と再生成では、この請求先になります。未確定の請求書へ反映するときは、請求ボードから操作してください。」ボタン名は出さない。
 
@@ -622,7 +622,7 @@ Coreは、商談を入口に見積を作成し、契約サービスの下へ契�
 ／ 項目 <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>ContractService__c.BusinessOperationKey__c</code>
 ／ サーバ拒否 <code>ContractServiceWriteGuard.assertAllowedWrite</code>
 ／ ハイライト <code>ContractService__c.Edit_Contract_Service</code>（表示名「契約サービスを編集」。請求ボードの隣。Latest Orderedは問わない）
-／ 請求アカウントはNewと同じ他取引先検索。<code>save</code>は取引先不一致で拒否しない。契約履歴の<code>TaxPercent__c</code>・<code>TaxAmount__c</code>・<code>DeltaTaxInclusiveSum__c</code>は書かない。入力中の税率が未受注（Archiveを除く）または受注済みの保存税率と違うときだけ、税率欄の直下に帯を出す。帯が出ているあいだは確認するまで保存できない。保存済みの請求アカウントと選び直した値が違うときだけ、請求アカウント欄の直下に帯を出す。チェックでは止めない。
+／ 請求アカウントはNewと同じ他取引先検索。<code>save</code>は取引先不一致で拒否しない。契約履歴の<code>TaxPercent__c</code>・<code>TaxAmount__c</code>・<code>DeltaTaxInclusiveSum__c</code>は書かない。入力中の税率が未受注（Archiveを除く）または受注済みの保存税率と違うときだけ、税率欄の直下に帯を出す。帯が出ているあいだは確認するまで保存できない。保存済みの請求アカウントと選び直した値が違うときだけ、請求アカウント欄の直下に帯を出す。チェックでは止めない。数値の追加項目は第11.4.1節。既存<code>estimateWizardCustomFieldGrid</code>。税率は変えない。
 </div>
 
 #### 3.4.2 契約サービスを書く経路
@@ -2638,6 +2638,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 
 - 追加項目はすべて見積ウィザードのStep 2に表示し、Step 1には置かない。
 - 参照項目はレコード選択で出す。見せるのは参照先の名前である。保存する値はレコードIdのままである。読取も名前である。名前が取れないときは空のままにし、保存済みのIdは消さない。
+- 数値の追加項目は、その項目の小数点の位置まで入れる。0なら整数だけである。超えた桁はその場で止め、保存時に丸めない。契約サービスを編集も同じである。数量、単価、税率は変えない。
 - Cancelでも表示中かつ必須に設定された契約サービスおよび契約履歴の項目は入力を必須とする。
 - 契約サービス・契約履歴の項目は「契約のカスタム項目」、見積商品の項目は各明細の「商品のカスタム項目」に表示する。見積商品の開閉は第4.3.4節のヘッダ1トグル。行別トグルは置かない。
 - 表示中の項目を空欄で保存した場合は既存値をクリアする。
@@ -2661,7 +2662,7 @@ CMDT に入力規則と Trigger は置けない。件数と API 名の実在は�
 一覧 <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>EstimateWizardField__mdt</code> の種別の行一覧。列は表示ラベル、有効、対象、出す版、並び順、DeveloperName（後ろ）。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateCreateModal3.hasServiceCustomFields</code>、<code>estimateCreateWizard.displayedHistoryFieldDefinitions</code>、<code>EstimateSaveService</code>、<code>ContractServiceWriteGuard.assertAllowedWrite</code>
-／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code> のレコード選択。読取も名前。<code>estimateCreateModal3</code> と <code>contractServiceEdit</code> は同じ部品。保存する値はレコードId。保存しない表示行は同じ <code>EstimateWizardField__mdt</code>。項目API名は空。画面は既存 <code>estimateCreateModal3</code>。見積商品の表示行は <code>orderCreateWizard</code> と <code>orderRevertWizard</code> には出さない。
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code> のレコード選択。読取も名前。<code>estimateCreateModal3</code> と <code>contractServiceEdit</code> は同じ部品。保存する値はレコードId。保存しない表示行は同じ <code>EstimateWizardField__mdt</code>。項目API名は空。画面は既存 <code>estimateCreateModal3</code>。見積商品の表示行は <code>orderCreateWizard</code> と <code>orderRevertWizard</code> には出さない。数値は項目の小数点の位置。0なら整数。超えた桁はその場で止める。保存時に丸めない。同じ <code>estimateWizardCustomFieldGrid</code>。数量、単価、税率は変えない。
 </div>
 
 ##### Visibility演算子
@@ -2804,6 +2805,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 
 - 受注画面に契約履歴の追加項目セクションを出す。請求アカウント確認の必須項目は本定義に含めない。
 - 参照項目はレコード選択で出す。見せるのは参照先の名前である。保存する値はレコードIdのままである。読取も名前である。名前が取れないときは空のままにし、保存済みのIdは消さない。
+- 数値の追加項目は、その項目の小数点の位置まで入れる。0なら整数だけである。超えた桁はその場で止め、保存時に丸めない。
 - 表示対象が1件もなければセクション自体出さない。
 - 表示中の項目を空欄で受注した場合は空を保存する。
 - 見積種別により非表示となった項目は保存対象にせず既存値を維持する。
@@ -2847,7 +2849,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 一覧 表示ラベル、有効、出す版、並び順、DeveloperName（後ろ）。対象列は置かない。LWC編集器は持たない。
 レコードページ 見出しは「どれに出す」「初期値」「出す条件」。プレビューボタンは持たない。保存は標準。
 手続き <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>OrderWizardFieldService.getDefinitions</code>。受注は<code>OrderCreateController.getOrderContext</code> / <code>confirmOrder</code>。Ordered見積編集は第4.3節の見積編集保存。差し戻しは<code>OrderCreateController.revertOrder</code>。必須は画面に出している受注・Ordered見積編集で、旗ONの読み取りだけ。画面外のOrdered化では見ない。差し戻しでは見ない。
-／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。保存しない表示行は同じ <code>OrderWizardField__mdt</code>。読む先は商談と取引先。商品は設定エラー。見積商品の表示行は受注と差し戻しに出さない。見積ウィザードの商品明細に残す。
+／ 参照項目は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>estimateWizardCustomFieldGrid</code>。<code>orderCreateWizard</code> と <code>orderRevertWizard</code> と Ordered 見積編集は同じ部品。読取も名前。保存する値はレコードId。保存しない表示行は同じ <code>OrderWizardField__mdt</code>。読む先は商談と取引先。商品は設定エラー。見積商品の表示行は受注と差し戻しに出さない。見積ウィザードの商品明細に残す。数値は項目の小数点の位置。0なら整数。超えた桁はその場で止める。保存時に丸めない。同じ <code>estimateWizardCustomFieldGrid</code>。
 </div>
 
 自動Renew見積は申込日を前Orderedからコピーしない。作成日でも埋めない。ウィザード追加項目の初期値は自動Renewでは走らせない。コピー定義のToに申込日・受注日を置いてよい。標準シードのコピー行は置かない。`自動Renew`で申込日をコピーする定義を置いた会社だけが前Versionの日付を空欄へ入れる。
@@ -2871,6 +2873,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 
 - 定義に確定後／Lock後の編集可否フラグは持たない。確定後・登録後・Lock後に直せるかは、各オブジェクトのロック除外一覧へ人がAPI名を足したときだけである。定義から組織設定へ自動では書かない。
 - 参照項目はレコード選択で出す。見せるのは参照先の名前である。保存する値はレコードIdのままである。読取も名前である。名前が取れないときは空のままにし、保存済みのIdは消さない。請求ボード、横断の請求書タイル、横断の仕訳一覧も同じである。
+- 数値の追加項目は、その項目の小数点の位置まで入れる。0なら整数だけである。超えた桁はその場で止め、保存時に丸めない。横断の仕訳インラインも同じである。入出金金額と割当額は整数のままである。
 
 `Active__c=true`だけを対象とする。`TargetObject__c`は`Invoice__c`、`InvoicePayment__c`、`GlJournal__c`の3種に限る。入出金の`ShowOnInvoicePurpose__c` / `ShowOnNonInvoicePurpose__c`は明示trueだけ表示し、未設定は非表示とする。請求書・仕訳の行にこの2旗のいずれかがtrueなら設定エラーにする。定義に、存在しない項目、対象外オブジェクト、型不一致その他の不整合がある場合は、**対象画面の表示・保存を続行せず設定エラーとする。**黙って無効化しない。エラーにDeveloperNameを含める。
 
@@ -2907,7 +2910,7 @@ Active定義のFieldApiName、型、DefaultSource、参照パスが不正なら�
 ／ 入出金は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewOpsController.savePaymentFromPreview</code> ／ <span style="background:#d5f5e3;padding:0 6px;border-radius:3px;">新設</span> <code>InvoicePreviewOpsController.updatePaymentFromPreview</code>
 ／ 仕訳ボードは <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>InvoicePreviewOpsController.updateJournalMemo</code>
 ／ 横断は <span style="background:#fdebd0;padding:0 6px;border-radius:3px;">既存</span> <code>ContractCrossController.saveJournals</code>、<code>contractCrossWork</code>
-／ 参照項目は <code>orderInvoicePreviewTable</code> と <code>contractCrossWork</code> のレコード選択。読取も名前。保存する値はレコードId。
+／ 参照項目は <code>orderInvoicePreviewTable</code> と <code>contractCrossWork</code> のレコード選択。読取も名前。保存する値はレコードId。数値は項目の小数点の位置。0なら整数。超えた桁はその場で止める。保存時に丸めない。横断の仕訳インラインも同じ <code>contractCrossWork</code>。入出金金額と割当額は整数のまま。同じ <code>orderInvoicePreviewTable</code>。
 </div>
 
 CMDT変更後はcacheable取得を更新するため`InvoiceOpsFieldService`を再デプロイする。
