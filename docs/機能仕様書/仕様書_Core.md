@@ -2786,7 +2786,7 @@ Toオブジェクトは実オブジェクトだけとする。コンテキスト
 
 コピー元の数式は、計算結果を読んでよい。
 
-標準サンプルの識別は`Sample_Inv_AccountName`、`Sample_Line_ProductCode`、`Sample_Journal_ProductCode`の3件である。自動では入れない。顧客が標準画面で置ける。人が消したあとも戻さない。期間明細への取引先名見本（旧`Sample_Period_AccountName`）は置かない。請求先の寄せは請求ヘッダーが正本である（第6.1節）。`Sample_Journal_ProductCode`はFrom=`Product2.ProductCode`、To=`GlJournal.ProductCodeSnapShot__c`（表示名「商品コード SnapShot」）、コンテキストは明細仕訳とする。Memoへは寄せない。`ProductCodeSnapShot__c`は拒否リストに入れない。正規処理・Goal・キーには使わない。
+標準サンプルの識別は`Sample_Inv_AccountName`、`Sample_Line_ProductCode`、`Sample_Journal_ProductCode`の3件である。自動では入れない。顧客が標準画面で置ける。人が消したあとも戻さない。期間明細への取引先名見本（旧`Sample_Period_AccountName`）は置かない。期間明細にコピー先のパッケージ項目は足さない。会社が足した項目への空欄コピーはそのままである。パッケージのテストでは、契約履歴、見積商品、商談から期間明細の空欄へ写ったことを断言しない。請求先の寄せは請求ヘッダーが正本である（第6.1節）。`Sample_Journal_ProductCode`はFrom=`Product2.ProductCode`、To=`GlJournal.ProductCodeSnapShot__c`（表示名「商品コード SnapShot」）、コンテキストは明細仕訳とする。Memoへは寄せない。`ProductCodeSnapShot__c`は拒否リストに入れない。正規処理・Goal・キーには使わない。
 
 #### 11.4.3 受注ウィザードの追加項目
 
