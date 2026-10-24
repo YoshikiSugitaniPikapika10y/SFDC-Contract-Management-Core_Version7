@@ -881,6 +881,36 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     expect(updateInvoiceLineAcceptanceEndDate).toHaveBeenCalled();
   });
 
+  it("検収終了日の保存失敗は押した明細の直下に出し、最上部には出さない", async () => {
+    resolveSaveErrorAlert.mockReturnValue(null);
+    updateInvoiceLineAcceptanceEndDate.mockRejectedValue({
+      body: { message: "仕訳を切れません。" }
+    });
+    const table = { showCardNotice: jest.fn() };
+    const ctx = bind({
+      previewHistoryId: "a01HIS",
+      invoicePreview: { contentVersion: 1 },
+      template: { querySelector: jest.fn(() => table) }
+    });
+    await ctx.handleSaveAcceptanceEndDate({
+      detail: {
+        lineId: "li1",
+        acceptanceEndDate: "2026-04-30",
+        noticeInvoiceId: "a02INV",
+        noticeAnchor: "acceptance",
+        noticeRowId: "li1"
+      }
+    });
+    expect(ctx.invoiceError).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "a02INV",
+      "acceptance",
+      "仕訳を切れません。",
+      true,
+      "li1"
+    );
+  });
+
   it("row click opens estimate; link click does not (横断 第5節)", async () => {
     const ctx = bind({
       menu: "estimate",

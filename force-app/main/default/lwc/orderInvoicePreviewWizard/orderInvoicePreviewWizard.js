@@ -512,17 +512,36 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
     }
     return {
       invoiceId: detail.noticeInvoiceId,
-      anchor: detail.noticeAnchor
+      anchor: detail.noticeAnchor,
+      rowId: detail.noticeRowId || null
     };
+  }
+
+  /** 仕様: Core 第7.7.0節。行識別子があるときだけ、押した明細の直下へ出す。 */
+  placeCardNotice(table, card, message, reload) {
+    if (!card || typeof table?.showCardNotice !== "function") {
+      return false;
+    }
+    if (card.rowId) {
+      table.showCardNotice(
+        card.invoiceId,
+        card.anchor,
+        message,
+        reload,
+        card.rowId
+      );
+    } else {
+      table.showCardNotice(card.invoiceId, card.anchor, message, reload);
+    }
+    return true;
   }
 
   placeCardError(detail, message) {
     const card = this.cardNoticeFrom(detail);
     const table = this.template.querySelector("c-order-invoice-preview-table");
-    if (card && typeof table?.showCardNotice === "function") {
+    if (this.placeCardNotice(table, card, message, true)) {
       this.errorMessage = "";
       this.contentLoadFailed = false;
-      table.showCardNotice(card.invoiceId, card.anchor, message, true);
       return;
     }
     if (this.hasPreview) {
@@ -548,15 +567,11 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
       const table = this.template.querySelector(
         "c-order-invoice-preview-table"
       );
-      if (card && typeof table?.showCardNotice === "function") {
+      if (
+        this.placeCardNotice(table, card, "請求情報を保存しました。", false)
+      ) {
         this.completionNote = "";
         this.errorMessage = "";
-        table.showCardNotice(
-          card.invoiceId,
-          card.anchor,
-          "請求情報を保存しました。",
-          false
-        );
       } else if (this.hasPreview) {
         this.completionNote = "";
         this.errorMessage = "";
@@ -576,7 +591,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
         if (message === VERSION_CONFLICT_MESSAGE) {
           await this.loadPreview();
         }
-        table.showCardNotice(card.invoiceId, card.anchor, message, true);
+        this.placeCardNotice(table, card, message, true);
         return false;
       }
       if (this.hasPreview) {
@@ -744,7 +759,7 @@ export default class OrderInvoicePreviewWizard extends NavigationMixin(
           this.errorMessage = "";
           this.contentLoadFailed = false;
           if (card && typeof table?.showCardNotice === "function") {
-            table.showCardNotice(card.invoiceId, card.anchor, message, true);
+            this.placeCardNotice(table, card, message, true);
           }
           return true;
         }

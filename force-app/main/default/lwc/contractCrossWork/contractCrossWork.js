@@ -2170,8 +2170,29 @@ export default class ContractCrossWork extends NavigationMixin(
     }
     return {
       invoiceId: detail.noticeInvoiceId,
-      anchor: detail.noticeAnchor
+      anchor: detail.noticeAnchor,
+      rowId: detail.noticeRowId || null
     };
+  }
+
+  /** 仕様: Core 第7.7.0節。行識別子があるときだけ、押した明細の直下へ出す。 */
+  placeCardNotice(card, message, reload) {
+    const table = this.template?.querySelector("c-order-invoice-preview-table");
+    if (!card || typeof table?.showCardNotice !== "function") {
+      return false;
+    }
+    if (card.rowId) {
+      table.showCardNotice(
+        card.invoiceId,
+        card.anchor,
+        message,
+        reload,
+        card.rowId
+      );
+    } else {
+      table.showCardNotice(card.invoiceId, card.anchor, message, reload);
+    }
+    return true;
   }
 
   async runEdit(action, successMessage, options) {
@@ -2192,14 +2213,7 @@ export default class ContractCrossWork extends NavigationMixin(
           : next;
       if (card) {
         this.completionNote = "";
-        this.template
-          .querySelector("c-order-invoice-preview-table")
-          ?.showCardNotice(
-            card.invoiceId,
-            card.anchor,
-            "請求情報を保存しました。",
-            false
-          );
+        this.placeCardNotice(card, "請求情報を保存しました。", false);
       } else {
         this.completionNote = "請求情報を保存しました。";
       }
@@ -2212,9 +2226,7 @@ export default class ContractCrossWork extends NavigationMixin(
         if (message === VERSION_CONFLICT_MESSAGE) {
           await this.reloadInvoiceTile();
         }
-        this.template
-          .querySelector("c-order-invoice-preview-table")
-          ?.showCardNotice(card.invoiceId, card.anchor, message, true);
+        this.placeCardNotice(card, message, true);
         return false;
       }
       this.invoiceError = message;

@@ -430,6 +430,62 @@ describe("orderInvoicePreviewWizard uncovered (Core 7.7 / 7.9.7 / 4.3.11)", () =
     expect(cancelConfirmedFromPreview).toHaveBeenCalled();
   });
 
+  it("検収終了日の保存失敗は押した明細の直下に出し、最上部には出さない", async () => {
+    updateInvoiceLineAcceptanceEndDate.mockRejectedValue({
+      body: { message: "仕訳を切れません。" }
+    });
+    const table = { showCardNotice: jest.fn() };
+    const ctx = bind({
+      template: { querySelector: jest.fn(() => table) }
+    });
+    await ctx.handleSaveAcceptanceEndDate({
+      detail: {
+        lineId: "line1",
+        acceptanceEndDate: "2026-03-31",
+        noticeInvoiceId: "inv",
+        noticeAnchor: "acceptance",
+        noticeRowId: "line1"
+      }
+    });
+    expect(ctx.errorMessage).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "acceptance",
+      "仕訳を切れません。",
+      true,
+      "line1"
+    );
+  });
+
+  it("検収終了日の保存成功は押した明細の直下に出す", async () => {
+    updateInvoiceLineAcceptanceEndDate.mockResolvedValue({
+      contentVersion: "v2",
+      invoices: []
+    });
+    const table = { showCardNotice: jest.fn() };
+    const ctx = bind({
+      template: { querySelector: jest.fn(() => table) }
+    });
+    await ctx.handleSaveAcceptanceEndDate({
+      detail: {
+        lineId: "line1",
+        acceptanceEndDate: "2026-03-31",
+        noticeInvoiceId: "inv",
+        noticeAnchor: "acceptance",
+        noticeRowId: "line1"
+      }
+    });
+    expect(ctx.errorMessage).toBe("");
+    expect(ctx.completionNote).toBe("");
+    expect(table.showCardNotice).toHaveBeenCalledWith(
+      "inv",
+      "acceptance",
+      "請求情報を保存しました。",
+      false,
+      "line1"
+    );
+  });
+
   it("acceptance missing 取消基準日 opens table prompt (Core 7.9)", async () => {
     updateInvoiceLineAcceptanceEndDate.mockRejectedValue({
       body: { message: "取消基準日が必要です。" }

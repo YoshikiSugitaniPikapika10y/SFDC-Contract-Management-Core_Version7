@@ -5019,6 +5019,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         detail: {
           noticeInvoiceId: invoiceId,
           noticeAnchor: "acceptance",
+          noticeRowId: lineId,
           lineId,
           acceptanceEndDate: next,
           cancellationDate: null,
@@ -5130,6 +5131,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         detail: {
           noticeInvoiceId: invoiceId,
           noticeAnchor: "acceptance",
+          noticeRowId: draft.lineId,
           lineId: draft.lineId,
           acceptanceEndDate: draft.nextDate,
           cancellationDate: draft.requiresDate ? draft.cancellationDate : null,
@@ -7149,8 +7151,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
         : null;
   }
 
+  /** 仕様: Core 第7.7.0節。行がある保存は押した明細の直下。最上部には出さない。 */
   @api
-  showCardNotice(invoiceId, anchor, message, reload) {
+  showCardNotice(invoiceId, anchor, message, reload, rowId) {
     const text = String(message || "");
     this.surfaceError = "";
     this.completionNote = "";
@@ -7164,6 +7167,9 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
       text,
       reload: reload === true
     };
+    if (rowId) {
+      this.cardNotice.rowId = rowId;
+    }
   }
 
   operationBlockedSentence() {

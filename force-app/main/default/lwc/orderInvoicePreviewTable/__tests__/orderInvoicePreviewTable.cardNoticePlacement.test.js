@@ -184,6 +184,36 @@ describe("orderInvoicePreviewTable card notice placement (Core 7.7.0)", () => {
     });
   });
 
+  it("検収終了日の保存失敗は、行識別子があるときその明細の直下に出す", () => {
+    const proto = OrderInvoicePreviewTable.prototype;
+    const ctx = placeCtx();
+    proto.showCardNotice.call(
+      ctx,
+      INVOICE,
+      "acceptance",
+      "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。",
+      true,
+      LINE
+    );
+    expect(ctx.surfaceError).toBe("");
+    expect(ctx.cardNotice).toMatchObject({
+      invoiceId: INVOICE,
+      anchor: "acceptance",
+      rowId: LINE,
+      text: "他のユーザーが先に更新しました。画面を開き直してから再度操作してください。",
+      reload: true
+    });
+  });
+
+  it("行識別子の無いカード通知は、検収終了日の直下には出さない", () => {
+    const proto = OrderInvoicePreviewTable.prototype;
+    const ctx = placeCtx();
+    proto.showCardNotice.call(ctx, INVOICE, "acceptance", "請求情報を保存しました。", false);
+    expect(ctx.surfaceError).toBe("");
+    expect(ctx.cardNotice.rowId).toBeUndefined();
+    expect(ctx.cardNotice.text).toBe("請求情報を保存しました。");
+  });
+
   it("発行の帳票変更プレビュー失敗はパネルの中に残し、最上部には出さない", async () => {
     const proto = OrderInvoicePreviewTable.prototype;
     global.__lwcJestMock_previewIssueInvoice.mockRejectedValue({
