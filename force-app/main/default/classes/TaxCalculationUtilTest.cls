@@ -273,4 +273,86 @@ private class TaxCalculationUtilTest {
       '0は小数表記ではなく表示％の0%'
     );
   }
+
+  @IsTest
+  static void calculateTaxAmount_readsModeWithoutRewritingOrgDefault() {
+    String orgMode = AmountCalculationSettingService.requireOrgDefault()
+      .TaxRoundingMode__c;
+    System.assertEquals(
+      TaxCalculationUtil.calculateTaxAmount(1005, 10),
+      TaxCalculationUtil.calculateTaxAmount(1005, 10, orgMode),
+      'Core 第7.4節・第11.9節: 方式を渡さない税額は組織の税額丸めのまま'
+    );
+    System.assertEquals(
+      TaxCalculationUtil.calculateTaxAmount(-1005, 10),
+      TaxCalculationUtil.calculateTaxAmount(-1005, 10, orgMode),
+      'Core 第7.4節・第11.9節: 負額も方式を渡さなければ組織の税額丸めのまま'
+    );
+
+    Decimal towardZero = TaxCalculationUtil.calculateTaxAmount(
+      1005,
+      10,
+      AmountCalculationSettingService.TAX_ROUND_DOWN
+    );
+    Decimal halfUp = TaxCalculationUtil.calculateTaxAmount(
+      1005,
+      10,
+      AmountCalculationSettingService.TAX_ROUND_HALF_UP
+    );
+    Decimal awayFromZero = TaxCalculationUtil.calculateTaxAmount(
+      1005,
+      10,
+      AmountCalculationSettingService.TAX_ROUND_UP
+    );
+    System.assertNotEquals(
+      towardZero,
+      halfUp,
+      'Core 第11.9節: 四捨五入の税額は0方向切捨てと違う'
+    );
+    System.assertNotEquals(
+      towardZero,
+      awayFromZero,
+      'Core 第11.9節: 0から離れる切上げの税額は0方向切捨てと違う'
+    );
+
+    Decimal negativeTowardZero = TaxCalculationUtil.calculateTaxAmount(
+      -1005,
+      10,
+      AmountCalculationSettingService.TAX_ROUND_DOWN
+    );
+    System.assertNotEquals(
+      negativeTowardZero,
+      TaxCalculationUtil.calculateTaxAmount(
+        -1005,
+        10,
+        AmountCalculationSettingService.TAX_ROUND_HALF_UP
+      ),
+      'Core 第11.9節: 負額の四捨五入は0方向切捨てと違う'
+    );
+    System.assertNotEquals(
+      negativeTowardZero,
+      TaxCalculationUtil.calculateTaxAmount(
+        -1005,
+        10,
+        AmountCalculationSettingService.TAX_ROUND_UP
+      ),
+      'Core 第11.9節: 負額の0から離れる切上げは0方向切捨てと違う'
+    );
+
+    Boolean unknown = false;
+    try {
+      TaxCalculationUtil.calculateTaxAmount(1005, 10, null);
+    } catch (AmountCalculationSettingService.SettingException ex) {
+      unknown = true;
+      System.assert(
+        ex.getMessage().contains('税額丸め'),
+        ex.getMessage()
+      );
+    }
+    System.assertEquals(
+      true,
+      unknown,
+      'Core 第11.9節・第1.1.10節: 方式が空なら切捨てへ落とさない'
+    );
+  }
 }

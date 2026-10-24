@@ -66,13 +66,26 @@ public without sharing class TaxCalculationUtil {
     Decimal amountExclTax,
     Decimal taxPercent
   ) {
+    return calculateTaxAmount(
+      amountExclTax,
+      taxPercent,
+      AmountCalculationSettingService.requireOrgDefault().TaxRoundingMode__c
+    );
+  }
+
+  /** 仕様: Core 第7.4節、第11.9節。テスト専用オーバーロード。組織の OrgDefault は書き換えない。 */
+  public static Decimal calculateTaxAmount(
+    Decimal amountExclTax,
+    Decimal taxPercent,
+    String taxRoundingMode
+  ) {
     Decimal rate = resolveTaxPercent(taxPercent) / 100;
     if (amountExclTax == null || amountExclTax == 0) {
       return 0;
     }
     return (amountExclTax * rate).setScale(
       0,
-      AmountCalculationSettingService.taxRoundingMode()
+      AmountCalculationSettingService.taxRoundingMode(taxRoundingMode)
     );
   }
 

@@ -89,14 +89,21 @@ public without sharing class AmountCalculationSettingService {
 
   /** 仕様: Core 第11.9節 */
   public static RoundingMode taxRoundingMode() {
-    String raw = requireOrgDefault().TaxRoundingMode__c;
+    return taxRoundingMode(requireOrgDefault().TaxRoundingMode__c);
+  }
+
+  /** 仕様: Core 第11.9節、第1.1.10節。テスト専用オーバーロード。組織の OrgDefault は書き換えない。 */
+  public static RoundingMode taxRoundingMode(String raw) {
     if (raw == TAX_ROUND_HALF_UP) {
       return RoundingMode.HALF_UP;
     }
     if (raw == TAX_ROUND_UP) {
       return RoundingMode.UP;
     }
-    return RoundingMode.DOWN;
+    if (raw == TAX_ROUND_DOWN) {
+      return RoundingMode.DOWN;
+    }
+    throw new SettingException('税額丸めの設定が無い、空、または不正です。');
   }
 
   /** 仕様: Core 第4.6節、第11.9節。数量・単価の小数桁。無い・空・未知は requireOrgDefault でエラー。 */
