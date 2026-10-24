@@ -21,6 +21,18 @@ function isBlankCustomValue(value) {
   return isMissingRequiredCustomValue(value);
 }
 
+// 仕様: Core 第11.4.1節・第11.4.3節・第3.4.1節・第11.4.4節。数値は小数点の位置まで。0なら整数。超えた桁は入力で止める。
+export function customNumberStep(fieldType, scale) {
+  if (fieldType !== "DOUBLE") {
+    return undefined;
+  }
+  const digits = Number(scale);
+  if (!Number.isFinite(digits) || digits <= 0) {
+    return "1";
+  }
+  return `0.${"0".repeat(digits - 1)}1`;
+}
+
 function isIntegerCustomValue(value) {
   if (typeof value === "number") {
     return Number.isInteger(value);
@@ -638,6 +650,8 @@ export function buildCustomFieldInputs(
       isDate,
       isReference,
       referenceObjectApiName: field.referenceObjectApiName || "",
+      scale: field.scale,
+      numberStep: customNumberStep(field.fieldType, field.scale),
       isTextarea,
       isText:
         !isCheckbox &&

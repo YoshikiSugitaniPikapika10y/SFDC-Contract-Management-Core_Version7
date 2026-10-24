@@ -1036,5 +1036,43 @@ describe("contractCrossWork uncovered paths (共通基盤 横断 第1 / 2.4 / 5 
     expect(ctx.checkedIds.a03JOU).toBe(true);
     expect(ctx.collectionOptions.map((o) => o.label)).toContain("未対応");
   });
+
+  it("横断の仕訳追加項目は数値の小数点の位置。0なら整数 (Core 第11.4.4節)", () => {
+    const ctx = {
+      journalGroups: [],
+      operationDay: null,
+      canEditJournalMemoOp: true,
+      journalColumnMode: true,
+      extraDrafts: {},
+      journalLockExemptFieldApiNames: [],
+      journalExtraDefinitions: [
+      {
+        apiName: "Rate__c",
+        label: "レート",
+        fieldType: "DOUBLE",
+        scale: 6
+      },
+      {
+        apiName: "Count__c",
+        label: "個数",
+        fieldType: "DOUBLE",
+        scale: 0
+      },
+      {
+        apiName: "Money__c",
+        label: "金額",
+        fieldType: "CURRENCY",
+        scale: 2
+      }
+    ]};
+    const cells = ContractCrossWork.prototype.journalCells.call(
+      ctx,
+      { id: "a03JOU", extraFieldValues: {} },
+      ""
+    );
+    expect(
+      cells.filter((cell) => cell.isExtra).map((cell) => cell.numberStep)
+    ).toEqual(["0.000001", "1", undefined]);
+  });
 });
 

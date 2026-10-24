@@ -10,7 +10,8 @@ import {
   filterVisibleCustomFieldDefinitions,
   isCustomFieldVisibleForWizardType,
   shallowEqualFieldMaps,
-  buildCustomFieldInputs
+  buildCustomFieldInputs,
+  customNumberStep
 } from "c/estimateWizardCustomFields";
 
 describe("getCustomFieldTypeError", () => {
@@ -472,5 +473,49 @@ describe("buildCustomFieldInputs picklist display (Core 第0.1節・第7.2節・
     expect(inputs[0].isReference).toBe(true);
     expect(inputs[0].referenceObjectApiName).toBe("EstimateRemarkMaster__c");
     expect(inputs[0].isText).toBe(false);
+  });
+});
+
+describe("customNumberStep (Core 第11.4.1節・第11.4.3節・第3.4.1節)", () => {
+  it("数値は小数点の位置まで。0なら整数。通貨と百分率は刻みを付けない", () => {
+    expect(customNumberStep("DOUBLE", 6)).toBe("0.000001");
+    expect(customNumberStep("DOUBLE", 2)).toBe("0.01");
+    expect(customNumberStep("DOUBLE", 0)).toBe("1");
+    expect(customNumberStep("DOUBLE", null)).toBe("1");
+    expect(customNumberStep("CURRENCY", 2)).toBeUndefined();
+    expect(customNumberStep("PERCENT", 2)).toBeUndefined();
+    expect(customNumberStep("INTEGER", 0)).toBeUndefined();
+  });
+
+  it("追加項目の入力へその刻みを載せる", () => {
+    const inputs = buildCustomFieldInputs(
+      [
+        {
+          apiName: "Rate__c",
+          label: "レート",
+          fieldType: "DOUBLE",
+          scale: 6
+        },
+        {
+          apiName: "Count__c",
+          label: "個数",
+          fieldType: "DOUBLE",
+          scale: 0
+        },
+        {
+          apiName: "Money__c",
+          label: "金額",
+          fieldType: "CURRENCY",
+          scale: 2
+        }
+      ],
+      {},
+      "estimate",
+      false
+    );
+    expect(inputs[0].numberStep).toBe("0.000001");
+    expect(inputs[0].scale).toBe(6);
+    expect(inputs[1].numberStep).toBe("1");
+    expect(inputs[2].numberStep).toBeUndefined();
   });
 });

@@ -21,6 +21,7 @@ import updateInvoiceHeaderAndDates from "@salesforce/apex/ContractCrossControlle
 import applyBillingAccountContent from "@salesforce/apex/ContractCrossController.applyBillingAccountContent";
 import cancelConfirmedFromPreview from "@salesforce/apex/ContractCrossController.cancelConfirmedFromPreview";
 import getInvoiceOpsFieldDefinitions from "@salesforce/apex/InvoiceOpsFieldService.getDefinitions";
+import { customNumberStep } from "c/estimateWizardCustomFields";
 import hasLockJournal from "@salesforce/customPermission/Loop_16_Can_LockJournal";
 import hasUnlockJournal from "@salesforce/customPermission/Loop_17_Can_UnlockJournal";
 import hasEditDraftInvoice from "@salesforce/customPermission/Loop_10_Can_EditDraftInvoice";
@@ -2652,6 +2653,7 @@ export default class ContractCrossWork extends NavigationMixin(
           referenceObjectApiName: definition.referenceObjectApiName || "",
           isInput: !isCheckbox && !isPicklist && !isTextarea && !isReference,
           inputType: extraFieldInputType(fieldType),
+          numberStep: customNumberStep(fieldType, definition.scale),
           picklistOptions: definition.picklistOptions || [],
           required: definition.required === true && !disabled,
           disabled,

@@ -1,4 +1,5 @@
 import { LightningElement, api } from "lwc";
+import { customNumberStep } from "c/estimateWizardCustomFields";
 
 /** User は表示項目と検索項目を渡さないと record-picker が設定エラーになる。 */
 const USER_DISPLAY_INFO = {
@@ -29,14 +30,21 @@ export default class EstimateWizardCustomFieldGrid extends LightningElement {
 
   get viewFields() {
     return (this.fields || []).map((field) => {
+      if (!field) {
+        return field;
+      }
+      const next = {
+        ...field,
+        numberStep: customNumberStep(field.fieldType, field.scale)
+      };
       if (field && field.referenceObjectApiName === "User") {
         return {
-          ...field,
+          ...next,
           displayInfo: USER_DISPLAY_INFO,
           matchingInfo: USER_MATCHING_INFO
         };
       }
-      return field;
+      return next;
     });
   }
 

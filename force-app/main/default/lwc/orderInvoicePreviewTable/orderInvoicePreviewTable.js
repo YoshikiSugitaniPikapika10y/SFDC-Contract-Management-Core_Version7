@@ -30,6 +30,7 @@ import {
   roundUnitPrice,
   setAmountCalculationRoundingModes
 } from "c/estimateLineItemUtils";
+import { customNumberStep } from "c/estimateWizardCustomFields";
 import hasLockJournal from "@salesforce/customPermission/Loop_16_Can_LockJournal";
 import hasUnlockJournal from "@salesforce/customPermission/Loop_17_Can_UnlockJournal";
 import hasEditDraftInvoice from "@salesforce/customPermission/Loop_10_Can_EditDraftInvoice";
@@ -1261,6 +1262,7 @@ export default class OrderInvoicePreviewTable extends NavigationMixin(
           referenceObjectApiName: definition.referenceObjectApiName || "",
           isInput: !isCheckbox && !isPicklist && !isTextarea && !isReference,
           inputType: extraFieldInputType(fieldType),
+          numberStep: customNumberStep(fieldType, definition.scale),
           value: isCheckbox ? checked : raw == null ? "" : raw,
           checked,
           picklistOptions: definition.picklistOptions || []

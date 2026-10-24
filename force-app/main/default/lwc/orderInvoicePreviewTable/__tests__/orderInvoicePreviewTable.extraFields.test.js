@@ -921,4 +921,46 @@ describe("orderInvoicePreviewTable extra fields (Core 11.4.4 / 7.8 / Accounting 
         .classList.contains("invoice-tab_active")
     ).toBe(true);
   });
+
+  it("追加項目の数値は小数点の位置。0なら整数。通貨は刻みを付けない (Core 第11.4.4節)", () => {
+    const ctx = {
+      invoiceOpsFieldDefinitions: [
+      {
+        targetObject: "InvoicePayment__c",
+        apiName: "Rate__c",
+        label: "レート",
+        fieldType: "DOUBLE",
+        scale: 6,
+        showOnInvoicePurpose: true
+      },
+      {
+        targetObject: "InvoicePayment__c",
+        apiName: "Count__c",
+        label: "個数",
+        fieldType: "DOUBLE",
+        scale: 0,
+        showOnInvoicePurpose: true
+      },
+      {
+        targetObject: "InvoicePayment__c",
+        apiName: "Money__c",
+        label: "金額",
+        fieldType: "CURRENCY",
+        scale: 2,
+        showOnInvoicePurpose: true
+      }
+    ]};
+    Object.setPrototypeOf(ctx, OrderInvoicePreviewTable.prototype);
+    const views = ctx.buildExtraFieldViews({
+      targetObject: "InvoicePayment__c",
+      purpose: "Invoice",
+      storedValues: {},
+      draftValues: {}
+    });
+    expect(views.map((field) => field.numberStep)).toEqual([
+      "0.000001",
+      "1",
+      undefined
+    ]);
+  });
 });
